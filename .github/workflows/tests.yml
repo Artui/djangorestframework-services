@@ -1,0 +1,74 @@
+name: Test djangorestframework-services package
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format
+        run: uv run ruff format --check --diff .
+
+      - name: Type check
+        run: uv run ty check rest_framework_services
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        django-version: ["4.2", "5.0", "5.1", "5.2", "6.0"]
+        exclude:
+          # Django 4.2 supports Python 3.8–3.12
+          - python-version: "3.13"
+            django-version: "4.2"
+          - python-version: "3.14"
+            django-version: "4.2"
+          # Django 5.0 supports Python 3.10–3.12
+          - python-version: "3.13"
+            django-version: "5.0"
+          - python-version: "3.14"
+            django-version: "5.0"
+          # Django 5.1 supports Python 3.10–3.13
+          - python-version: "3.14"
+            django-version: "5.1"
+          # Django 6.0 requires Python 3.12+
+          - python-version: "3.10"
+            django-version: "6.0"
+          - python-version: "3.11"
+            django-version: "6.0"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Pin Django ${{ matrix.django-version }}
+        run: uv pip install --reinstall-package django "django~=${{ matrix.django-version }}.0"
+
+      - name: Run tests
+        run: uv run --no-sync pytest

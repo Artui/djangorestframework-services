@@ -1,0 +1,91 @@
+"""Tests for SelectorRetrieveView."""
+
+from __future__ import annotations
+
+from typing import Any
+
+import pytest
+from rest_framework.test import APIRequestFactory
+
+from rest_framework_services import SelectorRetrieveView
+from tests.testapp.models import Author
+from tests.testapp.serializers import AuthorSerializer
+
+
+def _get_author(*, pk: int) -> Author | None:
+    return Author.objects.filter(pk=pk).first()
+
+
+class _RetrieveAuthorView(SelectorRetrieveView):
+    selector = _get_author
+    serializer_class = AuthorSerializer
+
+
+factory = APIRequestFactory()
+
+
+@pytest.mark.django_db
+class TestSelectorRetrieveView:
+    def test_returns_serialized_object(self) -> None:
+        author = Author.objects.create(name="Ada")
+        request = factory.get("/")
+        response = _RetrieveAuthorView.as_view()(request, pk=author.pk)
+        assert response.status_code == 200
+        assert response.data == {"id": author.pk, "name": "Ada"}
+
+    def test_404_when_none_returned(self) -> None:
+        request = factory.get("/")
+        response = _RetrieveAuthorView.as_view()(request, pk=999)
+        assert response.status_code == 404
+
+    def test_404_when_does_not_exist_raised(self) -> None:
+        def strict_get(*, pk: int) -> Author:
+            return Author.objects.get(pk=pk)
+
+        class _View(SelectorRetrieveView):
+            selector = strict_get
+            serializer_class = AuthorSerializer
+
+        request = factory.get("/")
+        response = _View.as_view()(request, pk=999)
+        assert response.status_code == 404
+
+    def test_get_selector_kwargs_extras_passed(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def tenant_get(*, pk: int, tenant: str) -> Author | None:
+            captured.update({"pk": pk, "tenant": tenant})
+            return Author.objects.filter(pk=pk).first()
+
+        class _View(SelectorRetrieveView):
+            selector = tenant_get
+            serializer_class = AuthorSerializer
+
+            def get_selector_kwargs(self) -> dict[str, Any]:
+                return {"tenant": "acme"}
+
+        author = Author.objects.create(name="x")
+        request = factory.get("/")
+        _View.as_view()(request, pk=author.pk)
+        assert captured == {"pk": author.pk, "tenant": "acme"}
+
+    def test_falls_back_to_get_object_when_selector_missing(self) -> None:
+        author = Author.objects.create(name="Ada")
+
+        class _Vanilla(SelectorRetrieveView):
+            queryset = Author.objects.all()
+            serializer_class = AuthorSerializer
+
+        request = factory.get("/")
+        response = _Vanilla.as_view()(request, pk=author.pk)
+        assert response.status_code == 200
+        assert response.data["name"] == "Ada"
+
+    def test_fallback_returns_404_when_object_missing(self) -> None:
+        class _Vanilla(SelectorRetrieveView):
+            queryset = Author.objects.all()
+            serializer_class = AuthorSerializer
+
+        request = factory.get("/")
+        response = _Vanilla.as_view()(request, pk=999)
+        assert response.status_code == 404

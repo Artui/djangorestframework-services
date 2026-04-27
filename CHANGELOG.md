@@ -1,0 +1,130 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.1.0] — 2026-04-27
+
+First public release. A service / selector layer for Django REST Framework:
+views, viewsets, mutation helpers, and a scaffolding command, with
+first-class sync + async support and 100% test coverage.
+
+### Added
+
+#### Mutation helpers (`rest_framework_services.mutations`)
+
+- `apply_input(instance, data, ...)` — set attributes in memory, no save.
+- `create_from_input(model, data, ...)` — build, save, optional M2M.
+- `update_from_input(instance, data, ...)` — diff in-memory state vs. input,
+  call `save(update_fields=[...])` with only the fields that actually
+  changed. Defaults can be overridden per call.
+- `acreate_from_input` / `aupdate_from_input` — async siblings using Django
+  4.2+ `asave()` / `aset()`.
+- All accept `data` as a dataclass / dict / `__dict__`-bearing object, with
+  `field_map`, `exclude_fields`, and `m2m` kwargs.
+- All return a `ChangeResult` (frozen dataclass) carrying `instance`,
+  `created`, and a tuple of `FieldChange` records, plus a `changed_fields`
+  property and `get_field_change(name)` lookup.
+- The `UNSET` sentinel distinguishes "field omitted from input" from "field
+  explicitly set to `None`".
+
+#### Standalone views (`rest_framework_services.views`)
+
+- `ServiceCreateView`, `ServiceUpdateView`, `ServiceDeleteView` — single-
+  purpose `GenericAPIView` subclasses, each composing `MutationFlowMixin`.
+  Configure via `service`, `input_dataclass`, `output_serializer`,
+  `output_selector`, `atomic`, `success_status`.
+- `SelectorListView`, `SelectorRetrieveView` — built on DRF's
+  `ListModelMixin` / `RetrieveModelMixin`. `selector` overrides
+  `get_queryset()` / `get_object()`; everything else (filter backends,
+  pagination, serialization) is vanilla DRF.
+
+#### Viewsets (`rest_framework_services.viewsets`)
+
+- `ServiceViewSet` — full-CRUD viewset composed of `ServiceCreateMixin`,
+  `ServiceUpdateMixin`, `ServiceDestroyMixin`, `SelectorListMixin`,
+  `SelectorRetrieveMixin`, and `MultiSerializerMixin`.
+- `SelectorViewSet` — read-only viewset (list + retrieve only).
+- All per-action mixins are exported so you can compose only the actions
+  you need.
+- `MultiSerializerMixin` — per-action serializer dispatch via a single
+  `serializer_classes: dict[str, type[Serializer]]` mapping; falls back to
+  DRF's `serializer_class` when the action isn't mapped.
+- `MutationFlowMixin` — exported as the building block for service-backed
+  action flow on bespoke shapes that don't fit the existing five mixins.
+- `@service_action` — decorator wrapping DRF's `@action` and routing the
+  custom action through the same validate-dispatch-render flow as the
+  standard mutations.
+
+#### Selector protocols (`rest_framework_services.selectors`)
+
+- `Selector` and `AsyncSelector` — `runtime_checkable` Protocols for
+  type-safe documentation of selector callables.
+
+#### Shared value types (`rest_framework_services.types`)
+
+- `ChangeResult`, `FieldChange`, `UNSET`. Framework-agnostic; live in their
+  own package and are re-exported at the top level.
+
+#### Exceptions (`rest_framework_services.exceptions`)
+
+- `ServiceError` and `ServiceValidationError` — framework-agnostic
+  exceptions raised from service code. The view boundary translates them:
+  `ServiceValidationError` → DRF `ValidationError` (HTTP 400); `ServiceError`
+  → `APIException` (HTTP 422).
+- Services do not import from `rest_framework`.
+
+#### Sync + async dispatch
+
+- Services and selectors can be `async def`; `inspect.iscoroutinefunction`
+  detects them and the view bridges to `async_to_sync` under sync
+  dispatch.
+- Atomic transactions wrap async services via
+  `sync_to_async(thread_sensitive=True)` to keep ORM connection state on a
+  consistent thread.
+
+#### Atomic transactions
+
+- Every mutation service runs inside `transaction.atomic()` by default.
+- Opt-out per view via `atomic = False` (or per-action via
+  `create_atomic` / `update_atomic` / `destroy_atomic`).
+
+#### `startserviceapp` management command
+
+- Subclass of `django.core.management.templates.TemplateCommand`.
+- Scaffolds a service-oriented Django app with `services/`, `selectors/`,
+  `validators/`, `serializers/`, `utils/` as packages, plus `models/` and
+  `views/` as packages instead of single files.
+- The bundled template lives at
+  `rest_framework_services/management/templates/service_app/` and ships
+  in the wheel. Add `"rest_framework_services"` to `INSTALLED_APPS` to
+  make the command discoverable.
+
+#### Examples and documentation
+
+- `README.md` — quick start (DataclassSerializer-first, ModelSerializer
+  shown as alternative), mental model, mutation helpers, views, viewsets,
+  errors, atomic, async, `startserviceapp`.
+- `examples/` — runnable Django project with an invoices app demonstrating
+  the full surface and an end-to-end `APITestCase`.
+
+### Compatibility
+
+- Python 3.10 – 3.14
+- Django 4.2, 5.0, 5.1, 5.2, 6.0
+- Django REST Framework ≥ 3.14
+- `djangorestframework-dataclasses` (hard dependency)
+
+### Quality gates
+
+- 100% line + branch coverage enforced via `pytest-cov`.
+- Type-checked with [`ty`](https://github.com/astral-sh/ty).
+- Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
+- CI matrix runs the full Python × Django product on every push.
+
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Artui/djangorestframework-services/releases/tag/v0.1.0
