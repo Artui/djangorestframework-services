@@ -39,7 +39,7 @@ class TestServiceDeleteView:
         response = _DeleteAuthorView.as_view()(request, pk=999)
         assert response.status_code == 404
 
-    def test_with_input_dataclass(self) -> None:
+    def test_with_input_serializer(self) -> None:
         @dataclass
         class _Reason:
             reason: str
@@ -53,7 +53,7 @@ class TestServiceDeleteView:
         class _View(ServiceDeleteView):
             queryset = Author.objects.all()
             service = fn
-            input_dataclass = _Reason
+            input_serializer = _Reason
 
         author = Author.objects.create(name="x")
         request = factory.delete("/", {"reason": "spam"}, format="json")

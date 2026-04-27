@@ -18,13 +18,13 @@ from rest_framework_services.views.utils import get_class_attr
 class ServiceDeleteView(MutationFlowMixin, GenericAPIView):
     """``DELETE`` endpoint that runs a service callable.
 
-    Optionally accepts a request body (``input_dataclass``) for delete-with-
+    Optionally accepts a request body (``input_serializer``) for delete-with-
     payload patterns (e.g. a deletion reason). By default returns ``204 No
     Content``; configure ``output_serializer`` to render a body.
     """
 
     service: ClassVar[Callable[..., Any] | None] = None
-    input_dataclass: ClassVar[type | None] = None
+    input_serializer: ClassVar[type | None] = None
     output_serializer: ClassVar[type[Serializer] | None] = None
     output_selector: ClassVar[Callable[..., Any] | None] = None
     atomic: ClassVar[bool] = True
@@ -37,7 +37,7 @@ class ServiceDeleteView(MutationFlowMixin, GenericAPIView):
         return self._run_mutation(
             request,
             service=service,
-            input_dataclass=self.input_dataclass,
+            input_serializer=self.input_serializer,
             output_serializer=self.output_serializer,
             output_selector=get_class_attr(self, "output_selector"),
             atomic=self.atomic,

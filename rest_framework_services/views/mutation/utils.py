@@ -2,7 +2,9 @@
 
 Public leaf helpers:
 
-- ``validate_input`` — turn ``request.data`` into a dataclass instance.
+- ``validate_input`` — turn ``request.data`` into the serializer's
+  ``validated_data`` (dict for ``ModelSerializer``, dataclass instance for
+  dataclass-based serializers).
 - ``dispatch_service`` — sync/async dispatch with optional atomic wrapping.
 - ``map_service_error`` — translate a framework-agnostic ``ServiceError``
   into the appropriate DRF exception.
@@ -19,6 +21,7 @@ Internal:
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import is_dataclass
 from typing import Any
 
 from asgiref.sync import async_to_sync
@@ -50,20 +53,41 @@ class _ServiceAPIException(drf_exceptions.APIException):
 
 def validate_input(
     request: Request,
-    input_dataclass: type | None,
+    input_serializer: type | None,
     *,
     partial: bool = False,
 ) -> Any:
-    """Validate ``request.data`` against ``input_dataclass``; ``None`` if absent."""
-    if input_dataclass is None:
+    """Validate ``request.data`` against ``input_serializer``; ``None`` if absent.
+
+    ``input_serializer`` may be:
+
+    - a bare dataclass type — wrapped in a ``DataclassSerializer`` on the fly;
+      ``validated_data`` is a dataclass instance;
+    - a ``DataclassSerializer`` subclass — instantiated directly;
+      ``validated_data`` is a dataclass instance;
+    - any other ``Serializer`` subclass (e.g. ``ModelSerializer``) —
+      instantiated directly; ``validated_data`` is a ``dict``.
+
+    The serializer's ``validated_data`` is returned (never ``.save()``); the
+    service is responsible for persistence.
+    """
+    if input_serializer is None:
         return None
-    serializer = DataclassSerializer(
-        dataclass=input_dataclass,
-        data=request.data,
-        partial=partial,
-    )
+    if isinstance(input_serializer, type) and issubclass(input_serializer, Serializer):
+        serializer: Serializer = input_serializer(data=request.data, partial=partial)
+    elif is_dataclass(input_serializer):
+        serializer = DataclassSerializer(
+            dataclass=input_serializer,
+            data=request.data,
+            partial=partial,
+        )
+    else:
+        raise TypeError(
+            "input_serializer must be a dataclass type or a Serializer subclass; "
+            f"got {input_serializer!r}."
+        )
     serializer.is_valid(raise_exception=True)
-    return serializer.save()
+    return serializer.validated_data
 
 
 def dispatch_service(
@@ -90,7 +114,7 @@ def _execute_mutation(
     request: Request,
     *,
     service: Callable[..., Any],
-    input_dataclass: type | None,
+    input_serializer: type | None,
     output_serializer: type[Serializer] | None,
     output_selector: Callable[..., Any] | None,
     atomic: bool,
@@ -110,7 +134,7 @@ def _execute_mutation(
          when service returned None and instance is available.
       6. Render via ``output_serializer`` (or raw, or 204).
     """
-    data: Any = validate_input(request, input_dataclass, partial=partial)
+    data: Any = validate_input(request, input_serializer, partial=partial)
     pool: dict[str, Any] = {
         "request": request,
         "user": getattr(request, "user", None),
@@ -118,7 +142,7 @@ def _execute_mutation(
     }
     if instance is not None:
         pool["instance"] = instance
-    if input_dataclass is not None:
+    if input_serializer is not None:
         pool["data"] = data
     if extra_kwargs:
         pool.update(extra_kwargs)

@@ -37,7 +37,7 @@ class _ApproveViewSet(GenericViewSet):
         detail=True,
         methods=["post"],
         service=_approve,
-        input_dataclass=_ApproveInput,
+        input_serializer=_ApproveInput,
     )
     def approve(self, request, pk=None):  # type: ignore[no-untyped-def]
         """Stubbed body — replaced by service_action."""
@@ -46,7 +46,7 @@ class _ApproveViewSet(GenericViewSet):
         detail=False,
         methods=["post"],
         service=_bulk_announce,
-        input_dataclass=_ApproveInput,
+        input_serializer=_ApproveInput,
         success_status=202,
         url_path="announce",
         url_name="bulk-announce",
@@ -94,7 +94,7 @@ class TestServiceAction:
                 detail=False,
                 methods=["post"],
                 service=fn,
-                input_dataclass=_ApproveInput,
+                input_serializer=_ApproveInput,
             )
             def go(self, request):  # type: ignore[no-untyped-def]
                 pass
@@ -123,7 +123,7 @@ class TestServiceAction:
                 detail=False,
                 methods=["post"],
                 service=boom,
-                input_dataclass=_ApproveInput,
+                input_serializer=_ApproveInput,
                 atomic=False,
             )
             def go(self, request):  # type: ignore[no-untyped-def]

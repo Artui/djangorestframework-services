@@ -26,7 +26,7 @@ class ServiceUpdateView(MutationFlowMixin, GenericAPIView):
     """
 
     service: ClassVar[Callable[..., Any] | None] = None
-    input_dataclass: ClassVar[type | None] = None
+    input_serializer: ClassVar[type | None] = None
     output_serializer: ClassVar[type[Serializer] | None] = None
     output_selector: ClassVar[Callable[..., Any] | None] = None
     atomic: ClassVar[bool] = True
@@ -45,7 +45,7 @@ class ServiceUpdateView(MutationFlowMixin, GenericAPIView):
         return self._run_mutation(
             request,
             service=service,
-            input_dataclass=self.input_dataclass,
+            input_serializer=self.input_serializer,
             output_serializer=self.output_serializer,
             output_selector=get_class_attr(self, "output_selector"),
             atomic=self.atomic,

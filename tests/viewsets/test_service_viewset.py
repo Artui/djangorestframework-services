@@ -49,10 +49,10 @@ class _AuthorViewSet(ServiceViewSet):
     list_selector = _list_authors
     retrieve_selector = _get_author
     create_service = _create_author
-    create_input_dataclass = _AuthorIn
+    create_input_serializer = _AuthorIn
     create_output_serializer = AuthorSerializer
     update_service = _update_author
-    update_input_dataclass = _AuthorIn
+    update_input_serializer = _AuthorIn
     update_output_serializer = AuthorSerializer
     destroy_service = _delete_author
 
@@ -127,7 +127,7 @@ class TestServiceViewSetActions:
             list_selector = listed
             serializer_classes = {"list": AuthorSerializer}
             create_service = created
-            create_input_dataclass = _AuthorIn
+            create_input_serializer = _AuthorIn
 
             def get_selector_kwargs(self) -> dict[str, Any]:
                 return {"tenant": "S"}
@@ -198,7 +198,7 @@ class TestServiceViewSetEdgeCases:
 
         class _View(ServiceViewSet):
             create_service = boom
-            create_input_dataclass = _AuthorIn
+            create_input_serializer = _AuthorIn
             create_atomic = False
 
         view = _View.as_view({"post": "create"})
@@ -214,7 +214,7 @@ class TestServiceViewSetEdgeCases:
 
         class _View(ServiceViewSet):
             create_service = fn
-            create_input_dataclass = _AuthorIn
+            create_input_serializer = _AuthorIn
             create_output_selector = selector
             create_atomic = False
 
@@ -226,7 +226,7 @@ class TestServiceViewSetEdgeCases:
     def test_create_returning_none_renders_204(self) -> None:
         class _View(ServiceViewSet):
             create_service = staticmethod(lambda *, data: None)
-            create_input_dataclass = _AuthorIn
+            create_input_serializer = _AuthorIn
             create_atomic = False
 
         view = _View.as_view({"post": "create"})

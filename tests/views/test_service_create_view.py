@@ -28,13 +28,13 @@ async def _create_author_async(*, data: _CreateAuthorInput) -> Author:
 
 class _CreateAuthorView(ServiceCreateView):
     service = _create_author
-    input_dataclass = _CreateAuthorInput
+    input_serializer = _CreateAuthorInput
     output_serializer = AuthorSerializer
 
 
 class _AsyncCreateAuthorView(ServiceCreateView):
     service = _create_author_async
-    input_dataclass = _CreateAuthorInput
+    input_serializer = _CreateAuthorInput
     output_serializer = AuthorSerializer
 
 
@@ -64,7 +64,7 @@ class TestServiceCreateView:
         assert response.status_code == 201
         assert Author.objects.filter(name="Alan").exists()
 
-    def test_no_input_dataclass_accepts_empty_body(self) -> None:
+    def test_no_input_serializer_accepts_empty_body(self) -> None:
         request = factory.post("/", {}, format="json")
         response = _NoInputCreateView.as_view()(request)
         assert response.status_code == 201
@@ -76,7 +76,7 @@ class TestServiceCreateView:
 
         class _View(ServiceCreateView):
             service = raises
-            input_dataclass = _CreateAuthorInput
+            input_serializer = _CreateAuthorInput
             atomic = False
 
         request = factory.post("/", {"name": "x"}, format="json")
@@ -90,7 +90,7 @@ class TestServiceCreateView:
 
         class _View(ServiceCreateView):
             service = raises
-            input_dataclass = _CreateAuthorInput
+            input_serializer = _CreateAuthorInput
             atomic = False
 
         request = factory.post("/", {"name": "x"}, format="json")
@@ -99,7 +99,7 @@ class TestServiceCreateView:
 
     def test_missing_service_raises_not_implemented(self) -> None:
         class _Empty(ServiceCreateView):
-            input_dataclass = _CreateAuthorInput
+            input_serializer = _CreateAuthorInput
 
         request = factory.post("/", {"name": "x"}, format="json")
         with pytest.raises(NotImplementedError):

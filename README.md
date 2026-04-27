@@ -87,7 +87,7 @@ def create_author(*, data: CreateAuthorInput) -> Author:
 # 4. View — wires it all together.
 class CreateAuthorView(ServiceCreateView):
     service = create_author
-    input_dataclass = CreateAuthorInput
+    input_serializer = CreateAuthorInput
     output_serializer = AuthorOutputSerializer
 ```
 
@@ -134,7 +134,7 @@ class AuthorSerializer(serializers.ModelSerializer):
 
 class CreateAuthorView(ServiceCreateView):
     service = create_author
-    input_dataclass = CreateAuthorInput
+    input_serializer = CreateAuthorInput
     output_serializer = AuthorSerializer
 ```
 
@@ -238,7 +238,7 @@ explicitly set to `None`" — critical for correct `PATCH` semantics.
 | `SelectorListView` | `GET` | uses `selector` (or `queryset`) for list |
 | `SelectorRetrieveView` | `GET` | uses `selector` (or `queryset` + `lookup_field`) for retrieve |
 
-Mutation views configure: `service`, `input_dataclass`, `output_serializer`,
+Mutation views configure: `service`, `input_serializer`, `output_serializer`,
 `output_selector`, `atomic`, `success_status`. Selector views configure:
 `selector` and DRF's standard `serializer_class`.
 
@@ -252,7 +252,7 @@ class UpdateAuthorInput:
 class UpdateAuthorView(ServiceUpdateView):
     queryset = Author.objects.all()
     service = update_author
-    input_dataclass = UpdateAuthorInput
+    input_serializer = UpdateAuthorInput
     output_serializer = AuthorOutputSerializer   # DataclassSerializer
 ```
 
@@ -262,7 +262,7 @@ A `ModelSerializer` can be dropped in just as cleanly:
 class UpdateAuthorView(ServiceUpdateView):
     queryset = Author.objects.all()
     service = update_author
-    input_dataclass = UpdateAuthorInput
+    input_serializer = UpdateAuthorInput
     output_serializer = AuthorSerializer        # DRF ModelSerializer
 ```
 
@@ -318,10 +318,10 @@ class AuthorViewSet(ServiceViewSet):
     list_selector = list_authors
     retrieve_selector = get_author
     create_service = create_author
-    create_input_dataclass = CreateAuthorInput
+    create_input_serializer = CreateAuthorInput
     create_output_serializer = AuthorDetailSerializer
     update_service = update_author
-    update_input_dataclass = UpdateAuthorInput
+    update_input_serializer = UpdateAuthorInput
     update_output_serializer = AuthorDetailSerializer
     destroy_service = delete_author
 ```
@@ -399,7 +399,7 @@ class InvoiceViewSet(ServiceViewSet):
         detail=True,
         methods=["post"],
         service=approve_invoice,
-        input_dataclass=ApproveInput,
+        input_serializer=ApproveInput,
         output_serializer=InvoiceDetailSerializer,
     )
     def approve(self, request, pk=None):

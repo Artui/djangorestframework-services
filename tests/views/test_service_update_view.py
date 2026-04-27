@@ -27,7 +27,7 @@ def _update_author(*, instance: Author, data: _UpdateAuthorInput) -> Author:
 class _UpdateAuthorView(ServiceUpdateView):
     queryset = Author.objects.all()
     service = _update_author
-    input_dataclass = _UpdateAuthorInput
+    input_serializer = _UpdateAuthorInput
     output_serializer = AuthorSerializer
 
 
@@ -71,7 +71,7 @@ class TestServiceUpdateView:
 
         class _Custom(ServiceUpdateView):
             service = _update_author
-            input_dataclass = _UpdateAuthorInput
+            input_serializer = _UpdateAuthorInput
             output_serializer = AuthorSerializer
 
             def get_object(self) -> Any:
@@ -92,7 +92,7 @@ class TestServiceUpdateView:
         class _View(ServiceUpdateView):
             queryset = Author.objects.all()
             service = _update_author
-            input_dataclass = _UpdateAuthorInput
+            input_serializer = _UpdateAuthorInput
             output_selector = selector
 
         request = factory.patch("/", {"name": "fresh"}, format="json")
@@ -108,7 +108,7 @@ class TestServiceUpdateView:
         class _View(ServiceUpdateView):
             queryset = Author.objects.all()
             service = boom
-            input_dataclass = _UpdateAuthorInput
+            input_serializer = _UpdateAuthorInput
             atomic = False
 
         author = Author.objects.create(name="x")
@@ -116,7 +116,7 @@ class TestServiceUpdateView:
         response = _View.as_view()(request, pk=author.pk)
         assert response.status_code == 422
 
-    def test_no_input_dataclass(self) -> None:
+    def test_no_input_serializer(self) -> None:
         captured: dict[str, Any] = {}
 
         def fn(*, instance: Author) -> Author:
@@ -144,7 +144,7 @@ class TestServiceUpdateView:
         class _View(ServiceUpdateView):
             queryset = Author.objects.all()
             service = fn
-            input_dataclass = _UpdateAuthorInput
+            input_serializer = _UpdateAuthorInput
             output_selector = selector
 
         author = Author.objects.create(name="x")
@@ -165,7 +165,7 @@ class TestServiceUpdateView:
         class _View(ServiceUpdateView):
             queryset = Author.objects.all()
             service = void_update
-            input_dataclass = _UpdateAuthorInput
+            input_serializer = _UpdateAuthorInput
             output_serializer = AuthorSerializer
 
         request = factory.patch("/", {"name": "renamed"}, format="json")

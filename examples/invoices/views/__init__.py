@@ -28,11 +28,11 @@ class InvoiceViewSet(ServiceViewSet):
     retrieve_selector = get_invoice
 
     create_service = create_invoice
-    create_input_dataclass = CreateInvoiceInput
+    create_input_serializer = CreateInvoiceInput
     create_output_serializer = InvoiceSerializer
 
     update_service = update_invoice
-    update_input_dataclass = UpdateInvoiceInput
+    update_input_serializer = UpdateInvoiceInput
     update_output_serializer = InvoiceSerializer
 
     destroy_service = delete_invoice
@@ -41,7 +41,7 @@ class InvoiceViewSet(ServiceViewSet):
         detail=True,
         methods=["post"],
         service=mark_invoice_sent,
-        input_dataclass=ApproveInput,
+        input_serializer=ApproveInput,
         output_serializer=InvoiceSerializer,
     )
     def send(self, request, pk=None):  # type: ignore[no-untyped-def]

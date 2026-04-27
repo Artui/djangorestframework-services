@@ -28,7 +28,7 @@ class ServiceUpdateMixin(MutationFlowMixin):
     get_object: Callable[..., Any]
 
     update_service: ClassVar[Callable[..., Any] | None] = None
-    update_input_dataclass: ClassVar[type | None] = None
+    update_input_serializer: ClassVar[type | None] = None
     update_output_serializer: ClassVar[type[Serializer] | None] = None
     update_output_selector: ClassVar[Callable[..., Any] | None] = None
     update_atomic: ClassVar[bool] = True
@@ -46,7 +46,7 @@ class ServiceUpdateMixin(MutationFlowMixin):
         return self._run_mutation(
             request,
             service=service,
-            input_dataclass=self.update_input_dataclass,
+            input_serializer=self.update_input_serializer,
             output_serializer=self.update_output_serializer,
             output_selector=get_class_attr(self, "update_output_selector"),
             atomic=self.update_atomic,

@@ -21,8 +21,10 @@ class ServiceCreateView(MutationFlowMixin, GenericAPIView):
     Configure via class attributes:
 
     - ``service`` — the callable to invoke (required).
-    - ``input_dataclass`` — request-body validation; ``None`` means the
-      endpoint accepts an empty body.
+    - ``input_serializer`` — request-body validation; accepts a dataclass
+      type, a ``DataclassSerializer`` subclass, or any other ``Serializer``
+      subclass (e.g. ``ModelSerializer``). ``None`` means the endpoint
+      accepts an empty body.
     - ``output_serializer`` — DRF serializer used to render the response.
     - ``output_selector`` — optional callable invoked after the service to
       fetch the value to serialize.
@@ -31,7 +33,7 @@ class ServiceCreateView(MutationFlowMixin, GenericAPIView):
     """
 
     service: ClassVar[Callable[..., Any] | None] = None
-    input_dataclass: ClassVar[type | None] = None
+    input_serializer: ClassVar[type | None] = None
     output_serializer: ClassVar[type[Serializer] | None] = None
     output_selector: ClassVar[Callable[..., Any] | None] = None
     atomic: ClassVar[bool] = True
@@ -44,7 +46,7 @@ class ServiceCreateView(MutationFlowMixin, GenericAPIView):
         return self._run_mutation(
             request,
             service=service,
-            input_dataclass=self.input_dataclass,
+            input_serializer=self.input_serializer,
             output_serializer=self.output_serializer,
             output_selector=get_class_attr(self, "output_selector"),
             atomic=self.atomic,

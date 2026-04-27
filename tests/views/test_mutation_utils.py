@@ -7,10 +7,12 @@ from typing import Any
 
 import pytest
 from rest_framework import exceptions as drf_exceptions
+from rest_framework import serializers
 from rest_framework import status as drf_status
 from rest_framework.parsers import JSONParser
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
+from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.exceptions import ServiceError, ServiceValidationError
 from rest_framework_services.views.mutation.utils import (
@@ -36,10 +38,10 @@ def _drf_request(method: str, data: Any = None) -> Request:
 
 
 class TestValidateInput:
-    def test_returns_none_when_dataclass_is_none(self) -> None:
+    def test_returns_none_when_input_is_none(self) -> None:
         assert validate_input(_drf_request("post", {"name": "x"}), None) is None
 
-    def test_returns_dataclass_instance(self) -> None:
+    def test_dataclass_returns_instance(self) -> None:
         result = validate_input(_drf_request("post", {"name": "Ada"}), _Sample)
         assert isinstance(result, _Sample)
         assert result.name == "Ada"
@@ -55,6 +57,26 @@ class TestValidateInput:
 
         result = validate_input(_drf_request("patch", {}), _Partial, partial=True)
         assert isinstance(result, _Partial)
+
+    def test_dataclass_serializer_subclass_returns_dataclass_instance(self) -> None:
+        class _SampleSerializer(DataclassSerializer):
+            class Meta:
+                dataclass = _Sample
+
+        result = validate_input(_drf_request("post", {"name": "Ada"}), _SampleSerializer)
+        assert isinstance(result, _Sample)
+        assert result.name == "Ada"
+
+    def test_plain_serializer_subclass_returns_dict(self) -> None:
+        class _PlainSerializer(serializers.Serializer):
+            name = serializers.CharField()
+
+        result = validate_input(_drf_request("post", {"name": "Ada"}), _PlainSerializer)
+        assert result == {"name": "Ada"}
+
+    def test_rejects_unsupported_input_spec(self) -> None:
+        with pytest.raises(TypeError, match="must be a dataclass type or a Serializer"):
+            validate_input(_drf_request("post", {}), object)  # type: ignore[arg-type]
 
 
 class TestDispatchService:

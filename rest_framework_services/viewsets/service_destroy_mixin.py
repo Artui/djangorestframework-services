@@ -28,7 +28,7 @@ class ServiceDestroyMixin(MutationFlowMixin):
     get_object: Callable[..., Any]
 
     destroy_service: ClassVar[Callable[..., Any] | None] = None
-    destroy_input_dataclass: ClassVar[type | None] = None
+    destroy_input_serializer: ClassVar[type | None] = None
     destroy_output_serializer: ClassVar[type[Serializer] | None] = None
     destroy_output_selector: ClassVar[Callable[..., Any] | None] = None
     destroy_atomic: ClassVar[bool] = True
@@ -40,7 +40,7 @@ class ServiceDestroyMixin(MutationFlowMixin):
         return self._run_mutation(
             request,
             service=service,
-            input_dataclass=self.destroy_input_dataclass,
+            input_serializer=self.destroy_input_serializer,
             output_serializer=self.destroy_output_serializer,
             output_selector=get_class_attr(self, "destroy_output_selector"),
             atomic=self.destroy_atomic,

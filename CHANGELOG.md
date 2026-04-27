@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-04-27
+
+### Changed
+
+- Renamed `input_dataclass` → `input_serializer` everywhere it's configured
+  (mutation views, viewset mixins, `@service_action`). The attribute now
+  accepts a bare dataclass type (wrapped in `DataclassSerializer` on the
+  fly), a `DataclassSerializer` subclass, or any other `Serializer`
+  subclass (e.g. `ModelSerializer`).
+- Services now receive the serializer's `validated_data` as `data` (a
+  dataclass instance for dataclass-based serializers, a `dict` for plain
+  `Serializer` / `ModelSerializer` subclasses) instead of the result of
+  `serializer.save()`. Persistence is the service's responsibility.
+
 ## [0.1.0] — 2026-04-27
 
 First public release. A service / selector layer for Django REST Framework:
@@ -36,7 +50,7 @@ first-class sync + async support and 100% test coverage.
 
 - `ServiceCreateView`, `ServiceUpdateView`, `ServiceDeleteView` — single-
   purpose `GenericAPIView` subclasses, each composing `MutationFlowMixin`.
-  Configure via `service`, `input_dataclass`, `output_serializer`,
+  Configure via `service`, `input_serializer`, `output_serializer`,
   `output_selector`, `atomic`, `success_status`.
 - `SelectorListView`, `SelectorRetrieveView` — built on DRF's
   `ListModelMixin` / `RetrieveModelMixin`. `selector` overrides
@@ -126,5 +140,6 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Artui/djangorestframework-services/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Artui/djangorestframework-services/releases/tag/v0.1.0

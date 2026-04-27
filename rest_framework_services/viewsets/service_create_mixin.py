@@ -23,8 +23,9 @@ class ServiceCreateMixin(MutationFlowMixin):
     Configure via class attributes:
 
     - ``create_service`` — the callable invoked to create the resource.
-    - ``create_input_dataclass`` — request-body validation; ``None`` means
-      no body is required.
+    - ``create_input_serializer`` — request-body validation; accepts a
+      dataclass type, a ``DataclassSerializer`` subclass, or any other
+      ``Serializer`` subclass. ``None`` means no body is required.
     - ``create_output_serializer`` — DRF serializer for the response.
     - ``create_output_selector`` — optional callable invoked with the
       service result to fetch what to render.
@@ -32,7 +33,7 @@ class ServiceCreateMixin(MutationFlowMixin):
     """
 
     create_service: ClassVar[Callable[..., Any] | None] = None
-    create_input_dataclass: ClassVar[type | None] = None
+    create_input_serializer: ClassVar[type | None] = None
     create_output_serializer: ClassVar[type[Serializer] | None] = None
     create_output_selector: ClassVar[Callable[..., Any] | None] = None
     create_atomic: ClassVar[bool] = True
@@ -44,7 +45,7 @@ class ServiceCreateMixin(MutationFlowMixin):
         return self._run_mutation(
             request,
             service=service,
-            input_dataclass=self.create_input_dataclass,
+            input_serializer=self.create_input_serializer,
             output_serializer=self.create_output_serializer,
             output_selector=get_class_attr(self, "create_output_selector"),
             atomic=self.create_atomic,
