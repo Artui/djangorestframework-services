@@ -1,5 +1,13 @@
 # djangorestframework-services
 
+[![CI](https://github.com/Artui/djangorestframework-services/actions/workflows/tests.yml/badge.svg)](https://github.com/Artui/djangorestframework-services/actions/workflows/tests.yml)
+[![PyPI](https://img.shields.io/pypi/v/djangorestframework-services.svg)](https://pypi.org/project/djangorestframework-services/)
+[![Python versions](https://img.shields.io/pypi/pyversions/djangorestframework-services.svg)](https://pypi.org/project/djangorestframework-services/)
+[![Django versions](https://img.shields.io/pypi/djversions/djangorestframework-services.svg)](https://pypi.org/project/djangorestframework-services/)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://github.com/Artui/djangorestframework-services/actions/workflows/tests.yml)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![License](https://img.shields.io/pypi/l/djangorestframework-services.svg)](LICENSE)
+
 A service / selector layer for Django REST Framework.
 
 DRF's default mode for mutating endpoints is "the serializer is the business
