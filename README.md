@@ -1,6 +1,6 @@
 # djangorestframework-services
 
-[![CI](https://github.com/Artui/djangorestframework-services/actions/workflows/tests.yml/badge.svg)](https://github.com/Artui/djangorestframework-services/actions/workflows/tests.yml)
+[![CI](https://github.com/Artui/djangorestframework-services/workflows/Test%20djangorestframework-services%20package/badge.svg)](https://github.com/Artui/djangorestframework-services/actions/workflows/tests.yml)
 [![PyPI](https://img.shields.io/pypi/v/djangorestframework-services.svg)](https://pypi.org/project/djangorestframework-services/)
 [![Python versions](https://img.shields.io/pypi/pyversions/djangorestframework-services.svg)](https://pypi.org/project/djangorestframework-services/)
 [![Django versions](https://img.shields.io/pypi/djversions/djangorestframework-services.svg)](https://pypi.org/project/djangorestframework-services/)
