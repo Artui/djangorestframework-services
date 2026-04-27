@@ -49,7 +49,7 @@ which the library already depends on.
 from dataclasses import dataclass
 
 from rest_framework_dataclasses.serializers import DataclassSerializer
-from rest_framework_services import ServiceCreateView, create_from_input
+from rest_framework_services import ServiceCreateView, ServiceSpec, create_from_input
 
 from myapp.models import Author
 
@@ -86,9 +86,11 @@ def create_author(*, data: CreateAuthorInput) -> Author:
 
 # 4. View — wires it all together.
 class CreateAuthorView(ServiceCreateView):
-    service = create_author
-    input_serializer = CreateAuthorInput
-    output_serializer = AuthorOutputSerializer
+    spec = ServiceSpec(
+        service=create_author,
+        input_serializer=CreateAuthorInput,
+        output_serializer=AuthorOutputSerializer,
+    )
 ```
 
 ```python
@@ -133,9 +135,11 @@ class AuthorSerializer(serializers.ModelSerializer):
 
 
 class CreateAuthorView(ServiceCreateView):
-    service = create_author
-    input_serializer = CreateAuthorInput
-    output_serializer = AuthorSerializer
+    spec = ServiceSpec(
+        service=create_author,
+        input_serializer=CreateAuthorInput,
+        output_serializer=AuthorSerializer,
+    )
 ```
 
 Both patterns are first-class — the library doesn't care which kind of
@@ -238,9 +242,10 @@ explicitly set to `None`" — critical for correct `PATCH` semantics.
 | `SelectorListView` | `GET` | uses `selector` (or `queryset`) for list |
 | `SelectorRetrieveView` | `GET` | uses `selector` (or `queryset` + `lookup_field`) for retrieve |
 
-Mutation views configure: `service`, `input_serializer`, `output_serializer`,
-`output_selector`, `atomic`, `success_status`. Selector views configure:
-`selector` and DRF's standard `serializer_class`.
+Mutation views are configured by setting a single `spec` class attribute
+to a `ServiceSpec`, which bundles `service`, `input_serializer`,
+`output_serializer`, `output_selector`, `atomic`, and `success_status`.
+Selector views configure `selector` and DRF's standard `serializer_class`.
 
 ```python
 @dataclass
@@ -251,9 +256,11 @@ class UpdateAuthorInput:
 
 class UpdateAuthorView(ServiceUpdateView):
     queryset = Author.objects.all()
-    service = update_author
-    input_serializer = UpdateAuthorInput
-    output_serializer = AuthorOutputSerializer   # DataclassSerializer
+    spec = ServiceSpec(
+        service=update_author,
+        input_serializer=UpdateAuthorInput,
+        output_serializer=AuthorOutputSerializer,   # DataclassSerializer
+    )
 ```
 
 A `ModelSerializer` can be dropped in just as cleanly:
@@ -261,9 +268,11 @@ A `ModelSerializer` can be dropped in just as cleanly:
 ```python
 class UpdateAuthorView(ServiceUpdateView):
     queryset = Author.objects.all()
-    service = update_author
-    input_serializer = UpdateAuthorInput
-    output_serializer = AuthorSerializer        # DRF ModelSerializer
+    spec = ServiceSpec(
+        service=update_author,
+        input_serializer=UpdateAuthorInput,
+        output_serializer=AuthorSerializer,         # DRF ModelSerializer
+    )
 ```
 
 When a service returns `None` and the view has an instance in scope (update
@@ -283,7 +292,7 @@ mutations reuse the detail one:
 from dataclasses import dataclass
 
 from rest_framework_dataclasses.serializers import DataclassSerializer
-from rest_framework_services import ServiceViewSet
+from rest_framework_services import ServiceSpec, ServiceViewSet
 
 
 @dataclass
@@ -315,16 +324,29 @@ class AuthorViewSet(ServiceViewSet):
         "list": AuthorListItemSerializer,
         "retrieve": AuthorDetailSerializer,
     }
-    list_selector = list_authors
-    retrieve_selector = get_author
-    create_service = create_author
-    create_input_serializer = CreateAuthorInput
-    create_output_serializer = AuthorDetailSerializer
-    update_service = update_author
-    update_input_serializer = UpdateAuthorInput
-    update_output_serializer = AuthorDetailSerializer
-    destroy_service = delete_author
+    service_specs = {
+        "list": list_authors,
+        "retrieve": get_author,
+        "create": ServiceSpec(
+            service=create_author,
+            input_serializer=CreateAuthorInput,
+            output_serializer=AuthorDetailSerializer,
+        ),
+        "update": ServiceSpec(
+            service=update_author,
+            input_serializer=UpdateAuthorInput,
+            output_serializer=AuthorDetailSerializer,
+        ),
+        "destroy": ServiceSpec(service=delete_author),
+    }
 ```
+
+`service_specs` is a single action-keyed mapping — mirroring
+`serializer_classes` from `MultiSerializerMixin`. Read-side actions
+(`"list"`, `"retrieve"`) take a bare callable (the selector). Write-side
+actions take a `ServiceSpec` bundling everything that flow needs. An
+absent (or non-`ServiceSpec`) entry on a write action makes it return
+`405 Method Not Allowed`.
 
 Mix `ModelSerializer` and `DataclassSerializer` per action freely — the
 viewset doesn't distinguish between them.
@@ -373,7 +395,7 @@ mutation flow:
 from dataclasses import dataclass
 
 from rest_framework_dataclasses.serializers import DataclassSerializer
-from rest_framework_services import service_action
+from rest_framework_services import ServiceSpec, service_action
 
 
 @dataclass
@@ -396,11 +418,13 @@ class InvoiceDetailSerializer(DataclassSerializer):
 
 class InvoiceViewSet(ServiceViewSet):
     @service_action(
+        ServiceSpec(
+            service=approve_invoice,
+            input_serializer=ApproveInput,
+            output_serializer=InvoiceDetailSerializer,
+        ),
         detail=True,
         methods=["post"],
-        service=approve_invoice,
-        input_serializer=ApproveInput,
-        output_serializer=InvoiceDetailSerializer,
     )
     def approve(self, request, pk=None):
         """Approve an invoice."""

@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from rest_framework.test import APIRequestFactory
 
-from rest_framework_services import ServiceDeleteView
+from rest_framework_services import ServiceDeleteView, ServiceSpec
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -19,7 +19,7 @@ def _delete_author(*, instance: Author) -> None:
 
 class _DeleteAuthorView(ServiceDeleteView):
     queryset = Author.objects.all()
-    service = _delete_author
+    spec = ServiceSpec(service=_delete_author)
 
 
 factory = APIRequestFactory()
@@ -52,8 +52,7 @@ class TestServiceDeleteView:
 
         class _View(ServiceDeleteView):
             queryset = Author.objects.all()
-            service = fn
-            input_serializer = _Reason
+            spec = ServiceSpec(service=fn, input_serializer=_Reason)
 
         author = Author.objects.create(name="x")
         request = factory.delete("/", {"reason": "spam"}, format="json")
@@ -68,9 +67,7 @@ class TestServiceDeleteView:
 
         class _View(ServiceDeleteView):
             queryset = Author.objects.all()
-            service = fn
-            output_serializer = AuthorSerializer
-            success_status = 200
+            spec = ServiceSpec(service=fn, output_serializer=AuthorSerializer, success_status=200)
 
         author = Author.objects.create(name="bye")
         request = factory.delete("/")
@@ -78,7 +75,7 @@ class TestServiceDeleteView:
         assert response.status_code == 200
         assert response.data["name"] == "bye"
 
-    def test_missing_service_raises(self) -> None:
+    def test_missing_spec_raises(self) -> None:
         class _Empty(ServiceDeleteView):
             queryset = Author.objects.all()
 
@@ -95,8 +92,7 @@ class TestServiceDeleteView:
 
         class _View(ServiceDeleteView):
             queryset = Author.objects.all()
-            service = boom
-            atomic = False
+            spec = ServiceSpec(service=boom, atomic=False)
 
         author = Author.objects.create(name="x")
         request = factory.delete("/")
@@ -112,10 +108,9 @@ class TestServiceDeleteView:
 
         class _View(ServiceDeleteView):
             queryset = Author.objects.all()
-            service = fn
-            output_selector = selector
-            success_status = 200
-            atomic = False
+            spec = ServiceSpec(
+                service=fn, output_selector=selector, success_status=200, atomic=False
+            )
 
         author = Author.objects.create(name="bye")
         request = factory.delete("/")
@@ -129,9 +124,7 @@ class TestServiceDeleteView:
 
         class _View(ServiceDeleteView):
             queryset = Author.objects.all()
-            service = fn
-            success_status = 200
-            atomic = False
+            spec = ServiceSpec(service=fn, success_status=200, atomic=False)
 
         author = Author.objects.create(name="x")
         request = factory.delete("/")

@@ -22,8 +22,7 @@ def _get_author(*, pk: int) -> Author | None:
 
 class _AuthorReadOnly(SelectorViewSet):
     serializer_classes = {"list": AuthorSerializer, "retrieve": AuthorSerializer}
-    list_selector = _list_authors
-    retrieve_selector = _get_author
+    service_specs = {"list": _list_authors, "retrieve": _get_author}
 
 
 factory = APIRequestFactory()
@@ -53,7 +52,7 @@ class TestSelectorViewSet:
             return Author.objects.none()
 
         class _View(SelectorViewSet):
-            list_selector = tenant_list
+            service_specs = {"list": tenant_list}
             serializer_classes = {"list": AuthorSerializer}
 
             def get_selector_kwargs(self) -> dict[str, Any]:
@@ -73,7 +72,7 @@ class TestSelectorViewSet:
             return Author.objects.get(pk=pk)
 
         class _View(SelectorViewSet):
-            retrieve_selector = strict
+            service_specs = {"retrieve": strict}
             serializer_classes = {"retrieve": AuthorSerializer}
 
         view = _View.as_view({"get": "retrieve"})

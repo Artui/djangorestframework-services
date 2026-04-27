@@ -8,7 +8,12 @@ from typing import Any
 import pytest
 from rest_framework.test import APIRequestFactory
 
-from rest_framework_services import ServiceCreateView, ServiceError, ServiceValidationError
+from rest_framework_services import (
+    ServiceCreateView,
+    ServiceError,
+    ServiceSpec,
+    ServiceValidationError,
+)
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -27,19 +32,23 @@ async def _create_author_async(*, data: _CreateAuthorInput) -> Author:
 
 
 class _CreateAuthorView(ServiceCreateView):
-    service = _create_author
-    input_serializer = _CreateAuthorInput
-    output_serializer = AuthorSerializer
+    spec = ServiceSpec(
+        service=_create_author,
+        input_serializer=_CreateAuthorInput,
+        output_serializer=AuthorSerializer,
+    )
 
 
 class _AsyncCreateAuthorView(ServiceCreateView):
-    service = _create_author_async
-    input_serializer = _CreateAuthorInput
-    output_serializer = AuthorSerializer
+    spec = ServiceSpec(
+        service=_create_author_async,
+        input_serializer=_CreateAuthorInput,
+        output_serializer=AuthorSerializer,
+    )
 
 
 class _NoInputCreateView(ServiceCreateView):
-    service = staticmethod(lambda: {"triggered": True})
+    spec = ServiceSpec(service=staticmethod(lambda: {"triggered": True}))
 
 
 factory = APIRequestFactory()
@@ -75,9 +84,7 @@ class TestServiceCreateView:
             raise ServiceValidationError({"name": ["taken"]})
 
         class _View(ServiceCreateView):
-            service = raises
-            input_serializer = _CreateAuthorInput
-            atomic = False
+            spec = ServiceSpec(service=raises, input_serializer=_CreateAuthorInput, atomic=False)
 
         request = factory.post("/", {"name": "x"}, format="json")
         response = _View.as_view()(request)
@@ -89,17 +96,15 @@ class TestServiceCreateView:
             raise ServiceError("nope")
 
         class _View(ServiceCreateView):
-            service = raises
-            input_serializer = _CreateAuthorInput
-            atomic = False
+            spec = ServiceSpec(service=raises, input_serializer=_CreateAuthorInput, atomic=False)
 
         request = factory.post("/", {"name": "x"}, format="json")
         response = _View.as_view()(request)
         assert response.status_code == 422
 
-    def test_missing_service_raises_not_implemented(self) -> None:
+    def test_missing_spec_raises_not_implemented(self) -> None:
         class _Empty(ServiceCreateView):
-            input_serializer = _CreateAuthorInput
+            pass
 
         request = factory.post("/", {"name": "x"}, format="json")
         with pytest.raises(NotImplementedError):
@@ -113,8 +118,7 @@ class TestServiceCreateView:
             return {"ok": True}
 
         class _View(ServiceCreateView):
-            service = fn
-            atomic = False
+            spec = ServiceSpec(service=fn, atomic=False)
 
             def get_service_kwargs(self) -> dict[str, Any]:
                 return {"tenant": "acme"}
@@ -126,8 +130,7 @@ class TestServiceCreateView:
 
     def test_service_returning_none_renders_204(self) -> None:
         class _View(ServiceCreateView):
-            service = staticmethod(lambda: None)
-            atomic = False
+            spec = ServiceSpec(service=staticmethod(lambda: None), atomic=False)
 
         request = factory.post("/", {}, format="json")
         response = _View.as_view()(request)
@@ -141,10 +144,20 @@ class TestServiceCreateView:
             return {**result, "rendered": True}
 
         class _View(ServiceCreateView):
-            service = fn
-            output_selector = selector
-            atomic = False
+            spec = ServiceSpec(service=fn, output_selector=selector, atomic=False)
 
         request = factory.post("/", {}, format="json")
         response = _View.as_view()(request)
         assert response.data == {"raw": True, "rendered": True}
+
+    def test_spec_success_status_override(self) -> None:
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=staticmethod(lambda: {"ok": True}),
+                atomic=False,
+                success_status=202,
+            )
+
+        request = factory.post("/", {}, format="json")
+        response = _View.as_view()(request)
+        assert response.status_code == 202

@@ -14,7 +14,7 @@ from invoices.services import (
     mark_invoice_sent,
     update_invoice,
 )
-from rest_framework_services import ServiceViewSet, service_action
+from rest_framework_services import ServiceSpec, ServiceViewSet, service_action
 
 
 class InvoiceViewSet(ServiceViewSet):
@@ -24,25 +24,30 @@ class InvoiceViewSet(ServiceViewSet):
         "retrieve": InvoiceSerializer,
     }
 
-    list_selector = list_invoices
-    retrieve_selector = get_invoice
-
-    create_service = create_invoice
-    create_input_serializer = CreateInvoiceInput
-    create_output_serializer = InvoiceSerializer
-
-    update_service = update_invoice
-    update_input_serializer = UpdateInvoiceInput
-    update_output_serializer = InvoiceSerializer
-
-    destroy_service = delete_invoice
+    service_specs = {
+        "list": list_invoices,
+        "retrieve": get_invoice,
+        "create": ServiceSpec(
+            service=create_invoice,
+            input_serializer=CreateInvoiceInput,
+            output_serializer=InvoiceSerializer,
+        ),
+        "update": ServiceSpec(
+            service=update_invoice,
+            input_serializer=UpdateInvoiceInput,
+            output_serializer=InvoiceSerializer,
+        ),
+        "destroy": ServiceSpec(service=delete_invoice),
+    }
 
     @service_action(
+        ServiceSpec(
+            service=mark_invoice_sent,
+            input_serializer=ApproveInput,
+            output_serializer=InvoiceSerializer,
+        ),
         detail=True,
         methods=["post"],
-        service=mark_invoice_sent,
-        input_serializer=ApproveInput,
-        output_serializer=InvoiceSerializer,
     )
     def send(self, request, pk=None):  # type: ignore[no-untyped-def]
         """Mark a draft invoice as sent."""

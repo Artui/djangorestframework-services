@@ -2,48 +2,42 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, ClassVar
 
 from rest_framework import status as drf_status
 from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import Serializer
 
+from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
-from rest_framework_services.views.utils import get_class_attr
 
 
 class ServiceDestroyMixin(MutationFlowMixin):
     """Provides the ``destroy`` action.
 
-    Looks up the instance via DRF's ``get_object()``. When ``destroy_service``
-    is ``None``, the action raises ``MethodNotAllowed``.
-
-    Configure via class attributes — see :class:`ServiceCreateMixin`.
+    Looks up the instance via DRF's ``get_object()``. Reads its config from
+    ``service_specs["destroy"]``; when that key is absent the action raises
+    ``MethodNotAllowed``.
     """
 
     # Provided at runtime by ``GenericAPIView`` / ``GenericViewSet``.
     get_object: Callable[..., Any]
 
-    destroy_service: ClassVar[Callable[..., Any] | None] = None
-    destroy_input_serializer: ClassVar[type | None] = None
-    destroy_output_serializer: ClassVar[type[Serializer] | None] = None
-    destroy_output_selector: ClassVar[Callable[..., Any] | None] = None
-    destroy_atomic: ClassVar[bool] = True
+    service_specs: ClassVar[Mapping[str, Callable[..., Any] | ServiceSpec]] = {}
 
     def destroy(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        service: Callable[..., Any] | None = get_class_attr(self, "destroy_service")
-        if service is None:
+        spec = self.service_specs.get("destroy")
+        if not isinstance(spec, ServiceSpec):
             raise MethodNotAllowed("DELETE")
         return self._run_mutation(
             request,
-            service=service,
-            input_serializer=self.destroy_input_serializer,
-            output_serializer=self.destroy_output_serializer,
-            output_selector=get_class_attr(self, "destroy_output_selector"),
-            atomic=self.destroy_atomic,
-            success_status=drf_status.HTTP_204_NO_CONTENT,
+            service=spec.service,
+            input_serializer=spec.input_serializer,
+            output_serializer=spec.output_serializer,
+            output_selector=spec.output_selector,
+            atomic=spec.atomic,
+            success_status=spec.success_status or drf_status.HTTP_204_NO_CONTENT,
             instance=self.get_object(),
         )

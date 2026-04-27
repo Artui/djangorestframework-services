@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from rest_framework.test import APIRequestFactory
 
-from rest_framework_services import ServiceUpdateView
+from rest_framework_services import ServiceSpec, ServiceUpdateView
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -26,9 +26,11 @@ def _update_author(*, instance: Author, data: _UpdateAuthorInput) -> Author:
 
 class _UpdateAuthorView(ServiceUpdateView):
     queryset = Author.objects.all()
-    service = _update_author
-    input_serializer = _UpdateAuthorInput
-    output_serializer = AuthorSerializer
+    spec = ServiceSpec(
+        service=_update_author,
+        input_serializer=_UpdateAuthorInput,
+        output_serializer=AuthorSerializer,
+    )
 
 
 factory = APIRequestFactory()
@@ -52,7 +54,7 @@ class TestServiceUpdateView:
         assert response.status_code == 200
         assert author.name == "new"
 
-    def test_missing_service_raises(self) -> None:
+    def test_missing_spec_raises(self) -> None:
         class _Empty(ServiceUpdateView):
             queryset = Author.objects.all()
 
@@ -70,9 +72,11 @@ class TestServiceUpdateView:
         author = Author.objects.create(name="orig")
 
         class _Custom(ServiceUpdateView):
-            service = _update_author
-            input_serializer = _UpdateAuthorInput
-            output_serializer = AuthorSerializer
+            spec = ServiceSpec(
+                service=_update_author,
+                input_serializer=_UpdateAuthorInput,
+                output_serializer=AuthorSerializer,
+            )
 
             def get_object(self) -> Any:
                 return author
@@ -91,9 +95,11 @@ class TestServiceUpdateView:
 
         class _View(ServiceUpdateView):
             queryset = Author.objects.all()
-            service = _update_author
-            input_serializer = _UpdateAuthorInput
-            output_selector = selector
+            spec = ServiceSpec(
+                service=_update_author,
+                input_serializer=_UpdateAuthorInput,
+                output_selector=selector,
+            )
 
         request = factory.patch("/", {"name": "fresh"}, format="json")
         response = _View.as_view()(request, pk=author.pk)
@@ -107,9 +113,7 @@ class TestServiceUpdateView:
 
         class _View(ServiceUpdateView):
             queryset = Author.objects.all()
-            service = boom
-            input_serializer = _UpdateAuthorInput
-            atomic = False
+            spec = ServiceSpec(service=boom, input_serializer=_UpdateAuthorInput, atomic=False)
 
         author = Author.objects.create(name="x")
         request = factory.patch("/", {"name": "y"}, format="json")
@@ -125,8 +129,7 @@ class TestServiceUpdateView:
 
         class _View(ServiceUpdateView):
             queryset = Author.objects.all()
-            service = fn
-            output_serializer = AuthorSerializer
+            spec = ServiceSpec(service=fn, output_serializer=AuthorSerializer)
 
         author = Author.objects.create(name="hi")
         request = factory.put("/", {}, format="json")
@@ -143,9 +146,9 @@ class TestServiceUpdateView:
 
         class _View(ServiceUpdateView):
             queryset = Author.objects.all()
-            service = fn
-            input_serializer = _UpdateAuthorInput
-            output_selector = selector
+            spec = ServiceSpec(
+                service=fn, input_serializer=_UpdateAuthorInput, output_selector=selector
+            )
 
         author = Author.objects.create(name="x")
         request = factory.patch("/", {"name": "y"}, format="json")
@@ -164,9 +167,11 @@ class TestServiceUpdateView:
 
         class _View(ServiceUpdateView):
             queryset = Author.objects.all()
-            service = void_update
-            input_serializer = _UpdateAuthorInput
-            output_serializer = AuthorSerializer
+            spec = ServiceSpec(
+                service=void_update,
+                input_serializer=_UpdateAuthorInput,
+                output_serializer=AuthorSerializer,
+            )
 
         request = factory.patch("/", {"name": "renamed"}, format="json")
         response = _View.as_view()(request, pk=author.pk)

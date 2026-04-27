@@ -10,21 +10,16 @@ from rest_framework import status as drf_status
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import Serializer
 
+from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.mutation.utils import _execute_mutation
 
 
 def service_action(
+    spec: ServiceSpec,
     *,
-    service: Callable[..., Any],
     detail: bool = False,
     methods: list[str] | None = None,
-    input_serializer: type | None = None,
-    output_serializer: type[Serializer] | None = None,
-    output_selector: Callable[..., Any] | None = None,
-    atomic: bool = True,
-    success_status: int = drf_status.HTTP_200_OK,
     url_path: str | None = None,
     url_name: str | None = None,
     **action_kwargs: Any,
@@ -34,7 +29,15 @@ def service_action(
     The decorated method's body is *not* executed — the decorator supplies
     the handler. The method exists so that ``@service_action`` can attach
     DRF ``@action`` metadata and pick up the action name from ``__name__``.
+
+    Pass a :class:`ServiceSpec` for the service wiring. ``detail``,
+    ``methods``, ``url_path``, ``url_name``, and any extra ``**action_kwargs``
+    are forwarded to DRF's ``@action``.
     """
+    success_status: int = (
+        spec.success_status if spec.success_status is not None else drf_status.HTTP_200_OK
+    )
+
     drf_kwargs: dict[str, Any] = {"detail": detail}
     if methods is not None:
         drf_kwargs["methods"] = methods
@@ -57,11 +60,11 @@ def service_action(
             return _execute_mutation(
                 self,
                 request,
-                service=service,
-                input_serializer=input_serializer,
-                output_serializer=output_serializer,
-                output_selector=output_selector,
-                atomic=atomic,
+                service=spec.service,
+                input_serializer=spec.input_serializer,
+                output_serializer=spec.output_serializer,
+                output_selector=spec.output_selector,
+                atomic=spec.atomic,
                 success_status=success_status,
                 instance=instance,
                 extra_kwargs=extras,

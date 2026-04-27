@@ -16,7 +16,7 @@ from rest_framework_services.mutations import (
     update_from_input,
 )
 from rest_framework_services.selectors import AsyncSelector, Selector
-from rest_framework_services.types import UNSET, ChangeResult, FieldChange
+from rest_framework_services.types import UNSET, ChangeResult, FieldChange, ServiceSpec
 from rest_framework_services.views import (
     SelectorListView,
     SelectorRetrieveView,
@@ -54,6 +54,7 @@ __all__ = [
     "ServiceDeleteView",
     "ServiceDestroyMixin",
     "ServiceError",
+    "ServiceSpec",
     "ServiceUpdateMixin",
     "ServiceUpdateView",
     "ServiceValidationError",
@@ -67,4 +68,4 @@ __all__ = [
     "update_from_input",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

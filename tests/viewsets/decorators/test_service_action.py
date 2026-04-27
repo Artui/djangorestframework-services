@@ -9,7 +9,7 @@ import pytest
 from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet
 
-from rest_framework_services import service_action
+from rest_framework_services import ServiceSpec, service_action
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -34,20 +34,21 @@ class _ApproveViewSet(GenericViewSet):
     queryset = Author.objects.all()
 
     @service_action(
+        ServiceSpec(service=_approve, input_serializer=_ApproveInput),
         detail=True,
         methods=["post"],
-        service=_approve,
-        input_serializer=_ApproveInput,
     )
     def approve(self, request, pk=None):  # type: ignore[no-untyped-def]
         """Stubbed body — replaced by service_action."""
 
     @service_action(
+        ServiceSpec(
+            service=_bulk_announce,
+            input_serializer=_ApproveInput,
+            success_status=202,
+        ),
         detail=False,
         methods=["post"],
-        service=_bulk_announce,
-        input_serializer=_ApproveInput,
-        success_status=202,
         url_path="announce",
         url_name="bulk-announce",
     )
@@ -91,10 +92,9 @@ class TestServiceAction:
                 return {"tenant": "T"}
 
             @service_action(
+                ServiceSpec(service=fn, input_serializer=_ApproveInput),
                 detail=False,
                 methods=["post"],
-                service=fn,
-                input_serializer=_ApproveInput,
             )
             def go(self, request):  # type: ignore[no-untyped-def]
                 pass
@@ -120,11 +120,9 @@ class TestServiceAction:
 
         class _View(GenericViewSet):
             @service_action(
+                ServiceSpec(service=boom, input_serializer=_ApproveInput, atomic=False),
                 detail=False,
                 methods=["post"],
-                service=boom,
-                input_serializer=_ApproveInput,
-                atomic=False,
             )
             def go(self, request):  # type: ignore[no-untyped-def]
                 pass
@@ -142,11 +140,9 @@ class TestServiceAction:
 
         class _View(GenericViewSet):
             @service_action(
+                ServiceSpec(service=fn, output_selector=selector, atomic=False),
                 detail=False,
                 methods=["post"],
-                service=fn,
-                output_selector=selector,
-                atomic=False,
             )
             def go(self, request):  # type: ignore[no-untyped-def]
                 pass
@@ -165,11 +161,9 @@ class TestServiceAction:
 
         class _View(GenericViewSet):
             @service_action(
+                ServiceSpec(service=fn, output_serializer=_Serializer, atomic=False),
                 detail=False,
                 methods=["post"],
-                service=fn,
-                output_serializer=_Serializer,
-                atomic=False,
             )
             def go(self, request):  # type: ignore[no-untyped-def]
                 pass
@@ -185,10 +179,9 @@ class TestServiceAction:
 
         class _View(GenericViewSet):
             @service_action(
+                ServiceSpec(service=fn, atomic=False),
                 detail=False,
                 methods=["post"],
-                service=fn,
-                atomic=False,
             )
             def go(self, request):  # type: ignore[no-untyped-def]
                 pass
@@ -207,11 +200,9 @@ class TestServiceAction:
             queryset = Author.objects.all()
 
             @service_action(
+                ServiceSpec(service=fn, output_serializer=Ser, atomic=False),
                 detail=True,
                 methods=["post"],
-                service=fn,
-                output_serializer=Ser,
-                atomic=False,
             )
             def go(self, request, pk=None):  # type: ignore[no-untyped-def]
                 pass
@@ -229,7 +220,7 @@ class TestServiceAction:
             return {"ok": True}
 
         class _View(GenericViewSet):
-            @service_action(detail=False, service=fn)
+            @service_action(ServiceSpec(service=fn), detail=False)
             def ping(self, request):  # type: ignore[no-untyped-def]
                 pass
 

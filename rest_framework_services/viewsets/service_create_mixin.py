@@ -2,53 +2,39 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, ClassVar
 
 from rest_framework import status as drf_status
 from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import Serializer
 
+from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
-from rest_framework_services.views.utils import get_class_attr
 
 
 class ServiceCreateMixin(MutationFlowMixin):
-    """Provides the ``create`` action; expects ``create_service`` to be set.
+    """Provides the ``create`` action; reads its config from ``service_specs``.
 
-    When ``create_service`` is ``None``, the action raises ``MethodNotAllowed``.
-
-    Configure via class attributes:
-
-    - ``create_service`` — the callable invoked to create the resource.
-    - ``create_input_serializer`` — request-body validation; accepts a
-      dataclass type, a ``DataclassSerializer`` subclass, or any other
-      ``Serializer`` subclass. ``None`` means no body is required.
-    - ``create_output_serializer`` — DRF serializer for the response.
-    - ``create_output_selector`` — optional callable invoked with the
-      service result to fetch what to render.
-    - ``create_atomic`` — wrap in ``transaction.atomic()`` (default ``True``).
+    Set ``service_specs["create"]`` to a :class:`ServiceSpec`. When the
+    ``"create"`` key is absent (or holds a non-:class:`ServiceSpec` entry)
+    the action raises ``MethodNotAllowed``.
     """
 
-    create_service: ClassVar[Callable[..., Any] | None] = None
-    create_input_serializer: ClassVar[type | None] = None
-    create_output_serializer: ClassVar[type[Serializer] | None] = None
-    create_output_selector: ClassVar[Callable[..., Any] | None] = None
-    create_atomic: ClassVar[bool] = True
+    service_specs: ClassVar[Mapping[str, Callable[..., Any] | ServiceSpec]] = {}
 
     def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        service: Callable[..., Any] | None = get_class_attr(self, "create_service")
-        if service is None:
+        spec = self.service_specs.get("create")
+        if not isinstance(spec, ServiceSpec):
             raise MethodNotAllowed("POST")
         return self._run_mutation(
             request,
-            service=service,
-            input_serializer=self.create_input_serializer,
-            output_serializer=self.create_output_serializer,
-            output_selector=get_class_attr(self, "create_output_selector"),
-            atomic=self.create_atomic,
-            success_status=drf_status.HTTP_201_CREATED,
+            service=spec.service,
+            input_serializer=spec.input_serializer,
+            output_serializer=spec.output_serializer,
+            output_selector=spec.output_selector,
+            atomic=spec.atomic,
+            success_status=spec.success_status or drf_status.HTTP_201_CREATED,
             instance=None,
         )

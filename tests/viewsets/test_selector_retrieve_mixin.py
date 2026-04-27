@@ -20,7 +20,7 @@ def _retrieve(*, pk: int, tenant: str) -> Author | None:
 
 
 class _RetrieveOnly(SelectorRetrieveMixin, GenericViewSet):
-    retrieve_selector = _retrieve
+    service_specs = {"retrieve": _retrieve}
     serializer_class = AuthorSerializer
 
     def get_selector_kwargs(self) -> dict[str, Any]:

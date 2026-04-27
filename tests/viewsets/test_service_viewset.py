@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from rest_framework.test import APIRequestFactory
 
-from rest_framework_services import ServiceViewSet
+from rest_framework_services import ServiceSpec, ServiceViewSet
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -46,15 +46,21 @@ class _AuthorViewSet(ServiceViewSet):
         "list": AuthorSerializer,
         "retrieve": AuthorSerializer,
     }
-    list_selector = _list_authors
-    retrieve_selector = _get_author
-    create_service = _create_author
-    create_input_serializer = _AuthorIn
-    create_output_serializer = AuthorSerializer
-    update_service = _update_author
-    update_input_serializer = _AuthorIn
-    update_output_serializer = AuthorSerializer
-    destroy_service = _delete_author
+    service_specs = {
+        "list": _list_authors,
+        "retrieve": _get_author,
+        "create": ServiceSpec(
+            service=_create_author,
+            input_serializer=_AuthorIn,
+            output_serializer=AuthorSerializer,
+        ),
+        "update": ServiceSpec(
+            service=_update_author,
+            input_serializer=_AuthorIn,
+            output_serializer=AuthorSerializer,
+        ),
+        "destroy": ServiceSpec(service=_delete_author),
+    }
 
 
 factory = APIRequestFactory()
@@ -124,10 +130,11 @@ class TestServiceViewSetActions:
             return {"name": data.name}
 
         class _View(ServiceViewSet):
-            list_selector = listed
             serializer_classes = {"list": AuthorSerializer}
-            create_service = created
-            create_input_serializer = _AuthorIn
+            service_specs = {
+                "list": listed,
+                "create": ServiceSpec(service=created, input_serializer=_AuthorIn),
+            }
 
             def get_selector_kwargs(self) -> dict[str, Any]:
                 return {"tenant": "S"}
@@ -183,8 +190,8 @@ class TestServiceViewSetEdgeCases:
             return Author.objects.get(pk=pk)
 
         class _View(ServiceViewSet):
-            retrieve_selector = strict
             serializer_classes = {"retrieve": AuthorSerializer}
+            service_specs = {"retrieve": strict}
 
         view = _View.as_view({"get": "retrieve"})
         response = view(factory.get("/"), pk=999)
@@ -197,9 +204,9 @@ class TestServiceViewSetEdgeCases:
             raise ServiceError("nope")
 
         class _View(ServiceViewSet):
-            create_service = boom
-            create_input_serializer = _AuthorIn
-            create_atomic = False
+            service_specs = {
+                "create": ServiceSpec(service=boom, input_serializer=_AuthorIn, atomic=False),
+            }
 
         view = _View.as_view({"post": "create"})
         response = view(factory.post("/", {"name": "x"}, format="json"))
@@ -213,10 +220,14 @@ class TestServiceViewSetEdgeCases:
             return result.upper()
 
         class _View(ServiceViewSet):
-            create_service = fn
-            create_input_serializer = _AuthorIn
-            create_output_selector = selector
-            create_atomic = False
+            service_specs = {
+                "create": ServiceSpec(
+                    service=fn,
+                    input_serializer=_AuthorIn,
+                    output_selector=selector,
+                    atomic=False,
+                ),
+            }
 
         view = _View.as_view({"post": "create"})
         response = view(factory.post("/", {"name": "ada"}, format="json"))
@@ -225,9 +236,13 @@ class TestServiceViewSetEdgeCases:
 
     def test_create_returning_none_renders_204(self) -> None:
         class _View(ServiceViewSet):
-            create_service = staticmethod(lambda *, data: None)
-            create_input_serializer = _AuthorIn
-            create_atomic = False
+            service_specs = {
+                "create": ServiceSpec(
+                    service=staticmethod(lambda *, data: None),
+                    input_serializer=_AuthorIn,
+                    atomic=False,
+                ),
+            }
 
         view = _View.as_view({"post": "create"})
         response = view(factory.post("/", {"name": "x"}, format="json"))
@@ -239,9 +254,11 @@ class TestServiceViewSetEdgeCases:
 
         class _View(ServiceViewSet):
             queryset = Author.objects.all()
-            destroy_service = fn
-            destroy_output_serializer = AuthorSerializer
-            destroy_atomic = False
+            service_specs = {
+                "destroy": ServiceSpec(
+                    service=fn, output_serializer=AuthorSerializer, atomic=False
+                ),
+            }
 
         author = Author.objects.create(name="Z")
         view = _View.as_view({"delete": "destroy"})
@@ -299,3 +316,62 @@ class TestServiceViewSetUnconfigured:
         author = Author.objects.create(name="x")
         response = view(factory.delete("/"), pk=author.pk)
         assert response.status_code == 405
+
+    def test_create_with_non_servicespec_entry_returns_405(self) -> None:
+        # A bare callable (selector-style) under "create" is a misconfiguration —
+        # the write mixin treats it as "not configured" rather than crashing.
+        class _View(ServiceViewSet):
+            service_specs = {"create": lambda *, data: None}
+
+        view = _View.as_view({"post": "create"})
+        response = view(factory.post("/"))
+        assert response.status_code == 405
+
+
+@pytest.mark.django_db
+class TestServiceViewSetSpecOverrides:
+    def test_create_spec_success_status_override(self) -> None:
+        class _View(ServiceViewSet):
+            service_specs = {
+                "create": ServiceSpec(
+                    service=staticmethod(lambda *, data: {"x": data.name}),
+                    input_serializer=_AuthorIn,
+                    atomic=False,
+                    success_status=202,
+                ),
+            }
+
+        view = _View.as_view({"post": "create"})
+        response = view(factory.post("/", {"name": "x"}, format="json"))
+        assert response.status_code == 202
+
+    def test_update_spec_success_status_override(self) -> None:
+        author = Author.objects.create(name="x")
+
+        class _View(ServiceViewSet):
+            queryset = Author.objects.all()
+            service_specs = {
+                "update": ServiceSpec(
+                    service=_update_author,
+                    input_serializer=_AuthorIn,
+                    atomic=False,
+                    success_status=202,
+                ),
+            }
+
+        view = _View.as_view({"put": "update"})
+        response = view(factory.put("/", {"name": "y"}, format="json"), pk=author.pk)
+        assert response.status_code == 202
+
+    def test_destroy_spec_success_status_override(self) -> None:
+        author = Author.objects.create(name="x")
+
+        class _View(ServiceViewSet):
+            queryset = Author.objects.all()
+            service_specs = {
+                "destroy": ServiceSpec(service=_delete_author, atomic=False, success_status=200),
+            }
+
+        view = _View.as_view({"delete": "destroy"})
+        response = view(factory.delete("/"), pk=author.pk)
+        assert response.status_code == 200

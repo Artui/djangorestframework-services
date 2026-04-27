@@ -2,45 +2,42 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any, ClassVar
 
 from rest_framework import status as drf_status
 from rest_framework.generics import GenericAPIView
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import Serializer
 
+from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
-from rest_framework_services.views.utils import get_class_attr
 
 
 class ServiceDeleteView(MutationFlowMixin, GenericAPIView):
     """``DELETE`` endpoint that runs a service callable.
 
-    Optionally accepts a request body (``input_serializer``) for delete-with-
-    payload patterns (e.g. a deletion reason). By default returns ``204 No
-    Content``; configure ``output_serializer`` to render a body.
+    Configure by setting ``spec`` to a :class:`ServiceSpec`. The spec's
+    ``input_serializer`` is optional (for delete-with-payload patterns
+    such as a deletion reason); ``success_status`` defaults to
+    ``204 No Content``; set ``output_serializer`` on the spec to render
+    a body instead.
     """
 
-    service: ClassVar[Callable[..., Any] | None] = None
-    input_serializer: ClassVar[type | None] = None
-    output_serializer: ClassVar[type[Serializer] | None] = None
-    output_selector: ClassVar[Callable[..., Any] | None] = None
-    atomic: ClassVar[bool] = True
-    success_status: ClassVar[int] = drf_status.HTTP_204_NO_CONTENT
+    spec: ClassVar[ServiceSpec | None] = None
 
     def delete(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        service: Callable[..., Any] | None = get_class_attr(self, "service")
-        if service is None:
-            raise NotImplementedError(f"{type(self).__name__} requires a `service` callable.")
+        spec: ServiceSpec | None = self.spec
+        if spec is None:
+            raise NotImplementedError(
+                f"{type(self).__name__} requires a `spec` (ServiceSpec) attribute."
+            )
         return self._run_mutation(
             request,
-            service=service,
-            input_serializer=self.input_serializer,
-            output_serializer=self.output_serializer,
-            output_selector=get_class_attr(self, "output_selector"),
-            atomic=self.atomic,
-            success_status=self.success_status,
+            service=spec.service,
+            input_serializer=spec.input_serializer,
+            output_serializer=spec.output_serializer,
+            output_selector=spec.output_selector,
+            atomic=spec.atomic,
+            success_status=spec.success_status or drf_status.HTTP_204_NO_CONTENT,
             instance=self.get_object(),
         )

@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-04-27
+
+### Added
+
+- `ServiceSpec` (in `rest_framework_services.types`) — frozen dataclass
+  bundling per-action mutation config: `service`, `input_serializer`,
+  `output_serializer`, `output_selector`, `atomic`, `success_status`.
+- `service_specs` class attribute on `ServiceViewSet` (and the per-action
+  mixins) — a single action-keyed mapping replacing the per-action flat
+  attributes. Read actions (`"list"`, `"retrieve"`) accept a bare callable
+  (the selector); write actions (`"create"`, `"update"`, `"destroy"`)
+  accept a `ServiceSpec`.
+
+### Changed
+
+- **Breaking.** Removed flat per-action attributes from viewset mixins:
+  `list_selector`, `retrieve_selector`, `create_service`,
+  `create_input_serializer`, `create_output_serializer`,
+  `create_output_selector`, `create_atomic`, and the matching `update_*`
+  / `destroy_*` triplets. Move the values into `service_specs` instead.
+- **Breaking.** Standalone mutation views (`ServiceCreateView`,
+  `ServiceUpdateView`, `ServiceDeleteView`) no longer accept individual
+  flat attributes (`service`, `input_serializer`, …). They are now
+  configured by setting a single `spec` class attribute to a
+  `ServiceSpec`.
+- **Breaking.** `@service_action` now takes a `ServiceSpec` as its first
+  positional argument instead of `service=`/`input_serializer=`/etc.
+  kwargs. DRF-action options (`detail`, `methods`, `url_path`,
+  `url_name`, plus extras) are unchanged.
+
 ## [0.2.0] — 2026-04-27
 
 ### Changed
@@ -140,6 +170,7 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Artui/djangorestframework-services/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Artui/djangorestframework-services/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Artui/djangorestframework-services/releases/tag/v0.1.0
