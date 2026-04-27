@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from rest_framework_services import ServiceViewSet, service_action
-
 from invoices.models import Invoice
 from invoices.selectors import get_invoice, list_invoices
 from invoices.serializers import InvoiceSerializer
@@ -16,6 +14,7 @@ from invoices.services import (
     mark_invoice_sent,
     update_invoice,
 )
+from rest_framework_services import ServiceViewSet, service_action
 
 
 class InvoiceViewSet(ServiceViewSet):

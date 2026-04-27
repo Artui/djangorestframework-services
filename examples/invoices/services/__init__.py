@@ -9,15 +9,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from invoices.models import Invoice
 from rest_framework_services import (
     ServiceError,
     ServiceValidationError,
     create_from_input,
     update_from_input,
 )
-
-from invoices.models import Invoice
-
 
 # -----------------------------------------------------------------------
 # Input dataclasses.

@@ -1,0 +1,31 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: "ruff check --fix"
+        entry: make lint-fix
+        pass_filenames: false
+        language: system
+        stages: [pre-commit]
+
+      - id: ruff-format
+        name: "ruff format"
+        entry: make format
+        pass_filenames: false
+        language: system
+        stages: [pre-commit]
+
+      - id: backend-type-check
+        name: "type check (ty)"
+        entry: make type-check
+        pass_filenames: false
+        language: system
+        stages: [pre-commit]
