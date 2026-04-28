@@ -4,6 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/djangorestframework-services.svg)](https://pypi.org/project/djangorestframework-services/)
 [![Python versions](https://img.shields.io/pypi/pyversions/djangorestframework-services.svg)](https://pypi.org/project/djangorestframework-services/)
 [![Django versions](https://img.shields.io/pypi/djversions/djangorestframework-services.svg)](https://pypi.org/project/djangorestframework-services/)
+[![Docs](https://img.shields.io/badge/docs-artui.github.io-blue.svg)](https://artui.github.io/djangorestframework-services/)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://github.com/Artui/djangorestframework-services/actions/workflows/tests.yml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![License](https://img.shields.io/pypi/l/djangorestframework-services.svg)](LICENSE)
@@ -29,6 +30,8 @@ you a precise, well-typed seam for the bits in the middle.
 - **Atomic by default**, opt-out per view.
 - **Framework-agnostic exceptions** — services don't import from DRF.
 - **100% test coverage**, type-checked, Python 3.10–3.14, Django 4.2–6.0.
+
+📖 **Full documentation:** <https://artui.github.io/djangorestframework-services/>
 
 ```bash
 pip install djangorestframework-services
