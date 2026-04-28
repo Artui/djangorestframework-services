@@ -121,3 +121,36 @@ line-ending = "auto"
 
 [tool.ty.environment]
 root = ["./rest_framework_services"]
+
+# bump-my-version drives `make release-bump` — it rewrites the version in
+# pyproject.toml + __init__.py and promotes the CHANGELOG [Unreleased]
+# block under a new dated heading. Run via `uvx bump-my-version` (no
+# permanent dependency added to the project).
+[tool.bumpversion]
+current_version = "0.4.0"
+allow_dirty = false
+commit = false
+tag = false
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "rest_framework_services/__init__.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "CHANGELOG.md"
+search = "## [Unreleased]"
+replace = """## [Unreleased]
+
+## [{new_version}] — {now:%Y-%m-%d}"""
+
+[[tool.bumpversion.files]]
+filename = "CHANGELOG.md"
+search = "[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v{current_version}...HEAD"
+replace = """[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v{new_version}...HEAD
+[{new_version}]: https://github.com/Artui/djangorestframework-services/compare/v{current_version}...v{new_version}"""

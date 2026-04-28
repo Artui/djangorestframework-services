@@ -168,14 +168,37 @@ sequential jobs in `.github/workflows/release.yml`:
 
 ### Cutting a release
 
-1. Update `version` in `pyproject.toml` **and** `__version__` in
-   `rest_framework_services/__init__.py` (keep them in sync — the build job
-   asserts the tag matches `__version__`).
-2. Move the `[Unreleased]` block in `CHANGELOG.md` under a new
-   `## [X.Y.Z] — YYYY-MM-DD` heading and add a fresh empty `[Unreleased]`.
-3. Update the version compare links at the bottom of `CHANGELOG.md`.
-4. Commit, then `git tag -a vX.Y.Z -m "X.Y.Z"` and `git push origin main vX.Y.Z`.
-   The tag push triggers the release workflow end-to-end.
+Two Make targets wrap the whole flow. The bump itself is driven by
+[bump-my-version](https://github.com/callowayproject/bump-my-version)
+via `uvx`; configuration lives in `[tool.bumpversion]` in
+`pyproject.toml`. No permanent dependency is added to the project.
+
+```bash
+# 1. Make sure CHANGELOG.md has the entries you want to ship under
+#    ## [Unreleased]. Then bump:
+make release-bump VERSION=0.4.1
+# This rewrites pyproject.toml + __init__.py, promotes the [Unreleased]
+# block under a dated [0.4.1] section, and rewrites the link footer —
+# all driven by the [[tool.bumpversion.files]] entries in pyproject.toml.
+
+# 2. Review the diff. Edit CHANGELOG.md if you want to reword anything.
+git diff
+
+# 3. Push:
+make release-publish
+# Commits the bump as "Release X.Y.Z", tags vX.Y.Z, and pushes both to
+# origin. The tag push triggers .github/workflows/release.yml.
+```
+
+`release-bump` refuses to run on a dirty tree (bump-my-version's
+`allow_dirty = false`), so you don't fold unrelated changes into the
+release commit. `release-publish` refuses to run if `pyproject.toml`
+and `rest_framework_services/__init__.py` disagree, or if the tag
+already exists locally or on origin.
+
+If you really need to do it by hand, the manual flow is: bump both
+version files in lockstep, edit `CHANGELOG.md`, commit, then
+`git tag -a vX.Y.Z -m "X.Y.Z"` and `git push origin main vX.Y.Z`.
 
 ### One-time setup (manual, by the repo owner)
 
