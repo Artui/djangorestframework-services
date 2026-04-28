@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from rest_framework.viewsets import GenericViewSet
 
-from rest_framework_services.viewsets.multi_serializer_mixin import MultiSerializerMixin
+from rest_framework_services.viewsets.action_serializer_resolver import (
+    ActionSerializerResolver,
+)
 from rest_framework_services.viewsets.selector_list_mixin import SelectorListMixin
 from rest_framework_services.viewsets.selector_retrieve_mixin import (
     SelectorRetrieveMixin,
@@ -20,14 +22,14 @@ class ServiceViewSet(
     ServiceDestroyMixin,
     SelectorListMixin,
     SelectorRetrieveMixin,
-    MultiSerializerMixin,
+    ActionSerializerResolver,
     GenericViewSet,
 ):
     """Router-compatible viewset wiring services and selectors.
 
     Composes :class:`ServiceCreateMixin`, :class:`ServiceUpdateMixin`,
     :class:`ServiceDestroyMixin`, :class:`SelectorListMixin`,
-    :class:`SelectorRetrieveMixin`, and :class:`MultiSerializerMixin` over
-    :class:`~rest_framework.viewsets.GenericViewSet`. See those classes for
-    the configurable attributes.
+    :class:`SelectorRetrieveMixin`, and :class:`ActionSerializerResolver`
+    over :class:`~rest_framework.viewsets.GenericViewSet`. See those classes
+    for the configurable attributes.
     """

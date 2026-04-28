@@ -7,6 +7,7 @@ from typing import Any
 from django.db.models import Model
 
 from rest_framework_services.mutations.utils import (
+    _auto_now_field_names,
     aapply_m2m,
     am2m_changes,
     coerce_to_dict,
@@ -38,7 +39,9 @@ async def aupdate_from_input(
         setattr(instance, change.field, change.new)
     m2m_field_changes, to_apply = await am2m_changes(instance, m2m, created=False)
     changed_field_names: tuple[str, ...] = tuple(change.field for change in field_changes)
-    save_fields: list[str] | None = resolve_update_fields(update_fields, changed_field_names)
+    save_fields: list[str] | None = resolve_update_fields(
+        update_fields, changed_field_names, _auto_now_field_names(instance)
+    )
     if field_changes or update_fields is False:
         if save_fields is None:
             await instance.asave()

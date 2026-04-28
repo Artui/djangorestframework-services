@@ -7,6 +7,7 @@ from typing import Any
 from django.db.models import Model
 
 from rest_framework_services.mutations.utils import (
+    _auto_now_field_names,
     apply_m2m,
     coerce_to_dict,
     diff_attrs,
@@ -29,8 +30,11 @@ def update_from_input(
     """Update ``instance`` with values from ``data``, persisting only deltas.
 
     By default (``update_fields=True``), the save call uses
-    ``update_fields=<changed>`` to write the minimal set of columns. Pass
-    ``False`` to perform a full save, or an explicit list to override.
+    ``update_fields=<changed>`` to write the minimal set of columns.
+    ``auto_now=True`` fields (e.g. ``updated_at``) are automatically added to
+    that list so they are refreshed alongside the mutation. Pass ``False`` to
+    perform a full save, or an explicit list to control exactly which columns
+    are written (no auto-injection in that case).
     """
     raw: dict[str, Any] = coerce_to_dict(data)
     new_values: dict[str, Any] = filter_input(
@@ -43,7 +47,9 @@ def update_from_input(
         setattr(instance, change.field, change.new)
     m2m_field_changes, to_apply = m2m_changes(instance, m2m, created=False)
     changed_field_names: tuple[str, ...] = tuple(change.field for change in field_changes)
-    save_fields: list[str] | None = resolve_update_fields(update_fields, changed_field_names)
+    save_fields: list[str] | None = resolve_update_fields(
+        update_fields, changed_field_names, _auto_now_field_names(instance)
+    )
     if field_changes or update_fields is False:
         if save_fields is None:
             instance.save()

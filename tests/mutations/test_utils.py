@@ -8,6 +8,7 @@ import pytest
 from django.core.exceptions import ObjectDoesNotExist
 
 from rest_framework_services.mutations.utils import (
+    _auto_now_field_names,
     coerce_to_dict,
     diff_attrs,
     filter_input,
@@ -16,6 +17,7 @@ from rest_framework_services.mutations.utils import (
     safe_getattr,
 )
 from rest_framework_services.types.unset import UNSET
+from tests.testapp.models import Author, Timestamped
 
 
 class _RaisingFK:
@@ -104,6 +106,17 @@ class TestM2mTargetPks:
         assert m2m_target_pks([1, 2, 3]) == [1, 2, 3]
 
 
+class TestAutoNowFieldNames:
+    def test_returns_auto_now_fields(self) -> None:
+        assert _auto_now_field_names(Timestamped()) == ("updated_at",)
+
+    def test_excludes_auto_now_add(self) -> None:
+        assert "created_at" not in _auto_now_field_names(Timestamped())
+
+    def test_model_without_auto_now(self) -> None:
+        assert _auto_now_field_names(Author()) == ()
+
+
 class TestResolveUpdateFields:
     def test_true_with_changes(self) -> None:
         assert resolve_update_fields(True, ("a", "b")) == ["a", "b"]
@@ -116,3 +129,20 @@ class TestResolveUpdateFields:
 
     def test_explicit_list(self) -> None:
         assert resolve_update_fields(["x", "y"], ("a",)) == ["x", "y"]
+
+    def test_auto_now_fields_appended(self) -> None:
+        result = resolve_update_fields(True, ("title",), ("updated_at",))
+        assert result == ["title", "updated_at"]
+
+    def test_auto_now_fields_not_appended_when_no_changes(self) -> None:
+        assert resolve_update_fields(True, (), ("updated_at",)) is None
+
+    def test_auto_now_fields_not_appended_when_false(self) -> None:
+        assert resolve_update_fields(False, ("title",), ("updated_at",)) is None
+
+    def test_auto_now_fields_not_appended_for_explicit_list(self) -> None:
+        assert resolve_update_fields(["title"], ("x",), ("updated_at",)) == ["title"]
+
+    def test_auto_now_field_already_in_changed_no_dup(self) -> None:
+        result = resolve_update_fields(True, ("updated_at", "title"), ("updated_at",))
+        assert result == ["updated_at", "title"]

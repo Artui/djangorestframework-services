@@ -16,7 +16,13 @@ from rest_framework_services.mutations import (
     update_from_input,
 )
 from rest_framework_services.selectors import AsyncSelector, Selector
-from rest_framework_services.types import UNSET, ChangeResult, FieldChange, ServiceSpec
+from rest_framework_services.types import (
+    UNSET,
+    ChangeResult,
+    FieldChange,
+    SelectorSpec,
+    ServiceSpec,
+)
 from rest_framework_services.views import (
     SelectorListView,
     SelectorRetrieveView,
@@ -26,7 +32,7 @@ from rest_framework_services.views import (
 )
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
 from rest_framework_services.viewsets import (
-    MultiSerializerMixin,
+    ActionSerializerResolver,
     SelectorListMixin,
     SelectorRetrieveMixin,
     SelectorViewSet,
@@ -38,16 +44,17 @@ from rest_framework_services.viewsets import (
 )
 
 __all__ = [
+    "ActionSerializerResolver",
     "AsyncSelector",
     "ChangeResult",
     "FieldChange",
-    "MultiSerializerMixin",
     "MutationFlowMixin",
     "Selector",
     "SelectorListMixin",
     "SelectorListView",
     "SelectorRetrieveMixin",
     "SelectorRetrieveView",
+    "SelectorSpec",
     "SelectorViewSet",
     "ServiceCreateMixin",
     "ServiceCreateView",
@@ -68,4 +75,4 @@ __all__ = [
     "update_from_input",
 ]
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"

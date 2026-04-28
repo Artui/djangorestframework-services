@@ -8,7 +8,7 @@ import pytest
 from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet
 
-from rest_framework_services import SelectorRetrieveMixin
+from rest_framework_services import SelectorRetrieveMixin, SelectorSpec
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -20,7 +20,7 @@ def _retrieve(*, pk: int, tenant: str) -> Author | None:
 
 
 class _RetrieveOnly(SelectorRetrieveMixin, GenericViewSet):
-    service_specs = {"retrieve": _retrieve}
+    action_specs = {"retrieve": SelectorSpec(selector=_retrieve)}
     serializer_class = AuthorSerializer
 
     def get_selector_kwargs(self) -> dict[str, Any]:

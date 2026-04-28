@@ -8,7 +8,7 @@ import pytest
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.test import APIRequestFactory
 
-from rest_framework_services import SelectorListView
+from rest_framework_services import SelectorListView, SelectorSpec
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -18,8 +18,7 @@ def _list_authors() -> Any:
 
 
 class _ListAuthorsView(SelectorListView):
-    selector = _list_authors
-    serializer_class = AuthorSerializer
+    spec = SelectorSpec(selector=_list_authors, output_serializer=AuthorSerializer)
 
 
 factory = APIRequestFactory()
@@ -43,8 +42,7 @@ class TestSelectorListView:
             page_size = 2
 
         class _Paginated(SelectorListView):
-            selector = _list_authors
-            serializer_class = AuthorSerializer
+            spec = SelectorSpec(selector=_list_authors, output_serializer=AuthorSerializer)
             pagination_class = _Paginator
 
         request = factory.get("/?page=1")
@@ -61,8 +59,7 @@ class TestSelectorListView:
             return Author.objects.none()
 
         class _View(SelectorListView):
-            selector = tenant_selector
-            serializer_class = AuthorSerializer
+            spec = SelectorSpec(selector=tenant_selector, output_serializer=AuthorSerializer)
 
             def get_selector_kwargs(self) -> dict[str, Any]:
                 return {"tenant": "acme"}
@@ -79,8 +76,7 @@ class TestSelectorListView:
             return Author.objects.filter(pk=author_id).order_by("id")
 
         class _View(SelectorListView):
-            selector = by_author
-            serializer_class = AuthorSerializer
+            spec = SelectorSpec(selector=by_author, output_serializer=AuthorSerializer)
 
         author = Author.objects.create(name="x")
         request = factory.get("/")
@@ -88,7 +84,7 @@ class TestSelectorListView:
         assert response.status_code == 200
         assert captured["author_id"] == author.pk
 
-    def test_falls_back_to_get_queryset_when_selector_missing(self) -> None:
+    def test_falls_back_to_get_queryset_when_spec_missing(self) -> None:
         Author.objects.create(name="alpha")
         Author.objects.create(name="beta")
 
@@ -101,6 +97,18 @@ class TestSelectorListView:
         assert response.status_code == 200
         assert [a["name"] for a in response.data] == ["alpha", "beta"]
 
+    def test_spec_with_no_selector_falls_back_to_get_queryset(self) -> None:
+        Author.objects.create(name="alpha")
+
+        class _View(SelectorListView):
+            queryset = Author.objects.all().order_by("id")
+            spec = SelectorSpec(output_serializer=AuthorSerializer)
+
+        request = factory.get("/")
+        response = _View.as_view()(request)
+        assert response.status_code == 200
+        assert response.data[0]["name"] == "alpha"
+
     def test_filter_backends_apply_to_selector_queryset(self) -> None:
         """Filter backends still wrap whatever ``get_queryset`` returns —
         whether it came from the selector or from DRF's default."""
@@ -112,8 +120,7 @@ class TestSelectorListView:
                 return queryset.filter(name="alpha")
 
         class _Filtered(SelectorListView):
-            selector = _list_authors
-            serializer_class = AuthorSerializer
+            spec = SelectorSpec(selector=_list_authors, output_serializer=AuthorSerializer)
             filter_backends = (_OnlyAlpha,)
 
         request = factory.get("/")

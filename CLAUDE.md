@@ -78,10 +78,13 @@ If the new symbol is part of the public API, also add it to the top-level `rest_
 
 `ty` is scoped to `rest_framework_services/` only — Django's dynamic descriptors (`Model.objects` in particular) trip the checker when it walks `tests/`. If `ty` complains about a piece of source code, fix the source rather than scoping the checker more narrowly.
 
-Common patches you'll need inside the package:
+Dev deps include `django-stubs` and `djangorestframework-stubs`, so DRF and Django types are known to `ty`.
 
-- For attributes provided by parent classes via MRO (`self.request`, `self.kwargs`, `self.action`, `self.get_object`), declare them at the top of the class as `attr: Any` (or a more specific type) with a comment naming the parent.
-- For `super()` calls into DRF mixins that ty can't resolve through DRF's stubs, append `# ty: ignore[unresolved-attribute]`.
+Common patches you'll still need inside the package:
+
+- In **standalone mixins** (classes that don't inherit from `GenericAPIView` directly), attributes like `self.request`, `self.kwargs`, `self.action`, `self.get_object` aren't in scope at definition time. Declare them at the top of the class as `attr: Any` (or a more specific type) with a comment naming the parent.
+- `super()` calls in standalone mixins to methods that only arrive at concrete composition time (e.g. `get_queryset`, `get_object`, `get_serializer_class`) still require `# ty: ignore[unresolved-attribute]`. In concrete view classes that extend `GenericAPIView` directly, those calls are fully resolved by the stubs.
+- `get_serializer_class()` overrides must return `type[BaseSerializer[Any]]` — that is what DRF's stubs declare as the return type of the base method.
 
 `ty` runs on every commit via the pre-commit hook and in CI.
 

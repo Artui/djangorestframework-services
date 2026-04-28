@@ -7,6 +7,7 @@ inputs/outputs are not coupled to the mutation helpers themselves.
 
 from rest_framework_services.types.change_result import ChangeResult
 from rest_framework_services.types.field_change import FieldChange
+from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.unset import UNSET
 
@@ -14,5 +15,6 @@ __all__ = [
     "UNSET",
     "ChangeResult",
     "FieldChange",
+    "SelectorSpec",
     "ServiceSpec",
 ]

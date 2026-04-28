@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from rest_framework.test import APIRequestFactory
 
-from rest_framework_services import SelectorRetrieveView
+from rest_framework_services import SelectorRetrieveView, SelectorSpec
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -17,8 +17,7 @@ def _get_author(*, pk: int) -> Author | None:
 
 
 class _RetrieveAuthorView(SelectorRetrieveView):
-    selector = _get_author
-    serializer_class = AuthorSerializer
+    spec = SelectorSpec(selector=_get_author, output_serializer=AuthorSerializer)
 
 
 factory = APIRequestFactory()
@@ -43,8 +42,7 @@ class TestSelectorRetrieveView:
             return Author.objects.get(pk=pk)
 
         class _View(SelectorRetrieveView):
-            selector = strict_get
-            serializer_class = AuthorSerializer
+            spec = SelectorSpec(selector=strict_get, output_serializer=AuthorSerializer)
 
         request = factory.get("/")
         response = _View.as_view()(request, pk=999)
@@ -58,8 +56,7 @@ class TestSelectorRetrieveView:
             return Author.objects.filter(pk=pk).first()
 
         class _View(SelectorRetrieveView):
-            selector = tenant_get
-            serializer_class = AuthorSerializer
+            spec = SelectorSpec(selector=tenant_get, output_serializer=AuthorSerializer)
 
             def get_selector_kwargs(self) -> dict[str, Any]:
                 return {"tenant": "acme"}
@@ -69,7 +66,7 @@ class TestSelectorRetrieveView:
         _View.as_view()(request, pk=author.pk)
         assert captured == {"pk": author.pk, "tenant": "acme"}
 
-    def test_falls_back_to_get_object_when_selector_missing(self) -> None:
+    def test_falls_back_to_get_object_when_spec_missing(self) -> None:
         author = Author.objects.create(name="Ada")
 
         class _Vanilla(SelectorRetrieveView):
@@ -78,6 +75,18 @@ class TestSelectorRetrieveView:
 
         request = factory.get("/")
         response = _Vanilla.as_view()(request, pk=author.pk)
+        assert response.status_code == 200
+        assert response.data["name"] == "Ada"
+
+    def test_spec_with_no_selector_falls_back_to_get_object(self) -> None:
+        author = Author.objects.create(name="Ada")
+
+        class _View(SelectorRetrieveView):
+            queryset = Author.objects.all()
+            spec = SelectorSpec(output_serializer=AuthorSerializer)
+
+        request = factory.get("/")
+        response = _View.as_view()(request, pk=author.pk)
         assert response.status_code == 200
         assert response.data["name"] == "Ada"
 

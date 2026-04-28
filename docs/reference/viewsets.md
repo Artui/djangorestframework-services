@@ -18,9 +18,9 @@
 
 ::: rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin
 
-## Multi-serializer dispatch
+## Action-serializer dispatch
 
-::: rest_framework_services.viewsets.multi_serializer_mixin.MultiSerializerMixin
+::: rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver
 
 ## Custom actions
 

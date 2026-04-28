@@ -1,7 +1,9 @@
 """Router-compatible viewsets, action mixins, and the ``@service_action`` decorator."""
 
+from rest_framework_services.viewsets.action_serializer_resolver import (
+    ActionSerializerResolver,
+)
 from rest_framework_services.viewsets.decorators import service_action
-from rest_framework_services.viewsets.multi_serializer_mixin import MultiSerializerMixin
 from rest_framework_services.viewsets.selector_list_mixin import SelectorListMixin
 from rest_framework_services.viewsets.selector_retrieve_mixin import (
     SelectorRetrieveMixin,
@@ -13,7 +15,7 @@ from rest_framework_services.viewsets.service_update_mixin import ServiceUpdateM
 from rest_framework_services.viewsets.service_viewset import ServiceViewSet
 
 __all__ = [
-    "MultiSerializerMixin",
+    "ActionSerializerResolver",
     "SelectorListMixin",
     "SelectorRetrieveMixin",
     "SelectorViewSet",

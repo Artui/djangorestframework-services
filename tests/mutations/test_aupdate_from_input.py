@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from django.utils import timezone
 
 from rest_framework_services.mutations import aupdate_from_input
 from rest_framework_services.types import UNSET
-from tests.testapp.models import Author, Post, Tag
+from tests.testapp.models import Author, Post, Tag, Timestamped
 
 
 @pytest.mark.django_db(transaction=True)
@@ -101,3 +103,27 @@ class TestAUpdateFromInput:
 
         result = await aupdate_from_input(post, None, m2m={"tags": [red]})
         assert result.changed_fields == ()
+
+    async def test_auto_now_field_included_in_update_fields(self) -> None:
+        obj = await Timestamped.objects.acreate(title="orig")
+        with patch.object(Timestamped, "asave", new_callable=AsyncMock) as mock_save:
+            await aupdate_from_input(obj, {"title": "new"})
+            kwargs = mock_save.call_args.kwargs
+            assert "updated_at" in kwargs["update_fields"]
+            assert "title" in kwargs["update_fields"]
+
+    async def test_auto_now_add_field_not_included_in_update_fields(self) -> None:
+        obj = await Timestamped.objects.acreate(title="orig")
+        with patch.object(Timestamped, "asave", new_callable=AsyncMock) as mock_save:
+            await aupdate_from_input(obj, {"title": "new"})
+            assert "created_at" not in mock_save.call_args.kwargs["update_fields"]
+
+    async def test_auto_now_field_actually_updated_in_db(self) -> None:
+        obj = await Timestamped.objects.acreate(title="orig")
+        old_ts = timezone.now() - timedelta(hours=1)
+        await Timestamped.objects.filter(pk=obj.pk).aupdate(updated_at=old_ts)
+        await obj.arefresh_from_db()
+
+        await aupdate_from_input(obj, {"title": "new"})
+        await obj.arefresh_from_db()
+        assert obj.updated_at > old_ts

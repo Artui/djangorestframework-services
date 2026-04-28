@@ -24,7 +24,7 @@ class Command(TemplateCommand):
     )
     missing_args_message = "You must provide an application name."
 
-    def handle(self, **options: Any) -> None:  # ty: ignore[invalid-method-override]
+    def handle(self, *_args: Any, **options: Any) -> None:
         app_name: str = options.pop("name")
         target: str | None = options.pop("directory")
         if not options.get("template"):

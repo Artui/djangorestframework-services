@@ -7,18 +7,17 @@ are part of the public API.
 ## Read-only viewset
 
 `SelectorViewSet` is a pre-built composition of `SelectorListMixin` +
-`SelectorRetrieveMixin` + DRF's `GenericViewSet`:
+`SelectorRetrieveMixin` + `ActionSerializerResolver` + DRF's `GenericViewSet`:
 
 ```python
-from rest_framework_services import SelectorViewSet
+from rest_framework_services import SelectorSpec, SelectorViewSet
 
 
 class AuthorReadOnly(SelectorViewSet):
     queryset = Author.objects.all()
-    serializer_class = AuthorDetailSerializer
-    service_specs = {
-        "list": list_authors,
-        "retrieve": get_author,
+    action_specs = {
+        "list": SelectorSpec(selector=list_authors, output_serializer=AuthorDetailSerializer),
+        "retrieve": SelectorSpec(selector=get_author, output_serializer=AuthorDetailSerializer),
     }
 ```
 
@@ -26,15 +25,19 @@ Or compose it yourself, if you want to mix in something custom:
 
 ```python
 from rest_framework.viewsets import GenericViewSet
-from rest_framework_services import SelectorListMixin, SelectorRetrieveMixin
+from rest_framework_services import (
+    ActionSerializerResolver,
+    SelectorListMixin,
+    SelectorRetrieveMixin,
+    SelectorSpec,
+)
 
 
-class AuthorReadOnly(SelectorListMixin, SelectorRetrieveMixin, GenericViewSet):
+class AuthorReadOnly(SelectorListMixin, SelectorRetrieveMixin, ActionSerializerResolver, GenericViewSet):
     queryset = Author.objects.all()
-    serializer_class = AuthorDetailSerializer
-    service_specs = {
-        "list": list_authors,
-        "retrieve": get_author,
+    action_specs = {
+        "list": SelectorSpec(selector=list_authors, output_serializer=AuthorDetailSerializer),
+        "retrieve": SelectorSpec(selector=get_author, output_serializer=AuthorDetailSerializer),
     }
 ```
 
@@ -46,8 +49,9 @@ updated.
 ```python
 from rest_framework.viewsets import GenericViewSet
 from rest_framework_services import (
-    MultiSerializerMixin,
+    ActionSerializerResolver,
     SelectorRetrieveMixin,
+    SelectorSpec,
     ServiceCreateMixin,
     ServiceSpec,
 )
@@ -56,15 +60,15 @@ from rest_framework_services import (
 class TicketViewSet(
     ServiceCreateMixin,
     SelectorRetrieveMixin,
-    MultiSerializerMixin,
+    ActionSerializerResolver,
     GenericViewSet,
 ):
     queryset = Ticket.objects.all()
-    serializer_classes = {
-        "retrieve": TicketDetailSerializer,
-    }
-    service_specs = {
-        "retrieve": get_ticket,
+    action_specs = {
+        "retrieve": SelectorSpec(
+            selector=get_ticket,
+            output_serializer=TicketDetailSerializer,
+        ),
         "create": ServiceSpec(
             service=open_ticket,
             input_serializer=OpenTicketInput,
@@ -82,11 +86,12 @@ class TicketViewSet(
 | `ServiceDestroyMixin` | `destroy` | `DELETE` |
 | `SelectorListMixin` | `list` | `GET` (collection) |
 | `SelectorRetrieveMixin` | `retrieve` | `GET` (detail) |
-| `MultiSerializerMixin` | — | per-action `serializer_class` dispatch |
+| `ActionSerializerResolver` | — | per-action `output_serializer` dispatch |
 | `MutationFlowMixin` | — | the building block for service-backed action flow on bespoke shapes that don't fit the existing five mixins |
 
-`MultiSerializerMixin` is independent of any action and is safe to mix
-into any viewset (or skip if every action uses the same serializer).
+`ActionSerializerResolver` is independent of any action and is safe to mix
+into any viewset (or skip if every action uses the same serializer via
+DRF's `serializer_class`).
 
 ## When to reach for `MutationFlowMixin`
 

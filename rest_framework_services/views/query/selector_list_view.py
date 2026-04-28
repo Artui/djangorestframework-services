@@ -1,16 +1,17 @@
-"""``GET`` list endpoint backed by a selector callable or DRF queryset."""
+"""``GET`` list endpoint backed by a selector spec or DRF queryset."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any, ClassVar
 
 from rest_framework.generics import GenericAPIView
 from rest_framework.mixins import ListModelMixin
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer
 
 from rest_framework_services.selectors.utils import run_selector
+from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.utils import (
     get_class_attr,
     resolve_callable_kwargs,
@@ -20,23 +21,37 @@ from rest_framework_services.views.utils import (
 class SelectorListView(ListModelMixin, GenericAPIView):
     """``GET`` endpoint that delegates to a selector or to ``get_queryset()``.
 
-    The ``selector`` attribute is a callable returning a queryset/list. When
-    set, it overrides ``get_queryset()``; the rest of the flow (filter
-    backends, pagination, response rendering) is the standard DRF
-    ``ListModelMixin``. When ``selector`` is unset, the view uses the
-    inherited ``queryset`` attribute exactly like a vanilla DRF list view.
+    Set ``spec`` to a :class:`SelectorSpec` to configure the selector and/or
+    the output serializer. Both fields are optional:
 
-    Set ``serializer_class`` to render items, like any DRF list view.
+    - ``spec.selector`` overrides ``get_queryset()``; ``None`` falls back to
+      the inherited ``queryset`` attribute.
+    - ``spec.output_serializer`` overrides ``get_serializer_class()``; ``None``
+      falls back to DRF's standard ``serializer_class`` attribute.
+
+    ``spec = None`` (the default) keeps both as vanilla DRF.
+
+    The rest of the list flow — filter backends, pagination, response
+    rendering — is the standard DRF ``ListModelMixin``.
     """
 
-    selector: ClassVar[Callable[..., Any] | None] = None
+    spec: ClassVar[SelectorSpec | None] = None
 
     def get_selector_kwargs(self) -> dict[str, Any]:
         """Hook for additional kwargs available to the selector signature."""
         return {}
 
+    def get_serializer_class(self) -> type[BaseSerializer[Any]]:
+        s: SelectorSpec | None = get_class_attr(self, "spec")
+        if isinstance(s, SelectorSpec) and s.output_serializer is not None:
+            return s.output_serializer
+        return super().get_serializer_class()
+
     def get_queryset(self) -> Any:
-        selector: Callable[..., Any] | None = get_class_attr(self, "selector")
+        s: SelectorSpec | None = get_class_attr(self, "spec")
+        if s is None:
+            return super().get_queryset()
+        selector = s.selector
         if selector is None:
             return super().get_queryset()
         pool: dict[str, Any] = {

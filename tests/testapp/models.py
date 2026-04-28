@@ -19,6 +19,15 @@ class Author(models.Model):
         app_label = "testapp"
 
 
+class Timestamped(models.Model):
+    title = models.CharField(max_length=100)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        app_label = "testapp"
+
+
 class Post(models.Model):
     title = models.CharField(max_length=200)
     body = models.TextField(default="")

@@ -184,18 +184,33 @@ def changes_for_create(new_values: dict[str, Any]) -> tuple[FieldChange, ...]:
     )
 
 
+def _auto_now_field_names(instance: Model) -> tuple[str, ...]:
+    """Return the names of all ``auto_now=True`` fields on the model."""
+    return tuple(
+        f.name for f in instance._meta.concrete_fields if hasattr(f, "auto_now") and f.auto_now
+    )
+
+
 def resolve_update_fields(
     update_fields: bool | list[str],
     changed: tuple[str, ...],
+    auto_now_fields: tuple[str, ...] = (),
 ) -> list[str] | None:
     """Map the public ``update_fields`` argument to a ``save()``-compatible list.
 
-    - ``True`` (default) → ``list(changed)``; ``None`` if nothing changed.
-    - ``False`` → ``None`` (full save).
-    - explicit list → returned as-is.
+    - ``True`` (default) → ``list(changed)`` extended with any ``auto_now=True``
+      fields so timestamp columns are refreshed alongside the mutation. Returns
+      ``None`` if nothing changed (save skipped entirely).
+    - ``False`` → ``None`` (full save; Django handles ``auto_now`` automatically).
+    - explicit list → returned as-is (caller controls which columns are written).
     """
     if update_fields is True:
-        return list(changed) if changed else None
+        fields = list(changed)
+        if fields:
+            for f in auto_now_fields:
+                if f not in fields:
+                    fields.append(f)
+        return fields or None
     if update_fields is False:
         return None
     return list(update_fields)

@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-04-28
+
+### Added
+
+- `SelectorSpec` (in `rest_framework_services.types`) — frozen dataclass
+  bundling per-action read config: `selector` and `output_serializer`.
+- `ActionSerializerResolver` viewset mixin — resolves
+  `get_serializer_class()` from the active action's `action_specs` entry
+  (`output_serializer` on either a `SelectorSpec` or `ServiceSpec`),
+  replacing `MultiSerializerMixin`.
+- `django-stubs` and `djangorestframework-stubs` added to dev dependencies
+  so `ty` resolves Django/DRF types directly.
+
+### Fixed
+
+- `update_from_input` / `aupdate_from_input` now automatically include
+  `auto_now=True` fields (e.g. `updated_at`) in the computed
+  `update_fields` list when `update_fields=True` (default). Previously
+  those columns were silently skipped because Django only updates
+  `auto_now` fields when they are explicitly listed in `update_fields`.
+  Explicit `update_fields=[...]` lists are still passed through
+  unchanged; `update_fields=False` is unaffected.
+
+### Changed
+
+- **Breaking.** `service_specs` renamed to `action_specs` on all viewset
+  mixins (`SelectorListMixin`, `SelectorRetrieveMixin`,
+  `ServiceCreateMixin`, `ServiceUpdateMixin`, `ServiceDestroyMixin`) and
+  on `ServiceViewSet` / `SelectorViewSet`.
+- **Breaking.** Read-side entries in `action_specs` (`"list"`,
+  `"retrieve"`) now require a `SelectorSpec` instance. Bare callables are
+  no longer accepted and raise `ImproperlyConfigured` at request time with
+  a migration message.
+- **Breaking.** `serializer_classes` mapping and `MultiSerializerMixin`
+  removed. Move per-action serializers into `action_specs` via
+  `SelectorSpec(output_serializer=...)` or `ServiceSpec(output_serializer=...)`.
+- **Breaking.** `SelectorListView` and `SelectorRetrieveView` now accept
+  a single `spec: SelectorSpec` attribute instead of separate `selector`
+  and `serializer_class` attributes. `spec.output_serializer` overrides
+  `get_serializer_class()`; `spec.selector = None` keeps DRF's default
+  `get_queryset()` / `get_object()`.
+- A wrong-type `action_specs` entry (e.g. `SelectorSpec` on a write
+  action, or `ServiceSpec` on a read action) now raises
+  `ImproperlyConfigured` at request time instead of silently falling back.
+
+### Migration from 0.4.x
+
+| 0.4.x | 0.5.x |
+|---|---|
+| `service_specs = {...}` | `action_specs = {...}` |
+| `serializer_classes = {"list": S}` | `action_specs["list"] = SelectorSpec(output_serializer=S)` |
+| `service_specs["list"] = list_fn` | `action_specs["list"] = SelectorSpec(selector=list_fn)` |
+| `service_specs["list"] = list_fn` + `serializer_classes["list"] = S` | `action_specs["list"] = SelectorSpec(selector=list_fn, output_serializer=S)` |
+| `class V(SelectorListView): selector = fn; serializer_class = S` | `class V(SelectorListView): spec = SelectorSpec(selector=fn, output_serializer=S)` |
+| `MultiSerializerMixin` in MRO | `ActionSerializerResolver` in MRO |
+
 ## [0.4.0] — 2026-04-28
 
 ### Added
@@ -196,7 +252,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Artui/djangorestframework-services/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Artui/djangorestframework-services/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Artui/djangorestframework-services/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Artui/djangorestframework-services/compare/v0.1.0...v0.2.0

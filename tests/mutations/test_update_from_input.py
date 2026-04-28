@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
+from django.utils import timezone
 
 from rest_framework_services.mutations import update_from_input
 from rest_framework_services.types import UNSET
-from tests.testapp.models import Author, Post, Tag
+from tests.testapp.models import Author, Post, Tag, Timestamped
 
 
 @pytest.mark.django_db
@@ -138,3 +140,34 @@ class TestUpdateFromInput:
         result = update_from_input(post, None, m2m={"tags": [red.pk, blue.pk]})
         assert set(post.tags.values_list("pk", flat=True)) == {red.pk, blue.pk}
         assert "tags" in result.changed_fields
+
+    def test_auto_now_field_included_in_update_fields(self) -> None:
+        obj = Timestamped.objects.create(title="orig")
+        with patch.object(Timestamped, "save", autospec=True) as mock_save:
+            update_from_input(obj, {"title": "new"})
+            kwargs = mock_save.call_args.kwargs
+            assert "updated_at" in kwargs["update_fields"]
+            assert "title" in kwargs["update_fields"]
+
+    def test_auto_now_add_field_not_included_in_update_fields(self) -> None:
+        obj = Timestamped.objects.create(title="orig")
+        with patch.object(Timestamped, "save", autospec=True) as mock_save:
+            update_from_input(obj, {"title": "new"})
+            assert "created_at" not in mock_save.call_args.kwargs["update_fields"]
+
+    def test_explicit_update_fields_not_modified_by_auto_now(self) -> None:
+        obj = Timestamped.objects.create(title="orig")
+        with patch.object(Timestamped, "save", autospec=True) as mock_save:
+            update_from_input(obj, {"title": "new"}, update_fields=["title"])
+            assert mock_save.call_args.kwargs == {"update_fields": ["title"]}
+
+    def test_auto_now_field_actually_updated_in_db(self) -> None:
+        obj = Timestamped.objects.create(title="orig")
+        # Force updated_at to a value one hour in the past to ensure a measurable diff.
+        old_ts = timezone.now() - timedelta(hours=1)
+        Timestamped.objects.filter(pk=obj.pk).update(updated_at=old_ts)
+        obj.refresh_from_db()
+
+        update_from_input(obj, {"title": "new"})
+        obj.refresh_from_db()
+        assert obj.updated_at > old_ts
