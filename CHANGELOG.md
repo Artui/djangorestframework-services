@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-04-28
+
+### Added
+
+- mkdocs-material documentation site under `docs/`, published to GitHub
+  Pages on every tag release. Covers quickstart, concepts, mutation
+  helpers, errors & atomic, async, recipes, and an autodoc reference
+  section driven by `mkdocstrings`.
+- Tag-driven release pipeline (`.github/workflows/release.yml`): on
+  push of a `vX.Y.Z` tag, runs the test suite, asserts the tag matches
+  both `pyproject.toml` and `__version__`, builds wheel + sdist,
+  publishes to PyPI via OIDC trusted publishing, then deploys docs to
+  the `gh-pages` branch.
+- `docs` job in `tests.yml` runs `mkdocs build --strict` on every PR
+  to catch broken links / missing autodoc targets before merge.
+- `make help`, `make init`, `make docs-serve`, `make docs-build`
+  Makefile targets.
+
+### Changed
+
+- `tests.yml` modernised: switched to `astral-sh/setup-uv@v6`, added a
+  cancel-in-progress concurrency group, and split lint / docs / test
+  into separate jobs.
+- `CLAUDE.md` Releases section now describes the tag-driven pipeline
+  and the one-time PyPI Trusted Publisher / GitHub Pages setup.
+
 ## [0.3.0] — 2026-04-27
 
 ### Added
@@ -170,7 +196,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Artui/djangorestframework-services/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Artui/djangorestframework-services/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Artui/djangorestframework-services/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Artui/djangorestframework-services/releases/tag/v0.1.0
