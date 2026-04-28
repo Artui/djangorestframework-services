@@ -1,35 +1,50 @@
-name: Test djangorestframework-services package
+name: tests
 
 on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
+    name: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.13"
-
-      - name: Install dependencies
+          enable-cache: true
+      - name: Install
         run: uv sync --all-groups
-
-      - name: Ruff lint
+      - name: ruff check
         run: uv run ruff check .
-
-      - name: Ruff format
+      - name: ruff format check
         run: uv run ruff format --check --diff .
-
-      - name: Type check
+      - name: ty
         run: uv run ty check rest_framework_services
 
+  docs:
+    name: docs build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install with docs group
+        run: uv sync --all-groups
+      - name: mkdocs build --strict
+        # mkdocstrings imports the package, which transitively imports DRF;
+        # DRF reads ``settings.REST_FRAMEWORK`` at import time, so we point at
+        # the test settings module to keep the build hermetic.
+        run: DJANGO_SETTINGS_MODULE=tests.conftest_settings uv run mkdocs build --strict
+
   test:
+    name: ${{ matrix.python-version }} / Django ${{ matrix.django-version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -58,17 +73,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v6
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: uv sync --all-groups
-
+          enable-cache: true
+      - name: Install Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+      - name: Sync dev deps
+        run: uv sync --all-groups --python ${{ matrix.python-version }}
       - name: Pin Django ${{ matrix.django-version }}
         run: uv pip install --reinstall-package django "django~=${{ matrix.django-version }}.0"
-
-      - name: Run tests
+      - name: pytest
         run: uv run --no-sync pytest

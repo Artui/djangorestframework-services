@@ -1,0 +1,94 @@
+site_name: djangorestframework-services
+site_description: A service / selector layer for Django REST Framework — precise, controllable side effects for mutating endpoints.
+site_url: https://artui.github.io/djangorestframework-services/
+repo_url: https://github.com/Artui/djangorestframework-services
+repo_name: Artui/djangorestframework-services
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - search.highlight
+    - search.share
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - toc.follow
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            show_source: false
+            show_signature_annotations: true
+            separate_signature: true
+            line_length: 88
+            members_order: source
+            filters: ["!^_"]
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Concepts: concepts.md
+  - Mutation helpers: mutation-helpers.md
+  - Errors & atomic: errors-and-atomic.md
+  - Async: async.md
+  - Recipes:
+      - recipes/index.md
+      - Custom action with @service_action: recipes/service-action.md
+      - Compose your own viewset: recipes/compose-viewset.md
+      - Pass extra kwargs to services: recipes/extra-kwargs.md
+      - Scaffold a service app: recipes/scaffold-app.md
+  - Reference:
+      - reference/index.md
+      - Views: reference/views.md
+      - Viewsets: reference/viewsets.md
+      - Mutations: reference/mutations.md
+      - Selectors: reference/selectors.md
+      - Types: reference/types.md
+      - Exceptions: reference/exceptions.md

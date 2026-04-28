@@ -13,15 +13,18 @@ Conventions for writing code in this repo. For *what* the library does, see [`RE
 Use the Makefile targets for everything; CI and pre-commit both call them.
 
 ```bash
+make init           # uv sync --all-groups + pre-commit install (first-checkout setup)
 make test           # uv run pytest (with --cov=rest_framework_services --cov-fail-under=100)
 make lint           # ruff check + ty check rest_framework_services
 make lint-fix       # ruff check --fix
 make format         # ruff format
-make format-check   # ruff format --check
+make format-check   # ruff format --check --diff
 make type-check     # ty check rest_framework_services
+make docs-serve     # live-reload docs at http://localhost:8000 (needs mkdocs.yml)
+make docs-build     # mkdocs build --strict (fails on broken links)
 ```
 
-`uv sync --all-groups` once on first checkout. `pre-commit install` to enable the hooks.
+`make help` lists every target with a one-line description.
 
 ---
 
@@ -116,11 +119,19 @@ Don't use syntax or stdlib features newer than Python 3.10 (`match`, generics-wi
 
 ## CI and pre-commit
 
-`.github/workflows/tests.yml` runs:
+`.github/workflows/tests.yml` runs on every push to `main` and every PR:
 
-- `make lint` (ruff + ty)
-- `make format-check`
-- `make test` across the Python × Django matrix
+- `lint` job — `ruff check`, `ruff format --check --diff`, `ty check rest_framework_services`.
+- `docs` job — `mkdocs build --strict` (with `DJANGO_SETTINGS_MODULE` pointed at
+  `tests.conftest_settings`, since `mkdocstrings` imports the package and DRF
+  reads settings at import time). Broken links / missing pages fail fast.
+- `test` job — matrix Python 3.10–3.14 × Django 4.2/5.0/5.1/5.2/6.0, with the
+  Python × Django version-support exclusions baked in. Each cell pins Django via
+  `uv pip install --reinstall-package django "django~=X.Y.0"` then runs `pytest`
+  (which enforces `--cov-fail-under=100`).
+
+`.github/workflows/release.yml` runs on push of a `vX.Y.Z` tag (see *Releasing*
+below).
 
 `.pre-commit-config.yaml` runs locally on every commit:
 
@@ -143,8 +154,46 @@ If a hook fails, fix the underlying issue and create a **new** commit. Don't `--
 
 ## Releasing
 
-1. Update `version` in `pyproject.toml` and `__version__` in `rest_framework_services/__init__.py` (keep them in sync).
-2. Move the `[Unreleased]` block in `CHANGELOG.md` under a new `## [X.Y.Z] — YYYY-MM-DD` heading and add a fresh empty `[Unreleased]`.
+The release pipeline is triggered by pushing a `vX.Y.Z` tag and runs three
+sequential jobs in `.github/workflows/release.yml`:
+
+1. `build` — re-runs the full test suite at 100% coverage, then `uv build`.
+   It also asserts the git tag matches `rest_framework_services.__version__`,
+   so you can never tag without bumping the source.
+2. `publish-pypi` — uploads via **OIDC trusted publishing**. There is no API
+   token in the repo; PyPI must have a Trusted Publisher configured for the
+   project pointing at this workflow.
+3. `publish-docs` — `mkdocs gh-deploy --force --clean` to the `gh-pages`
+   branch. The job no-ops (without failing) if `mkdocs.yml` is absent.
+
+### Cutting a release
+
+1. Update `version` in `pyproject.toml` **and** `__version__` in
+   `rest_framework_services/__init__.py` (keep them in sync — the build job
+   asserts the tag matches `__version__`).
+2. Move the `[Unreleased]` block in `CHANGELOG.md` under a new
+   `## [X.Y.Z] — YYYY-MM-DD` heading and add a fresh empty `[Unreleased]`.
 3. Update the version compare links at the bottom of `CHANGELOG.md`.
-4. `git tag -a vX.Y.Z -m "X.Y.Z"`, then `git push origin main vX.Y.Z`.
-5. `uv build && uv publish` (publishing needs a PyPI token in env or `~/.pypirc`).
+4. Commit, then `git tag -a vX.Y.Z -m "X.Y.Z"` and `git push origin main vX.Y.Z`.
+   The tag push triggers the release workflow end-to-end.
+
+### One-time setup (manual, by the repo owner)
+
+These steps need to happen once before the first tag push will succeed:
+
+1. **PyPI Trusted Publisher** — sign in to PyPI, open the project settings,
+   add a publisher pointing at `Artui/djangorestframework-services`, workflow
+   `release.yml`, environment `pypi`. (Use a "Pending" publisher if the project
+   does not yet exist on PyPI; promote it after the first release.)
+2. **GitHub Environment** — create a `pypi` environment under
+   `Settings → Environments` (no secrets needed; OIDC handles auth).
+3. **GitHub Pages** (only if you publish docs) — under `Settings → Pages`,
+   set "Build and deployment" source to "Deploy from a branch", branch
+   `gh-pages`, folder `/`. The first tag push that has a `mkdocs.yml` will
+   create that branch.
+
+### Manual fallback
+
+If the workflow is unavailable, `uv build && uv publish` still works
+(publishing needs a PyPI token in env or `~/.pypirc`). Prefer the tag-driven
+path — it keeps tag, version, and PyPI in lockstep.
