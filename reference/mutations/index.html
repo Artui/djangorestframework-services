@@ -1214,8 +1214,11 @@ kwarg, mapping attribute name to the value to <code>set()</code>.</p>
 
         <p>Update <code>instance</code> with values from <code>data</code>, persisting only deltas.</p>
 <p>By default (<code>update_fields=True</code>), the save call uses
-<code>update_fields=&lt;changed&gt;</code> to write the minimal set of columns. Pass
-<code>False</code> to perform a full save, or an explicit list to override.</p>
+<code>update_fields=&lt;changed&gt;</code> to write the minimal set of columns.
+<code>auto_now=True</code> fields (e.g. <code>updated_at</code>) are automatically added to
+that list so they are refreshed alongside the mutation. Pass <code>False</code> to
+perform a full save, or an explicit list to control exactly which columns
+are written (no auto-injection in that case).</p>
 
 
     </div>

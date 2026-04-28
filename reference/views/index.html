@@ -1519,12 +1519,17 @@ a body instead.</p>
 
 
         <p><code>GET</code> endpoint that delegates to a selector or to <code>get_queryset()</code>.</p>
-<p>The <code>selector</code> attribute is a callable returning a queryset/list. When
-set, it overrides <code>get_queryset()</code>; the rest of the flow (filter
-backends, pagination, response rendering) is the standard DRF
-<code>ListModelMixin</code>. When <code>selector</code> is unset, the view uses the
-inherited <code>queryset</code> attribute exactly like a vanilla DRF list view.</p>
-<p>Set <code>serializer_class</code> to render items, like any DRF list view.</p>
+<p>Set <code>spec</code> to a :class:<code>SelectorSpec</code> to configure the selector and/or
+the output serializer. Both fields are optional:</p>
+<ul>
+<li><code>spec.selector</code> overrides <code>get_queryset()</code>; <code>None</code> falls back to
+  the inherited <code>queryset</code> attribute.</li>
+<li><code>spec.output_serializer</code> overrides <code>get_serializer_class()</code>; <code>None</code>
+  falls back to DRF's standard <code>serializer_class</code> attribute.</li>
+</ul>
+<p><code>spec = None</code> (the default) keeps both as vanilla DRF.</p>
+<p>The rest of the list flow — filter backends, pagination, response
+rendering — is the standard DRF <code>ListModelMixin</code>.</p>
 
 
 
@@ -1593,13 +1598,17 @@ inherited <code>queryset</code> attribute exactly like a vanilla DRF list view.<
 
 
         <p><code>GET</code> endpoint that returns a single object.</p>
-<p>With <code>selector</code> set, the callable receives the URL kwargs (e.g. <code>pk</code>)
-plus <code>request</code>, <code>user</code>, <code>view</code>, and any extras returned from
-<code>get_selector_kwargs()</code>. Returning <code>None</code> or raising
-<code>Model.DoesNotExist</code> results in a 404.</p>
-<p>With <code>selector</code> unset, the view falls back to <code>self.get_object()</code> —
-standard DRF lookup using <code>queryset</code> and <code>lookup_field</code>.</p>
-<p>Set <code>serializer_class</code> to render the result, like any DRF retrieve view.</p>
+<p>Set <code>spec</code> to a :class:<code>SelectorSpec</code> to configure the selector and/or
+the output serializer. Both fields are optional:</p>
+<ul>
+<li><code>spec.selector</code> overrides <code>get_object()</code>; <code>None</code> falls back to
+  <code>self.get_object()</code> — standard DRF lookup using <code>queryset</code> and
+  <code>lookup_field</code>. Returning <code>None</code> or raising <code>Model.DoesNotExist</code>
+  results in a 404.</li>
+<li><code>spec.output_serializer</code> overrides <code>get_serializer_class()</code>; <code>None</code>
+  falls back to DRF's standard <code>serializer_class</code> attribute.</li>
+</ul>
+<p><code>spec = None</code> (the default) keeps both as vanilla DRF.</p>
 
 
 

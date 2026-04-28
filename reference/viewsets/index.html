@@ -912,10 +912,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#multi-serializer-dispatch" class="md-nav__link">
+  <a href="#action-serializer-dispatch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Multi-serializer dispatch
+        Action-serializer dispatch
       
     </span>
   </a>
@@ -923,10 +923,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.viewsets.multi_serializer_mixin.MultiSerializerMixin" class="md-nav__link">
+  <a href="#rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver" class="md-nav__link">
     <span class="md-ellipsis">
       
-        MultiSerializerMixin
+        ActionSerializerResolver
       
     </span>
   </a>
@@ -1226,10 +1226,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#multi-serializer-dispatch" class="md-nav__link">
+  <a href="#action-serializer-dispatch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Multi-serializer dispatch
+        Action-serializer dispatch
       
     </span>
   </a>
@@ -1237,10 +1237,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.viewsets.multi_serializer_mixin.MultiSerializerMixin" class="md-nav__link">
+  <a href="#rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver" class="md-nav__link">
     <span class="md-ellipsis">
       
-        MultiSerializerMixin
+        ActionSerializerResolver
       
     </span>
   </a>
@@ -1311,16 +1311,16 @@
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="ServiceCreateMixin (rest_framework_services.viewsets.service_create_mixin.ServiceCreateMixin)" href="#rest_framework_services.viewsets.service_create_mixin.ServiceCreateMixin">ServiceCreateMixin</a></code>, <code><a class="autorefs autorefs-internal" title="ServiceUpdateMixin (rest_framework_services.viewsets.service_update_mixin.ServiceUpdateMixin)" href="#rest_framework_services.viewsets.service_update_mixin.ServiceUpdateMixin">ServiceUpdateMixin</a></code>, <code><a class="autorefs autorefs-internal" title="ServiceDestroyMixin (rest_framework_services.viewsets.service_destroy_mixin.ServiceDestroyMixin)" href="#rest_framework_services.viewsets.service_destroy_mixin.ServiceDestroyMixin">ServiceDestroyMixin</a></code>, <code><a class="autorefs autorefs-internal" title="SelectorListMixin (rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin)" href="#rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin">SelectorListMixin</a></code>, <code><a class="autorefs autorefs-internal" title="SelectorRetrieveMixin (rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin)" href="#rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin">SelectorRetrieveMixin</a></code>, <code><a class="autorefs autorefs-internal" title="MultiSerializerMixin (rest_framework_services.viewsets.multi_serializer_mixin.MultiSerializerMixin)" href="#rest_framework_services.viewsets.multi_serializer_mixin.MultiSerializerMixin">MultiSerializerMixin</a></code>, <code><span title="rest_framework.viewsets.GenericViewSet">GenericViewSet</span></code></p>
+              Bases: <code><a class="autorefs autorefs-internal" title="ServiceCreateMixin (rest_framework_services.viewsets.service_create_mixin.ServiceCreateMixin)" href="#rest_framework_services.viewsets.service_create_mixin.ServiceCreateMixin">ServiceCreateMixin</a></code>, <code><a class="autorefs autorefs-internal" title="ServiceUpdateMixin (rest_framework_services.viewsets.service_update_mixin.ServiceUpdateMixin)" href="#rest_framework_services.viewsets.service_update_mixin.ServiceUpdateMixin">ServiceUpdateMixin</a></code>, <code><a class="autorefs autorefs-internal" title="ServiceDestroyMixin (rest_framework_services.viewsets.service_destroy_mixin.ServiceDestroyMixin)" href="#rest_framework_services.viewsets.service_destroy_mixin.ServiceDestroyMixin">ServiceDestroyMixin</a></code>, <code><a class="autorefs autorefs-internal" title="SelectorListMixin (rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin)" href="#rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin">SelectorListMixin</a></code>, <code><a class="autorefs autorefs-internal" title="SelectorRetrieveMixin (rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin)" href="#rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin">SelectorRetrieveMixin</a></code>, <code><a class="autorefs autorefs-internal" title="ActionSerializerResolver (rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver)" href="#rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver">ActionSerializerResolver</a></code>, <code><span title="rest_framework.viewsets.GenericViewSet">GenericViewSet</span></code></p>
 
 
 
         <p>Router-compatible viewset wiring services and selectors.</p>
 <p>Composes :class:<code>ServiceCreateMixin</code>, :class:<code>ServiceUpdateMixin</code>,
 :class:<code>ServiceDestroyMixin</code>, :class:<code>SelectorListMixin</code>,
-:class:<code>SelectorRetrieveMixin</code>, and :class:<code>MultiSerializerMixin</code> over
-:class:<code>~rest_framework.viewsets.GenericViewSet</code>. See those classes for
-the configurable attributes.</p>
+:class:<code>SelectorRetrieveMixin</code>, and :class:<code>ActionSerializerResolver</code>
+over :class:<code>~rest_framework.viewsets.GenericViewSet</code>. See those classes
+for the configurable attributes.</p>
 
 
 
@@ -1364,13 +1364,13 @@ the configurable attributes.</p>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="SelectorListMixin (rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin)" href="#rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin">SelectorListMixin</a></code>, <code><a class="autorefs autorefs-internal" title="SelectorRetrieveMixin (rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin)" href="#rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin">SelectorRetrieveMixin</a></code>, <code><a class="autorefs autorefs-internal" title="MultiSerializerMixin (rest_framework_services.viewsets.multi_serializer_mixin.MultiSerializerMixin)" href="#rest_framework_services.viewsets.multi_serializer_mixin.MultiSerializerMixin">MultiSerializerMixin</a></code>, <code><span title="rest_framework.viewsets.GenericViewSet">GenericViewSet</span></code></p>
+              Bases: <code><a class="autorefs autorefs-internal" title="SelectorListMixin (rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin)" href="#rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin">SelectorListMixin</a></code>, <code><a class="autorefs autorefs-internal" title="SelectorRetrieveMixin (rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin)" href="#rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin">SelectorRetrieveMixin</a></code>, <code><a class="autorefs autorefs-internal" title="ActionSerializerResolver (rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver)" href="#rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver">ActionSerializerResolver</a></code>, <code><span title="rest_framework.viewsets.GenericViewSet">GenericViewSet</span></code></p>
 
 
 
         <p>Read-only viewset for <code>list</code> + <code>retrieve</code>.</p>
 <p>Composes :class:<code>SelectorListMixin</code>, :class:<code>SelectorRetrieveMixin</code>, and
-:class:<code>MultiSerializerMixin</code> over
+:class:<code>ActionSerializerResolver</code> over
 :class:<code>~rest_framework.viewsets.GenericViewSet</code>.</p>
 
 
@@ -1416,14 +1416,15 @@ the configurable attributes.</p>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="MutationFlowMixin (rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin)" href="../views/#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin">MutationFlowMixin</a></code></p>
+              Bases: <code><a class="autorefs autorefs-internal" title="MutationFlowMixin (rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin)" href="../views/#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin">MutationFlowMixin</a></code>, <code><span title="rest_framework_services.viewsets.utils._ActionSpecsMixin">_ActionSpecsMixin</span></code></p>
 
 
 
-        <p>Provides the <code>create</code> action; reads its config from <code>service_specs</code>.</p>
-<p>Set <code>service_specs["create"]</code> to a :class:<code>ServiceSpec</code>. When the
-<code>"create"</code> key is absent (or holds a non-:class:<code>ServiceSpec</code> entry)
-the action raises <code>MethodNotAllowed</code>.</p>
+        <p>Provides the <code>create</code> action; reads its config from <code>action_specs</code>.</p>
+<p>Set <code>action_specs["create"]</code> to a :class:<code>ServiceSpec</code>. When the
+<code>"create"</code> key is absent the action raises <code>MethodNotAllowed</code>. A
+non-:class:<code>ServiceSpec</code> entry (e.g. a :class:<code>SelectorSpec</code>) raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 
 
 
@@ -1467,14 +1468,15 @@ the action raises <code>MethodNotAllowed</code>.</p>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="MutationFlowMixin (rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin)" href="../views/#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin">MutationFlowMixin</a></code></p>
+              Bases: <code><a class="autorefs autorefs-internal" title="MutationFlowMixin (rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin)" href="../views/#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin">MutationFlowMixin</a></code>, <code><span title="rest_framework_services.viewsets.utils._ActionSpecsMixin">_ActionSpecsMixin</span></code></p>
 
 
 
         <p>Provides <code>update</code> (<code>PUT</code>) and <code>partial_update</code> (<code>PATCH</code>) actions.</p>
 <p>Looks up the instance via DRF's <code>get_object()</code>. Reads its config from
-<code>service_specs["update"]</code>; when that key is absent both actions raise
-<code>MethodNotAllowed</code>.</p>
+<code>action_specs["update"]</code>; when that key is absent both actions raise
+<code>MethodNotAllowed</code>. A non-:class:<code>ServiceSpec</code> entry raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 
 
 
@@ -1518,14 +1520,15 @@ the action raises <code>MethodNotAllowed</code>.</p>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="MutationFlowMixin (rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin)" href="../views/#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin">MutationFlowMixin</a></code></p>
+              Bases: <code><a class="autorefs autorefs-internal" title="MutationFlowMixin (rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin)" href="../views/#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin">MutationFlowMixin</a></code>, <code><span title="rest_framework_services.viewsets.utils._ActionSpecsMixin">_ActionSpecsMixin</span></code></p>
 
 
 
         <p>Provides the <code>destroy</code> action.</p>
 <p>Looks up the instance via DRF's <code>get_object()</code>. Reads its config from
-<code>service_specs["destroy"]</code>; when that key is absent the action raises
-<code>MethodNotAllowed</code>.</p>
+<code>action_specs["destroy"]</code>; when that key is absent the action raises
+<code>MethodNotAllowed</code>. A non-:class:<code>ServiceSpec</code> entry raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 
 
 
@@ -1569,18 +1572,18 @@ the action raises <code>MethodNotAllowed</code>.</p>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="rest_framework.mixins.ListModelMixin">ListModelMixin</span></code></p>
+              Bases: <code><span title="rest_framework.mixins.ListModelMixin">ListModelMixin</span></code>, <code><span title="rest_framework_services.viewsets.utils._ActionSpecsMixin">_ActionSpecsMixin</span></code></p>
 
 
 
         <p>Compose with :class:<code>~rest_framework.viewsets.GenericViewSet</code>.</p>
-<p>When <code>service_specs["list"]</code> is set to a callable, <code>get_queryset()</code>
-invokes it instead of returning the configured <code>queryset</code>. The rest
-of DRF's list flow — filter backends, pagination, serialization — is
-unchanged.</p>
-<p>The callable is the canonical override for <code>get_queryset()</code> on this
-viewset. If you need an action-specific override, do it explicitly in
-your own <code>get_queryset()</code>.</p>
+<p>When <code>action_specs["list"]</code> is a :class:<code>SelectorSpec</code> with a
+non-<code>None</code> <code>selector</code>, <code>get_queryset()</code> invokes it instead of
+returning the configured <code>queryset</code>. The rest of DRF's list flow —
+filter backends, pagination, serialization — is unchanged.</p>
+<p><code>action_specs["list"] = SelectorSpec(selector=None)</code> or an absent
+<code>"list"</code> key both fall through to DRF's default <code>get_queryset()</code>.
+Any other entry type raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 
 
 
@@ -1644,22 +1647,22 @@ your own <code>get_queryset()</code>.</p>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="rest_framework.mixins.RetrieveModelMixin">RetrieveModelMixin</span></code></p>
+              Bases: <code><span title="rest_framework.mixins.RetrieveModelMixin">RetrieveModelMixin</span></code>, <code><span title="rest_framework_services.viewsets.utils._ActionSpecsMixin">_ActionSpecsMixin</span></code></p>
 
 
 
         <p>Compose with :class:<code>~rest_framework.viewsets.GenericViewSet</code>.</p>
-<p>When <code>service_specs["retrieve"]</code> is set to a callable, <code>get_object()</code>
-invokes it instead of falling through to DRF's standard lookup. The
-selector receives the URL kwargs plus the standard pool. Returning
-<code>None</code> or raising <code>Model.DoesNotExist</code> results in a 404.</p>
-<p>The callable is the canonical override for <code>get_object()</code> on this
-viewset — it applies wherever <code>get_object()</code> is called, including
-from update/destroy actions composed alongside this mixin. If you need
-an action-specific override, do it explicitly in your own
-<code>get_object()</code>.</p>
-<p>When the <code>"retrieve"</code> key is unset, <code>get_object()</code> falls back to
-DRF's default lookup using <code>queryset</code> and <code>lookup_field</code>.</p>
+<p>When <code>action_specs["retrieve"]</code> is a :class:<code>SelectorSpec</code> with a
+non-<code>None</code> <code>selector</code>, <code>get_object()</code> invokes it instead of
+falling through to DRF's standard lookup. The selector receives the URL
+kwargs plus the standard pool. Returning <code>None</code> or raising
+<code>Model.DoesNotExist</code> results in a 404.</p>
+<p><code>action_specs["retrieve"] = SelectorSpec(selector=None)</code> or an absent
+<code>"retrieve"</code> key both fall through to DRF's default <code>get_object()</code>.
+Any other entry type raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+<p>The selector applies wherever <code>get_object()</code> is called, including from
+update/destroy actions composed alongside this mixin. If you need an
+action-specific override, do it explicitly in your own <code>get_object()</code>.</p>
 
 
 
@@ -1688,34 +1691,36 @@ DRF's default lookup using <code>queryset</code> and <code>lookup_field</code>.<
 
     </div>
 
-</div><h2 id="multi-serializer-dispatch">Multi-serializer dispatch<a class="headerlink" href="#multi-serializer-dispatch" title="Permanent link">&para;</a></h2>
+</div><h2 id="action-serializer-dispatch">Action-serializer dispatch<a class="headerlink" href="#action-serializer-dispatch" title="Permanent link">&para;</a></h2>
 
 
 <div class="doc doc-object doc-class">
 
 
 
-<h2 id="rest_framework_services.viewsets.multi_serializer_mixin.MultiSerializerMixin" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">MultiSerializerMixin</span>
+<h2 id="rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ActionSerializerResolver</span>
 
 
-<a href="#rest_framework_services.viewsets.multi_serializer_mixin.MultiSerializerMixin" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="rest_framework_services.viewsets.utils._ActionSpecsMixin">_ActionSpecsMixin</span></code></p>
 
 
 
-        <p>Map <code>self.action</code> to a serializer class.</p>
-<p>Set <code>serializer_classes</code> to a mapping from action name to serializer
-class. <code>get_serializer_class()</code> consults the map first, falling back to
-DRF's standard <code>serializer_class</code> (and raising the usual DRF error if
-neither is configured for the active action).</p>
+        <p>Resolve <code>get_serializer_class()</code> from <code>action_specs</code>.</p>
+<p>Consults the <code>action_specs</code> map for an <code>output_serializer</code> on the
+active action's :class:<code>SelectorSpec</code> or :class:<code>ServiceSpec</code> entry,
+then falls back to DRF's standard <code>serializer_class</code> attribute (and
+raises the usual DRF <code>AssertionError</code> if neither is set).</p>
 <p>Example::</p>
-<div class="language-text highlight"><pre><span></span><code>class InvoiceViewSet(MultiSerializerMixin, GenericViewSet):
-    serializer_classes = {
-        &quot;list&quot;: InvoiceListSerializer,
-        &quot;retrieve&quot;: InvoiceDetailSerializer,
+<div class="language-text highlight"><pre><span></span><code>class InvoiceViewSet(ActionSerializerResolver, GenericViewSet):
+    action_specs = {
+        &quot;list&quot;: SelectorSpec(output_serializer=InvoiceListSerializer),
+        &quot;retrieve&quot;: SelectorSpec(output_serializer=InvoiceDetailSerializer),
     }
 </code></pre></div>
 

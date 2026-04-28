@@ -880,6 +880,28 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#selectorspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SelectorSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.selector_spec.SelectorSpec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SelectorSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#servicespec" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1066,6 +1088,28 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#selectorspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SelectorSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.selector_spec.SelectorSpec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SelectorSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#servicespec" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1207,7 +1251,69 @@
 
 
 <h1 id="types">Types<a class="headerlink" href="#types" title="Permanent link">&para;</a></h1>
-<h2 id="servicespec"><code>ServiceSpec</code><a class="headerlink" href="#servicespec" title="Permanent link">&para;</a></h2>
+<h2 id="selectorspec"><code>SelectorSpec</code><a class="headerlink" href="#selectorspec" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.types.selector_spec.SelectorSpec" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SelectorSpec</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.selector_spec.SelectorSpec" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>All wiring for a single read action in one record.</p>
+<p>Used as a value in <code>action_specs</code> on viewsets and as the <code>spec=</code>
+argument to :class:<code>SelectorListView</code> / :class:<code>SelectorRetrieveView</code>.</p>
+<p>Fields:</p>
+<ul>
+<li><strong><code>selector</code></strong> — callable invoked by <code>get_queryset()</code> (list) or
+  <code>get_object()</code> (retrieve). <code>None</code> means "use the configured
+  <code>queryset</code> / default DRF behaviour".</li>
+<li><strong><code>output_serializer</code></strong> — DRF <code>Serializer</code> subclass used by
+  <code>get_serializer_class()</code> for this action. <code>None</code> falls back to
+  DRF's standard <code>serializer_class</code>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="servicespec"><code>ServiceSpec</code><a class="headerlink" href="#servicespec" title="Permanent link">&para;</a></h2>
 
 
 <div class="doc doc-object doc-class">
