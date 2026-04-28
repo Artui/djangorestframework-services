@@ -10,12 +10,10 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import BaseSerializer
 
-from rest_framework_services.selectors.utils import run_selector
+from rest_framework_services.selectors.utils import dispatch_selector_for_spec
 from rest_framework_services.types.selector_spec import SelectorSpec
-from rest_framework_services.views.utils import (
-    get_class_attr,
-    resolve_callable_kwargs,
-)
+from rest_framework_services.views.spec_validation import validate_selector_view_spec
+from rest_framework_services.views.utils import get_class_attr
 
 
 class SelectorListView(ListModelMixin, GenericAPIView):
@@ -37,6 +35,11 @@ class SelectorListView(ListModelMixin, GenericAPIView):
 
     spec: ClassVar[SelectorSpec | None] = None
 
+    @classmethod
+    def as_view(cls, **initkwargs: Any) -> Any:
+        validate_selector_view_spec(cls)
+        return super().as_view(**initkwargs)
+
     def get_selector_kwargs(self) -> dict[str, Any]:
         """Hook for additional kwargs available to the selector signature."""
         return {}
@@ -49,19 +52,9 @@ class SelectorListView(ListModelMixin, GenericAPIView):
 
     def get_queryset(self) -> Any:
         s: SelectorSpec | None = get_class_attr(self, "spec")
-        if s is None:
+        if s is None or s.selector is None:
             return super().get_queryset()
-        selector = s.selector
-        if selector is None:
-            return super().get_queryset()
-        pool: dict[str, Any] = {
-            "request": self.request,
-            "user": getattr(self.request, "user", None),
-            "view": self,
-            **self.kwargs,
-            **self.get_selector_kwargs(),
-        }
-        return run_selector(selector, resolve_callable_kwargs(selector, pool))
+        return dispatch_selector_for_spec(self, s, extra_url_kwargs=self.kwargs)
 
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         return self.list(request, *args, **kwargs)

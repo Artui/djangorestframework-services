@@ -79,6 +79,51 @@ class TestServiceCreateView:
         assert response.status_code == 201
         assert response.data == {"triggered": True}
 
+    def test_spec_kwargs_provider_passes_extras(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def fn(*, data: _CreateAuthorInput, tenant_id: int) -> Author:
+            captured["tenant_id"] = tenant_id
+            return Author.objects.create(name=data.name)
+
+        def provider(view: Any, request: Any) -> dict[str, Any]:
+            return {"tenant_id": 99}
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=fn,
+                input_serializer=_CreateAuthorInput,
+                output_serializer=AuthorSerializer,
+                kwargs=provider,
+            )
+
+        request = factory.post("/", {"name": "Tina"}, format="json")
+        response = _View.as_view()(request)
+        assert response.status_code == 201
+        assert captured["tenant_id"] == 99
+
+    def test_service_does_not_receive_view_in_pool(self) -> None:
+        """Regression: ``view`` was previously injected; it must not be anymore."""
+        captured: dict[str, Any] = {}
+
+        def fn(*, data: _CreateAuthorInput, **kwargs: Any) -> Author:
+            captured.update(kwargs)
+            return Author.objects.create(name=data.name)
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=fn,
+                input_serializer=_CreateAuthorInput,
+                output_serializer=AuthorSerializer,
+            )
+
+        request = factory.post("/", {"name": "Bob"}, format="json")
+        response = _View.as_view()(request)
+        assert response.status_code == 201
+        assert "view" not in captured
+        assert "request" in captured
+        assert "user" in captured
+
     def test_service_validation_error_maps_to_400(self) -> None:
         def raises(*, data: _CreateAuthorInput) -> Any:
             raise ServiceValidationError({"name": ["taken"]})

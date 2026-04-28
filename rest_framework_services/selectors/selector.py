@@ -3,7 +3,8 @@
 A selector is any callable used by the query views to fetch data. The
 library deliberately does not enforce a signature — views resolve which
 arguments to pass by inspecting the selector's signature, drawing from a
-known pool (``filters``, ``request``, ``user``, ``view``, plus extras).
+known pool (``request``, ``user``, URL kwargs, plus extras from
+``SelectorSpec.kwargs`` / ``get_selector_kwargs``).
 """
 
 from __future__ import annotations

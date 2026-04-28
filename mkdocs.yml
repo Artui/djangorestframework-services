@@ -77,6 +77,8 @@ nav:
   - Concepts: concepts.md
   - Mutation helpers: mutation-helpers.md
   - Errors & atomic: errors-and-atomic.md
+  - Typing: typing.md
+  - OpenAPI: openapi.md
   - Async: async.md
   - Recipes:
       - recipes/index.md
@@ -89,6 +91,8 @@ nav:
       - Views: reference/views.md
       - Viewsets: reference/viewsets.md
       - Mutations: reference/mutations.md
+      - Services: reference/services.md
       - Selectors: reference/selectors.md
       - Types: reference/types.md
+      - OpenAPI: reference/openapi.md
       - Exceptions: reference/exceptions.md

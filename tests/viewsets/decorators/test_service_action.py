@@ -104,6 +104,57 @@ class TestServiceAction:
         view(request)
         assert captured["tenant"] == "T"
 
+    def test_spec_kwargs_provider_passes_extras(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def fn(*, data: _ApproveInput, tenant_id: int) -> dict[str, Any]:
+            captured["tenant_id"] = tenant_id
+            return {"ok": True}
+
+        def provider(view: Any, request: Any) -> dict[str, Any]:
+            return {"tenant_id": 33}
+
+        class _View(GenericViewSet):
+            @service_action(
+                ServiceSpec(service=fn, input_serializer=_ApproveInput, kwargs=provider),
+                detail=False,
+                methods=["post"],
+            )
+            def go(self, request):  # type: ignore[no-untyped-def]
+                pass
+
+        request = factory.post("/", {}, format="json")
+        view = _View.as_view({"post": "go"})
+        view(request)
+        assert captured["tenant_id"] == 33
+
+    def test_per_action_hook_overrides_catch_all(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def fn(*, data: _ApproveInput, tag: str) -> dict[str, Any]:
+            captured["tag"] = tag
+            return {"ok": True}
+
+        class _View(GenericViewSet):
+            def get_service_kwargs(self) -> dict[str, Any]:
+                return {"tag": "default"}
+
+            def get_go_service_kwargs(self) -> dict[str, Any]:
+                return {"tag": "action"}
+
+            @service_action(
+                ServiceSpec(service=fn, input_serializer=_ApproveInput),
+                detail=False,
+                methods=["post"],
+            )
+            def go(self, request):  # type: ignore[no-untyped-def]
+                pass
+
+        request = factory.post("/", {}, format="json")
+        view = _View.as_view({"post": "go"})
+        view(request)
+        assert captured["tag"] == "action"
+
     def test_works_without_get_service_kwargs(self) -> None:
         # GenericViewSet does not define get_service_kwargs; ensure the
         # decorator still works.

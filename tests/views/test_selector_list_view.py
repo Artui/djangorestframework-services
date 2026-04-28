@@ -68,6 +68,26 @@ class TestSelectorListView:
         _View.as_view()(request)
         assert captured["tenant"] == "acme"
 
+    def test_spec_kwargs_provider_passes_extras(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def selector(*, tenant_id: int) -> Any:
+            captured["tenant_id"] = tenant_id
+            return Author.objects.none()
+
+        def provider(view: Any, request: Any) -> dict[str, Any]:
+            return {"tenant_id": 12}
+
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                selector=selector,
+                output_serializer=AuthorSerializer,
+                kwargs=provider,
+            )
+
+        _View.as_view()(factory.get("/"))
+        assert captured["tenant_id"] == 12
+
     def test_url_kwargs_available_to_selector(self) -> None:
         captured: dict[str, Any] = {}
 

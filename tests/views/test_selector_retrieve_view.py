@@ -66,6 +66,27 @@ class TestSelectorRetrieveView:
         _View.as_view()(request, pk=author.pk)
         assert captured == {"pk": author.pk, "tenant": "acme"}
 
+    def test_spec_kwargs_provider_passes_extras(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def selector(*, pk: int, tenant_id: int) -> Author | None:
+            captured["tenant_id"] = tenant_id
+            return Author.objects.filter(pk=pk).first()
+
+        def provider(view: Any, request: Any) -> dict[str, Any]:
+            return {"tenant_id": 5}
+
+        class _View(SelectorRetrieveView):
+            spec = SelectorSpec(
+                selector=selector,
+                output_serializer=AuthorSerializer,
+                kwargs=provider,
+            )
+
+        author = Author.objects.create(name="x")
+        _View.as_view()(factory.get("/"), pk=author.pk)
+        assert captured["tenant_id"] == 5
+
     def test_falls_back_to_get_object_when_spec_missing(self) -> None:
         author = Author.objects.create(name="Ada")
 

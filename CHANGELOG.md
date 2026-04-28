@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **OpenAPI / Swagger integration** via an opt-in
+  `drf-spectacular` adapter. New optional install extra:
+  ``pip install djangorestframework-services[spectacular]``.
+  - `rest_framework_services.openapi.enable_openapi()` — wires
+    `ServiceAutoSchema` onto every library view class. Call once from
+    `AppConfig.ready()`.
+  - `ServiceAutoSchema` reads each `ServiceSpec` to derive the request
+    body (`input_serializer`), success response (`output_serializer`),
+    success status, and a `422` response documenting `ServiceError`.
+    `@extend_schema` annotations always win.
+  - Bare `@dataclass` `input_serializer` is auto-wrapped in
+    `DataclassSerializer` (mirroring the runtime), so dataclasses show
+    up as typed schema components instead of bare `object`.
+  - `@service_action` handlers stamp `_service_spec` on the wrapped
+    handler so the schema generator can recover the spec.
+  - `ServiceErrorSerializer` is exported for users who want to reuse the
+    422 component shape.
+  - New documentation page: `docs/openapi.md`.
+- Lenient service / selector Protocols — opt-in shapes for IDE and
+  type-checker support. New top-level exports: `CreateService`,
+  `UpdateService`, `DeleteService`, `ListSelector`, `RetrieveSelector`,
+  `OutputSelector`. Each is parameterized by input / instance / result
+  type and keeps a `**kwargs: Any` escape hatch.
+- Strict variants — `StrictCreateService`, `StrictUpdateService`,
+  `StrictDeleteService`, `StrictListSelector`, `StrictRetrieveSelector`,
+  `StrictOutputSelector` — use [PEP 692](https://peps.python.org/pep-0692/)
+  `Unpack[TypedDict]` to pin the extras delivered by `ServiceSpec.kwargs`.
+  Use these when you want signature drift to fail static checks.
+- `ServiceSpec` and `SelectorSpec` are now generic over input / result and
+  an optional `TypedDict` of extra kwargs. Unparameterized usage is
+  unchanged (`Any` everywhere).
+- `ServiceSpec.kwargs` and `SelectorSpec.kwargs` — per-spec callable
+  returning extra kwargs for the call. Co-locating the contract with the
+  spec replaces `if self.action == ...` branches in `get_service_kwargs`.
+- Per-action hooks — `get_<action>_service_kwargs` and
+  `get_<action>_selector_kwargs` are now consulted in the kwargs
+  resolution chain, so multi-action viewsets can split contracts by
+  method name instead of branching on `self.action`.
+- `ServiceView` Protocol (in `rest_framework_services.views`) — narrow
+  structural shape passed to per-spec kwargs providers, exposing
+  `request`, `kwargs`, `action`.
+- Fail-fast spec validation. `as_view()` now walks every spec and raises
+  `django.core.exceptions.ImproperlyConfigured` on misconfigurations:
+  service requires `data` without an `input_serializer`, requires
+  `instance` on a create / list action, requires `result` outside an
+  `output_selector`, or has a required parameter that no kwargs source
+  can supply. `@service_action` validates at decoration time.
+- New documentation page: `docs/typing.md`.
+
+### Changed
+
+- **Breaking.** Services and selectors no longer receive `view` in their
+  kwargs pool. They are plain business logic; pipe view state through a
+  per-spec `kwargs` provider (which receives the view typed as
+  `ServiceView`) or `get_<action>_service_kwargs` instead. Migration:
+  read whatever you used off `view` and surface it via one of the kwargs
+  sources.
+
 ## [0.5.0] — 2026-04-28
 
 ### Added

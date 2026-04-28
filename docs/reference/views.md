@@ -18,6 +18,14 @@
 
 ::: rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin
 
+## ServiceView Protocol
+
+::: rest_framework_services.types.service_view.ServiceView
+
 ## Kwarg resolution
 
 ::: rest_framework_services.views.utils
+
+## Spec validation
+
+::: rest_framework_services.views.spec_validation

@@ -2,27 +2,32 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import Serializer
 
-from rest_framework_services.views.mutation.utils import _execute_mutation
+from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.views.mutation.utils import dispatch_mutation_for_spec
 
 
 class MutationFlowMixin:
     """Provides ``_run_mutation`` for service-backed views and viewset mixins.
 
-    The actual flow lives in the private :func:`_execute_mutation` helper
-    (so ``@service_action`` can reach it without being a class). This mixin
+    The actual flow lives in :func:`dispatch_mutation_for_spec` (so
+    ``@service_action`` can reach it without being a class). This mixin
     is the OO entry point: the per-action mixins (``ServiceCreateMixin``
     etc.) and the standalone single-purpose views compose it and call
-    ``self._run_mutation(...)`` after resolving their per-action config.
+    ``self._run_mutation(...)`` after resolving their per-action spec.
 
-    Override ``get_service_kwargs`` to inject extras into every service
-    invocation on the composed view/viewset.
+    Three layers contribute extra kwargs to every service call (most specific
+    wins):
+
+    1. ``get_service_kwargs(self)`` — global fallback on the view.
+    2. ``get_<action>_service_kwargs(self)`` — per-action override
+       (viewsets only; ``self.action`` must be set).
+    3. ``ServiceSpec.kwargs`` — per-spec callable, co-located with the
+       service it feeds.
     """
 
     def get_service_kwargs(self) -> dict[str, Any]:
@@ -32,26 +37,17 @@ class MutationFlowMixin:
     def _run_mutation(
         self,
         request: Request,
+        spec: ServiceSpec[Any, Any, Any],
         *,
-        service: Callable[..., Any],
-        input_serializer: type | None,
-        output_serializer: type[Serializer] | None,
-        output_selector: Callable[..., Any] | None,
-        atomic: bool,
-        success_status: int,
         instance: Any,
+        success_status: int,
         partial: bool = False,
     ) -> Response:
-        return _execute_mutation(
+        return dispatch_mutation_for_spec(
             self,
             request,
-            service=service,
-            input_serializer=input_serializer,
-            output_serializer=output_serializer,
-            output_selector=output_selector,
-            atomic=atomic,
-            success_status=success_status,
+            spec,
             instance=instance,
-            extra_kwargs=self.get_service_kwargs(),
+            success_status=success_status,
             partial=partial,
         )

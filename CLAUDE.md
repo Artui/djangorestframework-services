@@ -35,7 +35,7 @@ These are non-negotiable. They are what keep the package navigable.
 1. **One exported class or function per file.** The file is named after the exported symbol in `snake_case`. `MyClass` lives in `my_class.py`; `do_thing` lives in `do_thing.py`.
 2. **Private helpers used only in one file** stay in that file with a `_name` prefix.
 3. **Non-exported helpers shared across files in a package** go in that package's `utils.py`. Classes are allowed in `utils.py` if they're internal infrastructure (e.g. `MutationFlowMixin` lived there before being promoted to its own file when it became public).
-4. **Top-level imports only.** Lazy / function-local imports are forbidden unless a circular import is diagnosed and proven, in which case document the reason inline.
+4. **Top-level imports only.** Lazy / function-local imports are forbidden unless a circular import is diagnosed and proven, *or* the import targets a proven optional dependency (declared in `[project.optional-dependencies]` and gated behind an explicit `enable_*()` opt-in helper). In either case document the reason inline. Canonical optional-dep example: `rest_framework_services/openapi/enable_openapi.py`.
 5. **Full type annotations on every function and method signature.** `Any` is allowed at integration boundaries (DRF serializers, Django ORM); avoid it inside the package.
 6. **Re-exports go in `__init__.py`.** Each package's `__init__.py` lists its public surface in `__all__`. The top-level `rest_framework_services/__init__.py` re-exports the user-facing API.
 
@@ -103,6 +103,8 @@ Common patches you'll still need inside the package:
 - Always absolute, fully qualified: `from rest_framework_services.exceptions.service_error import ServiceError`. No relative imports (`from .foo import Bar`).
 - isort is wired through ruff (`I` rules). Order: stdlib → third-party → first-party. `rest_framework_services` and the test app are first-party.
 - A package's `__init__.py` is the only file that re-exports; downstream files import from the leaf module, not from the package's `__init__`.
+- **`types/` is the dependency sink.** Value-shape carriers (dataclasses, generic specs, sentinels) live there. `views/`, `selectors/`, `services/`, `viewsets/` may import *from* `types/`; `types/` must **not** import from any of them. If a `types/` member needs to reference a Protocol or other shape currently living elsewhere — e.g. a spec field annotation — move that shape into `types/` first (this is why `ServiceView` lives in `types/` rather than `views/`). Behavioural Protocols *not* referenced from `types/` (e.g. `CreateService`, `ListSelector`) stay in their behavioural package — that is their natural home, and putting everything in `types/` would muddle the boundary between value shapes and callable contracts.
+- **Don't eagerly import Django models** (`django.contrib.auth.models`, `django.db.models.<concrete>`, etc.) at package-import time. `rest_framework_services` ships in `INSTALLED_APPS`, so the package gets imported during `apps.populate()`, before app models are loaded — eager imports raise `AppRegistryNotReady`. If you need a precise type, prefer `Any` for that field (the framework treats `request.user` as an integration boundary; see `services/utils.py:UserT`), or move the import into a non-eagerly-loaded module.
 
 ---
 
@@ -152,6 +154,8 @@ If a hook fails, fix the underlying issue and create a **new** commit. Don't `--
 - **`get_object()` is shared between retrieve and update/destroy.** When configuring a viewset that mixes a `retrieve_selector` with mutation actions, the selector applies to all of them — that's intentional. Override `get_object` yourself for action-specific lookup.
 - **Don't add a `filter_dataclass` shape.** Filtering is DRF's job; use `filter_backends`. Selectors take whatever extra kwargs the user wires through `get_selector_kwargs()`.
 - **Don't import from `rest_framework` inside `rest_framework_services.exceptions/`.** That module is the framework-agnostic boundary; the view layer maps exceptions to DRF responses.
+- **Adding a view that dispatches a `ServiceSpec`?** Don't reassemble the kwargs pool or call `_execute_mutation` directly — go through `views.mutation.utils.dispatch_mutation_for_spec` (mutations) or `selectors.utils.dispatch_selector_for_spec` (selectors). Centralising the call shape keeps the kwargs-resolution chain (`spec.kwargs` → `get_<action>_*_kwargs` → `get_*_kwargs`) consistent. Also hook fail-fast validation into `as_view()` via `views.spec_validation.validate_mutation_view_spec` / `validate_selector_view_spec`.
+- **`# ty: ignore[<rule>]`, not `# type: ignore[<rule>]`.** ty has its own pragma syntax and ignores mypy-style comments. The most common rule names are `unresolved-attribute` (for stub-incomplete super calls and dynamic attributes like the `_service_spec` stamp on `@service_action`) and `unused-ignore-comment`.
 
 ---
 

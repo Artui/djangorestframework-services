@@ -12,7 +12,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from rest_framework_services.types.service_spec import ServiceSpec
-from rest_framework_services.views.mutation.utils import _execute_mutation
+from rest_framework_services.views.mutation.utils import dispatch_mutation_for_spec
+from rest_framework_services.views.spec_validation import validate_service_spec
 
 
 def service_action(
@@ -48,28 +49,31 @@ def service_action(
     drf_kwargs.update(action_kwargs)
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        fn_label = getattr(fn, "__qualname__", repr(fn))
+        # The viewset class is unknown at decoration time, so any
+        # ``get_<action>_service_kwargs`` / ``get_service_kwargs`` it may
+        # carry has to be assumed permissive.
+        validate_service_spec(
+            spec,
+            label=f"@service_action {fn_label}",
+            has_instance=detail,
+            permissive_extras=True,
+        )
+
         @functools.wraps(fn)
         def handler(self: Any, request: Request, *args: Any, **kwargs: Any) -> Response:
             instance: Any = self.get_object() if detail else None
-            extras: dict[str, Any] = {}
-            get_extra: Callable[[], dict[str, Any]] | None = getattr(
-                self, "get_service_kwargs", None
-            )
-            if get_extra is not None:
-                extras = dict(get_extra())
-            return _execute_mutation(
+            return dispatch_mutation_for_spec(
                 self,
                 request,
-                service=spec.service,
-                input_serializer=spec.input_serializer,
-                output_serializer=spec.output_serializer,
-                output_selector=spec.output_selector,
-                atomic=spec.atomic,
-                success_status=success_status,
+                spec,
                 instance=instance,
-                extra_kwargs=extras,
+                success_status=success_status,
             )
 
+        # Stash the spec on the handler so schema generators (and any future
+        # introspection) can recover it; the closure is otherwise opaque.
+        handler._service_spec = spec  # ty: ignore[unresolved-attribute]
         return action(**drf_kwargs)(handler)
 
     return decorator

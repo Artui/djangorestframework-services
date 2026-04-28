@@ -15,13 +15,31 @@ from rest_framework_services.mutations import (
     create_from_input,
     update_from_input,
 )
-from rest_framework_services.selectors import AsyncSelector, Selector
+from rest_framework_services.selectors import (
+    AsyncSelector,
+    ListSelector,
+    OutputSelector,
+    RetrieveSelector,
+    Selector,
+    StrictListSelector,
+    StrictOutputSelector,
+    StrictRetrieveSelector,
+)
+from rest_framework_services.services import (
+    CreateService,
+    DeleteService,
+    StrictCreateService,
+    StrictDeleteService,
+    StrictUpdateService,
+    UpdateService,
+)
 from rest_framework_services.types import (
     UNSET,
     ChangeResult,
     FieldChange,
     SelectorSpec,
     ServiceSpec,
+    ServiceView,
 )
 from rest_framework_services.views import (
     SelectorListView,
@@ -47,8 +65,13 @@ __all__ = [
     "ActionSerializerResolver",
     "AsyncSelector",
     "ChangeResult",
+    "CreateService",
+    "DeleteService",
     "FieldChange",
+    "ListSelector",
     "MutationFlowMixin",
+    "OutputSelector",
+    "RetrieveSelector",
     "Selector",
     "SelectorListMixin",
     "SelectorListView",
@@ -65,8 +88,16 @@ __all__ = [
     "ServiceUpdateMixin",
     "ServiceUpdateView",
     "ServiceValidationError",
+    "ServiceView",
     "ServiceViewSet",
+    "StrictCreateService",
+    "StrictDeleteService",
+    "StrictListSelector",
+    "StrictOutputSelector",
+    "StrictRetrieveSelector",
+    "StrictUpdateService",
     "UNSET",
+    "UpdateService",
     "acreate_from_input",
     "apply_input",
     "aupdate_from_input",

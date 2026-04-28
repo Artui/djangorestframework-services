@@ -40,7 +40,8 @@ from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
 from rest_framework_services.selectors.utils import run_selector
-from rest_framework_services.views.utils import resolve_callable_kwargs
+from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.views.utils import resolve_callable_kwargs, resolve_extra_kwargs
 
 
 class _ServiceAPIException(drf_exceptions.APIException):
@@ -127,18 +128,22 @@ def _execute_mutation(
 
     Steps:
       1. Validate input → dataclass instance.
-      2. Build kwarg pool (request, user, view, instance?, data?, extras).
+      2. Build kwarg pool (request, user, instance?, data?, extras).
       3. Resolve service signature against pool, dispatch.
       4. Map ``ServiceError`` → DRF exception on raise.
       5. Apply ``output_selector`` if set; else fall back to in-memory instance
          when service returned None and instance is available.
       6. Render via ``output_serializer`` (or raw, or 204).
+
+    ``view`` is intentionally absent from the pool: services and selectors are
+    plain business logic and should not reach back into the calling view. When
+    a callable needs view state (URL kwargs, action name, etc.), pipe it
+    through ``ServiceSpec.kwargs`` / ``SelectorSpec.kwargs`` instead.
     """
     data: Any = validate_input(request, input_serializer, partial=partial)
     pool: dict[str, Any] = {
         "request": request,
         "user": getattr(request, "user", None),
-        "view": view,
     }
     if instance is not None:
         pool["instance"] = instance
@@ -177,3 +182,44 @@ def _execute_mutation(
     if result is None:
         return Response(status=drf_status.HTTP_204_NO_CONTENT)
     return Response(result, status=success_status)
+
+
+def dispatch_mutation_for_spec(
+    view: Any,
+    request: Request,
+    spec: ServiceSpec[Any, Any, Any],
+    *,
+    instance: Any,
+    success_status: int,
+    partial: bool = False,
+) -> Response:
+    """End-to-end dispatch for one ``ServiceSpec`` call.
+
+    Runs the kwargs-resolution chain (``spec.kwargs`` →
+    ``get_<action>_service_kwargs`` → ``get_service_kwargs``) and the
+    underlying mutation flow. Used by :class:`MutationFlowMixin`,
+    standalone mutation views, and ``@service_action`` so the call shape
+    lives in one place.
+    """
+    action: str | None = getattr(view, "action", None)
+    action_hook: str | None = f"get_{action}_service_kwargs" if action else None
+    extras = resolve_extra_kwargs(
+        view,
+        request,
+        spec_kwargs=spec.kwargs,
+        action_hook=action_hook,
+        catch_all_hook="get_service_kwargs",
+    )
+    return _execute_mutation(
+        view,
+        request,
+        service=spec.service,
+        input_serializer=spec.input_serializer,
+        output_serializer=spec.output_serializer,
+        output_selector=spec.output_selector,
+        atomic=spec.atomic,
+        success_status=success_status,
+        instance=instance,
+        extra_kwargs=extras,
+        partial=partial,
+    )

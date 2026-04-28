@@ -11,6 +11,7 @@ from rest_framework.response import Response
 
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
+from rest_framework_services.views.spec_validation import validate_mutation_view_spec
 
 
 class ServiceCreateView(MutationFlowMixin, GenericAPIView):
@@ -22,6 +23,11 @@ class ServiceCreateView(MutationFlowMixin, GenericAPIView):
 
     spec: ClassVar[ServiceSpec | None] = None
 
+    @classmethod
+    def as_view(cls, **initkwargs: Any) -> Any:
+        validate_mutation_view_spec(cls, has_instance=False)
+        return super().as_view(**initkwargs)
+
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         spec: ServiceSpec | None = self.spec
         if spec is None:
@@ -30,11 +36,7 @@ class ServiceCreateView(MutationFlowMixin, GenericAPIView):
             )
         return self._run_mutation(
             request,
-            service=spec.service,
-            input_serializer=spec.input_serializer,
-            output_serializer=spec.output_serializer,
-            output_selector=spec.output_selector,
-            atomic=spec.atomic,
-            success_status=spec.success_status or drf_status.HTTP_201_CREATED,
+            spec,
             instance=None,
+            success_status=spec.success_status or drf_status.HTTP_201_CREATED,
         )

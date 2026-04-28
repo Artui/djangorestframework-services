@@ -34,4 +34,12 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_PERMISSION_CLASSES": [],
     "TEST_REQUEST_DEFAULT_FORMAT": "json",
+    # The spectacular tests need a compatible AutoSchema on every inspected
+    # view; DRF's vanilla schema fails its assertion. Pointing the global
+    # default at ``ServiceAutoSchema`` covers user-style custom viewsets
+    # (plain ``GenericViewSet`` with ``@service_action``) the same way a
+    # real project would.
+    "DEFAULT_SCHEMA_CLASS": (
+        "rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema"
+    ),
 }

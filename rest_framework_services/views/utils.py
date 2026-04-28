@@ -6,6 +6,47 @@ import inspect
 from collections.abc import Callable
 from typing import Any
 
+from rest_framework.request import Request
+
+
+def resolve_extra_kwargs(
+    view: Any,
+    request: Request,
+    *,
+    spec_kwargs: Callable[..., dict[str, Any]] | None,
+    action_hook: str | None,
+    catch_all_hook: str,
+) -> dict[str, Any]:
+    """Collect the extras that should be merged into a service/selector pool.
+
+    Three layers, applied in order so that the more specific override the
+    more general:
+
+    1. ``view.<catch_all_hook>()`` — global fallback declared on the view
+       (``get_service_kwargs`` / ``get_selector_kwargs``). No-op when the
+       method is not present.
+    2. ``view.<action_hook>()`` — per-action method on the view, e.g.
+       ``get_create_service_kwargs`` / ``get_list_selector_kwargs``. Skipped
+       when ``action_hook`` is ``None`` (e.g. on standalone single-purpose
+       views) or the method is absent.
+    3. ``spec_kwargs(view, request)`` — per-spec callable from
+       :attr:`ServiceSpec.kwargs` / :attr:`SelectorSpec.kwargs`.
+
+    Each layer's result is merged with ``dict.update``, so the spec-level
+    provider has the final say on any overlapping keys.
+    """
+    extras: dict[str, Any] = {}
+    catch_all = getattr(view, catch_all_hook, None)
+    if catch_all is not None:
+        extras.update(catch_all())
+    if action_hook is not None:
+        hook = getattr(view, action_hook, None)
+        if hook is not None:
+            extras.update(hook())
+    if spec_kwargs is not None:
+        extras.update(spec_kwargs(view, request))
+    return extras
+
 
 def get_class_attr(view: Any, name: str) -> Any:
     """Return the named class attribute without instance binding.

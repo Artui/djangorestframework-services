@@ -146,6 +146,154 @@ class TestServiceViewSetActions:
         view_create(factory.post("/", {"name": "x"}, format="json"))
         assert captured["service_tenant"] == "C"
 
+    def test_spec_kwargs_provider_passes_extras(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def created(*, data: _AuthorIn, tenant_id: int) -> dict[str, Any]:
+            captured["service_tenant_id"] = tenant_id
+            return {"name": data.name}
+
+        def listed(*, tenant_id: int) -> Any:
+            captured["selector_tenant_id"] = tenant_id
+            return []
+
+        def create_kwargs(view: Any, request: Any) -> dict[str, Any]:
+            return {"tenant_id": 42}
+
+        def list_kwargs(view: Any, request: Any) -> dict[str, Any]:
+            return {"tenant_id": 7}
+
+        class _View(ServiceViewSet):
+            action_specs = {
+                "list": SelectorSpec(
+                    selector=listed,
+                    output_serializer=AuthorSerializer,
+                    kwargs=list_kwargs,
+                ),
+                "create": ServiceSpec(
+                    service=created,
+                    input_serializer=_AuthorIn,
+                    kwargs=create_kwargs,
+                ),
+            }
+
+        _View.as_view({"get": "list"})(factory.get("/"))
+        assert captured["selector_tenant_id"] == 7
+
+        _View.as_view({"post": "create"})(factory.post("/", {"name": "x"}, format="json"))
+        assert captured["service_tenant_id"] == 42
+
+    def test_per_action_hook_overrides_catch_all(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def created(*, data: _AuthorIn, tag: str) -> dict[str, Any]:
+            captured["create_tag"] = tag
+            return {"name": data.name}
+
+        def updated(*, instance: Author, data: _AuthorIn, tag: str) -> Author:
+            captured["update_tag"] = tag
+            instance.name = data.name
+            instance.save(update_fields=["name"])
+            return instance
+
+        class _View(ServiceViewSet):
+            queryset = Author.objects.all()
+            action_specs = {
+                "create": ServiceSpec(service=created, input_serializer=_AuthorIn),
+                "update": ServiceSpec(service=updated, input_serializer=_AuthorIn),
+            }
+
+            def get_service_kwargs(self) -> dict[str, Any]:
+                return {"tag": "default"}
+
+            def get_create_service_kwargs(self) -> dict[str, Any]:
+                return {"tag": "create-only"}
+
+        _View.as_view({"post": "create"})(factory.post("/", {"name": "x"}, format="json"))
+        assert captured["create_tag"] == "create-only"
+
+        author = Author.objects.create(name="orig")
+        _View.as_view({"put": "update"})(
+            factory.put("/", {"name": "new"}, format="json"), pk=author.pk
+        )
+        assert captured["update_tag"] == "default"
+
+    def test_spec_kwargs_overrides_per_action_hook_and_catch_all(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def created(*, data: _AuthorIn, tag: str) -> dict[str, Any]:
+            captured["tag"] = tag
+            return {"name": data.name}
+
+        def create_kwargs(view: Any, request: Any) -> dict[str, Any]:
+            return {"tag": "spec"}
+
+        class _View(ServiceViewSet):
+            action_specs = {
+                "create": ServiceSpec(
+                    service=created,
+                    input_serializer=_AuthorIn,
+                    kwargs=create_kwargs,
+                ),
+            }
+
+            def get_service_kwargs(self) -> dict[str, Any]:
+                return {"tag": "catch-all"}
+
+            def get_create_service_kwargs(self) -> dict[str, Any]:
+                return {"tag": "action"}
+
+        _View.as_view({"post": "create"})(factory.post("/", {"name": "x"}, format="json"))
+        assert captured["tag"] == "spec"
+
+    def test_spec_kwargs_provider_receives_view_and_request(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def created(*, data: _AuthorIn, action_seen: str) -> dict[str, Any]:
+            return {"name": data.name, "action": action_seen}
+
+        def create_kwargs(view: Any, request: Any) -> dict[str, Any]:
+            captured["action"] = view.action
+            captured["has_request"] = request is not None
+            return {"action_seen": view.action or ""}
+
+        class _View(ServiceViewSet):
+            action_specs = {
+                "create": ServiceSpec(
+                    service=created,
+                    input_serializer=_AuthorIn,
+                    kwargs=create_kwargs,
+                ),
+            }
+
+        response = _View.as_view({"post": "create"})(
+            factory.post("/", {"name": "x"}, format="json")
+        )
+        assert response.status_code == 201
+        assert captured["action"] == "create"
+        assert captured["has_request"] is True
+
+    def test_per_action_selector_kwargs_hook(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def listed(*, marker: str) -> Any:
+            captured["marker"] = marker
+            return []
+
+        class _View(ServiceViewSet):
+            action_specs = {
+                "list": SelectorSpec(selector=listed, output_serializer=AuthorSerializer),
+            }
+
+            def get_selector_kwargs(self) -> dict[str, Any]:
+                return {"marker": "default"}
+
+            def get_list_selector_kwargs(self) -> dict[str, Any]:
+                return {"marker": "list-only"}
+
+        _View.as_view({"get": "list"})(factory.get("/"))
+        assert captured["marker"] == "list-only"
+
 
 @pytest.mark.django_db
 class TestServiceViewSetFallbacks:
