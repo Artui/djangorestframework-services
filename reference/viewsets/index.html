@@ -404,6 +404,60 @@
   
   
     <li class="md-nav__item">
+      <a href="../../typing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Typing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenAPI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../async/" class="md-nav__link">
         
   
@@ -460,7 +514,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -482,14 +536,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="">
+              <label class="md-nav__link " for="__nav_9" id="__nav_9_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -647,6 +701,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -660,7 +718,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -682,14 +740,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="">
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_8">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -999,6 +1057,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../selectors/" class="md-nav__link">
         
   
@@ -1035,6 +1121,34 @@
     
   
     Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenAPI
   
 
     
@@ -1421,10 +1535,12 @@ for the configurable attributes.</p>
 
 
         <p>Provides the <code>create</code> action; reads its config from <code>action_specs</code>.</p>
-<p>Set <code>action_specs["create"]</code> to a :class:<code>ServiceSpec</code>. When the
-<code>"create"</code> key is absent the action raises <code>MethodNotAllowed</code>. A
-non-:class:<code>ServiceSpec</code> entry (e.g. a :class:<code>SelectorSpec</code>) raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+<p>Set <code>action_specs["create"]</code> to a
+:class:<code>~rest_framework_services.types.service_spec.ServiceSpec</code>.
+When the <code>"create"</code> key is absent the action raises
+:exc:<code>~rest_framework.exceptions.MethodNotAllowed</code>. A non-<code>ServiceSpec</code>
+entry (e.g. a :class:<code>~rest_framework_services.types.selector_spec.SelectorSpec</code>)
+raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 
 
 
@@ -1475,8 +1591,8 @@ non-:class:<code>ServiceSpec</code> entry (e.g. a :class:<code>SelectorSpec</cod
         <p>Provides <code>update</code> (<code>PUT</code>) and <code>partial_update</code> (<code>PATCH</code>) actions.</p>
 <p>Looks up the instance via DRF's <code>get_object()</code>. Reads its config from
 <code>action_specs["update"]</code>; when that key is absent both actions raise
-<code>MethodNotAllowed</code>. A non-:class:<code>ServiceSpec</code> entry raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+:exc:<code>~rest_framework.exceptions.MethodNotAllowed</code>. A non-<code>ServiceSpec</code>
+entry raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 
 
 
@@ -1527,8 +1643,8 @@ non-:class:<code>ServiceSpec</code> entry (e.g. a :class:<code>SelectorSpec</cod
         <p>Provides the <code>destroy</code> action.</p>
 <p>Looks up the instance via DRF's <code>get_object()</code>. Reads its config from
 <code>action_specs["destroy"]</code>; when that key is absent the action raises
-<code>MethodNotAllowed</code>. A non-:class:<code>ServiceSpec</code> entry raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+:exc:<code>~rest_framework.exceptions.MethodNotAllowed</code>. A non-<code>ServiceSpec</code>
+entry raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 
 
 
@@ -1577,13 +1693,15 @@ non-:class:<code>ServiceSpec</code> entry (e.g. a :class:<code>SelectorSpec</cod
 
 
         <p>Compose with :class:<code>~rest_framework.viewsets.GenericViewSet</code>.</p>
-<p>When <code>action_specs["list"]</code> is a :class:<code>SelectorSpec</code> with a
-non-<code>None</code> <code>selector</code>, <code>get_queryset()</code> invokes it instead of
+<p>When <code>action_specs["list"]</code> is a
+:class:<code>~rest_framework_services.types.selector_spec.SelectorSpec</code> with
+a non-<code>None</code> <code>selector</code>, <code>get_queryset()</code> invokes it instead of
 returning the configured <code>queryset</code>. The rest of DRF's list flow —
 filter backends, pagination, serialization — is unchanged.</p>
 <p><code>action_specs["list"] = SelectorSpec(selector=None)</code> or an absent
 <code>"list"</code> key both fall through to DRF's default <code>get_queryset()</code>.
-Any other entry type raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+Any other entry type raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 
 
 
@@ -1652,14 +1770,16 @@ Any other entry type raises :exc:<code>~django.core.exceptions.ImproperlyConfigu
 
 
         <p>Compose with :class:<code>~rest_framework.viewsets.GenericViewSet</code>.</p>
-<p>When <code>action_specs["retrieve"]</code> is a :class:<code>SelectorSpec</code> with a
-non-<code>None</code> <code>selector</code>, <code>get_object()</code> invokes it instead of
-falling through to DRF's standard lookup. The selector receives the URL
-kwargs plus the standard pool. Returning <code>None</code> or raising
+<p>When <code>action_specs["retrieve"]</code> is a
+:class:<code>~rest_framework_services.types.selector_spec.SelectorSpec</code> with
+a non-<code>None</code> <code>selector</code>, <code>get_object()</code> invokes it instead of
+falling through to DRF's standard lookup. The selector receives the
+URL kwargs plus the standard pool. Returning <code>None</code> or raising
 <code>Model.DoesNotExist</code> results in a 404.</p>
 <p><code>action_specs["retrieve"] = SelectorSpec(selector=None)</code> or an absent
 <code>"retrieve"</code> key both fall through to DRF's default <code>get_object()</code>.
-Any other entry type raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+Any other entry type raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 <p>The selector applies wherever <code>get_object()</code> is called, including from
 update/destroy actions composed alongside this mixin. If you need an
 action-specific override, do it explicitly in your own <code>get_object()</code>.</p>

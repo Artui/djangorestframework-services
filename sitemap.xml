@@ -21,7 +21,15 @@
          <lastmod>2026-04-28</lastmod>
     </url>
     <url>
+         <loc>https://artui.github.io/djangorestframework-services/openapi/</loc>
+         <lastmod>2026-04-28</lastmod>
+    </url>
+    <url>
          <loc>https://artui.github.io/djangorestframework-services/quickstart/</loc>
+         <lastmod>2026-04-28</lastmod>
+    </url>
+    <url>
+         <loc>https://artui.github.io/djangorestframework-services/typing/</loc>
          <lastmod>2026-04-28</lastmod>
     </url>
     <url>
@@ -57,7 +65,15 @@
          <lastmod>2026-04-28</lastmod>
     </url>
     <url>
+         <loc>https://artui.github.io/djangorestframework-services/reference/openapi/</loc>
+         <lastmod>2026-04-28</lastmod>
+    </url>
+    <url>
          <loc>https://artui.github.io/djangorestframework-services/reference/selectors/</loc>
+         <lastmod>2026-04-28</lastmod>
+    </url>
+    <url>
+         <loc>https://artui.github.io/djangorestframework-services/reference/services/</loc>
          <lastmod>2026-04-28</lastmod>
     </url>
     <url>

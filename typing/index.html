@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/errors-and-atomic/">
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/typing/">
       
       
-        <link rel="prev" href="../mutation-helpers/">
+        <link rel="prev" href="../errors-and-atomic/">
       
       
-        <link rel="next" href="../typing/">
+        <link rel="next" href="../openapi/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Errors & atomic - djangorestframework-services</title>
+        <title>Typing - djangorestframework-services</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#errors-atomic" class="md-skip">
+        <a href="#typing-services-and-selectors" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Errors & atomic
+              Typing
             
           </span>
         </div>
@@ -374,6 +374,33 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../errors-and-atomic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Errors & atomic
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -393,7 +420,7 @@
   <span class="md-ellipsis">
     
   
-    Errors & atomic
+    Typing
   
 
     
@@ -411,7 +438,7 @@
   <span class="md-ellipsis">
     
   
-    Errors & atomic
+    Typing
   
 
     
@@ -437,44 +464,44 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#framework-agnostic-exceptions" class="md-nav__link">
+  <a href="#what-the-framework-guarantees-statically" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Framework-agnostic exceptions
+        What the framework guarantees statically
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Framework-agnostic exceptions">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lenient-protocols-the-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lenient Protocols (the default)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-spec-kwargs-providers-drop-the-if-selfaction-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-spec kwargs providers — drop the if self.action == ... chain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Per-spec kwargs providers — drop the if self.action == ... chain">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#servicevalidationerror" class="md-nav__link">
+  <a href="#resolution-order" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ServiceValidationError
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#serviceerror" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ServiceError
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#why-not-just-raise-drf-exceptions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why not just raise DRF exceptions?
+        Resolution order
       
     </span>
   </a>
@@ -487,10 +514,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#atomic-transactions" class="md-nav__link">
+  <a href="#strict-protocols-fail-on-signature-drift" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Atomic transactions
+        Strict Protocols — fail on signature drift
       
     </span>
   </a>
@@ -498,10 +525,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#async-atomic" class="md-nav__link">
+  <a href="#fail-fast-validation-at-as_view" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Async + atomic
+        Fail-fast validation at as_view()
       
     </span>
   </a>
@@ -512,33 +539,6 @@
   
 </nav>
       
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../typing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Typing
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -1136,44 +1136,44 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#framework-agnostic-exceptions" class="md-nav__link">
+  <a href="#what-the-framework-guarantees-statically" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Framework-agnostic exceptions
+        What the framework guarantees statically
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Framework-agnostic exceptions">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lenient-protocols-the-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lenient Protocols (the default)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-spec-kwargs-providers-drop-the-if-selfaction-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-spec kwargs providers — drop the if self.action == ... chain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Per-spec kwargs providers — drop the if self.action == ... chain">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#servicevalidationerror" class="md-nav__link">
+  <a href="#resolution-order" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ServiceValidationError
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#serviceerror" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ServiceError
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#why-not-just-raise-drf-exceptions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why not just raise DRF exceptions?
+        Resolution order
       
     </span>
   </a>
@@ -1186,10 +1186,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#atomic-transactions" class="md-nav__link">
+  <a href="#strict-protocols-fail-on-signature-drift" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Atomic transactions
+        Strict Protocols — fail on signature drift
       
     </span>
   </a>
@@ -1197,10 +1197,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#async-atomic" class="md-nav__link">
+  <a href="#fail-fast-validation-at-as_view" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Async + atomic
+        Fail-fast validation at as_view()
       
     </span>
   </a>
@@ -1224,7 +1224,7 @@
 
 
   
-    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/errors-and-atomic.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/typing.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1232,109 +1232,191 @@
   
 
 
-<h1 id="errors-atomic">Errors &amp; atomic<a class="headerlink" href="#errors-atomic" title="Permanent link">&para;</a></h1>
-<p>Two ground rules:</p>
-<ol>
-<li><strong>Services don't import from DRF.</strong> They raise framework-agnostic
-   exceptions; the view boundary translates them.</li>
-<li><strong>Every service call runs inside <code>transaction.atomic()</code> by default.</strong>
-   Opt out per <code>ServiceSpec</code> (or per view) when the service manages its
-   own transaction boundaries.</li>
-</ol>
-<h2 id="framework-agnostic-exceptions">Framework-agnostic exceptions<a class="headerlink" href="#framework-agnostic-exceptions" title="Permanent link">&para;</a></h2>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceError</span><span class="p">,</span> <span class="n">ServiceValidationError</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">withdraw</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">amount</span> <span class="o">&gt;</span> <span class="n">instance</span><span class="o">.</span><span class="n">balance</span><span class="p">:</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        <span class="k">raise</span> <span class="n">ServiceValidationError</span><span class="p">({</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;insufficient funds&quot;</span><span class="p">]})</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="k">if</span> <span class="n">instance</span><span class="o">.</span><span class="n">locked</span><span class="p">:</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;account is locked&quot;</span><span class="p">)</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">instance</span><span class="o">.</span><span class="n">balance</span> <span class="o">-=</span> <span class="n">data</span><span class="o">.</span><span class="n">amount</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">instance</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;balance&quot;</span><span class="p">])</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="k">return</span> <span class="n">instance</span>
-</span></code></pre></div>
-<p>The view maps them to DRF responses:</p>
+<h1 id="typing-services-and-selectors">Typing services and selectors<a class="headerlink" href="#typing-services-and-selectors" title="Permanent link">&para;</a></h1>
+<p>The framework wires a service or selector to a view by inspecting its
+signature at request time and passing only the parameters it declares from
+a known kwargs <strong>pool</strong>:</p>
 <table>
 <thead>
 <tr>
-<th>Raised</th>
-<th>Becomes</th>
-<th>HTTP</th>
+<th>Action</th>
+<th>Pool keys</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>ServiceValidationError</code></td>
-<td><code>rest_framework.exceptions.ValidationError</code></td>
-<td><code>400</code></td>
+<td>Create</td>
+<td><code>request</code>, <code>user</code>, <code>data</code>*, plus extras</td>
 </tr>
 <tr>
-<td><code>ServiceError</code></td>
-<td><code>rest_framework.exceptions.APIException</code></td>
-<td><code>422</code></td>
+<td>Update / partial update</td>
+<td><code>request</code>, <code>user</code>, <code>instance</code>, <code>data</code>*, plus extras</td>
+</tr>
+<tr>
+<td>Destroy</td>
+<td><code>request</code>, <code>user</code>, <code>instance</code>, <code>data</code>*, plus extras</td>
+</tr>
+<tr>
+<td>List selector</td>
+<td><code>request</code>, <code>user</code>, URL kwargs, plus extras</td>
+</tr>
+<tr>
+<td>Retrieve selector</td>
+<td><code>request</code>, <code>user</code>, URL kwargs, plus extras</td>
+</tr>
+<tr>
+<td><code>output_selector</code></td>
+<td><code>request</code>, <code>user</code>, <code>result</code>, the action's pool, extras</td>
 </tr>
 </tbody>
 </table>
-<h3 id="servicevalidationerror"><code>ServiceValidationError</code><a class="headerlink" href="#servicevalidationerror" title="Permanent link">&para;</a></h3>
-<p>For business-rule violations that should look like input validation
-errors to the client. Accepts the same shapes DRF's <code>ValidationError</code>
-does:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">raise</span> <span class="n">ServiceValidationError</span><span class="p">(</span><span class="s2">&quot;bad input&quot;</span><span class="p">)</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">raise</span> <span class="n">ServiceValidationError</span><span class="p">([</span><span class="s2">&quot;error 1&quot;</span><span class="p">,</span> <span class="s2">&quot;error 2&quot;</span><span class="p">])</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">raise</span> <span class="n">ServiceValidationError</span><span class="p">({</span><span class="s2">&quot;field&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;per-field error&quot;</span><span class="p">]})</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">raise</span> <span class="n">ServiceValidationError</span><span class="p">({</span><span class="s2">&quot;non_field_errors&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;whole-form error&quot;</span><span class="p">]})</span>
+<p><code>*</code> <code>data</code> is only present when <code>ServiceSpec.input_serializer</code> is set.</p>
+<p><code>view</code> is intentionally <strong>not</strong> in the pool. Services and selectors should
+be plain business logic; pipe view state through a kwargs provider instead
+(see below).</p>
+<hr />
+<h2 id="what-the-framework-guarantees-statically">What the framework guarantees statically<a class="headerlink" href="#what-the-framework-guarantees-statically" title="Permanent link">&para;</a></h2>
+<p><code>ServiceSpec</code> and <code>SelectorSpec</code> are generic over the input / result type
+and an optional <code>TypedDict</code> describing extra kwargs:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ServiceSpec</span><span class="p">(</span><span class="n">Generic</span><span class="p">[</span><span class="n">InputT</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">,</span> <span class="n">ExtraT</span><span class="p">]):</span> <span class="o">...</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">SelectorSpec</span><span class="p">(</span><span class="n">Generic</span><span class="p">[</span><span class="n">ResultT</span><span class="p">,</span> <span class="n">ExtraT</span><span class="p">]):</span> <span class="o">...</span>
 </span></code></pre></div>
-<p>The translated DRF response is a normal <code>400</code> with the same body shape
-your serializers produce. From the client's point of view, a service
-violation and a serializer violation are indistinguishable — which is
-usually what you want.</p>
-<h3 id="serviceerror"><code>ServiceError</code><a class="headerlink" href="#serviceerror" title="Permanent link">&para;</a></h3>
-<p>For business-rule violations that <strong>aren't</strong> input errors —
-<em>"the resource exists but is in the wrong state"</em>. The default mapping
-is <code>422 Unprocessable Entity</code>, which is exactly what HTTP says about
-this case.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;account is locked&quot;</span><span class="p">)</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;invoice already finalised&quot;</span><span class="p">,</span> <span class="n">code</span><span class="o">=</span><span class="s2">&quot;already_finalised&quot;</span><span class="p">)</span>
+<p>Without parameterization, <code>ServiceSpec(service=fn)</code> keeps working — the
+generic params default to <code>Any</code>, exactly as before.</p>
+<p>Parameterizing them lets type checkers connect the input serializer, the
+service signature, and the output:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">AuthorIn</span><span class="p">,</span> <span class="n">Author</span><span class="p">]</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">service</span><span class="o">=</span><span class="n">create_author</span><span class="p">,</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">AuthorIn</span><span class="p">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="p">)</span>
 </span></code></pre></div>
-<h3 id="why-not-just-raise-drf-exceptions">Why not just raise DRF exceptions?<a class="headerlink" href="#why-not-just-raise-drf-exceptions" title="Permanent link">&para;</a></h3>
-<p>Because the mutation can be reused outside a request — from a
-management command, a background job, a test. Coupling business rules
-to HTTP status codes makes those reuses awkward; coupling them to
-<em>what kind of error happened</em> keeps them portable.</p>
-<p>The boundary translation costs you nothing inside a view; outside a
-view, you catch <code>ServiceError</code> / <code>ServiceValidationError</code> directly.</p>
-<h2 id="atomic-transactions">Atomic transactions<a class="headerlink" href="#atomic-transactions" title="Permanent link">&para;</a></h2>
-<p>By default every service call is wrapped in <code>transaction.atomic()</code>.
-Opt out per spec:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">service</span><span class="o">=</span><span class="n">run_import</span><span class="p">,</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">ImportInput</span><span class="p">,</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">atomic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>                <span class="c1"># the import service handles its own savepoints</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">)</span>
+<hr />
+<h2 id="lenient-protocols-the-default">Lenient Protocols (the default)<a class="headerlink" href="#lenient-protocols-the-default" title="Permanent link">&para;</a></h2>
+<p>Annotate a service against the matching Protocol to get IDE / <code>ty</code> /
+<code>mypy</code> help on the <em>known</em> pool keys:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">CreateService</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_author</span><span class="p">(</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">AuthorIn</span><span class="p">,</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">user</span><span class="p">:</span> <span class="n">UserT</span><span class="p">,</span>           <span class="c1"># AbstractBaseUser | AnonymousUser | None</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>      <span class="c1"># tenant_id, etc. — not enforced</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Author</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1"># Static check that the function matches the Protocol shape:</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="n">_check</span><span class="p">:</span> <span class="n">CreateService</span><span class="p">[</span><span class="n">AuthorIn</span><span class="p">,</span> <span class="n">Author</span><span class="p">]</span> <span class="o">=</span> <span class="n">create_author</span>
 </span></code></pre></div>
-<p>Or per view (the spec's <code>atomic</code> value still wins if both are set):</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ImportView</span><span class="p">(</span><span class="n">ServiceCreateView</span><span class="p">):</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span><span class="n">service</span><span class="o">=</span><span class="n">run_import</span><span class="p">,</span> <span class="n">input_serializer</span><span class="o">=</span><span class="n">ImportInput</span><span class="p">)</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">atomic</span> <span class="o">=</span> <span class="kc">False</span>
-</span></code></pre></div>
-<p>When to opt out:</p>
+<p><code>**kwargs: Any</code> on the Protocol is the escape hatch: services can declare
+only the parameters they actually need and the framework passes nothing
+else. Available lenient Protocols:</p>
 <ul>
-<li>the service drives a long-running import that needs per-row
-  savepoints,</li>
-<li>the service must commit partial work before raising,</li>
-<li>the service spans systems and the database side is intentionally
-  best-effort.</li>
+<li><code>CreateService[InputT, ResultT]</code></li>
+<li><code>UpdateService[InputT, InstanceT, ResultT]</code></li>
+<li><code>DeleteService[InstanceT, ResultT]</code></li>
+<li><code>ListSelector[ResultT]</code></li>
+<li><code>RetrieveSelector[ResultT]</code></li>
+<li><code>OutputSelector[InT, OutT]</code></li>
 </ul>
-<p>When <strong>not</strong> to opt out: the service makes more than one related write
-and you'd want them to roll back together on failure. That's the case
-the default exists for.</p>
-<h2 id="async-atomic">Async + atomic<a class="headerlink" href="#async-atomic" title="Permanent link">&para;</a></h2>
-<p>Atomic wrapping works for <code>async def</code> services too. The dispatcher
-wraps the call in <code>sync_to_async(thread_sensitive=True)</code> so the ORM
-connection stays on a consistent thread. You don't need to do anything
-special in the service body.</p>
-<p>See <a href="../async/">Async</a>.</p>
+<hr />
+<h2 id="per-spec-kwargs-providers-drop-the-if-selfaction-chain">Per-spec <code>kwargs</code> providers — drop the <code>if self.action == ...</code> chain<a class="headerlink" href="#per-spec-kwargs-providers-drop-the-if-selfaction-chain" title="Permanent link">&para;</a></h2>
+<p>A viewset with several actions whose services take different extras has
+historically had only one hook (<code>get_service_kwargs</code>), forcing branches like
+<code>if self.action == "create": ...</code>. Move the contract onto the spec instead:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceSpec</span><span class="p">,</span> <span class="n">ServiceViewSet</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services.types.service_spec</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceSpec</span>  <span class="c1"># generic</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypedDict</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">CreateAuthorKwargs</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">tenant_id</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">_create_author_kwargs</span><span class="p">(</span><span class="n">view</span><span class="p">:</span> <span class="n">ServiceView</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CreateAuthorKwargs</span><span class="p">:</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;tenant_id&quot;</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">tenant</span><span class="o">.</span><span class="n">id</span><span class="p">}</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorViewSet</span><span class="p">(</span><span class="n">ServiceViewSet</span><span class="p">):</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">action_specs</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>        <span class="s2">&quot;create&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>            <span class="n">service</span><span class="o">=</span><span class="n">create_author</span><span class="p">,</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>            <span class="n">input_serializer</span><span class="o">=</span><span class="n">AuthorIn</span><span class="p">,</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>            <span class="n">kwargs</span><span class="o">=</span><span class="n">_create_author_kwargs</span><span class="p">,</span>    <span class="c1"># per-spec, typed</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>        <span class="p">),</span>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>        <span class="s2">&quot;publish&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>            <span class="n">service</span><span class="o">=</span><span class="n">publish_author</span><span class="p">,</span>
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>            <span class="n">kwargs</span><span class="o">=</span><span class="n">_publish_author_kwargs</span><span class="p">,</span>   <span class="c1"># different TypedDict</span>
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>        <span class="p">),</span>
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>    <span class="p">}</span>
+</span></code></pre></div>
+<p>The kwargs callable receives the <code>view</code> (typed as the narrow <code>ServiceView</code>
+Protocol — exposes <code>request</code>, <code>kwargs</code>, <code>action</code>) and the current <code>request</code>,
+and returns the <code>TypedDict</code> it declares. Services and selectors stay
+business-logic-pure; <code>view</code> is only available where it makes sense — at
+the framework-glue boundary.</p>
+<h3 id="resolution-order">Resolution order<a class="headerlink" href="#resolution-order" title="Permanent link">&para;</a></h3>
+<p>When the framework needs to assemble extras for a call, it merges three
+layers (later overrides earlier — most specific wins):</p>
+<ol>
+<li><strong>Catch-all hook</strong> — <code>view.get_service_kwargs(self)</code> /
+   <code>view.get_selector_kwargs(self)</code>. The existing global fallback.</li>
+<li><strong>Per-action hook</strong> — <code>view.get_&lt;action&gt;_service_kwargs(self)</code> /
+   <code>view.get_&lt;action&gt;_selector_kwargs(self)</code>. Discoverable in IDEs;
+   no <code>if self.action == ...</code> needed.</li>
+<li><strong>Per-spec callable</strong> — <code>ServiceSpec.kwargs</code> / <code>SelectorSpec.kwargs</code>.
+   The most specific level; co-located with the service it feeds.</li>
+</ol>
+<p>Use whichever level matches the granularity of your contract.</p>
+<hr />
+<h2 id="strict-protocols-fail-on-signature-drift">Strict Protocols — fail on signature drift<a class="headerlink" href="#strict-protocols-fail-on-signature-drift" title="Permanent link">&para;</a></h2>
+<p>Lenient Protocols accept <code>**kwargs: Any</code>, which is convenient but lets the
+service signature drift from the actual contract. When you want the
+opposite — <code>ty</code> / <code>mypy</code> should fail on any drift — parameterize against
+the <code>Strict*</code> variants. They use <a href="https://peps.python.org/pep-0692/">PEP 692</a>
+<code>Unpack[TypedDict]</code> to pin extras exactly:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">StrictCreateService</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypedDict</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">CreateAuthorKwargs</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">tenant_id</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_author</span><span class="p">(</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">AuthorIn</span><span class="p">,</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="n">user</span><span class="p">:</span> <span class="n">UserT</span><span class="p">,</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">tenant_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>        <span class="c1"># must match CreateAuthorKwargs</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Author</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="c1"># Drift now produces a type error:</span>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="n">_check</span><span class="p">:</span> <span class="n">StrictCreateService</span><span class="p">[</span><span class="n">AuthorIn</span><span class="p">,</span> <span class="n">Author</span><span class="p">,</span> <span class="n">CreateAuthorKwargs</span><span class="p">]</span> <span class="o">=</span> <span class="n">create_author</span>
+</span></code></pre></div>
+<p>Available strict Protocols:</p>
+<ul>
+<li><code>StrictCreateService[InputT, ResultT, ExtraT]</code></li>
+<li><code>StrictUpdateService[InputT, InstanceT, ResultT, ExtraT]</code></li>
+<li><code>StrictDeleteService[InstanceT, ResultT, ExtraT]</code></li>
+<li><code>StrictListSelector[ResultT, ExtraT]</code></li>
+<li><code>StrictRetrieveSelector[ResultT, ExtraT]</code></li>
+<li><code>StrictOutputSelector[InT, OutT, ExtraT]</code></li>
+</ul>
+<p>The strict and lenient variants are interchangeable at the
+<code>ServiceSpec.service</code> field — pick the level of enforcement per service.</p>
+<hr />
+<h2 id="fail-fast-validation-at-as_view">Fail-fast validation at <code>as_view()</code><a class="headerlink" href="#fail-fast-validation-at-as_view" title="Permanent link">&para;</a></h2>
+<p><code>as_view()</code> walks every spec and validates that the callable's signature
+can be satisfied. Misconfigured specs raise
+<a href="https://docs.djangoproject.com/en/stable/ref/exceptions/#django.core.exceptions.ImproperlyConfigured"><code>ImproperlyConfigured</code></a>
+at URL-wiring time instead of with a generic <code>TypeError</code> at the first
+request:</p>
+<ul>
+<li>Service requires <code>data</code> but the spec has no <code>input_serializer</code>.</li>
+<li>Service requires <code>instance</code> but the action is create / list (no instance).</li>
+<li>Output selector requires a key that's only present in service-call context.</li>
+<li>A required parameter is not framework-provided and the view has no
+  <code>kwargs=</code> provider, no <code>get_&lt;action&gt;_*_kwargs</code>, and no <code>get_*_kwargs</code> —
+  the parameter would be silently dropped at request time.</li>
+</ul>
+<p>The validator is permissive when the user has plugged in an extras source
+(the framework can't statically introspect what those provide). The
+strict Protocols (above) cover that gap on the static side.</p>
 
 
 

@@ -16,7 +16,7 @@
         <link rel="prev" href="../selectors/">
       
       
-        <link rel="next" href="../exceptions/">
+        <link rel="next" href="../openapi/">
       
       
         
@@ -404,6 +404,60 @@
   
   
     <li class="md-nav__item">
+      <a href="../../typing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Typing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenAPI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../async/" class="md-nav__link">
         
   
@@ -460,7 +514,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -482,14 +536,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="">
+              <label class="md-nav__link " for="__nav_9" id="__nav_9_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_7">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -647,6 +701,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -660,7 +718,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -682,14 +740,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_8" id="__nav_8_label" tabindex="">
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_8">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -772,6 +830,34 @@
     
   
     Mutations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Services
   
 
     
@@ -1033,6 +1119,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenAPI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../exceptions/" class="md-nav__link">
         
   
@@ -1270,12 +1384,19 @@
 
 
     <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Generic">Generic</span>[<span title="rest_framework_services.types.selector_spec.ResultT">ResultT</span>, <span title="rest_framework_services.types.selector_spec.ExtraT">ExtraT</span>]</code></p>
 
 
 
         <p>All wiring for a single read action in one record.</p>
 <p>Used as a value in <code>action_specs</code> on viewsets and as the <code>spec=</code>
 argument to :class:<code>SelectorListView</code> / :class:<code>SelectorRetrieveView</code>.</p>
+<p>Generic parameters (both default to <code>Any</code>):</p>
+<ul>
+<li><code>ResultT</code> — the selector's return type.</li>
+<li><code>ExtraT</code> — a <code>TypedDict</code> describing the keys returned by <code>kwargs</code>.</li>
+</ul>
 <p>Fields:</p>
 <ul>
 <li><strong><code>selector</code></strong> — callable invoked by <code>get_queryset()</code> (list) or
@@ -1284,6 +1405,10 @@ argument to :class:<code>SelectorListView</code> / :class:<code>SelectorRetrieve
 <li><strong><code>output_serializer</code></strong> — DRF <code>Serializer</code> subclass used by
   <code>get_serializer_class()</code> for this action. <code>None</code> falls back to
   DRF's standard <code>serializer_class</code>.</li>
+<li><strong><code>kwargs</code></strong> — callable returning extra kwargs to merge into the pool
+  the selector receives. Co-locating it with the spec lets each action
+  declare its own contract — no <code>if self.action == ...</code> branching in a
+  catch-all <code>get_selector_kwargs</code>.</li>
 </ul>
 
 
@@ -1332,6 +1457,8 @@ argument to :class:<code>SelectorListView</code> / :class:<code>SelectorRetrieve
 
 
     <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Generic">Generic</span>[<span title="rest_framework_services.types.service_spec.InputT">InputT</span>, <span title="rest_framework_services.types.service_spec.ResultT">ResultT</span>, <span title="rest_framework_services.types.service_spec.ExtraT">ExtraT</span>]</code></p>
 
 
 
@@ -1339,10 +1466,27 @@ argument to :class:<code>SelectorListView</code> / :class:<code>SelectorRetrieve
 <p>Used as a value in <code>ServiceViewSet.service_specs</code> and as the <code>spec=</code>
 argument to :func:<code>service_action</code> / :class:<code>ServiceCreateView</code> /
 :class:<code>ServiceUpdateView</code> / :class:<code>ServiceDeleteView</code>.</p>
+<p>Generic parameters are optional and purely informational for type checkers:</p>
+<ul>
+<li><code>InputT</code> — the validated-data type produced by <code>input_serializer</code>.
+  For dataclass-based serializers this is the dataclass; for plain
+  <code>ModelSerializer</code> it is typically <code>dict[str, Any]</code>.</li>
+<li><code>ResultT</code> — the value returned by the service callable, the input to
+  <code>output_selector</code> (when set), and the value rendered by
+  <code>output_serializer</code>.</li>
+<li><code>ExtraT</code> — a <code>TypedDict</code> describing the keys returned by <code>kwargs</code>.</li>
+</ul>
+<p>All three default to <code>Any</code>, so <code>ServiceSpec(service=fn)</code> keeps working
+unchanged.</p>
 <p>Fields mirror the kwargs that <code>MutationFlowMixin._run_mutation</code>
 forwards to the underlying flow runner. <code>success_status</code> is left as
 <code>None</code> so each consumer can supply its own action-appropriate default
 (201 for create, 200 for update, 204 for destroy).</p>
+<p><code>kwargs</code> is a callable that returns extra kwargs to merge into the
+pool the service receives. Co-locating it with the spec lets each action
+declare its own contract — no <code>if self.action == ...</code> branching in a
+catch-all <code>get_service_kwargs</code>. See :class:<code>ServiceView</code> for the
+attributes available on the <code>view</code> argument.</p>
 
 
 

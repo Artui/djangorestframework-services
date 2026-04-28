@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/recipes/">
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/openapi/">
       
       
-        <link rel="prev" href="../async/">
+        <link rel="prev" href="../typing/">
       
       
-        <link rel="next" href="service-action/">
+        <link rel="next" href="../async/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Recipes - djangorestframework-services</title>
+        <title>OpenAPI - djangorestframework-services</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#recipes" class="md-skip">
+        <a href="#openapi-swagger-schemas" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Recipes
+              OpenAPI
             
           </span>
         </div>
@@ -428,10 +428,37 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../openapi/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenAPI
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -447,6 +474,120 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wire-it-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wire it up
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-get-for-free" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you get for free
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What you get for free">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bare-dataclass-input_serializer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bare dataclass input_serializer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#success-status-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Success status codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#422-serviceerror-responses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        422 ServiceError responses
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#override-per-view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Override per view
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#whats-not-covered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's not covered
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -482,8 +623,6 @@
       
   
   
-    
-  
   
   
     
@@ -510,15 +649,17 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="./" class="md-nav__link md-nav__link--active">
+            <a href="../recipes/" class="md-nav__link ">
               
   
   
@@ -536,13 +677,13 @@
             </a>
             
               
-              <label class="md-nav__link md-nav__link--active" for="__nav_9" id="__nav_9_label" tabindex="">
+              <label class="md-nav__link " for="__nav_9" id="__nav_9_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_9">
             <span class="md-nav__icon md-icon"></span>
             
@@ -562,7 +703,7 @@
   
   
     <li class="md-nav__item">
-      <a href="service-action/" class="md-nav__link">
+      <a href="../recipes/service-action/" class="md-nav__link">
         
   
   
@@ -590,7 +731,7 @@
   
   
     <li class="md-nav__item">
-      <a href="compose-viewset/" class="md-nav__link">
+      <a href="../recipes/compose-viewset/" class="md-nav__link">
         
   
   
@@ -618,7 +759,7 @@
   
   
     <li class="md-nav__item">
-      <a href="extra-kwargs/" class="md-nav__link">
+      <a href="../recipes/extra-kwargs/" class="md-nav__link">
         
   
   
@@ -646,7 +787,7 @@
   
   
     <li class="md-nav__item">
-      <a href="scaffold-app/" class="md-nav__link">
+      <a href="../recipes/scaffold-app/" class="md-nav__link">
         
   
   
@@ -1010,6 +1151,108 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wire-it-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wire it up
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-get-for-free" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you get for free
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What you get for free">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bare-dataclass-input_serializer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bare dataclass input_serializer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#success-status-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Success status codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#422-serviceerror-responses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        422 ServiceError responses
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#override-per-view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Override per view
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#whats-not-covered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's not covered
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1025,7 +1268,7 @@
 
 
   
-    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/recipes/index.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/openapi.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1033,21 +1276,152 @@
   
 
 
-<h1 id="recipes">Recipes<a class="headerlink" href="#recipes" title="Permanent link">&para;</a></h1>
-<p>Task-shaped how-tos. Each one is self-contained and assumes you've read
-the <a href="../quickstart/">Quickstart</a> and <a href="../concepts/">Concepts</a>.</p>
+<h1 id="openapi-swagger-schemas">OpenAPI / Swagger schemas<a class="headerlink" href="#openapi-swagger-schemas" title="Permanent link">&para;</a></h1>
+<p><code>djangorestframework-services</code> ships an opt-in
+<a href="https://drf-spectacular.readthedocs.io/"><code>drf-spectacular</code></a> integration that
+makes the generated OpenAPI document line up with what your <code>ServiceSpec</code>
+actually does — without scattering <code>@extend_schema</code> annotations across
+every view.</p>
+<h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;djangorestframework-services[spectacular]&quot;</span>
+</span></code></pre></div>
+<h2 id="wire-it-up">Wire it up<a class="headerlink" href="#wire-it-up" title="Permanent link">&para;</a></h2>
+<p>Two settings, one call:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># settings.py</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">REST_FRAMEWORK</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="c1"># Required for spectacular to inspect every view, including plain</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="c1"># ``GenericViewSet`` classes that use ``@service_action``.</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="s2">&quot;DEFAULT_SCHEMA_CLASS&quot;</span><span class="p">:</span> <span class="p">(</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        <span class="s2">&quot;rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema&quot;</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="p">),</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="c1"># ... your usual REST_FRAMEWORK config</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">}</span>
+</span></code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># myapp/apps.py</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.apps</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppConfig</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyAppConfig</span><span class="p">(</span><span class="n">AppConfig</span><span class="p">):</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;myapp&quot;</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">ready</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services.openapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">enable_openapi</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>        <span class="n">enable_openapi</span><span class="p">()</span>
+</span></code></pre></div>
+<p><code>enable_openapi()</code> attaches <code>ServiceAutoSchema</code> to every library view class
+(<code>ServiceCreateView</code>, <code>ServiceUpdateView</code>, <code>ServiceDeleteView</code>,
+<code>SelectorListView</code>, <code>SelectorRetrieveView</code>, <code>ServiceViewSet</code>,
+<code>SelectorViewSet</code>). The <code>DEFAULT_SCHEMA_CLASS</code> setting covers anything
+else.</p>
+<h2 id="what-you-get-for-free">What you get for free<a class="headerlink" href="#what-you-get-for-free" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Request body</th>
+<th>Success response</th>
+<th>422 contract</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ServiceCreateView</code></td>
+<td><code>spec.input_serializer</code> ✓</td>
+<td><code>spec.output_serializer</code> ✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td><code>ServiceUpdateView</code></td>
+<td><code>spec.input_serializer</code> ✓</td>
+<td><code>spec.output_serializer</code> ✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td><code>ServiceDeleteView</code></td>
+<td><code>spec.input_serializer</code> ✓</td>
+<td><code>spec.output_serializer</code> ✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td><code>ServiceViewSet["create"]</code></td>
+<td><code>spec.input_serializer</code> ✓</td>
+<td><code>spec.output_serializer</code> ✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td><code>ServiceViewSet["update"]</code></td>
+<td><code>spec.input_serializer</code> ✓</td>
+<td><code>spec.output_serializer</code> ✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td><code>ServiceViewSet["partial_update"]</code></td>
+<td><code>spec.input_serializer</code> (partial) ✓</td>
+<td><code>spec.output_serializer</code> ✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td><code>ServiceViewSet["destroy"]</code></td>
+<td><code>spec.input_serializer</code> ✓</td>
+<td><code>spec.output_serializer</code> ✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td><code>@service_action</code></td>
+<td><code>spec.input_serializer</code> ✓</td>
+<td><code>spec.output_serializer</code> ✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td><code>SelectorListView</code> / <code>["list"]</code></td>
+<td>n/a</td>
+<td><code>spec.output_serializer</code> ✓</td>
+<td>n/a</td>
+</tr>
+<tr>
+<td><code>SelectorRetrieveView</code> / <code>["retrieve"]</code></td>
+<td>n/a</td>
+<td><code>spec.output_serializer</code> ✓</td>
+<td>n/a</td>
+</tr>
+</tbody>
+</table>
+<h3 id="bare-dataclass-input_serializer">Bare dataclass <code>input_serializer</code><a class="headerlink" href="#bare-dataclass-input_serializer" title="Permanent link">&para;</a></h3>
+<p>The runtime auto-wraps a bare <code>@dataclass</code> type in a <code>DataclassSerializer</code>.
+The schema generator does the same — your dataclass shows up as a typed
+component, not a plain <code>object</code>.</p>
+<h3 id="success-status-codes">Success status codes<a class="headerlink" href="#success-status-codes" title="Permanent link">&para;</a></h3>
+<p>Default to the action's HTTP code (201 / 200 / 204) unless
+<code>spec.success_status</code> overrides it. The schema picks up whichever value
+the runtime would return.</p>
+<h3 id="422-serviceerror-responses">422 ServiceError responses<a class="headerlink" href="#422-serviceerror-responses" title="Permanent link">&para;</a></h3>
+<p><code>ServiceAutoSchema</code> attaches a <code>422</code> response with a single <code>detail</code>
+field to every spec-driven mutation, documenting the contract that
+<code>ServiceError</code> produces at runtime. The component is exposed as
+<code>rest_framework_services.openapi.ServiceErrorSerializer</code> if you want to
+re-use it elsewhere.</p>
+<h2 id="override-per-view">Override per view<a class="headerlink" href="#override-per-view" title="Permanent link">&para;</a></h2>
+<p><code>@extend_schema</code> annotations always win. Use them for the rare case
+where the spec doesn't capture the full contract:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">drf_spectacular.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">extend_schema</span><span class="p">,</span> <span class="n">OpenApiResponse</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">_MyViewSet</span><span class="p">(</span><span class="n">ServiceViewSet</span><span class="p">):</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">action_specs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;create&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span><span class="o">...</span><span class="p">)}</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="nd">@extend_schema</span><span class="p">(</span><span class="n">responses</span><span class="o">=</span><span class="p">{</span><span class="mi">201</span><span class="p">:</span> <span class="n">MyCustomSerializer</span><span class="p">,</span> <span class="mi">409</span><span class="p">:</span> <span class="n">OpenApiResponse</span><span class="p">(</span><span class="o">...</span><span class="p">)})</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></code></pre></div>
+<h2 id="whats-not-covered">What's not covered<a class="headerlink" href="#whats-not-covered" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><a href="service-action/">Custom action with <code>@service_action</code></a></strong> — add a
-  non-CRUD action to a viewset and route it through the same
-  validate-dispatch-render flow as the standard mutations.</li>
-<li><strong><a href="compose-viewset/">Compose your own viewset</a></strong> — pick the per-
-  action mixins you actually need instead of starting from
-  <code>ServiceViewSet</code>.</li>
-<li><strong><a href="extra-kwargs/">Pass extra kwargs to services</a></strong> — surface a
-  tenant, a feature flag, or a test clock to your services without
-  threading it through <code>request</code>.</li>
-<li><strong><a href="scaffold-app/">Scaffold a service app</a></strong> — <code>startserviceapp</code> and
-  the convention behind <code>services/</code>, <code>selectors/</code>, <code>validators/</code>.</li>
+<li>Field-level shapes for 400 <code>ValidationError</code> bodies (DRF doesn't have a
+  great way to express this, and spectacular's defaults are passable).</li>
+<li>Auto-generated named components for <code>ChangeResult</code> and similar internal
+  value types — they render inline.</li>
+<li>A dedicated <code>OpenApiSerializerExtension</code> for <code>DataclassSerializer</code>
+  giving named components in <code>#/components/schemas/...</code> instead of
+  inline anonymous schemas. Deferred; spectacular's default rendering is
+  usable.</li>
 </ul>
 
 
