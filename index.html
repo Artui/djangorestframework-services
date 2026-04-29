@@ -1214,8 +1214,12 @@ you a precise, well-typed seam for the bits in the middle.</p>
 <li><strong>Mutation helpers</strong> — <code>create_from_input</code>, <code>update_from_input</code>,
   <code>apply_input</code> (and async siblings) with change tracking, no surprises.</li>
 <li><strong>Sync and async</strong> services and selectors, transparently dispatched.</li>
-<li><strong>Atomic by default</strong>, opt-out per view.</li>
+<li><strong>Atomic by default</strong>, opt-out per spec.</li>
 <li><strong>Framework-agnostic exceptions</strong> — services don't import from DRF.</li>
+<li><strong>Typed end-to-end</strong> — generic <code>ServiceSpec[InputT, ResultT]</code> plus
+  lenient and strict Protocols that catch signature drift at type-check
+  time, with fail-fast validation at <code>as_view()</code>. See
+  <a href="typing/">Typing</a>.</li>
 </ul>
 <h2 id="when-to-use-this">When to use this<a class="headerlink" href="#when-to-use-this" title="Permanent link">&para;</a></h2>
 <p>Reach for it when an endpoint:</p>
@@ -1243,6 +1247,8 @@ the recommended way to wire dataclass-shaped inputs and outputs. Plain
   selector, view) and how dispatch works.</li>
 <li><strong><a href="mutation-helpers/">Mutation helpers</a></strong> — <code>create_from_input</code>,
   <code>update_from_input</code>, <code>apply_input</code>, and the <code>ChangeResult</code> they return.</li>
+<li><strong><a href="typing/">Typing</a></strong> — lenient and strict Protocols, per-spec
+  <code>kwargs=</code> providers, fail-fast <code>as_view()</code> validation.</li>
 <li><strong><a href="errors-and-atomic/">Errors &amp; atomic</a></strong> — framework-agnostic
   exceptions and the transaction model.</li>
 <li><strong><a href="async/">Async</a></strong> — when and how to use <code>async def</code> services.</li>
