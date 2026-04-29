@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- README and docs index now surface lenient and strict service / selector
+  typing examples and link to the typing page. Minor wording fix:
+  "opt-out per view" → "opt-out per spec" (atomic lives on
+  `ServiceSpec`).
+
 ## [0.6.0] — 2026-04-28
 
 ### Added

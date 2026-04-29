@@ -24,11 +24,13 @@ you a precise, well-typed seam for the bits in the middle.
   `get_object()`. Filter backends, pagination, and serialization stay
   vanilla DRF.
 - **Mutation helpers** — `create_from_input`, `update_from_input`,
-  `apply_input` (and async siblings) — DRF-style attribute application
-  with change tracking, no surprises.
+  `apply_input` (and async siblings) with change tracking, no surprises.
 - **Sync and async** services and selectors, transparently dispatched.
-- **Atomic by default**, opt-out per view.
+- **Atomic by default**, opt-out per spec.
 - **Framework-agnostic exceptions** — services don't import from DRF.
+- **Typed end-to-end** — generic `ServiceSpec[InputT, ResultT]` plus
+  lenient and strict Protocols that catch signature drift at type-check
+  time, with fail-fast validation at `as_view()`.
 - **100% test coverage**, type-checked, Python 3.10–3.14, Django 4.2–6.0.
 
 📖 **Full documentation:** <https://artui.github.io/djangorestframework-services/>
@@ -232,6 +234,102 @@ class ChangeResult:
 
 The `UNSET` sentinel distinguishes "field omitted from input" from "field
 explicitly set to `None`" — critical for correct `PATCH` semantics.
+
+---
+
+## Typed services and selectors
+
+Services and selectors are plain callables, but you can pin their shape
+to a Protocol so a type checker catches signature drift before request
+time.
+
+`CreateService`, `UpdateService`, `DeleteService`, `ListSelector`,
+`RetrieveSelector`, and `OutputSelector` are **lenient** Protocols —
+they accept `**kwargs: Any`, so your callable can declare only the
+parameters it actually uses:
+
+```python
+from rest_framework_services import CreateService, ListSelector
+
+
+def create_author(*, data: CreateAuthorInput, user) -> Author: ...
+
+def list_authors(*, request) -> QuerySet[Author]: ...
+
+
+_: CreateService[CreateAuthorInput, Author] = create_author
+_: ListSelector[Author] = list_authors
+```
+
+When you want the type checker to fail on *any* drift — including
+extras forwarded from a `kwargs=` provider — use the **strict**
+variants. They use [PEP 692](https://peps.python.org/pep-0692/)
+`Unpack[TypedDict]` to pin every kwarg the callable receives:
+
+```python
+from typing import TypedDict
+
+from django.http import HttpRequest
+
+from rest_framework_services import (
+    ServiceSpec,
+    ServiceViewSet,
+    StrictCreateService,
+    StrictListSelector,
+)
+
+
+class AuthorExtras(TypedDict):
+    tenant_id: int
+
+
+def _author_kwargs(view, request) -> AuthorExtras:
+    return {"tenant_id": request.tenant.id}
+
+
+def create_author(
+    *,
+    data: CreateAuthorInput,
+    request: HttpRequest,
+    tenant_id: int,                 # must match AuthorExtras
+) -> Author: ...
+
+
+def list_authors(
+    *,
+    request: HttpRequest,
+    tenant_id: int,
+) -> QuerySet[Author]: ...
+
+
+_: StrictCreateService[CreateAuthorInput, Author, AuthorExtras] = create_author
+_: StrictListSelector[Author, AuthorExtras] = list_authors
+
+
+class AuthorViewSet(ServiceViewSet):
+    action_specs = {
+        "create": ServiceSpec(
+            service=create_author,
+            input_serializer=CreateAuthorInput,
+            output_serializer=AuthorOutputSerializer,
+            kwargs=_author_kwargs,
+        ),
+    }
+```
+
+Adding a parameter to the service without updating `AuthorExtras` is a
+type error. Removing a key from `AuthorExtras` without updating the
+service is a type error.
+
+On top of static typing, `as_view()` walks every spec at URL-wiring time
+and raises `ImproperlyConfigured` for misconfigurations the checker
+can't see — a service requiring `data` with no `input_serializer`, an
+`instance` parameter on a create flow, or a required parameter no
+extras provider supplies.
+
+See [Typing services and selectors](https://artui.github.io/djangorestframework-services/typing/)
+for the full Protocol catalogue and per-spec `kwargs=` resolution
+rules.
 
 ---
 

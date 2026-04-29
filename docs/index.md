@@ -19,8 +19,12 @@ you a precise, well-typed seam for the bits in the middle.
 - **Mutation helpers** — `create_from_input`, `update_from_input`,
   `apply_input` (and async siblings) with change tracking, no surprises.
 - **Sync and async** services and selectors, transparently dispatched.
-- **Atomic by default**, opt-out per view.
+- **Atomic by default**, opt-out per spec.
 - **Framework-agnostic exceptions** — services don't import from DRF.
+- **Typed end-to-end** — generic `ServiceSpec[InputT, ResultT]` plus
+  lenient and strict Protocols that catch signature drift at type-check
+  time, with fail-fast validation at `as_view()`. See
+  [Typing](typing.md).
 
 ## When to use this
 
@@ -54,6 +58,8 @@ the recommended way to wire dataclass-shaped inputs and outputs. Plain
   selector, view) and how dispatch works.
 - **[Mutation helpers](mutation-helpers.md)** — `create_from_input`,
   `update_from_input`, `apply_input`, and the `ChangeResult` they return.
+- **[Typing](typing.md)** — lenient and strict Protocols, per-spec
+  `kwargs=` providers, fail-fast `as_view()` validation.
 - **[Errors & atomic](errors-and-atomic.md)** — framework-agnostic
   exceptions and the transaction model.
 - **[Async](async.md)** — when and how to use `async def` services.
