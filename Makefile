@@ -52,6 +52,7 @@ release-bump:
 		echo "Usage: make release-bump VERSION=X.Y.Z"; exit 1; \
 	fi
 	uvx bump-my-version bump --new-version "$(VERSION)" patch
+	uv lock
 	@echo ""
 	@echo "Bumped to $(VERSION). Edit CHANGELOG.md to fill the new section,"
 	@echo "review with 'git diff', then run 'make release-publish'."
@@ -69,7 +70,7 @@ release-publish:
 		echo "Tag v$$version already exists on origin."; exit 1; \
 	fi; \
 	if ! git diff-index --quiet HEAD --; then \
-		git add pyproject.toml rest_framework_services/__init__.py CHANGELOG.md && \
+		git add pyproject.toml rest_framework_services/__init__.py CHANGELOG.md uv.lock && \
 		git commit -m "Release $$version"; \
 	fi && \
 	git tag -a "v$$version" -m "$$version" && \
