@@ -522,6 +522,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Strict Protocols — fail on signature drift">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#attaching-the-protocol-to-the-function-implements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attaching the Protocol to the function: @implements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1194,6 +1211,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Strict Protocols — fail on signature drift">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#attaching-the-protocol-to-the-function-implements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attaching the Protocol to the function: @implements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1370,35 +1404,74 @@ layers (later overrides earlier — most specific wins):</p>
 service signature drift from the actual contract. When you want the
 opposite — <code>ty</code> / <code>mypy</code> should fail on any drift — parameterize against
 the <code>Strict*</code> variants. They use <a href="https://peps.python.org/pep-0692/">PEP 692</a>
-<code>Unpack[TypedDict]</code> to pin extras exactly:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">StrictCreateService</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypedDict</span>
+<code>Unpack[TypedDict]</code> to pin extras exactly. Pair them with the
+<a href="#attaching-the-protocol-to-the-function-implements"><code>@implements</code></a> decorator
+to attach the assertion to the function definition itself:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypedDict</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing_extensions</span><span class="w"> </span><span class="kn">import</span> <span class="n">Unpack</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">CreateAuthorKwargs</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">tenant_id</span><span class="p">:</span> <span class="nb">int</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_author</span><span class="p">(</span>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">AuthorIn</span><span class="p">,</span>
-</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span>
-</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="n">user</span><span class="p">:</span> <span class="n">UserT</span><span class="p">,</span>
-</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">tenant_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>        <span class="c1"># must match CreateAuthorKwargs</span>
-</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Author</span><span class="p">:</span> <span class="o">...</span>
-</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>
-</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="c1"># Drift now produces a type error:</span>
-</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="n">_check</span><span class="p">:</span> <span class="n">StrictCreateService</span><span class="p">[</span><span class="n">AuthorIn</span><span class="p">,</span> <span class="n">Author</span><span class="p">,</span> <span class="n">CreateAuthorKwargs</span><span class="p">]</span> <span class="o">=</span> <span class="n">create_author</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">StrictCreateService</span><span class="p">,</span> <span class="n">implements</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">CreateAuthorKwargs</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">tenant_id</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="nd">@implements</span><span class="p">(</span><span class="n">StrictCreateService</span><span class="p">[</span><span class="n">AuthorIn</span><span class="p">,</span> <span class="n">CreateAuthorKwargs</span><span class="p">,</span> <span class="n">Author</span><span class="p">])</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_author</span><span class="p">(</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">AuthorIn</span><span class="p">,</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="n">user</span><span class="p">:</span> <span class="n">UserT</span><span class="p">,</span>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">CreateAuthorKwargs</span><span class="p">],</span>   <span class="c1"># exact extras contract</span>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Author</span><span class="p">:</span> <span class="o">...</span>
 </span></code></pre></div>
+<p>Drift between <code>create_author</code> and the parameterized Protocol now produces a
+<code>ty</code> error at the <code>@implements(...)</code> line.</p>
 <p>Available strict Protocols:</p>
 <ul>
-<li><code>StrictCreateService[InputT, ResultT, ExtraT]</code></li>
-<li><code>StrictUpdateService[InputT, InstanceT, ResultT, ExtraT]</code></li>
-<li><code>StrictDeleteService[InstanceT, ResultT, ExtraT]</code></li>
-<li><code>StrictListSelector[ResultT, ExtraT]</code></li>
-<li><code>StrictRetrieveSelector[ResultT, ExtraT]</code></li>
-<li><code>StrictOutputSelector[InT, OutT, ExtraT]</code></li>
+<li><code>StrictCreateService[InputT, ExtraT, ResultT]</code></li>
+<li><code>StrictUpdateService[InputT, InstanceT, ExtraT, ResultT]</code></li>
+<li><code>StrictDeleteService[InstanceT, ExtraT, ResultT]</code></li>
+<li><code>StrictListSelector[ExtraT, ResultT]</code></li>
+<li><code>StrictRetrieveSelector[ExtraT, ResultT]</code></li>
+<li><code>StrictOutputSelector[InT, ExtraT, OutT]</code></li>
 </ul>
+<p><code>ExtraT</code> always sits immediately before the result type so the parameter
+list reads "input, extras, result" — mirroring the call shape.</p>
 <p>The strict and lenient variants are interchangeable at the
 <code>ServiceSpec.service</code> field — pick the level of enforcement per service.</p>
+<h3 id="attaching-the-protocol-to-the-function-implements">Attaching the Protocol to the function: <code>@implements</code><a class="headerlink" href="#attaching-the-protocol-to-the-function-implements" title="Permanent link">&para;</a></h3>
+<p>The recommended way to assert that a callable matches a strict Protocol is
+the <a href="../reference/services/#rest_framework_services.implements.implements"><code>implements</code></a>
+decorator — it returns the function unchanged at runtime and triggers the
+structural-subtyping check at the decorator line:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nd">@implements</span><span class="p">(</span><span class="n">StrictListSelector</span><span class="p">[</span><span class="n">ListAuthorsKwargs</span><span class="p">,</span> <span class="n">Author</span><span class="p">])</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_authors</span><span class="p">(</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">user</span><span class="p">:</span> <span class="n">UserT</span><span class="p">,</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">ListAuthorsKwargs</span><span class="p">],</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">Author</span><span class="p">]:</span> <span class="o">...</span>
+</span></code></pre></div>
+<p>The legacy throwaway-variable form still works and is sometimes useful for
+ad-hoc one-off checks:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_authors</span><span class="p">(</span><span class="o">...</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">Author</span><span class="p">]:</span> <span class="o">...</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">_check</span><span class="p">:</span> <span class="n">StrictListSelector</span><span class="p">[</span><span class="n">ListAuthorsKwargs</span><span class="p">,</span> <span class="n">Author</span><span class="p">]</span> <span class="o">=</span> <span class="n">list_authors</span>
+</span></code></pre></div>
+<p>A few notes on type-checker support:</p>
+<ul>
+<li><strong><code>ty</code></strong> validates <code>@implements(...)</code> against the strict Protocols; the
+  decorator is the form CI exercises in this repo.</li>
+<li><strong><code>mypy</code></strong> rejects <code>type[Protocol]</code> arguments under its <code>type-abstract</code>
+  rule, so <code>@implements(...)</code> triggers a <code>[type-abstract]</code> error in mypy.
+  Either add <code># type: ignore[type-abstract]</code> next to the decorator or stick
+  with the <code>_check: ...</code> shim form when mypy is your primary checker.</li>
+<li><strong>PEP 692 support across checkers is uneven</strong> — drift detection on
+  <code>**extras: Unpack[TypedDict]</code> works best when the function uses the
+  <code>Unpack[...]</code> form (matching the Protocol). The strict Protocols still
+  catch drift on the fixed pool keys (<code>data</code>, <code>instance</code>, return type) in
+  every supported checker.</li>
+</ul>
 <hr />
 <h2 id="fail-fast-validation-at-as_view">Fail-fast validation at <code>as_view()</code><a class="headerlink" href="#fail-fast-validation-at-as_view" title="Permanent link">&para;</a></h2>
 <p><code>as_view()</code> walks every spec and validates that the callable's signature

@@ -997,6 +997,28 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#decorators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decorators
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.implements.implements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        implements
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1239,6 +1261,28 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#decorators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decorators
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.implements.implements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        implements
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1442,7 +1486,7 @@ if you need a response body, return a value and configure
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.services.strict_create_service.InputT">InputT</span>, <span title="rest_framework_services.services.strict_create_service.ResultT">ResultT</span>, <span title="rest_framework_services.services.strict_create_service.ExtraT">ExtraT</span>]</code></p>
+              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.services.strict_create_service.InputT">InputT</span>, <span title="rest_framework_services.services.strict_create_service.ExtraT">ExtraT</span>, <span title="rest_framework_services.services.strict_create_service.ResultT">ResultT</span>]</code></p>
 
 
 
@@ -1456,16 +1500,14 @@ nothing more, nothing less.</p>
 <div class="language-text highlight"><pre><span></span><code>class CreateAuthorKwargs(TypedDict):
     tenant_id: int
 
+@implements(StrictCreateService[AuthorIn, CreateAuthorKwargs, Author])
 def create_author(
     *,
     data: AuthorIn,
     request: HttpRequest,
     user: UserT,
-    tenant_id: int,
+    **extras: Unpack[CreateAuthorKwargs],
 ) -&gt; Author: ...
-
-# Static check that the function matches the strict Protocol:
-_: StrictCreateService[AuthorIn, Author, CreateAuthorKwargs] = create_author
 </code></pre></div>
 
 
@@ -1510,7 +1552,7 @@ _: StrictCreateService[AuthorIn, Author, CreateAuthorKwargs] = create_author
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.services.strict_update_service.InputT">InputT</span>, <span title="rest_framework_services.services.strict_update_service.InstanceT">InstanceT</span>, <span title="rest_framework_services.services.strict_update_service.ResultT">ResultT</span>, <span title="rest_framework_services.services.strict_update_service.ExtraT">ExtraT</span>]</code></p>
+              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.services.strict_update_service.InputT">InputT</span>, <span title="rest_framework_services.services.strict_update_service.InstanceT">InstanceT</span>, <span title="rest_framework_services.services.strict_update_service.ExtraT">ExtraT</span>, <span title="rest_framework_services.services.strict_update_service.ResultT">ResultT</span>]</code></p>
 
 
 
@@ -1520,16 +1562,15 @@ by <code>ServiceSpec.kwargs</code> via a <code>TypedDict</code>::</p>
 <div class="language-text highlight"><pre><span></span><code>class UpdateAuthorKwargs(TypedDict):
     tenant_id: int
 
+@implements(StrictUpdateService[AuthorIn, Author, UpdateAuthorKwargs, Author])
 def update_author(
     *,
     instance: Author,
     data: AuthorIn,
     request: HttpRequest,
     user: UserT,
-    tenant_id: int,
+    **extras: Unpack[UpdateAuthorKwargs],
 ) -&gt; Author: ...
-
-_: StrictUpdateService[AuthorIn, Author, Author, UpdateAuthorKwargs] = update_author
 </code></pre></div>
 
 
@@ -1574,13 +1615,26 @@ _: StrictUpdateService[AuthorIn, Author, Author, UpdateAuthorKwargs] = update_au
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.services.strict_delete_service.InstanceT">InstanceT</span>, <span title="rest_framework_services.services.strict_delete_service.ResultT">ResultT</span>, <span title="rest_framework_services.services.strict_delete_service.ExtraT">ExtraT</span>]</code></p>
+              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.services.strict_delete_service.InstanceT">InstanceT</span>, <span title="rest_framework_services.services.strict_delete_service.ExtraT">ExtraT</span>, <span title="rest_framework_services.services.strict_delete_service.ResultT">ResultT</span>]</code></p>
 
 
 
         <p>Strict shape for a delete-action service.</p>
 <p>See :class:<code>StrictCreateService</code> for rationale. Most delete services
-return <code>None</code>; that's fine — annotate <code>ResultT</code> as <code>None</code>.</p>
+return <code>None</code> — annotate <code>ResultT</code> as <code>None</code> and pair with
+:func:<code>~rest_framework_services.implements</code>::</p>
+<div class="language-text highlight"><pre><span></span><code>class DeleteAuthorKwargs(TypedDict):
+    reason: str
+
+@implements(StrictDeleteService[Author, DeleteAuthorKwargs, None])
+def delete_author(
+    *,
+    instance: Author,
+    request: HttpRequest,
+    user: UserT,
+    **extras: Unpack[DeleteAuthorKwargs],
+) -&gt; None: ...
+</code></pre></div>
 
 
 
@@ -1606,6 +1660,44 @@ return <code>None</code>; that's fine — annotate <code>ResultT</code> as <code
 
 
   </div>
+
+    </div>
+
+</div><h2 id="decorators">Decorators<a class="headerlink" href="#decorators" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.implements.implements" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">implements</span>
+
+
+<a href="#rest_framework_services.implements.implements" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">implements</span><span class="p">(</span><span class="n">proto</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">F</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">F</span><span class="p">],</span> <span class="n">F</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Identity decorator: assert <code>fn</code> structurally matches <code>proto</code>.</p>
+<p><code>proto</code> is a parameterized service or selector :class:<code>~typing.Protocol</code>,
+typically one of the strict variants::</p>
+<div class="language-text highlight"><pre><span></span><code>@implements(StrictCreateService[AuthorIn, CreateAuthorKwargs, Author])
+def create_author(
+    *,
+    data: AuthorIn,
+    request: HttpRequest,
+    user: UserT,
+    **extras: Unpack[CreateAuthorKwargs],
+) -&gt; Author: ...
+</code></pre></div>
+<p>Drift between the decorated function and <code>proto</code> is reported at the
+decorator line by <code>ty</code>. mypy refuses <code>type[Protocol]</code> arguments (the
+<code>type-abstract</code> rule); mypy users either silence that with
+<code># type: ignore[type-abstract]</code> or keep using the legacy
+<code>_: StrictCreateService[...] = create_author</code> shim alongside the def.</p>
+<p>Returns the function unchanged at runtime.</p>
+
 
     </div>
 

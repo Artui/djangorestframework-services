@@ -1726,14 +1726,25 @@ for rationale.</p>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.selectors.strict_list_selector.ResultT">ResultT</span>, <span title="rest_framework_services.selectors.strict_list_selector.ExtraT">ExtraT</span>]</code></p>
+              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.selectors.strict_list_selector.ExtraT">ExtraT</span>, <span title="rest_framework_services.selectors.strict_list_selector.ResultT">ResultT</span>]</code></p>
 
 
 
         <p>Strict shape for a list-action selector.</p>
 <p>See :class:<code>~rest_framework_services.services.StrictCreateService</code> for
 rationale. <code>ExtraT</code> should declare both URL kwargs and any extras
-supplied by <code>SelectorSpec.kwargs</code>.</p>
+supplied by <code>SelectorSpec.kwargs</code>::</p>
+<div class="language-text highlight"><pre><span></span><code>class ListAuthorsKwargs(TypedDict):
+    tenant_id: int
+
+@implements(StrictListSelector[ListAuthorsKwargs, Author])
+def list_authors(
+    *,
+    request: HttpRequest,
+    user: UserT,
+    **extras: Unpack[ListAuthorsKwargs],
+) -&gt; Iterable[Author]: ...
+</code></pre></div>
 
 
 
@@ -1777,14 +1788,26 @@ supplied by <code>SelectorSpec.kwargs</code>.</p>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.selectors.strict_retrieve_selector.ResultT">ResultT</span>, <span title="rest_framework_services.selectors.strict_retrieve_selector.ExtraT">ExtraT</span>]</code></p>
+              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.selectors.strict_retrieve_selector.ExtraT">ExtraT</span>, <span title="rest_framework_services.selectors.strict_retrieve_selector.ResultT">ResultT</span>]</code></p>
 
 
 
         <p>Strict shape for a retrieve-action selector.</p>
 <p>See :class:<code>~rest_framework_services.services.StrictCreateService</code> for
 rationale. <code>ExtraT</code> typically contains the URL lookup field
-(<code>pk</code>, <code>slug</code>) plus any extras from <code>SelectorSpec.kwargs</code>.</p>
+(<code>pk</code>, <code>slug</code>) plus any extras from <code>SelectorSpec.kwargs</code>::</p>
+<div class="language-text highlight"><pre><span></span><code>class RetrieveAuthorKwargs(TypedDict):
+    pk: int
+    tenant_id: int
+
+@implements(StrictRetrieveSelector[RetrieveAuthorKwargs, Author])
+def retrieve_author(
+    *,
+    request: HttpRequest,
+    user: UserT,
+    **extras: Unpack[RetrieveAuthorKwargs],
+) -&gt; Author | None: ...
+</code></pre></div>
 
 
 
@@ -1828,13 +1851,26 @@ rationale. <code>ExtraT</code> typically contains the URL lookup field
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.selectors.strict_output_selector.InT">InT</span>, <span title="rest_framework_services.selectors.strict_output_selector.OutT">OutT</span>, <span title="rest_framework_services.selectors.strict_output_selector.ExtraT">ExtraT</span>]</code></p>
+              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.selectors.strict_output_selector.InT">InT</span>, <span title="rest_framework_services.selectors.strict_output_selector.ExtraT">ExtraT</span>, <span title="rest_framework_services.selectors.strict_output_selector.OutT">OutT</span>]</code></p>
 
 
 
         <p>Strict shape for a <code>ServiceSpec.output_selector</code>.</p>
 <p>See :class:<code>~rest_framework_services.services.StrictCreateService</code> for
-rationale.</p>
+rationale. <code>ExtraT</code> declares the action-pool keys and any
+<code>SelectorSpec.kwargs</code> extras the output selector consumes::</p>
+<div class="language-text highlight"><pre><span></span><code>class RenderAuthorKwargs(TypedDict):
+    rendered_at: str
+
+@implements(StrictOutputSelector[Author, RenderAuthorKwargs, AuthorOut])
+def render_author(
+    *,
+    result: Author,
+    request: HttpRequest,
+    user: UserT,
+    **extras: Unpack[RenderAuthorKwargs],
+) -&gt; AuthorOut: ...
+</code></pre></div>
 
 
 
