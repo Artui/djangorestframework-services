@@ -15,3 +15,7 @@
 ::: rest_framework_services.services.strict_update_service.StrictUpdateService
 
 ::: rest_framework_services.services.strict_delete_service.StrictDeleteService
+
+## Decorators
+
+::: rest_framework_services.implements.implements

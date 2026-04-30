@@ -264,10 +264,13 @@ _: ListSelector[Author] = list_authors
 When you want the type checker to fail on *any* drift — including
 extras forwarded from a `kwargs=` provider — use the **strict**
 variants. They use [PEP 692](https://peps.python.org/pep-0692/)
-`Unpack[TypedDict]` to pin every kwarg the callable receives:
+`Unpack[TypedDict]` to pin every kwarg the callable receives, and pair
+naturally with the `@implements(...)` decorator so the contract sits on
+the function definition itself:
 
 ```python
 from typing import TypedDict
+from typing_extensions import Unpack
 
 from django.http import HttpRequest
 
@@ -276,6 +279,7 @@ from rest_framework_services import (
     ServiceViewSet,
     StrictCreateService,
     StrictListSelector,
+    implements,
 )
 
 
@@ -287,23 +291,21 @@ def _author_kwargs(view, request) -> AuthorExtras:
     return {"tenant_id": request.tenant.id}
 
 
+@implements(StrictCreateService[CreateAuthorInput, AuthorExtras, Author])
 def create_author(
     *,
     data: CreateAuthorInput,
     request: HttpRequest,
-    tenant_id: int,                 # must match AuthorExtras
+    **extras: Unpack[AuthorExtras],
 ) -> Author: ...
 
 
+@implements(StrictListSelector[AuthorExtras, Author])
 def list_authors(
     *,
     request: HttpRequest,
-    tenant_id: int,
+    **extras: Unpack[AuthorExtras],
 ) -> QuerySet[Author]: ...
-
-
-_: StrictCreateService[CreateAuthorInput, Author, AuthorExtras] = create_author
-_: StrictListSelector[Author, AuthorExtras] = list_authors
 
 
 class AuthorViewSet(ServiceViewSet):

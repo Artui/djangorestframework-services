@@ -103,9 +103,26 @@ class AuthorViewSet(ServiceViewSet):
     }
 ```
 
-Pair with `StrictCreateService` / `StrictUpdateService` (etc.) to have type
-checkers enforce that the service signature matches the `TypedDict`
-exactly. See [Typing services and selectors](../typing.md).
+Pair with `StrictCreateService` / `StrictUpdateService` (etc.) and the
+`@implements(...)` decorator to have type checkers enforce that the service
+signature matches the `TypedDict` exactly:
+
+```python
+from rest_framework_services import StrictUpdateService, implements
+
+@implements(StrictUpdateService[AuthorIn, Author, PublishAuthorKwargs, Author])
+def publish_author(
+    *,
+    instance: Author,
+    data: AuthorIn,
+    request,
+    user,
+    **extras: Unpack[PublishAuthorKwargs],
+) -> Author: ...
+```
+
+See [Typing services and selectors](../typing.md) for the full Protocol
+catalogue and notes on type-checker support.
 
 ## Add a clock for tests
 

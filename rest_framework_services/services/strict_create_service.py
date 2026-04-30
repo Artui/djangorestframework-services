@@ -11,10 +11,10 @@ from rest_framework_services.services.utils import UserT
 
 InputT = TypeVar("InputT")
 ResultT = TypeVar("ResultT", covariant=True)
-ExtraT = TypeVar("ExtraT", bound=dict[str, object])
+ExtraT = TypeVar("ExtraT")
 
 
-class StrictCreateService(Protocol[InputT, ResultT, ExtraT]):
+class StrictCreateService(Protocol[InputT, ExtraT, ResultT]):
     """Strict shape for a create-action service.
 
     Identical to :class:`CreateService` except the ``**kwargs: Any`` escape
@@ -28,16 +28,14 @@ class StrictCreateService(Protocol[InputT, ResultT, ExtraT]):
         class CreateAuthorKwargs(TypedDict):
             tenant_id: int
 
+        @implements(StrictCreateService[AuthorIn, CreateAuthorKwargs, Author])
         def create_author(
             *,
             data: AuthorIn,
             request: HttpRequest,
             user: UserT,
-            tenant_id: int,
+            **extras: Unpack[CreateAuthorKwargs],
         ) -> Author: ...
-
-        # Static check that the function matches the strict Protocol:
-        _: StrictCreateService[AuthorIn, Author, CreateAuthorKwargs] = create_author
     """
 
     def __call__(

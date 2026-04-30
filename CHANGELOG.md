@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-04-30
+
+### Added
+
+- `implements(Protocol[...])` — identity decorator that attaches a strict
+  service / selector Protocol shape directly to the decorated function.
+  Replaces the `_: StrictCreateService[...] = create_author` shim as the
+  recommended way to assert conformance: the assertion lives on the
+  function definition (survives renames), reads naturally, and is what
+  CI now exercises against the strict Protocols. The shim form continues
+  to work.
+- `tests/services/strict_drift_fixtures.py` plus a
+  `make type-check-strict-fixtures` target — known-bad usages that must
+  produce ``ty`` diagnostics, wired into the CI lint job to guard against
+  regressions where strict-Protocol drift detection silently breaks.
+
+### Changed (BREAKING)
+
+- Reordered the generic parameters on every strict service / selector
+  Protocol so `ExtraT` sits immediately before the result type — the
+  parameter list now reads "input, extras, result" and mirrors the call
+  shape:
+  - `StrictCreateService[InputT, ExtraT, ResultT]`
+  - `StrictUpdateService[InputT, InstanceT, ExtraT, ResultT]`
+  - `StrictDeleteService[InstanceT, ExtraT, ResultT]`
+  - `StrictListSelector[ExtraT, ResultT]`
+  - `StrictRetrieveSelector[ExtraT, ResultT]`
+  - `StrictOutputSelector[InT, ExtraT, OutT]`
+
+  Migration: swap the last two type arguments at every parameterization
+  site. The non-strict Protocols (`CreateService`, `ListSelector`, …)
+  are unchanged.
+- Dropped the `bound=dict[str, object]` constraint from `ExtraT` on every
+  strict Protocol. `TypedDict` subclasses are now accepted as type
+  arguments by both `ty` and `mypy` (previously rejected with
+  "Type argument … must be a subtype of `dict[str, object]`"). This
+  matches the documented intent of the strict Protocols.
+
 ## [0.6.1] — 2026-04-29
 
 ### Changed
@@ -323,7 +361,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/Artui/djangorestframework-services/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/Artui/djangorestframework-services/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Artui/djangorestframework-services/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Artui/djangorestframework-services/compare/v0.4.0...v0.5.0

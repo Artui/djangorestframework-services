@@ -1,0 +1,63 @@
+"""Tests for the ``implements`` identity decorator.
+
+Runtime behaviour only — static drift detection is exercised via ``ty`` in
+CI against ``tests/services/strict_drift_fixtures.py``.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from rest_framework.request import Request
+from typing_extensions import TypedDict, Unpack
+
+from rest_framework_services import (
+    StrictCreateService,
+    implements,
+)
+from rest_framework_services.services.utils import UserT
+
+
+@dataclass
+class _AuthorIn:
+    name: str
+
+
+@dataclass
+class _Author:
+    id: int
+    name: str
+
+
+class _CreateExtras(TypedDict):
+    tenant_id: int
+
+
+def test_implements_decorator_returns_function_unchanged() -> None:
+    def create_author(
+        *,
+        data: _AuthorIn,
+        request: Request,
+        user: UserT,
+        **extras: Unpack[_CreateExtras],
+    ) -> _Author:
+        return _Author(id=extras["tenant_id"], name=data.name)
+
+    decorated = implements(StrictCreateService[_AuthorIn, _CreateExtras, _Author])(create_author)
+
+    assert decorated is create_author
+    assert create_author.__name__ == "create_author"
+
+
+def test_implements_direct_call_is_identity() -> None:
+    def fn(
+        *,
+        data: _AuthorIn,
+        request: Request,
+        user: UserT,
+        **extras: Unpack[_CreateExtras],
+    ) -> _Author:
+        return _Author(id=extras["tenant_id"], name=data.name)
+
+    decorated = implements(StrictCreateService[_AuthorIn, _CreateExtras, _Author])(fn)
+    assert decorated is fn

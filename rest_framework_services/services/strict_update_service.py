@@ -12,10 +12,10 @@ from rest_framework_services.services.utils import UserT
 InputT = TypeVar("InputT")
 InstanceT = TypeVar("InstanceT")
 ResultT = TypeVar("ResultT", covariant=True)
-ExtraT = TypeVar("ExtraT", bound=dict[str, object])
+ExtraT = TypeVar("ExtraT")
 
 
-class StrictUpdateService(Protocol[InputT, InstanceT, ResultT, ExtraT]):
+class StrictUpdateService(Protocol[InputT, InstanceT, ExtraT, ResultT]):
     """Strict shape for an update-action service.
 
     See :class:`StrictCreateService` for rationale. Pin the extras delivered
@@ -24,16 +24,15 @@ class StrictUpdateService(Protocol[InputT, InstanceT, ResultT, ExtraT]):
         class UpdateAuthorKwargs(TypedDict):
             tenant_id: int
 
+        @implements(StrictUpdateService[AuthorIn, Author, UpdateAuthorKwargs, Author])
         def update_author(
             *,
             instance: Author,
             data: AuthorIn,
             request: HttpRequest,
             user: UserT,
-            tenant_id: int,
+            **extras: Unpack[UpdateAuthorKwargs],
         ) -> Author: ...
-
-        _: StrictUpdateService[AuthorIn, Author, Author, UpdateAuthorKwargs] = update_author
     """
 
     def __call__(

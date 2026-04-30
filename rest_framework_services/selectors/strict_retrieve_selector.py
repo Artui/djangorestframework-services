@@ -10,15 +10,27 @@ from typing_extensions import Unpack
 from rest_framework_services.services.utils import UserT
 
 ResultT = TypeVar("ResultT", covariant=True)
-ExtraT = TypeVar("ExtraT", bound=dict[str, object])
+ExtraT = TypeVar("ExtraT")
 
 
-class StrictRetrieveSelector(Protocol[ResultT, ExtraT]):
+class StrictRetrieveSelector(Protocol[ExtraT, ResultT]):
     """Strict shape for a retrieve-action selector.
 
     See :class:`~rest_framework_services.services.StrictCreateService` for
     rationale. ``ExtraT`` typically contains the URL lookup field
-    (``pk``, ``slug``) plus any extras from ``SelectorSpec.kwargs``.
+    (``pk``, ``slug``) plus any extras from ``SelectorSpec.kwargs``::
+
+        class RetrieveAuthorKwargs(TypedDict):
+            pk: int
+            tenant_id: int
+
+        @implements(StrictRetrieveSelector[RetrieveAuthorKwargs, Author])
+        def retrieve_author(
+            *,
+            request: HttpRequest,
+            user: UserT,
+            **extras: Unpack[RetrieveAuthorKwargs],
+        ) -> Author | None: ...
     """
 
     def __call__(

@@ -8,6 +8,7 @@ for typical usage; deeper imports (``rest_framework_services.mutations``,
 """
 
 from rest_framework_services.exceptions import ServiceError, ServiceValidationError
+from rest_framework_services.implements import implements
 from rest_framework_services.mutations import (
     acreate_from_input,
     apply_input,
@@ -102,8 +103,9 @@ __all__ = [
     "apply_input",
     "aupdate_from_input",
     "create_from_input",
+    "implements",
     "service_action",
     "update_from_input",
 ]
 
-__version__ = "0.6.1"
+__version__ = "0.7.0"
