@@ -26,6 +26,8 @@ jobs:
         run: uv run ruff format --check --diff .
       - name: ty
         run: uv run ty check rest_framework_services
+      - name: ty drift fixtures
+        run: make type-check-strict-fixtures
 
   docs:
     name: docs build

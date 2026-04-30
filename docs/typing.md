@@ -139,38 +139,86 @@ Lenient Protocols accept `**kwargs: Any`, which is convenient but lets the
 service signature drift from the actual contract. When you want the
 opposite — `ty` / `mypy` should fail on any drift — parameterize against
 the `Strict*` variants. They use [PEP 692](https://peps.python.org/pep-0692/)
-`Unpack[TypedDict]` to pin extras exactly:
+`Unpack[TypedDict]` to pin extras exactly. Pair them with the
+[`@implements`](#attaching-the-protocol-to-the-function-implements) decorator
+to attach the assertion to the function definition itself:
 
 ```python
-from rest_framework_services import StrictCreateService
 from typing import TypedDict
+from typing_extensions import Unpack
+
+from rest_framework_services import StrictCreateService, implements
 
 class CreateAuthorKwargs(TypedDict):
     tenant_id: int
 
+@implements(StrictCreateService[AuthorIn, CreateAuthorKwargs, Author])
 def create_author(
     *,
     data: AuthorIn,
     request: HttpRequest,
     user: UserT,
-    tenant_id: int,        # must match CreateAuthorKwargs
+    **extras: Unpack[CreateAuthorKwargs],   # exact extras contract
 ) -> Author: ...
-
-# Drift now produces a type error:
-_check: StrictCreateService[AuthorIn, Author, CreateAuthorKwargs] = create_author
 ```
+
+Drift between `create_author` and the parameterized Protocol now produces a
+`ty` error at the `@implements(...)` line.
 
 Available strict Protocols:
 
-- `StrictCreateService[InputT, ResultT, ExtraT]`
-- `StrictUpdateService[InputT, InstanceT, ResultT, ExtraT]`
-- `StrictDeleteService[InstanceT, ResultT, ExtraT]`
-- `StrictListSelector[ResultT, ExtraT]`
-- `StrictRetrieveSelector[ResultT, ExtraT]`
-- `StrictOutputSelector[InT, OutT, ExtraT]`
+- `StrictCreateService[InputT, ExtraT, ResultT]`
+- `StrictUpdateService[InputT, InstanceT, ExtraT, ResultT]`
+- `StrictDeleteService[InstanceT, ExtraT, ResultT]`
+- `StrictListSelector[ExtraT, ResultT]`
+- `StrictRetrieveSelector[ExtraT, ResultT]`
+- `StrictOutputSelector[InT, ExtraT, OutT]`
+
+`ExtraT` always sits immediately before the result type so the parameter
+list reads "input, extras, result" — mirroring the call shape.
 
 The strict and lenient variants are interchangeable at the
 `ServiceSpec.service` field — pick the level of enforcement per service.
+
+### Attaching the Protocol to the function: `@implements`
+
+The recommended way to assert that a callable matches a strict Protocol is
+the [`implements`](reference/services.md#rest_framework_services.implements.implements)
+decorator — it returns the function unchanged at runtime and triggers the
+structural-subtyping check at the decorator line:
+
+```python
+@implements(StrictListSelector[ListAuthorsKwargs, Author])
+def list_authors(
+    *,
+    request: HttpRequest,
+    user: UserT,
+    **extras: Unpack[ListAuthorsKwargs],
+) -> Iterable[Author]: ...
+```
+
+The legacy throwaway-variable form still works and is sometimes useful for
+ad-hoc one-off checks:
+
+```python
+def list_authors(...) -> Iterable[Author]: ...
+
+_check: StrictListSelector[ListAuthorsKwargs, Author] = list_authors
+```
+
+A few notes on type-checker support:
+
+- **`ty`** validates `@implements(...)` against the strict Protocols; the
+  decorator is the form CI exercises in this repo.
+- **`mypy`** rejects `type[Protocol]` arguments under its `type-abstract`
+  rule, so `@implements(...)` triggers a `[type-abstract]` error in mypy.
+  Either add `# type: ignore[type-abstract]` next to the decorator or stick
+  with the `_check: ...` shim form when mypy is your primary checker.
+- **PEP 692 support across checkers is uneven** — drift detection on
+  `**extras: Unpack[TypedDict]` works best when the function uses the
+  `Unpack[...]` form (matching the Protocol). The strict Protocols still
+  catch drift on the fixed pool keys (`data`, `instance`, return type) in
+  every supported checker.
 
 ---
 

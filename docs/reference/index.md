@@ -11,6 +11,8 @@ signatures from the source — when in doubt, follow the source link
   per-action mixins, `MultiSerializerMixin`, `@service_action`.
 - **[Mutations](mutations.md)** — `apply_input`, `create_from_input`,
   `update_from_input` and async siblings.
+- **[Services](services.md)** — lenient and strict service Protocols and
+  the `implements` decorator that asserts a callable matches them.
 - **[Selectors](selectors.md)** — `Selector` and `AsyncSelector`
   Protocols.
 - **[Types](types.md)** — `ServiceSpec`, `ChangeResult`,
@@ -55,6 +57,8 @@ from rest_framework_services import (
     # selectors
     Selector,
     AsyncSelector,
+    # services
+    implements,
     # types
     ServiceSpec,
     ChangeResult,

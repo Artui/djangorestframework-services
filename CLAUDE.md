@@ -43,6 +43,19 @@ These are non-negotiable. They are what keep the package navigable.
 
 ## Adding a new feature
 
+**Always work on a dedicated branch.** Any new feature, bugfix, or version-bump
+work happens on a freshly-cut branch — never on `main` directly. Push to that
+branch and open a PR. `main` only ever advances through merges of reviewed
+PRs (or, for releases, the `Release X.Y.Z` commit pushed by
+`make release-publish` once the release branch has been merged).
+
+```bash
+git switch -c feature/short-name   # before you start
+# ... edits, commits ...
+git push -u origin feature/short-name
+gh pr create
+```
+
 A typical change touches three places:
 
 1. The source file (one new `.py` per new class/function).
@@ -100,7 +113,7 @@ Common patches you'll still need inside the package:
 
 ## Imports inside the package
 
-- Always absolute, fully qualified: `from rest_framework_services.exceptions.service_error import ServiceError`. No relative imports (`from .foo import Bar`).
+- Always absolute, fully qualified: `from rest_framework_services.exceptions.service_error import ServiceError`. **Never** relative imports — no `from . import x`, no `from .foo import Bar`, no `from ..pkg import baz`. This applies inside the package and inside `tests/` (use `from tests.testapp.models import …`).
 - isort is wired through ruff (`I` rules). Order: stdlib → third-party → first-party. `rest_framework_services` and the test app are first-party.
 - A package's `__init__.py` is the only file that re-exports; downstream files import from the leaf module, not from the package's `__init__`.
 - **`types/` is the dependency sink.** Value-shape carriers (dataclasses, generic specs, sentinels) live there. `views/`, `selectors/`, `services/`, `viewsets/` may import *from* `types/`; `types/` must **not** import from any of them. If a `types/` member needs to reference a Protocol or other shape currently living elsewhere — e.g. a spec field annotation — move that shape into `types/` first (this is why `ServiceView` lives in `types/` rather than `views/`). Behavioural Protocols *not* referenced from `types/` (e.g. `CreateService`, `ListSelector`) stay in their behavioural package — that is their natural home, and putting everything in `types/` would muddle the boundary between value shapes and callable contracts.
