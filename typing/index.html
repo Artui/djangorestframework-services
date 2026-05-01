@@ -1347,7 +1347,7 @@ else. Available lenient Protocols:</p>
 <ul>
 <li><code>CreateService[InputT, ResultT]</code></li>
 <li><code>UpdateService[InputT, InstanceT, ResultT]</code></li>
-<li><code>DeleteService[InstanceT, ResultT]</code></li>
+<li><code>DeleteService[InputT, InstanceT, ResultT]</code></li>
 <li><code>ListSelector[ResultT]</code></li>
 <li><code>RetrieveSelector[ResultT]</code></li>
 <li><code>OutputSelector[InT, OutT]</code></li>
@@ -1430,7 +1430,9 @@ to attach the assertion to the function definition itself:</p>
 <ul>
 <li><code>StrictCreateService[InputT, ExtraT, ResultT]</code></li>
 <li><code>StrictUpdateService[InputT, InstanceT, ExtraT, ResultT]</code></li>
-<li><code>StrictDeleteService[InstanceT, ExtraT, ResultT]</code></li>
+<li><code>StrictDeleteService[InputT, InstanceT, ExtraT, ResultT]</code> — bind
+  <code>InputT</code> to your input dataclass for delete-with-payload, or to the
+  <a href="../reference/types/#noinput"><code>NoInput</code></a> sentinel when no body is read.</li>
 <li><code>StrictListSelector[ExtraT, ResultT]</code></li>
 <li><code>StrictRetrieveSelector[ExtraT, ResultT]</code></li>
 <li><code>StrictOutputSelector[InT, ExtraT, OutT]</code></li>

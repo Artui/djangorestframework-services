@@ -1433,7 +1433,7 @@ pool keys. For full enforcement (no <code>**kwargs</code> escape hatch), use
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.services.delete_service.InstanceT">InstanceT</span>, <span title="rest_framework_services.services.delete_service.ResultT">ResultT</span>]</code></p>
+              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.services.delete_service.InputT">InputT</span>, <span title="rest_framework_services.services.delete_service.InstanceT">InstanceT</span>, <span title="rest_framework_services.services.delete_service.ResultT">ResultT</span>]</code></p>
 
 
 
@@ -1441,6 +1441,21 @@ pool keys. For full enforcement (no <code>**kwargs</code> escape hatch), use
 <p>Receives the resolved <code>instance</code>. Most delete services return <code>None</code>;
 if you need a response body, return a value and configure
 <code>ServiceSpec.output_serializer</code> (or <code>output_selector</code>).</p>
+<p>For <em>delete with payload</em> — when the spec has an <code>input_serializer</code> —
+bind <code>InputT</code> to your input dataclass and declare <code>data</code> on the
+service. <code>data</code> is optional in the Protocol (default :data:<code>Ellipsis</code>)
+so services that don't read a body can still match the shape by binding
+<code>InputT</code> to :class:<code>~rest_framework_services.types.no_input.NoInput</code>::</p>
+<div class="language-text highlight"><pre><span></span><code>@implements(DeleteService[ReasonIn, Author, None])
+def delete_author(
+    *,
+    instance: Author,
+    data: ReasonIn,
+    request: HttpRequest,
+    user: UserT,
+    **kwargs: Any,
+) -&gt; None: ...
+</code></pre></div>
 <p>Lenient by design — see :class:<code>CreateService</code> for rationale.</p>
 
 
@@ -1615,21 +1630,38 @@ def update_author(
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.services.strict_delete_service.InstanceT">InstanceT</span>, <span title="rest_framework_services.services.strict_delete_service.ExtraT">ExtraT</span>, <span title="rest_framework_services.services.strict_delete_service.ResultT">ResultT</span>]</code></p>
+              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.services.strict_delete_service.InputT">InputT</span>, <span title="rest_framework_services.services.strict_delete_service.InstanceT">InstanceT</span>, <span title="rest_framework_services.services.strict_delete_service.ExtraT">ExtraT</span>, <span title="rest_framework_services.services.strict_delete_service.ResultT">ResultT</span>]</code></p>
 
 
 
         <p>Strict shape for a delete-action service.</p>
 <p>See :class:<code>StrictCreateService</code> for rationale. Most delete services
 return <code>None</code> — annotate <code>ResultT</code> as <code>None</code> and pair with
-:func:<code>~rest_framework_services.implements</code>::</p>
+:func:<code>~rest_framework_services.implements</code>.</p>
+<p>Type parameter ordering matches :class:<code>StrictCreateService</code> /
+:class:<code>StrictUpdateService</code>: <code>InputT</code> first.</p>
+<p><em>Without</em> a request body — bind <code>InputT</code> to
+:class:<code>~rest_framework_services.types.no_input.NoInput</code> and rely on
+the Protocol-level :data:<code>Ellipsis</code> default for <code>data</code>::</p>
 <div class="language-text highlight"><pre><span></span><code>class DeleteAuthorKwargs(TypedDict):
     reason: str
 
-@implements(StrictDeleteService[Author, DeleteAuthorKwargs, None])
+@implements(StrictDeleteService[NoInput, Author, NoKwargs, None])
 def delete_author(
     *,
     instance: Author,
+    request: HttpRequest,
+    user: UserT,
+    **extras: Unpack[NoKwargs],
+) -&gt; None: ...
+</code></pre></div>
+<p><em>With</em> a request body — bind <code>InputT</code> to your input dataclass and
+declare <code>data</code> on the service::</p>
+<div class="language-text highlight"><pre><span></span><code>@implements(StrictDeleteService[ReasonIn, Author, DeleteAuthorKwargs, None])
+def delete_author(
+    *,
+    instance: Author,
+    data: ReasonIn,
     request: HttpRequest,
     user: UserT,
     **extras: Unpack[DeleteAuthorKwargs],

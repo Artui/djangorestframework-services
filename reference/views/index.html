@@ -953,6 +953,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_input_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_input_data
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1008,6 +1019,17 @@
     <span class="md-ellipsis">
       
         resolve_extra_kwargs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.resolve_input_extras" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_input_extras
       
     </span>
   </a>
@@ -1501,6 +1523,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_input_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_input_data
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1556,6 +1589,17 @@
     <span class="md-ellipsis">
       
         resolve_extra_kwargs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.resolve_input_extras" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_input_extras
       
     </span>
   </a>
@@ -2038,6 +2082,13 @@ wins):</p>
 <li><code>ServiceSpec.kwargs</code> — per-spec callable, co-located with the
    service it feeds.</li>
 </ol>
+<p>A symmetrical three-layer chain feeds the <em>serializer's</em> input dict
+(merged on top of <code>request.data</code> before validation):</p>
+<ol>
+<li><code>get_input_data(self, request)</code> — global fallback on the view.</li>
+<li><code>get_&lt;action&gt;_input_data(self, request)</code> — per-action override.</li>
+<li><code>ServiceSpec.input_data</code> — per-spec callable.</li>
+</ol>
 
 
 
@@ -2074,6 +2125,26 @@ wins):</p>
     <div class="doc doc-contents ">
 
         <p>Hook for additional kwargs available to every mutation service.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_input_data" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_input_data</span>
+
+
+<a href="#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_input_data" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_input_data</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Hook for extras merged on top of <code>request.data</code> before validation.</p>
 
 
     </div>
@@ -2221,6 +2292,47 @@ more general:</p>
 </ol>
 <p>Each layer's result is merged with <code>dict.update</code>, so the spec-level
 provider has the final say on any overlapping keys.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.views.utils.resolve_input_extras" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">resolve_input_extras</span>
+
+
+<a href="#rest_framework_services.views.utils.resolve_input_extras" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">resolve_input_extras</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">spec_input_data</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">action_hook</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">catch_all_hook</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Collect the extras to merge into the serializer input dict.</p>
+<p>Mirrors :func:<code>resolve_extra_kwargs</code> but for the
+<code>input_serializer</code>-bound data, not the service-call pool. Layers,
+applied in order of increasing specificity (later wins on overlap):</p>
+<ol>
+<li><code>view.&lt;catch_all_hook&gt;(request)</code> — global fallback
+   (<code>get_input_data</code>); typically returns <code>{}</code>.</li>
+<li><code>view.&lt;action_hook&gt;(request)</code> — per-action method on the view
+   (<code>get_&lt;action&gt;_input_data</code>). Skipped when <code>action_hook</code> is
+   <code>None</code> (standalone single-purpose views) or the method is absent.</li>
+<li><code>spec_input_data(view, request)</code> — per-spec callable from
+   :attr:<code>ServiceSpec.input_data</code>.</li>
+</ol>
+<p>Each layer's result is merged with <code>dict.update</code> so the spec-level
+provider has the final say on overlapping keys.</p>
 
 
     </div>
