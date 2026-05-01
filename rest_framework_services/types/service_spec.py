@@ -13,7 +13,7 @@ from rest_framework_services.types.service_view import ServiceView
 
 InputT = TypeVar("InputT")
 ResultT = TypeVar("ResultT")
-ExtraT = TypeVar("ExtraT", bound=dict[str, Any])
+ExtraT = TypeVar("ExtraT", bound=Mapping[str, object])
 
 
 @dataclass(frozen=True)

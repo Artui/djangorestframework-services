@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `ServiceSpec` and `SelectorSpec` declared `ExtraT` with
+  `bound=dict[str, Any]`, which (per PEP 589) rejects `TypedDict`
+  subclasses as type arguments — exactly the shape the docs recommend.
+  Both bounds are now `Mapping[str, object]`, so user-defined
+  `TypedDict` kwargs (`SelectorSpec[QuerySet[Team], TeamScopeKwargs]`,
+  etc.) type-check cleanly under `ty` and `mypy`.
+
 ## [0.8.0] — 2026-05-01
 
 ### Added

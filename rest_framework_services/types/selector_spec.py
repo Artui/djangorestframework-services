@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 from rest_framework.request import Request
 from rest_framework.serializers import Serializer
@@ -12,7 +12,7 @@ from rest_framework.serializers import Serializer
 from rest_framework_services.types.service_view import ServiceView
 
 ResultT = TypeVar("ResultT")
-ExtraT = TypeVar("ExtraT", bound=dict[str, Any])
+ExtraT = TypeVar("ExtraT", bound=Mapping[str, object])
 
 
 @dataclass(frozen=True)
