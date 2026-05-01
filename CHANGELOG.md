@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-05-01
+
 ### Fixed
 
 - `ServiceSpec` and `SelectorSpec` declared `ExtraT` with
@@ -409,7 +411,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/Artui/djangorestframework-services/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Artui/djangorestframework-services/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Artui/djangorestframework-services/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/Artui/djangorestframework-services/compare/v0.6.0...v0.6.1

@@ -1,6 +1,6 @@
 [project]
 name = "djangorestframework-services"
-version = "0.8.0"
+version = "0.8.1"
 description = "A service-oriented layer for Django REST Framework: precise, controllable side effects for mutating endpoints."
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -140,7 +140,7 @@ root = ["./rest_framework_services"]
 # block under a new dated heading. Run via `uvx bump-my-version` (no
 # permanent dependency added to the project).
 [tool.bumpversion]
-current_version = "0.8.0"
+current_version = "0.8.1"
 allow_dirty = false
 commit = false
 tag = false
