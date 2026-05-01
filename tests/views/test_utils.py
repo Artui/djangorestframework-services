@@ -10,6 +10,7 @@ from rest_framework.test import APIRequestFactory
 from rest_framework_services.views.utils import (
     resolve_callable_kwargs,
     resolve_extra_kwargs,
+    resolve_input_extras,
 )
 
 
@@ -71,8 +72,7 @@ class _ViewWithActionHook(_ViewWithCatchAll):
         return {"b": "action", "shared": "action"}
 
 
-class _BareView:
-    pass
+class _BareView: ...
 
 
 class TestResolveExtraKwargs:
@@ -150,6 +150,96 @@ class TestResolveExtraKwargs:
             spec_kwargs=provider,
             action_hook=None,
             catch_all_hook="get_service_kwargs",
+        )
+        assert captured["view"] is view
+        assert captured["request"] is request
+
+
+class _ViewWithInputCatchAll:
+    def get_input_data(self, request: Request) -> dict[str, Any]:
+        return {"a": "catch", "shared": "catch"}
+
+
+class _ViewWithInputAction(_ViewWithInputCatchAll):
+    def get_create_input_data(self, request: Request) -> dict[str, Any]:
+        return {"b": "action", "shared": "action"}
+
+
+class TestResolveInputExtras:
+    def test_returns_empty_when_no_layers_present(self) -> None:
+        result = resolve_input_extras(
+            _BareView(),
+            _request(),
+            spec_input_data=None,
+            action_hook=None,
+            catch_all_hook="get_input_data",
+        )
+        assert result == {}
+
+    def test_catch_all_hook_only(self) -> None:
+        result = resolve_input_extras(
+            _ViewWithInputCatchAll(),
+            _request(),
+            spec_input_data=None,
+            action_hook=None,
+            catch_all_hook="get_input_data",
+        )
+        assert result == {"a": "catch", "shared": "catch"}
+
+    def test_action_hook_overrides_catch_all(self) -> None:
+        result = resolve_input_extras(
+            _ViewWithInputAction(),
+            _request(),
+            spec_input_data=None,
+            action_hook="get_create_input_data",
+            catch_all_hook="get_input_data",
+        )
+        assert result == {"a": "catch", "b": "action", "shared": "action"}
+
+    def test_action_hook_missing_method_falls_back(self) -> None:
+        result = resolve_input_extras(
+            _ViewWithInputCatchAll(),
+            _request(),
+            spec_input_data=None,
+            action_hook="get_nonexistent_input_data",
+            catch_all_hook="get_input_data",
+        )
+        assert result == {"a": "catch", "shared": "catch"}
+
+    def test_spec_input_data_overrides_action_and_catch_all(self) -> None:
+        def provider(view: Any, request: Request) -> dict[str, Any]:
+            return {"c": "spec", "shared": "spec"}
+
+        result = resolve_input_extras(
+            _ViewWithInputAction(),
+            _request(),
+            spec_input_data=provider,
+            action_hook="get_create_input_data",
+            catch_all_hook="get_input_data",
+        )
+        assert result == {
+            "a": "catch",
+            "b": "action",
+            "c": "spec",
+            "shared": "spec",
+        }
+
+    def test_spec_input_data_receives_view_and_request(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def provider(view: Any, request: Request) -> dict[str, Any]:
+            captured["view"] = view
+            captured["request"] = request
+            return {}
+
+        view = _BareView()
+        request = _request()
+        resolve_input_extras(
+            view,
+            request,
+            spec_input_data=provider,
+            action_hook=None,
+            catch_all_hook="get_input_data",
         )
         assert captured["view"] is view
         assert captured["request"] is request

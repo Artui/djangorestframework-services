@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ServiceSpec.input_data` plus the symmetric three-tier resolver
+  (`get_input_data` catch-all on `MutationFlowMixin`, per-action
+  `get_<action>_input_data`, and the per-spec callable). Returns a
+  mapping merged on top of `request.data` before the
+  `input_serializer` validates — purpose-built for lifting URL kwargs
+  (parent IDs from nested routes, etc.) into the serializer's input
+  for cross-field validation. Server-supplied keys win on conflict.
+- `data: InputT` parameter on the lenient `DeleteService` and strict
+  `StrictDeleteService` Protocols. Pairs with `ServiceSpec.input_serializer`
+  to type a delete-with-payload service end-to-end (e.g. a deletion
+  reason). Default is `Ellipsis`, so services that don't read a body
+  remain Protocol-compliant — bind `InputT` to the new `NoInput`
+  sentinel for clarity.
+- `NoKwargs` (empty `TypedDict`) and `NoInput` (sentinel class) under
+  `rest_framework_services.types` and re-exported from the package
+  root. Saves projects from re-defining the same empty stubs whenever
+  a strict service has no extras (`NoKwargs`) or no body (`NoInput`).
+- `ServiceAutoSchema` now emits `requestBody` for `DELETE` endpoints
+  whose spec carries an `input_serializer`. drf-spectacular's default
+  `AutoSchema` suppresses bodies on DELETE; this override keeps the
+  generated schema honest for delete-with-payload routes.
+
+### Changed (BREAKING)
+
+- Type-parameter ordering on the delete service Protocols now leads
+  with `InputT` to match `StrictCreateService` / `StrictUpdateService`:
+  - `DeleteService[InputT, InstanceT, ResultT]` (was
+    `DeleteService[InstanceT, ResultT]`).
+  - `StrictDeleteService[InputT, InstanceT, ExtraT, ResultT]` (was
+    `StrictDeleteService[InstanceT, ExtraT, ResultT]`).
+
+  Migration: at each parameterization site, prepend the input type. For
+  services that don't read a body, use the new `NoInput` sentinel:
+  `StrictDeleteService[NoInput, Author, NoKwargs, None]`.
+
 ## [0.7.0] — 2026-04-30
 
 ### Added

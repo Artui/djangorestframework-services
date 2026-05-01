@@ -159,3 +159,85 @@ You don't add `data` via the kwargs sources — it comes from the spec's
 `input_serializer` and is set by the mutation flow. Anything the user
 supplied lives there. Add server-side context (tenant, clock, feature
 flag) through one of the three hooks instead.
+
+If you need a *path kwarg* (e.g. a parent ID from a nested route) inside
+the serializer's `validated_data` — typically because the serializer
+validates a cross-field invariant against it — use the symmetrical
+`input_data` chain. Same three layers, same precedence, but the result
+is merged on top of `request.data` *before* the serializer is
+instantiated:
+
+```python
+from typing import Any
+from rest_framework.request import Request
+from rest_framework_services import ServiceSpec, ServiceView
+
+
+class CreateChildIn:
+    name: str
+    parent_id: int  # required field, but server-provided
+
+
+def _create_child_input(view: ServiceView, request: Request) -> dict[str, Any]:
+    return {"parent_id": int(view.kwargs["parent_id"])}
+
+
+class ChildViewSet(ServiceViewSet):
+    action_specs = {
+        "create": ServiceSpec(
+            service=create_child,
+            input_serializer=CreateChildIn,
+            input_data=_create_child_input,
+        ),
+    }
+```
+
+Server-provided values win on key conflict, so a malicious client can't
+rebind `parent_id` by including it in the body. Catch-all
+`get_input_data(request)` and per-action `get_<action>_input_data(request)`
+are also available on the view for the same shape.
+
+## Delete with a payload
+
+`DELETE` services can accept body data — e.g. a deletion reason — by
+setting `input_serializer` on the spec. Type the service against
+`StrictDeleteService[InputT, InstanceT, ExtraT, ResultT]` and bind
+`InputT` to your input dataclass. For services that don't read a body,
+bind `InputT` to the `NoInput` sentinel and don't declare `data` on the
+function:
+
+```python
+from typing import Unpack
+from rest_framework_services import (
+    NoKwargs,
+    NoInput,
+    ServiceSpec,
+    StrictDeleteService,
+    implements,
+)
+
+
+@dataclass
+class DeleteReasonIn:
+    reason: str
+
+
+@implements(StrictDeleteService[DeleteReasonIn, Author, NoKwargs, None])
+def delete_author(
+    *,
+    instance: Author,
+    data: DeleteReasonIn,
+    request,
+    user,
+    **extras: Unpack[NoKwargs],
+) -> None:
+    AuditLog.objects.create(actor=user, target=instance, reason=data.reason)
+    instance.delete()
+
+
+# In the view / viewset:
+ServiceSpec(service=delete_author, input_serializer=DeleteReasonIn)
+```
+
+The OpenAPI schema (when `enable_openapi()` is in effect) will include a
+`requestBody` for the DELETE endpoint matching the input serializer.

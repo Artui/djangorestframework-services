@@ -17,6 +17,7 @@ from rest_framework.request import Request
 from typing_extensions import TypedDict, Unpack
 
 from rest_framework_services import (
+    NoInput,
     StrictCreateService,
     StrictDeleteService,
     StrictListSelector,
@@ -122,7 +123,7 @@ def update_drift_instance(
 
 
 # expect-error: incompatible return types
-@implements(StrictDeleteService[_Author, _DeleteExtras, None])
+@implements(StrictDeleteService[NoInput, _Author, _DeleteExtras, None])
 def delete_drift_return(
     *,
     instance: _Author,

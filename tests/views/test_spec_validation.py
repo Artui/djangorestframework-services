@@ -168,8 +168,7 @@ class TestIsOverridden:
             def hook(self) -> int:
                 return 0
 
-        class Sub(Base):
-            pass
+        class Sub(Base): ...
 
         assert is_overridden(Sub, Base, "hook") is False
 
@@ -185,15 +184,13 @@ class TestIsOverridden:
         assert is_overridden(Sub, Base, "hook") is True
 
     def test_missing_on_base_falls_back_to_hasattr(self) -> None:
-        class Base:
-            pass
+        class Base: ...
 
         class WithHook(Base):
             def hook(self) -> int:
                 return 1
 
-        class WithoutHook(Base):
-            pass
+        class WithoutHook(Base): ...
 
         assert is_overridden(WithHook, Base, "hook") is True
         assert is_overridden(WithoutHook, Base, "hook") is False

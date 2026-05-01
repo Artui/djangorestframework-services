@@ -15,6 +15,7 @@ from rest_framework.request import Request
 from typing_extensions import TypedDict, Unpack
 
 from rest_framework_services import (
+    NoInput,
     StrictCreateService,
     StrictDeleteService,
     StrictListSelector,
@@ -133,7 +134,7 @@ def test_strict_update_service_accepts_matching_callable() -> None:
 
 
 def test_strict_delete_service_accepts_matching_callable() -> None:
-    fn: StrictDeleteService[_Author, _DeleteExtras, None] = _delete
+    fn: StrictDeleteService[NoInput, _Author, _DeleteExtras, None] = _delete
     assert fn is _delete
 
 

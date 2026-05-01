@@ -10,8 +10,7 @@ from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
 
-def _noop() -> None:
-    pass
+def _noop() -> None: ...
 
 
 class _Vs(ActionSerializerResolver, GenericViewSet):

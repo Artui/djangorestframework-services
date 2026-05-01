@@ -278,7 +278,7 @@ class TestServiceActionValidation:
             class _View:  # noqa: D401
                 @service_action(ServiceSpec(service=fn), detail=False, methods=["post"])
                 def go(self, request):  # type: ignore[no-untyped-def]
-                    pass
+                    ...
 
     def test_instance_required_on_non_detail_fails(self) -> None:
         with pytest.raises(ImproperlyConfigured, match="requires `instance`"):
@@ -289,7 +289,7 @@ class TestServiceActionValidation:
             class _View:  # noqa: D401
                 @service_action(ServiceSpec(service=fn), detail=False, methods=["post"])
                 def go(self, request):  # type: ignore[no-untyped-def]
-                    pass
+                    ...
 
     def test_detail_action_with_instance_passes(self) -> None:
         def fn(*, instance: object) -> None:
@@ -298,7 +298,7 @@ class TestServiceActionValidation:
         class _View:  # noqa: D401
             @service_action(ServiceSpec(service=fn), detail=True, methods=["post"])
             def go(self, request, pk=None):  # type: ignore[no-untyped-def]
-                pass
+                ...
 
     def test_output_selector_validated(self) -> None:
         with pytest.raises(ImproperlyConfigured, match="requires `data`"):
@@ -316,4 +316,4 @@ class TestServiceActionValidation:
                     methods=["post"],
                 )
                 def go(self, request):  # type: ignore[no-untyped-def]
-                    pass
+                    ...

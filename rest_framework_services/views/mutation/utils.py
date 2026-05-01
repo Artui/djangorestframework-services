@@ -20,7 +20,7 @@ Internal:
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import is_dataclass
 from typing import Any
 
@@ -41,7 +41,11 @@ from rest_framework_services.exceptions.service_validation_error import (
 )
 from rest_framework_services.selectors.utils import run_selector
 from rest_framework_services.types.service_spec import ServiceSpec
-from rest_framework_services.views.utils import resolve_callable_kwargs, resolve_extra_kwargs
+from rest_framework_services.views.utils import (
+    resolve_callable_kwargs,
+    resolve_extra_kwargs,
+    resolve_input_extras,
+)
 
 
 class _ServiceAPIException(drf_exceptions.APIException):
@@ -57,6 +61,7 @@ def validate_input(
     input_serializer: type | None,
     *,
     partial: bool = False,
+    extra_data: Mapping[str, Any] | None = None,
 ) -> Any:
     """Validate ``request.data`` against ``input_serializer``; ``None`` if absent.
 
@@ -69,17 +74,26 @@ def validate_input(
     - any other ``Serializer`` subclass (e.g. ``ModelSerializer``) —
       instantiated directly; ``validated_data`` is a ``dict``.
 
+    ``extra_data`` (when supplied) is merged on top of ``request.data``
+    before the serializer instantiates — server-provided keys win on
+    overlap. This is the seam used by the ``input_data`` resolver chain
+    to lift URL kwargs into serializer input.
+
     The serializer's ``validated_data`` is returned (never ``.save()``); the
     service is responsible for persistence.
     """
     if input_serializer is None:
         return None
+    if extra_data:
+        data: Any = {**request.data, **extra_data}
+    else:
+        data = request.data
     if isinstance(input_serializer, type) and issubclass(input_serializer, Serializer):
-        serializer: Serializer = input_serializer(data=request.data, partial=partial)
+        serializer: Serializer = input_serializer(data=data, partial=partial)
     elif is_dataclass(input_serializer):
         serializer = DataclassSerializer(
             dataclass=input_serializer,
-            data=request.data,
+            data=data,
             partial=partial,
         )
     else:
@@ -122,6 +136,7 @@ def _execute_mutation(
     success_status: int,
     instance: Any,
     extra_kwargs: dict[str, Any] | None = None,
+    extra_input_data: Mapping[str, Any] | None = None,
     partial: bool = False,
 ) -> Response:
     """Internal flow runner shared by ``MutationFlowMixin`` and ``@service_action``.
@@ -140,7 +155,9 @@ def _execute_mutation(
     a callable needs view state (URL kwargs, action name, etc.), pipe it
     through ``ServiceSpec.kwargs`` / ``SelectorSpec.kwargs`` instead.
     """
-    data: Any = validate_input(request, input_serializer, partial=partial)
+    data: Any = validate_input(
+        request, input_serializer, partial=partial, extra_data=extra_input_data
+    )
     pool: dict[str, Any] = {
         "request": request,
         "user": getattr(request, "user", None),
@@ -202,13 +219,21 @@ def dispatch_mutation_for_spec(
     lives in one place.
     """
     action: str | None = getattr(view, "action", None)
-    action_hook: str | None = f"get_{action}_service_kwargs" if action else None
+    action_kwargs_hook: str | None = f"get_{action}_service_kwargs" if action else None
+    action_input_hook: str | None = f"get_{action}_input_data" if action else None
     extras = resolve_extra_kwargs(
         view,
         request,
         spec_kwargs=spec.kwargs,
-        action_hook=action_hook,
+        action_hook=action_kwargs_hook,
         catch_all_hook="get_service_kwargs",
+    )
+    input_extras = resolve_input_extras(
+        view,
+        request,
+        spec_input_data=spec.input_data,
+        action_hook=action_input_hook,
+        catch_all_hook="get_input_data",
     )
     return _execute_mutation(
         view,
@@ -221,5 +246,6 @@ def dispatch_mutation_for_spec(
         success_status=success_status,
         instance=instance,
         extra_kwargs=extras,
+        extra_input_data=input_extras,
         partial=partial,
     )

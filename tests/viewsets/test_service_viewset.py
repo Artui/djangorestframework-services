@@ -115,6 +115,31 @@ class TestServiceViewSetActions:
         assert response.status_code == 204
         assert not Author.objects.exists()
 
+    def test_destroy_with_input_serializer(self) -> None:
+        @dataclass
+        class _Reason:
+            reason: str
+
+        captured: dict[str, Any] = {}
+
+        def fn(*, instance: Author, data: _Reason) -> None:
+            captured["reason"] = data.reason
+            instance.delete()
+
+        class _View(ServiceViewSet):
+            queryset = Author.objects.all()
+            action_specs = {
+                "destroy": ServiceSpec(service=fn, input_serializer=_Reason),
+            }
+
+        author = Author.objects.create(name="x")
+        request = factory.delete("/", {"reason": "spam"}, format="json")
+        view = _View.as_view({"delete": "destroy"})
+        response = view(request, pk=author.pk)
+        assert response.status_code == 204
+        assert captured["reason"] == "spam"
+        assert not Author.objects.filter(pk=author.pk).exists()
+
     def test_kwargs_hooks_pass_extras(self) -> None:
         captured: dict[str, Any] = {}
 
@@ -245,6 +270,47 @@ class TestServiceViewSetActions:
 
         _View.as_view({"post": "create"})(factory.post("/", {"name": "x"}, format="json"))
         assert captured["tag"] == "spec"
+
+    def test_input_data_three_tier_chain(self) -> None:
+        @dataclass
+        class _NestedIn:
+            name: str
+            parent_id: int
+            tag: str
+
+        captured: dict[str, Any] = {}
+
+        def created(*, data: _NestedIn) -> dict[str, Any]:
+            captured["data"] = data
+            return {"name": data.name}
+
+        def spec_input(view: Any, request: Any) -> dict[str, Any]:
+            return {"parent_id": int(view.kwargs["parent_id"])}
+
+        class _View(ServiceViewSet):
+            action_specs = {
+                "create": ServiceSpec(
+                    service=created,
+                    input_serializer=_NestedIn,
+                    input_data=spec_input,
+                ),
+            }
+
+            def get_input_data(self, request: Any) -> dict[str, Any]:
+                return {"tag": "catch", "parent_id": -1}
+
+            def get_create_input_data(self, request: Any) -> dict[str, Any]:
+                return {"tag": "action", "parent_id": -2}
+
+        response = _View.as_view({"post": "create"})(
+            factory.post("/", {"name": "Ada"}, format="json"), parent_id=42
+        )
+        assert response.status_code == 201
+        assert captured["data"].name == "Ada"
+        # spec layer wins over per-action and catch-all on parent_id;
+        # action layer wins over catch-all on tag.
+        assert captured["data"].parent_id == 42
+        assert captured["data"].tag == "action"
 
     def test_spec_kwargs_provider_receives_view_and_request(self) -> None:
         captured: dict[str, Any] = {}
@@ -430,8 +496,7 @@ class TestServiceViewSetEdgeCases:
 @pytest.mark.django_db
 class TestServiceViewSetUnconfigured:
     def test_create_without_service_returns_405(self) -> None:
-        class _View(ServiceViewSet):
-            pass
+        class _View(ServiceViewSet): ...
 
         view = _View.as_view({"post": "create"})
         response = view(factory.post("/"))
@@ -501,8 +566,7 @@ class TestServiceViewSetUnconfigured:
             view(factory.delete("/"), pk=author.pk)
 
     def test_list_with_service_spec_raises_improperly_configured(self) -> None:
-        def _noop() -> None:
-            pass
+        def _noop() -> None: ...
 
         class _View(ServiceViewSet):
             action_specs = {
@@ -514,8 +578,7 @@ class TestServiceViewSetUnconfigured:
             view(factory.get("/"))
 
     def test_retrieve_with_service_spec_raises_improperly_configured(self) -> None:
-        def _noop() -> None:
-            pass
+        def _noop() -> None: ...
 
         class _View(ServiceViewSet):
             action_specs = {

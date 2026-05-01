@@ -54,6 +54,25 @@ class ServiceAutoSchema(AutoSchema):
                 return cls(partial=partial)
         return super().get_request_serializer()
 
+    def _get_request_body(self, direction: str = "request") -> Any:
+        # drf-spectacular hard-codes the allowed verbs to PUT/PATCH/POST in
+        # ``AutoSchema._get_request_body``. RFC 7231 permits a body on
+        # DELETE, and the framework's ``ServiceDeleteView`` /
+        # ``ServiceDestroyMixin`` use it for delete-with-payload. When the
+        # spec declares an ``input_serializer`` we coax spectacular into
+        # emitting the body by swapping ``self.method`` for the duration
+        # of the super call.
+        if self.method == "DELETE":
+            spec = resolve_spec(self.view)
+            if spec is not None and spec.input_serializer is not None:
+                saved = self.method
+                self.method = "POST"
+                try:
+                    return super()._get_request_body(direction)
+                finally:
+                    self.method = saved
+        return super()._get_request_body(direction)
+
     def get_response_serializers(self) -> Any:
         spec = resolve_spec(self.view)
         if spec is None:

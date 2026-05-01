@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from rest_framework.request import Request
@@ -28,10 +29,21 @@ class MutationFlowMixin:
        (viewsets only; ``self.action`` must be set).
     3. ``ServiceSpec.kwargs`` — per-spec callable, co-located with the
        service it feeds.
+
+    A symmetrical three-layer chain feeds the *serializer's* input dict
+    (merged on top of ``request.data`` before validation):
+
+    1. ``get_input_data(self, request)`` — global fallback on the view.
+    2. ``get_<action>_input_data(self, request)`` — per-action override.
+    3. ``ServiceSpec.input_data`` — per-spec callable.
     """
 
     def get_service_kwargs(self) -> dict[str, Any]:
         """Hook for additional kwargs available to every mutation service."""
+        return {}
+
+    def get_input_data(self, request: Request) -> Mapping[str, Any]:
+        """Hook for extras merged on top of ``request.data`` before validation."""
         return {}
 
     def _run_mutation(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
@@ -47,6 +47,12 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     declare its own contract — no ``if self.action == ...`` branching in a
     catch-all ``get_service_kwargs``. See :class:`ServiceView` for the
     attributes available on the ``view`` argument.
+
+    ``input_data`` is the symmetrical hook for the *serializer's* input.
+    Returns a mapping merged on top of ``request.data`` before the
+    ``input_serializer`` validates it — useful for lifting URL kwargs
+    (e.g. parent IDs from nested routes) into fields the serializer can
+    cross-validate. Server-provided keys win on conflict.
     """
 
     service: Callable[..., ResultT]
@@ -56,3 +62,4 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     atomic: bool = True
     success_status: int | None = None
     kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
+    input_data: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None

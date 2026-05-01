@@ -13,8 +13,7 @@ from rest_framework_services.openapi.utils import default_status
 
 
 def _bound_action(action: str) -> Any:
-    class _V:
-        pass
+    class _V: ...
 
     v = _V()
     v.action = action  # ty: ignore[unresolved-attribute]
@@ -50,7 +49,6 @@ def test_view_class_default_for_delete() -> None:
 
 
 def test_unrecognised_view_falls_back_to_200() -> None:
-    class _Vanilla:
-        pass
+    class _Vanilla: ...
 
     assert default_status(_Vanilla()) == 200

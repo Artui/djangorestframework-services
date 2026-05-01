@@ -108,6 +108,7 @@ Common patches you'll still need inside the package:
 - `ruff check` enforces `E`, `F`, `UP`, `B`, `SIM`, `I`, `TID` (see `[tool.ruff.lint]` in `pyproject.toml`).
 - `ruff format` is the source of truth for layout. Don't fight it.
 - The pre-commit hook runs `make lint-fix` (auto-applies safe fixes) and `make format` (rewrites). Commits should be clean before push; CI will reject otherwise.
+- **Use `...` (Ellipsis) instead of `pass` for empty function and class bodies.** Includes Protocol stubs, test fixtures, no-op viewset action methods stubbed out for `@service_action`, and bare placeholder classes. `pass` is reserved for intentionally-empty *statement* contexts (e.g. `try: ... except FooError: pass`) where Ellipsis would read as a literal expression rather than a no-op.
 
 ---
 

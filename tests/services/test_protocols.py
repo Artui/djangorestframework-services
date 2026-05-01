@@ -15,6 +15,7 @@ from rest_framework.request import Request
 from rest_framework_services import (
     CreateService,
     DeleteService,
+    NoInput,
     ServiceSpec,
     UpdateService,
 )
@@ -58,7 +59,7 @@ def test_update_service_protocol_accepts_matching_callable() -> None:
 
 
 def test_delete_service_protocol_accepts_matching_callable() -> None:
-    fn: DeleteService[_Author, None] = _delete
+    fn: DeleteService[NoInput, _Author, None] = _delete
     spec: ServiceSpec[None, None] = ServiceSpec(service=fn)
     assert spec.service is _delete
 

@@ -55,8 +55,7 @@ class TestIsAsync:
         assert is_async(lambda: 1) is False
 
     def test_object_without_call(self) -> None:
-        class _NoCall:
-            pass
+        class _NoCall: ...
 
         # `_NoCall` instances are not callable, but is_async should still return False.
         assert is_async(_NoCall()) is False

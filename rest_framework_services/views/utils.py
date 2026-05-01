@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from rest_framework.request import Request
@@ -45,6 +45,44 @@ def resolve_extra_kwargs(
             extras.update(hook())
     if spec_kwargs is not None:
         extras.update(spec_kwargs(view, request))
+    return extras
+
+
+def resolve_input_extras(
+    view: Any,
+    request: Request,
+    *,
+    spec_input_data: Callable[..., Mapping[str, Any]] | None,
+    action_hook: str | None,
+    catch_all_hook: str,
+) -> dict[str, Any]:
+    """Collect the extras to merge into the serializer input dict.
+
+    Mirrors :func:`resolve_extra_kwargs` but for the
+    ``input_serializer``-bound data, not the service-call pool. Layers,
+    applied in order of increasing specificity (later wins on overlap):
+
+    1. ``view.<catch_all_hook>(request)`` — global fallback
+       (``get_input_data``); typically returns ``{}``.
+    2. ``view.<action_hook>(request)`` — per-action method on the view
+       (``get_<action>_input_data``). Skipped when ``action_hook`` is
+       ``None`` (standalone single-purpose views) or the method is absent.
+    3. ``spec_input_data(view, request)`` — per-spec callable from
+       :attr:`ServiceSpec.input_data`.
+
+    Each layer's result is merged with ``dict.update`` so the spec-level
+    provider has the final say on overlapping keys.
+    """
+    extras: dict[str, Any] = {}
+    catch_all = getattr(view, catch_all_hook, None)
+    if catch_all is not None:
+        extras.update(catch_all(request))
+    if action_hook is not None:
+        hook = getattr(view, action_hook, None)
+        if hook is not None:
+            extras.update(hook(request))
+    if spec_input_data is not None:
+        extras.update(spec_input_data(view, request))
     return extras
 
 

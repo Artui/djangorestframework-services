@@ -51,7 +51,7 @@ class _ViewSet(ServiceViewSet):
 class _ActionViewSet(GenericViewSet):
     @service_action(_create_spec, detail=False, methods=["post"])
     def go(self, request):  # type: ignore[no-untyped-def]
-        pass
+        ...
 
 
 _factory = APIRequestFactory()
@@ -94,7 +94,6 @@ class TestResolveSpec:
 
     def test_returns_none_when_view_has_no_action_specs(self) -> None:
         # Plain ``GenericViewSet`` with an action set but no spec sources.
-        class _Bare(GenericViewSet):
-            pass
+        class _Bare(GenericViewSet): ...
 
         assert resolve_spec(_bound(_Bare, "list")) is None

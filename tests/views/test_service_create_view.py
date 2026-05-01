@@ -148,8 +148,7 @@ class TestServiceCreateView:
         assert response.status_code == 422
 
     def test_missing_spec_raises_not_implemented(self) -> None:
-        class _Empty(ServiceCreateView):
-            pass
+        class _Empty(ServiceCreateView): ...
 
         request = factory.post("/", {"name": "x"}, format="json")
         with pytest.raises(NotImplementedError):
@@ -206,3 +205,59 @@ class TestServiceCreateView:
         request = factory.post("/", {}, format="json")
         response = _View.as_view()(request)
         assert response.status_code == 202
+
+    def test_input_data_lifts_path_kwargs_into_serializer(self) -> None:
+        @dataclass
+        class _NestedIn:
+            name: str
+            parent_id: int
+
+        captured: dict[str, Any] = {}
+
+        def fn(*, data: _NestedIn) -> dict[str, Any]:
+            captured["data"] = data
+            return {"name": data.name}
+
+        def spec_input(view: Any, request: Any) -> dict[str, Any]:
+            return {"parent_id": int(view.kwargs["parent_id"])}
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=fn,
+                input_serializer=_NestedIn,
+                input_data=spec_input,
+                atomic=False,
+            )
+
+        request = factory.post("/", {"name": "Ada"}, format="json")
+        response = _View.as_view()(request, parent_id=7)
+        assert response.status_code == 201
+        assert captured["data"].name == "Ada"
+        assert captured["data"].parent_id == 7
+
+    def test_input_data_view_catch_all_hook(self) -> None:
+        @dataclass
+        class _NestedIn:
+            name: str
+            parent_id: int
+
+        captured: dict[str, Any] = {}
+
+        def fn(*, data: _NestedIn) -> dict[str, Any]:
+            captured["data"] = data
+            return {"name": data.name}
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=fn,
+                input_serializer=_NestedIn,
+                atomic=False,
+            )
+
+            def get_input_data(self, request: Any) -> dict[str, Any]:
+                return {"parent_id": int(self.kwargs["parent_id"])}
+
+        request = factory.post("/", {"name": "Ada"}, format="json")
+        response = _View.as_view()(request, parent_id=11)
+        assert response.status_code == 201
+        assert captured["data"].parent_id == 11

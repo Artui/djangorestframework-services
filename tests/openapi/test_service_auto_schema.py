@@ -14,6 +14,7 @@ from rest_framework.viewsets import GenericViewSet
 from rest_framework_services import (
     SelectorSpec,
     ServiceCreateView,
+    ServiceDeleteView,
     ServiceSpec,
     ServiceUpdateView,
     ServiceViewSet,
@@ -68,6 +69,27 @@ class _UpdateView(ServiceUpdateView):
     )
 
 
+@dataclass
+class _DeleteReason:
+    reason: str
+
+
+def _delete_with_reason(*, instance: Any, data: _DeleteReason) -> None: ...
+
+
+class _DeleteView(ServiceDeleteView):
+    queryset = Author.objects.all()
+    spec = ServiceSpec(service=_delete_with_reason, input_serializer=_DeleteReason)
+
+
+def _delete_plain(*, instance: Any) -> None: ...
+
+
+class _DeletePlainView(ServiceDeleteView):
+    queryset = Author.objects.all()
+    spec = ServiceSpec(service=_delete_plain)
+
+
 class _AuthorViewSet(ServiceViewSet):
     queryset = Author.objects.all()
     action_specs = {
@@ -89,7 +111,7 @@ class _ApproveViewSet(GenericViewSet):
         methods=["post"],
     )
     def approve(self, request, pk=None):  # type: ignore[no-untyped-def]
-        pass
+        ...
 
 
 _router = DefaultRouter()
@@ -99,6 +121,8 @@ _router.register("approvals", _ApproveViewSet, basename="approvals")
 urlpatterns = [
     path("create/", _CreateView.as_view()),
     path("update/<int:pk>/", _UpdateView.as_view()),
+    path("delete/<int:pk>/", _DeleteView.as_view()),
+    path("plain-delete/<int:pk>/", _DeletePlainView.as_view()),
     *_router.urls,
 ]
 
@@ -140,6 +164,23 @@ class TestStandaloneViewSchema:
         component = schema["components"]["schemas"][ref.rsplit("/", 1)[1]]
         # spectacular emits a ``Patched*`` component for partial requests.
         assert "Patched" in ref or component.get("required") in (None, [])
+
+
+@pytest.mark.django_db
+class TestDeleteViewSchema:
+    def test_delete_view_emits_request_body_when_input_serializer_set(self) -> None:
+        schema = _generate()
+        op = schema["paths"]["/delete/{id}/"]["delete"]
+        assert "requestBody" in op
+        body = op["requestBody"]["content"]["application/json"]["schema"]
+        ref = body["$ref"]
+        component = schema["components"]["schemas"][ref.rsplit("/", 1)[1]]
+        assert set(component.get("properties", {}).keys()) == {"reason"}
+
+    def test_delete_view_omits_request_body_when_no_input_serializer(self) -> None:
+        schema = _generate()
+        op = schema["paths"]["/plain-delete/{id}/"]["delete"]
+        assert "requestBody" not in op
 
 
 @pytest.mark.django_db

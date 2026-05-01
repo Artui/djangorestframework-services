@@ -72,7 +72,7 @@ else. Available lenient Protocols:
 
 - `CreateService[InputT, ResultT]`
 - `UpdateService[InputT, InstanceT, ResultT]`
-- `DeleteService[InstanceT, ResultT]`
+- `DeleteService[InputT, InstanceT, ResultT]`
 - `ListSelector[ResultT]`
 - `RetrieveSelector[ResultT]`
 - `OutputSelector[InT, OutT]`
@@ -169,7 +169,9 @@ Available strict Protocols:
 
 - `StrictCreateService[InputT, ExtraT, ResultT]`
 - `StrictUpdateService[InputT, InstanceT, ExtraT, ResultT]`
-- `StrictDeleteService[InstanceT, ExtraT, ResultT]`
+- `StrictDeleteService[InputT, InstanceT, ExtraT, ResultT]` — bind
+  `InputT` to your input dataclass for delete-with-payload, or to the
+  [`NoInput`](reference/types.md#noinput) sentinel when no body is read.
 - `StrictListSelector[ExtraT, ResultT]`
 - `StrictRetrieveSelector[ExtraT, ResultT]`
 - `StrictOutputSelector[InT, ExtraT, OutT]`

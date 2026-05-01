@@ -118,6 +118,36 @@ class TestServiceDeleteView:
         assert response.status_code == 200
         assert response.data == {"name_upper": "BYE"}
 
+    def test_input_data_merged_into_serializer_input(self) -> None:
+        @dataclass
+        class _ReasonWithParent:
+            reason: str
+            parent_id: int
+
+        captured: dict[str, Any] = {}
+
+        def fn(*, instance: Author, data: _ReasonWithParent) -> None:
+            captured["data"] = data
+            instance.delete()
+
+        def spec_input(view: Any, request: Any) -> dict[str, Any]:
+            return {"parent_id": int(view.kwargs.get("parent_id", 0))}
+
+        class _View(ServiceDeleteView):
+            queryset = Author.objects.all()
+            spec = ServiceSpec(
+                service=fn,
+                input_serializer=_ReasonWithParent,
+                input_data=spec_input,
+            )
+
+        author = Author.objects.create(name="x")
+        request = factory.delete("/", {"reason": "spam"}, format="json")
+        response = _View.as_view()(request, pk=author.pk, parent_id=7)
+        assert response.status_code == 204
+        assert captured["data"].reason == "spam"
+        assert captured["data"].parent_id == 7
+
     def test_returning_value_with_success_status_override(self) -> None:
         def fn(*, instance: Author) -> dict[str, Any]:
             return {"deleted": instance.pk}

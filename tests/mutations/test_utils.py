@@ -76,8 +76,7 @@ class TestSafeGetattr:
         assert safe_getattr(_Obj(), "x") == 5
 
     def test_missing_returns_unset(self) -> None:
-        class _Obj:
-            pass
+        class _Obj: ...
 
         assert safe_getattr(_Obj(), "missing") is UNSET
 

@@ -78,6 +78,46 @@ class TestValidateInput:
         with pytest.raises(TypeError, match="must be a dataclass type or a Serializer"):
             validate_input(_drf_request("post", {}), object)  # type: ignore[arg-type]
 
+    def test_extra_data_merged_on_top_of_request_body(self) -> None:
+        @dataclass
+        class _WithParent:
+            name: str
+            parent_id: int
+
+        result = validate_input(
+            _drf_request("post", {"name": "Ada"}),
+            _WithParent,
+            extra_data={"parent_id": 7},
+        )
+        assert isinstance(result, _WithParent)
+        assert result.name == "Ada"
+        assert result.parent_id == 7
+
+    def test_extra_data_wins_over_request_body_on_conflict(self) -> None:
+        @dataclass
+        class _WithParent:
+            name: str
+            parent_id: int
+
+        result = validate_input(
+            _drf_request("post", {"name": "Ada", "parent_id": 1}),
+            _WithParent,
+            extra_data={"parent_id": 99},
+        )
+        assert result.parent_id == 99
+
+    def test_extra_data_works_with_plain_serializer(self) -> None:
+        class _PlainSerializer(serializers.Serializer):
+            name = serializers.CharField()
+            parent_id = serializers.IntegerField()
+
+        result = validate_input(
+            _drf_request("post", {"name": "Ada"}),
+            _PlainSerializer,
+            extra_data={"parent_id": 7},
+        )
+        assert result == {"name": "Ada", "parent_id": 7}
+
 
 class TestDispatchService:
     @pytest.mark.django_db

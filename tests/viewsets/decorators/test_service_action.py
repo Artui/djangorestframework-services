@@ -97,7 +97,7 @@ class TestServiceAction:
                 methods=["post"],
             )
             def go(self, request):  # type: ignore[no-untyped-def]
-                pass
+                ...
 
         request = factory.post("/", {}, format="json")
         view = _View.as_view({"post": "go"})
@@ -121,7 +121,7 @@ class TestServiceAction:
                 methods=["post"],
             )
             def go(self, request):  # type: ignore[no-untyped-def]
-                pass
+                ...
 
         request = factory.post("/", {}, format="json")
         view = _View.as_view({"post": "go"})
@@ -148,7 +148,7 @@ class TestServiceAction:
                 methods=["post"],
             )
             def go(self, request):  # type: ignore[no-untyped-def]
-                pass
+                ...
 
         request = factory.post("/", {}, format="json")
         view = _View.as_view({"post": "go"})
@@ -176,7 +176,7 @@ class TestServiceAction:
                 methods=["post"],
             )
             def go(self, request):  # type: ignore[no-untyped-def]
-                pass
+                ...
 
         view = _View.as_view({"post": "go"})
         response = view(factory.post("/", {}, format="json"))
@@ -196,7 +196,7 @@ class TestServiceAction:
                 methods=["post"],
             )
             def go(self, request):  # type: ignore[no-untyped-def]
-                pass
+                ...
 
         view = _View.as_view({"post": "go"})
         response = view(factory.post("/"))
@@ -217,7 +217,7 @@ class TestServiceAction:
                 methods=["post"],
             )
             def go(self, request):  # type: ignore[no-untyped-def]
-                pass
+                ...
 
         view = _View.as_view({"post": "go"})
         response = view(factory.post("/"))
@@ -235,7 +235,7 @@ class TestServiceAction:
                 methods=["post"],
             )
             def go(self, request):  # type: ignore[no-untyped-def]
-                pass
+                ...
 
         view = _View.as_view({"post": "go"})
         response = view(factory.post("/"))
@@ -256,13 +256,78 @@ class TestServiceAction:
                 methods=["post"],
             )
             def go(self, request, pk=None):  # type: ignore[no-untyped-def]
-                pass
+                ...
 
         author = Author.objects.create(name="A")
         view = _View.as_view({"post": "go"})
         response = view(factory.post("/"), pk=author.pk)
         assert response.status_code == 200
         assert response.data["name"] == "A"
+
+    def test_delete_method_with_input_serializer(self) -> None:
+        @dataclass
+        class _Reason:
+            reason: str
+
+        captured: dict[str, Any] = {}
+
+        def fn(*, instance: Author, data: _Reason) -> None:
+            captured["reason"] = data.reason
+            instance.delete()
+
+        class _View(GenericViewSet):
+            queryset = Author.objects.all()
+
+            @service_action(
+                ServiceSpec(service=fn, input_serializer=_Reason, success_status=204),
+                detail=True,
+                methods=["delete"],
+            )
+            def soft_kill(self, request, pk=None):  # type: ignore[no-untyped-def]
+                ...
+
+        author = Author.objects.create(name="x")
+        view = _View.as_view({"delete": "soft_kill"})
+        response = view(factory.delete("/", {"reason": "spam"}, format="json"), pk=author.pk)
+        assert response.status_code == 204
+        assert captured["reason"] == "spam"
+
+    def test_input_data_chain_lifts_path_kwargs(self) -> None:
+        @dataclass
+        class _NestedIn:
+            note: str
+            parent_id: int
+
+        captured: dict[str, Any] = {}
+
+        def fn(*, instance: Author, data: _NestedIn) -> dict[str, Any]:
+            captured["data"] = data
+            return {"id": instance.pk}
+
+        def spec_input(view: Any, request: Any) -> dict[str, Any]:
+            return {"parent_id": int(view.kwargs["parent_id"])}
+
+        class _View(GenericViewSet):
+            queryset = Author.objects.all()
+
+            @service_action(
+                ServiceSpec(service=fn, input_serializer=_NestedIn, input_data=spec_input),
+                detail=True,
+                methods=["post"],
+            )
+            def annotate(self, request, pk=None, parent_id=None):  # type: ignore[no-untyped-def]
+                ...
+
+        author = Author.objects.create(name="x")
+        view = _View.as_view({"post": "annotate"})
+        response = view(
+            factory.post("/", {"note": "hi"}, format="json"),
+            pk=author.pk,
+            parent_id=42,
+        )
+        assert response.status_code == 200
+        assert captured["data"].note == "hi"
+        assert captured["data"].parent_id == 42
 
     def test_methods_default_to_drf_action_default(self) -> None:
         # Calling service_action without explicit `methods` should leave
@@ -273,7 +338,7 @@ class TestServiceAction:
         class _View(GenericViewSet):
             @service_action(ServiceSpec(service=fn), detail=False)
             def ping(self, request):  # type: ignore[no-untyped-def]
-                pass
+                ...
 
         # DRF's @action stamps mapping with default methods.
         assert "get" in _View.ping.mapping  # type: ignore[attr-defined]
