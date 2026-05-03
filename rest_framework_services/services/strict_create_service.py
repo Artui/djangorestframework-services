@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol, TypeVar
 
-from rest_framework.request import Request
 from typing_extensions import Unpack
-
-from rest_framework_services.services.utils import UserT
 
 InputT = TypeVar("InputT")
 ResultT = TypeVar("ResultT", covariant=True)
@@ -23,26 +20,31 @@ class StrictCreateService(Protocol[InputT, ExtraT, ResultT]):
     declares exactly the extra keys delivered by ``ServiceSpec.kwargs`` —
     nothing more, nothing less.
 
-    Use it for services where you want drift-free signatures::
+    ``request`` and ``user`` are deliberately *not* part of the fixed
+    signature. The framework still places them in the kwargs pool, but
+    services that want them must declare them on their ``ExtraT`` — most
+    cleanly by subclassing
+    :class:`~rest_framework_services.types.http_extras.HttpExtras`::
 
-        class CreateAuthorKwargs(TypedDict):
+        class CreateAuthorKwargs(HttpExtras[MyUser]):
             tenant_id: int
 
         @implements(StrictCreateService[AuthorIn, CreateAuthorKwargs, Author])
         def create_author(
             *,
             data: AuthorIn,
-            request: HttpRequest,
-            user: UserT,
             **extras: Unpack[CreateAuthorKwargs],
         ) -> Author: ...
+
+    Services that don't read ``request`` / ``user`` should simply omit
+    them — their ``ExtraT`` carries only the genuine extras (or
+    :class:`~rest_framework_services.types.no_kwargs.NoKwargs` if there
+    are none).
     """
 
     def __call__(
         self,
         *,
         data: InputT,
-        request: Request,
-        user: UserT,
         **extras: Unpack[ExtraT],
     ) -> ResultT: ...

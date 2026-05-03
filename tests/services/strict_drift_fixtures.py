@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from rest_framework.request import Request
 from typing_extensions import TypedDict, Unpack
 
 from rest_framework_services import (
@@ -26,7 +25,6 @@ from rest_framework_services import (
     StrictUpdateService,
     implements,
 )
-from rest_framework_services.services.utils import UserT
 
 
 @dataclass
@@ -75,8 +73,6 @@ class _OutputExtras(TypedDict):
 def create_drift_return(
     *,
     data: _AuthorIn,
-    request: Request,
-    user: UserT,
     **extras: Unpack[_CreateExtras],
 ) -> _AuthorIn:
     return data
@@ -92,8 +88,6 @@ def create_drift_return(
 def create_drift_input(
     *,
     data: int,
-    request: Request,
-    user: UserT,
     **extras: Unpack[_CreateExtras],
 ) -> _Author:
     return _Author(id=data, name="x")
@@ -110,8 +104,6 @@ def update_drift_instance(
     *,
     instance: int,
     data: _AuthorIn,
-    request: Request,
-    user: UserT,
     **extras: Unpack[_UpdateExtras],
 ) -> _Author:
     return _Author(id=instance, name=data.name)
@@ -127,8 +119,6 @@ def update_drift_instance(
 def delete_drift_return(
     *,
     instance: _Author,
-    request: Request,
-    user: UserT,
     **extras: Unpack[_DeleteExtras],
 ) -> _Author:
     return instance
@@ -142,9 +132,6 @@ def delete_drift_return(
 # expect-error: incompatible iterable element type
 @implements(StrictListSelector[_ListExtras, _Author])
 def list_drift_element(
-    *,
-    request: Request,
-    user: UserT,
     **extras: Unpack[_ListExtras],
 ) -> list[int]:
     return []
@@ -158,9 +145,6 @@ def list_drift_element(
 # expect-error: incompatible return types
 @implements(StrictRetrieveSelector[_RetrieveExtras, _Author])
 def retrieve_drift_return(
-    *,
-    request: Request,
-    user: UserT,
     **extras: Unpack[_RetrieveExtras],
 ) -> int | None:
     return None
@@ -176,8 +160,6 @@ def retrieve_drift_return(
 def output_drift_input(
     *,
     result: int,
-    request: Request,
-    user: UserT,
     **extras: Unpack[_OutputExtras],
 ) -> _Author:
     return _Author(id=result, name="x")

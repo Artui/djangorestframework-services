@@ -10,6 +10,8 @@ every view.
 
 ```bash
 pip install "djangorestframework-services[spectacular]"
+# or, with uv:
+uv add "djangorestframework-services[spectacular]"
 ```
 
 ## Wire it up

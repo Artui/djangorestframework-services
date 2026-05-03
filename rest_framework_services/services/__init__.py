@@ -9,6 +9,8 @@ the ``Strict*`` variants. They use :pep:`692` ``Unpack[TypedDict]`` to pin the
 extra-kwargs contract delivered by ``ServiceSpec.kwargs``.
 """
 
+from rest_framework_services.services.acall_service import acall_service
+from rest_framework_services.services.call_service import call_service
 from rest_framework_services.services.create_service import CreateService
 from rest_framework_services.services.delete_service import DeleteService
 from rest_framework_services.services.strict_create_service import StrictCreateService
@@ -23,4 +25,6 @@ __all__ = [
     "StrictDeleteService",
     "StrictUpdateService",
     "UpdateService",
+    "acall_service",
+    "call_service",
 ]

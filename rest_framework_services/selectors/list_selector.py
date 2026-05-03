@@ -20,7 +20,9 @@ class ListSelector(Protocol[ResultT]):
 
     Lenient by design: ``**kwargs: Any`` lets the framework deliver URL kwargs
     and extras from ``SelectorSpec.kwargs`` / ``get_selector_kwargs`` without
-    forcing the selector to declare them.
+    forcing the selector to declare them. Selectors may freely omit
+    ``request`` / ``user`` (or any other pool key) they do not need; the
+    framework inspects the signature and only passes what is declared.
     """
 
     def __call__(

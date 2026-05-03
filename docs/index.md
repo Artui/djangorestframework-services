@@ -45,6 +45,8 @@ where it doesn't.
 
 ```bash
 pip install djangorestframework-services
+# or, with uv:
+uv add djangorestframework-services
 ```
 
 That brings in `djangorestframework-dataclasses` automatically — it's

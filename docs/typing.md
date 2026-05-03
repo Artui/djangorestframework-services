@@ -156,14 +156,39 @@ class CreateAuthorKwargs(TypedDict):
 def create_author(
     *,
     data: AuthorIn,
-    request: HttpRequest,
-    user: UserT,
     **extras: Unpack[CreateAuthorKwargs],   # exact extras contract
 ) -> Author: ...
 ```
 
 Drift between `create_author` and the parameterized Protocol now produces a
 `ty` error at the `@implements(...)` line.
+
+Strict Protocols deliberately do **not** include `request` or `user` in
+their fixed signature. The framework still puts both keys in the kwargs
+pool — services that read them declare them on their `ExtraT` instead, most
+ergonomically by subclassing
+[`HttpExtras[UserT]`](reference/types.md#httpextras):
+
+```python
+from rest_framework_services import HttpExtras, StrictCreateService, implements
+
+class CreateAuthorKwargs(HttpExtras[MyUser]):
+    tenant_id: int
+
+@implements(StrictCreateService[AuthorIn, CreateAuthorKwargs, Author])
+def create_author(
+    *,
+    data: AuthorIn,
+    **extras: Unpack[CreateAuthorKwargs],
+) -> Author:
+    user = extras["user"]              # typed as MyUser
+    request = extras["request"]
+    ...
+```
+
+Services that don't read `request` / `user` should simply omit them — their
+`ExtraT` carries only the genuine extras (or
+[`NoKwargs`](reference/types.md#nokwargs) if there are none).
 
 Available strict Protocols:
 
@@ -192,9 +217,6 @@ structural-subtyping check at the decorator line:
 ```python
 @implements(StrictListSelector[ListAuthorsKwargs, Author])
 def list_authors(
-    *,
-    request: HttpRequest,
-    user: UserT,
     **extras: Unpack[ListAuthorsKwargs],
 ) -> Iterable[Author]: ...
 ```

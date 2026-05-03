@@ -37,6 +37,8 @@ you a precise, well-typed seam for the bits in the middle.
 
 ```bash
 pip install djangorestframework-services
+# or, with uv:
+uv add djangorestframework-services
 ```
 
 ---

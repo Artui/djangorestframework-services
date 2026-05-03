@@ -115,11 +115,12 @@ def publish_author(
     *,
     instance: Author,
     data: AuthorIn,
-    request,
-    user,
     **extras: Unpack[PublishAuthorKwargs],
 ) -> Author: ...
 ```
+
+If `publish_author` needs `request` or `user`, declare them on
+`PublishAuthorKwargs` via [`HttpExtras`](../typing.md#strict-protocols-fail-on-signature-drift).
 
 See [Typing services and selectors](../typing.md) for the full Protocol
 catalogue and notes on type-checker support.
@@ -209,7 +210,7 @@ function:
 ```python
 from typing import Unpack
 from rest_framework_services import (
-    NoKwargs,
+    HttpExtras,
     NoInput,
     ServiceSpec,
     StrictDeleteService,
@@ -222,16 +223,16 @@ class DeleteReasonIn:
     reason: str
 
 
-@implements(StrictDeleteService[DeleteReasonIn, Author, NoKwargs, None])
+@implements(StrictDeleteService[DeleteReasonIn, Author, HttpExtras, None])
 def delete_author(
     *,
     instance: Author,
     data: DeleteReasonIn,
-    request,
-    user,
-    **extras: Unpack[NoKwargs],
+    **extras: Unpack[HttpExtras],
 ) -> None:
-    AuditLog.objects.create(actor=user, target=instance, reason=data.reason)
+    AuditLog.objects.create(
+        actor=extras["user"], target=instance, reason=data.reason
+    )
     instance.delete()
 
 

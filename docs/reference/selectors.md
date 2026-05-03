@@ -20,6 +20,16 @@
 
 ::: rest_framework_services.selectors.strict_output_selector.StrictOutputSelector
 
+## Helpers
+
+### `call_selector`
+
+::: rest_framework_services.selectors.call_selector.call_selector
+
+### `acall_selector`
+
+::: rest_framework_services.selectors.acall_selector.acall_selector
+
 ## Dispatch
 
 ::: rest_framework_services.selectors.utils

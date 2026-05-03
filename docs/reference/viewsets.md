@@ -25,3 +25,5 @@
 ## Custom actions
 
 ::: rest_framework_services.viewsets.decorators.service_action.service_action
+
+::: rest_framework_services.viewsets.decorators.selector_action.selector_action

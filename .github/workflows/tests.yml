@@ -85,4 +85,16 @@ jobs:
       - name: Pin Django ${{ matrix.django-version }}
         run: uv pip install --reinstall-package django "django~=${{ matrix.django-version }}.0"
       - name: pytest
-        run: uv run --no-sync pytest
+        run: |
+          uv run --no-sync pytest \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-py${{ matrix.python-version }}-django${{ matrix.django-version }}
+          path: |
+            coverage.xml
+            htmlcov/
+          if-no-files-found: ignore

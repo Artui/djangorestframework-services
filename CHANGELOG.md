@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-05-03
+
+### Added
+
+- `HttpExtras[UserT]` — generic `TypedDict` for strict services that want
+  `request` / `user` from the framework pool. Subclass it (with your own
+  user model as the parameter) instead of redeclaring those keys on every
+  `ExtraT`. `default=Any` keeps the unparameterised form ergonomic.
+- `call_service` / `acall_service` and `call_selector` / `acall_selector`
+  — HTTP-scope helpers for invoking a service or selector from another
+  view, middleware, or custom action. They build the framework's kwargs
+  pool (deriving `user` from `request.user`) and dispatch via the same
+  signature filter the framework uses internally. Async callables are
+  bridged transparently via `async_to_sync` (sync helper) or awaited
+  (async helper). `request` is required by type — outside HTTP scope,
+  call the service callable directly.
+- `@selector_action` — the GET-side companion to `@service_action`.
+  Wraps a viewset method with selector dispatch (collection or detail),
+  honours `spec.output_serializer` when set, falls back to
+  `view.get_serializer(...)`, and integrates with DRF pagination on the
+  collection path. `ObjectDoesNotExist` / `None` map to 404 on detail.
+- `startserviceapp` now scaffolds a `specs/` package alongside
+  `services/` and `selectors/` — a conventional home for
+  `ServiceSpec` / `SelectorSpec` instances.
+
+### Changed
+
+- **Breaking** (typing only): the strict service / selector Protocols
+  no longer include `request` and `user` in their fixed signatures.
+  `request` and `user` are still placed in the kwargs pool by the
+  framework — services that read them now declare them on their
+  `ExtraT` `TypedDict` (most cleanly via `HttpExtras[YourUser]`), or
+  omit them entirely if unused.
+  - Migration: replace
+    `def fn(*, data, request: Request, user: UserT, **extras: Unpack[MyKw])`
+    with either
+    `def fn(*, data, **extras: Unpack[MyKw])` (drop the params) or
+    `class MyKw(HttpExtras[YourUser]): ...` followed by
+    `def fn(*, data, **extras: Unpack[MyKw])` (extras carries
+    `request` / `user`).
+  - Lenient Protocols are unchanged — `**kwargs: Any` already lets
+    services omit `request` / `user`.
+- Stale doc reference removed: `docs/recipes/service-action.md` no
+  longer lists `view` as a pool key (it was never in the pool — see
+  `views/mutation/utils.py`).
+- README and the install snippets in the docs now show `uv add`
+  alongside `pip install`.
+
+### CI
+
+- The matrix `test` job now uploads a per-cell coverage artifact
+  (`coverage-py<py>-django<dj>` with `coverage.xml` and the `htmlcov/`
+  HTML report) for download from the workflow run. The 100% gate is
+  unchanged.
+
 ## [0.8.1] — 2026-05-01
 
 ### Fixed
@@ -411,7 +466,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Artui/djangorestframework-services/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/Artui/djangorestframework-services/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Artui/djangorestframework-services/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Artui/djangorestframework-services/compare/v0.6.1...v0.7.0

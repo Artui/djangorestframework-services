@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol, TypeVar
 
-from rest_framework.request import Request
 from typing_extensions import Unpack
-
-from rest_framework_services.services.utils import UserT
 
 InputT = TypeVar("InputT")
 InstanceT = TypeVar("InstanceT")
@@ -18,10 +15,11 @@ ExtraT = TypeVar("ExtraT")
 class StrictUpdateService(Protocol[InputT, InstanceT, ExtraT, ResultT]):
     """Strict shape for an update-action service.
 
-    See :class:`StrictCreateService` for rationale. Pin the extras delivered
-    by ``ServiceSpec.kwargs`` via a ``TypedDict``::
+    See :class:`StrictCreateService` for rationale and the ``request`` /
+    ``user`` discussion. Pin the extras delivered by ``ServiceSpec.kwargs``
+    via a ``TypedDict``::
 
-        class UpdateAuthorKwargs(TypedDict):
+        class UpdateAuthorKwargs(HttpExtras[MyUser]):
             tenant_id: int
 
         @implements(StrictUpdateService[AuthorIn, Author, UpdateAuthorKwargs, Author])
@@ -29,8 +27,6 @@ class StrictUpdateService(Protocol[InputT, InstanceT, ExtraT, ResultT]):
             *,
             instance: Author,
             data: AuthorIn,
-            request: HttpRequest,
-            user: UserT,
             **extras: Unpack[UpdateAuthorKwargs],
         ) -> Author: ...
     """
@@ -40,7 +36,5 @@ class StrictUpdateService(Protocol[InputT, InstanceT, ExtraT, ResultT]):
         *,
         instance: InstanceT,
         data: InputT,
-        request: Request,
-        user: UserT,
         **extras: Unpack[ExtraT],
     ) -> ResultT: ...

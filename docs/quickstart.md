@@ -11,6 +11,8 @@ which the library already depends on.
 
 ```bash
 pip install djangorestframework-services
+# or, with uv:
+uv add djangorestframework-services
 ```
 
 Add nothing to `INSTALLED_APPS` — there are no models or migrations.
