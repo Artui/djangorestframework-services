@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol, TypeVar
 
-from rest_framework.request import Request
 from typing_extensions import Unpack
-
-from rest_framework_services.services.utils import UserT
 
 InputT = TypeVar("InputT")
 InstanceT = TypeVar("InstanceT")
@@ -18,8 +15,9 @@ ExtraT = TypeVar("ExtraT")
 class StrictDeleteService(Protocol[InputT, InstanceT, ExtraT, ResultT]):
     """Strict shape for a delete-action service.
 
-    See :class:`StrictCreateService` for rationale. Most delete services
-    return ``None`` — annotate ``ResultT`` as ``None`` and pair with
+    See :class:`StrictCreateService` for rationale and the ``request`` /
+    ``user`` discussion. Most delete services return ``None`` — annotate
+    ``ResultT`` as ``None`` and pair with
     :func:`~rest_framework_services.implements`.
 
     Type parameter ordering matches :class:`StrictCreateService` /
@@ -29,15 +27,13 @@ class StrictDeleteService(Protocol[InputT, InstanceT, ExtraT, ResultT]):
     :class:`~rest_framework_services.types.no_input.NoInput` and rely on
     the Protocol-level :data:`Ellipsis` default for ``data``::
 
-        class DeleteAuthorKwargs(TypedDict):
+        class DeleteAuthorKwargs(HttpExtras[MyUser]):
             reason: str
 
         @implements(StrictDeleteService[NoInput, Author, NoKwargs, None])
         def delete_author(
             *,
             instance: Author,
-            request: HttpRequest,
-            user: UserT,
             **extras: Unpack[NoKwargs],
         ) -> None: ...
 
@@ -49,8 +45,6 @@ class StrictDeleteService(Protocol[InputT, InstanceT, ExtraT, ResultT]):
             *,
             instance: Author,
             data: ReasonIn,
-            request: HttpRequest,
-            user: UserT,
             **extras: Unpack[DeleteAuthorKwargs],
         ) -> None: ...
     """
@@ -60,7 +54,5 @@ class StrictDeleteService(Protocol[InputT, InstanceT, ExtraT, ResultT]):
         *,
         instance: InstanceT,
         data: InputT = ...,  # type: ignore[assignment]
-        request: Request,
-        user: UserT,
         **extras: Unpack[ExtraT],
     ) -> ResultT: ...

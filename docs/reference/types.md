@@ -27,3 +27,7 @@
 ## `NoInput`
 
 ::: rest_framework_services.types.no_input.NoInput
+
+## `HttpExtras`
+
+::: rest_framework_services.types.http_extras.HttpExtras

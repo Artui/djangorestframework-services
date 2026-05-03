@@ -1,0 +1,65 @@
+"""Tests for ``acall_service``."""
+
+from __future__ import annotations
+
+from typing import Any
+
+import pytest
+from rest_framework.test import APIRequestFactory
+
+from rest_framework_services import acall_service
+
+
+def _build_request(*, user: Any) -> Any:
+    request = APIRequestFactory().get("/")
+    request.user = user
+    return request
+
+
+@pytest.mark.asyncio
+async def test_async_service_awaited() -> None:
+    async def aservice(*, request: Any, user: Any, value: int) -> int:
+        assert request is not None
+        assert user == "alice"
+        return value * 2
+
+    result = await acall_service(aservice, request=_build_request(user="alice"), value=5)
+    assert result == 10
+
+
+@pytest.mark.asyncio
+async def test_sync_service_called_inline() -> None:
+    def service(*, value: int) -> int:
+        return value + 1
+
+    result = await acall_service(service, request=_build_request(user="x"), value=4)
+    assert result == 5
+
+
+@pytest.mark.asyncio
+async def test_data_and_instance_pass_through() -> None:
+    captured: dict[str, Any] = {}
+
+    async def aservice(*, data: Any, instance: Any) -> None:
+        captured["data"] = data
+        captured["instance"] = instance
+
+    await acall_service(
+        aservice,
+        request=_build_request(user="x"),
+        data={"k": 1},
+        instance="inst",
+    )
+
+    assert captured == {"data": {"k": 1}, "instance": "inst"}
+
+
+@pytest.mark.asyncio
+async def test_signature_filter_drops_undeclared_keys() -> None:
+    async def aservice(*, tenant_id: int) -> int:
+        return tenant_id
+
+    result = await acall_service(
+        aservice, request=_build_request(user="x"), tenant_id=7, ignored="zz"
+    )
+    assert result == 7

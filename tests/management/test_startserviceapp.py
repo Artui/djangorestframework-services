@@ -12,6 +12,7 @@ EXPECTED_PACKAGES: tuple[str, ...] = (
     "views",
     "services",
     "selectors",
+    "specs",
     "validators",
     "serializers",
     "utils",

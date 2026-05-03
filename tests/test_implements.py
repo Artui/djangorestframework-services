@@ -8,14 +8,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from rest_framework.request import Request
 from typing_extensions import TypedDict, Unpack
 
 from rest_framework_services import (
     StrictCreateService,
     implements,
 )
-from rest_framework_services.services.utils import UserT
 
 
 @dataclass
@@ -37,8 +35,6 @@ def test_implements_decorator_returns_function_unchanged() -> None:
     def create_author(
         *,
         data: _AuthorIn,
-        request: Request,
-        user: UserT,
         **extras: Unpack[_CreateExtras],
     ) -> _Author:
         return _Author(id=extras["tenant_id"], name=data.name)
@@ -53,8 +49,6 @@ def test_implements_direct_call_is_identity() -> None:
     def fn(
         *,
         data: _AuthorIn,
-        request: Request,
-        user: UserT,
         **extras: Unpack[_CreateExtras],
     ) -> _Author:
         return _Author(id=extras["tenant_id"], name=data.name)

@@ -3,7 +3,7 @@
 from rest_framework_services.viewsets.action_serializer_resolver import (
     ActionSerializerResolver,
 )
-from rest_framework_services.viewsets.decorators import service_action
+from rest_framework_services.viewsets.decorators import selector_action, service_action
 from rest_framework_services.viewsets.selector_list_mixin import SelectorListMixin
 from rest_framework_services.viewsets.selector_retrieve_mixin import (
     SelectorRetrieveMixin,
@@ -23,5 +23,6 @@ __all__ = [
     "ServiceDestroyMixin",
     "ServiceUpdateMixin",
     "ServiceViewSet",
+    "selector_action",
     "service_action",
 ]

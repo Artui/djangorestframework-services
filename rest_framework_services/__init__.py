@@ -25,6 +25,8 @@ from rest_framework_services.selectors import (
     StrictListSelector,
     StrictOutputSelector,
     StrictRetrieveSelector,
+    acall_selector,
+    call_selector,
 )
 from rest_framework_services.services import (
     CreateService,
@@ -33,11 +35,14 @@ from rest_framework_services.services import (
     StrictDeleteService,
     StrictUpdateService,
     UpdateService,
+    acall_service,
+    call_service,
 )
 from rest_framework_services.types import (
     UNSET,
     ChangeResult,
     FieldChange,
+    HttpExtras,
     NoInput,
     NoKwargs,
     SelectorSpec,
@@ -61,6 +66,7 @@ from rest_framework_services.viewsets import (
     ServiceDestroyMixin,
     ServiceUpdateMixin,
     ServiceViewSet,
+    selector_action,
     service_action,
 )
 
@@ -71,6 +77,7 @@ __all__ = [
     "CreateService",
     "DeleteService",
     "FieldChange",
+    "HttpExtras",
     "ListSelector",
     "MutationFlowMixin",
     "NoInput",
@@ -103,11 +110,16 @@ __all__ = [
     "StrictUpdateService",
     "UNSET",
     "UpdateService",
+    "acall_selector",
+    "acall_service",
     "acreate_from_input",
     "apply_input",
     "aupdate_from_input",
+    "call_selector",
+    "call_service",
     "create_from_input",
     "implements",
+    "selector_action",
     "service_action",
     "update_from_input",
 ]
