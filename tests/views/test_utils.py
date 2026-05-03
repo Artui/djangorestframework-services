@@ -11,6 +11,7 @@ from rest_framework_services.views.utils import (
     resolve_callable_kwargs,
     resolve_extra_kwargs,
     resolve_input_extras,
+    resolve_serializer_context,
 )
 
 
@@ -243,3 +244,84 @@ class TestResolveInputExtras:
         )
         assert captured["view"] is view
         assert captured["request"] is request
+
+
+class _ViewWithDrfContext:
+    def get_serializer_context(self) -> dict[str, Any]:
+        return {"a": "drf", "shared": "drf"}
+
+
+class _ViewWithDirection(_ViewWithDrfContext):
+    def get_input_serializer_context(self) -> dict[str, Any]:
+        return {"b": "direction", "shared": "direction"}
+
+
+class _ViewWithDirectionAndAction(_ViewWithDirection):
+    def get_create_input_serializer_context(self) -> dict[str, Any]:
+        return {"c": "action", "shared": "action"}
+
+
+class TestResolveSerializerContext:
+    def test_drf_default_only(self) -> None:
+        result = resolve_serializer_context(
+            _ViewWithDrfContext(),
+            _request(),
+            direction_hook="get_input_serializer_context",
+            action_hook=None,
+        )
+        assert result == {"a": "drf", "shared": "drf"}
+
+    def test_directional_overrides_drf(self) -> None:
+        result = resolve_serializer_context(
+            _ViewWithDirection(),
+            _request(),
+            direction_hook="get_input_serializer_context",
+            action_hook=None,
+        )
+        assert result == {"a": "drf", "b": "direction", "shared": "direction"}
+
+    def test_action_overrides_directional_and_drf(self) -> None:
+        result = resolve_serializer_context(
+            _ViewWithDirectionAndAction(),
+            _request(),
+            direction_hook="get_input_serializer_context",
+            action_hook="get_create_input_serializer_context",
+        )
+        assert result == {
+            "a": "drf",
+            "b": "direction",
+            "c": "action",
+            "shared": "action",
+        }
+
+    def test_action_hook_missing_method_falls_back(self) -> None:
+        result = resolve_serializer_context(
+            _ViewWithDirection(),
+            _request(),
+            direction_hook="get_input_serializer_context",
+            action_hook="get_nonexistent_input_serializer_context",
+        )
+        assert result == {"a": "drf", "b": "direction", "shared": "direction"}
+
+    def test_directional_hook_absent_uses_drf_alone(self) -> None:
+        # Plain ViewSet path: no directional hook defined; resolver falls back
+        # to DRF default + optional per-action override.
+        result = resolve_serializer_context(
+            _ViewWithDrfContext(),
+            _request(),
+            direction_hook="get_output_serializer_context",
+            action_hook=None,
+        )
+        assert result == {"a": "drf", "shared": "drf"}
+
+    def test_drf_context_dict_is_copied(self) -> None:
+        view = _ViewWithDrfContext()
+        result = resolve_serializer_context(
+            view,
+            _request(),
+            direction_hook="get_input_serializer_context",
+            action_hook=None,
+        )
+        result["mutated"] = True
+        # The view's get_serializer_context() must not have been mutated.
+        assert "mutated" not in view.get_serializer_context()

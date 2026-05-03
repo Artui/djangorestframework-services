@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- DRF-style serializer context propagation for both input and output
+  serializers in service-backed views, viewset mixins, `@service_action`,
+  and `@selector_action`. Three layers, later wins on overlap: DRF's
+  `get_serializer_context()` → directional fallback
+  (`get_input_serializer_context` / `get_output_serializer_context`,
+  defaulting to `get_serializer_context()`) → per-action override
+  (`get_<action>_input_serializer_context` /
+  `get_<action>_output_serializer_context`, viewsets only). Standalone
+  `SelectorListView` / `SelectorRetrieveView` already received DRF
+  context through `self.get_serializer(...)` and continue to do so.
+
 ## [0.9.0] — 2026-05-03
 
 ### Added

@@ -16,6 +16,7 @@ from rest_framework_services.selectors.utils import (
 )
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.spec_validation import validate_selector_spec
+from rest_framework_services.views.utils import resolve_serializer_context
 
 
 def selector_action(
@@ -96,7 +97,21 @@ def _build_serializer(
     selector views' override semantics); otherwise the viewset's
     ``get_serializer(...)`` is used so existing
     :class:`ActionSerializerResolver` wiring continues to apply.
+
+    Context flows through the standard three-layer chain:
+    DRF default → ``get_output_serializer_context`` (if defined) →
+    ``get_<action>_output_serializer_context`` (if defined). The directional
+    hook is optional, so plain ``ViewSet`` subclasses get DRF default
+    context plus any per-action override they declare.
     """
     if spec.output_serializer is not None:
-        return spec.output_serializer(instance, many=many, context={"request": view.request})
+        action: str | None = getattr(view, "action", None)
+        action_hook: str | None = f"get_{action}_output_serializer_context" if action else None
+        context = resolve_serializer_context(
+            view,
+            view.request,
+            direction_hook="get_output_serializer_context",
+            action_hook=action_hook,
+        )
+        return spec.output_serializer(instance, many=many, context=context)
     return view.get_serializer(instance, many=many)

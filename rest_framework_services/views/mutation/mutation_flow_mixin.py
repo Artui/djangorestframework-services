@@ -36,6 +36,23 @@ class MutationFlowMixin:
     1. ``get_input_data(self, request)`` — global fallback on the view.
     2. ``get_<action>_input_data(self, request)`` — per-action override.
     3. ``ServiceSpec.input_data`` — per-spec callable.
+
+    Two further three-layer chains feed the ``context=`` argument passed to
+    the input serializer (during validation) and the output serializer
+    (during response rendering):
+
+    1. ``get_serializer_context(self)`` — DRF's default
+       (request, view, format).
+    2. ``get_input_serializer_context(self)`` /
+       ``get_output_serializer_context(self)`` — directional fallback;
+       defaults to ``self.get_serializer_context()`` so a single
+       ``get_serializer_context`` override flows into both directions.
+    3. ``get_<action>_input_serializer_context(self)`` /
+       ``get_<action>_output_serializer_context(self)`` — per-action
+       override (viewsets only; ``self.action`` must be set).
+
+    Each layer's result is merged with ``dict.update`` so the more specific
+    hook wins on overlapping keys.
     """
 
     def get_service_kwargs(self) -> dict[str, Any]:
@@ -45,6 +62,25 @@ class MutationFlowMixin:
     def get_input_data(self, request: Request) -> Mapping[str, Any]:
         """Hook for extras merged on top of ``request.data`` before validation."""
         return {}
+
+    def get_input_serializer_context(self) -> dict[str, Any]:
+        """Hook for the ``context=`` dict passed to the *input* serializer.
+
+        Defaults to :meth:`get_serializer_context` so overriding the
+        DRF-standard hook flows into the input-validation path automatically.
+        Override here to inject keys visible only during input validation.
+        """
+        return self.get_serializer_context()  # ty: ignore[unresolved-attribute]
+
+    def get_output_serializer_context(self) -> dict[str, Any]:
+        """Hook for the ``context=`` dict passed to the *output* serializer.
+
+        Defaults to :meth:`get_serializer_context` so overriding the
+        DRF-standard hook flows into the response-rendering path
+        automatically. Override here to inject keys visible only during
+        response rendering.
+        """
+        return self.get_serializer_context()  # ty: ignore[unresolved-attribute]
 
     def _run_mutation(
         self,
