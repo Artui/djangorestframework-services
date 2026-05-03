@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-05-03
+
 ### Added
 
 - DRF-style serializer context propagation for both input and output
@@ -479,7 +481,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/Artui/djangorestframework-services/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Artui/djangorestframework-services/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/Artui/djangorestframework-services/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Artui/djangorestframework-services/compare/v0.7.0...v0.8.0
