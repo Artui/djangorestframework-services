@@ -86,6 +86,43 @@ def resolve_input_extras(
     return extras
 
 
+def resolve_serializer_context(
+    view: Any,
+    request: Request,
+    *,
+    direction_hook: str,
+    action_hook: str | None,
+) -> dict[str, Any]:
+    """Build the serializer context dict for one direction (input or output).
+
+    Three layers, applied in order so that the more specific override the
+    more general:
+
+    1. ``view.get_serializer_context()`` — DRF's default, available on every
+       :class:`~rest_framework.generics.GenericAPIView` (returns ``request``,
+       ``view``, ``format``).
+    2. ``view.<direction_hook>()`` — library directional fallback
+       (``get_input_serializer_context`` / ``get_output_serializer_context``).
+       Skipped when the method is absent, so plain DRF viewsets work unchanged.
+    3. ``view.<action_hook>()`` — per-action override on the view, e.g.
+       ``get_create_input_serializer_context`` /
+       ``get_list_output_serializer_context``. Skipped when ``action_hook``
+       is ``None`` (standalone single-purpose views) or the method is absent.
+
+    Each layer's result is merged with ``dict.update``, so the per-action
+    hook has the final say on overlapping keys.
+    """
+    context: dict[str, Any] = dict(view.get_serializer_context())
+    direction = getattr(view, direction_hook, None)
+    if direction is not None:
+        context.update(direction())
+    if action_hook is not None:
+        hook = getattr(view, action_hook, None)
+        if hook is not None:
+            context.update(hook())
+    return context
+
+
 def get_class_attr(view: Any, name: str) -> Any:
     """Return the named class attribute without instance binding.
 

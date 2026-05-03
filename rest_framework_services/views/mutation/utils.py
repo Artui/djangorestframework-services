@@ -45,6 +45,7 @@ from rest_framework_services.views.utils import (
     resolve_callable_kwargs,
     resolve_extra_kwargs,
     resolve_input_extras,
+    resolve_serializer_context,
 )
 
 
@@ -62,6 +63,7 @@ def validate_input(
     *,
     partial: bool = False,
     extra_data: Mapping[str, Any] | None = None,
+    context: dict[str, Any] | None = None,
 ) -> Any:
     """Validate ``request.data`` against ``input_serializer``; ``None`` if absent.
 
@@ -79,6 +81,10 @@ def validate_input(
     overlap. This is the seam used by the ``input_data`` resolver chain
     to lift URL kwargs into serializer input.
 
+    ``context`` (when supplied) is forwarded to the serializer's ``context=``
+    kwarg so DRF-style ``self.context["request"]`` / ``["view"]`` lookups
+    work inside validators and fields.
+
     The serializer's ``validated_data`` is returned (never ``.save()``); the
     service is responsible for persistence.
     """
@@ -88,13 +94,15 @@ def validate_input(
         data: Any = {**request.data, **extra_data}
     else:
         data = request.data
+    serializer_kwargs: dict[str, Any] = {"data": data, "partial": partial}
+    if context is not None:
+        serializer_kwargs["context"] = context
     if isinstance(input_serializer, type) and issubclass(input_serializer, Serializer):
-        serializer: Serializer = input_serializer(data=data, partial=partial)
+        serializer: Serializer = input_serializer(**serializer_kwargs)
     elif is_dataclass(input_serializer):
         serializer = DataclassSerializer(
             dataclass=input_serializer,
-            data=data,
-            partial=partial,
+            **serializer_kwargs,
         )
     else:
         raise TypeError(
@@ -137,6 +145,8 @@ def _execute_mutation(
     instance: Any,
     extra_kwargs: dict[str, Any] | None = None,
     extra_input_data: Mapping[str, Any] | None = None,
+    input_context: dict[str, Any] | None = None,
+    output_context: dict[str, Any] | None = None,
     partial: bool = False,
 ) -> Response:
     """Internal flow runner shared by ``MutationFlowMixin`` and ``@service_action``.
@@ -156,7 +166,11 @@ def _execute_mutation(
     through ``ServiceSpec.kwargs`` / ``SelectorSpec.kwargs`` instead.
     """
     data: Any = validate_input(
-        request, input_serializer, partial=partial, extra_data=extra_input_data
+        request,
+        input_serializer,
+        partial=partial,
+        extra_data=extra_input_data,
+        context=input_context,
     )
     pool: dict[str, Any] = {
         "request": request,
@@ -194,7 +208,7 @@ def _execute_mutation(
         result = instance
 
     if output_serializer is not None:
-        serializer = output_serializer(result, context={"request": request})
+        serializer = output_serializer(result, context=output_context or {})
         return Response(serializer.data, status=success_status)
     if result is None:
         return Response(status=drf_status.HTTP_204_NO_CONTENT)
@@ -221,6 +235,12 @@ def dispatch_mutation_for_spec(
     action: str | None = getattr(view, "action", None)
     action_kwargs_hook: str | None = f"get_{action}_service_kwargs" if action else None
     action_input_hook: str | None = f"get_{action}_input_data" if action else None
+    action_input_context_hook: str | None = (
+        f"get_{action}_input_serializer_context" if action else None
+    )
+    action_output_context_hook: str | None = (
+        f"get_{action}_output_serializer_context" if action else None
+    )
     extras = resolve_extra_kwargs(
         view,
         request,
@@ -235,6 +255,18 @@ def dispatch_mutation_for_spec(
         action_hook=action_input_hook,
         catch_all_hook="get_input_data",
     )
+    input_context = resolve_serializer_context(
+        view,
+        request,
+        direction_hook="get_input_serializer_context",
+        action_hook=action_input_context_hook,
+    )
+    output_context = resolve_serializer_context(
+        view,
+        request,
+        direction_hook="get_output_serializer_context",
+        action_hook=action_output_context_hook,
+    )
     return _execute_mutation(
         view,
         request,
@@ -247,5 +279,7 @@ def dispatch_mutation_for_spec(
         instance=instance,
         extra_kwargs=extras,
         extra_input_data=input_extras,
+        input_context=input_context,
+        output_context=output_context,
         partial=partial,
     )

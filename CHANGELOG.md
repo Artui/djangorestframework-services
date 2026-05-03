@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-05-03
+
+### Added
+
+- DRF-style serializer context propagation for both input and output
+  serializers in service-backed views, viewset mixins, `@service_action`,
+  and `@selector_action`. Three layers, later wins on overlap: DRF's
+  `get_serializer_context()` → directional fallback
+  (`get_input_serializer_context` / `get_output_serializer_context`,
+  defaulting to `get_serializer_context()`) → per-action override
+  (`get_<action>_input_serializer_context` /
+  `get_<action>_output_serializer_context`, viewsets only). Standalone
+  `SelectorListView` / `SelectorRetrieveView` already received DRF
+  context through `self.get_serializer(...)` and continue to do so.
+
 ## [0.9.0] — 2026-05-03
 
 ### Added
@@ -466,7 +481,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/Artui/djangorestframework-services/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Artui/djangorestframework-services/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/Artui/djangorestframework-services/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Artui/djangorestframework-services/compare/v0.7.0...v0.8.0
