@@ -219,8 +219,15 @@ All of them accept:
   names.
 - `exclude_fields: list[str]` — fields to drop from the input before
   applying.
-- `m2m: dict[str, Any]` — many-to-many assignments applied post-save
-  (create/update only).
+
+`create_from_input` and `update_from_input` (and their async siblings)
+also accept `m2m: dict[str, Any]` — many-to-many assignments applied
+post-save. `update_from_input` additionally accepts
+`update_fields: bool | list[str]` (default `True`) — when truthy,
+`save()` is called with `update_fields=<changed columns>` and any
+`auto_now=True` fields are added automatically; pass `False` for a full
+save or an explicit list to control exactly which columns are written.
+`apply_input` doesn't save, so it has neither.
 
 All of them return a `ChangeResult`:
 
@@ -648,6 +655,7 @@ billing/
 ├── views/__init__.py
 ├── services/__init__.py
 ├── selectors/__init__.py
+├── specs/__init__.py
 ├── validators/__init__.py
 ├── serializers/__init__.py
 ├── utils/__init__.py

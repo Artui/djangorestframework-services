@@ -6,19 +6,24 @@ signatures from the source — when in doubt, follow the source link
 
 - **[Views](views.md)** — `ServiceCreateView`, `ServiceUpdateView`,
   `ServiceDeleteView`, `SelectorListView`, `SelectorRetrieveView`,
-  `MutationFlowMixin`, kwarg-resolution helpers.
+  `MutationFlowMixin`, `ServiceView` Protocol, kwarg-resolution helpers,
+  spec validation.
 - **[Viewsets](viewsets.md)** — `ServiceViewSet`, `SelectorViewSet`,
-  per-action mixins, `MultiSerializerMixin`, `@service_action`.
+  per-action mixins, `ActionSerializerResolver`, `@service_action`,
+  `@selector_action`.
 - **[Mutations](mutations.md)** — `apply_input`, `create_from_input`,
   `update_from_input` and async siblings.
-- **[Services](services.md)** — lenient and strict service Protocols and
-  the `implements` decorator that asserts a callable matches them.
-- **[Selectors](selectors.md)** — `Selector` and `AsyncSelector`
-  Protocols.
-- **[Types](types.md)** — `ServiceSpec`, `ChangeResult`,
-  `FieldChange`, `UNSET`.
+- **[Services](services.md)** — lenient and strict service Protocols,
+  the `implements` decorator, and the `call_service` / `acall_service`
+  HTTP-scope helpers.
+- **[Selectors](selectors.md)** — lenient and strict selector Protocols,
+  and the `call_selector` / `acall_selector` HTTP-scope helpers.
+- **[Types](types.md)** — `ServiceSpec`, `SelectorSpec`, `ChangeResult`,
+  `FieldChange`, `UNSET`, `NoInput`, `NoKwargs`, `HttpExtras`.
 - **[Exceptions](exceptions.md)** — `ServiceError`,
   `ServiceValidationError`.
+- **[OpenAPI](openapi.md)** — `enable_openapi`, `ServiceAutoSchema`,
+  `ServiceErrorSerializer` (opt-in `drf-spectacular` adapter).
 
 ## Public surface
 
@@ -26,8 +31,8 @@ The top-level `rest_framework_services` package re-exports the user-
 facing API. Everything below is supported, but deeper imports
 (`rest_framework_services.viewsets`, `rest_framework_services.views`,
 `rest_framework_services.mutations`, `rest_framework_services.types`,
-`rest_framework_services.exceptions`, `rest_framework_services.selectors`)
-are stable too.
+`rest_framework_services.exceptions`, `rest_framework_services.selectors`,
+`rest_framework_services.services`) are stable too.
 
 ```python
 from rest_framework_services import (
@@ -46,24 +51,46 @@ from rest_framework_services import (
     ServiceDestroyMixin,
     SelectorListMixin,
     SelectorRetrieveMixin,
-    MultiSerializerMixin,
+    ActionSerializerResolver,
     service_action,
+    selector_action,
     # mutations
     apply_input,
     create_from_input,
     update_from_input,
     acreate_from_input,
     aupdate_from_input,
+    # services
+    CreateService,
+    UpdateService,
+    DeleteService,
+    StrictCreateService,
+    StrictUpdateService,
+    StrictDeleteService,
+    call_service,
+    acall_service,
+    implements,
     # selectors
     Selector,
     AsyncSelector,
-    # services
-    implements,
+    ListSelector,
+    RetrieveSelector,
+    OutputSelector,
+    StrictListSelector,
+    StrictRetrieveSelector,
+    StrictOutputSelector,
+    call_selector,
+    acall_selector,
     # types
     ServiceSpec,
+    SelectorSpec,
+    ServiceView,
     ChangeResult,
     FieldChange,
     UNSET,
+    NoInput,
+    NoKwargs,
+    HttpExtras,
     # exceptions
     ServiceError,
     ServiceValidationError,

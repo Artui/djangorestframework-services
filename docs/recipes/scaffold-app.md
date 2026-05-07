@@ -33,6 +33,7 @@ billing/
 ├── views/__init__.py
 ├── services/__init__.py
 ├── selectors/__init__.py
+├── specs/__init__.py
 ├── validators/__init__.py
 ├── serializers/__init__.py
 ├── utils/__init__.py
@@ -45,8 +46,11 @@ Differences vs. plain `startapp`:
 - `models/` and `views/` are **packages**, not single files. The single-
   file shape is a poor fit when each model and each view is its own
   unit of work.
-- `services/`, `selectors/`, `validators/`, `serializers/`, `utils/`
-  are added as packages alongside.
+- `services/`, `selectors/`, `specs/`, `validators/`, `serializers/`,
+  `utils/` are added as packages alongside.
+- `specs/` is a conventional home for `ServiceSpec` / `SelectorSpec`
+  instances — the wiring that pairs a service or selector with its
+  serializers and per-action kwargs provider.
 - An empty `urls.py` is included — `startapp` doesn't ship one.
 
 ## A note on `validators/`
