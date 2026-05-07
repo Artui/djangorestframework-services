@@ -12,15 +12,12 @@ surprises and plus a typed change record.
 | `acreate_from_input` | async sibling of `create_from_input` |
 | `aupdate_from_input` | async sibling of `update_from_input` |
 
-All sync helpers wrap the same `apply_input`; the async helpers use
-Django 4.2+ `asave()` / `aset()` and are otherwise identical in
-contract.
+The async helpers use Django 4.2+ `asave()` / `aset()`; their kwargs and
+return shape are otherwise identical to their sync siblings.
 
-## Common signature
+## Shared kwargs
 
-```python
-helper(target, data, *, field_map=None, exclude_fields=None, m2m=None)
-```
+Every helper takes:
 
 - **`data`** — a dataclass instance, plain dict, or any object with
   `__dict__`. The helper iterates the public attributes / keys.
@@ -30,9 +27,23 @@ helper(target, data, *, field_map=None, exclude_fields=None, m2m=None)
 - **`exclude_fields: list[str] | None`** — fields to drop from the input
   before applying. Use it to keep server-controlled columns
   (`created_by`, `updated_at`) out of write paths.
+
+`create_from_input` and `update_from_input` (and their async siblings)
+also take:
+
 - **`m2m: dict[str, Any] | None`** — many-to-many assignments applied
-  *post-save* (create / update only). Each value is passed to the
-  manager's `set()`.
+  *post-save*. Each value is passed to the manager's `set()`.
+
+`update_from_input` (and `aupdate_from_input`) additionally take:
+
+- **`update_fields: bool | list[str]`** (default `True`) — when truthy,
+  `save()` is called with `update_fields=<changed columns>` and any
+  `auto_now=True` fields are added automatically. Pass `False` for a
+  full save, or an explicit list to control exactly which columns are
+  written (no auto-injection in that case).
+
+`apply_input` does not save and therefore takes no `m2m` /
+`update_fields` kwargs.
 
 ## `apply_input` — set attributes, don't save
 

@@ -54,9 +54,10 @@ needs:
 
 ```python
 @dataclass(frozen=True)
-class SelectorSpec:
-    selector: Callable | None = None
+class SelectorSpec(Generic[ResultT, ExtraT]):
+    selector: Callable[..., ResultT] | None = None
     output_serializer: type[Serializer] | None = None
+    kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
 ```
 
 - **`selector`** — the callable invoked by `get_queryset()` (list) or
@@ -65,6 +66,14 @@ class SelectorSpec:
 - **`output_serializer`** — a DRF `Serializer` subclass used by
   `get_serializer_class()` for this action. `None` falls back to DRF's
   standard `serializer_class`.
+- **`kwargs`** — callable returning extra kwargs to merge into the pool
+  the selector receives. The most-specific level of the kwargs
+  resolution chain; co-located with the selector it feeds. Receives
+  the view (typed as the narrow `ServiceView` Protocol) and the
+  current `Request`. See the [extra-kwargs recipe](recipes/extra-kwargs.md).
+
+Generic parameters `ResultT` / `ExtraT` default to `Any`, so
+`SelectorSpec(selector=fn)` keeps working unparameterized.
 
 ## `ServiceSpec`
 
@@ -73,13 +82,15 @@ needs:
 
 ```python
 @dataclass(frozen=True)
-class ServiceSpec:
-    service: Callable
-    input_serializer: type[Serializer] | type | None = None
+class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
+    service: Callable[..., ResultT]
+    input_serializer: type | None = None
     output_serializer: type[Serializer] | None = None
-    output_selector: Callable | None = None
+    output_selector: Callable[..., Any] | None = None
     atomic: bool = True
     success_status: int | None = None
+    kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
+    input_data: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
 ```
 
 - **`service`** — the callable to invoke.
@@ -96,6 +107,17 @@ class ServiceSpec:
   (defaults `True`).
 - **`success_status`** — override the HTTP status (defaults to
   `201` for create, `200` for update, `204` for delete).
+- **`kwargs`** — callable returning extra kwargs to merge into the pool
+  the service receives. The most-specific level of the kwargs
+  resolution chain; co-located with the service it feeds.
+- **`input_data`** — callable returning a mapping merged on top of
+  `request.data` *before* the `input_serializer` validates it. Useful
+  for lifting URL kwargs (e.g. parent IDs from nested routes) into
+  fields the serializer can cross-validate. Server-provided keys win
+  on conflict.
+
+Generic parameters `InputT` / `ResultT` / `ExtraT` default to `Any`, so
+`ServiceSpec(service=fn)` keeps working unparameterized.
 
 ## Dispatch
 

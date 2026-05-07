@@ -87,7 +87,6 @@ historically had only one hook (`get_service_kwargs`), forcing branches like
 
 ```python
 from rest_framework_services import ServiceSpec, ServiceViewSet
-from rest_framework_services.types.service_spec import ServiceSpec  # generic
 from typing import TypedDict
 
 class CreateAuthorKwargs(TypedDict):
