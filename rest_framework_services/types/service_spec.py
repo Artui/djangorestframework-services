@@ -20,7 +20,7 @@ ExtraT = TypeVar("ExtraT", bound=Mapping[str, object])
 class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     """All wiring for a single mutation action in one record.
 
-    Used as a value in ``ServiceViewSet.service_specs`` and as the ``spec=``
+    Used as a value in ``ServiceViewSet.action_specs`` and as the ``spec=``
     argument to :func:`service_action` / :class:`ServiceCreateView` /
     :class:`ServiceUpdateView` / :class:`ServiceDeleteView`.
 

@@ -109,8 +109,14 @@ declares from a known pool:
 | `instance` | `self.get_object()` (update / destroy only) |
 | `request` | `self.request` |
 | `user` | `self.request.user` |
-| `view` | `self` |
-| extras | `self.get_service_kwargs()` / `self.get_selector_kwargs()` |
+| extras | `self.get_service_kwargs()` / `self.get_selector_kwargs()`, plus per-action and per-spec hooks |
+
+`view` is intentionally not in the pool — services and selectors are
+plain business logic and shouldn't reach back into the calling view. When
+a callable needs view state (URL kwargs, action name, etc.), pipe it
+through `ServiceSpec.kwargs` / `SelectorSpec.kwargs` (which receive a
+narrow `ServiceView`) or `get_<action>_*_kwargs` instead. See
+[Pass extra kwargs](recipes/extra-kwargs.md).
 
 If the callable declares `**kwargs`, the entire pool is forwarded. The
 implementation lives in

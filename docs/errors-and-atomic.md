@@ -74,22 +74,15 @@ view, you catch `ServiceError` / `ServiceValidationError` directly.
 ## Atomic transactions
 
 By default every service call is wrapped in `transaction.atomic()`.
-Opt out per spec:
-
-```python
-ServiceSpec(
-    service=run_import,
-    input_serializer=ImportInput,
-    atomic=False,                # the import service handles its own savepoints
-)
-```
-
-Or per view (the spec's `atomic` value still wins if both are set):
+Opt out per spec — `atomic` lives on `ServiceSpec`:
 
 ```python
 class ImportView(ServiceCreateView):
-    spec = ServiceSpec(service=run_import, input_serializer=ImportInput)
-    atomic = False
+    spec = ServiceSpec(
+        service=run_import,
+        input_serializer=ImportInput,
+        atomic=False,            # the import service handles its own savepoints
+    )
 ```
 
 When to opt out:

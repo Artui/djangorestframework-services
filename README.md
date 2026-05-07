@@ -168,10 +168,13 @@ There are three building blocks:
 | **View / Viewset** | DRF view that wires a service or selector to an HTTP method | Provided by this library |
 
 Views inspect the service / selector signature with `inspect.signature` and
-pass only the arguments they declare from a known pool: `data`, `instance`,
-`request`, `user`, `view`, plus extras from `get_service_kwargs()` /
+pass only the arguments they declare from a known pool: `request`, `user`,
+optionally `instance` (update / delete) and `data` (when an
+`input_serializer` is configured), plus extras from `get_service_kwargs()` /
 `get_selector_kwargs()`. If a callable declares `**kwargs`, the entire pool
-is forwarded.
+is forwarded. `view` is intentionally not in the pool — pipe view state
+through `ServiceSpec.kwargs` / `SelectorSpec.kwargs` (which receive a narrow
+`ServiceView`) or `get_<action>_*_kwargs` instead.
 
 ```python
 def create_author(*, data, user):       # the view passes only data + user
@@ -344,13 +347,14 @@ rules.
 | `ServiceCreateView` | `POST` | runs `service` to create |
 | `ServiceUpdateView` | `PUT` / `PATCH` | runs `service` to update; instance from `get_object()` |
 | `ServiceDeleteView` | `DELETE` | runs `service` to delete |
-| `SelectorListView` | `GET` | uses `selector` (or `queryset`) for list |
-| `SelectorRetrieveView` | `GET` | uses `selector` (or `queryset` + `lookup_field`) for retrieve |
+| `SelectorListView` | `GET` | uses `spec.selector` (or `queryset`) for list |
+| `SelectorRetrieveView` | `GET` | uses `spec.selector` (or `queryset` + `lookup_field`) for retrieve |
 
 Mutation views are configured by setting a single `spec` class attribute
 to a `ServiceSpec`, which bundles `service`, `input_serializer`,
 `output_serializer`, `output_selector`, `atomic`, and `success_status`.
-Selector views configure `selector` and DRF's standard `serializer_class`.
+Selector views are configured by setting `spec` to a `SelectorSpec`, which
+bundles `selector` and `output_serializer`.
 
 ```python
 @dataclass
@@ -397,7 +401,7 @@ mutations reuse the detail one:
 from dataclasses import dataclass
 
 from rest_framework_dataclasses.serializers import DataclassSerializer
-from rest_framework_services import ServiceSpec, ServiceViewSet
+from rest_framework_services import SelectorSpec, ServiceSpec, ServiceViewSet
 
 
 @dataclass
@@ -425,13 +429,15 @@ class AuthorDetailSerializer(DataclassSerializer):
 
 class AuthorViewSet(ServiceViewSet):
     queryset = Author.objects.all()
-    serializer_classes = {
-        "list": AuthorListItemSerializer,
-        "retrieve": AuthorDetailSerializer,
-    }
-    service_specs = {
-        "list": list_authors,
-        "retrieve": get_author,
+    action_specs = {
+        "list": SelectorSpec(
+            selector=list_authors,
+            output_serializer=AuthorListItemSerializer,
+        ),
+        "retrieve": SelectorSpec(
+            selector=get_author,
+            output_serializer=AuthorDetailSerializer,
+        ),
         "create": ServiceSpec(
             service=create_author,
             input_serializer=CreateAuthorInput,
@@ -446,12 +452,14 @@ class AuthorViewSet(ServiceViewSet):
     }
 ```
 
-`service_specs` is a single action-keyed mapping — mirroring
-`serializer_classes` from `MultiSerializerMixin`. Read-side actions
-(`"list"`, `"retrieve"`) take a bare callable (the selector). Write-side
-actions take a `ServiceSpec` bundling everything that flow needs. An
-absent (or non-`ServiceSpec`) entry on a write action makes it return
-`405 Method Not Allowed`.
+`action_specs` is a single action-keyed mapping wiring every action.
+Read-side actions (`"list"`, `"retrieve"`) take a `SelectorSpec`;
+write-side actions take a `ServiceSpec`. Per-action serializers live on
+the spec's `output_serializer` field — `ActionSerializerResolver` (already
+mixed into `ServiceViewSet` and `SelectorViewSet`) reads them when DRF
+calls `get_serializer_class()`. An absent entry on a write action returns
+`405 Method Not Allowed`; a wrong-type entry (e.g. `SelectorSpec` on
+`create`) raises `ImproperlyConfigured` at request time.
 
 Mix `ModelSerializer` and `DataclassSerializer` per action freely — the
 viewset doesn't distinguish between them.
@@ -464,32 +472,52 @@ router.register("authors", AuthorViewSet, basename="author")
 ```
 
 Per-action mixins (`ServiceCreateMixin`, `ServiceUpdateMixin`,
-`ServiceDestroyMixin`, `SelectorListMixin`, `SelectorRetrieveMixin`,
-`MultiSerializerMixin`) are exported so you can compose only the actions
+`ServiceDestroyMixin`, `SelectorListMixin`, `SelectorRetrieveMixin`) and
+`ActionSerializerResolver` are exported so you can compose only the actions
 you need:
 
 ```python
-class AuthorReadOnly(SelectorListMixin, SelectorRetrieveMixin, GenericViewSet):
+from rest_framework_services import (
+    ActionSerializerResolver,
+    SelectorListMixin,
+    SelectorRetrieveMixin,
+    SelectorSpec,
+)
+
+
+class AuthorReadOnly(
+    SelectorListMixin,
+    SelectorRetrieveMixin,
+    ActionSerializerResolver,
+    GenericViewSet,
+):
     queryset = Author.objects.all()
-    serializer_class = AuthorDetailSerializer   # or any DRF Serializer
+    action_specs = {
+        "list": SelectorSpec(output_serializer=AuthorListItemSerializer),
+        "retrieve": SelectorSpec(output_serializer=AuthorDetailSerializer),
+    }
 ```
 
 `SelectorViewSet` is a pre-built read-only composition.
 
-### `MultiSerializerMixin`
+### `ActionSerializerResolver`
 
-Per-action serializer dispatch via a single mapping:
+Per-action serializer dispatch driven by `action_specs`:
 
 ```python
-serializer_classes = {
-    "list": ListSerializer,
-    "retrieve": DetailSerializer,
-    "my_custom_action": CustomSerializer,
+action_specs = {
+    "list": SelectorSpec(output_serializer=ListSerializer),
+    "retrieve": SelectorSpec(output_serializer=DetailSerializer),
+    "my_custom_action": ServiceSpec(
+        service=my_action,
+        output_serializer=CustomSerializer,
+    ),
 }
 ```
 
-`get_serializer_class()` consults the map first, falls back to
-`serializer_class`.
+`get_serializer_class()` reads `output_serializer` from the active
+action's spec and falls back to DRF's standard `serializer_class` when the
+action has no spec or the spec has no `output_serializer`.
 
 ### `@service_action`
 
@@ -569,12 +597,15 @@ def withdraw(*, instance, data):
 ## Atomic transactions
 
 Every service call is wrapped in `transaction.atomic()` by default. Opt out
-on a view-by-view basis:
+per spec — `atomic` lives on `ServiceSpec`:
 
 ```python
 class ImportView(ServiceCreateView):
-    service = run_import
-    atomic = False   # the import service handles its own savepoints
+    spec = ServiceSpec(
+        service=run_import,
+        input_serializer=ImportInput,
+        atomic=False,   # the import service handles its own savepoints
+    )
 ```
 
 ---
@@ -592,7 +623,7 @@ async def fetch_remote(*, request):
         return await client.get("https://...").json()
 
 class FetchView(ServiceCreateView):
-    service = fetch_remote
+    spec = ServiceSpec(service=fetch_remote)
 ```
 
 ---
