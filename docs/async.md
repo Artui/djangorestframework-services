@@ -68,12 +68,13 @@ async def list_authors(*, request):
     return [author async for author in Author.objects.filter(...).aiterator()]
 ```
 
-Wire them into `service_specs` exactly like sync selectors:
+Wire them into `action_specs` exactly like sync selectors — wrapped in
+`SelectorSpec`:
 
 ```python
-service_specs = {
-    "list": list_authors,
-    "retrieve": aget_author,
+action_specs = {
+    "list": SelectorSpec(selector=list_authors),
+    "retrieve": SelectorSpec(selector=aget_author),
 }
 ```
 

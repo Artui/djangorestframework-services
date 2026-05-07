@@ -85,6 +85,7 @@ nav:
       - Custom action with @service_action: recipes/service-action.md
       - Compose your own viewset: recipes/compose-viewset.md
       - Pass extra kwargs to services: recipes/extra-kwargs.md
+      - Customise serializer context: recipes/serializer-context.md
       - Scaffold a service app: recipes/scaffold-app.md
   - Reference:
       - reference/index.md

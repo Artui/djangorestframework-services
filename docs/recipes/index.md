@@ -12,5 +12,8 @@ the [Quickstart](../quickstart.md) and [Concepts](../concepts.md).
 - **[Pass extra kwargs to services](extra-kwargs.md)** — surface a
   tenant, a feature flag, or a test clock to your services without
   threading it through `request`.
+- **[Customise serializer context](serializer-context.md)** — direction-
+  and action-specific hooks for `get_serializer_context()`, so the input
+  and output serializers can see different keys.
 - **[Scaffold a service app](scaffold-app.md)** — `startserviceapp` and
   the convention behind `services/`, `selectors/`, `validators/`.
