@@ -501,6 +501,8 @@
       
         
       
+        
+      
     
     
     
@@ -717,6 +719,34 @@
     
   
     Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../serializer-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customise serializer context
   
 
     
@@ -1271,7 +1301,7 @@ just receives <code>instance</code> (and any other kwargs it asks for):</p>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Archive every invoice older than 90 days.&quot;&quot;&quot;</span>
 </span></code></pre></div>
 <p>The service receives <code>request</code> (and not <code>instance</code>). <code>archive_old_invoices</code>
-can declare any subset of <code>{request, user, view, data}</code> it needs.</p>
+can declare any subset of <code>{request, user, data}</code> it needs.</p>
 <h2 id="why-not-just-action">Why not just <code>@action</code>?<a class="headerlink" href="#why-not-just-action" title="Permanent link">&para;</a></h2>
 <p><code>@action</code> gives you the URL, but you write the dispatch yourself —
 validation, kwarg pool, exception mapping, atomic wrapping. <code>@service_action</code>

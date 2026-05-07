@@ -635,6 +635,8 @@
       
         
       
+        
+      
     
     
     
@@ -762,6 +764,34 @@
     
   
     Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/serializer-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customise serializer context
   
 
     
@@ -1419,13 +1449,34 @@ to attach the assertion to the function definition itself:</p>
 </span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_author</span><span class="p">(</span>
 </span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">AuthorIn</span><span class="p">,</span>
-</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span>
-</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="n">user</span><span class="p">:</span> <span class="n">UserT</span><span class="p">,</span>
-</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">CreateAuthorKwargs</span><span class="p">],</span>   <span class="c1"># exact extras contract</span>
-</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Author</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">CreateAuthorKwargs</span><span class="p">],</span>   <span class="c1"># exact extras contract</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Author</span><span class="p">:</span> <span class="o">...</span>
 </span></code></pre></div>
 <p>Drift between <code>create_author</code> and the parameterized Protocol now produces a
 <code>ty</code> error at the <code>@implements(...)</code> line.</p>
+<p>Strict Protocols deliberately do <strong>not</strong> include <code>request</code> or <code>user</code> in
+their fixed signature. The framework still puts both keys in the kwargs
+pool — services that read them declare them on their <code>ExtraT</code> instead, most
+ergonomically by subclassing
+<a href="../reference/types/#httpextras"><code>HttpExtras[UserT]</code></a>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">HttpExtras</span><span class="p">,</span> <span class="n">StrictCreateService</span><span class="p">,</span> <span class="n">implements</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">CreateAuthorKwargs</span><span class="p">(</span><span class="n">HttpExtras</span><span class="p">[</span><span class="n">MyUser</span><span class="p">]):</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">tenant_id</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="nd">@implements</span><span class="p">(</span><span class="n">StrictCreateService</span><span class="p">[</span><span class="n">AuthorIn</span><span class="p">,</span> <span class="n">CreateAuthorKwargs</span><span class="p">,</span> <span class="n">Author</span><span class="p">])</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_author</span><span class="p">(</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">AuthorIn</span><span class="p">,</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">CreateAuthorKwargs</span><span class="p">],</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Author</span><span class="p">:</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    <span class="n">user</span> <span class="o">=</span> <span class="n">extras</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span>              <span class="c1"># typed as MyUser</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    <span class="n">request</span> <span class="o">=</span> <span class="n">extras</span><span class="p">[</span><span class="s2">&quot;request&quot;</span><span class="p">]</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    <span class="o">...</span>
+</span></code></pre></div>
+<p>Services that don't read <code>request</code> / <code>user</code> should simply omit them — their
+<code>ExtraT</code> carries only the genuine extras (or
+<a href="../reference/types/#nokwargs"><code>NoKwargs</code></a> if there are none).</p>
 <p>Available strict Protocols:</p>
 <ul>
 <li><code>StrictCreateService[InputT, ExtraT, ResultT]</code></li>
@@ -1446,19 +1497,16 @@ list reads "input, extras, result" — mirroring the call shape.</p>
 the <a href="../reference/services/#rest_framework_services.implements.implements"><code>implements</code></a>
 decorator — it returns the function unchanged at runtime and triggers the
 structural-subtyping check at the decorator line:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nd">@implements</span><span class="p">(</span><span class="n">StrictListSelector</span><span class="p">[</span><span class="n">ListAuthorsKwargs</span><span class="p">,</span> <span class="n">Author</span><span class="p">])</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_authors</span><span class="p">(</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">HttpRequest</span><span class="p">,</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">user</span><span class="p">:</span> <span class="n">UserT</span><span class="p">,</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">ListAuthorsKwargs</span><span class="p">],</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">Author</span><span class="p">]:</span> <span class="o">...</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nd">@implements</span><span class="p">(</span><span class="n">StrictListSelector</span><span class="p">[</span><span class="n">ListAuthorsKwargs</span><span class="p">,</span> <span class="n">Author</span><span class="p">])</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_authors</span><span class="p">(</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">ListAuthorsKwargs</span><span class="p">],</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">Author</span><span class="p">]:</span> <span class="o">...</span>
 </span></code></pre></div>
 <p>The legacy throwaway-variable form still works and is sometimes useful for
 ad-hoc one-off checks:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_authors</span><span class="p">(</span><span class="o">...</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">Author</span><span class="p">]:</span> <span class="o">...</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">_check</span><span class="p">:</span> <span class="n">StrictListSelector</span><span class="p">[</span><span class="n">ListAuthorsKwargs</span><span class="p">,</span> <span class="n">Author</span><span class="p">]</span> <span class="o">=</span> <span class="n">list_authors</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_authors</span><span class="p">(</span><span class="o">...</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">Author</span><span class="p">]:</span> <span class="o">...</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">_check</span><span class="p">:</span> <span class="n">StrictListSelector</span><span class="p">[</span><span class="n">ListAuthorsKwargs</span><span class="p">,</span> <span class="n">Author</span><span class="p">]</span> <span class="o">=</span> <span class="n">list_authors</span>
 </span></code></pre></div>
 <p>A few notes on type-checker support:</p>
 <ul>

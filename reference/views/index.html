@@ -499,6 +499,8 @@
       
         
       
+        
+      
     
     
     
@@ -626,6 +628,34 @@
     
   
     Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/serializer-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customise serializer context
   
 
     
@@ -964,6 +994,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_input_serializer_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_input_serializer_context
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_output_serializer_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_output_serializer_context
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1030,6 +1082,17 @@
     <span class="md-ellipsis">
       
         resolve_input_extras
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.resolve_serializer_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_serializer_context
       
     </span>
   </a>
@@ -1534,6 +1597,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_input_serializer_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_input_serializer_context
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_output_serializer_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_output_serializer_context
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1600,6 +1685,17 @@
     <span class="md-ellipsis">
       
         resolve_input_extras
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.resolve_serializer_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_serializer_context
       
     </span>
   </a>
@@ -2089,6 +2185,22 @@ wins):</p>
 <li><code>get_&lt;action&gt;_input_data(self, request)</code> — per-action override.</li>
 <li><code>ServiceSpec.input_data</code> — per-spec callable.</li>
 </ol>
+<p>Two further three-layer chains feed the <code>context=</code> argument passed to
+the input serializer (during validation) and the output serializer
+(during response rendering):</p>
+<ol>
+<li><code>get_serializer_context(self)</code> — DRF's default
+   (request, view, format).</li>
+<li><code>get_input_serializer_context(self)</code> /
+   <code>get_output_serializer_context(self)</code> — directional fallback;
+   defaults to <code>self.get_serializer_context()</code> so a single
+   <code>get_serializer_context</code> override flows into both directions.</li>
+<li><code>get_&lt;action&gt;_input_serializer_context(self)</code> /
+   <code>get_&lt;action&gt;_output_serializer_context(self)</code> — per-action
+   override (viewsets only; <code>self.action</code> must be set).</li>
+</ol>
+<p>Each layer's result is merged with <code>dict.update</code> so the more specific
+hook wins on overlapping keys.</p>
 
 
 
@@ -2145,6 +2257,53 @@ wins):</p>
     <div class="doc doc-contents ">
 
         <p>Hook for extras merged on top of <code>request.data</code> before validation.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_input_serializer_context" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_input_serializer_context</span>
+
+
+<a href="#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_input_serializer_context" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_input_serializer_context</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Hook for the <code>context=</code> dict passed to the <em>input</em> serializer.</p>
+<p>Defaults to :meth:<code>get_serializer_context</code> so overriding the
+DRF-standard hook flows into the input-validation path automatically.
+Override here to inject keys visible only during input validation.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_output_serializer_context" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_output_serializer_context</span>
+
+
+<a href="#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_output_serializer_context" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_output_serializer_context</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Hook for the <code>context=</code> dict passed to the <em>output</em> serializer.</p>
+<p>Defaults to :meth:<code>get_serializer_context</code> so overriding the
+DRF-standard hook flows into the response-rendering path
+automatically. Override here to inject keys visible only during
+response rendering.</p>
 
 
     </div>
@@ -2333,6 +2492,44 @@ applied in order of increasing specificity (later wins on overlap):</p>
 </ol>
 <p>Each layer's result is merged with <code>dict.update</code> so the spec-level
 provider has the final say on overlapping keys.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.views.utils.resolve_serializer_context" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">resolve_serializer_context</span>
+
+
+<a href="#rest_framework_services.views.utils.resolve_serializer_context" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">resolve_serializer_context</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">direction_hook</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">action_hook</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Build the serializer context dict for one direction (input or output).</p>
+<p>Three layers, applied in order so that the more specific override the
+more general:</p>
+<ol>
+<li><code>view.get_serializer_context()</code> — DRF's default, available on every
+   :class:<code>~rest_framework.generics.GenericAPIView</code> (returns <code>request</code>,
+   <code>view</code>, <code>format</code>).</li>
+<li><code>view.&lt;direction_hook&gt;()</code> — library directional fallback
+   (<code>get_input_serializer_context</code> / <code>get_output_serializer_context</code>).
+   Skipped when the method is absent, so plain DRF viewsets work unchanged.</li>
+<li><code>view.&lt;action_hook&gt;()</code> — per-action override on the view, e.g.
+   <code>get_create_input_serializer_context</code> /
+   <code>get_list_output_serializer_context</code>. Skipped when <code>action_hook</code>
+   is <code>None</code> (standalone single-purpose views) or the method is absent.</li>
+</ol>
+<p>Each layer's result is merged with <code>dict.update</code>, so the per-action
+hook has the final say on overlapping keys.</p>
 
 
     </div>

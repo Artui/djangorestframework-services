@@ -499,6 +499,8 @@
       
         
       
+        
+      
     
     
     
@@ -626,6 +628,34 @@
     
   
     Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/serializer-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customise serializer context
   
 
     
@@ -1013,6 +1043,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.viewsets.decorators.selector_action.selector_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        selector_action
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1377,6 +1418,17 @@
     <span class="md-ellipsis">
       
         service_action
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.viewsets.decorators.selector_action.selector_action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        selector_action
       
     </span>
   </a>
@@ -1902,6 +1954,50 @@ DRF <code>@action</code> metadata and pick up the action name from <code>__name_
 <p>Pass a :class:<code>ServiceSpec</code> for the service wiring. <code>detail</code>,
 <code>methods</code>, <code>url_path</code>, <code>url_name</code>, and any extra <code>**action_kwargs</code>
 are forwarded to DRF's <code>@action</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.viewsets.decorators.selector_action.selector_action" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">selector_action</span>
+
+
+<a href="#rest_framework_services.viewsets.decorators.selector_action.selector_action" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">selector_action</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">detail</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">methods</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">url_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">url_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="o">**</span><span class="n">action_kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Wrap a viewset method as a selector-backed custom action.</p>
+<p>The decorated method's body is <em>not</em> executed — the decorator supplies
+the handler. The method exists so that <code>@selector_action</code> can attach
+DRF <code>@action</code> metadata and pick up the action name from <code>__name__</code>.</p>
+<p>Pass a :class:<code>SelectorSpec</code> for the selector wiring. <code>detail</code>
+controls the dispatch shape:</p>
+<ul>
+<li><code>detail=False</code> (default) — collection action; the selector is
+  expected to return an iterable. The result flows through
+  <code>self.paginate_queryset</code> / <code>self.get_paginated_response</code> if
+  pagination is configured, otherwise it's serialized many=True.</li>
+<li><code>detail=True</code> — detail action; the selector is expected to return a
+  single object (or <code>None</code>, which surfaces as 404, matching
+  :class:<code>SelectorRetrieveView</code>).</li>
+</ul>
+<p>Output serialization resolves to <code>spec.output_serializer</code> when set,
+falling back to <code>self.get_serializer(...)</code> otherwise.</p>
 
 
     </div>

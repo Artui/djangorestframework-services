@@ -499,6 +499,8 @@
       
         
       
+        
+      
     
     
     
@@ -626,6 +628,34 @@
     
   
     Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/serializer-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customise serializer context
   
 
     
@@ -1019,6 +1049,73 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#helpers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Helpers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Helpers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#call_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        call_service
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.services.call_service.call_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        call_service
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="call_service">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#acall_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        acall_service
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.services.acall_service.acall_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        acall_service
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1283,6 +1380,73 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#helpers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Helpers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Helpers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#call_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        call_service
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.services.call_service.call_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        call_service
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="call_service">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#acall_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        acall_service
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.services.acall_service.acall_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        acall_service
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1511,19 +1675,25 @@ hatch is replaced with <code>**extras: Unpack[ExtraT]</code> (:pep:<code>692</co
 <code>ExtraT</code> is a <code>TypedDict</code>, type checkers enforce that the service
 declares exactly the extra keys delivered by <code>ServiceSpec.kwargs</code> —
 nothing more, nothing less.</p>
-<p>Use it for services where you want drift-free signatures::</p>
-<div class="language-text highlight"><pre><span></span><code>class CreateAuthorKwargs(TypedDict):
+<p><code>request</code> and <code>user</code> are deliberately <em>not</em> part of the fixed
+signature. The framework still places them in the kwargs pool, but
+services that want them must declare them on their <code>ExtraT</code> — most
+cleanly by subclassing
+:class:<code>~rest_framework_services.types.http_extras.HttpExtras</code>::</p>
+<div class="language-text highlight"><pre><span></span><code>class CreateAuthorKwargs(HttpExtras[MyUser]):
     tenant_id: int
 
 @implements(StrictCreateService[AuthorIn, CreateAuthorKwargs, Author])
 def create_author(
     *,
     data: AuthorIn,
-    request: HttpRequest,
-    user: UserT,
     **extras: Unpack[CreateAuthorKwargs],
 ) -&gt; Author: ...
 </code></pre></div>
+<p>Services that don't read <code>request</code> / <code>user</code> should simply omit
+them — their <code>ExtraT</code> carries only the genuine extras (or
+:class:<code>~rest_framework_services.types.no_kwargs.NoKwargs</code> if there
+are none).</p>
 
 
 
@@ -1572,9 +1742,10 @@ def create_author(
 
 
         <p>Strict shape for an update-action service.</p>
-<p>See :class:<code>StrictCreateService</code> for rationale. Pin the extras delivered
-by <code>ServiceSpec.kwargs</code> via a <code>TypedDict</code>::</p>
-<div class="language-text highlight"><pre><span></span><code>class UpdateAuthorKwargs(TypedDict):
+<p>See :class:<code>StrictCreateService</code> for rationale and the <code>request</code> /
+<code>user</code> discussion. Pin the extras delivered by <code>ServiceSpec.kwargs</code>
+via a <code>TypedDict</code>::</p>
+<div class="language-text highlight"><pre><span></span><code>class UpdateAuthorKwargs(HttpExtras[MyUser]):
     tenant_id: int
 
 @implements(StrictUpdateService[AuthorIn, Author, UpdateAuthorKwargs, Author])
@@ -1582,8 +1753,6 @@ def update_author(
     *,
     instance: Author,
     data: AuthorIn,
-    request: HttpRequest,
-    user: UserT,
     **extras: Unpack[UpdateAuthorKwargs],
 ) -&gt; Author: ...
 </code></pre></div>
@@ -1635,23 +1804,22 @@ def update_author(
 
 
         <p>Strict shape for a delete-action service.</p>
-<p>See :class:<code>StrictCreateService</code> for rationale. Most delete services
-return <code>None</code> — annotate <code>ResultT</code> as <code>None</code> and pair with
+<p>See :class:<code>StrictCreateService</code> for rationale and the <code>request</code> /
+<code>user</code> discussion. Most delete services return <code>None</code> — annotate
+<code>ResultT</code> as <code>None</code> and pair with
 :func:<code>~rest_framework_services.implements</code>.</p>
 <p>Type parameter ordering matches :class:<code>StrictCreateService</code> /
 :class:<code>StrictUpdateService</code>: <code>InputT</code> first.</p>
 <p><em>Without</em> a request body — bind <code>InputT</code> to
 :class:<code>~rest_framework_services.types.no_input.NoInput</code> and rely on
 the Protocol-level :data:<code>Ellipsis</code> default for <code>data</code>::</p>
-<div class="language-text highlight"><pre><span></span><code>class DeleteAuthorKwargs(TypedDict):
+<div class="language-text highlight"><pre><span></span><code>class DeleteAuthorKwargs(HttpExtras[MyUser]):
     reason: str
 
 @implements(StrictDeleteService[NoInput, Author, NoKwargs, None])
 def delete_author(
     *,
     instance: Author,
-    request: HttpRequest,
-    user: UserT,
     **extras: Unpack[NoKwargs],
 ) -&gt; None: ...
 </code></pre></div>
@@ -1662,8 +1830,6 @@ def delete_author(
     *,
     instance: Author,
     data: ReasonIn,
-    request: HttpRequest,
-    user: UserT,
     **extras: Unpack[DeleteAuthorKwargs],
 ) -&gt; None: ...
 </code></pre></div>
@@ -1729,6 +1895,81 @@ decorator line by <code>ty</code>. mypy refuses <code>type[Protocol]</code> argu
 <code># type: ignore[type-abstract]</code> or keep using the legacy
 <code>_: StrictCreateService[...] = create_author</code> shim alongside the def.</p>
 <p>Returns the function unchanged at runtime.</p>
+
+
+    </div>
+
+</div><h2 id="helpers">Helpers<a class="headerlink" href="#helpers" title="Permanent link">&para;</a></h2>
+<h3 id="call_service"><code>call_service</code><a class="headerlink" href="#call_service" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.services.call_service.call_service" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">call_service</span>
+
+
+<a href="#rest_framework_services.services.call_service.call_service" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">call_service</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">service</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ResultT</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Invoke <code>service</code> with the framework's kwargs pool.</p>
+<p><code>request</code> is required — the helper is HTTP-scoped by design. <code>user</code>
+is derived from <code>request.user</code> (<code>None</code> if the request bypassed
+authentication middleware), matching the framework's own pool
+construction.</p>
+<p><code>data</code> and <code>instance</code> are passed through when not <code>UNSET</code>;
+omitting them mirrors the create / list call shape. Anything else
+goes into <code>**extras</code> and merges into the pool — the framework's
+standard signature filter (:func:<code>resolve_callable_kwargs</code>) decides
+which keys actually reach the service.</p>
+<p>Async services are bridged transparently via <code>async_to_sync</code>;
+sync services are called inline.</p>
+
+
+    </div>
+
+</div><h3 id="acall_service"><code>acall_service</code><a class="headerlink" href="#acall_service" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.services.acall_service.acall_service" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">acall_service</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#rest_framework_services.services.acall_service.acall_service" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">acall_service</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">service</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">ResultT</span><span class="p">]],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ResultT</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Invoke <code>service</code> from async code with the framework's kwargs pool.</p>
+<p>Same contract as :func:<code>call_service</code>. Async services are awaited
+directly; sync services are called inline (no thread hop) — caller is
+responsible for any sync-side I/O safety.</p>
 
 
     </div>

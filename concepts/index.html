@@ -656,6 +656,8 @@
       
         
       
+        
+      
     
     
     
@@ -783,6 +785,34 @@
     
   
     Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/serializer-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customise serializer context
   
 
     
@@ -1437,15 +1467,17 @@ declares from a known pool:</p>
 <td><code>self.request.user</code></td>
 </tr>
 <tr>
-<td><code>view</code></td>
-<td><code>self</code></td>
-</tr>
-<tr>
 <td>extras</td>
-<td><code>self.get_service_kwargs()</code> / <code>self.get_selector_kwargs()</code></td>
+<td><code>self.get_service_kwargs()</code> / <code>self.get_selector_kwargs()</code>, plus per-action and per-spec hooks</td>
 </tr>
 </tbody>
 </table>
+<p><code>view</code> is intentionally not in the pool — services and selectors are
+plain business logic and shouldn't reach back into the calling view. When
+a callable needs view state (URL kwargs, action name, etc.), pipe it
+through <code>ServiceSpec.kwargs</code> / <code>SelectorSpec.kwargs</code> (which receive a
+narrow <code>ServiceView</code>) or <code>get_&lt;action&gt;_*_kwargs</code> instead. See
+<a href="../recipes/extra-kwargs/">Pass extra kwargs</a>.</p>
 <p>If the callable declares <code>**kwargs</code>, the entire pool is forwarded. The
 implementation lives in
 <a href="../reference/views/#kwarg-resolution"><code>rest_framework_services.views.utils.resolve_callable_kwargs</code></a>.</p>

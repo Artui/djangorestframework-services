@@ -499,6 +499,8 @@
       
         
       
+        
+      
     
     
     
@@ -626,6 +628,34 @@
     
   
     Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/serializer-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customise serializer context
   
 
     
@@ -1048,6 +1078,73 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#helpers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Helpers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Helpers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#call_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        call_selector
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.call_selector.call_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        call_selector
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="call_selector">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#acall_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        acall_selector
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.acall_selector.acall_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        acall_selector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#dispatch" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1356,6 +1453,73 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#helpers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Helpers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Helpers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#call_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        call_selector
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.call_selector.call_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        call_selector
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="call_selector">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#acall_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        acall_selector
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.acall_selector.acall_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        acall_selector
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#dispatch" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1576,7 +1740,9 @@ any plain callable, so satisfying this protocol is optional.</p>
 flows through DRF's filter backends, pagination, and <code>output_serializer</code>.</p>
 <p>Lenient by design: <code>**kwargs: Any</code> lets the framework deliver URL kwargs
 and extras from <code>SelectorSpec.kwargs</code> / <code>get_selector_kwargs</code> without
-forcing the selector to declare them.</p>
+forcing the selector to declare them. Selectors may freely omit
+<code>request</code> / <code>user</code> (or any other pool key) they do not need; the
+framework inspects the signature and only passes what is declared.</p>
 
 
 
@@ -1732,16 +1898,14 @@ for rationale.</p>
 
         <p>Strict shape for a list-action selector.</p>
 <p>See :class:<code>~rest_framework_services.services.StrictCreateService</code> for
-rationale. <code>ExtraT</code> should declare both URL kwargs and any extras
-supplied by <code>SelectorSpec.kwargs</code>::</p>
-<div class="language-text highlight"><pre><span></span><code>class ListAuthorsKwargs(TypedDict):
+rationale and the <code>request</code> / <code>user</code> discussion. <code>ExtraT</code> should
+declare both URL kwargs and any extras supplied by
+<code>SelectorSpec.kwargs</code>::</p>
+<div class="language-text highlight"><pre><span></span><code>class ListAuthorsKwargs(HttpExtras[MyUser]):
     tenant_id: int
 
 @implements(StrictListSelector[ListAuthorsKwargs, Author])
 def list_authors(
-    *,
-    request: HttpRequest,
-    user: UserT,
     **extras: Unpack[ListAuthorsKwargs],
 ) -&gt; Iterable[Author]: ...
 </code></pre></div>
@@ -1794,17 +1958,15 @@ def list_authors(
 
         <p>Strict shape for a retrieve-action selector.</p>
 <p>See :class:<code>~rest_framework_services.services.StrictCreateService</code> for
-rationale. <code>ExtraT</code> typically contains the URL lookup field
-(<code>pk</code>, <code>slug</code>) plus any extras from <code>SelectorSpec.kwargs</code>::</p>
-<div class="language-text highlight"><pre><span></span><code>class RetrieveAuthorKwargs(TypedDict):
+rationale and the <code>request</code> / <code>user</code> discussion. <code>ExtraT</code>
+typically contains the URL lookup field (<code>pk</code>, <code>slug</code>) plus any
+extras from <code>SelectorSpec.kwargs</code>::</p>
+<div class="language-text highlight"><pre><span></span><code>class RetrieveAuthorKwargs(HttpExtras[MyUser]):
     pk: int
     tenant_id: int
 
 @implements(StrictRetrieveSelector[RetrieveAuthorKwargs, Author])
 def retrieve_author(
-    *,
-    request: HttpRequest,
-    user: UserT,
     **extras: Unpack[RetrieveAuthorKwargs],
 ) -&gt; Author | None: ...
 </code></pre></div>
@@ -1857,17 +2019,16 @@ def retrieve_author(
 
         <p>Strict shape for a <code>ServiceSpec.output_selector</code>.</p>
 <p>See :class:<code>~rest_framework_services.services.StrictCreateService</code> for
-rationale. <code>ExtraT</code> declares the action-pool keys and any
-<code>SelectorSpec.kwargs</code> extras the output selector consumes::</p>
-<div class="language-text highlight"><pre><span></span><code>class RenderAuthorKwargs(TypedDict):
+rationale and the <code>request</code> / <code>user</code> discussion. <code>ExtraT</code>
+declares the action-pool keys and any <code>SelectorSpec.kwargs</code> extras
+the output selector consumes::</p>
+<div class="language-text highlight"><pre><span></span><code>class RenderAuthorKwargs(HttpExtras[MyUser]):
     rendered_at: str
 
 @implements(StrictOutputSelector[Author, RenderAuthorKwargs, AuthorOut])
 def render_author(
     *,
     result: Author,
-    request: HttpRequest,
-    user: UserT,
     **extras: Unpack[RenderAuthorKwargs],
 ) -&gt; AuthorOut: ...
 </code></pre></div>
@@ -1896,6 +2057,63 @@ def render_author(
 
 
   </div>
+
+    </div>
+
+</div><h2 id="helpers">Helpers<a class="headerlink" href="#helpers" title="Permanent link">&para;</a></h2>
+<h3 id="call_selector"><code>call_selector</code><a class="headerlink" href="#call_selector" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.selectors.call_selector.call_selector" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">call_selector</span>
+
+
+<a href="#rest_framework_services.selectors.call_selector.call_selector" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">call_selector</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">selector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Any</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ResultT</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Invoke <code>selector</code> with the framework's kwargs pool.</p>
+<p><code>request</code> is required; <code>user</code> is derived from <code>request.user</code>.
+Async selectors are bridged via <code>async_to_sync</code>.</p>
+
+
+    </div>
+
+</div><h3 id="acall_selector"><code>acall_selector</code><a class="headerlink" href="#acall_selector" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.selectors.acall_selector.acall_selector" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">acall_selector</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#rest_framework_services.selectors.acall_selector.acall_selector" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">acall_selector</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">selector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">ResultT</span><span class="p">]],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ResultT</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Invoke <code>selector</code> from async code with the framework's kwargs pool.</p>
+<p>Async selectors are awaited; sync selectors are called inline.</p>
+
 
     </div>
 

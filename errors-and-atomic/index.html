@@ -618,6 +618,8 @@
       
         
       
+        
+      
     
     
     
@@ -745,6 +747,34 @@
     
   
     Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/serializer-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customise serializer context
   
 
     
@@ -1306,17 +1336,13 @@ to HTTP status codes makes those reuses awkward; coupling them to
 view, you catch <code>ServiceError</code> / <code>ServiceValidationError</code> directly.</p>
 <h2 id="atomic-transactions">Atomic transactions<a class="headerlink" href="#atomic-transactions" title="Permanent link">&para;</a></h2>
 <p>By default every service call is wrapped in <code>transaction.atomic()</code>.
-Opt out per spec:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">service</span><span class="o">=</span><span class="n">run_import</span><span class="p">,</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">ImportInput</span><span class="p">,</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">atomic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>                <span class="c1"># the import service handles its own savepoints</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">)</span>
-</span></code></pre></div>
-<p>Or per view (the spec's <code>atomic</code> value still wins if both are set):</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ImportView</span><span class="p">(</span><span class="n">ServiceCreateView</span><span class="p">):</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span><span class="n">service</span><span class="o">=</span><span class="n">run_import</span><span class="p">,</span> <span class="n">input_serializer</span><span class="o">=</span><span class="n">ImportInput</span><span class="p">)</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">atomic</span> <span class="o">=</span> <span class="kc">False</span>
+Opt out per spec — <code>atomic</code> lives on <code>ServiceSpec</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ImportView</span><span class="p">(</span><span class="n">ServiceCreateView</span><span class="p">):</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>        <span class="n">service</span><span class="o">=</span><span class="n">run_import</span><span class="p">,</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">ImportInput</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>        <span class="n">atomic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>            <span class="c1"># the import service handles its own savepoints</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="p">)</span>
 </span></code></pre></div>
 <p>When to opt out:</p>
 <ul>

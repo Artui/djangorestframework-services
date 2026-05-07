@@ -16,7 +16,7 @@
         <link rel="prev" href="../compose-viewset/">
       
       
-        <link rel="next" href="../scaffold-app/">
+        <link rel="next" href="../serializer-context/">
       
       
         
@@ -501,6 +501,8 @@
       
         
       
+        
+      
     
     
     
@@ -758,6 +760,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../serializer-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customise serializer context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1342,11 +1372,11 @@ signature matches the <code>TypedDict</code> exactly:</p>
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Author</span><span class="p">,</span>
 </span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">AuthorIn</span><span class="p">,</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">request</span><span class="p">,</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">user</span><span class="p">,</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">PublishAuthorKwargs</span><span class="p">],</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Author</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">PublishAuthorKwargs</span><span class="p">],</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Author</span><span class="p">:</span> <span class="o">...</span>
 </span></code></pre></div>
+<p>If <code>publish_author</code> needs <code>request</code> or <code>user</code>, declare them on
+<code>PublishAuthorKwargs</code> via <a href="../../typing/#strict-protocols-fail-on-signature-drift"><code>HttpExtras</code></a>.</p>
 <p>See <a href="../../typing/">Typing services and selectors</a> for the full Protocol
 catalogue and notes on type-checker support.</p>
 <h2 id="add-a-clock-for-tests">Add a clock for tests<a class="headerlink" href="#add-a-clock-for-tests" title="Permanent link">&para;</a></h2>
@@ -1417,7 +1447,7 @@ bind <code>InputT</code> to the <code>NoInput</code> sentinel and don't declare 
 function:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Unpack</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">NoKwargs</span><span class="p">,</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">HttpExtras</span><span class="p">,</span>
 </span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">NoInput</span><span class="p">,</span>
 </span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">ServiceSpec</span><span class="p">,</span>
 </span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">StrictDeleteService</span><span class="p">,</span>
@@ -1430,16 +1460,16 @@ function:</p>
 </span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>    <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>
 </span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>
-</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="nd">@implements</span><span class="p">(</span><span class="n">StrictDeleteService</span><span class="p">[</span><span class="n">DeleteReasonIn</span><span class="p">,</span> <span class="n">Author</span><span class="p">,</span> <span class="n">NoKwargs</span><span class="p">,</span> <span class="kc">None</span><span class="p">])</span>
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="nd">@implements</span><span class="p">(</span><span class="n">StrictDeleteService</span><span class="p">[</span><span class="n">DeleteReasonIn</span><span class="p">,</span> <span class="n">Author</span><span class="p">,</span> <span class="n">HttpExtras</span><span class="p">,</span> <span class="kc">None</span><span class="p">])</span>
 </span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="k">def</span><span class="w"> </span><span class="nf">delete_author</span><span class="p">(</span>
 </span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Author</span><span class="p">,</span>
 </span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">DeleteReasonIn</span><span class="p">,</span>
-</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>    <span class="n">request</span><span class="p">,</span>
-</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>    <span class="n">user</span><span class="p">,</span>
-</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">NoKwargs</span><span class="p">],</span>
-</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="__span-8-25"><a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>    <span class="n">AuditLog</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">actor</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">instance</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">reason</span><span class="p">)</span>
+</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">HttpExtras</span><span class="p">],</span>
+</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>    <span class="n">AuditLog</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>        <span class="n">actor</span><span class="o">=</span><span class="n">extras</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">],</span> <span class="n">target</span><span class="o">=</span><span class="n">instance</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">reason</span>
+</span><span id="__span-8-25"><a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>    <span class="p">)</span>
 </span><span id="__span-8-26"><a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a>    <span class="n">instance</span><span class="o">.</span><span class="n">delete</span><span class="p">()</span>
 </span><span id="__span-8-27"><a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a>
 </span><span id="__span-8-28"><a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a>
