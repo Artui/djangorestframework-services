@@ -1230,19 +1230,23 @@ encourages.</p>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>├── views/__init__.py
 </span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>├── services/__init__.py
 </span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>├── selectors/__init__.py
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>├── validators/__init__.py
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>├── serializers/__init__.py
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>├── utils/__init__.py
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>├── migrations/__init__.py
-</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>└── tests/__init__.py
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>├── specs/__init__.py
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>├── validators/__init__.py
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>├── serializers/__init__.py
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>├── utils/__init__.py
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>├── migrations/__init__.py
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>└── tests/__init__.py
 </span></code></pre></div>
 <p>Differences vs. plain <code>startapp</code>:</p>
 <ul>
 <li><code>models/</code> and <code>views/</code> are <strong>packages</strong>, not single files. The single-
   file shape is a poor fit when each model and each view is its own
   unit of work.</li>
-<li><code>services/</code>, <code>selectors/</code>, <code>validators/</code>, <code>serializers/</code>, <code>utils/</code>
-  are added as packages alongside.</li>
+<li><code>services/</code>, <code>selectors/</code>, <code>specs/</code>, <code>validators/</code>, <code>serializers/</code>,
+  <code>utils/</code> are added as packages alongside.</li>
+<li><code>specs/</code> is a conventional home for <code>ServiceSpec</code> / <code>SelectorSpec</code>
+  instances — the wiring that pairs a service or selector with its
+  serializers and per-action kwargs provider.</li>
 <li>An empty <code>urls.py</code> is included — <code>startapp</code> doesn't ship one.</li>
 </ul>
 <h2 id="a-note-on-validators">A note on <code>validators/</code><a class="headerlink" href="#a-note-on-validators" title="Permanent link">&para;</a></h2>
