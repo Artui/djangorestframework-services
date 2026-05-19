@@ -1,6 +1,6 @@
 [project]
 name = "djangorestframework-services"
-version = "0.10.0"
+dynamic = ["version"]
 description = "A service-oriented layer for Django REST Framework: precise, controllable side effects for mutating endpoints."
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -75,6 +75,10 @@ docs = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+path = "rest_framework_services/version.py"
+pattern = "^__version__(?:\\s*:\\s*[A-Za-z][A-Za-z0-9_]*)?\\s*=\\s*[\"'](?P<version>[^\"']+)[\"']"
+
 [tool.hatch.build.targets.wheel]
 packages = ["rest_framework_services"]
 
@@ -136,9 +140,10 @@ line-ending = "auto"
 root = ["./rest_framework_services"]
 
 # bump-my-version drives `make release-bump` — it rewrites the version in
-# pyproject.toml + __init__.py and promotes the CHANGELOG [Unreleased]
-# block under a new dated heading. Run via `uvx bump-my-version` (no
-# permanent dependency added to the project).
+# rest_framework_services/version.py (the single source of truth; hatchling
+# picks it up at build time via [tool.hatch.version]) and promotes the
+# CHANGELOG [Unreleased] block under a new dated heading. Run via
+# `uvx bump-my-version` (no permanent dependency added to the project).
 [tool.bumpversion]
 current_version = "0.10.0"
 allow_dirty = false
@@ -146,14 +151,9 @@ commit = false
 tag = false
 
 [[tool.bumpversion.files]]
-filename = "pyproject.toml"
-search = 'version = "{current_version}"'
-replace = 'version = "{new_version}"'
-
-[[tool.bumpversion.files]]
-filename = "rest_framework_services/__init__.py"
-search = '__version__ = "{current_version}"'
-replace = '__version__ = "{new_version}"'
+filename = "rest_framework_services/version.py"
+search = '__version__: str = "{current_version}"'
+replace = '__version__: str = "{new_version}"'
 
 [[tool.bumpversion.files]]
 filename = "CHANGELOG.md"

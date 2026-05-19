@@ -49,6 +49,7 @@ from rest_framework_services.types import (
     ServiceSpec,
     ServiceView,
 )
+from rest_framework_services.version import __version__
 from rest_framework_services.views import (
     SelectorListView,
     SelectorRetrieveView,
@@ -123,5 +124,3 @@ __all__ = [
     "service_action",
     "update_from_input",
 ]
-
-__version__ = "0.10.0"

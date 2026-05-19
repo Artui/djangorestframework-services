@@ -69,10 +69,9 @@ release-bump:
 	@echo "review with 'git diff', then run 'make release-publish'."
 
 release-publish:
-	@version="$$(awk -F '"' '/^version = / { print $$2; exit }' pyproject.toml)"; \
-	init_version="$$(awk -F '"' '/^__version__ *= */ { print $$2; exit }' rest_framework_services/__init__.py)"; \
-	if [ "$$version" != "$$init_version" ]; then \
-		echo "Version mismatch: pyproject=$$version, __init__=$$init_version"; exit 1; \
+	@version="$$(awk -F '"' '/^__version__/ { print $$2; exit }' rest_framework_services/version.py)"; \
+	if [ -z "$$version" ]; then \
+		echo "Could not extract version from rest_framework_services/version.py"; exit 1; \
 	fi; \
 	if git rev-parse "v$$version" >/dev/null 2>&1; then \
 		echo "Tag v$$version already exists locally."; exit 1; \
@@ -81,7 +80,7 @@ release-publish:
 		echo "Tag v$$version already exists on origin."; exit 1; \
 	fi; \
 	if ! git diff-index --quiet HEAD --; then \
-		git add pyproject.toml rest_framework_services/__init__.py CHANGELOG.md uv.lock && \
+		git add pyproject.toml rest_framework_services/version.py CHANGELOG.md uv.lock && \
 		git commit -m "Release $$version"; \
 	fi && \
 	git tag -a "v$$version" -m "$$version" && \
