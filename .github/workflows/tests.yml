@@ -111,7 +111,52 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Need the parent commit so the gate step below can diff
+          # version.py against ${{ github.event.before }}. The default
+          # shallow checkout (depth 1) would make `git show "$before:…"`
+          # fail with exit 128 and turn the whole job red.
+          fetch-depth: 2
+      # release.yml runs in parallel on the same push and owns gh-pages
+      # publishing on release commits (it bundles coverage.json into the
+      # mkdocs gh-deploy). If we also push here we get a second built-in
+      # "pages build and deployment" run that the first one cancels. The
+      # version-diff against ${{ github.event.before }} is the reliable
+      # signal — release.yml's tag isn't pushed until after PyPI publish,
+      # so a tag-existence check would race.
+      - name: Skip when release.yml owns this push
+        id: gate
+        run: |
+          set -euo pipefail
+          before="${{ github.event.before }}"
+          if [[ -z "$before" || "$before" =~ ^0+$ ]]; then
+              # First push to main on a brand-new repo — no prior state to diff.
+              echo "skip=false" >> "$GITHUB_OUTPUT"
+              exit 0
+          fi
+          # `before` may not be in the local object DB if the push
+          # contained more than one commit (fetch-depth: 2 only guarantees
+          # HEAD + 1 parent). Try to fetch just that commit; if it's not
+          # reachable, fall back to "don't skip" — better to double-push
+          # to gh-pages once than to turn the pipeline red.
+          if ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+              git fetch --depth=1 origin "$before" 2>/dev/null || true
+          fi
+          old=""
+          if git cat-file -e "$before:rest_framework_services/version.py" 2>/dev/null; then
+              old="$(git show "$before:rest_framework_services/version.py" \
+                     | awk -F'"' '/^__version__/ { print $2; exit }')"
+          fi
+          new="$(awk -F'"' '/^__version__/ { print $2; exit }' \
+                 rest_framework_services/version.py)"
+          if [[ -n "$old" && "$old" != "$new" ]]; then
+              echo "Version bumped $old → $new; release.yml will deploy gh-pages."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Download canonical coverage artifact
+        if: steps.gate.outputs.skip != 'true'
         uses: actions/download-artifact@v5
         with:
           # Pin to one cell of the matrix — coverage is the same shape across
@@ -119,6 +164,7 @@ jobs:
           name: coverage-py3.13-django5.2
           path: coverage-artifact/
       - name: Render coverage.json
+        if: steps.gate.outputs.skip != 'true'
         run: |
           python - <<'PY'
           import json
@@ -146,6 +192,7 @@ jobs:
           print(json.dumps(payload))
           PY
       - name: Publish coverage.json to gh-pages
+        if: steps.gate.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

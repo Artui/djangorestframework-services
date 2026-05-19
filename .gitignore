@@ -537,6 +537,11 @@ instance/
 # Sphinx documentation
 docs/_build/
 
+# release.yml renders this at workflow-time and drops it under docs/ so
+# mkdocs gh-deploy carries it to the gh-pages root alongside the docs
+# site. Not a source artifact — keep it out of the working tree.
+docs/coverage.json
+
 # PyBuilder
 .pybuilder/
 target/

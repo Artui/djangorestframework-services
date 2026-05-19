@@ -46,7 +46,48 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make release-publish-finalize
 
-      - name: Deploy docs to gh-pages
+      # On release commits we own the single gh-pages push: embed the
+      # coverage badge JSON into the docs build so mkdocs gh-deploy carries
+      # it alongside the site, and tests.yml's coverage-badge job
+      # short-circuits to avoid a second push (and a second built-in
+      # "pages build and deployment" run).
+      - name: Render coverage badge for the docs site
+        if: steps.prepare.outputs.released == 'true' && hashFiles('mkdocs.yml') != ''
+        run: |
+          set -euo pipefail
+          # release-publish-prepare's pytest run wrote .coverage to the
+          # workspace root; convert to coverage.xml so the same parser
+          # we use in tests.yml can score it.
+          uv run coverage xml -o coverage.xml
+          python - <<'PY'
+          import json
+          import xml.etree.ElementTree as ET
+
+          tree = ET.parse("coverage.xml")
+          pct = round(float(tree.getroot().attrib["line-rate"]) * 100, 1)
+          if pct >= 95:
+              color = "brightgreen"
+          elif pct >= 85:
+              color = "green"
+          elif pct >= 70:
+              color = "yellow"
+          else:
+              color = "red"
+          payload = {
+              "schemaVersion": 1,
+              "label": "coverage",
+              "message": f"{pct}%",
+              "color": color,
+          }
+          # docs/ is mkdocs' source dir; non-.md files are copied verbatim
+          # into site/, which lands at the gh-pages root after gh-deploy.
+          with open("docs/coverage.json", "w") as fh:
+              json.dump(payload, fh)
+              fh.write("\n")
+          print(json.dumps(payload))
+          PY
+
+      - name: Deploy docs + coverage badge to gh-pages
         if: steps.prepare.outputs.released == 'true' && hashFiles('mkdocs.yml') != ''
         run: |
           git config user.name 'github-actions[bot]'
