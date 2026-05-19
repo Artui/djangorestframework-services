@@ -111,6 +111,12 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Need the parent commit so the gate step below can diff
+          # version.py against ${{ github.event.before }}. The default
+          # shallow checkout (depth 1) would make `git show "$before:…"`
+          # fail with exit 128 and turn the whole job red.
+          fetch-depth: 2
       # release.yml runs in parallel on the same push and owns gh-pages
       # publishing on release commits (it bundles coverage.json into the
       # mkdocs gh-deploy). If we also push here we get a second built-in
@@ -128,8 +134,19 @@ jobs:
               echo "skip=false" >> "$GITHUB_OUTPUT"
               exit 0
           fi
-          old="$(git show "$before:rest_framework_services/version.py" 2>/dev/null \
-                 | awk -F'"' '/^__version__/ { print $2; exit }')"
+          # `before` may not be in the local object DB if the push
+          # contained more than one commit (fetch-depth: 2 only guarantees
+          # HEAD + 1 parent). Try to fetch just that commit; if it's not
+          # reachable, fall back to "don't skip" — better to double-push
+          # to gh-pages once than to turn the pipeline red.
+          if ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+              git fetch --depth=1 origin "$before" 2>/dev/null || true
+          fi
+          old=""
+          if git cat-file -e "$before:rest_framework_services/version.py" 2>/dev/null; then
+              old="$(git show "$before:rest_framework_services/version.py" \
+                     | awk -F'"' '/^__version__/ { print $2; exit }')"
+          fi
           new="$(awk -F'"' '/^__version__/ { print $2; exit }' \
                  rest_framework_services/version.py)"
           if [[ -n "$old" && "$old" != "$new" ]]; then
