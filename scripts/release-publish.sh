@@ -4,9 +4,11 @@
 #
 # Phases:
 #   prepare   Extract version, no-op if already released, run pytest, build dist,
-#             extract CHANGELOG section, write release metadata under dist/.
-#             Emits `released=true|false` and `version=…` to $GITHUB_OUTPUT
-#             when running under GitHub Actions.
+#             extract CHANGELOG section, write release metadata under
+#             .release-metadata/. (Metadata lives outside dist/ so
+#             `pypa/gh-action-pypi-publish` doesn't try to upload it as a
+#             distribution.) Emits `released=true|false` and `version=…` to
+#             $GITHUB_OUTPUT when running under GitHub Actions.
 #   finalize  Tag, push tag, and create a GitHub Release with the wheel + sdist
 #             attached. Skipped automatically if prepare decided no release.
 #   all       prepare → uv publish → finalize. Used for manual workstation
@@ -117,7 +119,7 @@ do_prepare() {
     if [[ -z "${GITHUB_ACTIONS:-}" ]]; then
         # Local dev: a stale `dist/` from a previous build can confuse the
         # publish step. CI runs on a fresh runner so this is unnecessary there.
-        rm -rf dist
+        rm -rf dist .release-metadata
     fi
 
     git fetch --tags --quiet origin || true
@@ -134,9 +136,12 @@ do_prepare() {
     log "building distributions"
     uv build
 
-    mkdir -p dist
-    extract_changelog_section "$version" dist/release-notes.md
-    printf '%s\n' "$version" >dist/RELEASE_VERSION
+    # Metadata lives outside dist/ — pypa/gh-action-pypi-publish uploads
+    # every file in its packages-dir, so dist/ must contain only wheels
+    # and sdists.
+    mkdir -p .release-metadata
+    extract_changelog_section "$version" .release-metadata/release-notes.md
+    printf '%s\n' "$version" >.release-metadata/RELEASE_VERSION
 
     emit_output released true
     emit_output version "$version"
@@ -144,12 +149,12 @@ do_prepare() {
 }
 
 do_finalize() {
-    if [[ ! -f dist/RELEASE_VERSION ]]; then
-        log "no dist/RELEASE_VERSION — prepare did not run or short-circuited; nothing to finalize"
+    if [[ ! -f .release-metadata/RELEASE_VERSION ]]; then
+        log "no .release-metadata/RELEASE_VERSION — prepare did not run or short-circuited; nothing to finalize"
         return 0
     fi
     local version
-    version="$(cat dist/RELEASE_VERSION)"
+    version="$(cat .release-metadata/RELEASE_VERSION)"
     log "finalizing v$version"
 
     if [[ "${DRY_RUN:-}" == "1" ]]; then
@@ -171,7 +176,7 @@ do_finalize() {
     else
         gh release create "v$version" \
             --title "v$version" \
-            --notes-file dist/release-notes.md \
+            --notes-file .release-metadata/release-notes.md \
             dist/*.whl dist/*.tar.gz
     fi
 }
@@ -194,7 +199,7 @@ case "$phase" in
         ;;
     all)
         do_prepare
-        if [[ -f dist/RELEASE_VERSION ]]; then
+        if [[ -f .release-metadata/RELEASE_VERSION ]]; then
             do_publish_pypi
             do_finalize
         fi
