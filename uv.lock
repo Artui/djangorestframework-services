@@ -396,7 +396,6 @@ wheels = [
 
 [[package]]
 name = "djangorestframework-services"
-version = "0.10.0"
 source = { editable = "." }
 dependencies = [
     { name = "django" },

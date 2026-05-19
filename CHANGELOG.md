@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Version is now tracked in a single source of truth at
+  `rest_framework_services/version.py`. `pyproject.toml` declares
+  `dynamic = ["version"]` and hatchling reads the value from `version.py`
+  at build time. `rest_framework_services.__version__` continues to
+  re-export the same value. Pure refactor — no behaviour change.
+
 ## [0.10.0] — 2026-05-03
 
 ### Added

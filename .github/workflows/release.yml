@@ -28,26 +28,23 @@ jobs:
         run: uv sync --all-groups
 
       - name: Tag version matches package version
-        # Compare the git tag (vX.Y.Z) against pyproject.toml AND
-        # rest_framework_services.__version__ — both must agree with the tag.
-        # We parse pyproject.toml and __init__.py with grep/awk rather than
-        # importing the package, because importing the package transitively
-        # imports DRF, which reads ``settings.REST_FRAMEWORK`` at import time
-        # and crashes without a configured Django settings module.
+        # Compare the git tag (vX.Y.Z) against the single-source-of-truth
+        # version in ``rest_framework_services/version.py``. ``pyproject.toml``
+        # declares the version as ``dynamic`` and hatchling reads it from the
+        # same file at build time, so there is only one place to check.
+        # We parse the file with awk rather than importing the package,
+        # because importing transitively imports DRF, which reads
+        # ``settings.REST_FRAMEWORK`` at import time and crashes without a
+        # configured Django settings module.
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          pyproject_version="$(awk -F '"' '/^version = / { print $2; exit }' pyproject.toml)"
-          init_version="$(awk -F '"' '/^__version__ *= */ { print $2; exit }' rest_framework_services/__init__.py)"
-          if [[ -z "$pyproject_version" || -z "$init_version" ]]; then
-            echo "Could not extract version from pyproject.toml or __init__.py"
+          pkg_version="$(awk -F '"' '/^__version__/ { print $2; exit }' rest_framework_services/version.py)"
+          if [[ -z "$pkg_version" ]]; then
+            echo "Could not extract version from rest_framework_services/version.py"
             exit 1
           fi
-          if [[ "$pyproject_version" != "$init_version" ]]; then
-            echo "pyproject.toml version ($pyproject_version) does not match __version__ ($init_version)"
-            exit 1
-          fi
-          if [[ "$tag" != "v$pyproject_version" ]]; then
-            echo "Tag $tag does not match package version v$pyproject_version"
+          if [[ "$tag" != "v$pkg_version" ]]; then
+            echo "Tag $tag does not match package version v$pkg_version"
             exit 1
           fi
 

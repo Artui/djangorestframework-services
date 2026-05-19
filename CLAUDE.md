@@ -179,8 +179,11 @@ The release pipeline is triggered by pushing a `vX.Y.Z` tag and runs three
 sequential jobs in `.github/workflows/release.yml`:
 
 1. `build` — re-runs the full test suite at 100% coverage, then `uv build`.
-   It also asserts the git tag matches `rest_framework_services.__version__`,
-   so you can never tag without bumping the source.
+   It also asserts the git tag matches the version in
+   `rest_framework_services/version.py` (the single source of truth;
+   `pyproject.toml` declares `dynamic = ["version"]` and hatchling reads
+   the value from `version.py` at build time), so you can never tag
+   without bumping the source.
 2. `publish-pypi` — uploads via **OIDC trusted publishing**. There is no API
    token in the repo; PyPI must have a Trusted Publisher configured for the
    project pointing at this workflow.
@@ -198,9 +201,11 @@ via `uvx`; configuration lives in `[tool.bumpversion]` in
 # 1. Make sure CHANGELOG.md has the entries you want to ship under
 #    ## [Unreleased]. Then bump:
 make release-bump VERSION=0.4.1
-# This rewrites pyproject.toml + __init__.py, promotes the [Unreleased]
-# block under a dated [0.4.1] section, and rewrites the link footer —
-# all driven by the [[tool.bumpversion.files]] entries in pyproject.toml.
+# This rewrites rest_framework_services/version.py (the single source of
+# truth — pyproject.toml is dynamic and reads from it at build time),
+# promotes the [Unreleased] block under a dated [0.4.1] section, and
+# rewrites the link footer — all driven by the [[tool.bumpversion.files]]
+# entries in pyproject.toml.
 
 # 2. Review the diff. Edit CHANGELOG.md if you want to reword anything.
 git diff
@@ -213,12 +218,12 @@ make release-publish
 
 `release-bump` refuses to run on a dirty tree (bump-my-version's
 `allow_dirty = false`), so you don't fold unrelated changes into the
-release commit. `release-publish` refuses to run if `pyproject.toml`
-and `rest_framework_services/__init__.py` disagree, or if the tag
-already exists locally or on origin.
+release commit. `release-publish` refuses to run if the tag already
+exists locally or on origin.
 
-If you really need to do it by hand, the manual flow is: bump both
-version files in lockstep, edit `CHANGELOG.md`, commit, then
+If you really need to do it by hand, the manual flow is: edit
+`rest_framework_services/version.py` (`pyproject.toml` is dynamic and
+picks up the value at build time), edit `CHANGELOG.md`, commit, then
 `git tag -a vX.Y.Z -m "X.Y.Z"` and `git push origin main vX.Y.Z`.
 
 ### One-time setup (manual, by the repo owner)
