@@ -1,8 +1,12 @@
 """Fixtures that intentionally drift from the unified service / selector
-Protocols (used in their strict, fully-parameterised shape). Run by
-``make type-check-strict-fixtures`` — ``ty`` is expected to emit one
-diagnostic per ``# expect-error`` marker. Used to guard against regressions
-where the strict parameterisation silently stops validating drift.
+Protocols. Run by ``make type-check-strict-fixtures`` — ``ty`` is expected to
+emit one diagnostic per ``# expect-error`` marker. Used to guard against
+regressions where the Protocols silently stop validating drift.
+
+Each function is annotated with ``**extras: Unpack[<MyKw>]`` (with
+``NotRequired`` keys, so it stays Protocol-conformant) and then assigned to
+the matching Protocol type. ty flags the structural mismatch on the
+``@implements`` line.
 
 Note on coverage in ``ty``: this file is intentionally outside the package's
 ``ty`` scope (CI runs ``ty check rest_framework_services`` for the green
@@ -13,9 +17,8 @@ specifically and asserts an error count.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Unpack
 
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict, Unpack
 
 from rest_framework_services import (
     CreateService,
@@ -41,28 +44,28 @@ class _Author:
 
 
 class _CreateExtras(TypedDict):
-    tenant_id: int
+    tenant_id: NotRequired[int]
 
 
 class _UpdateExtras(TypedDict):
-    tenant_id: int
-    actor_id: int
+    tenant_id: NotRequired[int]
+    actor_id: NotRequired[int]
 
 
 class _DeleteExtras(TypedDict):
-    reason: str
+    reason: NotRequired[str]
 
 
 class _ListExtras(TypedDict):
-    tenant_id: int
+    tenant_id: NotRequired[int]
 
 
 class _RetrieveExtras(TypedDict):
-    pk: int
+    pk: NotRequired[int]
 
 
 class _OutputExtras(TypedDict):
-    rendered_at: str
+    rendered_at: NotRequired[str]
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +74,7 @@ class _OutputExtras(TypedDict):
 
 
 # expect-error: incompatible return types
-@implements(CreateService[_AuthorIn, _Author, _CreateExtras])
+@implements(CreateService[_AuthorIn, _Author])
 def create_drift_return(
     *,
     data: _AuthorIn,
@@ -86,7 +89,7 @@ def create_drift_return(
 
 
 # expect-error: incompatible parameter type
-@implements(CreateService[_AuthorIn, _Author, _CreateExtras])
+@implements(CreateService[_AuthorIn, _Author])
 def create_drift_input(
     *,
     data: int,
@@ -101,7 +104,7 @@ def create_drift_input(
 
 
 # expect-error: incompatible instance type
-@implements(UpdateService[_AuthorIn, _Author, _Author, _UpdateExtras])
+@implements(UpdateService[_AuthorIn, _Author, _Author])
 def update_drift_instance(
     *,
     instance: int,
@@ -117,7 +120,7 @@ def update_drift_instance(
 
 
 # expect-error: incompatible return types
-@implements(DeleteService[NoInput, _Author, None, _DeleteExtras])
+@implements(DeleteService[NoInput, _Author, None])
 def delete_drift_return(
     *,
     instance: _Author,
@@ -132,7 +135,7 @@ def delete_drift_return(
 
 
 # expect-error: incompatible iterable element type
-@implements(ListSelector[_Author, _ListExtras])
+@implements(ListSelector[_Author])
 def list_drift_element(
     **extras: Unpack[_ListExtras],
 ) -> list[int]:
@@ -145,7 +148,7 @@ def list_drift_element(
 
 
 # expect-error: incompatible return types
-@implements(RetrieveSelector[_Author, _RetrieveExtras])
+@implements(RetrieveSelector[_Author])
 def retrieve_drift_return(
     **extras: Unpack[_RetrieveExtras],
 ) -> int | None:
@@ -158,7 +161,7 @@ def retrieve_drift_return(
 
 
 # expect-error: incompatible parameter type
-@implements(OutputSelector[_Author, _Author, _OutputExtras])
+@implements(OutputSelector[_Author, _Author])
 def output_drift_input(
     *,
     result: int,

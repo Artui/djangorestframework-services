@@ -2,40 +2,32 @@
 
 from __future__ import annotations
 
-from typing import Protocol, TypeVar, Unpack
+from typing import Any, Protocol, TypeVar
 
-from rest_framework_services.types._any_extras import _AnyExtras
-
-InputT = TypeVar("InputT")
+InputT = TypeVar("InputT", contravariant=True)
 ResultT = TypeVar("ResultT", covariant=True)
-ExtraT = TypeVar("ExtraT", default=_AnyExtras)
 
 
-class CreateService(Protocol[InputT, ResultT, ExtraT]):
+class CreateService(Protocol[InputT, ResultT]):
     """Structural shape for a create-action service callable.
 
-    Two parameterisations of the same shape:
+    ``data`` carries the validated input from the framework. ``**extras``
+    absorbs whatever else the framework's kwargs pool delivers — ``request``,
+    ``user``, URL kwargs, ``ServiceSpec.kwargs`` returns — without the service
+    having to declare each key. The Protocol types ``**extras`` as ``Any`` so
+    services on every major type checker (ty, mypy, pyright) conform.
 
-    * ``CreateService[AuthorIn, Author]`` — lenient. ``ExtraT`` defaults to
-      a ``TypedDict`` carrying arbitrary :class:`~typing.Any`-typed keys
-      (via :pep:`728`'s ``extra_items=Any``), so the service can accept
-      whatever the framework's kwargs pool delivers — ``request``, ``user``,
-      URL kwargs, ``ServiceSpec.kwargs`` returns — without declaring them.
-    * ``CreateService[AuthorIn, Author, MyExtras]`` — strict. Bind
-      ``ExtraT`` to a ``TypedDict`` to pin the extras contract; type
-      checkers then enforce that the service declares exactly those keys
-      (no more, no less). Subclass
-      :class:`~rest_framework_services.types.http_extras.HttpExtras` if
-      you need ``request`` / ``user`` to come through extras.
-
-    ``request`` and ``user`` are not part of the fixed signature in either
-    form — they flow through ``**extras`` like every other framework-pool
-    key. Services that don't read them simply omit them.
+    Strict-typed extras stay possible on your *own* function signature: declare
+    your extras as a ``TypedDict`` with ``NotRequired`` keys and annotate
+    ``**extras: Unpack[YourKw]``. Inside the function body, ``extras["foo"]``
+    is then typed by ``YourKw``. The Protocol no longer carries a third type
+    argument for the kwargs shape — that cross-check only ever worked under
+    one minor version of one type checker (`ty` 0.0.32) and is not portable.
     """
 
     def __call__(
         self,
         *,
         data: InputT,
-        **extras: Unpack[ExtraT],
+        **extras: Any,
     ) -> ResultT: ...

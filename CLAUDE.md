@@ -126,11 +126,11 @@ Common patches you'll still need inside the package:
 
 | Axis | Floor | Tested ceiling |
 |---|---|---|
-| Python | 3.13 | 3.14 |
+| Python | 3.10 | 3.14 |
 | Django | 4.2 | 6.0 |
 | DRF | 3.14 | latest |
 
-Python 3.13 syntax / stdlib features are fair game (`match`, PEP 695 `type` statements, PEP 696 TypeVar defaults, PEP 728 `TypedDict(..., extra_items=...)`, etc.). The package still prefers `Generic[T]` + `TypeVar(...)` over PEP 695 `class C[T]:` / `def f[T](...)` syntax for consistency across modules — don't "modernise" existing TypeVar uses on sight. CI runs the full Python × Django product, so any combo-specific bug surfaces fast.
+Python 3.10 syntax / stdlib features are fair game (`match` statements, PEP 604 union syntax, etc.). Newer stdlib symbols (`Unpack`, `NotRequired`, `assert_type`, `TypeVar` with `default=...`, `override`) must be imported from `typing_extensions` so 3.10 / 3.11 keep working — `typing_extensions` re-exports them on every supported version. PEP 728's `TypedDict(..., extra_items=...)` is deliberately not used (no `typing_extensions` backport, blocks mypy). PEP 695 `class C[T]:` / `def f[T](...)` / `type X = …` syntax is also avoided — the package consistently uses `TypeVar(...)` + `Generic[T]`; don't "modernise" existing TypeVar uses on sight (the `UP040`, `UP046`, `UP047` ruff rules are ignored project-wide). CI runs the full Python × Django product, so any combo-specific bug surfaces fast.
 
 `from __future__ import annotations` is at the top of every `.py` file in the package that has annotations (i.e. everything except bare re-export `__init__.py` files). Keep it that way.
 

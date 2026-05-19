@@ -4,11 +4,13 @@ Importing the Protocols is purely opt-in: ``ServiceSpec.service`` accepts any
 plain callable. Annotate your service against the matching Protocol when you
 want IDE / type-checker support for the keys the framework provides.
 
-Each Protocol takes a trailing ``ExtraT`` TypeVar with a private default that
-accepts arbitrary :class:`~typing.Any`-typed keyword arguments (the "lenient"
-shape). Bind ``ExtraT`` to a concrete ``TypedDict`` to switch to the "strict"
-shape — type checkers will then enforce that the service declares exactly
-those extras (no more, no less).
+Each Protocol types ``**extras`` as :class:`~typing.Any`, so any service
+function that declares ``**extras: Any`` (or omits the keyword-spread
+entirely and reads only declared keys) conforms. To get IDE / type-checker
+help on extras keys, annotate your function with
+``**extras: Unpack[YourTypedDict]`` — keys must be ``NotRequired`` to keep
+the function Protocol-conformant. The Protocols themselves do not carry an
+extras-shape parameter; see ``CreateService`` for the rationale.
 
 The ``create_model`` / ``update_model`` / ``delete_model`` factories (plus
 their ``acreate_model`` / ``aupdate_model`` / ``adelete_model`` async

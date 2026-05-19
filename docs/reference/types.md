@@ -20,10 +20,6 @@
 
 ::: rest_framework_services.types.unset
 
-## `NoKwargs`
-
-::: rest_framework_services.types.no_kwargs.NoKwargs
-
 ## `NoInput`
 
 ::: rest_framework_services.types.no_input.NoInput

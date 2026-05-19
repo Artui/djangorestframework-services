@@ -256,9 +256,9 @@ to a Protocol so a type checker catches signature drift before request
 time.
 
 `CreateService`, `UpdateService`, `DeleteService`, `ListSelector`,
-`RetrieveSelector`, and `OutputSelector` each take a trailing `ExtraT`
-TypeVar with a default that accepts any framework-pool key. **Lenient**
-form — pass two type arguments and let `ExtraT` default; your callable
+`RetrieveSelector`, and `OutputSelector` each take only the input,
+instance, and result type parameters. `**extras` is typed `Any` so the
+framework's kwargs pool flows through transparently, and your callable
 declares only the parameters it actually uses:
 
 ```python
@@ -274,17 +274,16 @@ _: CreateService[CreateAuthorInput, Author] = create_author
 _: ListSelector[Author] = list_authors
 ```
 
-When you want the type checker to fail on *any* drift — including
-extras forwarded from a `kwargs=` provider — pass a third type argument
-binding `ExtraT` to a concrete `TypedDict`. The Protocol then uses
-[PEP 692](https://peps.python.org/pep-0692/) `Unpack[TypedDict]` to pin
-every kwarg the callable receives, and pairs naturally with the
-`@implements(...)` decorator so the contract sits on the function
-definition itself:
+For strict-typed extras — when you want the type checker to assist on
+`extras["tenant_id"]` accesses inside the function body — declare a
+`TypedDict` with `total=False` (or `NotRequired` per field) and unpack
+it into your function via [PEP 692](https://peps.python.org/pep-0692/)
+`Unpack[TypedDict]`. The Protocol itself does not carry a kwargs-shape
+parameter; the typing lives on your function, which keeps the design
+portable across `ty`, `mypy`, and `pyright`:
 
 ```python
-from typing import TypedDict
-from typing_extensions import Unpack
+from typing_extensions import TypedDict, Unpack
 
 from rest_framework_services import (
     CreateService,
@@ -295,7 +294,7 @@ from rest_framework_services import (
 )
 
 
-class AuthorExtras(TypedDict):
+class AuthorExtras(TypedDict, total=False):
     tenant_id: int
 
 
@@ -303,7 +302,7 @@ def _author_kwargs(view, request) -> AuthorExtras:
     return {"tenant_id": request.tenant.id}
 
 
-@implements(CreateService[CreateAuthorInput, Author, AuthorExtras])
+@implements(CreateService[CreateAuthorInput, Author])
 def create_author(
     *,
     data: CreateAuthorInput,
@@ -311,7 +310,7 @@ def create_author(
 ) -> Author: ...
 
 
-@implements(ListSelector[Author, AuthorExtras])
+@implements(ListSelector[Author])
 def list_authors(
     **extras: Unpack[AuthorExtras],
 ) -> QuerySet[Author]: ...
@@ -328,14 +327,15 @@ class AuthorViewSet(ServiceViewSet):
     }
 ```
 
-Adding a parameter to the service without updating `AuthorExtras` is a
-type error. Removing a key from `AuthorExtras` without updating the
-service is a type error.
+`total=False` (or per-field `NotRequired`) keeps the function
+Protocol-conformant: under PEP 692, any required key would make the
+function reject callers that omit it, breaking assignment to the
+Protocol shape.
 
 `request` and `user` flow through `**extras` like every other pool key.
-Services that need them either pick them off the lenient `**kwargs` or
-declare them on their `ExtraT` (most cleanly by subclassing
-`HttpExtras[YourUserModel]`).
+Services that need them either read them off `**extras: Any` directly
+or use `HttpExtras[YourUserModel]` (a `total=False` `TypedDict`) as the
+`Unpack` target.
 
 On top of static typing, `as_view()` walks every spec at URL-wiring time
 and raises `ImproperlyConfigured` for misconfigurations the checker

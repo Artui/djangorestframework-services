@@ -1,7 +1,7 @@
 """Selector protocols — typed shapes for query callables.
 
-See :mod:`rest_framework_services.services` for the lenient-vs-strict
-parameterisation conventions; selectors follow the identical pattern.
+See :mod:`rest_framework_services.services` for the extras-typing
+conventions; selectors follow the identical pattern.
 """
 
 from rest_framework_services.selectors.acall_selector import acall_selector

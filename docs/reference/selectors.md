@@ -2,10 +2,10 @@
 
 ## Protocols
 
-Each Protocol takes a trailing `ExtraT` TypeVar with a default — supply two
-arguments for the lenient form (`ListSelector[Author]`), three for the strict
-form (`ListSelector[Author, MyExtras]`). See the
-[services reference](services.md) for the rationale.
+Each Protocol is parameterised on input / instance / result types only;
+`**extras` is typed `Any`. Strict-typed extras live on the user's function
+signature via `**extras: Unpack[YourKw]` — see
+[Typing services and selectors](../typing.md) for the full pattern.
 
 ::: rest_framework_services.selectors.selector.Selector
 

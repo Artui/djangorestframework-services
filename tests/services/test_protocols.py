@@ -5,10 +5,11 @@ that ordinary callables matching the shape are accepted as service callables
 on a parameterized ``ServiceSpec`` without runtime errors. Static enforcement
 is exercised separately via ``ty`` in CI.
 
-The lenient shape is the unified Protocol parameterised with just input and
-result types — ``ExtraT`` defaults to a private arbitrary-key ``TypedDict``
-that accepts the framework's kwargs pool (``request``, ``user``, URL kwargs,
-``ServiceSpec.kwargs`` returns) without the service declaring them.
+The Protocol parameterisation is just input and result types — ``**extras``
+is typed as ``Any`` so the framework's kwargs pool (``request``, ``user``,
+URL kwargs, ``ServiceSpec.kwargs`` returns) flows in without the service
+having to declare them. Strict-typed extras stay on the user's function
+signature via ``**extras: Unpack[YourKw]`` (with ``NotRequired`` keys).
 """
 
 from __future__ import annotations

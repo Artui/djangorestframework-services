@@ -2,34 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Protocol, TypeVar, Unpack
+from typing import Any, Protocol, TypeVar
 
-from rest_framework_services.types._any_extras import _AnyExtras
-
-InputT = TypeVar("InputT")
-InstanceT = TypeVar("InstanceT")
+InputT = TypeVar("InputT", contravariant=True)
+InstanceT = TypeVar("InstanceT", contravariant=True)
 ResultT = TypeVar("ResultT", covariant=True)
-ExtraT = TypeVar("ExtraT", default=_AnyExtras)
 
 
-class UpdateService(Protocol[InputT, InstanceT, ResultT, ExtraT]):
+class UpdateService(Protocol[InputT, InstanceT, ResultT]):
     """Structural shape for an update-action service callable.
 
     Receives the resolved ``instance`` plus the validated ``data``. Returning
     ``None`` instructs the framework to render the in-memory ``instance``
     (mirroring DRF's ``UpdateAPIView`` shape).
 
-    See :class:`CreateService` for the lenient-vs-strict parameterisation
-    rationale. Two example signatures::
-
-        # Lenient — accepts arbitrary framework-pool keys
-        UpdateService[AuthorIn, Author, Author]
-
-        # Strict — pin extras via ``HttpExtras`` subclass
-        class UpdateAuthorKwargs(HttpExtras[MyUser]):
-            tenant_id: int
-
-        UpdateService[AuthorIn, Author, Author, UpdateAuthorKwargs]
+    See :class:`CreateService` for the extras-typing notes.
     """
 
     def __call__(
@@ -37,5 +24,5 @@ class UpdateService(Protocol[InputT, InstanceT, ResultT, ExtraT]):
         *,
         instance: InstanceT,
         data: InputT,
-        **extras: Unpack[ExtraT],
+        **extras: Any,
     ) -> ResultT: ...

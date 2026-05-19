@@ -14,5 +14,5 @@ def test_no_input_can_be_used_as_type_argument() -> None:
     # protocol; subscript binding shouldn't error.
     from rest_framework_services import DeleteService
 
-    Bound = DeleteService[NoInput, object, None, dict]  # noqa: N806
+    Bound = DeleteService[NoInput, object, None]  # noqa: N806
     assert Bound is not None

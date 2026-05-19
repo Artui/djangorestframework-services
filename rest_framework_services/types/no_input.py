@@ -8,11 +8,11 @@ class NoInput:
 
     Pair with :class:`DeleteService` when the spec has no ``input_serializer``::
 
-        @implements(DeleteService[NoInput, Author, None, NoKwargs])
+        @implements(DeleteService[NoInput, Author, None])
         def delete_author(
             *,
             instance: Author,
-            **extras: Unpack[NoKwargs],
+            **extras: Any,
         ) -> None: ...
 
     The class itself is never instantiated — it exists purely to bind the

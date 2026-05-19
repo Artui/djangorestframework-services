@@ -48,11 +48,9 @@ spec: ServiceSpec[AuthorIn, Author] = ServiceSpec(
 
 ## Unified service / selector Protocols
 
-Each Protocol takes a trailing `ExtraT` TypeVar with a default that accepts
-arbitrary `Any`-typed keyword arguments. **Lenient** form — pass two type
-arguments and `ExtraT` defaults to the open shape; the service can declare
-only the parameters it actually needs and the framework passes nothing
-else:
+Each Protocol is parameterised on input / instance / result types only.
+`**extras` is typed `Any` so the framework's kwargs pool flows through —
+services declare only the parameters they read:
 
 ```python
 from rest_framework_services import CreateService
@@ -67,88 +65,108 @@ def create_author(
 _check: CreateService[AuthorIn, Author] = create_author
 ```
 
-**Strict** form — pass a third type argument binding `ExtraT` to a concrete
-`TypedDict`. Type checkers then enforce that the service declares exactly
-those extras (no more, no less), using
-[PEP 692](https://peps.python.org/pep-0692/) `Unpack[TypedDict]`. Pair with
-the [`@implements`](#attaching-the-protocol-to-the-function-implements)
-decorator to attach the assertion to the function definition itself:
+For **strict-typed extras** — when you want the type checker to assist on
+`extras["tenant_id"]` accesses — declare a `TypedDict` and unpack it into
+*your function* via [PEP 692](https://peps.python.org/pep-0692/)
+`Unpack[TypedDict]`. The typing lives on the function signature, not on
+the Protocol; pair with the
+[`@implements`](#attaching-the-protocol-to-the-function-implements)
+decorator to attach the structural assertion at the def site:
 
 ```python
-from typing import TypedDict
-from typing_extensions import Unpack
+from typing_extensions import TypedDict, Unpack
 
 from rest_framework_services import CreateService, implements
 
-class CreateAuthorKwargs(TypedDict):
+class CreateAuthorKwargs(TypedDict, total=False):
     tenant_id: int
 
-@implements(CreateService[AuthorIn, Author, CreateAuthorKwargs])
-def create_author(
-    *,
-    data: AuthorIn,
-    **extras: Unpack[CreateAuthorKwargs],   # exact extras contract
-) -> Author: ...
-```
-
-Drift between `create_author` and the parameterized Protocol now produces a
-`ty` error at the `@implements(...)` line.
-
-The Protocols deliberately do **not** include `request` or `user` in their
-fixed signature. The framework still puts both keys in the kwargs pool —
-services that read them either pick them up off `**extras` (lenient form),
-or declare them on their `ExtraT` (strict form), most ergonomically by
-subclassing [`HttpExtras[UserT]`](reference/types.md#httpextras):
-
-```python
-from rest_framework_services import CreateService, HttpExtras, implements
-
-class CreateAuthorKwargs(HttpExtras[MyUser]):
-    tenant_id: int
-
-@implements(CreateService[AuthorIn, Author, CreateAuthorKwargs])
+@implements(CreateService[AuthorIn, Author])
 def create_author(
     *,
     data: AuthorIn,
     **extras: Unpack[CreateAuthorKwargs],
 ) -> Author:
-    user = extras["user"]              # typed as MyUser
-    request = extras["request"]
+    tenant_id = extras.get("tenant_id")    # typed as int | None
     ...
 ```
 
-Services that don't read `request` / `user` simply omit them — their
-`ExtraT` carries only the genuine extras (or
-[`NoKwargs`](reference/types.md#nokwargs) if there are none).
+`total=False` (or per-field `NotRequired`) is required so the function
+stays Protocol-conformant — under PEP 692, any required key would make
+the function reject callers that omit it, breaking the structural check
+against `CreateService` / `ListSelector` / etc.
 
-Available Protocols (lenient / strict shape):
+Drift between `create_author` and the parameterised Protocol produces a
+`ty` / `pyright` error at the `@implements(...)` line. Drift inside the
+function body (e.g. typo'd `extras["tenent_id"]`) is caught by the
+TypedDict's normal key check.
 
-- `CreateService[InputT, ResultT]` / `CreateService[InputT, ResultT, ExtraT]`
-- `UpdateService[InputT, InstanceT, ResultT]` /
-  `UpdateService[InputT, InstanceT, ResultT, ExtraT]`
-- `DeleteService[InputT, InstanceT, ResultT]` /
-  `DeleteService[InputT, InstanceT, ResultT, ExtraT]` — bind `InputT` to
-  your input dataclass for delete-with-payload, or to
+The Protocols deliberately do **not** name `request` or `user` in their
+fixed signature. The framework still puts both keys in the kwargs pool —
+services that read them either pick them up off `**extras` directly, or
+unpack a `HttpExtras[YourUser]` subclass (a `total=False` `TypedDict`)
+for typed access:
+
+```python
+from rest_framework_services import CreateService, HttpExtras, implements
+from typing_extensions import Unpack
+
+class CreateAuthorKwargs(HttpExtras[MyUser], total=False):
+    tenant_id: int
+
+@implements(CreateService[AuthorIn, Author])
+def create_author(
+    *,
+    data: AuthorIn,
+    **extras: Unpack[CreateAuthorKwargs],
+) -> Author:
+    user = extras.get("user")           # typed as MyUser | None
+    request = extras.get("request")     # typed as Request | None
+    ...
+```
+
+Available Protocols:
+
+- `CreateService[InputT, ResultT]`
+- `UpdateService[InputT, InstanceT, ResultT]`
+- `DeleteService[InputT, InstanceT, ResultT]` — bind `InputT` to your
+  input dataclass for delete-with-payload, or to
   [`NoInput`](reference/types.md#noinput) when no body is read.
-- `ListSelector[ResultT]` / `ListSelector[ResultT, ExtraT]`
-- `RetrieveSelector[ResultT]` / `RetrieveSelector[ResultT, ExtraT]`
-- `OutputSelector[InT, OutT]` / `OutputSelector[InT, OutT, ExtraT]`
+- `ListSelector[ResultT]`
+- `RetrieveSelector[ResultT]`
+- `OutputSelector[InT, OutT]`
 
-`ExtraT` sits **last** in the parameter list. PEP 696 requires defaulted
-TypeVars to trail; placing `ExtraT` last is what makes the two-arg "lenient"
-form work.
-
-!!! note "Migrating from `Strict*` (0.6 – 0.10)"
+!!! note "Migrating from `Strict*` / 3-arg parameterisation (0.6 – 0.10)"
     Releases 0.6 – 0.10 shipped separate `StrictCreateService` /
-    `StrictListSelector` / … Protocols, with `ExtraT` immediately *before*
-    the result type. **0.11 removes those classes entirely** and folds
-    them into the unified Protocols above, with the parameter order
-    flipped to satisfy PEP 696 (`[…, ResultT, ExtraT]`). Rename every
-    `Strict<Foo>` import to its unified equivalent, and swap the last two
-    type arguments at every parameterization site:
-    `StrictCreateService[AuthorIn, MyKw, Author]` →
-    `CreateService[AuthorIn, Author, MyKw]`. There is no deprecation
-    bridge.
+    `StrictListSelector` / … Protocols that carried an explicit
+    `ExtraT` `TypedDict` as a type argument. **0.11 removes those
+    classes** and folds them into the unified Protocols above, with
+    the kwargs-shape moved off the Protocol and onto the function
+    signature instead. The cross-Protocol enforcement of `ExtraT`
+    only ever worked under one minor version of `ty` (0.0.32) — `mypy`
+    and `pyright` always rejected the `Unpack[<TypeVar>]` pattern.
+    Strict-typed extras now live on your function via
+    `**extras: Unpack[YourKw]`, which type-checks consistently on
+    every modern checker.
+
+    Migration: rename `Strict*` to the unified name, drop the trailing
+    `ExtraT` from every parameterisation site, and ensure your extras
+    `TypedDict` declares its keys as `NotRequired` / `total=False`:
+
+    ```python
+    # Before (0.10)
+    @implements(StrictCreateService[AuthorIn, MyKw, Author])
+    def create_author(*, data: AuthorIn, **extras: Unpack[MyKw]) -> Author: ...
+
+    # After (0.11)
+    class MyKw(TypedDict, total=False):
+        tenant_id: int
+
+    @implements(CreateService[AuthorIn, Author])
+    def create_author(*, data: AuthorIn, **extras: Unpack[MyKw]) -> Author: ...
+    ```
+
+    There is no deprecation bridge.
 
 ---
 
@@ -213,7 +231,7 @@ decorator — it returns the function unchanged at runtime and triggers the
 structural-subtyping check at the decorator line:
 
 ```python
-@implements(ListSelector[Author, ListAuthorsKwargs])
+@implements(ListSelector[Author])
 def list_authors(
     **extras: Unpack[ListAuthorsKwargs],
 ) -> Iterable[Author]: ...
@@ -225,7 +243,7 @@ ad-hoc one-off checks:
 ```python
 def list_authors(...) -> Iterable[Author]: ...
 
-_check: ListSelector[Author, ListAuthorsKwargs] = list_authors
+_check: ListSelector[Author] = list_authors
 ```
 
 A few notes on type-checker support:

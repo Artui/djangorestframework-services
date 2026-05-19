@@ -101,9 +101,8 @@ class AuthorViewSet(ServiceViewSet):
 
 The returned callables conform to the unified
 [`CreateService`](reference/services.md) / `UpdateService` / `DeleteService`
-Protocols with the default `ExtraT` — they accept any framework-pool keys
-(`request`, `user`, URL kwargs, `ServiceSpec.kwargs` returns) and ignore the
-ones they don't need.
+Protocols — they accept any framework-pool keys (`request`, `user`, URL
+kwargs, `ServiceSpec.kwargs` returns) and ignore the ones they don't need.
 
 ## Sync vs async
 

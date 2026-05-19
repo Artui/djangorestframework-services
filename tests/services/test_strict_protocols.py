@@ -1,30 +1,24 @@
-"""Tests for the strict shape of the unified service / selector Protocols.
+"""Tests for strict-typed extras on user service / selector functions.
 
-After the 0.11.0 merge there is no separate ``StrictCreateService`` class —
-the strict shape is the unified Protocol parameterised with an explicit
-``ExtraT`` ``TypedDict`` instead of letting it default to the private
-arbitrary-key sentinel.
+Under the unified Protocols, strict-extras typing lives on the *user's*
+function signature (``**extras: Unpack[YourKw]``) rather than as a third
+Protocol type argument. The Protocol itself uses ``**extras: Any`` so the
+function-level annotation provides editor / type-checker assistance on
+``extras["..."]`` accesses without breaking Protocol conformance.
+
+Strict ``TypedDict`` keys must be ``NotRequired`` — the framework's kwargs
+pool changes shape per view/action, and a Protocol-conformant function must
+remain callable without those keys.
 
 The Protocols are structural; full static enforcement is exercised separately
 via ``ty`` in CI against ``tests/services/strict_drift_fixtures.py``.
-
-Two flavours of fixture:
-
-* ``_create`` / ``_update`` / ... — minimal: declare only what the strict
-  Protocol requires (``data`` / ``instance`` / ``result``) plus an
-  ``ExtraT`` ``TypedDict`` with no HTTP keys. Proves a strict service does
-  not need ``request`` / ``user`` to satisfy the Protocol.
-* ``_create_http`` / ``_update_http`` / ... — HTTP-bound: ``ExtraT`` extends
-  :class:`HttpExtras` so the service can read ``extras['request']`` /
-  ``extras['user']``. Proves the canonical way to opt back in.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Unpack
 
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict, Unpack
 
 from rest_framework_services import (
     CreateService,
@@ -55,55 +49,55 @@ class _User:
 
 
 class _CreateExtras(TypedDict):
-    tenant_id: int
+    tenant_id: NotRequired[int]
 
 
 class _UpdateExtras(TypedDict):
-    tenant_id: int
-    actor_id: int
+    tenant_id: NotRequired[int]
+    actor_id: NotRequired[int]
 
 
 class _DeleteExtras(TypedDict):
-    reason: str
+    reason: NotRequired[str]
 
 
 class _ListExtras(TypedDict):
-    tenant_id: int
+    tenant_id: NotRequired[int]
 
 
 class _RetrieveExtras(TypedDict):
-    pk: int
-    tenant_id: int
+    pk: NotRequired[int]
+    tenant_id: NotRequired[int]
 
 
 class _OutputExtras(TypedDict):
-    rendered_at: str
+    rendered_at: NotRequired[str]
 
 
 class _CreateHttpExtras(HttpExtras[_User]):
-    tenant_id: int
+    tenant_id: NotRequired[int]
 
 
 class _UpdateHttpExtras(HttpExtras[_User]):
-    tenant_id: int
-    actor_id: int
+    tenant_id: NotRequired[int]
+    actor_id: NotRequired[int]
 
 
 class _DeleteHttpExtras(HttpExtras[_User]):
-    reason: str
+    reason: NotRequired[str]
 
 
 class _ListHttpExtras(HttpExtras[_User]):
-    tenant_id: int
+    tenant_id: NotRequired[int]
 
 
 class _RetrieveHttpExtras(HttpExtras[_User]):
-    pk: int
-    tenant_id: int
+    pk: NotRequired[int]
+    tenant_id: NotRequired[int]
 
 
 class _OutputHttpExtras(HttpExtras[_User]):
-    rendered_at: str
+    rendered_at: NotRequired[str]
 
 
 def _create(
@@ -111,7 +105,7 @@ def _create(
     data: _AuthorIn,
     **extras: Unpack[_CreateExtras],
 ) -> _Author:
-    return _Author(id=extras["tenant_id"], name=data.name)
+    return _Author(id=extras.get("tenant_id", 0), name=data.name)
 
 
 def _update(
@@ -141,7 +135,7 @@ def _list(
 def _retrieve(
     **extras: Unpack[_RetrieveExtras],
 ) -> _Author | None:
-    return _Author(id=extras["pk"], name="A")
+    return _Author(id=extras.get("pk", 0), name="A")
 
 
 def _output(
@@ -157,7 +151,9 @@ def _create_http(
     data: _AuthorIn,
     **extras: Unpack[_CreateHttpExtras],
 ) -> _Author:
-    return _Author(id=extras["tenant_id"], name=f"{extras['user'].name}:{data.name}")
+    user = extras.get("user")
+    user_name = user.name if user is not None else "anon"
+    return _Author(id=extras.get("tenant_id", 0), name=f"{user_name}:{data.name}")
 
 
 def _update_http(
@@ -166,7 +162,9 @@ def _update_http(
     data: _AuthorIn,
     **extras: Unpack[_UpdateHttpExtras],
 ) -> _Author:
-    instance.name = f"{extras['user'].name}:{data.name}"
+    user = extras.get("user")
+    user_name = user.name if user is not None else "anon"
+    instance.name = f"{user_name}:{data.name}"
     return instance
 
 
@@ -175,22 +173,19 @@ def _delete_http(
     instance: _Author,
     **extras: Unpack[_DeleteHttpExtras],
 ) -> None:
-    _ = extras["request"], extras["user"]
     return None
 
 
 def _list_http(
     **extras: Unpack[_ListHttpExtras],
 ) -> list[_Author]:
-    _ = extras["request"], extras["user"]
     return []
 
 
 def _retrieve_http(
     **extras: Unpack[_RetrieveHttpExtras],
 ) -> _Author | None:
-    _ = extras["request"], extras["user"]
-    return _Author(id=extras["pk"], name="A")
+    return _Author(id=extras.get("pk", 0), name="A")
 
 
 def _output_http(
@@ -198,65 +193,64 @@ def _output_http(
     result: _Author,
     **extras: Unpack[_OutputHttpExtras],
 ) -> _Author:
-    _ = extras["request"], extras["user"]
     return result
 
 
-def test_create_service_strict_accepts_matching_callable() -> None:
-    fn: CreateService[_AuthorIn, _Author, _CreateExtras] = _create
+def test_create_service_accepts_strict_extras_callable() -> None:
+    fn: CreateService[_AuthorIn, _Author] = _create
     assert fn is _create
 
 
-def test_update_service_strict_accepts_matching_callable() -> None:
-    fn: UpdateService[_AuthorIn, _Author, _Author, _UpdateExtras] = _update
+def test_update_service_accepts_strict_extras_callable() -> None:
+    fn: UpdateService[_AuthorIn, _Author, _Author] = _update
     assert fn is _update
 
 
-def test_delete_service_strict_accepts_matching_callable() -> None:
-    fn: DeleteService[NoInput, _Author, None, _DeleteExtras] = _delete
+def test_delete_service_accepts_strict_extras_callable() -> None:
+    fn: DeleteService[NoInput, _Author, None] = _delete
     assert fn is _delete
 
 
-def test_list_selector_strict_accepts_matching_callable() -> None:
-    fn: ListSelector[_Author, _ListExtras] = _list
+def test_list_selector_accepts_strict_extras_callable() -> None:
+    fn: ListSelector[_Author] = _list
     assert fn is _list
 
 
-def test_retrieve_selector_strict_accepts_matching_callable() -> None:
-    fn: RetrieveSelector[_Author, _RetrieveExtras] = _retrieve
+def test_retrieve_selector_accepts_strict_extras_callable() -> None:
+    fn: RetrieveSelector[_Author] = _retrieve
     assert fn is _retrieve
 
 
-def test_output_selector_strict_accepts_matching_callable() -> None:
-    fn: OutputSelector[_Author, _Author, _OutputExtras] = _output
+def test_output_selector_accepts_strict_extras_callable() -> None:
+    fn: OutputSelector[_Author, _Author] = _output
     assert fn is _output
 
 
-def test_create_service_strict_accepts_http_extras_callable() -> None:
-    fn: CreateService[_AuthorIn, _Author, _CreateHttpExtras] = _create_http
+def test_create_service_accepts_http_extras_callable() -> None:
+    fn: CreateService[_AuthorIn, _Author] = _create_http
     assert fn is _create_http
 
 
-def test_update_service_strict_accepts_http_extras_callable() -> None:
-    fn: UpdateService[_AuthorIn, _Author, _Author, _UpdateHttpExtras] = _update_http
+def test_update_service_accepts_http_extras_callable() -> None:
+    fn: UpdateService[_AuthorIn, _Author, _Author] = _update_http
     assert fn is _update_http
 
 
-def test_delete_service_strict_accepts_http_extras_callable() -> None:
-    fn: DeleteService[NoInput, _Author, None, _DeleteHttpExtras] = _delete_http
+def test_delete_service_accepts_http_extras_callable() -> None:
+    fn: DeleteService[NoInput, _Author, None] = _delete_http
     assert fn is _delete_http
 
 
-def test_list_selector_strict_accepts_http_extras_callable() -> None:
-    fn: ListSelector[_Author, _ListHttpExtras] = _list_http
+def test_list_selector_accepts_http_extras_callable() -> None:
+    fn: ListSelector[_Author] = _list_http
     assert fn is _list_http
 
 
-def test_retrieve_selector_strict_accepts_http_extras_callable() -> None:
-    fn: RetrieveSelector[_Author, _RetrieveHttpExtras] = _retrieve_http
+def test_retrieve_selector_accepts_http_extras_callable() -> None:
+    fn: RetrieveSelector[_Author] = _retrieve_http
     assert fn is _retrieve_http
 
 
-def test_output_selector_strict_accepts_http_extras_callable() -> None:
-    fn: OutputSelector[_Author, _Author, _OutputHttpExtras] = _output_http
+def test_output_selector_accepts_http_extras_callable() -> None:
+    fn: OutputSelector[_Author, _Author] = _output_http
     assert fn is _output_http

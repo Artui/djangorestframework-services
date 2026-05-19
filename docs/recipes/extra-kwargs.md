@@ -104,14 +104,22 @@ class AuthorViewSet(ServiceViewSet):
 ```
 
 Pair with the parameterised service Protocols (`CreateService`,
-`UpdateService`, …) and the `@implements(...)` decorator to have type
-checkers enforce that the service signature matches the `TypedDict`
-exactly:
+`UpdateService`, …) and the `@implements(...)` decorator. The kwargs
+shape is typed on your function (`**extras: Unpack[YourKw]`); the
+Protocol checks the surrounding shape (`data`, `instance`, return type):
 
 ```python
+from typing_extensions import Unpack, TypedDict
+
 from rest_framework_services import UpdateService, implements
 
-@implements(UpdateService[AuthorIn, Author, Author, PublishAuthorKwargs])
+
+class PublishAuthorKwargs(TypedDict, total=False):
+    author_id: int
+    actor_id: int
+
+
+@implements(UpdateService[AuthorIn, Author, Author])
 def publish_author(
     *,
     instance: Author,
@@ -120,8 +128,10 @@ def publish_author(
 ) -> Author: ...
 ```
 
-If `publish_author` needs `request` or `user`, declare them on
-`PublishAuthorKwargs` via [`HttpExtras`](../typing.md#unified-service--selector-protocols).
+`total=False` (or per-field `NotRequired`) keeps the function
+Protocol-conformant. If `publish_author` needs `request` or `user`,
+subclass [`HttpExtras`](../typing.md) instead — it is itself declared
+`total=False`.
 
 See [Typing services and selectors](../typing.md) for the full Protocol
 catalogue and notes on type-checker support.
@@ -203,17 +213,19 @@ are also available on the view for the same shape.
 
 `DELETE` services can accept body data — e.g. a deletion reason — by
 setting `input_serializer` on the spec. Type the service against
-`DeleteService[InputT, InstanceT, ResultT, ExtraT]` (strict form) and bind
-`InputT` to your input dataclass. For services that don't read a body,
-bind `InputT` to the `NoInput` sentinel and don't declare `data` on the
-function:
+`DeleteService[InputT, InstanceT, ResultT]` and bind `InputT` to your
+input dataclass. For services that don't read a body, bind `InputT` to
+the [`NoInput`](../reference/types.md#noinput) sentinel and don't declare
+`data` on the function:
 
 ```python
-from typing import Unpack
+from dataclasses import dataclass
+
+from typing_extensions import Unpack
+
 from rest_framework_services import (
     DeleteService,
     HttpExtras,
-    NoInput,
     ServiceSpec,
     implements,
 )
@@ -224,16 +236,15 @@ class DeleteReasonIn:
     reason: str
 
 
-@implements(DeleteService[DeleteReasonIn, Author, None, HttpExtras])
+@implements(DeleteService[DeleteReasonIn, Author, None])
 def delete_author(
     *,
     instance: Author,
     data: DeleteReasonIn,
     **extras: Unpack[HttpExtras],
 ) -> None:
-    AuditLog.objects.create(
-        actor=extras["user"], target=instance, reason=data.reason
-    )
+    user = extras.get("user")
+    AuditLog.objects.create(actor=user, target=instance, reason=data.reason)
     instance.delete()
 
 

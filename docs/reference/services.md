@@ -2,11 +2,11 @@
 
 ## Protocols
 
-Each Protocol is parameterised by input, instance (where applicable), result,
-and a trailing extras `TypedDict`. The extras parameter defaults to a private
-arbitrary-key shape — passing two type arguments gives the lenient form
-(`CreateService[AuthorIn, Author]`), passing all three switches to the strict
-form (`CreateService[AuthorIn, Author, MyExtras]`).
+Each Protocol is parameterised by input, instance (where applicable), and
+result. `**extras` is typed `Any`, so the framework's kwargs pool flows
+through without the service having to declare each key. Strict-typed
+extras live on the user's function signature via `**extras: Unpack[YourKw]`
+— see [Typing services and selectors](../typing.md) for the full pattern.
 
 ::: rest_framework_services.services.create_service.CreateService
 

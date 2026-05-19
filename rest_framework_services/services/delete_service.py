@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Protocol, TypeVar, Unpack
+from typing import Any, Protocol, TypeVar
 
-from rest_framework_services.types._any_extras import _AnyExtras
-
-InputT = TypeVar("InputT")
-InstanceT = TypeVar("InstanceT")
+InputT = TypeVar("InputT", contravariant=True)
+InstanceT = TypeVar("InstanceT", contravariant=True)
 ResultT = TypeVar("ResultT", covariant=True)
-ExtraT = TypeVar("ExtraT", default=_AnyExtras)
 
 
-class DeleteService(Protocol[InputT, InstanceT, ResultT, ExtraT]):
+class DeleteService(Protocol[InputT, InstanceT, ResultT]):
     """Structural shape for a delete-action service callable.
 
     Receives the resolved ``instance``. Most delete services return ``None``;
@@ -25,8 +22,7 @@ class DeleteService(Protocol[InputT, InstanceT, ResultT, ExtraT]):
     so services that don't read a body can still match the shape by binding
     ``InputT`` to :class:`~rest_framework_services.types.no_input.NoInput`.
 
-    See :class:`CreateService` for the lenient-vs-strict parameterisation
-    rationale.
+    See :class:`CreateService` for the extras-typing notes.
     """
 
     def __call__(
@@ -34,5 +30,5 @@ class DeleteService(Protocol[InputT, InstanceT, ResultT, ExtraT]):
         *,
         instance: InstanceT,
         data: InputT = ...,  # type: ignore[assignment]
-        **extras: Unpack[ExtraT],
+        **extras: Any,
     ) -> ResultT: ...

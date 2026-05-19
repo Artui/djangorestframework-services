@@ -21,28 +21,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or a callable receiving the validated `data` — the typical shape
   when M2M values live on the input itself. The returned callables
   conform to the unified `CreateService` / `UpdateService` /
-  `DeleteService` Protocols with the default open `ExtraT`, so they
-  absorb arbitrary framework-pool keys (`request`, `user`, URL kwargs,
-  `ServiceSpec.kwargs` returns) and the existing view layer routes
-  them — sync or async — without changes.
+  `DeleteService` Protocols, so they absorb arbitrary framework-pool
+  keys (`request`, `user`, URL kwargs, `ServiceSpec.kwargs` returns)
+  and the existing view layer routes them — sync or async — without
+  changes.
 
 ### Removed
 
-- Python 3.10, 3.11, and 3.12 support. The minimum supported Python is
-  now 3.13. The bump is a prerequisite for the service / selector
-  Protocol merge below, which relies on PEP 728
-  (`TypedDict(extra_items=Any)`) and PEP 696 (TypeVar defaults) —
-  features whose `typing_extensions` support below 3.13 is uneven.
 - The pre-merge `StrictCreateService` / `StrictUpdateService` /
   `StrictDeleteService` / `StrictListSelector` / `StrictRetrieveSelector`
-  / `StrictOutputSelector` classes. There is no deprecation bridge:
-  the parameter-order flip described under *Changed* below already
-  breaks parameterised `Strict<Foo>[…]` sites at the type level, which
-  would have made a one-minor alias half-useless. Rename every import
-  to its unified equivalent (`StrictCreateService` → `CreateService`,
-  etc.) and swap the last two type arguments at every callsite. The
-  `@implements(...)` decorator pattern keeps working unchanged once
-  the names update.
+  / `StrictOutputSelector` classes. Rename every import to its unified
+  equivalent (`StrictCreateService` → `CreateService`, etc.) and drop
+  the trailing `ExtraT` type argument from each call site (extras are
+  now typed on the function signature instead — see *Changed* below).
+  The `@implements(...)` decorator pattern keeps working unchanged
+  once the names update.
+- `NoKwargs` (the empty `TypedDict` previously used as the `ExtraT`
+  slot of strict service Protocols). The slot no longer exists. Drop
+  imports of `NoKwargs`; if you were also writing
+  `**extras: Unpack[NoKwargs]` in a service body, replace it with
+  `**extras: Any`.
 
 ### Changed
 
@@ -57,39 +55,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged. Runtime behaviour is identical; this is a typing-only
   change.
 - **Breaking** (typing only): the lenient and strict service / selector
-  Protocols have been merged into a single parameterised Protocol per
-  kind. The lenient shape is the unparameterised form (extras default
-  to a private arbitrary-key `TypedDict`); the strict shape passes an
-  explicit `TypedDict` as the trailing `ExtraT`. Names and call sites:
-  - `CreateService[InputT, ResultT]` (lenient) /
-    `CreateService[InputT, ResultT, ExtraT]` (strict).
-  - `UpdateService[InputT, InstanceT, ResultT]` /
-    `UpdateService[InputT, InstanceT, ResultT, ExtraT]`.
-  - `DeleteService[InputT, InstanceT, ResultT]` /
-    `DeleteService[InputT, InstanceT, ResultT, ExtraT]`.
-  - `ListSelector[ResultT]` / `ListSelector[ResultT, ExtraT]`.
-  - `RetrieveSelector[ResultT]` / `RetrieveSelector[ResultT, ExtraT]`.
-  - `OutputSelector[InT, OutT]` / `OutputSelector[InT, OutT, ExtraT]`.
+  Protocols are merged into a single shape per kind, with `**extras`
+  typed as `Any`. The strict form's trailing `ExtraT` type argument is
+  gone. Names and call sites:
+  - `CreateService[InputT, ResultT]`.
+  - `UpdateService[InputT, InstanceT, ResultT]`.
+  - `DeleteService[InputT, InstanceT, ResultT]`.
+  - `ListSelector[ResultT]`.
+  - `RetrieveSelector[ResultT]`.
+  - `OutputSelector[InT, OutT]`.
 
-  Two migration notes for existing code:
+  Strict-typed extras stay possible on your *own* function signature:
+  declare a `TypedDict` with `total=False` (or per-field `NotRequired`)
+  and annotate `**extras: Unpack[YourKw]`. Inside the function body,
+  `extras["foo"]` is typed by `YourKw`. The Protocol does not enforce
+  a kwargs-shape match — that cross-check only worked under one minor
+  version of one type checker (`ty` 0.0.32) and never under `mypy` or
+  `pyright`. Putting the typing on the function instead works on every
+  modern checker.
 
-  1. The strict parameter order moved from `[…, ExtraT, ResultT]` to
-     `[…, ResultT, ExtraT]` (PEP 696 requires defaulted TypeVars to
-     trail). Every `StrictCreateService[AuthorIn, MyKw, Author]` site
-     becomes `CreateService[AuthorIn, Author, MyKw]`.
-  2. The lenient Protocols no longer name `request` and `user` as
+  Three migration notes:
+
+  1. Drop the trailing `ExtraT` from every parameterised call site:
+     `StrictCreateService[AuthorIn, MyKw, Author]` →
+     `CreateService[AuthorIn, Author]`. Keep `**extras: Unpack[MyKw]`
+     on your function for typed extras.
+  2. Strict extras `TypedDict`s must declare keys as `NotRequired`
+     (or set `total=False` on the class) — required keys would make
+     the function reject callers that omit them, breaking Protocol
+     conformance under PEP 692.
+  3. The lenient Protocols no longer name `request` and `user` as
      fixed parameters — they flow through `**extras` like any other
      framework-pool key (matching the strict Protocols, which already
      dropped these in 0.9.0). Services that declared
      `def fn(*, data, request, user, **kwargs)` keep working at
-     runtime (the framework's signature filter passes only declared
-     keys); to satisfy the new Protocol annotation either drop the
+     runtime; to satisfy the new Protocol annotation either drop the
      named `request` / `user` parameters and read them off `**extras`,
-     or use an `HttpExtras[YourUser]` `ExtraT` to pull them in as
-     typed extras.
+     or subclass `HttpExtras[YourUser]` (now `total=False`) and use
+     it as the `Unpack` target.
 
-  Runtime behaviour of every callable is unchanged. The merge prepares
-  the ground for the default model service factories below.
+  Runtime behaviour of every callable is unchanged. The merge unblocks
+  the default model service factories above and restores Python 3.10+
+  support (the previous design needed PEP 728's `extra_items=Any`,
+  which is not in mypy yet and forced a 3.13 floor).
+- `HttpExtras[UserT]` is now declared `total=False`: every key is
+  optional, matching the framework's runtime contract (the kwargs
+  pool may or may not contain `request` / `user` depending on the
+  caller). Subclass with `total=False` (or annotate fields as
+  `NotRequired`) for the same reason — see migration note 2 above.
 - Version is now tracked in a single source of truth at
   `rest_framework_services/version.py`. `pyproject.toml` declares
   `dynamic = ["version"]` and hatchling reads the value from `version.py`
