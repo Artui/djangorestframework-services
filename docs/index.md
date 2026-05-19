@@ -17,7 +17,8 @@ you a precise, well-typed seam for the bits in the middle.
   `get_object()`. Filter backends, pagination, and serialization stay
   vanilla DRF.
 - **Mutation helpers** — `create_from_input`, `update_from_input`,
-  `apply_input` (and async siblings) with change tracking, no surprises.
+  `apply_input`, plus async siblings `acreate_from_input` /
+  `aupdate_from_input`, with change tracking, no surprises.
 - **Sync and async** services and selectors, transparently dispatched.
 - **Atomic by default**, opt-out per spec.
 - **Framework-agnostic exceptions** — services don't import from DRF.
@@ -72,11 +73,10 @@ the recommended way to wire dataclass-shaped inputs and outputs. Plain
 
 | Axis | Range |
 |---|---|
-| Python | 3.13 – 3.14 |
+| Python | 3.10 – 3.14 |
 | Django | 4.2, 5.0, 5.1, 5.2, 6.0 |
 | DRF | ≥ 3.14 |
 
-CI runs the full Python × Django matrix with 100% coverage gating.
-Django 4.2 / 5.0 cells are excluded from the matrix because those Django
-versions don't run on Python 3.13+; the declared floor still installs and
-is supported wherever Python 3.13+ allows it.
+CI runs the full Python × Django matrix with 100% coverage gating, minus
+the cells the upstream version-support docs already rule out (e.g. Django
+6.0 only runs on Python 3.12+).

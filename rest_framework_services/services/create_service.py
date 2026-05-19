@@ -13,9 +13,10 @@ class CreateService(Protocol[InputT, ResultT]):
 
     ``data`` carries the validated input from the framework. ``**extras``
     absorbs whatever else the framework's kwargs pool delivers — ``request``,
-    ``user``, URL kwargs, ``ServiceSpec.kwargs`` returns — without the service
-    having to declare each key. The Protocol types ``**extras`` as ``Any`` so
-    services on every major type checker (ty, mypy, pyright) conform.
+    ``user``, and the ``ServiceSpec.kwargs`` / ``get_service_kwargs`` returns —
+    without the service having to declare each key. The Protocol types
+    ``**extras`` as ``Any`` so services on every major type checker (ty,
+    mypy, pyright) conform.
 
     Strict-typed extras stay possible on your *own* function signature: declare
     your extras as a ``TypedDict`` with ``NotRequired`` keys and annotate

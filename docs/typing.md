@@ -149,6 +149,11 @@ Available Protocols:
     `**extras: Unpack[YourKw]`, which type-checks consistently on
     every modern checker.
 
+    `ServiceSpec` and `SelectorSpec` themselves still carry their
+    trailing `ExtraT` generic parameter — that part of the API is
+    unchanged. The migration removes `ExtraT` only from the service
+    and selector **Protocols**.
+
     Migration: rename `Strict*` to the unified name, drop the trailing
     `ExtraT` from every parameterisation site, and ensure your extras
     `TypedDict` declares its keys as `NotRequired` / `total=False`:

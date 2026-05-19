@@ -131,6 +131,7 @@ declares from a known pool:
 | `instance` | `self.get_object()` (update / destroy only) |
 | `request` | `self.request` |
 | `user` | `self.request.user` |
+| URL kwargs | `self.kwargs` (list / retrieve selectors only — `pk`, parent IDs from nested routes, etc.) |
 | extras | `self.get_service_kwargs()` / `self.get_selector_kwargs()`, plus per-action and per-spec hooks |
 
 `view` is intentionally not in the pool — services and selectors are

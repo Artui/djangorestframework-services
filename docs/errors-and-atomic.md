@@ -58,7 +58,7 @@ this case.
 
 ```python
 raise ServiceError("account is locked")
-raise ServiceError("invoice already finalised", code="already_finalised")
+raise ServiceError("invoice already finalised")
 ```
 
 ### Why not just raise DRF exceptions?

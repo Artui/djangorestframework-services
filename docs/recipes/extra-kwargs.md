@@ -1,7 +1,8 @@
 # Pass extra kwargs to services
 
-The dispatch flow assembles a kwarg pool — `data`, `instance`, `request`,
-`user`, plus URL kwargs and any extras you wire in — and the callable
+The dispatch flow assembles a kwarg pool — `request`, `user`, `data`
+(mutations with an `input_serializer`), `instance` (update / destroy),
+URL kwargs (selectors), plus any extras you wire in — and the callable
 receives the subset it declares. There are three places to inject extras,
 applied in order of increasing specificity (later wins on overlapping keys):
 
@@ -241,7 +242,7 @@ def delete_author(
     *,
     instance: Author,
     data: DeleteReasonIn,
-    **extras: Unpack[HttpExtras],
+    **extras: Unpack[HttpExtras[MyUser]],
 ) -> None:
     user = extras.get("user")
     AuditLog.objects.create(actor=user, target=instance, reason=data.reason)
