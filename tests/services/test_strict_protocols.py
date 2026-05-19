@@ -1,10 +1,12 @@
-"""Tests for the strict service / selector Protocols.
+"""Tests for the strict shape of the unified service / selector Protocols.
 
-The strict Protocols use ``**extras: Unpack[ExtraT]`` to pin the extra-kwargs
-contract delivered by ``ServiceSpec.kwargs`` / ``SelectorSpec.kwargs``. These
-tests cover that ordinary callables matching the shape are accepted; full
-static enforcement (drift detection) is exercised separately via ``ty`` in
-CI against ``tests/services/strict_drift_fixtures.py``.
+After the 0.11.0 merge there is no separate ``StrictCreateService`` class —
+the strict shape is the unified Protocol parameterised with an explicit
+``ExtraT`` ``TypedDict`` instead of letting it default to the private
+arbitrary-key sentinel.
+
+The Protocols are structural; full static enforcement is exercised separately
+via ``ty`` in CI against ``tests/services/strict_drift_fixtures.py``.
 
 Two flavours of fixture:
 
@@ -20,18 +22,19 @@ Two flavours of fixture:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Unpack
 
-from typing_extensions import TypedDict, Unpack
+from typing_extensions import TypedDict
 
 from rest_framework_services import (
+    CreateService,
+    DeleteService,
     HttpExtras,
+    ListSelector,
     NoInput,
-    StrictCreateService,
-    StrictDeleteService,
-    StrictListSelector,
-    StrictOutputSelector,
-    StrictRetrieveSelector,
-    StrictUpdateService,
+    OutputSelector,
+    RetrieveSelector,
+    UpdateService,
 )
 
 
@@ -199,61 +202,61 @@ def _output_http(
     return result
 
 
-def test_strict_create_service_accepts_matching_callable() -> None:
-    fn: StrictCreateService[_AuthorIn, _CreateExtras, _Author] = _create
+def test_create_service_strict_accepts_matching_callable() -> None:
+    fn: CreateService[_AuthorIn, _Author, _CreateExtras] = _create
     assert fn is _create
 
 
-def test_strict_update_service_accepts_matching_callable() -> None:
-    fn: StrictUpdateService[_AuthorIn, _Author, _UpdateExtras, _Author] = _update
+def test_update_service_strict_accepts_matching_callable() -> None:
+    fn: UpdateService[_AuthorIn, _Author, _Author, _UpdateExtras] = _update
     assert fn is _update
 
 
-def test_strict_delete_service_accepts_matching_callable() -> None:
-    fn: StrictDeleteService[NoInput, _Author, _DeleteExtras, None] = _delete
+def test_delete_service_strict_accepts_matching_callable() -> None:
+    fn: DeleteService[NoInput, _Author, None, _DeleteExtras] = _delete
     assert fn is _delete
 
 
-def test_strict_list_selector_accepts_matching_callable() -> None:
-    fn: StrictListSelector[_ListExtras, _Author] = _list
+def test_list_selector_strict_accepts_matching_callable() -> None:
+    fn: ListSelector[_Author, _ListExtras] = _list
     assert fn is _list
 
 
-def test_strict_retrieve_selector_accepts_matching_callable() -> None:
-    fn: StrictRetrieveSelector[_RetrieveExtras, _Author] = _retrieve
+def test_retrieve_selector_strict_accepts_matching_callable() -> None:
+    fn: RetrieveSelector[_Author, _RetrieveExtras] = _retrieve
     assert fn is _retrieve
 
 
-def test_strict_output_selector_accepts_matching_callable() -> None:
-    fn: StrictOutputSelector[_Author, _OutputExtras, _Author] = _output
+def test_output_selector_strict_accepts_matching_callable() -> None:
+    fn: OutputSelector[_Author, _Author, _OutputExtras] = _output
     assert fn is _output
 
 
-def test_strict_create_service_accepts_http_extras_callable() -> None:
-    fn: StrictCreateService[_AuthorIn, _CreateHttpExtras, _Author] = _create_http
+def test_create_service_strict_accepts_http_extras_callable() -> None:
+    fn: CreateService[_AuthorIn, _Author, _CreateHttpExtras] = _create_http
     assert fn is _create_http
 
 
-def test_strict_update_service_accepts_http_extras_callable() -> None:
-    fn: StrictUpdateService[_AuthorIn, _Author, _UpdateHttpExtras, _Author] = _update_http
+def test_update_service_strict_accepts_http_extras_callable() -> None:
+    fn: UpdateService[_AuthorIn, _Author, _Author, _UpdateHttpExtras] = _update_http
     assert fn is _update_http
 
 
-def test_strict_delete_service_accepts_http_extras_callable() -> None:
-    fn: StrictDeleteService[NoInput, _Author, _DeleteHttpExtras, None] = _delete_http
+def test_delete_service_strict_accepts_http_extras_callable() -> None:
+    fn: DeleteService[NoInput, _Author, None, _DeleteHttpExtras] = _delete_http
     assert fn is _delete_http
 
 
-def test_strict_list_selector_accepts_http_extras_callable() -> None:
-    fn: StrictListSelector[_ListHttpExtras, _Author] = _list_http
+def test_list_selector_strict_accepts_http_extras_callable() -> None:
+    fn: ListSelector[_Author, _ListHttpExtras] = _list_http
     assert fn is _list_http
 
 
-def test_strict_retrieve_selector_accepts_http_extras_callable() -> None:
-    fn: StrictRetrieveSelector[_RetrieveHttpExtras, _Author] = _retrieve_http
+def test_retrieve_selector_strict_accepts_http_extras_callable() -> None:
+    fn: RetrieveSelector[_Author, _RetrieveHttpExtras] = _retrieve_http
     assert fn is _retrieve_http
 
 
-def test_strict_output_selector_accepts_http_extras_callable() -> None:
-    fn: StrictOutputSelector[_Author, _OutputHttpExtras, _Author] = _output_http
+def test_output_selector_strict_accepts_http_extras_callable() -> None:
+    fn: OutputSelector[_Author, _Author, _OutputHttpExtras] = _output_http
     assert fn is _output_http

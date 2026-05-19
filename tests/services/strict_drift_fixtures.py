@@ -1,7 +1,8 @@
-"""Fixtures that intentionally drift from the strict service / selector
-Protocols. Run by ``make type-check-strict-fixtures`` — ``ty`` is expected to
-emit one diagnostic per ``# expect-error`` marker. Used to guard against
-regressions where the strict Protocols silently stop validating.
+"""Fixtures that intentionally drift from the unified service / selector
+Protocols (used in their strict, fully-parameterised shape). Run by
+``make type-check-strict-fixtures`` — ``ty`` is expected to emit one
+diagnostic per ``# expect-error`` marker. Used to guard against regressions
+where the strict parameterisation silently stops validating drift.
 
 Note on coverage in ``ty``: this file is intentionally outside the package's
 ``ty`` scope (CI runs ``ty check rest_framework_services`` for the green
@@ -12,17 +13,18 @@ specifically and asserts an error count.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Unpack
 
-from typing_extensions import TypedDict, Unpack
+from typing_extensions import TypedDict
 
 from rest_framework_services import (
+    CreateService,
+    DeleteService,
+    ListSelector,
     NoInput,
-    StrictCreateService,
-    StrictDeleteService,
-    StrictListSelector,
-    StrictOutputSelector,
-    StrictRetrieveSelector,
-    StrictUpdateService,
+    OutputSelector,
+    RetrieveSelector,
+    UpdateService,
     implements,
 )
 
@@ -69,7 +71,7 @@ class _OutputExtras(TypedDict):
 
 
 # expect-error: incompatible return types
-@implements(StrictCreateService[_AuthorIn, _CreateExtras, _Author])
+@implements(CreateService[_AuthorIn, _Author, _CreateExtras])
 def create_drift_return(
     *,
     data: _AuthorIn,
@@ -84,7 +86,7 @@ def create_drift_return(
 
 
 # expect-error: incompatible parameter type
-@implements(StrictCreateService[_AuthorIn, _CreateExtras, _Author])
+@implements(CreateService[_AuthorIn, _Author, _CreateExtras])
 def create_drift_input(
     *,
     data: int,
@@ -99,7 +101,7 @@ def create_drift_input(
 
 
 # expect-error: incompatible instance type
-@implements(StrictUpdateService[_AuthorIn, _Author, _UpdateExtras, _Author])
+@implements(UpdateService[_AuthorIn, _Author, _Author, _UpdateExtras])
 def update_drift_instance(
     *,
     instance: int,
@@ -115,7 +117,7 @@ def update_drift_instance(
 
 
 # expect-error: incompatible return types
-@implements(StrictDeleteService[NoInput, _Author, _DeleteExtras, None])
+@implements(DeleteService[NoInput, _Author, None, _DeleteExtras])
 def delete_drift_return(
     *,
     instance: _Author,
@@ -130,7 +132,7 @@ def delete_drift_return(
 
 
 # expect-error: incompatible iterable element type
-@implements(StrictListSelector[_ListExtras, _Author])
+@implements(ListSelector[_Author, _ListExtras])
 def list_drift_element(
     **extras: Unpack[_ListExtras],
 ) -> list[int]:
@@ -143,7 +145,7 @@ def list_drift_element(
 
 
 # expect-error: incompatible return types
-@implements(StrictRetrieveSelector[_RetrieveExtras, _Author])
+@implements(RetrieveSelector[_Author, _RetrieveExtras])
 def retrieve_drift_return(
     **extras: Unpack[_RetrieveExtras],
 ) -> int | None:
@@ -156,7 +158,7 @@ def retrieve_drift_return(
 
 
 # expect-error: incompatible parameter type
-@implements(StrictOutputSelector[_Author, _OutputExtras, _Author])
+@implements(OutputSelector[_Author, _Author, _OutputExtras])
 def output_drift_input(
     *,
     result: int,

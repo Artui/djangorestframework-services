@@ -111,8 +111,8 @@ class FieldChange:
 
 
 @dataclass(frozen=True)
-class ChangeResult:
-    instance: Model
+class ChangeResult(Generic[ModelT]):
+    instance: ModelT
     created: bool
     changes: tuple[FieldChange, ...]
 
@@ -121,6 +121,12 @@ class ChangeResult:
     def get_field_change(self, field_name: str) -> FieldChange | None: ...
     def __bool__(self) -> bool: ...   # True iff any change
 ```
+
+`ChangeResult` is generic over the model type. The mutation helpers
+thread that TypeVar through, so `create_from_input(Author, …)` returns
+a `ChangeResult[Author]` whose `.instance` is typed as `Author` — no
+cast needed at the callsite. The bare name `ChangeResult` (no
+parameter) still works and resolves to `ChangeResult[Model]`.
 
 Common patterns:
 

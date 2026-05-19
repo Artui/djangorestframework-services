@@ -7,11 +7,12 @@ CI against ``tests/services/strict_drift_fixtures.py``.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Unpack
 
-from typing_extensions import TypedDict, Unpack
+from typing_extensions import TypedDict
 
 from rest_framework_services import (
-    StrictCreateService,
+    CreateService,
     implements,
 )
 
@@ -39,7 +40,7 @@ def test_implements_decorator_returns_function_unchanged() -> None:
     ) -> _Author:
         return _Author(id=extras["tenant_id"], name=data.name)
 
-    decorated = implements(StrictCreateService[_AuthorIn, _CreateExtras, _Author])(create_author)
+    decorated = implements(CreateService[_AuthorIn, _Author, _CreateExtras])(create_author)
 
     assert decorated is create_author
     assert create_author.__name__ == "create_author"
@@ -53,5 +54,5 @@ def test_implements_direct_call_is_identity() -> None:
     ) -> _Author:
         return _Author(id=extras["tenant_id"], name=data.name)
 
-    decorated = implements(StrictCreateService[_AuthorIn, _CreateExtras, _Author])(fn)
+    decorated = implements(CreateService[_AuthorIn, _Author, _CreateExtras])(fn)
     assert decorated is fn

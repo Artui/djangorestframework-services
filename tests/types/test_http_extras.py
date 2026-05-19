@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Unpack, assert_type
 
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
-from typing_extensions import Unpack, assert_type
 
 from rest_framework_services import HttpExtras
 

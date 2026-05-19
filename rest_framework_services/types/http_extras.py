@@ -7,7 +7,7 @@ the framework injects from a view, without re-declaring them in every
     class CreateAuthorKwargs(HttpExtras[MyUser]):
         tenant_id: int
 
-    @implements(StrictCreateService[AuthorIn, CreateAuthorKwargs, Author])
+    @implements(CreateService[AuthorIn, Author, CreateAuthorKwargs])
     def create_author(
         *, data: AuthorIn, **extras: Unpack[CreateAuthorKwargs]
     ) -> Author:
@@ -16,18 +16,20 @@ the framework injects from a view, without re-declaring them in every
 
 Parameterising on ``UserT`` lets each project narrow ``user`` to its own
 ``AUTH_USER_MODEL`` without the library baking a union in. The default
-``UserT = Any`` matches the convention in
-:mod:`rest_framework_services.services.utils` — at runtime ``request.user``
-may be a concrete user, an ``AnonymousUser``, or ``None`` for requests that
-bypassed authentication middleware.
+``UserT = Any`` reflects the runtime shape: ``request.user`` may be a
+concrete user, an ``AnonymousUser``, or ``None`` for requests that bypassed
+authentication middleware. Annotated as ``Any`` so this module stays
+import-safe during Django app population (``rest_framework_services`` ships
+in ``INSTALLED_APPS`` and is imported during ``apps.populate()``, before
+``django.contrib.auth.models`` is loaded).
 """
 
 from __future__ import annotations
 
-from typing import Any, Generic
+from typing import Any, Generic, TypeVar
 
 from rest_framework.request import Request
-from typing_extensions import TypedDict, TypeVar
+from typing_extensions import TypedDict
 
 UserT = TypeVar("UserT", default=Any)
 

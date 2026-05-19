@@ -6,15 +6,12 @@ from __future__ import annotations
 class NoInput:
     """Sentinel type for the ``InputT`` slot when a service expects no body.
 
-    Pair with :class:`StrictDeleteService` (or lenient :class:`DeleteService`)
-    when the spec has no ``input_serializer``::
+    Pair with :class:`DeleteService` when the spec has no ``input_serializer``::
 
-        @implements(StrictDeleteService[NoInput, Author, NoKwargs, None])
+        @implements(DeleteService[NoInput, Author, None, NoKwargs])
         def delete_author(
             *,
             instance: Author,
-            request: HttpRequest,
-            user: UserT,
             **extras: Unpack[NoKwargs],
         ) -> None: ...
 

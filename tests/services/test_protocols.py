@@ -1,16 +1,20 @@
-"""Tests for the lenient service Protocols.
+"""Tests for the lenient shape of the unified service Protocols.
 
 The Protocols are structural and not runtime-checkable; these tests cover
 that ordinary callables matching the shape are accepted as service callables
 on a parameterized ``ServiceSpec`` without runtime errors. Static enforcement
 is exercised separately via ``ty`` in CI.
+
+The lenient shape is the unified Protocol parameterised with just input and
+result types — ``ExtraT`` defaults to a private arbitrary-key ``TypedDict``
+that accepts the framework's kwargs pool (``request``, ``user``, URL kwargs,
+``ServiceSpec.kwargs`` returns) without the service declaring them.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-from rest_framework.request import Request
+from typing import Any
 
 from rest_framework_services import (
     CreateService,
@@ -19,7 +23,6 @@ from rest_framework_services import (
     ServiceSpec,
     UpdateService,
 )
-from rest_framework_services.services.utils import UserT
 
 
 @dataclass
@@ -33,16 +36,16 @@ class _Author:
     name: str
 
 
-def _create(*, data: _AuthorIn, request: Request, user: UserT) -> _Author:
+def _create(*, data: _AuthorIn, **kwargs: Any) -> _Author:
     return _Author(id=1, name=data.name)
 
 
-def _update(*, instance: _Author, data: _AuthorIn, request: Request, user: UserT) -> _Author:
+def _update(*, instance: _Author, data: _AuthorIn, **kwargs: Any) -> _Author:
     instance.name = data.name
     return instance
 
 
-def _delete(*, instance: _Author, request: Request, user: UserT) -> None:
+def _delete(*, instance: _Author, **kwargs: Any) -> None:
     return None
 
 

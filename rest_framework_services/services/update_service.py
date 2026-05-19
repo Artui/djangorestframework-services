@@ -1,26 +1,35 @@
-"""Lenient ``UpdateService`` Protocol — opt-in shape for update services."""
+"""``UpdateService`` Protocol — typed shape for update-action service callables."""
 
 from __future__ import annotations
 
-from typing import Any, Protocol, TypeVar
+from typing import Protocol, TypeVar, Unpack
 
-from rest_framework.request import Request
-
-from rest_framework_services.services.utils import UserT
+from rest_framework_services.types._any_extras import _AnyExtras
 
 InputT = TypeVar("InputT")
 InstanceT = TypeVar("InstanceT")
 ResultT = TypeVar("ResultT", covariant=True)
+ExtraT = TypeVar("ExtraT", default=_AnyExtras)
 
 
-class UpdateService(Protocol[InputT, InstanceT, ResultT]):
+class UpdateService(Protocol[InputT, InstanceT, ResultT, ExtraT]):
     """Structural shape for an update-action service callable.
 
     Receives the resolved ``instance`` plus the validated ``data``. Returning
     ``None`` instructs the framework to render the in-memory ``instance``
     (mirroring DRF's ``UpdateAPIView`` shape).
 
-    Lenient by design — see :class:`CreateService` for rationale.
+    See :class:`CreateService` for the lenient-vs-strict parameterisation
+    rationale. Two example signatures::
+
+        # Lenient — accepts arbitrary framework-pool keys
+        UpdateService[AuthorIn, Author, Author]
+
+        # Strict — pin extras via ``HttpExtras`` subclass
+        class UpdateAuthorKwargs(HttpExtras[MyUser]):
+            tenant_id: int
+
+        UpdateService[AuthorIn, Author, Author, UpdateAuthorKwargs]
     """
 
     def __call__(
@@ -28,7 +37,5 @@ class UpdateService(Protocol[InputT, InstanceT, ResultT]):
         *,
         instance: InstanceT,
         data: InputT,
-        request: Request,
-        user: UserT,
-        **kwargs: Any,
+        **extras: Unpack[ExtraT],
     ) -> ResultT: ...

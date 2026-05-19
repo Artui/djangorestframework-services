@@ -2,7 +2,7 @@
 name = "djangorestframework-services"
 dynamic = ["version"]
 description = "A service-oriented layer for Django REST Framework: precise, controllable side effects for mutating endpoints."
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 license = { text = "MIT" }
 authors = [
     { name = "Artur Veres", email = "artur8118@gmail.com" },
@@ -23,9 +23,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Internet :: WWW/HTTP",
@@ -96,7 +93,7 @@ fail_under = 100
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = [
@@ -122,6 +119,13 @@ ignore = [
     "F811",
     "E722",
     "E741",
+    # PEP 695 syntax. The package consistently uses ``TypeVar`` + ``Generic[T]``
+    # and the explicit ``TypeAlias`` annotation, avoiding ``class C[T]:`` /
+    # ``def f[T](...)`` / ``type Foo = ...`` — see the *Compatibility floor*
+    # note in CLAUDE.md.
+    "UP040",
+    "UP046",
+    "UP047",
 ]
 
 [tool.ruff.lint.per-file-ignores]

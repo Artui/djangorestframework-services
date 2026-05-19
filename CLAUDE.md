@@ -126,11 +126,11 @@ Common patches you'll still need inside the package:
 
 | Axis | Floor | Tested ceiling |
 |---|---|---|
-| Python | 3.10 | 3.14 |
+| Python | 3.13 | 3.14 |
 | Django | 4.2 | 6.0 |
 | DRF | 3.14 | latest |
 
-Don't use syntax or stdlib features newer than Python 3.10 (`match`, generics-without-import, etc. are fine; `type` statements from 3.12 are not). CI runs the full Python × Django product, so any combo-specific bug surfaces fast.
+Python 3.13 syntax / stdlib features are fair game (`match`, PEP 695 `type` statements, PEP 696 TypeVar defaults, PEP 728 `TypedDict(..., extra_items=...)`, etc.). The package still prefers `Generic[T]` + `TypeVar(...)` over PEP 695 `class C[T]:` / `def f[T](...)` syntax for consistency across modules — don't "modernise" existing TypeVar uses on sight. CI runs the full Python × Django product, so any combo-specific bug surfaces fast.
 
 `from __future__ import annotations` is at the top of every `.py` file in the package that has annotations (i.e. everything except bare re-export `__init__.py` files). Keep it that way.
 
@@ -175,31 +175,45 @@ If a hook fails, fix the underlying issue and create a **new** commit. Don't `--
 
 ## Releasing
 
-The release pipeline is triggered by pushing a `vX.Y.Z` tag and runs three
-sequential jobs in `.github/workflows/release.yml`:
+The release pipeline is **merge-to-main triggered**, not tag-triggered.
+`.github/workflows/release.yml` runs on every push to `main` and calls
+`make release-publish-prepare`. The script in
+[`scripts/release-publish.sh`](scripts/release-publish.sh) is the single source
+of truth for the flow and behaves as follows:
 
-1. `build` — re-runs the full test suite at 100% coverage, then `uv build`.
-   It also asserts the git tag matches the version in
-   `rest_framework_services/version.py` (the single source of truth;
-   `pyproject.toml` declares `dynamic = ["version"]` and hatchling reads
-   the value from `version.py` at build time), so you can never tag
-   without bumping the source.
-2. `publish-pypi` — uploads via **OIDC trusted publishing**. There is no API
-   token in the repo; PyPI must have a Trusted Publisher configured for the
-   project pointing at this workflow.
-3. `publish-docs` — `mkdocs gh-deploy --force --clean` to the `gh-pages`
-   branch. The job no-ops (without failing) if `mkdocs.yml` is absent.
+1. Extract the version from `rest_framework_services/version.py` (the
+   single source of truth; `pyproject.toml` declares `dynamic = ["version"]`
+   and hatchling reads the value from `version.py` at build time).
+2. Check whether `vX.Y.Z` already exists locally or on origin. **If yes →
+   short-circuit:** emit `released=false` to `$GITHUB_OUTPUT` and exit 0.
+   That is what makes every-merge-to-main safe: non-bumping merges are no-ops.
+3. Run `uv run pytest` as a final gate.
+4. `uv build` into `dist/`.
+5. Extract the `## [X.Y.Z]` section from `CHANGELOG.md` into
+   `dist/release-notes.md`.
+6. Emit `released=true` so the downstream steps run.
+
+If `released=true`, the workflow then:
+
+- Publishes to PyPI via **OIDC trusted publishing**
+  (`pypa/gh-action-pypi-publish`, no token in repo).
+- Calls `make release-publish-finalize`, which tags `vX.Y.Z`, pushes the tag,
+  and runs `gh release create vX.Y.Z --notes-file dist/release-notes.md
+  dist/*.whl dist/*.tar.gz`.
+- `mkdocs gh-deploy --force --clean` to `gh-pages` (skipped if `mkdocs.yml`
+  is missing).
+
+The previous tag-trigger flow has been removed.
 
 ### Cutting a release
 
-Two Make targets wrap the whole flow. The bump itself is driven by
-[bump-my-version](https://github.com/callowayproject/bump-my-version)
-via `uvx`; configuration lives in `[tool.bumpversion]` in
-`pyproject.toml`. No permanent dependency is added to the project.
+The bump itself is driven by
+[bump-my-version](https://github.com/callowayproject/bump-my-version) via `uvx`;
+configuration lives in `[tool.bumpversion]` in `pyproject.toml`.
 
 ```bash
-# 1. Make sure CHANGELOG.md has the entries you want to ship under
-#    ## [Unreleased]. Then bump:
+# 1. On a release branch, make sure CHANGELOG.md has the entries you want
+#    to ship under ## [Unreleased]. Then bump:
 make release-bump VERSION=0.4.1
 # This rewrites rest_framework_services/version.py (the single source of
 # truth — pyproject.toml is dynamic and reads from it at build time),
@@ -207,24 +221,24 @@ make release-bump VERSION=0.4.1
 # rewrites the link footer — all driven by the [[tool.bumpversion.files]]
 # entries in pyproject.toml.
 
-# 2. Review the diff. Edit CHANGELOG.md if you want to reword anything.
+# 2. Review the diff, commit, open a PR, get it reviewed.
 git diff
+git commit -am "Release 0.4.1"
+git push -u origin release/0.4.1
+gh pr create
 
-# 3. Push:
-make release-publish
-# Commits the bump as "Release X.Y.Z", tags vX.Y.Z, and pushes both to
-# origin. The tag push triggers .github/workflows/release.yml.
+# 3. Merge to main. release.yml fires on the merge commit, detects the
+#    bumped version, runs the full flow, and tags/publishes vX.Y.Z.
 ```
 
 `release-bump` refuses to run on a dirty tree (bump-my-version's
 `allow_dirty = false`), so you don't fold unrelated changes into the
-release commit. `release-publish` refuses to run if the tag already
-exists locally or on origin.
+release commit.
 
-If you really need to do it by hand, the manual flow is: edit
-`rest_framework_services/version.py` (`pyproject.toml` is dynamic and
-picks up the value at build time), edit `CHANGELOG.md`, commit, then
-`git tag -a vX.Y.Z -m "X.Y.Z"` and `git push origin main vX.Y.Z`.
+For an end-to-end workstation release (e.g. publishing from a developer
+machine when CI is broken), `make release-publish` runs prepare → `uv publish`
+→ finalize in one shot. Set `DRY_RUN=1` to rehearse without uploading or
+pushing.
 
 ### One-time setup (manual, by the repo owner)
 

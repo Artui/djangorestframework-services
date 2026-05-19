@@ -72,8 +72,11 @@ the recommended way to wire dataclass-shaped inputs and outputs. Plain
 
 | Axis | Range |
 |---|---|
-| Python | 3.10 – 3.14 |
+| Python | 3.13 – 3.14 |
 | Django | 4.2, 5.0, 5.1, 5.2, 6.0 |
 | DRF | ≥ 3.14 |
 
 CI runs the full Python × Django matrix with 100% coverage gating.
+Django 4.2 / 5.0 cells are excluded from the matrix because those Django
+versions don't run on Python 3.13+; the declared floor still installs and
+is supported wherever Python 3.13+ allows it.

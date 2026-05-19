@@ -1,4 +1,4 @@
-.PHONY: help init test lint lint-fix format format-check type-check type-check-strict-fixtures deps-bump docs-serve docs-build release-bump release-publish
+.PHONY: help init test lint lint-fix format format-check type-check type-check-strict-fixtures deps-bump docs-serve docs-build release-bump release-publish release-publish-prepare release-publish-finalize
 
 help:
 	@echo "Available targets:"
@@ -14,7 +14,9 @@ help:
 	@echo "  docs-serve       Live-reload docs at http://localhost:8000 (needs mkdocs.yml)"
 	@echo "  docs-build       Build docs into ./site (strict — fails on broken links)"
 	@echo "  release-bump     Bump version files + CHANGELOG. Usage: make release-bump VERSION=X.Y.Z"
-	@echo "  release-publish  Commit, tag, and push the current version to trigger release.yml"
+	@echo "  release-publish  Run the full release flow locally (prepare + uv publish + finalize)"
+	@echo "  release-publish-prepare   CI: extract version, no-op if already released, test, build dist"
+	@echo "  release-publish-finalize  CI: tag, push tag, create GitHub Release with dist attached"
 
 init:
 	uv sync --all-groups
@@ -68,22 +70,24 @@ release-bump:
 	@echo "Bumped to $(VERSION). Edit CHANGELOG.md to fill the new section,"
 	@echo "review with 'git diff', then run 'make release-publish'."
 
+# Version source for scripts/release-publish.sh. `path|awk-pattern` selecting
+# a `… = "X.Y.Z"` line. `pyproject.toml` declares `dynamic = ["version"]` and
+# hatchling reads the value from `version.py` at build time, so there is one
+# source of truth.
+RELEASE_PACKAGE_NAME := djangorestframework-services
+RELEASE_VERSION_FILES := rest_framework_services/version.py|^__version__[^=]*= *
+
 release-publish:
-	@version="$$(awk -F '"' '/^__version__/ { print $$2; exit }' rest_framework_services/version.py)"; \
-	if [ -z "$$version" ]; then \
-		echo "Could not extract version from rest_framework_services/version.py"; exit 1; \
-	fi; \
-	if git rev-parse "v$$version" >/dev/null 2>&1; then \
-		echo "Tag v$$version already exists locally."; exit 1; \
-	fi; \
-	if [ -n "$$(git ls-remote --tags origin "v$$version")" ]; then \
-		echo "Tag v$$version already exists on origin."; exit 1; \
-	fi; \
-	if ! git diff-index --quiet HEAD --; then \
-		git add pyproject.toml rest_framework_services/version.py CHANGELOG.md uv.lock && \
-		git commit -m "Release $$version"; \
-	fi && \
-	git tag -a "v$$version" -m "$$version" && \
-	branch="$$(git rev-parse --abbrev-ref HEAD)" && \
-	git push origin "$$branch" "v$$version" && \
-	echo "Pushed Release $$version + tag v$$version. Watch: https://github.com/Artui/djangorestframework-services/actions"
+	@PACKAGE_NAME='$(RELEASE_PACKAGE_NAME)' \
+	VERSION_FILES="$$(printf '$(RELEASE_VERSION_FILES)')" \
+		bash scripts/release-publish.sh all
+
+release-publish-prepare:
+	@PACKAGE_NAME='$(RELEASE_PACKAGE_NAME)' \
+	VERSION_FILES="$$(printf '$(RELEASE_VERSION_FILES)')" \
+		bash scripts/release-publish.sh prepare
+
+release-publish-finalize:
+	@PACKAGE_NAME='$(RELEASE_PACKAGE_NAME)' \
+	VERSION_FILES="$$(printf '$(RELEASE_VERSION_FILES)')" \
+		bash scripts/release-publish.sh finalize

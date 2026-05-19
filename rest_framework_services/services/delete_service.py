@@ -1,42 +1,32 @@
-"""Lenient ``DeleteService`` Protocol — opt-in shape for delete services."""
+"""``DeleteService`` Protocol — typed shape for delete-action service callables."""
 
 from __future__ import annotations
 
-from typing import Any, Protocol, TypeVar
+from typing import Protocol, TypeVar, Unpack
 
-from rest_framework.request import Request
-
-from rest_framework_services.services.utils import UserT
+from rest_framework_services.types._any_extras import _AnyExtras
 
 InputT = TypeVar("InputT")
 InstanceT = TypeVar("InstanceT")
 ResultT = TypeVar("ResultT", covariant=True)
+ExtraT = TypeVar("ExtraT", default=_AnyExtras)
 
 
-class DeleteService(Protocol[InputT, InstanceT, ResultT]):
+class DeleteService(Protocol[InputT, InstanceT, ResultT, ExtraT]):
     """Structural shape for a delete-action service callable.
 
     Receives the resolved ``instance``. Most delete services return ``None``;
     if you need a response body, return a value and configure
     ``ServiceSpec.output_serializer`` (or ``output_selector``).
 
-    For *delete with payload* — when the spec has an ``input_serializer`` —
-    bind ``InputT`` to your input dataclass and declare ``data`` on the
+    For *delete with payload* — when the spec carries an ``input_serializer``
+    — bind ``InputT`` to your input dataclass and declare ``data`` on the
     service. ``data`` is optional in the Protocol (default :data:`Ellipsis`)
     so services that don't read a body can still match the shape by binding
-    ``InputT`` to :class:`~rest_framework_services.types.no_input.NoInput`::
+    ``InputT`` to :class:`~rest_framework_services.types.no_input.NoInput`.
 
-        @implements(DeleteService[ReasonIn, Author, None])
-        def delete_author(
-            *,
-            instance: Author,
-            data: ReasonIn,
-            request: HttpRequest,
-            user: UserT,
-            **kwargs: Any,
-        ) -> None: ...
-
-    Lenient by design — see :class:`CreateService` for rationale.
+    See :class:`CreateService` for the lenient-vs-strict parameterisation
+    rationale.
     """
 
     def __call__(
@@ -44,7 +34,5 @@ class DeleteService(Protocol[InputT, InstanceT, ResultT]):
         *,
         instance: InstanceT,
         data: InputT = ...,  # type: ignore[assignment]
-        request: Request,
-        user: UserT,
-        **kwargs: Any,
+        **extras: Unpack[ExtraT],
     ) -> ResultT: ...

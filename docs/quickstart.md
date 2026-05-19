@@ -72,6 +72,13 @@ def create_author(*, data: CreateAuthorInput) -> Author:
     return result.instance
 ```
 
+For services whose entire body is this one-line `create_from_input` /
+`update_from_input` / `instance.delete()` glue, the library ships
+ready-made factory shortcuts — `create_model(Author)` produces an
+equivalent callable inline. See
+[Default model services](default-model-services.md) for when to reach
+for them vs. writing the service out by hand.
+
 ## 5. Wire the view
 
 ```python

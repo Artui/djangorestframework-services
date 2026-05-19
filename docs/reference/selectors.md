@@ -1,6 +1,11 @@
 # Selectors
 
-## Protocols (lenient)
+## Protocols
+
+Each Protocol takes a trailing `ExtraT` TypeVar with a default — supply two
+arguments for the lenient form (`ListSelector[Author]`), three for the strict
+form (`ListSelector[Author, MyExtras]`). See the
+[services reference](services.md) for the rationale.
 
 ::: rest_framework_services.selectors.selector.Selector
 
@@ -11,14 +16,6 @@
 ::: rest_framework_services.selectors.retrieve_selector.RetrieveSelector
 
 ::: rest_framework_services.selectors.output_selector.OutputSelector
-
-## Protocols (strict)
-
-::: rest_framework_services.selectors.strict_list_selector.StrictListSelector
-
-::: rest_framework_services.selectors.strict_retrieve_selector.StrictRetrieveSelector
-
-::: rest_framework_services.selectors.strict_output_selector.StrictOutputSelector
 
 ## Helpers
 

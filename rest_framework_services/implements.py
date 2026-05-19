@@ -12,14 +12,12 @@ def implements(proto: type[F]) -> Callable[[F], F]:
     """Identity decorator: assert ``fn`` structurally matches ``proto``.
 
     ``proto`` is a parameterized service or selector :class:`~typing.Protocol`,
-    typically one of the strict variants::
+    typically the strict (fully-parameterised) form::
 
-        @implements(StrictCreateService[AuthorIn, CreateAuthorKwargs, Author])
+        @implements(CreateService[AuthorIn, Author, CreateAuthorKwargs])
         def create_author(
             *,
             data: AuthorIn,
-            request: HttpRequest,
-            user: UserT,
             **extras: Unpack[CreateAuthorKwargs],
         ) -> Author: ...
 
@@ -27,7 +25,7 @@ def implements(proto: type[F]) -> Callable[[F], F]:
     decorator line by ``ty``. mypy refuses ``type[Protocol]`` arguments (the
     ``type-abstract`` rule); mypy users either silence that with
     ``# type: ignore[type-abstract]`` or keep using the legacy
-    ``_: StrictCreateService[...] = create_author`` shim alongside the def.
+    ``_: CreateService[...] = create_author`` shim alongside the def.
 
     Returns the function unchanged at runtime.
     """

@@ -5,7 +5,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/djangorestframework-services.svg)](https://pypi.org/project/djangorestframework-services/)
 [![Django versions](https://img.shields.io/pypi/djversions/djangorestframework-services.svg)](https://pypi.org/project/djangorestframework-services/)
 [![Docs](https://img.shields.io/badge/docs-artui.github.io-blue.svg)](https://artui.github.io/djangorestframework-services/)
-[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://github.com/Artui/djangorestframework-services/actions/workflows/tests.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Artui/djangorestframework-services/gh-pages/coverage.json)](https://github.com/Artui/djangorestframework-services/actions/workflows/tests.yml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![License](https://img.shields.io/pypi/l/djangorestframework-services.svg)](LICENSE)
 
@@ -256,17 +256,18 @@ to a Protocol so a type checker catches signature drift before request
 time.
 
 `CreateService`, `UpdateService`, `DeleteService`, `ListSelector`,
-`RetrieveSelector`, and `OutputSelector` are **lenient** Protocols —
-they accept `**kwargs: Any`, so your callable can declare only the
-parameters it actually uses:
+`RetrieveSelector`, and `OutputSelector` each take a trailing `ExtraT`
+TypeVar with a default that accepts any framework-pool key. **Lenient**
+form — pass two type arguments and let `ExtraT` default; your callable
+declares only the parameters it actually uses:
 
 ```python
 from rest_framework_services import CreateService, ListSelector
 
 
-def create_author(*, data: CreateAuthorInput, user) -> Author: ...
+def create_author(*, data: CreateAuthorInput, **kwargs) -> Author: ...
 
-def list_authors(*, request) -> QuerySet[Author]: ...
+def list_authors(*, request, **kwargs) -> QuerySet[Author]: ...
 
 
 _: CreateService[CreateAuthorInput, Author] = create_author
@@ -274,23 +275,22 @@ _: ListSelector[Author] = list_authors
 ```
 
 When you want the type checker to fail on *any* drift — including
-extras forwarded from a `kwargs=` provider — use the **strict**
-variants. They use [PEP 692](https://peps.python.org/pep-0692/)
-`Unpack[TypedDict]` to pin every kwarg the callable receives, and pair
-naturally with the `@implements(...)` decorator so the contract sits on
-the function definition itself:
+extras forwarded from a `kwargs=` provider — pass a third type argument
+binding `ExtraT` to a concrete `TypedDict`. The Protocol then uses
+[PEP 692](https://peps.python.org/pep-0692/) `Unpack[TypedDict]` to pin
+every kwarg the callable receives, and pairs naturally with the
+`@implements(...)` decorator so the contract sits on the function
+definition itself:
 
 ```python
 from typing import TypedDict
 from typing_extensions import Unpack
 
-from django.http import HttpRequest
-
 from rest_framework_services import (
+    CreateService,
+    ListSelector,
     ServiceSpec,
     ServiceViewSet,
-    StrictCreateService,
-    StrictListSelector,
     implements,
 )
 
@@ -303,19 +303,16 @@ def _author_kwargs(view, request) -> AuthorExtras:
     return {"tenant_id": request.tenant.id}
 
 
-@implements(StrictCreateService[CreateAuthorInput, AuthorExtras, Author])
+@implements(CreateService[CreateAuthorInput, Author, AuthorExtras])
 def create_author(
     *,
     data: CreateAuthorInput,
-    request: HttpRequest,
     **extras: Unpack[AuthorExtras],
 ) -> Author: ...
 
 
-@implements(StrictListSelector[AuthorExtras, Author])
+@implements(ListSelector[Author, AuthorExtras])
 def list_authors(
-    *,
-    request: HttpRequest,
     **extras: Unpack[AuthorExtras],
 ) -> QuerySet[Author]: ...
 
@@ -335,11 +332,59 @@ Adding a parameter to the service without updating `AuthorExtras` is a
 type error. Removing a key from `AuthorExtras` without updating the
 service is a type error.
 
+`request` and `user` flow through `**extras` like every other pool key.
+Services that need them either pick them off the lenient `**kwargs` or
+declare them on their `ExtraT` (most cleanly by subclassing
+`HttpExtras[YourUserModel]`).
+
 On top of static typing, `as_view()` walks every spec at URL-wiring time
 and raises `ImproperlyConfigured` for misconfigurations the checker
 can't see — a service requiring `data` with no `input_serializer`, an
 `instance` parameter on a create flow, or a required parameter no
 extras provider supplies.
+
+### Default model service factories
+
+When the entire body of your service is a one-line wrapper over
+`create_from_input` / `update_from_input` / `instance.delete()`, the
+framework ships ready-made factories:
+
+```python
+from rest_framework_services import (
+    ServiceSpec,
+    ServiceViewSet,
+    create_model,
+    delete_model,
+    update_model,
+)
+
+
+class AuthorViewSet(ServiceViewSet):
+    queryset = Author.objects.all()
+    action_specs = {
+        "create": ServiceSpec(
+            service=create_model(Author),
+            input_serializer=AuthorInSerializer,
+            output_serializer=AuthorOutSerializer,
+        ),
+        "update": ServiceSpec(
+            service=update_model(Author),
+            input_serializer=AuthorInSerializer,
+            output_serializer=AuthorOutSerializer,
+        ),
+        "destroy": ServiceSpec(service=delete_model(Author)),
+    }
+```
+
+Each factory takes the same `field_map` / `exclude_fields` / `m2m`
+kwargs as the underlying mutation helper. `m2m` accepts a static mapping
+or a callable receiving the validated `data`. `delete_model` takes an
+optional `soft_delete=` hook for the archive case. Async variants —
+`acreate_model` / `aupdate_model` / `adelete_model` — wrap
+`acreate_from_input` / `aupdate_from_input` / `await instance.adelete()`.
+Keep writing custom services the moment you need anything else
+(side-effects, `request.user` stamping, cross-table updates) — the
+factories cover the boilerplate case, not the framework itself.
 
 See [Typing services and selectors](https://artui.github.io/djangorestframework-services/typing/)
 for the full Protocol catalogue and per-spec `kwargs=` resolution

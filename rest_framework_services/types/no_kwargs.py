@@ -12,12 +12,10 @@ class NoKwargs(TypedDict):
     ``get_*_service_kwargs`` override contributes anything beyond the
     framework-injected pool::
 
-        @implements(StrictCreateService[CreateAuthorIn, NoKwargs, Author])
+        @implements(CreateService[CreateAuthorIn, Author, NoKwargs])
         def create_author(
             *,
             data: CreateAuthorIn,
-            request: HttpRequest,
-            user: UserT,
             **extras: Unpack[NoKwargs],
         ) -> Author: ...
 

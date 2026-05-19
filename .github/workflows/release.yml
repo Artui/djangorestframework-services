@@ -1,120 +1,55 @@
 name: release
 
+# Main-triggered: every merge to `main` runs `release-publish-prepare`, which
+# short-circuits to a no-op unless the version in source has been bumped past
+# the most recent `vX.Y.Z` tag. The previous tag-trigger flow has been removed
+# — `make release-bump` + merge to main is now the only path.
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
 
-# Each job runs only after the previous one succeeds, so a failed test or a
-# rejected PyPI upload aborts the rest of the chain (no half-released versions).
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-main
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: build wheel + sdist
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      - name: Install
-        run: uv sync --all-groups
-
-      - name: Tag version matches package version
-        # Compare the git tag (vX.Y.Z) against the single-source-of-truth
-        # version in ``rest_framework_services/version.py``. ``pyproject.toml``
-        # declares the version as ``dynamic`` and hatchling reads it from the
-        # same file at build time, so there is only one place to check.
-        # We parse the file with awk rather than importing the package,
-        # because importing transitively imports DRF, which reads
-        # ``settings.REST_FRAMEWORK`` at import time and crashes without a
-        # configured Django settings module.
-        run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          pkg_version="$(awk -F '"' '/^__version__/ { print $2; exit }' rest_framework_services/version.py)"
-          if [[ -z "$pkg_version" ]]; then
-            echo "Could not extract version from rest_framework_services/version.py"
-            exit 1
-          fi
-          if [[ "$tag" != "v$pkg_version" ]]; then
-            echo "Tag $tag does not match package version v$pkg_version"
-            exit 1
-          fi
-
-      - name: Final test gate
-        run: uv run pytest
-
-      - name: Build distributions
-        run: uv build
-
-      - name: Upload dist
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
-  publish-pypi:
-    name: publish to PyPI
-    needs: build
+  release:
+    name: release
     runs-on: ubuntu-latest
     environment:
       name: pypi
       url: https://pypi.org/p/djangorestframework-services
     permissions:
-      # Required for OIDC trusted publishing — no API token in repo secrets.
-      id-token: write
+      id-token: write   # PyPI OIDC trusted publishing
+      contents: write   # tag push + gh release create
     steps:
-      - name: Download dist
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-      - name: Publish
-        uses: pypa/gh-action-pypi-publish@release/v1
-
-  publish-docs:
-    name: publish docs to GitHub Pages
-    needs: publish-pypi
-    runs-on: ubuntu-latest
-    # Docs deployment is best-effort: if mkdocs.yml is missing the step is
-    # skipped instead of failing the release.
-    permissions:
-      contents: write
-      pages: write
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - name: Check for mkdocs.yml
-        id: docs
-        run: |
-          if [[ -f mkdocs.yml ]]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "mkdocs.yml not found — skipping docs deploy."
-          fi
-      - name: Install with docs group
-        if: steps.docs.outputs.present == 'true'
+      - name: Install
         run: uv sync --all-groups
-      - name: Configure git for gh-deploy
-        if: steps.docs.outputs.present == 'true'
+
+      - name: Prepare release (version check, test, build dist)
+        id: prepare
+        run: make release-publish-prepare
+
+      - name: Publish to PyPI
+        if: steps.prepare.outputs.released == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Tag + GitHub Release
+        if: steps.prepare.outputs.released == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: make release-publish-finalize
+
+      - name: Deploy docs to gh-pages
+        if: steps.prepare.outputs.released == 'true' && hashFiles('mkdocs.yml') != ''
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-      - name: Deploy to gh-pages
-        if: steps.docs.outputs.present == 'true'
-        run: |
           DJANGO_SETTINGS_MODULE=tests.conftest_settings \
             uv run mkdocs gh-deploy --force --clean --config-file mkdocs.yml

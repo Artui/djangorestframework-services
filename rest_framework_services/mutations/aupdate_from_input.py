@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.db.models import Model
-
 from rest_framework_services.mutations.utils import (
     _auto_now_field_names,
     aapply_m2m,
@@ -15,18 +13,18 @@ from rest_framework_services.mutations.utils import (
     filter_input,
     resolve_update_fields,
 )
-from rest_framework_services.types.change_result import ChangeResult
+from rest_framework_services.types.change_result import ChangeResult, ModelT
 
 
 async def aupdate_from_input(
-    instance: Model,
+    instance: ModelT,
     data: Any,
     *,
     field_map: dict[str, str] | None = None,
     exclude_fields: list[str] | None = None,
     m2m: dict[str, Any] | None = None,
     update_fields: bool | list[str] = True,
-) -> ChangeResult:
+) -> ChangeResult[ModelT]:
     """Async sibling of :func:`update_from_input` using ``asave()``/``aset()``."""
     raw: dict[str, Any] = coerce_to_dict(data)
     new_values: dict[str, Any] = filter_input(

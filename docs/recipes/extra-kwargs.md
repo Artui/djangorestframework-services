@@ -103,14 +103,15 @@ class AuthorViewSet(ServiceViewSet):
     }
 ```
 
-Pair with `StrictCreateService` / `StrictUpdateService` (etc.) and the
-`@implements(...)` decorator to have type checkers enforce that the service
-signature matches the `TypedDict` exactly:
+Pair with the parameterised service Protocols (`CreateService`,
+`UpdateService`, …) and the `@implements(...)` decorator to have type
+checkers enforce that the service signature matches the `TypedDict`
+exactly:
 
 ```python
-from rest_framework_services import StrictUpdateService, implements
+from rest_framework_services import UpdateService, implements
 
-@implements(StrictUpdateService[AuthorIn, Author, PublishAuthorKwargs, Author])
+@implements(UpdateService[AuthorIn, Author, Author, PublishAuthorKwargs])
 def publish_author(
     *,
     instance: Author,
@@ -120,7 +121,7 @@ def publish_author(
 ```
 
 If `publish_author` needs `request` or `user`, declare them on
-`PublishAuthorKwargs` via [`HttpExtras`](../typing.md#strict-protocols-fail-on-signature-drift).
+`PublishAuthorKwargs` via [`HttpExtras`](../typing.md#unified-service--selector-protocols).
 
 See [Typing services and selectors](../typing.md) for the full Protocol
 catalogue and notes on type-checker support.
@@ -202,7 +203,7 @@ are also available on the view for the same shape.
 
 `DELETE` services can accept body data — e.g. a deletion reason — by
 setting `input_serializer` on the spec. Type the service against
-`StrictDeleteService[InputT, InstanceT, ExtraT, ResultT]` and bind
+`DeleteService[InputT, InstanceT, ResultT, ExtraT]` (strict form) and bind
 `InputT` to your input dataclass. For services that don't read a body,
 bind `InputT` to the `NoInput` sentinel and don't declare `data` on the
 function:
@@ -210,10 +211,10 @@ function:
 ```python
 from typing import Unpack
 from rest_framework_services import (
+    DeleteService,
     HttpExtras,
     NoInput,
     ServiceSpec,
-    StrictDeleteService,
     implements,
 )
 
@@ -223,7 +224,7 @@ class DeleteReasonIn:
     reason: str
 
 
-@implements(StrictDeleteService[DeleteReasonIn, Author, HttpExtras, None])
+@implements(DeleteService[DeleteReasonIn, Author, None, HttpExtras])
 def delete_author(
     *,
     instance: Author,
