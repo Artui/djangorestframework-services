@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://artui.github.io/djangorestframework-services/errors-and-atomic/">
       
       
-        <link rel="prev" href="../mutation-helpers/">
+        <link rel="prev" href="../default-model-services/">
       
       
         <link rel="next" href="../typing/">
@@ -374,6 +374,33 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../default-model-services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Default model services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -635,7 +662,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -657,14 +684,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_9" id="__nav_9_label" tabindex="">
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_9">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -867,7 +894,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -889,14 +916,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1325,7 +1352,7 @@ usually what you want.</p>
 is <code>422 Unprocessable Entity</code>, which is exactly what HTTP says about
 this case.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;account is locked&quot;</span><span class="p">)</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;invoice already finalised&quot;</span><span class="p">,</span> <span class="n">code</span><span class="o">=</span><span class="s2">&quot;already_finalised&quot;</span><span class="p">)</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;invoice already finalised&quot;</span><span class="p">)</span>
 </span></code></pre></div>
 <h3 id="why-not-just-raise-drf-exceptions">Why not just raise DRF exceptions?<a class="headerlink" href="#why-not-just-raise-drf-exceptions" title="Permanent link">&para;</a></h3>
 <p>Because the mutation can be reused outside a request — from a

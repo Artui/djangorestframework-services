@@ -477,6 +477,33 @@
   
   
     <li class="md-nav__item">
+      <a href="default-model-services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Default model services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="errors-and-atomic/" class="md-nav__link">
         
   
@@ -616,7 +643,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -638,14 +665,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_9" id="__nav_9_label" tabindex="">
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_9">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -848,7 +875,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -870,14 +897,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1242,7 +1269,8 @@ you a precise, well-typed seam for the bits in the middle.</p>
   <code>get_object()</code>. Filter backends, pagination, and serialization stay
   vanilla DRF.</li>
 <li><strong>Mutation helpers</strong> — <code>create_from_input</code>, <code>update_from_input</code>,
-  <code>apply_input</code> (and async siblings) with change tracking, no surprises.</li>
+  <code>apply_input</code>, plus async siblings <code>acreate_from_input</code> /
+  <code>aupdate_from_input</code>, with change tracking, no surprises.</li>
 <li><strong>Sync and async</strong> services and selectors, transparently dispatched.</li>
 <li><strong>Atomic by default</strong>, opt-out per spec.</li>
 <li><strong>Framework-agnostic exceptions</strong> — services don't import from DRF.</li>
@@ -1310,7 +1338,9 @@ the recommended way to wire dataclass-shaped inputs and outputs. Plain
 </tr>
 </tbody>
 </table>
-<p>CI runs the full Python × Django matrix with 100% coverage gating.</p>
+<p>CI runs the full Python × Django matrix with 100% coverage gating, minus
+the cells the upstream version-support docs already rule out (e.g. Django
+6.0 only runs on Python 3.12+).</p>
 
 
 

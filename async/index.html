@@ -377,6 +377,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../default-model-services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Default model services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../errors-and-atomic/" class="md-nav__link">
         
   
@@ -618,7 +645,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -640,14 +667,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_9" id="__nav_9_label" tabindex="">
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_9">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -850,7 +877,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -872,14 +899,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1271,6 +1298,13 @@ coroutine via <code>inspect.iscoroutinefunction</code> and routes it correctly:<
 <p><code>apply_input</code> is a pure attribute-setter and can be awaited or called
 directly — but the helpers that call <code>save()</code> need the async variants
 to avoid <code>SynchronousOnlyOperation</code>.</p>
+<p>For the one-line-glue case, the async siblings of the
+<a href="../default-model-services/">default model service factories</a> —
+<code>acreate_model</code>, <code>aupdate_model</code>, <code>adelete_model</code> — return an
+<code>async def</code> closure that wraps <code>acreate_from_input</code> /
+<code>aupdate_from_input</code> / <code>await instance.adelete()</code>. The framework's
+<code>is_async</code> detection routes them through the async dispatch path
+automatically.</p>
 <h2 id="atomic-transactions">Atomic transactions<a class="headerlink" href="#atomic-transactions" title="Permanent link">&para;</a></h2>
 <p><code>atomic=True</code> (the default) still works. The dispatcher wraps the
 async call in <code>sync_to_async(thread_sensitive=True)</code> so the ORM

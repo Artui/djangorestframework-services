@@ -377,6 +377,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../default-model-services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Default model services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../errors-and-atomic/" class="md-nav__link">
         
   
@@ -516,7 +543,7 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_9" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -538,14 +565,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_9" id="__nav_9_label" tabindex="">
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_9">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -748,7 +775,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -770,14 +797,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_10">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_11">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1134,28 +1161,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#nokwargs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NoKwargs
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.types.no_kwargs.NoKwargs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NoKwargs
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#noinput" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1436,28 +1441,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#nokwargs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NoKwargs
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.types.no_kwargs.NoKwargs" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        NoKwargs
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#noinput" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1701,6 +1684,8 @@ cross-validate. Server-provided keys win on conflict.</p>
 
 
     <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.Generic">Generic</span>[<span title="rest_framework_services.types.change_result.ModelT">ModelT</span>]</code></p>
 
 
 
@@ -1709,6 +1694,11 @@ cross-validate. Server-provided keys win on conflict.</p>
 iff this came from :func:<code>create_from_input</code> / :func:<code>acreate_from_input</code>.
 <code>changes</code> records every field whose value actually differed from its
 prior value (or from <code>UNSET</code> for creates).</p>
+<p>The class is generic over the concrete model type: callers that pass
+<code>Author</code> into a mutation helper get back a <code>ChangeResult[Author]</code>
+whose <code>.instance</code> is typed as <code>Author</code>. The bare name
+<code>ChangeResult</code> (no parameter) resolves to <code>ChangeResult[Model]</code> and
+keeps working for callers that don't care.</p>
 
 
 
@@ -1880,51 +1870,6 @@ existing value.</p>
 
     </div>
 
-</div><h2 id="nokwargs"><code>NoKwargs</code><a class="headerlink" href="#nokwargs" title="Permanent link">&para;</a></h2>
-
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.types.no_kwargs.NoKwargs" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">NoKwargs</span>
-
-
-<a href="#rest_framework_services.types.no_kwargs.NoKwargs" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.TypedDict">TypedDict</span></code></p>
-
-
-
-        <p>Empty :class:<code>TypedDict</code> for the <code>ExtraT</code> slot of strict service Protocols.</p>
-<p>Use this when a service has no per-spec <code>ServiceSpec.kwargs</code> and no
-<code>get_*_service_kwargs</code> override contributes anything beyond the
-framework-injected pool::</p>
-<div class="language-text highlight"><pre><span></span><code>@implements(StrictCreateService[CreateAuthorIn, NoKwargs, Author])
-def create_author(
-    *,
-    data: CreateAuthorIn,
-    request: HttpRequest,
-    user: UserT,
-    **extras: Unpack[NoKwargs],
-) -&gt; Author: ...
-</code></pre></div>
-<p>Saves every project from re-defining the same empty stub.</p>
-
-
-
-
-
-
-
-
-
-    </div>
-
 </div><h2 id="noinput"><code>NoInput</code><a class="headerlink" href="#noinput" title="Permanent link">&para;</a></h2>
 
 
@@ -1944,15 +1889,12 @@ def create_author(
 
 
         <p>Sentinel type for the <code>InputT</code> slot when a service expects no body.</p>
-<p>Pair with :class:<code>StrictDeleteService</code> (or lenient :class:<code>DeleteService</code>)
-when the spec has no <code>input_serializer</code>::</p>
-<div class="language-text highlight"><pre><span></span><code>@implements(StrictDeleteService[NoInput, Author, NoKwargs, None])
+<p>Pair with :class:<code>DeleteService</code> when the spec has no <code>input_serializer</code>::</p>
+<div class="language-text highlight"><pre><span></span><code>@implements(DeleteService[NoInput, Author, None])
 def delete_author(
     *,
     instance: Author,
-    request: HttpRequest,
-    user: UserT,
-    **extras: Unpack[NoKwargs],
+    **extras: Any,
 ) -&gt; None: ...
 </code></pre></div>
 <p>The class itself is never instantiated — it exists purely to bind the
