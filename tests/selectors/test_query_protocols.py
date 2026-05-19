@@ -1,10 +1,9 @@
-"""Tests for the lenient list / retrieve / output selector Protocols."""
+"""Tests for the lenient shape of the unified list / retrieve / output selector Protocols."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-from rest_framework.request import Request
+from typing import Any
 
 from rest_framework_services import (
     ListSelector,
@@ -12,7 +11,6 @@ from rest_framework_services import (
     RetrieveSelector,
     SelectorSpec,
 )
-from rest_framework_services.services.utils import UserT
 
 
 @dataclass
@@ -21,15 +19,15 @@ class _Author:
     name: str
 
 
-def _list(*, request: Request, user: UserT) -> list[_Author]:
+def _list(**kwargs: Any) -> list[_Author]:
     return [_Author(id=1, name="A")]
 
 
-def _retrieve(*, request: Request, user: UserT, pk: int) -> _Author | None:
+def _retrieve(*, pk: int, **kwargs: Any) -> _Author | None:
     return _Author(id=pk, name="A")
 
 
-def _output(*, result: _Author, request: Request, user: UserT) -> _Author:
+def _output(*, result: _Author, **kwargs: Any) -> _Author:
     return result
 
 

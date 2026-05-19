@@ -13,13 +13,12 @@ signatures from the source — when in doubt, follow the source link
   `@selector_action`.
 - **[Mutations](mutations.md)** — `apply_input`, `create_from_input`,
   `update_from_input` and async siblings.
-- **[Services](services.md)** — lenient and strict service Protocols,
-  the `implements` decorator, and the `call_service` / `acall_service`
-  HTTP-scope helpers.
-- **[Selectors](selectors.md)** — lenient and strict selector Protocols,
-  and the `call_selector` / `acall_selector` HTTP-scope helpers.
+- **[Services](services.md)** — service Protocols, the `implements`
+  decorator, and the `call_service` / `acall_service` HTTP-scope helpers.
+- **[Selectors](selectors.md)** — selector Protocols and the
+  `call_selector` / `acall_selector` HTTP-scope helpers.
 - **[Types](types.md)** — `ServiceSpec`, `SelectorSpec`, `ChangeResult`,
-  `FieldChange`, `UNSET`, `NoInput`, `NoKwargs`, `HttpExtras`.
+  `FieldChange`, `UNSET`, `NoInput`, `HttpExtras`.
 - **[Exceptions](exceptions.md)** — `ServiceError`,
   `ServiceValidationError`.
 - **[OpenAPI](openapi.md)** — `enable_openapi`, `ServiceAutoSchema`,
@@ -64,9 +63,12 @@ from rest_framework_services import (
     CreateService,
     UpdateService,
     DeleteService,
-    StrictCreateService,
-    StrictUpdateService,
-    StrictDeleteService,
+    create_model,
+    update_model,
+    delete_model,
+    acreate_model,
+    aupdate_model,
+    adelete_model,
     call_service,
     acall_service,
     implements,
@@ -76,9 +78,6 @@ from rest_framework_services import (
     ListSelector,
     RetrieveSelector,
     OutputSelector,
-    StrictListSelector,
-    StrictRetrieveSelector,
-    StrictOutputSelector,
     call_selector,
     acall_selector,
     # types
@@ -89,7 +88,6 @@ from rest_framework_services import (
     FieldChange,
     UNSET,
     NoInput,
-    NoKwargs,
     HttpExtras,
     # exceptions
     ServiceError,

@@ -3,23 +3,32 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Generic, TypeVar
 
 from django.db.models import Model
 
 from rest_framework_services.types.field_change import FieldChange
 
+ModelT = TypeVar("ModelT", bound=Model)
+
 
 @dataclass(frozen=True)
-class ChangeResult:
+class ChangeResult(Generic[ModelT]):
     """Outcome of a mutation helper call.
 
     ``instance`` is the model instance after the mutation. ``created`` is True
     iff this came from :func:`create_from_input` / :func:`acreate_from_input`.
     ``changes`` records every field whose value actually differed from its
     prior value (or from ``UNSET`` for creates).
+
+    The class is generic over the concrete model type: callers that pass
+    ``Author`` into a mutation helper get back a ``ChangeResult[Author]``
+    whose ``.instance`` is typed as ``Author``. The bare name
+    ``ChangeResult`` (no parameter) resolves to ``ChangeResult[Model]`` and
+    keeps working for callers that don't care.
     """
 
-    instance: Model
+    instance: ModelT
     created: bool
     changes: tuple[FieldChange, ...]
 

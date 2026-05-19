@@ -5,7 +5,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/djangorestframework-services.svg)](https://pypi.org/project/djangorestframework-services/)
 [![Django versions](https://img.shields.io/pypi/djversions/djangorestframework-services.svg)](https://pypi.org/project/djangorestframework-services/)
 [![Docs](https://img.shields.io/badge/docs-artui.github.io-blue.svg)](https://artui.github.io/djangorestframework-services/)
-[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://github.com/Artui/djangorestframework-services/actions/workflows/tests.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Artui/djangorestframework-services/gh-pages/coverage.json)](https://github.com/Artui/djangorestframework-services/actions/workflows/tests.yml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![License](https://img.shields.io/pypi/l/djangorestframework-services.svg)](LICENSE)
 
@@ -24,7 +24,8 @@ you a precise, well-typed seam for the bits in the middle.
   `get_object()`. Filter backends, pagination, and serialization stay
   vanilla DRF.
 - **Mutation helpers** — `create_from_input`, `update_from_input`,
-  `apply_input` (and async siblings) with change tracking, no surprises.
+  `apply_input`, plus async siblings `acreate_from_input` /
+  `aupdate_from_input`, with change tracking, no surprises.
 - **Sync and async** services and selectors, transparently dispatched.
 - **Atomic by default**, opt-out per spec.
 - **Framework-agnostic exceptions** — services don't import from DRF.
@@ -256,46 +257,45 @@ to a Protocol so a type checker catches signature drift before request
 time.
 
 `CreateService`, `UpdateService`, `DeleteService`, `ListSelector`,
-`RetrieveSelector`, and `OutputSelector` are **lenient** Protocols —
-they accept `**kwargs: Any`, so your callable can declare only the
-parameters it actually uses:
+`RetrieveSelector`, and `OutputSelector` each take only the input,
+instance, and result type parameters. `**extras` is typed `Any` so the
+framework's kwargs pool flows through transparently, and your callable
+declares only the parameters it actually uses:
 
 ```python
 from rest_framework_services import CreateService, ListSelector
 
 
-def create_author(*, data: CreateAuthorInput, user) -> Author: ...
+def create_author(*, data: CreateAuthorInput, **kwargs) -> Author: ...
 
-def list_authors(*, request) -> QuerySet[Author]: ...
+def list_authors(*, request, **kwargs) -> QuerySet[Author]: ...
 
 
 _: CreateService[CreateAuthorInput, Author] = create_author
 _: ListSelector[Author] = list_authors
 ```
 
-When you want the type checker to fail on *any* drift — including
-extras forwarded from a `kwargs=` provider — use the **strict**
-variants. They use [PEP 692](https://peps.python.org/pep-0692/)
-`Unpack[TypedDict]` to pin every kwarg the callable receives, and pair
-naturally with the `@implements(...)` decorator so the contract sits on
-the function definition itself:
+For strict-typed extras — when you want the type checker to assist on
+`extras["tenant_id"]` accesses inside the function body — declare a
+`TypedDict` with `total=False` (or `NotRequired` per field) and unpack
+it into your function via [PEP 692](https://peps.python.org/pep-0692/)
+`Unpack[TypedDict]`. The Protocol itself does not carry a kwargs-shape
+parameter; the typing lives on your function, which keeps the design
+portable across `ty`, `mypy`, and `pyright`:
 
 ```python
-from typing import TypedDict
-from typing_extensions import Unpack
-
-from django.http import HttpRequest
+from typing_extensions import TypedDict, Unpack
 
 from rest_framework_services import (
+    CreateService,
+    ListSelector,
     ServiceSpec,
     ServiceViewSet,
-    StrictCreateService,
-    StrictListSelector,
     implements,
 )
 
 
-class AuthorExtras(TypedDict):
+class AuthorExtras(TypedDict, total=False):
     tenant_id: int
 
 
@@ -303,19 +303,16 @@ def _author_kwargs(view, request) -> AuthorExtras:
     return {"tenant_id": request.tenant.id}
 
 
-@implements(StrictCreateService[CreateAuthorInput, AuthorExtras, Author])
+@implements(CreateService[CreateAuthorInput, Author])
 def create_author(
     *,
     data: CreateAuthorInput,
-    request: HttpRequest,
     **extras: Unpack[AuthorExtras],
 ) -> Author: ...
 
 
-@implements(StrictListSelector[AuthorExtras, Author])
+@implements(ListSelector[Author])
 def list_authors(
-    *,
-    request: HttpRequest,
     **extras: Unpack[AuthorExtras],
 ) -> QuerySet[Author]: ...
 
@@ -331,15 +328,64 @@ class AuthorViewSet(ServiceViewSet):
     }
 ```
 
-Adding a parameter to the service without updating `AuthorExtras` is a
-type error. Removing a key from `AuthorExtras` without updating the
-service is a type error.
+`total=False` (or per-field `NotRequired`) keeps the function
+Protocol-conformant: under PEP 692, any required key would make the
+function reject callers that omit it, breaking assignment to the
+Protocol shape.
+
+`request` and `user` flow through `**extras` like every other pool key.
+Services that need them either read them off `**extras: Any` directly
+or use `HttpExtras[YourUserModel]` (a `total=False` `TypedDict`) as the
+`Unpack` target.
 
 On top of static typing, `as_view()` walks every spec at URL-wiring time
 and raises `ImproperlyConfigured` for misconfigurations the checker
 can't see — a service requiring `data` with no `input_serializer`, an
 `instance` parameter on a create flow, or a required parameter no
 extras provider supplies.
+
+### Default model service factories
+
+When the entire body of your service is a one-line wrapper over
+`create_from_input` / `update_from_input` / `instance.delete()`, the
+framework ships ready-made factories:
+
+```python
+from rest_framework_services import (
+    ServiceSpec,
+    ServiceViewSet,
+    create_model,
+    delete_model,
+    update_model,
+)
+
+
+class AuthorViewSet(ServiceViewSet):
+    queryset = Author.objects.all()
+    action_specs = {
+        "create": ServiceSpec(
+            service=create_model(Author),
+            input_serializer=AuthorInSerializer,
+            output_serializer=AuthorOutSerializer,
+        ),
+        "update": ServiceSpec(
+            service=update_model(Author),
+            input_serializer=AuthorInSerializer,
+            output_serializer=AuthorOutSerializer,
+        ),
+        "destroy": ServiceSpec(service=delete_model(Author)),
+    }
+```
+
+Each factory takes the same `field_map` / `exclude_fields` / `m2m`
+kwargs as the underlying mutation helper. `m2m` accepts a static mapping
+or a callable receiving the validated `data`. `delete_model` takes an
+optional `soft_delete=` hook for the archive case. Async variants —
+`acreate_model` / `aupdate_model` / `adelete_model` — wrap
+`acreate_from_input` / `aupdate_from_input` / `await instance.adelete()`.
+Keep writing custom services the moment you need anything else
+(side-effects, `request.user` stamping, cross-table updates) — the
+factories cover the boilerplate case, not the framework itself.
 
 See [Typing services and selectors](https://artui.github.io/djangorestframework-services/typing/)
 for the full Protocol catalogue and per-spec `kwargs=` resolution

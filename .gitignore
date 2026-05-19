@@ -48,6 +48,9 @@ msbuild.wrn
 [Ll]ib64
 [Ll]ocal
 [Ss]cripts
+# Repo-root scripts/ (release-publish.sh etc.) — re-included; the
+# [Ss]cripts pattern above is for venv-style Scripts/ dirs only.
+!/scripts/
 pyvenv.cfg
 .venv
 pip-selfcheck.json

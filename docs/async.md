@@ -51,6 +51,14 @@ async def update_author(*, instance, data):
 directly — but the helpers that call `save()` need the async variants
 to avoid `SynchronousOnlyOperation`.
 
+For the one-line-glue case, the async siblings of the
+[default model service factories](default-model-services.md) —
+`acreate_model`, `aupdate_model`, `adelete_model` — return an
+`async def` closure that wraps `acreate_from_input` /
+`aupdate_from_input` / `await instance.adelete()`. The framework's
+`is_async` detection routes them through the async dispatch path
+automatically.
+
 ## Atomic transactions
 
 `atomic=True` (the default) still works. The dispatcher wraps the

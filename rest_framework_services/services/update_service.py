@@ -1,15 +1,11 @@
-"""Lenient ``UpdateService`` Protocol — opt-in shape for update services."""
+"""``UpdateService`` Protocol — typed shape for update-action service callables."""
 
 from __future__ import annotations
 
 from typing import Any, Protocol, TypeVar
 
-from rest_framework.request import Request
-
-from rest_framework_services.services.utils import UserT
-
-InputT = TypeVar("InputT")
-InstanceT = TypeVar("InstanceT")
+InputT = TypeVar("InputT", contravariant=True)
+InstanceT = TypeVar("InstanceT", contravariant=True)
 ResultT = TypeVar("ResultT", covariant=True)
 
 
@@ -20,7 +16,7 @@ class UpdateService(Protocol[InputT, InstanceT, ResultT]):
     ``None`` instructs the framework to render the in-memory ``instance``
     (mirroring DRF's ``UpdateAPIView`` shape).
 
-    Lenient by design — see :class:`CreateService` for rationale.
+    See :class:`CreateService` for the extras-typing notes.
     """
 
     def __call__(
@@ -28,7 +24,5 @@ class UpdateService(Protocol[InputT, InstanceT, ResultT]):
         *,
         instance: InstanceT,
         data: InputT,
-        request: Request,
-        user: UserT,
-        **kwargs: Any,
+        **extras: Any,
     ) -> ResultT: ...

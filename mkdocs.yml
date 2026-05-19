@@ -76,6 +76,7 @@ nav:
   - Quickstart: quickstart.md
   - Concepts: concepts.md
   - Mutation helpers: mutation-helpers.md
+  - Default model services: default-model-services.md
   - Errors & atomic: errors-and-atomic.md
   - Typing: typing.md
   - OpenAPI: openapi.md

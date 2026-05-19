@@ -1,7 +1,8 @@
 # Pass extra kwargs to services
 
-The dispatch flow assembles a kwarg pool — `data`, `instance`, `request`,
-`user`, plus URL kwargs and any extras you wire in — and the callable
+The dispatch flow assembles a kwarg pool — `request`, `user`, `data`
+(mutations with an `input_serializer`), `instance` (update / destroy),
+URL kwargs (selectors), plus any extras you wire in — and the callable
 receives the subset it declares. There are three places to inject extras,
 applied in order of increasing specificity (later wins on overlapping keys):
 
@@ -103,14 +104,23 @@ class AuthorViewSet(ServiceViewSet):
     }
 ```
 
-Pair with `StrictCreateService` / `StrictUpdateService` (etc.) and the
-`@implements(...)` decorator to have type checkers enforce that the service
-signature matches the `TypedDict` exactly:
+Pair with the parameterised service Protocols (`CreateService`,
+`UpdateService`, …) and the `@implements(...)` decorator. The kwargs
+shape is typed on your function (`**extras: Unpack[YourKw]`); the
+Protocol checks the surrounding shape (`data`, `instance`, return type):
 
 ```python
-from rest_framework_services import StrictUpdateService, implements
+from typing_extensions import Unpack, TypedDict
 
-@implements(StrictUpdateService[AuthorIn, Author, PublishAuthorKwargs, Author])
+from rest_framework_services import UpdateService, implements
+
+
+class PublishAuthorKwargs(TypedDict, total=False):
+    author_id: int
+    actor_id: int
+
+
+@implements(UpdateService[AuthorIn, Author, Author])
 def publish_author(
     *,
     instance: Author,
@@ -119,8 +129,10 @@ def publish_author(
 ) -> Author: ...
 ```
 
-If `publish_author` needs `request` or `user`, declare them on
-`PublishAuthorKwargs` via [`HttpExtras`](../typing.md#strict-protocols-fail-on-signature-drift).
+`total=False` (or per-field `NotRequired`) keeps the function
+Protocol-conformant. If `publish_author` needs `request` or `user`,
+subclass [`HttpExtras`](../typing.md) instead — it is itself declared
+`total=False`.
 
 See [Typing services and selectors](../typing.md) for the full Protocol
 catalogue and notes on type-checker support.
@@ -202,18 +214,20 @@ are also available on the view for the same shape.
 
 `DELETE` services can accept body data — e.g. a deletion reason — by
 setting `input_serializer` on the spec. Type the service against
-`StrictDeleteService[InputT, InstanceT, ExtraT, ResultT]` and bind
-`InputT` to your input dataclass. For services that don't read a body,
-bind `InputT` to the `NoInput` sentinel and don't declare `data` on the
-function:
+`DeleteService[InputT, InstanceT, ResultT]` and bind `InputT` to your
+input dataclass. For services that don't read a body, bind `InputT` to
+the [`NoInput`](../reference/types.md#noinput) sentinel and don't declare
+`data` on the function:
 
 ```python
-from typing import Unpack
+from dataclasses import dataclass
+
+from typing_extensions import Unpack
+
 from rest_framework_services import (
+    DeleteService,
     HttpExtras,
-    NoInput,
     ServiceSpec,
-    StrictDeleteService,
     implements,
 )
 
@@ -223,16 +237,15 @@ class DeleteReasonIn:
     reason: str
 
 
-@implements(StrictDeleteService[DeleteReasonIn, Author, HttpExtras, None])
+@implements(DeleteService[DeleteReasonIn, Author, None])
 def delete_author(
     *,
     instance: Author,
     data: DeleteReasonIn,
-    **extras: Unpack[HttpExtras],
+    **extras: Unpack[HttpExtras[MyUser]],
 ) -> None:
-    AuditLog.objects.create(
-        actor=extras["user"], target=instance, reason=data.reason
-    )
+    user = extras.get("user")
+    AuditLog.objects.create(actor=user, target=instance, reason=data.reason)
     instance.delete()
 
 

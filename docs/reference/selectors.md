@@ -1,6 +1,11 @@
 # Selectors
 
-## Protocols (lenient)
+## Protocols
+
+Each Protocol is parameterised on input / instance / result types only;
+`**extras` is typed `Any`. Strict-typed extras live on the user's function
+signature via `**extras: Unpack[YourKw]` — see
+[Typing services and selectors](../typing.md) for the full pattern.
 
 ::: rest_framework_services.selectors.selector.Selector
 
@@ -11,14 +16,6 @@
 ::: rest_framework_services.selectors.retrieve_selector.RetrieveSelector
 
 ::: rest_framework_services.selectors.output_selector.OutputSelector
-
-## Protocols (strict)
-
-::: rest_framework_services.selectors.strict_list_selector.StrictListSelector
-
-::: rest_framework_services.selectors.strict_retrieve_selector.StrictRetrieveSelector
-
-::: rest_framework_services.selectors.strict_output_selector.StrictOutputSelector
 
 ## Helpers
 

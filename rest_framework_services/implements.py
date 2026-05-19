@@ -11,23 +11,26 @@ F = TypeVar("F")
 def implements(proto: type[F]) -> Callable[[F], F]:
     """Identity decorator: assert ``fn`` structurally matches ``proto``.
 
-    ``proto`` is a parameterized service or selector :class:`~typing.Protocol`,
-    typically one of the strict variants::
+    ``proto`` is a parameterised service or selector :class:`~typing.Protocol`::
 
-        @implements(StrictCreateService[AuthorIn, CreateAuthorKwargs, Author])
+        @implements(CreateService[AuthorIn, Author])
         def create_author(
             *,
             data: AuthorIn,
-            request: HttpRequest,
-            user: UserT,
-            **extras: Unpack[CreateAuthorKwargs],
+            **extras: Any,
         ) -> Author: ...
+
+    Strict-typed extras stay on your function: declare a ``TypedDict`` with
+    ``NotRequired`` keys (so the function still conforms to a Protocol whose
+    caller may not supply those keys) and annotate
+    ``**extras: Unpack[YourKw]``. The Protocol itself does not carry an
+    extras-shape parameter — see :class:`CreateService` for the rationale.
 
     Drift between the decorated function and ``proto`` is reported at the
     decorator line by ``ty``. mypy refuses ``type[Protocol]`` arguments (the
     ``type-abstract`` rule); mypy users either silence that with
     ``# type: ignore[type-abstract]`` or keep using the legacy
-    ``_: StrictCreateService[...] = create_author`` shim alongside the def.
+    ``_: CreateService[...] = create_author`` shim alongside the def.
 
     Returns the function unchanged at runtime.
     """

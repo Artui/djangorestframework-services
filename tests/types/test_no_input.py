@@ -10,9 +10,9 @@ def test_no_input_is_a_class() -> None:
 
 
 def test_no_input_can_be_used_as_type_argument() -> None:
-    # The point of ``NoInput`` is to bind ``InputT`` on the strict delete
+    # The point of ``NoInput`` is to bind ``InputT`` on the delete service
     # protocol; subscript binding shouldn't error.
-    from rest_framework_services import StrictDeleteService
+    from rest_framework_services import DeleteService
 
-    Bound = StrictDeleteService[NoInput, object, dict, None]  # noqa: N806
+    Bound = DeleteService[NoInput, object, None]  # noqa: N806
     assert Bound is not None

@@ -1,12 +1,8 @@
-"""Lenient ``RetrieveSelector`` Protocol — opt-in shape for retrieve selectors."""
+"""``RetrieveSelector`` Protocol — typed shape for retrieve-action selectors."""
 
 from __future__ import annotations
 
 from typing import Any, Protocol, TypeVar
-
-from rest_framework.request import Request
-
-from rest_framework_services.services.utils import UserT
 
 ResultT = TypeVar("ResultT", covariant=True)
 
@@ -16,15 +12,13 @@ class RetrieveSelector(Protocol[ResultT]):
 
     The framework calls this from ``get_object()``. Returning ``None`` (or
     raising ``Model.DoesNotExist``) results in a 404. The URL lookup field
-    (typically ``pk``) is delivered via ``**kwargs``.
+    (typically ``pk``) is delivered via ``**extras``.
 
-    Lenient by design — see :class:`ListSelector` for rationale.
+    See :class:`~rest_framework_services.services.CreateService` for the
+    extras-typing notes.
     """
 
     def __call__(
         self,
-        *,
-        request: Request,
-        user: UserT,
-        **kwargs: Any,
+        **extras: Any,
     ) -> ResultT | None: ...

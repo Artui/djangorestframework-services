@@ -4,27 +4,42 @@ Importing the Protocols is purely opt-in: ``ServiceSpec.service`` accepts any
 plain callable. Annotate your service against the matching Protocol when you
 want IDE / type-checker support for the keys the framework provides.
 
-For full enforcement (no ``**kwargs: Any`` escape hatch) parameterize against
-the ``Strict*`` variants. They use :pep:`692` ``Unpack[TypedDict]`` to pin the
-extra-kwargs contract delivered by ``ServiceSpec.kwargs``.
+Each Protocol types ``**extras`` as :class:`~typing.Any`, so any service
+function that declares ``**extras: Any`` (or omits the keyword-spread
+entirely and reads only declared keys) conforms. To get IDE / type-checker
+help on extras keys, annotate your function with
+``**extras: Unpack[YourTypedDict]`` — keys must be ``NotRequired`` to keep
+the function Protocol-conformant. The Protocols themselves do not carry an
+extras-shape parameter; see ``CreateService`` for the rationale.
+
+The ``create_model`` / ``update_model`` / ``delete_model`` factories (plus
+their ``acreate_model`` / ``aupdate_model`` / ``adelete_model`` async
+siblings) return ready-made service callables for the common case where the
+entire body is a one-line wrapper over the mutation helpers.
 """
 
 from rest_framework_services.services.acall_service import acall_service
+from rest_framework_services.services.acreate_model import acreate_model
+from rest_framework_services.services.adelete_model import adelete_model
+from rest_framework_services.services.aupdate_model import aupdate_model
 from rest_framework_services.services.call_service import call_service
+from rest_framework_services.services.create_model import create_model
 from rest_framework_services.services.create_service import CreateService
+from rest_framework_services.services.delete_model import delete_model
 from rest_framework_services.services.delete_service import DeleteService
-from rest_framework_services.services.strict_create_service import StrictCreateService
-from rest_framework_services.services.strict_delete_service import StrictDeleteService
-from rest_framework_services.services.strict_update_service import StrictUpdateService
+from rest_framework_services.services.update_model import update_model
 from rest_framework_services.services.update_service import UpdateService
 
 __all__ = [
     "CreateService",
     "DeleteService",
-    "StrictCreateService",
-    "StrictDeleteService",
-    "StrictUpdateService",
     "UpdateService",
     "acall_service",
+    "acreate_model",
+    "adelete_model",
+    "aupdate_model",
     "call_service",
+    "create_model",
+    "delete_model",
+    "update_model",
 ]
