@@ -39,7 +39,7 @@ from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
-from rest_framework_services.selectors.utils import run_selector
+from rest_framework_services.selectors.utils import apply_queryset_shaping, run_selector
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.utils import (
     resolve_callable_kwargs,
@@ -147,6 +147,10 @@ def _execute_mutation(
     extra_input_data: Mapping[str, Any] | None = None,
     input_context: dict[str, Any] | None = None,
     output_context: dict[str, Any] | None = None,
+    select_related: Any = None,
+    prefetch_related: Any = None,
+    annotations: Any = None,
+    extend_queryset: Any = None,
     partial: bool = False,
 ) -> Response:
     """Internal flow runner shared by ``MutationFlowMixin`` and ``@service_action``.
@@ -198,6 +202,22 @@ def _execute_mutation(
             output_selector,
             resolve_callable_kwargs(output_selector, selector_pool),
         )
+        result = apply_queryset_shaping(
+            result,
+            view,
+            request,
+            select_related=select_related,
+            prefetch_related=prefetch_related,
+            annotations=annotations,
+            extend_queryset=extend_queryset,
+            source_label="ServiceSpec.output_selector",
+        )
+        if hasattr(result, "first"):
+            # Materialize a QuerySet return to a single instance — matches
+            # the retrieve dispatcher's behaviour and means a user can write
+            # ``output_selector=lambda result: Model.objects.filter(pk=result.pk)``
+            # and rely on the spec's shaping to apply.
+            result = result.first()
     elif (
         result is None and instance is not None and success_status != drf_status.HTTP_204_NO_CONTENT
     ):
@@ -260,12 +280,14 @@ def dispatch_mutation_for_spec(
         request,
         direction_hook="get_input_serializer_context",
         action_hook=action_input_context_hook,
+        spec_provider=spec.input_serializer_context,
     )
     output_context = resolve_serializer_context(
         view,
         request,
         direction_hook="get_output_serializer_context",
         action_hook=action_output_context_hook,
+        spec_provider=spec.output_serializer_context,
     )
     return _execute_mutation(
         view,
@@ -281,5 +303,9 @@ def dispatch_mutation_for_spec(
         extra_input_data=input_extras,
         input_context=input_context,
         output_context=output_context,
+        select_related=spec.select_related,
+        prefetch_related=spec.prefetch_related,
+        annotations=spec.annotations,
+        extend_queryset=spec.extend_queryset,
         partial=partial,
     )

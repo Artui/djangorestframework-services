@@ -20,6 +20,7 @@ class TestServiceSpec:
         assert spec.output_selector is None
         assert spec.atomic is True
         assert spec.success_status is None
+        assert spec.permission_classes is None
 
     def test_frozen(self) -> None:
         spec = ServiceSpec(service=_noop)

@@ -22,6 +22,7 @@ from collections.abc import Callable, Iterable
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
+from rest_framework.permissions import BasePermission
 
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -149,6 +150,81 @@ def is_overridden(view_cls: type, base_cls: type, method_name: str) -> bool:
     return getattr(view_cls, method_name, None) is not base
 
 
+def _has_any_shaping(spec: SelectorSpec[Any, Any] | ServiceSpec[Any, Any, Any]) -> bool:
+    return (
+        spec.select_related is not None
+        or spec.prefetch_related is not None
+        or spec.annotations is not None
+        or spec.extend_queryset is not None
+    )
+
+
+def _validate_selector_shaping(
+    spec: SelectorSpec[Any, Any],
+    *,
+    label: str,
+) -> None:
+    """Raise :exc:`ImproperlyConfigured` when shaping is set without a selector.
+
+    ``select_related`` / ``prefetch_related`` / ``annotations`` /
+    ``extend_queryset`` only run inside :func:`dispatch_selector_for_spec`,
+    which is skipped when ``spec.selector is None``. Catching the misuse
+    at ``as_view()`` time beats a silent no-op at request time.
+    """
+    if spec.selector is None and _has_any_shaping(spec):
+        raise ImproperlyConfigured(
+            f"{label}: select_related / prefetch_related / annotations / "
+            "extend_queryset are set but `selector` is not. Set a selector or "
+            "drop the shaping fields — they only run when the spec's selector "
+            "dispatches."
+        )
+
+
+def _validate_service_shaping(
+    spec: ServiceSpec[Any, Any, Any],
+    *,
+    label: str,
+) -> None:
+    """Raise :exc:`ImproperlyConfigured` when shaping is set without
+    ``output_selector``.
+
+    On ``ServiceSpec`` the shaping fields apply to the ``output_selector``'s
+    return value. Without an ``output_selector``, the service's direct
+    return is used (typically an instance) and shaping has nothing to
+    attach to. Surface that misuse at ``as_view()`` time.
+    """
+    if spec.output_selector is None and _has_any_shaping(spec):
+        raise ImproperlyConfigured(
+            f"{label}: select_related / prefetch_related / annotations / "
+            "extend_queryset are set but `output_selector` is not. Set an "
+            "output_selector (typically a re-fetch of the just-mutated "
+            "instance) or drop the shaping fields — they only run when the "
+            "output_selector dispatches."
+        )
+
+
+def _validate_permission_classes(
+    permission_classes: Any,
+    *,
+    label: str,
+) -> None:
+    """Raise :exc:`ImproperlyConfigured` on a malformed ``permission_classes``.
+
+    ``None`` is the inherit-from-view default and skips validation. Every
+    entry must be a subclass of DRF's :class:`BasePermission`; instances
+    (a common typo of ``[MyPermission()]``) and unrelated classes fail fast
+    at ``as_view()`` time.
+    """
+    if permission_classes is None:
+        return
+    for entry in permission_classes:
+        if not isinstance(entry, type) or not issubclass(entry, BasePermission):
+            raise ImproperlyConfigured(
+                f"{label}: permission_classes entries must be `BasePermission` "
+                f"subclasses; got {entry!r}."
+            )
+
+
 def validate_service_spec(
     spec: ServiceSpec[Any, Any, Any],
     *,
@@ -162,6 +238,8 @@ def validate_service_spec(
     ``@service_action``. ``has_instance`` is fixed by the action context
     (``False`` for create, ``True`` for update / destroy / detail actions).
     """
+    _validate_permission_classes(spec.permission_classes, label=label)
+    _validate_service_shaping(spec, label=label)
     validate_callable_signature(
         spec.service,
         spec_label=label,
@@ -195,6 +273,8 @@ def validate_selector_spec(
     requesting framework-only keys that don't exist in the selector pool
     (``data``, ``instance``, ``result``).
     """
+    _validate_permission_classes(spec.permission_classes, label=label)
+    _validate_selector_shaping(spec, label=label)
     if spec.selector is None:
         return
     validate_callable_signature(

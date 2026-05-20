@@ -46,6 +46,8 @@ def service_action(
         drf_kwargs["url_path"] = url_path
     if url_name is not None:
         drf_kwargs["url_name"] = url_name
+    if spec.permission_classes is not None:
+        drf_kwargs["permission_classes"] = list(spec.permission_classes)
     drf_kwargs.update(action_kwargs)
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:

@@ -451,3 +451,277 @@ class TestSelectorActionContext:
         request = factory.get("/")
         _View.as_view({"get": "active"})(request)
         assert capturing.captured["per_action"] == "active"
+
+
+# --- spec-level input_serializer_context / output_serializer_context -----
+
+
+@pytest.mark.django_db
+class TestServiceSpecInputContext:
+    """spec.input_serializer_context is the most-specific layer."""
+
+    def test_spec_input_context_applied(self) -> None:
+        _reset_capture()
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=lambda **_: {"ok": True},
+                input_serializer=_ContextCapturingInputSerializer,
+                atomic=False,
+                input_serializer_context=lambda view, req: {"spec_key": "input"},
+            )
+
+        _View.as_view()(factory.post("/", {"name": "Ada"}, format="json"))
+        assert _ContextCapturingInputSerializer.captured["spec_key"] == "input"
+
+    def test_spec_input_context_does_not_leak_to_output(self) -> None:
+        _reset_capture()
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=lambda **_: {"id": 1, "name": "x"},
+                input_serializer=_ContextCapturingInputSerializer,
+                output_serializer=_ContextCapturingOutputSerializer,
+                atomic=False,
+                input_serializer_context=lambda view, req: {"input_only": True},
+            )
+
+        _View.as_view()(factory.post("/", {"name": "x"}, format="json"))
+        assert _ContextCapturingInputSerializer.captured["input_only"] is True
+        assert "input_only" not in _ContextCapturingOutputSerializer.captured
+
+    def test_spec_input_context_wins_over_per_action_hook(self) -> None:
+        _reset_capture()
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=lambda **_: {"ok": True},
+                input_serializer=_ContextCapturingInputSerializer,
+                atomic=False,
+                input_serializer_context=lambda view, req: {"layer": "spec"},
+            )
+
+            def get_input_serializer_context(self) -> dict[str, Any]:
+                ctx = super().get_input_serializer_context()
+                ctx["layer"] = "view"
+                ctx["view_only"] = True
+                return ctx
+
+        _View.as_view()(factory.post("/", {"name": "x"}, format="json"))
+        # The view layer keys land first, the spec layer wins on overlap.
+        assert _ContextCapturingInputSerializer.captured["layer"] == "spec"
+        assert _ContextCapturingInputSerializer.captured["view_only"] is True
+
+    def test_spec_input_context_receives_view_and_request(self) -> None:
+        _reset_capture()
+        seen: dict[str, Any] = {}
+
+        def provider(view: Any, request: Any) -> dict[str, Any]:
+            seen["view"] = view
+            seen["request"] = request
+            return {}
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=lambda **_: {"ok": True},
+                input_serializer=_ContextCapturingInputSerializer,
+                atomic=False,
+                input_serializer_context=provider,
+            )
+
+        request = factory.post("/", {"name": "x"}, format="json")
+        _View.as_view()(request)
+        assert seen["request"] is not None
+        assert isinstance(seen["view"], _View)
+
+
+@pytest.mark.django_db
+class TestServiceSpecOutputContext:
+    def test_spec_output_context_applied(self) -> None:
+        _reset_capture()
+        Author.objects.create(name="x")
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=_create_author,
+                input_serializer=_AuthorIn,
+                output_serializer=_ContextCapturingOutputSerializer,
+                atomic=False,
+                output_serializer_context=lambda view, req: {"spec_key": "output"},
+            )
+
+        _View.as_view()(factory.post("/", {"name": "y"}, format="json"))
+        assert _ContextCapturingOutputSerializer.captured["spec_key"] == "output"
+
+    def test_spec_output_context_wins_over_per_action_hook_on_viewset(self) -> None:
+        _reset_capture()
+
+        class _ViewSet(ServiceViewSet):
+            queryset = Author.objects.all()
+            action_specs = {
+                "create": ServiceSpec(
+                    service=_create_author,
+                    input_serializer=_AuthorIn,
+                    output_serializer=_ContextCapturingOutputSerializer,
+                    atomic=False,
+                    output_serializer_context=lambda view, req: {"layer": "spec"},
+                ),
+            }
+
+            def get_create_output_serializer_context(self) -> dict[str, Any]:
+                return {"layer": "action", "action_only": True}
+
+        _ViewSet.as_view({"post": "create"})(factory.post("/", {"name": "z"}, format="json"))
+        assert _ContextCapturingOutputSerializer.captured["layer"] == "spec"
+        assert _ContextCapturingOutputSerializer.captured["action_only"] is True
+
+
+@pytest.mark.django_db
+class TestSelectorSpecOutputContext:
+    """SelectorSpec.output_serializer_context is honored by every entry point."""
+
+    def test_selector_list_view_honors_spec(self) -> None:
+        from rest_framework_services import SelectorListView, SelectorSpec
+
+        Author.objects.create(name="x")
+        capturing = _capturing_serializer_factory()
+
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                selector=lambda: list(Author.objects.all()),
+                output_serializer=capturing,
+                output_serializer_context=lambda view, req: {"from_spec": True},
+            )
+
+        _View.as_view()(factory.get("/"))
+        assert capturing.captured["from_spec"] is True
+
+    def test_selector_retrieve_view_honors_spec(self) -> None:
+        from rest_framework_services import SelectorRetrieveView, SelectorSpec
+
+        author = Author.objects.create(name="x")
+        capturing = _capturing_serializer_factory()
+
+        class _View(SelectorRetrieveView):
+            spec = SelectorSpec(
+                selector=lambda pk: Author.objects.filter(pk=pk).first(),
+                output_serializer=capturing,
+                output_serializer_context=lambda view, req: {"from_spec": True},
+            )
+
+        _View.as_view()(factory.get("/"), pk=author.pk)
+        assert capturing.captured["from_spec"] is True
+
+    def test_selector_list_mixin_honors_spec(self) -> None:
+        from rest_framework_services import SelectorSpec, SelectorViewSet
+
+        Author.objects.create(name="x")
+        capturing = _capturing_serializer_factory()
+
+        class _ViewSet(SelectorViewSet):
+            queryset = Author.objects.all()
+            action_specs = {
+                "list": SelectorSpec(
+                    selector=lambda: list(Author.objects.all()),
+                    output_serializer=capturing,
+                    output_serializer_context=lambda view, req: {"from_spec": True},
+                ),
+            }
+
+        _ViewSet.as_view({"get": "list"})(factory.get("/"))
+        assert capturing.captured["from_spec"] is True
+
+    def test_selector_retrieve_mixin_honors_spec(self) -> None:
+        from rest_framework_services import SelectorSpec, SelectorViewSet
+
+        author = Author.objects.create(name="x")
+        capturing = _capturing_serializer_factory()
+
+        class _ViewSet(SelectorViewSet):
+            queryset = Author.objects.all()
+            action_specs = {
+                "retrieve": SelectorSpec(
+                    selector=lambda pk: Author.objects.filter(pk=pk).first(),
+                    output_serializer=capturing,
+                    output_serializer_context=lambda view, req: {"from_spec": True},
+                ),
+            }
+
+        _ViewSet.as_view({"get": "retrieve"})(factory.get("/"), pk=author.pk)
+        assert capturing.captured["from_spec"] is True
+
+    def test_selector_action_decorator_honors_spec(self) -> None:
+        from rest_framework.viewsets import GenericViewSet
+
+        from rest_framework_services import SelectorSpec, selector_action
+
+        Author.objects.create(name="x")
+        capturing = _capturing_serializer_factory()
+
+        class _View(GenericViewSet):
+            serializer_class = AuthorSerializer
+            queryset = Author.objects.all()
+
+            @selector_action(
+                SelectorSpec(
+                    selector=lambda: list(Author.objects.all()),
+                    output_serializer=capturing,
+                    output_serializer_context=lambda view, req: {"from_spec": True},
+                ),
+                detail=False,
+            )
+            def active(self, request):  # type: ignore[no-untyped-def]
+                """Stubbed."""
+
+        _View.as_view({"get": "active"})(factory.get("/"))
+        assert capturing.captured["from_spec"] is True
+
+    def test_per_action_output_hook_honored_alongside_spec_on_viewset(self) -> None:
+        """The action-level view hook still applies; the spec wins on overlap."""
+        from rest_framework_services import SelectorSpec, SelectorViewSet
+
+        Author.objects.create(name="x")
+        capturing = _capturing_serializer_factory()
+
+        class _ViewSet(SelectorViewSet):
+            queryset = Author.objects.all()
+            action_specs = {
+                "list": SelectorSpec(
+                    selector=lambda: list(Author.objects.all()),
+                    output_serializer=capturing,
+                    output_serializer_context=lambda view, req: {"layer": "spec"},
+                ),
+            }
+
+            def get_list_output_serializer_context(self) -> dict[str, Any]:
+                return {"layer": "action", "action_only": True}
+
+        _ViewSet.as_view({"get": "list"})(factory.get("/"))
+        assert capturing.captured["layer"] == "spec"
+        assert capturing.captured["action_only"] is True
+
+    def test_mutation_action_in_action_specs_does_not_apply_spec_in_view_context(
+        self,
+    ) -> None:
+        """ServiceSpec.output_serializer_context is honored by the mutation flow,
+        not by the view-level get_serializer_context override (which would
+        double-apply it and bleed it into the input direction)."""
+        _reset_capture()
+
+        class _ViewSet(ServiceViewSet):
+            queryset = Author.objects.all()
+            action_specs = {
+                "create": ServiceSpec(
+                    service=_create_author_from_dict,
+                    input_serializer=_ContextCapturingInputSerializer,
+                    output_serializer=_ContextCapturingOutputSerializer,
+                    atomic=False,
+                    output_serializer_context=lambda view, req: {"output_only": True},
+                ),
+            }
+
+        _ViewSet.as_view({"post": "create"})(factory.post("/", {"name": "a"}, format="json"))
+        # Input context should NOT see the output spec key.
+        assert "output_only" not in _ContextCapturingInputSerializer.captured
+        # Output context SHOULD see it (applied via dispatch_mutation_for_spec).
+        assert _ContextCapturingOutputSerializer.captured["output_only"] is True

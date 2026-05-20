@@ -86,16 +86,53 @@ def resolve_input_extras(
     return extras
 
 
+def layer_serializer_context(
+    base: Mapping[str, Any],
+    view: Any,
+    request: Request,
+    *,
+    direction_hook: str | None,
+    action_hook: str | None,
+    spec_provider: Callable[..., Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Layer the directional, action, and spec context hooks onto ``base``.
+
+    Same precedence rules as :func:`resolve_serializer_context`, but takes
+    the layer-1 dict explicitly instead of calling ``view.get_serializer_context()``.
+    Used by ``get_serializer_context()`` overrides that need to extend
+    ``super().get_serializer_context()`` without recursing.
+
+    ``direction_hook=None`` skips the directional layer entirely. The
+    canonical use of this is ``_ActionSpecsMixin.get_serializer_context``,
+    which can't safely call ``get_output_serializer_context`` because the
+    default implementation on :class:`MutationFlowMixin` would recurse
+    back into ``get_serializer_context``.
+    """
+    context: dict[str, Any] = dict(base)
+    if direction_hook is not None:
+        direction = getattr(view, direction_hook, None)
+        if direction is not None:
+            context.update(direction())
+    if action_hook is not None:
+        hook = getattr(view, action_hook, None)
+        if hook is not None:
+            context.update(hook())
+    if spec_provider is not None:
+        context.update(spec_provider(view, request))
+    return context
+
+
 def resolve_serializer_context(
     view: Any,
     request: Request,
     *,
     direction_hook: str,
     action_hook: str | None,
+    spec_provider: Callable[..., Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build the serializer context dict for one direction (input or output).
 
-    Three layers, applied in order so that the more specific override the
+    Four layers, applied in order so that the more specific override the
     more general:
 
     1. ``view.get_serializer_context()`` — DRF's default, available on every
@@ -108,19 +145,22 @@ def resolve_serializer_context(
        ``get_create_input_serializer_context`` /
        ``get_list_output_serializer_context``. Skipped when ``action_hook``
        is ``None`` (standalone single-purpose views) or the method is absent.
+    4. ``spec_provider(view, request)`` — per-spec callable from
+       :attr:`ServiceSpec.input_serializer_context` /
+       :attr:`ServiceSpec.output_serializer_context` /
+       :attr:`SelectorSpec.output_serializer_context`. Skipped when ``None``.
 
-    Each layer's result is merged with ``dict.update``, so the per-action
-    hook has the final say on overlapping keys.
+    Each layer's result is merged with ``dict.update``, so the spec-level
+    provider has the final say on overlapping keys.
     """
-    context: dict[str, Any] = dict(view.get_serializer_context())
-    direction = getattr(view, direction_hook, None)
-    if direction is not None:
-        context.update(direction())
-    if action_hook is not None:
-        hook = getattr(view, action_hook, None)
-        if hook is not None:
-            context.update(hook())
-    return context
+    return layer_serializer_context(
+        view.get_serializer_context(),
+        view,
+        request,
+        direction_hook=direction_hook,
+        action_hook=action_hook,
+        spec_provider=spec_provider,
+    )
 
 
 def get_class_attr(view: Any, name: str) -> Any:

@@ -13,7 +13,7 @@ from rest_framework.serializers import BaseSerializer
 from rest_framework_services.selectors.utils import dispatch_selector_for_spec
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.spec_validation import validate_selector_view_spec
-from rest_framework_services.views.utils import get_class_attr
+from rest_framework_services.views.utils import get_class_attr, layer_serializer_context
 
 
 class SelectorListView(ListModelMixin, GenericAPIView):
@@ -44,11 +44,31 @@ class SelectorListView(ListModelMixin, GenericAPIView):
         """Hook for additional kwargs available to the selector signature."""
         return {}
 
+    def get_permissions(self) -> list[Any]:
+        s: SelectorSpec | None = get_class_attr(self, "spec")
+        if isinstance(s, SelectorSpec) and s.permission_classes is not None:
+            return [permission() for permission in s.permission_classes]
+        return list(super().get_permissions())
+
     def get_serializer_class(self) -> type[BaseSerializer[Any]]:
         s: SelectorSpec | None = get_class_attr(self, "spec")
         if isinstance(s, SelectorSpec) and s.output_serializer is not None:
             return s.output_serializer
         return super().get_serializer_class()
+
+    def get_serializer_context(self) -> dict[str, Any]:
+        base: dict[str, Any] = dict(super().get_serializer_context())
+        s: SelectorSpec | None = get_class_attr(self, "spec")
+        if not isinstance(s, SelectorSpec) or s.output_serializer_context is None:
+            return base
+        return layer_serializer_context(
+            base,
+            self,
+            self.request,
+            direction_hook=None,
+            action_hook=None,
+            spec_provider=s.output_serializer_context,
+        )
 
     def get_queryset(self) -> Any:
         s: SelectorSpec | None = get_class_attr(self, "spec")

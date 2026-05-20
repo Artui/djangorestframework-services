@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
+from django.db.models import QuerySet
+from django.db.models.query import Prefetch
+from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 from rest_framework.serializers import Serializer
 
@@ -39,8 +42,56 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
       the selector receives. Co-locating it with the spec lets each action
       declare its own contract — no ``if self.action == ...`` branching in a
       catch-all ``get_selector_kwargs``.
+    - **``permission_classes``** — overrides the calling view's
+      ``permission_classes`` for the action the spec backs. ``None`` (the
+      default) means "inherit the view's class-level permissions"; an empty
+      sequence means "no permissions" explicitly. Forwarded through DRF's
+      ``@action(permission_classes=...)`` for the ``@selector_action``
+      decorator, and surfaced via ``get_permissions`` for the viewset
+      mixins and standalone views.
+    - **``output_serializer_context``** — per-spec hook for the response
+      serializer's ``context=`` dict. Sits at the most-specific layer of
+      the resolution chain (``view.get_serializer_context`` →
+      ``view.get_output_serializer_context`` →
+      ``view.get_<action>_output_serializer_context`` → spec hook), so it
+      wins on overlapping keys. ``None`` (the default) leaves the three
+      earlier layers intact. Selectors don't validate input, so there's
+      no symmetrical ``input_serializer_context``.
+    - **``select_related``** / **``prefetch_related``** / **``annotations``**
+      — declarative queryset shaping applied to the selector's return value
+      before it leaves :func:`dispatch_selector_for_spec`. ``select_related``
+      is a sequence of relation names (forwarded as
+      ``qs.select_related(*spec.select_related)``); ``prefetch_related`` is
+      a sequence of relation names or :class:`Prefetch` objects;
+      ``annotations`` is a mapping merged into a single ``.annotate(**...)``
+      call. Use these for the common case where the same shaping applies
+      every request — they're introspectable for OpenAPI / future tooling.
+    - **``extend_queryset``** — dynamic escape hatch. A
+      ``Callable[[QuerySet, ServiceView, Request], QuerySet]`` invoked
+      *after* the declarative fields have applied, so it always sees the
+      fully statically-shaped queryset. Use it when the shaping depends on
+      the request (e.g. only prefetch when a query string opts in).
+      Synchronous only — it manipulates the queryset's lazy expression
+      tree, not the database.
+
+    All four shaping fields require ``selector`` to be set and the selector
+    to return a Django :class:`QuerySet`. Configuring shaping with no
+    selector raises :exc:`ImproperlyConfigured` at ``as_view()`` time; a
+    non-QuerySet return raises at request time.
     """
 
+    # The selector callable.
     selector: Callable[..., ResultT] | None = None
+
+    # Output pipeline (selector → serializer → context) plus the shaping
+    # fields applied to the selector's QuerySet return.
     output_serializer: type[Serializer] | None = None
+    output_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
+    select_related: Sequence[str] | None = None
+    prefetch_related: Sequence[str | Prefetch] | None = None
+    annotations: Mapping[str, Any] | None = None
+    extend_queryset: Callable[[QuerySet[Any], ServiceView, Request], QuerySet[Any]] | None = None
+
+    # Cross-cutting.
     kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
+    permission_classes: Sequence[type[BasePermission]] | None = None
