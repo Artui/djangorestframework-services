@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-05-20
+
 ### Added
 
 - `permission_classes` field on `ServiceSpec` and `SelectorSpec`. Accepts a
@@ -637,7 +639,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/Artui/djangorestframework-services/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Artui/djangorestframework-services/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Artui/djangorestframework-services/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Artui/djangorestframework-services/compare/v0.8.1...v0.9.0
