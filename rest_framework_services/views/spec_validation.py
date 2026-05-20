@@ -150,7 +150,16 @@ def is_overridden(view_cls: type, base_cls: type, method_name: str) -> bool:
     return getattr(view_cls, method_name, None) is not base
 
 
-def _validate_queryset_shaping(
+def _has_any_shaping(spec: SelectorSpec[Any, Any] | ServiceSpec[Any, Any, Any]) -> bool:
+    return (
+        spec.select_related is not None
+        or spec.prefetch_related is not None
+        or spec.annotations is not None
+        or spec.extend_queryset is not None
+    )
+
+
+def _validate_selector_shaping(
     spec: SelectorSpec[Any, Any],
     *,
     label: str,
@@ -162,19 +171,35 @@ def _validate_queryset_shaping(
     which is skipped when ``spec.selector is None``. Catching the misuse
     at ``as_view()`` time beats a silent no-op at request time.
     """
-    if spec.selector is not None:
-        return
-    if (
-        spec.select_related is not None
-        or spec.prefetch_related is not None
-        or spec.annotations is not None
-        or spec.extend_queryset is not None
-    ):
+    if spec.selector is None and _has_any_shaping(spec):
         raise ImproperlyConfigured(
             f"{label}: select_related / prefetch_related / annotations / "
             "extend_queryset are set but `selector` is not. Set a selector or "
             "drop the shaping fields — they only run when the spec's selector "
             "dispatches."
+        )
+
+
+def _validate_service_shaping(
+    spec: ServiceSpec[Any, Any, Any],
+    *,
+    label: str,
+) -> None:
+    """Raise :exc:`ImproperlyConfigured` when shaping is set without
+    ``output_selector``.
+
+    On ``ServiceSpec`` the shaping fields apply to the ``output_selector``'s
+    return value. Without an ``output_selector``, the service's direct
+    return is used (typically an instance) and shaping has nothing to
+    attach to. Surface that misuse at ``as_view()`` time.
+    """
+    if spec.output_selector is None and _has_any_shaping(spec):
+        raise ImproperlyConfigured(
+            f"{label}: select_related / prefetch_related / annotations / "
+            "extend_queryset are set but `output_selector` is not. Set an "
+            "output_selector (typically a re-fetch of the just-mutated "
+            "instance) or drop the shaping fields — they only run when the "
+            "output_selector dispatches."
         )
 
 
@@ -214,6 +239,7 @@ def validate_service_spec(
     (``False`` for create, ``True`` for update / destroy / detail actions).
     """
     _validate_permission_classes(spec.permission_classes, label=label)
+    _validate_service_shaping(spec, label=label)
     validate_callable_signature(
         spec.service,
         spec_label=label,
@@ -248,7 +274,7 @@ def validate_selector_spec(
     (``data``, ``instance``, ``result``).
     """
     _validate_permission_classes(spec.permission_classes, label=label)
-    _validate_queryset_shaping(spec, label=label)
+    _validate_selector_shaping(spec, label=label)
     if spec.selector is None:
         return
     validate_callable_signature(

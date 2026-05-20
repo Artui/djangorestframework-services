@@ -94,17 +94,52 @@ working unchanged, but shaping is a no-op on a materialized instance —
 configure either declarative shaping or your own `.select_related(...)`
 inside the selector, not both.
 
+## On `ServiceSpec` — shaping the `output_selector` return
+
+The same four fields are on `ServiceSpec`. There they apply to the
+queryset returned by `output_selector` (the re-fetch step of a mutation
+flow). The typical pattern: the service creates or updates an instance;
+the output_selector returns a filtered QuerySet; the spec declares the
+eager-loading the response serializer needs.
+
+```python
+def create_post(*, data, request):
+    return Post.objects.create(title=data.title, author=request.user)
+
+def refetch_post(*, result):
+    return Post.objects.filter(pk=result.pk)   # QuerySet, not .first()
+
+class CreatePostView(ServiceCreateView):
+    spec = ServiceSpec(
+        service=create_post,
+        input_serializer=CreatePostInput,
+        output_serializer=PostSerializer,
+        output_selector=refetch_post,
+        select_related=["author"],
+        prefetch_related=["tags"],
+    )
+```
+
+After shaping, the framework `.first()`s the QuerySet to a single
+instance before the output serializer runs. Output selectors that return
+a materialized instance directly (no `.filter().select_related(...)`)
+keep working — shaping is a no-op in that case.
+
+The shaping fields require `output_selector` to be set. Configuring them
+without one raises `ImproperlyConfigured` at `as_view()` time, mirroring
+the `SelectorSpec`/`selector` rule.
+
 ## Where shaping does *not* apply
 
-- **`spec.selector is None`** — the spec opts out of selector dispatch
-  and `dispatch_selector_for_spec` is never called. Configuring shaping
-  on a selector-less spec raises `ImproperlyConfigured` at `as_view()`
-  time to surface the misconfiguration loudly.
-- **Selector returns a non-QuerySet** (a list, dict, instance, generator).
-  Shaping requires a queryset to chain `.select_related(...)` /
+- **`SelectorSpec.selector` or `ServiceSpec.output_selector` is `None`** —
+  the spec has nothing to shape. Configuring shaping in either case raises
+  `ImproperlyConfigured` at `as_view()` time to surface the misconfiguration
+  loudly.
+- **The shaped callable returns a non-QuerySet** (a list, dict, instance,
+  generator). Shaping requires a queryset to chain `.select_related(...)` /
   `.prefetch_related(...)` / `.annotate(...)`. The dispatcher raises
   `ImproperlyConfigured` at request time when shaping is set but the
-  selector returned something other than a queryset. Drop the shaping
-  fields or have the selector return a QuerySet.
+  callable returned something other than a queryset. Drop the shaping
+  fields or have the callable return a QuerySet.
 - **Filter backends and pagination** still run as usual on top of the
   shaped queryset.

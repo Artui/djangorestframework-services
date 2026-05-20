@@ -356,6 +356,193 @@ class TestValidation:
             _View.as_view()
 
 
+# -------- ServiceSpec shaping (applied to output_selector) ----------------
+
+
+from dataclasses import dataclass  # noqa: E402
+
+from rest_framework_services import ServiceCreateView, ServiceSpec  # noqa: E402
+
+
+@dataclass
+class _PostIn:
+    title: str
+    author_id: int
+
+
+def _create_post(*, data: _PostIn) -> Post:
+    return Post.objects.create(title=data.title, author_id=data.author_id)
+
+
+def _refetch_post_qs(*, result: Post) -> QuerySet[Post]:
+    """Output selector that returns a QuerySet for the framework to shape."""
+    return Post.objects.filter(pk=result.pk)
+
+
+@pytest.mark.django_db
+class TestServiceSpecShaping:
+    def test_select_related_applied_to_output_selector(self) -> None:
+        author = Author.objects.create(name="Ada")
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=_create_post,
+                input_serializer=_PostIn,
+                output_serializer=_PostWithAuthorSerializer,
+                output_selector=_refetch_post_qs,
+                select_related=["author"],
+                atomic=False,
+            )
+
+        # 2 queries: one INSERT for the post, one SELECT (post+author joined).
+        with django_assert_num_queries(2):
+            response = _View.as_view()(
+                factory.post(
+                    "/",
+                    {"title": "p", "author_id": author.pk},
+                    format="json",
+                ),
+            )
+        assert response.status_code == 201
+        assert response.data["author_name"] == "Ada"
+
+    def test_extend_queryset_runs_on_output_selector(self) -> None:
+        author = Author.objects.create(name="Ada")
+        captured: dict[str, Any] = {}
+
+        def extend(qs: QuerySet[Post], view: Any, request: Any) -> QuerySet[Post]:
+            captured["called"] = True
+            return qs.select_related("author")
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=_create_post,
+                input_serializer=_PostIn,
+                output_serializer=_PostWithAuthorSerializer,
+                output_selector=_refetch_post_qs,
+                extend_queryset=extend,
+                atomic=False,
+            )
+
+        response = _View.as_view()(
+            factory.post(
+                "/",
+                {"title": "p", "author_id": author.pk},
+                format="json",
+            ),
+        )
+        assert captured["called"] is True
+        assert response.data["author_name"] == "Ada"
+
+    def test_instance_returning_output_selector_passes_through_without_shaping(
+        self,
+    ) -> None:
+        """Backward-compat: output_selector returning an instance still works
+        when no shaping is configured."""
+        author = Author.objects.create(name="Ada")
+
+        def _refetch_instance(*, result: Post) -> Post | None:
+            return Post.objects.filter(pk=result.pk).first()
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=_create_post,
+                input_serializer=_PostIn,
+                output_serializer=_PostWithAuthorSerializer,
+                output_selector=_refetch_instance,
+                atomic=False,
+            )
+
+        response = _View.as_view()(
+            factory.post(
+                "/",
+                {"title": "p", "author_id": author.pk},
+                format="json",
+            ),
+        )
+        assert response.status_code == 201
+        assert response.data["title"] == "p"
+
+    def test_non_queryset_return_with_shaping_raises(self) -> None:
+        """Shaping configured but output_selector returned an instance."""
+        author = Author.objects.create(name="Ada")
+
+        def _refetch_instance(*, result: Post) -> Post | None:
+            return Post.objects.filter(pk=result.pk).first()
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=_create_post,
+                input_serializer=_PostIn,
+                output_serializer=_PostWithAuthorSerializer,
+                output_selector=_refetch_instance,
+                select_related=["author"],
+                atomic=False,
+            )
+
+        with pytest.raises(ImproperlyConfigured, match="not a Django QuerySet"):
+            _View.as_view()(
+                factory.post(
+                    "/",
+                    {"title": "p", "author_id": author.pk},
+                    format="json",
+                ),
+            )
+
+    def test_works_with_viewset_create_action(self) -> None:
+        from rest_framework_services import ServiceViewSet
+
+        author = Author.objects.create(name="Ada")
+
+        class _ViewSet(ServiceViewSet):
+            queryset = Post.objects.all()
+            action_specs = {
+                "create": ServiceSpec(
+                    service=_create_post,
+                    input_serializer=_PostIn,
+                    output_serializer=_PostWithAuthorSerializer,
+                    output_selector=_refetch_post_qs,
+                    select_related=["author"],
+                    atomic=False,
+                ),
+            }
+
+        response = _ViewSet.as_view({"post": "create"})(
+            factory.post("/", {"title": "p", "author_id": author.pk}, format="json"),
+        )
+        assert response.status_code == 201
+        assert response.data["author_name"] == "Ada"
+
+
+class TestServiceSpecShapingValidation:
+    def test_shaping_without_output_selector_raises_at_as_view(self) -> None:
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=_create_post,
+                input_serializer=_PostIn,
+                output_serializer=_PostWithAuthorSerializer,
+                select_related=["author"],
+            )
+
+        with pytest.raises(ImproperlyConfigured, match="output_selector"):
+            _View.as_view()
+
+    def test_extend_queryset_without_output_selector_raises(self) -> None:
+        def extend(qs: Any, view: Any, request: Any) -> Any:
+            return qs
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=_create_post,
+                input_serializer=_PostIn,
+                output_serializer=_PostWithAuthorSerializer,
+                extend_queryset=extend,
+            )
+
+        with pytest.raises(ImproperlyConfigured, match="output_selector"):
+            _View.as_view()
+
+
 # -------- pytest-django helper -------------------------------------------
 
 # We use ``CaptureQueriesContext`` directly to avoid pytest-django fixture

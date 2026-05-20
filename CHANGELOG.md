@@ -38,8 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ListModelMixin` / `RetrieveModelMixin` dispatch. Closes the gap where
   the selector list/retrieve mixins previously ignored the per-action
   `get_<action>_output_serializer_context` hook entirely.
-- Per-spec queryset shaping on `SelectorSpec`. Four new fields cover both
-  the static and dynamic cases:
+- Per-spec queryset shaping on **both** `SelectorSpec` and `ServiceSpec`.
+  Four new fields cover the static and dynamic cases:
   - `select_related: Sequence[str] | None` — forwarded to
     `qs.select_related(*spec.select_related)`.
   - `prefetch_related: Sequence[str | Prefetch] | None` — forwarded to
@@ -51,15 +51,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     None` — dynamic escape hatch, invoked *after* the declarative fields
     so it always sees the fully statically-shaped queryset. Synchronous
     only (no DB I/O — manipulates the lazy expression tree).
-  Shaping runs inside `dispatch_selector_for_spec`, so both list and
-  retrieve flows pick it up. Configuring any shaping field with no
-  `selector` raises `ImproperlyConfigured` at `as_view()` time; a
-  non-QuerySet selector return when shaping is set raises at request time.
+
+  On `SelectorSpec`, shaping runs inside `dispatch_selector_for_spec`, so
+  both list and retrieve flows pick it up. On `ServiceSpec`, shaping
+  applies to the QuerySet returned by `output_selector` — a typical
+  pattern is `output_selector=lambda result: Model.objects.filter(pk=result.pk)`
+  with the spec declaring the eager-loading. After shaping, a QuerySet
+  return is materialized via `.first()` (the matching `dispatch_retrieve_selector`
+  behaviour also added below).
+
+  Configuring shaping with no `selector` (on `SelectorSpec`) or no
+  `output_selector` (on `ServiceSpec`) raises `ImproperlyConfigured` at
+  `as_view()` time. A non-QuerySet return when shaping is set raises at
+  request time.
 - `dispatch_retrieve_selector` now materializes a QuerySet return via
   `.first()`, so retrieve selectors can return a filtered QuerySet and
   let the framework apply shaping before pulling the single object.
   Backward-compatible — selectors that already returned an instance
   continue to work unchanged.
+
+### Changed
+
+- The field order on `ServiceSpec` and `SelectorSpec` has been reorganized
+  to group related fields together: the callable, then the input pipeline
+  (`input_*`), then the output pipeline (`output_*` + the new shaping
+  fields), then the cross-cutting `kwargs` and `permission_classes`.
+  Backward-compatible for keyword-argument call sites (which is every
+  documented usage); positional construction must follow the new order.
 
 ## [0.11.0] — 2026-05-19
 

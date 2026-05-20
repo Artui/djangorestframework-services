@@ -80,12 +80,18 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     non-QuerySet return raises at request time.
     """
 
+    # The selector callable.
     selector: Callable[..., ResultT] | None = None
+
+    # Output pipeline (selector → serializer → context) plus the shaping
+    # fields applied to the selector's QuerySet return.
     output_serializer: type[Serializer] | None = None
-    kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
-    permission_classes: Sequence[type[BasePermission]] | None = None
     output_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
     select_related: Sequence[str] | None = None
     prefetch_related: Sequence[str | Prefetch] | None = None
     annotations: Mapping[str, Any] | None = None
     extend_queryset: Callable[[QuerySet[Any], ServiceView, Request], QuerySet[Any]] | None = None
+
+    # Cross-cutting.
+    kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
+    permission_classes: Sequence[type[BasePermission]] | None = None
