@@ -528,6 +528,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -655,6 +659,62 @@
     
   
     Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-action permissions on the spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/queryset-shaping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-spec queryset shaping
   
 
     
@@ -1043,6 +1103,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1109,6 +1180,17 @@
     <span class="md-ellipsis">
       
         resolve_input_extras
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.layer_serializer_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        layer_serializer_context
       
     </span>
   </a>
@@ -1646,6 +1728,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1712,6 +1805,17 @@
     <span class="md-ellipsis">
       
         resolve_input_extras
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.layer_serializer_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        layer_serializer_context
       
     </span>
   </a>
@@ -2337,6 +2441,30 @@ response rendering.</p>
 
 </div>
 
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_permissions" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_permissions</span>
+
+
+<a href="#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin.get_permissions" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_permissions</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Honor <code>spec.permission_classes</code> on standalone mutation views.</p>
+<p>Standalone <code>Service*View</code> subclasses carry <code>spec</code> as a class
+attribute. When the spec sets <code>permission_classes</code> it wins over
+the view's class-level <code>permission_classes</code>; <code>None</code> (the default)
+falls through.</p>
+
+
+    </div>
+
+</div>
+
 
 
   </div>
@@ -2528,20 +2656,62 @@ provider has the final say on overlapping keys.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="rest_framework_services.views.utils.layer_serializer_context" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">layer_serializer_context</span>
+
+
+<a href="#rest_framework_services.views.utils.layer_serializer_context" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">layer_serializer_context</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">base</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">direction_hook</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">action_hook</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">spec_provider</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Layer the directional, action, and spec context hooks onto <code>base</code>.</p>
+<p>Same precedence rules as :func:<code>resolve_serializer_context</code>, but takes
+the layer-1 dict explicitly instead of calling <code>view.get_serializer_context()</code>.
+Used by <code>get_serializer_context()</code> overrides that need to extend
+<code>super().get_serializer_context()</code> without recursing.</p>
+<p><code>direction_hook=None</code> skips the directional layer entirely. The
+canonical use of this is <code>_ActionSpecsMixin.get_serializer_context</code>,
+which can't safely call <code>get_output_serializer_context</code> because the
+default implementation on :class:<code>MutationFlowMixin</code> would recurse
+back into <code>get_serializer_context</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="rest_framework_services.views.utils.resolve_serializer_context" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">resolve_serializer_context</span>
 
 
 <a href="#rest_framework_services.views.utils.resolve_serializer_context" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">resolve_serializer_context</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">direction_hook</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">action_hook</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">direction_hook</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">action_hook</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">spec_provider</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
         <p>Build the serializer context dict for one direction (input or output).</p>
-<p>Three layers, applied in order so that the more specific override the
+<p>Four layers, applied in order so that the more specific override the
 more general:</p>
 <ol>
 <li><code>view.get_serializer_context()</code> — DRF's default, available on every
@@ -2554,9 +2724,13 @@ more general:</p>
    <code>get_create_input_serializer_context</code> /
    <code>get_list_output_serializer_context</code>. Skipped when <code>action_hook</code>
    is <code>None</code> (standalone single-purpose views) or the method is absent.</li>
+<li><code>spec_provider(view, request)</code> — per-spec callable from
+   :attr:<code>ServiceSpec.input_serializer_context</code> /
+   :attr:<code>ServiceSpec.output_serializer_context</code> /
+   :attr:<code>SelectorSpec.output_serializer_context</code>. Skipped when <code>None</code>.</li>
 </ol>
-<p>Each layer's result is merged with <code>dict.update</code>, so the per-action
-hook has the final say on overlapping keys.</p>
+<p>Each layer's result is merged with <code>dict.update</code>, so the spec-level
+provider has the final say on overlapping keys.</p>
 
 
     </div>

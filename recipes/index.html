@@ -530,6 +530,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -655,6 +659,62 @@
     
   
     Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-action permissions on the spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="queryset-shaping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-spec queryset shaping
   
 
     
@@ -1103,6 +1163,13 @@ the <a href="../quickstart/">Quickstart</a> and <a href="../concepts/">Concepts<
 <li><strong><a href="extra-kwargs/">Pass extra kwargs to services</a></strong> — surface a
   tenant, a feature flag, or a test clock to your services without
   threading it through <code>request</code>.</li>
+<li><strong><a href="permissions/">Per-action permissions on the spec</a></strong> — set
+  <code>permission_classes</code> per action without <code>if self.action == ...</code>
+  branching in <code>get_permissions()</code>.</li>
+<li><strong><a href="queryset-shaping/">Per-spec queryset shaping</a></strong> — add
+  <code>select_related</code> / <code>prefetch_related</code> / <code>annotations</code> to a selector
+  spec, plus an <code>extend_queryset</code> callable for request-dependent
+  shaping.</li>
 <li><strong><a href="serializer-context/">Customise serializer context</a></strong> — direction-
   and action-specific hooks for <code>get_serializer_context()</code>, so the input
   and output serializers can see different keys.</li>

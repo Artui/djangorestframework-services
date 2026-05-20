@@ -685,6 +685,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -812,6 +816,62 @@
     
   
     Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-action permissions on the spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/queryset-shaping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-spec queryset shaping
   
 
     
@@ -1429,6 +1489,12 @@ needs:</p>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">selector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">output_serializer</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Serializer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">kwargs</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">ExtraT</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">permission_classes</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">BasePermission</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">output_serializer_context</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">select_related</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">prefetch_related</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="n">Prefetch</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">annotations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">extend_queryset</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">QuerySet</span><span class="p">,</span> <span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">QuerySet</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </span></code></pre></div>
 <ul>
 <li><strong><code>selector</code></strong> — the callable invoked by <code>get_queryset()</code> (list) or
@@ -1442,6 +1508,17 @@ needs:</p>
   resolution chain; co-located with the selector it feeds. Receives
   the view (typed as the narrow <code>ServiceView</code> Protocol) and the
   current <code>Request</code>. See the <a href="../recipes/extra-kwargs/">extra-kwargs recipe</a>.</li>
+<li><strong><code>permission_classes</code></strong> — overrides the view's class-level
+  <code>permission_classes</code> for the action the spec backs. <code>None</code> (the default)
+  inherits; <code>[]</code> means "no permissions" explicitly. See the
+  <a href="../recipes/permissions/">permissions recipe</a>.</li>
+<li><strong><code>output_serializer_context</code></strong> — callable returning extra keys for
+  the response serializer's <code>context=</code> dict. Sits at the most-specific
+  layer of the <a href="../recipes/serializer-context/">serializer-context resolution chain</a>.</li>
+<li><strong><code>select_related</code></strong> / <strong><code>prefetch_related</code></strong> / <strong><code>annotations</code></strong> /
+  <strong><code>extend_queryset</code></strong> — declarative + dynamic queryset shaping applied
+  to the selector's return value inside <code>dispatch_selector_for_spec</code>. See
+  the <a href="../recipes/queryset-shaping/">queryset-shaping recipe</a>.</li>
 </ul>
 <p>Generic parameters <code>ResultT</code> / <code>ExtraT</code> default to <code>Any</code>, so
 <code>SelectorSpec(selector=fn)</code> keeps working unparameterized.</p>
@@ -1458,6 +1535,9 @@ needs:</p>
 </span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">success_status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="n">kwargs</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">ExtraT</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">input_data</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="n">permission_classes</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">BasePermission</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">input_serializer_context</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="n">output_serializer_context</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </span></code></pre></div>
 <ul>
 <li><strong><code>service</code></strong> — the callable to invoke.</li>
@@ -1482,6 +1562,14 @@ needs:</p>
   for lifting URL kwargs (e.g. parent IDs from nested routes) into
   fields the serializer can cross-validate. Server-provided keys win
   on conflict.</li>
+<li><strong><code>permission_classes</code></strong> — overrides the view's class-level
+  <code>permission_classes</code> for the action the spec backs. <code>None</code> (the default)
+  inherits; <code>[]</code> means "no permissions" explicitly. See the
+  <a href="../recipes/permissions/">permissions recipe</a>.</li>
+<li><strong><code>input_serializer_context</code></strong> / <strong><code>output_serializer_context</code></strong> —
+  callables returning extra keys for the input / output serializer
+  <code>context=</code> dicts. Sit at the most-specific layer of the
+  <a href="../recipes/serializer-context/">serializer-context resolution chain</a>.</li>
 </ul>
 <p>Generic parameters <code>InputT</code> / <code>ResultT</code> / <code>ExtraT</code> default to <code>Any</code>, so
 <code>ServiceSpec(service=fn)</code> keeps working unparameterized.</p>

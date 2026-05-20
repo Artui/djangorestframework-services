@@ -528,6 +528,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -655,6 +659,62 @@
     
   
     Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-action permissions on the spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/queryset-shaping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-spec queryset shaping
   
 
     
@@ -1173,6 +1233,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        apply_queryset_shaping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#rest_framework_services.selectors.utils.dispatch_selector_for_spec" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1497,6 +1568,17 @@
     <span class="md-ellipsis">
       
         arun_selector
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        apply_queryset_shaping
       
     </span>
   </a>
@@ -1960,6 +2042,49 @@ Async selectors are bridged via <code>async_to_sync</code>.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="rest_framework_services.selectors.utils.apply_queryset_shaping" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">apply_queryset_shaping</span>
+
+
+<a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">apply_queryset_shaping</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">qs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">select_related</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">prefetch_related</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">annotations</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">extend_queryset</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">source_label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Apply the four shaping fields to <code>qs</code>.</p>
+<p>Declarative fields apply first (in declaration order), then
+<code>extend_queryset</code> runs so the user callable always sees the fully
+statically-shaped queryset. Returns <code>qs</code> unchanged when no shaping
+is configured.</p>
+<p>Raises :exc:<code>ImproperlyConfigured</code> when shaping is configured but
+<code>qs</code> is not a Django QuerySet (no <code>annotate</code> method) — loud
+failure beats a stale <code>AttributeError</code> deep in DRF rendering.
+<code>source_label</code> is included in the error to point at the misuse
+(<code>"SelectorSpec.selector"</code> vs <code>"ServiceSpec.output_selector"</code>).</p>
+<p>Shared by :func:<code>dispatch_selector_for_spec</code> (selector-backed reads)
+and :func:<code>_execute_mutation</code> (the <code>output_selector</code> step of a
+mutation flow); both specs carry the same field names with identical
+semantics.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="rest_framework_services.selectors.utils.dispatch_selector_for_spec" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">dispatch_selector_for_spec</span>
 
@@ -1978,8 +2103,9 @@ Async selectors are bridged via <code>async_to_sync</code>.</p>
         <p>End-to-end dispatch for one <code>SelectorSpec</code> call.</p>
 <p>Runs the kwargs-resolution chain (<code>spec.kwargs</code> →
 <code>get_&lt;action&gt;_selector_kwargs</code> → <code>get_selector_kwargs</code>), filters
-the resulting pool against the selector's signature, and invokes it
-sync-or-async. Used by both selector viewset mixins and the standalone
+the resulting pool against the selector's signature, invokes the
+selector sync-or-async, then applies declarative + dynamic queryset
+shaping. Used by both selector viewset mixins and the standalone
 selector views so the call shape lives in one place.</p>
 <p>The caller must check <code>spec.selector is not None</code> before calling and
 fall back to vanilla DRF otherwise.</p>
@@ -2011,6 +2137,11 @@ fall back to vanilla DRF otherwise.</p>
 <p>Wraps :exc:<code>~django.core.exceptions.ObjectDoesNotExist</code> and a <code>None</code>
 return as :exc:<code>~rest_framework.exceptions.NotFound</code>. Used by both the
 standalone retrieve view and the retrieve viewset mixin.</p>
+<p>If the selector returns a QuerySet (which is the natural shape when
+spec-level shaping is configured — declarative fields and
+<code>extend_queryset</code> only apply to QuerySets), the dispatcher
+materializes it via <code>.first()</code> after shaping has run. Selectors that
+return a single instance directly keep working unchanged.</p>
 
 
     </div>

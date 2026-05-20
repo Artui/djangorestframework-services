@@ -10,11 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/reference/exceptions/">
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/recipes/permissions/">
       
       
-        <link rel="prev" href="../openapi/">
+        <link rel="prev" href="../extra-kwargs/">
       
+      
+        <link rel="next" href="../queryset-shaping/">
       
       
         
@@ -25,7 +27,7 @@
     
     
       
-        <title>Exceptions - djangorestframework-services</title>
+        <title>Per-action permissions on the spec - djangorestframework-services</title>
       
     
     
@@ -78,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#exceptions" class="md-skip">
+        <a href="#per-action-permissions-on-the-spec" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Exceptions
+              Per-action permissions on the spec
             
           </span>
         </div>
@@ -507,292 +509,6 @@
       
   
   
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-        
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../../recipes/" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Recipes
-  
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Recipes
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/service-action/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Custom action with @service_action
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/compose-viewset/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Compose your own viewset
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/extra-kwargs/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Pass extra kwargs to services
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/permissions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Per-action permissions on the spec
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/queryset-shaping/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Per-spec queryset shaping
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/serializer-context/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Customise serializer context
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/scaffold-app/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Scaffold a service app
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
     
   
   
@@ -802,8 +518,6 @@
       
         
           
-        
-      
         
       
         
@@ -833,7 +547,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
         
           
           <div class="md-nav__link md-nav__container">
@@ -844,7 +558,7 @@
   <span class="md-ellipsis">
     
   
-    Reference
+    Recipes
   
 
     
@@ -855,18 +569,18 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_11">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Reference
+    Recipes
   
 
           </label>
@@ -881,14 +595,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../views/" class="md-nav__link">
+      <a href="../service-action/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Views
+    Custom action with @service_action
   
 
     
@@ -909,14 +623,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../viewsets/" class="md-nav__link">
+      <a href="../compose-viewset/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Viewsets
+    Compose your own viewset
   
 
     
@@ -937,126 +651,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../mutations/" class="md-nav__link">
+      <a href="../extra-kwargs/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Mutations
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../services/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Services
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../selectors/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Selectors
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../types/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Types
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../openapi/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    OpenAPI
+    Pass extra kwargs to services
   
 
     
@@ -1093,7 +695,7 @@
   <span class="md-ellipsis">
     
   
-    Exceptions
+    Per-action permissions on the spec
   
 
     
@@ -1111,7 +713,7 @@
   <span class="md-ellipsis">
     
   
-    Exceptions
+    Per-action permissions on the spec
   
 
     
@@ -1137,10 +739,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.exceptions.service_error.ServiceError" class="md-nav__link">
+  <a href="#per-action-permissions-on-a-viewset" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ServiceError
+        Per-action permissions on a viewset
       
     </span>
   </a>
@@ -1148,10 +750,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.exceptions.service_validation_error.ServiceValidationError" class="md-nav__link">
+  <a href="#standalone-views" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ServiceValidationError
+        Standalone views
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#empty-sequence-vs-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Empty sequence vs. None
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-resolution-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the resolution works
       
     </span>
   </a>
@@ -1162,6 +786,406 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../queryset-shaping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-spec queryset shaping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../serializer-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customise serializer context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scaffold-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaffold a service app
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/viewsets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Viewsets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mutations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/selectors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Selectors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenAPI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/exceptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exceptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1201,10 +1225,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.exceptions.service_error.ServiceError" class="md-nav__link">
+  <a href="#per-action-permissions-on-a-viewset" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ServiceError
+        Per-action permissions on a viewset
       
     </span>
   </a>
@@ -1212,10 +1236,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.exceptions.service_validation_error.ServiceValidationError" class="md-nav__link">
+  <a href="#standalone-views" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ServiceValidationError
+        Standalone views
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#empty-sequence-vs-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Empty sequence vs. None
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-resolution-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the resolution works
       
     </span>
   </a>
@@ -1239,7 +1285,7 @@
 
 
   
-    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/reference/exceptions.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/recipes/permissions.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1247,111 +1293,99 @@
   
 
 
-<h1 id="exceptions">Exceptions<a class="headerlink" href="#exceptions" title="Permanent link">&para;</a></h1>
-<p>Framework-agnostic exceptions raised by services. The view boundary
-maps them to DRF responses — see <a href="../../errors-and-atomic/">Errors &amp; atomic</a>
-for the mapping.</p>
-
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.exceptions.service_error.ServiceError" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">ServiceError</span>
-
-
-<a href="#rest_framework_services.exceptions.service_error.ServiceError" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="Exception">Exception</span></code></p>
-
-
-
-        <p>Raised by services to signal a business-rule failure.</p>
-<p>Carries an optional structured <code>detail</code> payload so the view layer can
-surface a meaningful response without the service depending on DRF.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.exceptions.service_validation_error.ServiceValidationError" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">ServiceValidationError</span>
-
-
-<a href="#rest_framework_services.exceptions.service_validation_error.ServiceValidationError" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="ServiceError (rest_framework_services.exceptions.service_error.ServiceError)" href="#rest_framework_services.exceptions.service_error.ServiceError">ServiceError</a></code></p>
-
-
-
-        <p>Raised by services to signal invalid input or invalid state.</p>
-<p>The <code>detail</code> argument may be a string, a dict (field → error(s)), or a
-list of errors — mirroring DRF's own <code>ValidationError</code> payload shapes.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
+<h1 id="per-action-permissions-on-the-spec">Per-action permissions on the spec<a class="headerlink" href="#per-action-permissions-on-the-spec" title="Permanent link">&para;</a></h1>
+<p>DRF's <code>permission_classes</code> on the view applies to every action a viewset
+serves. When the permissions actually vary per action — <code>list</code> is public,
+<code>create</code> requires authentication, an <code>approve</code> custom action is admin-only —
+the usual workaround is an <code>if self.action == ...</code> branch in
+<code>get_permissions()</code>. The same dispersion <code>action_specs</code> was designed to
+remove.</p>
+<p>Set <code>permission_classes</code> on the spec instead. It overrides the view's
+class-level <code>permission_classes</code> for that one action; everything else
+falls through to the view default.</p>
+<blockquote>
+<p>The value is a sequence of <code>BasePermission</code> <strong>subclasses</strong> (not
+instances). Misconfigurations fail fast at <code>as_view()</code> time with
+<code>ImproperlyConfigured</code>.</p>
+</blockquote>
+<h2 id="per-action-permissions-on-a-viewset">Per-action permissions on a viewset<a class="headerlink" href="#per-action-permissions-on-a-viewset" title="Permanent link">&para;</a></h2>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework.permissions</span><span class="w"> </span><span class="kn">import</span> <span class="n">AllowAny</span><span class="p">,</span> <span class="n">IsAdminUser</span><span class="p">,</span> <span class="n">IsAuthenticated</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">SelectorSpec</span><span class="p">,</span> <span class="n">ServiceSpec</span><span class="p">,</span> <span class="n">ServiceViewSet</span><span class="p">,</span> <span class="n">service_action</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="p">)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorViewSet</span><span class="p">(</span><span class="n">ServiceViewSet</span><span class="p">):</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">]</span>   <span class="c1"># view-level default</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">action_specs</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>        <span class="s2">&quot;list&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">list_authors</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">AuthorSerializer</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>            <span class="n">permission_classes</span><span class="o">=</span><span class="p">[</span><span class="n">AllowAny</span><span class="p">],</span>          <span class="c1"># public listing</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        <span class="p">),</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        <span class="s2">&quot;create&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>            <span class="n">service</span><span class="o">=</span><span class="n">create_author</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>            <span class="n">input_serializer</span><span class="o">=</span><span class="n">CreateAuthorInput</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">AuthorSerializer</span><span class="p">,</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>            <span class="c1"># falls through to view-level IsAuthenticated</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>        <span class="p">),</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>        <span class="s2">&quot;destroy&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>            <span class="n">service</span><span class="o">=</span><span class="n">delete_author</span><span class="p">,</span>
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>            <span class="n">permission_classes</span><span class="o">=</span><span class="p">[</span><span class="n">IsAdminUser</span><span class="p">],</span>       <span class="c1"># admin only</span>
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>        <span class="p">),</span>
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>    <span class="p">}</span>
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>    <span class="nd">@service_action</span><span class="p">(</span>
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>        <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>            <span class="n">service</span><span class="o">=</span><span class="n">approve_author</span><span class="p">,</span>
+</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>            <span class="n">input_serializer</span><span class="o">=</span><span class="n">ApproveInput</span><span class="p">,</span>
+</span><span id="__span-0-32"><a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>            <span class="n">permission_classes</span><span class="o">=</span><span class="p">[</span><span class="n">IsAdminUser</span><span class="p">],</span>       <span class="c1"># custom action, admin only</span>
+</span><span id="__span-0-33"><a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>        <span class="p">),</span>
+</span><span id="__span-0-34"><a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>        <span class="n">detail</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-0-35"><a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>        <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;post&quot;</span><span class="p">],</span>
+</span><span id="__span-0-36"><a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>    <span class="p">)</span>
+</span><span id="__span-0-37"><a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">approve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">pk</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+</span><span id="__span-0-38"><a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Stubbed — handler supplied by @service_action.&quot;&quot;&quot;</span>
+</span></code></pre></div>
+<h2 id="standalone-views">Standalone views<a class="headerlink" href="#standalone-views" title="Permanent link">&para;</a></h2>
+<p>The same field works on the standalone <code>Service*View</code> and <code>Selector*View</code>
+classes. The spec wins over the view's class-level <code>permission_classes</code>;
+<code>None</code> (the default) inherits.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">CreateAuthorView</span><span class="p">(</span><span class="n">ServiceCreateView</span><span class="p">):</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>        <span class="n">service</span><span class="o">=</span><span class="n">create_author</span><span class="p">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">CreateAuthorInput</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        <span class="n">output_serializer</span><span class="o">=</span><span class="n">AuthorSerializer</span><span class="p">,</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        <span class="n">permission_classes</span><span class="o">=</span><span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">],</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="p">)</span>
+</span></code></pre></div>
+<h2 id="empty-sequence-vs-none">Empty sequence vs. <code>None</code><a class="headerlink" href="#empty-sequence-vs-none" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>permission_classes=None</code> (the default) — <strong>inherit</strong> the view's
+  class-level permissions.</li>
+<li><code>permission_classes=[]</code> — <strong>no permissions</strong> for this action explicitly.
+  Useful to open a single endpoint on an otherwise-locked-down viewset
+  without touching the global <code>DEFAULT_PERMISSION_CLASSES</code>.</li>
+</ul>
+<h2 id="how-the-resolution-works">How the resolution works<a class="headerlink" href="#how-the-resolution-works" title="Permanent link">&para;</a></h2>
+<p>For viewsets that compose <code>_ActionSpecsMixin</code> (every mixin in this package,
+plus <code>ServiceViewSet</code> / <code>SelectorViewSet</code>), <code>get_permissions()</code>:</p>
+<ol>
+<li>Looks up <code>action_specs[self.action]</code>. If the entry has
+   <code>permission_classes</code>, those win.</li>
+<li>Otherwise looks at the bound action handler. Decorator-attached specs
+   (<code>@service_action(spec)</code>, <code>@selector_action(spec)</code>) live there, so their
+   <code>permission_classes</code> are honored even without the DRF router.</li>
+<li>Otherwise falls back to <code>super().get_permissions()</code> — the standard DRF
+   lookup of the view's class-level <code>permission_classes</code>.</li>
+</ol>
+<p>Standalone views (<code>ServiceCreateView</code>, <code>SelectorListView</code>, etc.) follow the
+same precedence: spec wins, then fall through to the view.</p>
+<p>When you wire the viewset through DRF's router, <code>@service_action</code> /
+<code>@selector_action</code> also carry their <code>permission_classes</code> via DRF's standard
+<code>@action(permission_classes=...)</code> integration — so the same configuration
+works in both router-driven and direct-<code>as_view</code> setups.</p>
 
 
 

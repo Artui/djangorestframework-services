@@ -528,6 +528,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -655,6 +659,62 @@
     
   
     Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-action permissions on the spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/queryset-shaping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-spec queryset shaping
   
 
     
@@ -1554,7 +1614,42 @@ argument to :class:<code>SelectorListView</code> / :class:<code>SelectorRetrieve
   the selector receives. Co-locating it with the spec lets each action
   declare its own contract — no <code>if self.action == ...</code> branching in a
   catch-all <code>get_selector_kwargs</code>.</li>
+<li><strong><code>permission_classes</code></strong> — overrides the calling view's
+  <code>permission_classes</code> for the action the spec backs. <code>None</code> (the
+  default) means "inherit the view's class-level permissions"; an empty
+  sequence means "no permissions" explicitly. Forwarded through DRF's
+  <code>@action(permission_classes=...)</code> for the <code>@selector_action</code>
+  decorator, and surfaced via <code>get_permissions</code> for the viewset
+  mixins and standalone views.</li>
+<li><strong><code>output_serializer_context</code></strong> — per-spec hook for the response
+  serializer's <code>context=</code> dict. Sits at the most-specific layer of
+  the resolution chain (<code>view.get_serializer_context</code> →
+  <code>view.get_output_serializer_context</code> →
+  <code>view.get_&lt;action&gt;_output_serializer_context</code> → spec hook), so it
+  wins on overlapping keys. <code>None</code> (the default) leaves the three
+  earlier layers intact. Selectors don't validate input, so there's
+  no symmetrical <code>input_serializer_context</code>.</li>
+<li><strong><code>select_related</code></strong> / <strong><code>prefetch_related</code></strong> / <strong><code>annotations</code></strong>
+  — declarative queryset shaping applied to the selector's return value
+  before it leaves :func:<code>dispatch_selector_for_spec</code>. <code>select_related</code>
+  is a sequence of relation names (forwarded as
+  <code>qs.select_related(*spec.select_related)</code>); <code>prefetch_related</code> is
+  a sequence of relation names or :class:<code>Prefetch</code> objects;
+  <code>annotations</code> is a mapping merged into a single <code>.annotate(**...)</code>
+  call. Use these for the common case where the same shaping applies
+  every request — they're introspectable for OpenAPI / future tooling.</li>
+<li><strong><code>extend_queryset</code></strong> — dynamic escape hatch. A
+  <code>Callable[[QuerySet, ServiceView, Request], QuerySet]</code> invoked
+  <em>after</em> the declarative fields have applied, so it always sees the
+  fully statically-shaped queryset. Use it when the shaping depends on
+  the request (e.g. only prefetch when a query string opts in).
+  Synchronous only — it manipulates the queryset's lazy expression
+  tree, not the database.</li>
 </ul>
+<p>All four shaping fields require <code>selector</code> to be set and the selector
+to return a Django :class:<code>QuerySet</code>. Configuring shaping with no
+selector raises :exc:<code>ImproperlyConfigured</code> at <code>as_view()</code> time; a
+non-QuerySet return raises at request time.</p>
 
 
 
@@ -1623,20 +1718,47 @@ argument to :func:<code>service_action</code> / :class:<code>ServiceCreateView</
 </ul>
 <p>All three default to <code>Any</code>, so <code>ServiceSpec(service=fn)</code> keeps working
 unchanged.</p>
-<p>Fields mirror the kwargs that <code>MutationFlowMixin._run_mutation</code>
-forwards to the underlying flow runner. <code>success_status</code> is left as
-<code>None</code> so each consumer can supply its own action-appropriate default
-(201 for create, 200 for update, 204 for destroy).</p>
-<p><code>kwargs</code> is a callable that returns extra kwargs to merge into the
-pool the service receives. Co-locating it with the spec lets each action
-declare its own contract — no <code>if self.action == ...</code> branching in a
-catch-all <code>get_service_kwargs</code>. See :class:<code>ServiceView</code> for the
-attributes available on the <code>view</code> argument.</p>
+<p>Fields are grouped by what they configure: the service callable itself,
+the input pipeline (<code>input_*</code>), the output pipeline (<code>output_*</code>
+plus the queryset-shaping fields, which attach to <code>output_selector</code>),
+and the cross-cutting concerns (<code>kwargs</code>, <code>permission_classes</code>).</p>
+<p><code>success_status</code> is left as <code>None</code> so each consumer can supply its
+own action-appropriate default (201 for create, 200 for update, 204
+for destroy).</p>
 <p><code>input_data</code> is the symmetrical hook for the <em>serializer's</em> input.
 Returns a mapping merged on top of <code>request.data</code> before the
 <code>input_serializer</code> validates it — useful for lifting URL kwargs
 (e.g. parent IDs from nested routes) into fields the serializer can
 cross-validate. Server-provided keys win on conflict.</p>
+<p><code>input_serializer_context</code> and <code>output_serializer_context</code> are
+per-spec hooks for the serializer <code>context=</code> dict. They sit at the
+most-specific layer of the resolution chain
+(<code>view.get_serializer_context</code> →
+<code>view.get_&lt;direction&gt;_serializer_context</code> →
+<code>view.get_&lt;action&gt;_&lt;direction&gt;_serializer_context</code> → spec hook), so
+the spec wins on overlapping keys. <code>None</code> (the default) leaves the
+three earlier layers intact.</p>
+<p><code>select_related</code> / <code>prefetch_related</code> / <code>annotations</code> /
+<code>extend_queryset</code> shape the queryset returned by <code>output_selector</code>
+before the framework materializes a single instance via <code>.first()</code>.
+Use these when the output_selector re-fetches the freshly-mutated
+instance with relations the response serializer will read. Identical
+semantics to the same-named fields on :class:<code>SelectorSpec</code>. All four
+require <code>output_selector</code> to be set; configuring them without one
+raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at
+<code>as_view()</code> time, and a non-QuerySet <code>output_selector</code> return
+raises at request time.</p>
+<p><code>kwargs</code> is a callable that returns extra kwargs to merge into the
+pool the service receives. Co-locating it with the spec lets each action
+declare its own contract — no <code>if self.action == ...</code> branching in a
+catch-all <code>get_service_kwargs</code>. See :class:<code>ServiceView</code> for the
+attributes available on the <code>view</code> argument.</p>
+<p><code>permission_classes</code> overrides the calling view's <code>permission_classes</code>
+for the action the spec backs. <code>None</code> (the default) means "inherit the
+view's class-level permissions"; an empty sequence means "no permissions"
+explicitly. Forwarded through DRF's <code>@action(permission_classes=...)</code>
+for the <code>@service_action</code> decorator, and surfaced via <code>get_permissions</code>
+for the viewset mixins and standalone views.</p>
 
 
 
