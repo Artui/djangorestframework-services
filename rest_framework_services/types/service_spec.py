@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
+from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 from rest_framework.serializers import Serializer
 
@@ -53,6 +54,22 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     ``input_serializer`` validates it — useful for lifting URL kwargs
     (e.g. parent IDs from nested routes) into fields the serializer can
     cross-validate. Server-provided keys win on conflict.
+
+    ``permission_classes`` overrides the calling view's ``permission_classes``
+    for the action the spec backs. ``None`` (the default) means "inherit the
+    view's class-level permissions"; an empty sequence means "no permissions"
+    explicitly. Forwarded through DRF's ``@action(permission_classes=...)``
+    for the ``@service_action`` decorator, and surfaced via ``get_permissions``
+    for the viewset mixins and standalone views.
+
+    ``input_serializer_context`` and ``output_serializer_context`` are
+    per-spec hooks for the serializer ``context=`` dict. They sit at the
+    most-specific layer of the resolution chain
+    (``view.get_serializer_context`` →
+    ``view.get_<direction>_serializer_context`` →
+    ``view.get_<action>_<direction>_serializer_context`` → spec hook), so
+    the spec wins on overlapping keys. ``None`` (the default) leaves the
+    three earlier layers intact.
     """
 
     service: Callable[..., ResultT]
@@ -63,3 +80,6 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     success_status: int | None = None
     kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
     input_data: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
+    permission_classes: Sequence[type[BasePermission]] | None = None
+    input_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
+    output_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None

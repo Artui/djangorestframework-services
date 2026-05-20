@@ -86,6 +86,8 @@ nav:
       - Custom action with @service_action: recipes/service-action.md
       - Compose your own viewset: recipes/compose-viewset.md
       - Pass extra kwargs to services: recipes/extra-kwargs.md
+      - Per-action permissions on the spec: recipes/permissions.md
+      - Per-spec queryset shaping: recipes/queryset-shaping.md
       - Customise serializer context: recipes/serializer-context.md
       - Scaffold a service app: recipes/scaffold-app.md
   - Reference:

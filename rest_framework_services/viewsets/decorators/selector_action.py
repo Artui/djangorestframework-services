@@ -55,6 +55,8 @@ def selector_action(
         drf_kwargs["url_path"] = url_path
     if url_name is not None:
         drf_kwargs["url_name"] = url_name
+    if spec.permission_classes is not None:
+        drf_kwargs["permission_classes"] = list(spec.permission_classes)
     drf_kwargs.update(action_kwargs)
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -112,6 +114,7 @@ def _build_serializer(
             view.request,
             direction_hook="get_output_serializer_context",
             action_hook=action_hook,
+            spec_provider=spec.output_serializer_context,
         )
         return spec.output_serializer(instance, many=many, context=context)
     return view.get_serializer(instance, many=many)

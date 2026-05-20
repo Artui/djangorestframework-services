@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `permission_classes` field on `ServiceSpec` and `SelectorSpec`. Accepts a
+  sequence of DRF `BasePermission` subclasses to override the calling view's
+  class-level `permission_classes` for the action the spec backs. `None`
+  (the default) inherits the view-level permissions; an empty sequence means
+  "no permissions" explicitly. Honored by `_ActionSpecsMixin.get_permissions`
+  (covers all viewset mixins and `ServiceViewSet` / `SelectorViewSet`), by
+  `MutationFlowMixin.get_permissions` (standalone mutation views), by the
+  selector views' new `get_permissions` overrides, and by the
+  `@service_action` / `@selector_action` decorators which forward the value
+  into DRF's `@action(permission_classes=...)`. Misconfigurations (non-
+  `BasePermission` subclasses, permission instances rather than classes)
+  fail fast at `as_view()` time with `ImproperlyConfigured`.
+- `input_serializer_context` and `output_serializer_context` fields on
+  `ServiceSpec`, plus `output_serializer_context` on `SelectorSpec`. Each
+  takes a `Callable[[ServiceView, Request], Mapping[str, Any]]` returning
+  extra context keys to merge into the serializer's `context=` dict. They
+  sit at the most-specific layer of the existing resolution chain
+  (DRF default → directional `get_<direction>_serializer_context` hook →
+  per-action `get_<action>_<direction>_serializer_context` hook → spec
+  callable), so the spec wins on overlapping keys. Wired through
+  `dispatch_mutation_for_spec` (input + output), `selector_action`
+  (output), and a new `get_serializer_context` override on
+  `_ActionSpecsMixin` and the standalone `SelectorListView` /
+  `SelectorRetrieveView` so the spec's output context is honored by
+  `ListModelMixin` / `RetrieveModelMixin` dispatch. Closes the gap where
+  the selector list/retrieve mixins previously ignored the per-action
+  `get_<action>_output_serializer_context` hook entirely.
+- Per-spec queryset shaping on `SelectorSpec`. Four new fields cover both
+  the static and dynamic cases:
+  - `select_related: Sequence[str] | None` — forwarded to
+    `qs.select_related(*spec.select_related)`.
+  - `prefetch_related: Sequence[str | Prefetch] | None` — forwarded to
+    `qs.prefetch_related(*spec.prefetch_related)`; accepts plain names or
+    full `Prefetch` objects.
+  - `annotations: Mapping[str, Any] | None` — merged into a single
+    `qs.annotate(**spec.annotations)` call.
+  - `extend_queryset: Callable[[QuerySet, ServiceView, Request], QuerySet] |
+    None` — dynamic escape hatch, invoked *after* the declarative fields
+    so it always sees the fully statically-shaped queryset. Synchronous
+    only (no DB I/O — manipulates the lazy expression tree).
+  Shaping runs inside `dispatch_selector_for_spec`, so both list and
+  retrieve flows pick it up. Configuring any shaping field with no
+  `selector` raises `ImproperlyConfigured` at `as_view()` time; a
+  non-QuerySet selector return when shaping is set raises at request time.
+- `dispatch_retrieve_selector` now materializes a QuerySet return via
+  `.first()`, so retrieve selectors can return a filtered QuerySet and
+  let the framework apply shaping before pulling the single object.
+  Backward-compatible — selectors that already returned an instance
+  continue to work unchanged.
+
 ## [0.11.0] — 2026-05-19
 
 ### Added

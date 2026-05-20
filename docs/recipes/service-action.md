@@ -68,8 +68,15 @@ because:
   API and DRF spectacular),
 - the function name becomes the URL segment unless you set `url_path`,
 - it's a place to attach `@action`-compatible kwargs (`url_path`,
-  `url_name`, `permission_classes`, `throttle_classes`, `serializer_class`,
-  …).
+  `url_name`, `throttle_classes`, `serializer_class`, …).
+
+For per-action permissions, prefer `ServiceSpec.permission_classes` on
+the spec itself — it surfaces in both router-driven and direct-`as_view`
+setups, and travels with the spec. See the
+[permissions recipe](permissions.md). If you pass `permission_classes`
+both via the spec and as an `@action` kwarg, the `@action` kwarg wins
+(the spec's value is forwarded to DRF first, then the explicit kwargs
+override it).
 
 ## Read-only actions
 

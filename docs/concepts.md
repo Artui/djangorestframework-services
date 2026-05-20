@@ -58,6 +58,12 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     selector: Callable[..., ResultT] | None = None
     output_serializer: type[Serializer] | None = None
     kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
+    permission_classes: Sequence[type[BasePermission]] | None = None
+    output_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
+    select_related: Sequence[str] | None = None
+    prefetch_related: Sequence[str | Prefetch] | None = None
+    annotations: Mapping[str, Any] | None = None
+    extend_queryset: Callable[[QuerySet, ServiceView, Request], QuerySet] | None = None
 ```
 
 - **`selector`** — the callable invoked by `get_queryset()` (list) or
@@ -71,6 +77,17 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
   resolution chain; co-located with the selector it feeds. Receives
   the view (typed as the narrow `ServiceView` Protocol) and the
   current `Request`. See the [extra-kwargs recipe](recipes/extra-kwargs.md).
+- **`permission_classes`** — overrides the view's class-level
+  `permission_classes` for the action the spec backs. `None` (the default)
+  inherits; `[]` means "no permissions" explicitly. See the
+  [permissions recipe](recipes/permissions.md).
+- **`output_serializer_context`** — callable returning extra keys for
+  the response serializer's `context=` dict. Sits at the most-specific
+  layer of the [serializer-context resolution chain](recipes/serializer-context.md).
+- **`select_related`** / **`prefetch_related`** / **`annotations`** /
+  **`extend_queryset`** — declarative + dynamic queryset shaping applied
+  to the selector's return value inside `dispatch_selector_for_spec`. See
+  the [queryset-shaping recipe](recipes/queryset-shaping.md).
 
 Generic parameters `ResultT` / `ExtraT` default to `Any`, so
 `SelectorSpec(selector=fn)` keeps working unparameterized.
@@ -91,6 +108,9 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     success_status: int | None = None
     kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
     input_data: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
+    permission_classes: Sequence[type[BasePermission]] | None = None
+    input_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
+    output_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
 ```
 
 - **`service`** — the callable to invoke.
@@ -115,6 +135,14 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   for lifting URL kwargs (e.g. parent IDs from nested routes) into
   fields the serializer can cross-validate. Server-provided keys win
   on conflict.
+- **`permission_classes`** — overrides the view's class-level
+  `permission_classes` for the action the spec backs. `None` (the default)
+  inherits; `[]` means "no permissions" explicitly. See the
+  [permissions recipe](recipes/permissions.md).
+- **`input_serializer_context`** / **`output_serializer_context`** —
+  callables returning extra keys for the input / output serializer
+  `context=` dicts. Sit at the most-specific layer of the
+  [serializer-context resolution chain](recipes/serializer-context.md).
 
 Generic parameters `InputT` / `ResultT` / `ExtraT` default to `Any`, so
 `ServiceSpec(service=fn)` keeps working unparameterized.

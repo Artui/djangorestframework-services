@@ -260,12 +260,14 @@ def dispatch_mutation_for_spec(
         request,
         direction_hook="get_input_serializer_context",
         action_hook=action_input_context_hook,
+        spec_provider=spec.input_serializer_context,
     )
     output_context = resolve_serializer_context(
         view,
         request,
         direction_hook="get_output_serializer_context",
         action_hook=action_output_context_hook,
+        spec_provider=spec.output_serializer_context,
     )
     return _execute_mutation(
         view,

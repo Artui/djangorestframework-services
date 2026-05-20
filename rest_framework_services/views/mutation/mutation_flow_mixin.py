@@ -82,6 +82,19 @@ class MutationFlowMixin:
         """
         return self.get_serializer_context()  # ty: ignore[unresolved-attribute]
 
+    def get_permissions(self) -> list[Any]:
+        """Honor ``spec.permission_classes`` on standalone mutation views.
+
+        Standalone ``Service*View`` subclasses carry ``spec`` as a class
+        attribute. When the spec sets ``permission_classes`` it wins over
+        the view's class-level ``permission_classes``; ``None`` (the default)
+        falls through.
+        """
+        spec: ServiceSpec[Any, Any, Any] | None = getattr(self, "spec", None)
+        if spec is not None and spec.permission_classes is not None:
+            return [permission() for permission in spec.permission_classes]
+        return super().get_permissions()  # ty: ignore[unresolved-attribute]
+
     def _run_mutation(
         self,
         request: Request,

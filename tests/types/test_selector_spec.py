@@ -17,6 +17,7 @@ class TestSelectorSpec:
         spec = SelectorSpec()
         assert spec.selector is None
         assert spec.output_serializer is None
+        assert spec.permission_classes is None
 
     def test_with_selector(self) -> None:
         spec = SelectorSpec(selector=_noop)
