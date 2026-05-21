@@ -81,8 +81,8 @@ Wire them into `action_specs` exactly like sync selectors — wrapped in
 
 ```python
 action_specs = {
-    "list": SelectorSpec(selector=list_authors),
-    "retrieve": SelectorSpec(selector=aget_author),
+    "list": SelectorSpec(kind=SelectorKind.LIST, selector=list_authors),
+    "retrieve": SelectorSpec(kind=SelectorKind.RETRIEVE, selector=aget_author),
 }
 ```
 

@@ -51,18 +51,23 @@ else.
 
 ## What you get for free
 
-| Surface                              | Request body              | Success response          | 422 contract |
-| ------------------------------------ | ------------------------- | ------------------------- | ------------ |
-| `ServiceCreateView`                  | `spec.input_serializer` ✓ | `spec.output_serializer` ✓ | ✓            |
-| `ServiceUpdateView`                  | `spec.input_serializer` ✓ | `spec.output_serializer` ✓ | ✓            |
-| `ServiceDeleteView`                  | `spec.input_serializer` ✓ | `spec.output_serializer` ✓ | ✓            |
-| `ServiceViewSet["create"]`           | `spec.input_serializer` ✓ | `spec.output_serializer` ✓ | ✓            |
-| `ServiceViewSet["update"]`           | `spec.input_serializer` ✓ | `spec.output_serializer` ✓ | ✓            |
-| `ServiceViewSet["partial_update"]`   | `spec.input_serializer` (partial) ✓ | `spec.output_serializer` ✓ | ✓ |
-| `ServiceViewSet["destroy"]`          | `spec.input_serializer` ✓ | `spec.output_serializer` ✓ | ✓            |
-| `@service_action`                    | `spec.input_serializer` ✓ | `spec.output_serializer` ✓ | ✓            |
-| `SelectorListView` / `["list"]`      | n/a                       | `spec.output_serializer` ✓ | n/a          |
-| `SelectorRetrieveView` / `["retrieve"]` | n/a                    | `spec.output_serializer` ✓ | n/a          |
+For mutation surfaces, the response shape is read from
+`spec.output_selector_spec.output_serializer` (the nested
+`SelectorSpec`). For read surfaces it's read from
+`spec.output_serializer` directly.
+
+| Surface                              | Request body              | Success response                                       | 422 contract |
+| ------------------------------------ | ------------------------- | ------------------------------------------------------ | ------------ |
+| `ServiceCreateView`                  | `spec.input_serializer` ✓ | `spec.output_selector_spec.output_serializer` ✓        | ✓            |
+| `ServiceUpdateView`                  | `spec.input_serializer` ✓ | `spec.output_selector_spec.output_serializer` ✓        | ✓            |
+| `ServiceDeleteView`                  | `spec.input_serializer` ✓ | `spec.output_selector_spec.output_serializer` ✓        | ✓            |
+| `ServiceViewSet["create"]`           | `spec.input_serializer` ✓ | `spec.output_selector_spec.output_serializer` ✓        | ✓            |
+| `ServiceViewSet["update"]`           | `spec.input_serializer` ✓ | `spec.output_selector_spec.output_serializer` ✓        | ✓            |
+| `ServiceViewSet["partial_update"]`   | `spec.input_serializer` (partial) ✓ | `spec.output_selector_spec.output_serializer` ✓ | ✓     |
+| `ServiceViewSet["destroy"]`          | `spec.input_serializer` ✓ | `spec.output_selector_spec.output_serializer` ✓        | ✓            |
+| `@service_action`                    | `spec.input_serializer` ✓ | `spec.output_selector_spec.output_serializer` ✓        | ✓            |
+| `SelectorListView` / `["list"]`      | n/a                       | `spec.output_serializer` ✓                             | n/a          |
+| `SelectorRetrieveView` / `["retrieve"]` | n/a                    | `spec.output_serializer` ✓                             | n/a          |
 
 ### Bare dataclass `input_serializer`
 

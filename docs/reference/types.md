@@ -1,5 +1,9 @@
 # Types
 
+## `SelectorKind`
+
+::: rest_framework_services.types.selector_kind.SelectorKind
+
 ## `SelectorSpec`
 
 ::: rest_framework_services.types.selector_spec.SelectorSpec

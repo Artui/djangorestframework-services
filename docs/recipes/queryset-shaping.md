@@ -16,6 +16,7 @@ class PostViewSet(SelectorViewSet):
     queryset = Post.objects.all()
     action_specs = {
         "list": SelectorSpec(
+            kind=SelectorKind.LIST,
             selector=list_posts,
             output_serializer=PostSerializer,
             select_related=["author"],
@@ -50,6 +51,7 @@ class PostViewSet(SelectorViewSet):
     queryset = Post.objects.all()
     action_specs = {
         "list": SelectorSpec(
+            kind=SelectorKind.LIST,
             selector=list_posts,
             output_serializer=PostSerializer,
             select_related=["author"],
@@ -81,6 +83,7 @@ class PostViewSet(SelectorViewSet):
     queryset = Post.objects.all()
     action_specs = {
         "retrieve": SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
             selector=get_post,
             output_serializer=PostSerializer,
             select_related=["author"],
@@ -94,13 +97,14 @@ working unchanged, but shaping is a no-op on a materialized instance —
 configure either declarative shaping or your own `.select_related(...)`
 inside the selector, not both.
 
-## On `ServiceSpec` — shaping the `output_selector` return
+## On `ServiceSpec` — shaping the post-mutation re-fetch
 
-The same four fields are on `ServiceSpec`. There they apply to the
-queryset returned by `output_selector` (the re-fetch step of a mutation
+The same shaping fields live on the nested
+`ServiceSpec.output_selector_spec`. There they apply to the queryset
+returned by that spec's `selector` (the re-fetch step of a mutation
 flow). The typical pattern: the service creates or updates an instance;
-the output_selector returns a filtered QuerySet; the spec declares the
-eager-loading the response serializer needs.
+the nested `selector` returns a filtered QuerySet; the nested spec
+declares the eager-loading the response serializer needs.
 
 ```python
 def create_post(*, data, request):
@@ -113,28 +117,33 @@ class CreatePostView(ServiceCreateView):
     spec = ServiceSpec(
         service=create_post,
         input_serializer=CreatePostInput,
-        output_serializer=PostSerializer,
-        output_selector=refetch_post,
-        select_related=["author"],
-        prefetch_related=["tags"],
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=refetch_post,
+            output_serializer=PostSerializer,
+            select_related=["author"],
+            prefetch_related=["tags"],
+        ),
     )
 ```
 
 After shaping, the framework `.first()`s the QuerySet to a single
-instance before the output serializer runs. Output selectors that return
-a materialized instance directly (no `.filter().select_related(...)`)
-keep working — shaping is a no-op in that case.
+instance before the output serializer runs. Re-fetch selectors that
+return a materialized instance directly (no
+`.filter().select_related(...)`) keep working — shaping is a no-op in
+that case.
 
-The shaping fields require `output_selector` to be set. Configuring them
-without one raises `ImproperlyConfigured` at `as_view()` time, mirroring
-the `SelectorSpec`/`selector` rule.
+The shaping fields require `selector` to be set on the nested spec.
+Configuring them on a nested spec with no selector raises
+`ImproperlyConfigured` at `as_view()` time, mirroring the standalone
+`SelectorSpec`/`selector` rule.
 
 ## Where shaping does *not* apply
 
-- **`SelectorSpec.selector` or `ServiceSpec.output_selector` is `None`** —
-  the spec has nothing to shape. Configuring shaping in either case raises
-  `ImproperlyConfigured` at `as_view()` time to surface the misconfiguration
-  loudly.
+- **The nested `SelectorSpec.selector` is `None`** — the spec has
+  nothing to shape. Configuring shaping then raises
+  `ImproperlyConfigured` at `as_view()` time to surface the
+  misconfiguration loudly.
 - **The shaped callable returns a non-QuerySet** (a list, dict, instance,
   generator). Shaping requires a queryset to chain `.select_related(...)` /
   `.prefetch_related(...)` / `.annotate(...)`. The dispatcher raises

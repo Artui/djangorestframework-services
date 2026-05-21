@@ -38,11 +38,18 @@ directly with plain kwargs.
 class TenantedAuthorViewSet(ServiceViewSet):
     queryset = Author.objects.all()
     action_specs = {
-        "list": SelectorSpec(selector=list_authors, output_serializer=AuthorSerializer),
+        "list": SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=list_authors,
+            output_serializer=AuthorSerializer,
+        ),
         "create": ServiceSpec(
             service=create_author,
             input_serializer=CreateAuthorInput,
-            output_serializer=AuthorSerializer,
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                output_serializer=AuthorSerializer,
+            ),
         ),
     }
 

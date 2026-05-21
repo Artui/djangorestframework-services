@@ -10,14 +10,22 @@ are part of the public API.
 `SelectorRetrieveMixin` + `ActionSerializerResolver` + DRF's `GenericViewSet`:
 
 ```python
-from rest_framework_services import SelectorSpec, SelectorViewSet
+from rest_framework_services import SelectorKind, SelectorSpec, SelectorViewSet
 
 
 class AuthorReadOnly(SelectorViewSet):
     queryset = Author.objects.all()
     action_specs = {
-        "list": SelectorSpec(selector=list_authors, output_serializer=AuthorDetailSerializer),
-        "retrieve": SelectorSpec(selector=get_author, output_serializer=AuthorDetailSerializer),
+        "list": SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=list_authors,
+            output_serializer=AuthorDetailSerializer,
+        ),
+        "retrieve": SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=get_author,
+            output_serializer=AuthorDetailSerializer,
+        ),
     }
 ```
 
@@ -27,6 +35,7 @@ Or compose it yourself, if you want to mix in something custom:
 from rest_framework.viewsets import GenericViewSet
 from rest_framework_services import (
     ActionSerializerResolver,
+    SelectorKind,
     SelectorListMixin,
     SelectorRetrieveMixin,
     SelectorSpec,
@@ -36,8 +45,16 @@ from rest_framework_services import (
 class AuthorReadOnly(SelectorListMixin, SelectorRetrieveMixin, ActionSerializerResolver, GenericViewSet):
     queryset = Author.objects.all()
     action_specs = {
-        "list": SelectorSpec(selector=list_authors, output_serializer=AuthorDetailSerializer),
-        "retrieve": SelectorSpec(selector=get_author, output_serializer=AuthorDetailSerializer),
+        "list": SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=list_authors,
+            output_serializer=AuthorDetailSerializer,
+        ),
+        "retrieve": SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=get_author,
+            output_serializer=AuthorDetailSerializer,
+        ),
     }
 ```
 
@@ -50,6 +67,7 @@ updated.
 from rest_framework.viewsets import GenericViewSet
 from rest_framework_services import (
     ActionSerializerResolver,
+    SelectorKind,
     SelectorRetrieveMixin,
     SelectorSpec,
     ServiceCreateMixin,
@@ -66,13 +84,17 @@ class TicketViewSet(
     queryset = Ticket.objects.all()
     action_specs = {
         "retrieve": SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
             selector=get_ticket,
             output_serializer=TicketDetailSerializer,
         ),
         "create": ServiceSpec(
             service=open_ticket,
             input_serializer=OpenTicketInput,
-            output_serializer=TicketDetailSerializer,
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                output_serializer=TicketDetailSerializer,
+            ),
         ),
     }
 ```

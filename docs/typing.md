@@ -11,7 +11,7 @@ a known kwargs **pool**:
 | Destroy                      | `request`, `user`, `instance`, `data`*, plus extras       |
 | List selector                | `request`, `user`, URL kwargs, plus extras                |
 | Retrieve selector            | `request`, `user`, URL kwargs, plus extras                |
-| `output_selector`            | `request`, `user`, `result`, the action's pool, extras    |
+| Output selector (nested)     | `request`, `user`, `result`, the action's pool, extras    |
 
 `*` `data` is only present when `ServiceSpec.input_serializer` is set.
 
@@ -133,8 +133,9 @@ Available Protocols:
   input dataclass for delete-with-payload, or to
   [`NoInput`](reference/types.md#noinput) when no body is read.
 - `ListSelector[ResultT]`
-- `RetrieveSelector[ResultT]`
-- `OutputSelector[InT, OutT]`
+- `RetrieveSelector[ResultT]` — also used for the post-mutation re-fetch
+  selector mounted under `ServiceSpec.output_selector_spec.selector`,
+  where the kwargs pool additionally carries `result`.
 
 !!! note "Migrating from `Strict*` / 3-arg parameterisation (0.6 – 0.10)"
     Releases 0.6 – 0.10 shipped separate `StrictCreateService` /
@@ -277,7 +278,14 @@ request:
 
 - Service requires `data` but the spec has no `input_serializer`.
 - Service requires `instance` but the action is create / list (no instance).
-- Output selector requires a key that's only present in service-call context.
+- The nested `output_selector_spec.selector` requires a key that's only
+  present in service-call context.
+- A mounted `SelectorSpec`'s `kind` disagrees with the view it's attached
+  to — e.g. a `SelectorKind.LIST` spec on `SelectorRetrieveView`, or a
+  `SelectorKind.RETRIEVE` entry under `action_specs["list"]`.
+- A `ServiceSpec.output_selector_spec` is supplied with a `kind` other
+  than `SelectorKind.RETRIEVE` (the post-mutation re-fetch always
+  materializes a single instance).
 - A required parameter is not framework-provided and the view has no
   `kwargs=` provider, no `get_<action>_*_kwargs`, and no `get_*_kwargs` —
   the parameter would be silently dropped at request time.

@@ -57,7 +57,13 @@ which the library already depends on.
 from dataclasses import dataclass
 
 from rest_framework_dataclasses.serializers import DataclassSerializer
-from rest_framework_services import ServiceCreateView, ServiceSpec, create_from_input
+from rest_framework_services import (
+    SelectorKind,
+    SelectorSpec,
+    ServiceCreateView,
+    ServiceSpec,
+    create_from_input,
+)
 
 from myapp.models import Author
 
@@ -92,12 +98,17 @@ def create_author(*, data: CreateAuthorInput) -> Author:
     return result.instance
 
 
-# 4. View — wires it all together.
+# 4. View — wires it all together. The "output pipeline" (serializer,
+#    optional post-mutation re-fetch, queryset shaping) lives in a
+#    nested SelectorSpec under `output_selector_spec`.
 class CreateAuthorView(ServiceCreateView):
     spec = ServiceSpec(
         service=create_author,
         input_serializer=CreateAuthorInput,
-        output_serializer=AuthorOutputSerializer,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            output_serializer=AuthorOutputSerializer,
+        ),
     )
 ```
 
@@ -146,7 +157,10 @@ class CreateAuthorView(ServiceCreateView):
     spec = ServiceSpec(
         service=create_author,
         input_serializer=CreateAuthorInput,
-        output_serializer=AuthorSerializer,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            output_serializer=AuthorSerializer,
+        ),
     )
 ```
 
@@ -256,9 +270,9 @@ Services and selectors are plain callables, but you can pin their shape
 to a Protocol so a type checker catches signature drift before request
 time.
 
-`CreateService`, `UpdateService`, `DeleteService`, `ListSelector`,
-`RetrieveSelector`, and `OutputSelector` each take only the input,
-instance, and result type parameters. `**extras` is typed `Any` so the
+`CreateService`, `UpdateService`, `DeleteService`, `ListSelector`, and
+`RetrieveSelector` each take only the input, instance, and result type
+parameters. `**extras` is typed `Any` so the
 framework's kwargs pool flows through transparently, and your callable
 declares only the parameters it actually uses:
 
@@ -322,7 +336,10 @@ class AuthorViewSet(ServiceViewSet):
         "create": ServiceSpec(
             service=create_author,
             input_serializer=CreateAuthorInput,
-            output_serializer=AuthorOutputSerializer,
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                output_serializer=AuthorOutputSerializer,
+            ),
             kwargs=_author_kwargs,
         ),
     }
@@ -352,11 +369,19 @@ framework ships ready-made factories:
 
 ```python
 from rest_framework_services import (
+    SelectorKind,
+    SelectorSpec,
     ServiceSpec,
     ServiceViewSet,
     create_model,
     delete_model,
     update_model,
+)
+
+
+_author_out = SelectorSpec(
+    kind=SelectorKind.RETRIEVE,
+    output_serializer=AuthorOutSerializer,
 )
 
 
@@ -366,12 +391,12 @@ class AuthorViewSet(ServiceViewSet):
         "create": ServiceSpec(
             service=create_model(Author),
             input_serializer=AuthorInSerializer,
-            output_serializer=AuthorOutSerializer,
+            output_selector_spec=_author_out,
         ),
         "update": ServiceSpec(
             service=update_model(Author),
             input_serializer=AuthorInSerializer,
-            output_serializer=AuthorOutSerializer,
+            output_selector_spec=_author_out,
         ),
         "destroy": ServiceSpec(service=delete_model(Author)),
     }
@@ -405,9 +430,18 @@ rules.
 
 Mutation views are configured by setting a single `spec` class attribute
 to a `ServiceSpec`, which bundles `service`, `input_serializer`,
-`output_serializer`, `output_selector`, `atomic`, and `success_status`.
-Selector views are configured by setting `spec` to a `SelectorSpec`, which
-bundles `selector` and `output_serializer`.
+`output_selector_spec` (the full output pipeline — see below), `atomic`,
+and `success_status`. Selector views are configured by setting `spec`
+to a `SelectorSpec`, which carries the required `kind` discriminator
+(`SelectorKind.LIST` for list endpoints, `SelectorKind.RETRIEVE` for
+retrieve endpoints) plus `selector` and `output_serializer`.
+
+`ServiceSpec.output_selector_spec` is a nested `SelectorSpec`
+(`kind=SelectorKind.RETRIEVE`) carrying the response serializer, optional
+post-mutation re-fetch `selector`, and queryset-shaping fields. Set
+`output_selector_spec=None` (the default) to render the service's return
+value directly; set it to a `SelectorSpec` to add serialization,
+re-fetching, or shaping.
 
 ```python
 @dataclass
@@ -421,7 +455,10 @@ class UpdateAuthorView(ServiceUpdateView):
     spec = ServiceSpec(
         service=update_author,
         input_serializer=UpdateAuthorInput,
-        output_serializer=AuthorOutputSerializer,   # DataclassSerializer
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            output_serializer=AuthorOutputSerializer,   # DataclassSerializer
+        ),
     )
 ```
 
@@ -433,7 +470,10 @@ class UpdateAuthorView(ServiceUpdateView):
     spec = ServiceSpec(
         service=update_author,
         input_serializer=UpdateAuthorInput,
-        output_serializer=AuthorSerializer,         # DRF ModelSerializer
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            output_serializer=AuthorSerializer,         # DRF ModelSerializer
+        ),
     )
 ```
 
@@ -480,39 +520,51 @@ class AuthorDetailSerializer(DataclassSerializer):
         dataclass = AuthorDetail
 
 
+_author_detail = SelectorSpec(
+    kind=SelectorKind.RETRIEVE,
+    output_serializer=AuthorDetailSerializer,
+)
+
+
 class AuthorViewSet(ServiceViewSet):
     queryset = Author.objects.all()
     action_specs = {
         "list": SelectorSpec(
+            kind=SelectorKind.LIST,
             selector=list_authors,
             output_serializer=AuthorListItemSerializer,
         ),
         "retrieve": SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
             selector=get_author,
             output_serializer=AuthorDetailSerializer,
         ),
         "create": ServiceSpec(
             service=create_author,
             input_serializer=CreateAuthorInput,
-            output_serializer=AuthorDetailSerializer,
+            output_selector_spec=_author_detail,
         ),
         "update": ServiceSpec(
             service=update_author,
             input_serializer=UpdateAuthorInput,
-            output_serializer=AuthorDetailSerializer,
+            output_selector_spec=_author_detail,
         ),
         "destroy": ServiceSpec(service=delete_author),
     }
 ```
 
 `action_specs` is a single action-keyed mapping wiring every action.
-Read-side actions (`"list"`, `"retrieve"`) take a `SelectorSpec`;
-write-side actions take a `ServiceSpec`. Per-action serializers live on
-the spec's `output_serializer` field — `ActionSerializerResolver` (already
-mixed into `ServiceViewSet` and `SelectorViewSet`) reads them when DRF
-calls `get_serializer_class()`. An absent entry on a write action returns
-`405 Method Not Allowed`; a wrong-type entry (e.g. `SelectorSpec` on
-`create`) raises `ImproperlyConfigured` at request time.
+Read-side actions (`"list"`, `"retrieve"`) take a `SelectorSpec` whose
+`kind` must match (`LIST` for `"list"`, `RETRIEVE` for `"retrieve"`);
+write-side actions take a `ServiceSpec`. Per-action response serializers
+live on the spec — `output_serializer` for `SelectorSpec` and
+`output_selector_spec.output_serializer` for `ServiceSpec`.
+`ActionSerializerResolver` (already mixed into `ServiceViewSet` and
+`SelectorViewSet`) reads them when DRF calls `get_serializer_class()`.
+An absent entry on a write action returns `405 Method Not Allowed`; a
+wrong-type entry (e.g. `SelectorSpec` on `create`) raises
+`ImproperlyConfigured` at request time, and a kind / mount-point
+mismatch raises fail-fast at `as_view()`.
 
 Mix `ModelSerializer` and `DataclassSerializer` per action freely — the
 viewset doesn't distinguish between them.
@@ -532,6 +584,7 @@ you need:
 ```python
 from rest_framework_services import (
     ActionSerializerResolver,
+    SelectorKind,
     SelectorListMixin,
     SelectorRetrieveMixin,
     SelectorSpec,
@@ -546,8 +599,12 @@ class AuthorReadOnly(
 ):
     queryset = Author.objects.all()
     action_specs = {
-        "list": SelectorSpec(output_serializer=AuthorListItemSerializer),
-        "retrieve": SelectorSpec(output_serializer=AuthorDetailSerializer),
+        "list": SelectorSpec(
+            kind=SelectorKind.LIST, output_serializer=AuthorListItemSerializer
+        ),
+        "retrieve": SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=AuthorDetailSerializer
+        ),
     }
 ```
 
@@ -559,18 +616,24 @@ Per-action serializer dispatch driven by `action_specs`:
 
 ```python
 action_specs = {
-    "list": SelectorSpec(output_serializer=ListSerializer),
-    "retrieve": SelectorSpec(output_serializer=DetailSerializer),
+    "list": SelectorSpec(kind=SelectorKind.LIST, output_serializer=ListSerializer),
+    "retrieve": SelectorSpec(
+        kind=SelectorKind.RETRIEVE, output_serializer=DetailSerializer
+    ),
     "my_custom_action": ServiceSpec(
         service=my_action,
-        output_serializer=CustomSerializer,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=CustomSerializer
+        ),
     ),
 }
 ```
 
-`get_serializer_class()` reads `output_serializer` from the active
-action's spec and falls back to DRF's standard `serializer_class` when the
-action has no spec or the spec has no `output_serializer`.
+`get_serializer_class()` reads the response serializer from the active
+action's spec (`SelectorSpec.output_serializer` for reads,
+`ServiceSpec.output_selector_spec.output_serializer` for writes) and
+falls back to DRF's standard `serializer_class` when the action has no
+spec or the spec has no serializer set.
 
 ### `@service_action`
 
@@ -607,7 +670,10 @@ class InvoiceViewSet(ServiceViewSet):
         ServiceSpec(
             service=approve_invoice,
             input_serializer=ApproveInput,
-            output_serializer=InvoiceDetailSerializer,
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                output_serializer=InvoiceDetailSerializer,
+            ),
         ),
         detail=True,
         methods=["post"],

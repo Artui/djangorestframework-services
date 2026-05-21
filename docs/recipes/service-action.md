@@ -15,7 +15,13 @@ out).
 from dataclasses import dataclass
 
 from rest_framework_dataclasses.serializers import DataclassSerializer
-from rest_framework_services import ServiceSpec, ServiceViewSet, service_action
+from rest_framework_services import (
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
+    ServiceViewSet,
+    service_action,
+)
 
 
 @dataclass
@@ -51,7 +57,10 @@ class InvoiceViewSet(ServiceViewSet):
         ServiceSpec(
             service=approve_invoice,
             input_serializer=ApproveInput,
-            output_serializer=InvoiceDetailSerializer,
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                output_serializer=InvoiceDetailSerializer,
+            ),
         ),
         detail=True,
         methods=["post"],
