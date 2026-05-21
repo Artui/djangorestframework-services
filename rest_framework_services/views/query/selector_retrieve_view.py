@@ -10,7 +10,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import BaseSerializer
 
-from rest_framework_services.selectors.utils import dispatch_retrieve_selector
+from rest_framework_services.selectors.utils import dispatch_selector_for_spec
+from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.spec_validation import validate_selector_view_spec
 from rest_framework_services.views.utils import get_class_attr, layer_serializer_context
@@ -36,7 +37,7 @@ class SelectorRetrieveView(RetrieveModelMixin, GenericAPIView):
 
     @classmethod
     def as_view(cls, **initkwargs: Any) -> Any:
-        validate_selector_view_spec(cls)
+        validate_selector_view_spec(cls, expected_kind=SelectorKind.RETRIEVE)
         return super().as_view(**initkwargs)
 
     def get_selector_kwargs(self) -> dict[str, Any]:
@@ -72,7 +73,7 @@ class SelectorRetrieveView(RetrieveModelMixin, GenericAPIView):
         s: SelectorSpec | None = get_class_attr(self, "spec")
         if s is None or s.selector is None:
             return super().get_object()
-        return dispatch_retrieve_selector(self, s, extra_url_kwargs=self.kwargs)
+        return dispatch_selector_for_spec(self, s, extra_url_kwargs=self.kwargs)
 
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         return self.retrieve(request, *args, **kwargs)

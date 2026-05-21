@@ -15,8 +15,6 @@ signature via `**extras: Unpack[YourKw]` — see
 
 ::: rest_framework_services.selectors.retrieve_selector.RetrieveSelector
 
-::: rest_framework_services.selectors.output_selector.OutputSelector
-
 ## Helpers
 
 ### `call_selector`

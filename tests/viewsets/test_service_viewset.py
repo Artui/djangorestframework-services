@@ -9,7 +9,7 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.test import APIRequestFactory
 
-from rest_framework_services import SelectorSpec, ServiceSpec, ServiceViewSet
+from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec, ServiceViewSet
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -44,17 +44,25 @@ def _delete_author(*, instance: Author) -> None:
 class _AuthorViewSet(ServiceViewSet):
     queryset = Author.objects.all()
     action_specs = {
-        "list": SelectorSpec(selector=_list_authors, output_serializer=AuthorSerializer),
-        "retrieve": SelectorSpec(selector=_get_author, output_serializer=AuthorSerializer),
+        "list": SelectorSpec(
+            kind=SelectorKind.LIST, selector=_list_authors, output_serializer=AuthorSerializer
+        ),
+        "retrieve": SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_get_author, output_serializer=AuthorSerializer
+        ),
         "create": ServiceSpec(
             service=_create_author,
             input_serializer=_AuthorIn,
-            output_serializer=AuthorSerializer,
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+            ),
         ),
         "update": ServiceSpec(
             service=_update_author,
             input_serializer=_AuthorIn,
-            output_serializer=AuthorSerializer,
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+            ),
         ),
         "destroy": ServiceSpec(service=_delete_author),
     }
@@ -153,7 +161,11 @@ class TestServiceViewSetActions:
 
         class _View(ServiceViewSet):
             action_specs = {
-                "list": SelectorSpec(selector=listed, output_serializer=AuthorSerializer),
+                "list": SelectorSpec(
+                    kind=SelectorKind.LIST,
+                    selector=listed,
+                    output_serializer=AuthorSerializer,
+                ),
                 "create": ServiceSpec(service=created, input_serializer=_AuthorIn),
             }
 
@@ -191,6 +203,7 @@ class TestServiceViewSetActions:
         class _View(ServiceViewSet):
             action_specs = {
                 "list": SelectorSpec(
+                    kind=SelectorKind.LIST,
                     selector=listed,
                     output_serializer=AuthorSerializer,
                     kwargs=list_kwargs,
@@ -348,7 +361,11 @@ class TestServiceViewSetActions:
 
         class _View(ServiceViewSet):
             action_specs = {
-                "list": SelectorSpec(selector=listed, output_serializer=AuthorSerializer),
+                "list": SelectorSpec(
+                    kind=SelectorKind.LIST,
+                    selector=listed,
+                    output_serializer=AuthorSerializer,
+                ),
             }
 
             def get_selector_kwargs(self) -> dict[str, Any]:
@@ -369,7 +386,7 @@ class TestServiceViewSetFallbacks:
         class _View(ServiceViewSet):
             queryset = Author.objects.all().order_by("id")
             action_specs = {
-                "list": SelectorSpec(output_serializer=AuthorSerializer),
+                "list": SelectorSpec(kind=SelectorKind.LIST, output_serializer=AuthorSerializer),
             }
 
         view = _View.as_view({"get": "list"})
@@ -383,7 +400,9 @@ class TestServiceViewSetFallbacks:
         class _View(ServiceViewSet):
             queryset = Author.objects.all()
             action_specs = {
-                "retrieve": SelectorSpec(output_serializer=AuthorSerializer),
+                "retrieve": SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
             }
 
         view = _View.as_view({"get": "retrieve"})
@@ -405,7 +424,11 @@ class TestServiceViewSetEdgeCases:
 
         class _View(ServiceViewSet):
             action_specs = {
-                "retrieve": SelectorSpec(selector=strict, output_serializer=AuthorSerializer),
+                "retrieve": SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=strict,
+                    output_serializer=AuthorSerializer,
+                ),
             }
 
         view = _View.as_view({"get": "retrieve"})
@@ -439,7 +462,9 @@ class TestServiceViewSetEdgeCases:
                 "create": ServiceSpec(
                     service=fn,
                     input_serializer=_AuthorIn,
-                    output_selector=selector,
+                    output_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE, selector=selector
+                    ),
                     atomic=False,
                 ),
             }
@@ -471,7 +496,11 @@ class TestServiceViewSetEdgeCases:
             queryset = Author.objects.all()
             action_specs = {
                 "destroy": ServiceSpec(
-                    service=fn, output_serializer=AuthorSerializer, atomic=False
+                    service=fn,
+                    output_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                    ),
+                    atomic=False,
                 ),
             }
 
@@ -485,7 +514,7 @@ class TestServiceViewSetEdgeCases:
             queryset = Author.objects.all()
             serializer_class = AuthorSerializer
             action_specs = {
-                "list": SelectorSpec(output_serializer=AuthorSerializer),
+                "list": SelectorSpec(kind=SelectorKind.LIST, output_serializer=AuthorSerializer),
             }
 
         instance = _View()
@@ -532,7 +561,7 @@ class TestServiceViewSetUnconfigured:
     def test_create_with_selector_spec_raises_improperly_configured(self) -> None:
         class _View(ServiceViewSet):
             action_specs = {
-                "create": SelectorSpec(selector=lambda: None),
+                "create": SelectorSpec(kind=SelectorKind.LIST, selector=lambda: None),
             }
 
         view = _View.as_view({"post": "create"})
@@ -545,7 +574,7 @@ class TestServiceViewSetUnconfigured:
         class _View(ServiceViewSet):
             queryset = Author.objects.all()
             action_specs = {
-                "update": SelectorSpec(selector=lambda: None),
+                "update": SelectorSpec(kind=SelectorKind.RETRIEVE, selector=lambda: None),
             }
 
         view = _View.as_view({"put": "update"})
@@ -558,7 +587,7 @@ class TestServiceViewSetUnconfigured:
         class _View(ServiceViewSet):
             queryset = Author.objects.all()
             action_specs = {
-                "destroy": SelectorSpec(selector=lambda: None),
+                "destroy": SelectorSpec(kind=SelectorKind.RETRIEVE, selector=lambda: None),
             }
 
         view = _View.as_view({"delete": "destroy"})

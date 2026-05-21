@@ -9,7 +9,7 @@ import pytest
 from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet
 
-from rest_framework_services import ServiceSpec, service_action
+from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec, service_action
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -191,7 +191,13 @@ class TestServiceAction:
 
         class _View(GenericViewSet):
             @service_action(
-                ServiceSpec(service=fn, output_selector=selector, atomic=False),
+                ServiceSpec(
+                    service=fn,
+                    output_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE, selector=selector
+                    ),
+                    atomic=False,
+                ),
                 detail=False,
                 methods=["post"],
             )
@@ -212,7 +218,13 @@ class TestServiceAction:
 
         class _View(GenericViewSet):
             @service_action(
-                ServiceSpec(service=fn, output_serializer=_Serializer, atomic=False),
+                ServiceSpec(
+                    service=fn,
+                    output_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE, output_serializer=_Serializer
+                    ),
+                    atomic=False,
+                ),
                 detail=False,
                 methods=["post"],
             )
@@ -251,7 +263,13 @@ class TestServiceAction:
             queryset = Author.objects.all()
 
             @service_action(
-                ServiceSpec(service=fn, output_serializer=Ser, atomic=False),
+                ServiceSpec(
+                    service=fn,
+                    output_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE, output_serializer=Ser
+                    ),
+                    atomic=False,
+                ),
                 detail=True,
                 methods=["post"],
             )

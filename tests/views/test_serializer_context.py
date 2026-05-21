@@ -18,6 +18,8 @@ from rest_framework import serializers
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
+    SelectorKind,
+    SelectorSpec,
     ServiceCreateView,
     ServiceSpec,
     ServiceUpdateView,
@@ -80,6 +82,14 @@ class _ContextCapturingOutputSerializer(serializers.ModelSerializer):
 def _reset_capture() -> None:
     _ContextCapturingInputSerializer.captured = {}
     _ContextCapturingOutputSerializer.captured = {}
+
+
+def _output_capturing_spec(**extra: Any) -> SelectorSpec[Any, Any]:
+    return SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        output_serializer=_ContextCapturingOutputSerializer,
+        **extra,
+    )
 
 
 @pytest.mark.django_db
@@ -148,8 +158,8 @@ class TestInputSerializerContext:
             spec = ServiceSpec(
                 service=lambda **_: {"id": 1, "name": "x"},
                 input_serializer=_ContextCapturingInputSerializer,
-                output_serializer=_ContextCapturingOutputSerializer,
                 atomic=False,
+                output_selector_spec=_output_capturing_spec(),
             )
 
             def get_input_serializer_context(self) -> dict[str, Any]:
@@ -173,8 +183,8 @@ class TestOutputSerializerContext:
         class _View(ServiceCreateView):
             spec = ServiceSpec(
                 service=staticmethod(lambda: author),
-                output_serializer=_ContextCapturingOutputSerializer,
                 atomic=False,
+                output_selector_spec=_output_capturing_spec(),
             )
 
         request = factory.post("/", {}, format="json")
@@ -192,8 +202,8 @@ class TestOutputSerializerContext:
         class _View(ServiceCreateView):
             spec = ServiceSpec(
                 service=staticmethod(lambda: author),
-                output_serializer=_ContextCapturingOutputSerializer,
                 atomic=False,
+                output_selector_spec=_output_capturing_spec(),
             )
 
             def get_output_serializer_context(self) -> dict[str, Any]:
@@ -213,8 +223,8 @@ class TestOutputSerializerContext:
             spec = ServiceSpec(
                 service=staticmethod(lambda: author),
                 input_serializer=_ContextCapturingInputSerializer,
-                output_serializer=_ContextCapturingOutputSerializer,
                 atomic=False,
+                output_selector_spec=_output_capturing_spec(),
             )
 
             def get_output_serializer_context(self) -> dict[str, Any]:
@@ -245,12 +255,12 @@ class TestPerActionContextOnViewset:
                 "create": ServiceSpec(
                     service=_create_author_from_dict,
                     input_serializer=_ContextCapturingInputSerializer,
-                    output_serializer=_ContextCapturingOutputSerializer,
+                    output_selector_spec=_output_capturing_spec(),
                 ),
                 "update": ServiceSpec(
                     service=_update_author_from_dict,
                     input_serializer=_ContextCapturingInputSerializer,
-                    output_serializer=_ContextCapturingOutputSerializer,
+                    output_selector_spec=_output_capturing_spec(),
                 ),
             }
 
@@ -294,7 +304,7 @@ class TestStandaloneViewActionIsNone:
             spec = ServiceSpec(
                 service=_update_author_from_dict,
                 input_serializer=_ContextCapturingInputSerializer,
-                output_serializer=_ContextCapturingOutputSerializer,
+                output_selector_spec=_output_capturing_spec(),
             )
 
             def get_update_input_serializer_context(self) -> dict[str, Any]:
@@ -397,7 +407,7 @@ class TestSelectorActionContext:
     def test_collection_action_default_context(self) -> None:
         from rest_framework.viewsets import GenericViewSet
 
-        from rest_framework_services import SelectorSpec, selector_action
+        from rest_framework_services import selector_action
 
         Author.objects.create(name="x")
         capturing = _capturing_serializer_factory()
@@ -408,10 +418,10 @@ class TestSelectorActionContext:
 
             @selector_action(
                 SelectorSpec(
+                    kind=SelectorKind.LIST,
                     selector=lambda **_: list(Author.objects.all()),
                     output_serializer=capturing,
                 ),
-                detail=False,
             )
             def active(self, request):  # type: ignore[no-untyped-def]
                 """Stubbed."""
@@ -426,7 +436,7 @@ class TestSelectorActionContext:
     def test_action_specific_output_hook(self) -> None:
         from rest_framework.viewsets import GenericViewSet
 
-        from rest_framework_services import SelectorSpec, selector_action
+        from rest_framework_services import selector_action
 
         Author.objects.create(name="x")
         capturing = _capturing_serializer_factory()
@@ -437,10 +447,10 @@ class TestSelectorActionContext:
 
             @selector_action(
                 SelectorSpec(
+                    kind=SelectorKind.LIST,
                     selector=lambda **_: list(Author.objects.all()),
                     output_serializer=capturing,
                 ),
-                detail=False,
             )
             def active(self, request):  # type: ignore[no-untyped-def]
                 """Stubbed."""
@@ -481,9 +491,9 @@ class TestServiceSpecInputContext:
             spec = ServiceSpec(
                 service=lambda **_: {"id": 1, "name": "x"},
                 input_serializer=_ContextCapturingInputSerializer,
-                output_serializer=_ContextCapturingOutputSerializer,
                 atomic=False,
                 input_serializer_context=lambda view, req: {"input_only": True},
+                output_selector_spec=_output_capturing_spec(),
             )
 
         _View.as_view()(factory.post("/", {"name": "x"}, format="json"))
@@ -545,9 +555,10 @@ class TestServiceSpecOutputContext:
             spec = ServiceSpec(
                 service=_create_author,
                 input_serializer=_AuthorIn,
-                output_serializer=_ContextCapturingOutputSerializer,
                 atomic=False,
-                output_serializer_context=lambda view, req: {"spec_key": "output"},
+                output_selector_spec=_output_capturing_spec(
+                    output_serializer_context=lambda view, req: {"spec_key": "output"},
+                ),
             )
 
         _View.as_view()(factory.post("/", {"name": "y"}, format="json"))
@@ -562,9 +573,10 @@ class TestServiceSpecOutputContext:
                 "create": ServiceSpec(
                     service=_create_author,
                     input_serializer=_AuthorIn,
-                    output_serializer=_ContextCapturingOutputSerializer,
                     atomic=False,
-                    output_serializer_context=lambda view, req: {"layer": "spec"},
+                    output_selector_spec=_output_capturing_spec(
+                        output_serializer_context=lambda view, req: {"layer": "spec"},
+                    ),
                 ),
             }
 
@@ -581,13 +593,14 @@ class TestSelectorSpecOutputContext:
     """SelectorSpec.output_serializer_context is honored by every entry point."""
 
     def test_selector_list_view_honors_spec(self) -> None:
-        from rest_framework_services import SelectorListView, SelectorSpec
+        from rest_framework_services import SelectorListView
 
         Author.objects.create(name="x")
         capturing = _capturing_serializer_factory()
 
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 selector=lambda: list(Author.objects.all()),
                 output_serializer=capturing,
                 output_serializer_context=lambda view, req: {"from_spec": True},
@@ -597,13 +610,14 @@ class TestSelectorSpecOutputContext:
         assert capturing.captured["from_spec"] is True
 
     def test_selector_retrieve_view_honors_spec(self) -> None:
-        from rest_framework_services import SelectorRetrieveView, SelectorSpec
+        from rest_framework_services import SelectorRetrieveView
 
         author = Author.objects.create(name="x")
         capturing = _capturing_serializer_factory()
 
         class _View(SelectorRetrieveView):
             spec = SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
                 selector=lambda pk: Author.objects.filter(pk=pk).first(),
                 output_serializer=capturing,
                 output_serializer_context=lambda view, req: {"from_spec": True},
@@ -613,7 +627,7 @@ class TestSelectorSpecOutputContext:
         assert capturing.captured["from_spec"] is True
 
     def test_selector_list_mixin_honors_spec(self) -> None:
-        from rest_framework_services import SelectorSpec, SelectorViewSet
+        from rest_framework_services import SelectorViewSet
 
         Author.objects.create(name="x")
         capturing = _capturing_serializer_factory()
@@ -622,6 +636,7 @@ class TestSelectorSpecOutputContext:
             queryset = Author.objects.all()
             action_specs = {
                 "list": SelectorSpec(
+                    kind=SelectorKind.LIST,
                     selector=lambda: list(Author.objects.all()),
                     output_serializer=capturing,
                     output_serializer_context=lambda view, req: {"from_spec": True},
@@ -632,7 +647,7 @@ class TestSelectorSpecOutputContext:
         assert capturing.captured["from_spec"] is True
 
     def test_selector_retrieve_mixin_honors_spec(self) -> None:
-        from rest_framework_services import SelectorSpec, SelectorViewSet
+        from rest_framework_services import SelectorViewSet
 
         author = Author.objects.create(name="x")
         capturing = _capturing_serializer_factory()
@@ -641,6 +656,7 @@ class TestSelectorSpecOutputContext:
             queryset = Author.objects.all()
             action_specs = {
                 "retrieve": SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
                     selector=lambda pk: Author.objects.filter(pk=pk).first(),
                     output_serializer=capturing,
                     output_serializer_context=lambda view, req: {"from_spec": True},
@@ -653,7 +669,7 @@ class TestSelectorSpecOutputContext:
     def test_selector_action_decorator_honors_spec(self) -> None:
         from rest_framework.viewsets import GenericViewSet
 
-        from rest_framework_services import SelectorSpec, selector_action
+        from rest_framework_services import selector_action
 
         Author.objects.create(name="x")
         capturing = _capturing_serializer_factory()
@@ -664,11 +680,11 @@ class TestSelectorSpecOutputContext:
 
             @selector_action(
                 SelectorSpec(
+                    kind=SelectorKind.LIST,
                     selector=lambda: list(Author.objects.all()),
                     output_serializer=capturing,
                     output_serializer_context=lambda view, req: {"from_spec": True},
                 ),
-                detail=False,
             )
             def active(self, request):  # type: ignore[no-untyped-def]
                 """Stubbed."""
@@ -678,7 +694,7 @@ class TestSelectorSpecOutputContext:
 
     def test_per_action_output_hook_honored_alongside_spec_on_viewset(self) -> None:
         """The action-level view hook still applies; the spec wins on overlap."""
-        from rest_framework_services import SelectorSpec, SelectorViewSet
+        from rest_framework_services import SelectorViewSet
 
         Author.objects.create(name="x")
         capturing = _capturing_serializer_factory()
@@ -687,6 +703,7 @@ class TestSelectorSpecOutputContext:
             queryset = Author.objects.all()
             action_specs = {
                 "list": SelectorSpec(
+                    kind=SelectorKind.LIST,
                     selector=lambda: list(Author.objects.all()),
                     output_serializer=capturing,
                     output_serializer_context=lambda view, req: {"layer": "spec"},
@@ -703,9 +720,9 @@ class TestSelectorSpecOutputContext:
     def test_mutation_action_in_action_specs_does_not_apply_spec_in_view_context(
         self,
     ) -> None:
-        """ServiceSpec.output_serializer_context is honored by the mutation flow,
-        not by the view-level get_serializer_context override (which would
-        double-apply it and bleed it into the input direction)."""
+        """ServiceSpec.output_selector_spec.output_serializer_context is honored by
+        the mutation flow, not by the view-level get_serializer_context override
+        (which would double-apply it and bleed it into the input direction)."""
         _reset_capture()
 
         class _ViewSet(ServiceViewSet):
@@ -714,9 +731,10 @@ class TestSelectorSpecOutputContext:
                 "create": ServiceSpec(
                     service=_create_author_from_dict,
                     input_serializer=_ContextCapturingInputSerializer,
-                    output_serializer=_ContextCapturingOutputSerializer,
                     atomic=False,
-                    output_serializer_context=lambda view, req: {"output_only": True},
+                    output_selector_spec=_output_capturing_spec(
+                        output_serializer_context=lambda view, req: {"output_only": True},
+                    ),
                 ),
             }
 

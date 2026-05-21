@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from rest_framework.test import APIRequestFactory
 
-from rest_framework_services import SelectorSpec, SelectorViewSet
+from rest_framework_services import SelectorKind, SelectorSpec, SelectorViewSet
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -22,8 +22,12 @@ def _get_author(*, pk: int) -> Author | None:
 
 class _AuthorReadOnly(SelectorViewSet):
     action_specs = {
-        "list": SelectorSpec(selector=_list_authors, output_serializer=AuthorSerializer),
-        "retrieve": SelectorSpec(selector=_get_author, output_serializer=AuthorSerializer),
+        "list": SelectorSpec(
+            kind=SelectorKind.LIST, selector=_list_authors, output_serializer=AuthorSerializer
+        ),
+        "retrieve": SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_get_author, output_serializer=AuthorSerializer
+        ),
     }
 
 
@@ -55,7 +59,11 @@ class TestSelectorViewSet:
 
         class _View(SelectorViewSet):
             action_specs = {
-                "list": SelectorSpec(selector=tenant_list, output_serializer=AuthorSerializer),
+                "list": SelectorSpec(
+                    kind=SelectorKind.LIST,
+                    selector=tenant_list,
+                    output_serializer=AuthorSerializer,
+                ),
             }
 
             def get_selector_kwargs(self) -> dict[str, Any]:
@@ -76,7 +84,11 @@ class TestSelectorViewSet:
 
         class _View(SelectorViewSet):
             action_specs = {
-                "retrieve": SelectorSpec(selector=strict, output_serializer=AuthorSerializer),
+                "retrieve": SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=strict,
+                    output_serializer=AuthorSerializer,
+                ),
             }
 
         view = _View.as_view({"get": "retrieve"})

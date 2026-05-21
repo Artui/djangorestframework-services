@@ -13,6 +13,8 @@ import pytest
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
+    SelectorKind,
+    SelectorSpec,
     ServiceCreateView,
     ServiceSpec,
     create_model,
@@ -30,7 +32,9 @@ class _CreateAuthorView(ServiceCreateView):
     spec = ServiceSpec(
         service=create_model(Author),
         input_serializer=_CreateAuthorInput,
-        output_serializer=AuthorSerializer,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+        ),
     )
 
 

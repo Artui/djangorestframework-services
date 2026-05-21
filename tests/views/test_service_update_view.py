@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from rest_framework.test import APIRequestFactory
 
-from rest_framework_services import ServiceSpec, ServiceUpdateView
+from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec, ServiceUpdateView
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -29,7 +29,9 @@ class _UpdateAuthorView(ServiceUpdateView):
     spec = ServiceSpec(
         service=_update_author,
         input_serializer=_UpdateAuthorInput,
-        output_serializer=AuthorSerializer,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+        ),
     )
 
 
@@ -75,7 +77,9 @@ class TestServiceUpdateView:
             spec = ServiceSpec(
                 service=_update_author,
                 input_serializer=_UpdateAuthorInput,
-                output_serializer=AuthorSerializer,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
             )
 
             def get_object(self) -> Any:
@@ -98,7 +102,7 @@ class TestServiceUpdateView:
             spec = ServiceSpec(
                 service=_update_author,
                 input_serializer=_UpdateAuthorInput,
-                output_selector=selector,
+                output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector),
             )
 
         request = factory.patch("/", {"name": "fresh"}, format="json")
@@ -129,7 +133,12 @@ class TestServiceUpdateView:
 
         class _View(ServiceUpdateView):
             queryset = Author.objects.all()
-            spec = ServiceSpec(service=fn, output_serializer=AuthorSerializer)
+            spec = ServiceSpec(
+                service=fn,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
+            )
 
         author = Author.objects.create(name="hi")
         request = factory.put("/", {}, format="json")
@@ -147,7 +156,9 @@ class TestServiceUpdateView:
         class _View(ServiceUpdateView):
             queryset = Author.objects.all()
             spec = ServiceSpec(
-                service=fn, input_serializer=_UpdateAuthorInput, output_selector=selector
+                service=fn,
+                input_serializer=_UpdateAuthorInput,
+                output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector),
             )
 
         author = Author.objects.create(name="x")
@@ -170,7 +181,9 @@ class TestServiceUpdateView:
             spec = ServiceSpec(
                 service=void_update,
                 input_serializer=_UpdateAuthorInput,
-                output_serializer=AuthorSerializer,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
             )
 
         request = factory.patch("/", {"name": "renamed"}, format="json")

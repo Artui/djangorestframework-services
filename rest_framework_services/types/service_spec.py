@@ -6,12 +6,10 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
-from django.db.models import QuerySet
-from django.db.models.query import Prefetch
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
-from rest_framework.serializers import Serializer
 
+from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_view import ServiceView
 
 InputT = TypeVar("InputT")
@@ -32,18 +30,17 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     - ``InputT`` — the validated-data type produced by ``input_serializer``.
       For dataclass-based serializers this is the dataclass; for plain
       ``ModelSerializer`` it is typically ``dict[str, Any]``.
-    - ``ResultT`` — the value returned by the service callable, the input to
-      ``output_selector`` (when set), and the value rendered by
-      ``output_serializer``.
+    - ``ResultT`` — the value returned by the service callable, and (when
+      ``output_selector_spec`` is set) the input to its ``selector``.
     - ``ExtraT`` — a ``TypedDict`` describing the keys returned by ``kwargs``.
 
     All three default to ``Any``, so ``ServiceSpec(service=fn)`` keeps working
     unchanged.
 
     Fields are grouped by what they configure: the service callable itself,
-    the input pipeline (``input_*``), the output pipeline (``output_*``
-    plus the queryset-shaping fields, which attach to ``output_selector``),
-    and the cross-cutting concerns (``kwargs``, ``permission_classes``).
+    the input pipeline (``input_*``), the output pipeline (a single nested
+    :class:`SelectorSpec`), and the cross-cutting concerns (``kwargs``,
+    ``permission_classes``).
 
     ``success_status`` is left as ``None`` so each consumer can supply its
     own action-appropriate default (201 for create, 200 for update, 204
@@ -55,25 +52,27 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     (e.g. parent IDs from nested routes) into fields the serializer can
     cross-validate. Server-provided keys win on conflict.
 
-    ``input_serializer_context`` and ``output_serializer_context`` are
-    per-spec hooks for the serializer ``context=`` dict. They sit at the
-    most-specific layer of the resolution chain
-    (``view.get_serializer_context`` →
-    ``view.get_<direction>_serializer_context`` →
-    ``view.get_<action>_<direction>_serializer_context`` → spec hook), so
-    the spec wins on overlapping keys. ``None`` (the default) leaves the
-    three earlier layers intact.
+    ``input_serializer_context`` is a per-spec hook for the input
+    serializer's ``context=`` dict. It sits at the most-specific layer of
+    the resolution chain (``view.get_serializer_context`` →
+    ``view.get_input_serializer_context`` →
+    ``view.get_<action>_input_serializer_context`` → spec hook), so the
+    spec wins on overlapping keys. ``None`` (the default) leaves the
+    three earlier layers intact. The symmetrical output hook lives on the
+    nested ``output_selector_spec.output_serializer_context``.
 
-    ``select_related`` / ``prefetch_related`` / ``annotations`` /
-    ``extend_queryset`` shape the queryset returned by ``output_selector``
-    before the framework materializes a single instance via ``.first()``.
-    Use these when the output_selector re-fetches the freshly-mutated
-    instance with relations the response serializer will read. Identical
-    semantics to the same-named fields on :class:`SelectorSpec`. All four
-    require ``output_selector`` to be set; configuring them without one
-    raises :exc:`~django.core.exceptions.ImproperlyConfigured` at
-    ``as_view()`` time, and a non-QuerySet ``output_selector`` return
-    raises at request time.
+    ``output_selector_spec`` is the full output pipeline collapsed into a
+    single :class:`SelectorSpec`. Its ``kind`` must be
+    :attr:`SelectorKind.RETRIEVE` (the post-mutation re-fetch always
+    materializes a single instance). Set it to render the response through
+    a different shape than what the service returned (typical pattern: the
+    service returns a freshly created/updated instance, the
+    ``output_selector_spec.selector`` re-fetches it with the relations the
+    response serializer needs, and the spec's ``output_serializer``
+    renders the result). ``None`` (the default) means "render the service's
+    return value directly". The nested spec's ``permission_classes`` and
+    ``kwargs`` are ignored — the surrounding mutation's permissions and
+    kwargs chain apply.
 
     ``kwargs`` is a callable that returns extra kwargs to merge into the
     pool the service receives. Co-locating it with the spec lets each action
@@ -99,15 +98,9 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     input_data: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
     input_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
 
-    # Output pipeline (selector → serializer → context) and the shaping
-    # fields that hang off ``output_selector``.
-    output_selector: Callable[..., Any] | None = None
-    output_serializer: type[Serializer] | None = None
-    output_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
-    select_related: Sequence[str] | None = None
-    prefetch_related: Sequence[str | Prefetch] | None = None
-    annotations: Mapping[str, Any] | None = None
-    extend_queryset: Callable[[QuerySet[Any], ServiceView, Request], QuerySet[Any]] | None = None
+    # Output pipeline — the full re-fetch / serialize / shape group lives
+    # inside a nested SelectorSpec (kind=RETRIEVE).
+    output_selector_spec: SelectorSpec[Any, Any] | None = None
 
     # Cross-cutting.
     kwargs: Callable[[ServiceView, Request], ExtraT] | None = None

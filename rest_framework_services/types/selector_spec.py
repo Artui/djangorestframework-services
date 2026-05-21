@@ -12,26 +12,43 @@ from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 from rest_framework.serializers import Serializer
 
+from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.service_view import ServiceView
 
 ResultT = TypeVar("ResultT")
 ExtraT = TypeVar("ExtraT", bound=Mapping[str, object])
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class SelectorSpec(Generic[ResultT, ExtraT]):
     """All wiring for a single read action in one record.
 
-    Used as a value in ``action_specs`` on viewsets and as the ``spec=``
-    argument to :class:`SelectorListView` / :class:`SelectorRetrieveView`.
+    Used as a value in ``action_specs`` on viewsets, as the ``spec=``
+    argument to :class:`SelectorListView` / :class:`SelectorRetrieveView`,
+    and as the ``output_selector_spec`` field on :class:`ServiceSpec`
+    (where it describes the post-mutation re-fetch).
 
     Generic parameters (both default to ``Any``):
 
     - ``ResultT`` — the selector's return type.
     - ``ExtraT`` — a ``TypedDict`` describing the keys returned by ``kwargs``.
 
+    All fields are keyword-only: ``SelectorSpec(kind=SelectorKind.LIST,
+    selector=fn)`` rather than positional. ``kind`` is required and has no
+    default — see below.
+
     Fields:
 
+    - **``kind``** — required :class:`SelectorKind` discriminator (``LIST`` vs
+      ``RETRIEVE``). Drives the dispatcher: ``RETRIEVE`` materializes a
+      QuerySet via ``.first()`` and raises
+      :exc:`~rest_framework.exceptions.NotFound` on ``None`` / missing-object,
+      ``LIST`` returns whatever the selector returns unchanged. Also drives
+      the fail-fast check that the spec is mounted on a compatible view (a
+      ``LIST`` spec on :class:`SelectorRetrieveView` raises at ``as_view()``).
+      Making it explicit lets a spec be reused outside a request — from a
+      management command, a cron job, or any non-DRF caller — without the
+      semantics living implicitly in the call site.
     - **``selector``** — callable invoked by ``get_queryset()`` (list) or
       ``get_object()`` (retrieve). ``None`` means "use the configured
       ``queryset`` / default DRF behaviour".
@@ -48,7 +65,9 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
       sequence means "no permissions" explicitly. Forwarded through DRF's
       ``@action(permission_classes=...)`` for the ``@selector_action``
       decorator, and surfaced via ``get_permissions`` for the viewset
-      mixins and standalone views.
+      mixins and standalone views. Ignored when the spec is nested under
+      :attr:`ServiceSpec.output_selector_spec` — the surrounding mutation
+      action's permissions apply.
     - **``output_serializer_context``** — per-spec hook for the response
       serializer's ``context=`` dict. Sits at the most-specific layer of
       the resolution chain (``view.get_serializer_context`` →
@@ -79,6 +98,8 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     selector raises :exc:`ImproperlyConfigured` at ``as_view()`` time; a
     non-QuerySet return raises at request time.
     """
+
+    kind: SelectorKind
 
     # The selector callable.
     selector: Callable[..., ResultT] | None = None

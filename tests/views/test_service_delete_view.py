@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from rest_framework.test import APIRequestFactory
 
-from rest_framework_services import ServiceDeleteView, ServiceSpec
+from rest_framework_services import SelectorKind, SelectorSpec, ServiceDeleteView, ServiceSpec
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -67,7 +67,13 @@ class TestServiceDeleteView:
 
         class _View(ServiceDeleteView):
             queryset = Author.objects.all()
-            spec = ServiceSpec(service=fn, output_serializer=AuthorSerializer, success_status=200)
+            spec = ServiceSpec(
+                service=fn,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
+                success_status=200,
+            )
 
         author = Author.objects.create(name="bye")
         request = factory.delete("/")
@@ -109,7 +115,10 @@ class TestServiceDeleteView:
         class _View(ServiceDeleteView):
             queryset = Author.objects.all()
             spec = ServiceSpec(
-                service=fn, output_selector=selector, success_status=200, atomic=False
+                service=fn,
+                output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector),
+                success_status=200,
+                atomic=False,
             )
 
         author = Author.objects.create(name="bye")

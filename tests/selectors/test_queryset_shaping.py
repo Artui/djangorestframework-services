@@ -14,6 +14,7 @@ from rest_framework import serializers
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
+    SelectorKind,
     SelectorListView,
     SelectorRetrieveView,
     SelectorSpec,
@@ -71,6 +72,7 @@ class TestSelectRelated:
 
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 selector=_all_posts,
                 output_serializer=_PostWithAuthorSerializer,
                 select_related=["author"],
@@ -92,6 +94,7 @@ class TestPrefetchRelated:
 
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 selector=_all_posts,
                 output_serializer=_PostWithTagsSerializer,
                 select_related=["author"],
@@ -110,6 +113,7 @@ class TestPrefetchRelated:
 
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 selector=_all_posts,
                 output_serializer=_PostWithTagsSerializer,
                 select_related=["author"],
@@ -139,6 +143,7 @@ class TestAnnotations:
 
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 selector=_authors,
                 output_serializer=_AuthorWithCountSerializer,
                 annotations={"post_count": Count("posts")},
@@ -163,6 +168,7 @@ class TestExtendQueryset:
 
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 selector=_all_posts,
                 output_serializer=_PostWithAuthorSerializer,
                 extend_queryset=extend,
@@ -189,6 +195,7 @@ class TestExtendQueryset:
 
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 selector=_all_posts,
                 output_serializer=_PostWithTagsSerializer,
                 select_related=["author"],
@@ -216,6 +223,7 @@ class TestExtendQueryset:
 
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 selector=_all_posts,
                 output_serializer=_PostWithAuthorSerializer,
                 select_related=["author"],
@@ -235,6 +243,7 @@ class TestRetrieve:
 
         class _View(SelectorRetrieveView):
             spec = SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
                 selector=_post_qs_by_pk,
                 output_serializer=_PostWithAuthorSerializer,
                 select_related=["author"],
@@ -255,6 +264,7 @@ class TestViewsetMixins:
             queryset = Post.objects.all()
             action_specs = {
                 "list": SelectorSpec(
+                    kind=SelectorKind.LIST,
                     selector=_all_posts,
                     output_serializer=_PostWithAuthorSerializer,
                     select_related=["author"],
@@ -276,6 +286,7 @@ class TestViewsetMixins:
             queryset = Post.objects.all()
             action_specs = {
                 "retrieve": SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
                     selector=_post_qs_by_pk,
                     output_serializer=_PostWithAuthorSerializer,
                     extend_queryset=extend,
@@ -298,6 +309,7 @@ class TestViewsetMixins:
 
             @selector_action(
                 SelectorSpec(
+                    kind=SelectorKind.LIST,
                     selector=_all_posts,
                     output_serializer=_PostWithAuthorSerializer,
                     select_related=["author"],
@@ -322,6 +334,7 @@ class TestNonQuerySetReturn:
 
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 selector=_list_of_dicts,
                 output_serializer=_PostWithAuthorSerializer,
                 select_related=["author"],
@@ -335,6 +348,7 @@ class TestValidation:
     def test_shaping_without_selector_raises_at_as_view(self) -> None:
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 output_serializer=_PostWithAuthorSerializer,
                 select_related=["author"],
             )
@@ -348,6 +362,7 @@ class TestValidation:
 
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 output_serializer=_PostWithAuthorSerializer,
                 extend_queryset=extend,
             )
@@ -388,9 +403,12 @@ class TestServiceSpecShaping:
             spec = ServiceSpec(
                 service=_create_post,
                 input_serializer=_PostIn,
-                output_serializer=_PostWithAuthorSerializer,
-                output_selector=_refetch_post_qs,
-                select_related=["author"],
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=_refetch_post_qs,
+                    output_serializer=_PostWithAuthorSerializer,
+                    select_related=["author"],
+                ),
                 atomic=False,
             )
 
@@ -418,9 +436,12 @@ class TestServiceSpecShaping:
             spec = ServiceSpec(
                 service=_create_post,
                 input_serializer=_PostIn,
-                output_serializer=_PostWithAuthorSerializer,
-                output_selector=_refetch_post_qs,
-                extend_queryset=extend,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=_refetch_post_qs,
+                    output_serializer=_PostWithAuthorSerializer,
+                    extend_queryset=extend,
+                ),
                 atomic=False,
             )
 
@@ -448,8 +469,11 @@ class TestServiceSpecShaping:
             spec = ServiceSpec(
                 service=_create_post,
                 input_serializer=_PostIn,
-                output_serializer=_PostWithAuthorSerializer,
-                output_selector=_refetch_instance,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=_refetch_instance,
+                    output_serializer=_PostWithAuthorSerializer,
+                ),
                 atomic=False,
             )
 
@@ -474,9 +498,12 @@ class TestServiceSpecShaping:
             spec = ServiceSpec(
                 service=_create_post,
                 input_serializer=_PostIn,
-                output_serializer=_PostWithAuthorSerializer,
-                output_selector=_refetch_instance,
-                select_related=["author"],
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=_refetch_instance,
+                    output_serializer=_PostWithAuthorSerializer,
+                    select_related=["author"],
+                ),
                 atomic=False,
             )
 
@@ -500,9 +527,12 @@ class TestServiceSpecShaping:
                 "create": ServiceSpec(
                     service=_create_post,
                     input_serializer=_PostIn,
-                    output_serializer=_PostWithAuthorSerializer,
-                    output_selector=_refetch_post_qs,
-                    select_related=["author"],
+                    output_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE,
+                        selector=_refetch_post_qs,
+                        output_serializer=_PostWithAuthorSerializer,
+                        select_related=["author"],
+                    ),
                     atomic=False,
                 ),
             }
@@ -515,19 +545,22 @@ class TestServiceSpecShaping:
 
 
 class TestServiceSpecShapingValidation:
-    def test_shaping_without_output_selector_raises_at_as_view(self) -> None:
+    def test_shaping_without_nested_selector_raises_at_as_view(self) -> None:
         class _View(ServiceCreateView):
             spec = ServiceSpec(
                 service=_create_post,
                 input_serializer=_PostIn,
-                output_serializer=_PostWithAuthorSerializer,
-                select_related=["author"],
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    output_serializer=_PostWithAuthorSerializer,
+                    select_related=["author"],
+                ),
             )
 
-        with pytest.raises(ImproperlyConfigured, match="output_selector"):
+        with pytest.raises(ImproperlyConfigured, match="selector"):
             _View.as_view()
 
-    def test_extend_queryset_without_output_selector_raises(self) -> None:
+    def test_extend_queryset_without_nested_selector_raises(self) -> None:
         def extend(qs: Any, view: Any, request: Any) -> Any:
             return qs
 
@@ -535,11 +568,14 @@ class TestServiceSpecShapingValidation:
             spec = ServiceSpec(
                 service=_create_post,
                 input_serializer=_PostIn,
-                output_serializer=_PostWithAuthorSerializer,
-                extend_queryset=extend,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    output_serializer=_PostWithAuthorSerializer,
+                    extend_queryset=extend,
+                ),
             )
 
-        with pytest.raises(ImproperlyConfigured, match="output_selector"):
+        with pytest.raises(ImproperlyConfigured, match="selector"):
             _View.as_view()
 
 

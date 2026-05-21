@@ -9,6 +9,7 @@ from rest_framework_services.types.change_result import ChangeResult
 from rest_framework_services.types.field_change import FieldChange
 from rest_framework_services.types.http_extras import HttpExtras
 from rest_framework_services.types.no_input import NoInput
+from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.service_view import ServiceView
@@ -20,6 +21,7 @@ __all__ = [
     "FieldChange",
     "HttpExtras",
     "NoInput",
+    "SelectorKind",
     "SelectorSpec",
     "ServiceSpec",
     "ServiceView",

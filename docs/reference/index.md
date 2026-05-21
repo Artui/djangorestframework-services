@@ -77,12 +77,12 @@ from rest_framework_services import (
     AsyncSelector,
     ListSelector,
     RetrieveSelector,
-    OutputSelector,
     call_selector,
     acall_selector,
     # types
     ServiceSpec,
     SelectorSpec,
+    SelectorKind,
     ServiceView,
     ChangeResult,
     FieldChange,

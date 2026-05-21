@@ -29,8 +29,8 @@ class ServiceAutoSchema(AutoSchema):
     - Request body is derived from ``spec.input_serializer`` (a bare
       dataclass is auto-wrapped in :class:`DataclassSerializer`).
     - Response body for the success status is derived from
-      ``spec.output_serializer`` (or rendered as a no-content response when
-      unset and the action's default status is 204).
+      ``spec.output_selector_spec.output_serializer`` (or rendered as a
+      no-content response when unset and the action's default status is 204).
     - A ``422`` response documenting :class:`ServiceErrorSerializer` is
       attached so consumers know about the ``ServiceError`` contract.
     - Partial-update actions instantiate the request serializer with
@@ -78,7 +78,12 @@ class ServiceAutoSchema(AutoSchema):
         if spec is None:
             return super().get_response_serializers()
         status = spec.success_status or default_status(self.view)
-        out_cls = to_serializer_class(spec.output_serializer)
+        output_serializer = (
+            spec.output_selector_spec.output_serializer
+            if spec.output_selector_spec is not None
+            else None
+        )
+        out_cls = to_serializer_class(output_serializer)
         # spectacular accepts a Serializer subclass *or* an OpenApiResponse
         # for each status entry; mix them depending on whether a response
         # body is configured.
