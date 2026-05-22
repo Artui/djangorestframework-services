@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-05-22
+
+### Changed (breaking)
+
+- `SelectorSpec` is now keyword-only and requires a `kind: SelectorKind` field
+  (`SelectorKind.LIST` or `SelectorKind.RETRIEVE`). The kind tells the
+  dispatcher whether to materialize the selector return as a list or as a
+  single retrieve-shaped instance, and it is cross-checked against the
+  mount point at `as_view()` time — a `LIST` spec on `SelectorRetrieveView`
+  (or the `"retrieve"` `action_specs` entry) raises `ImproperlyConfigured`
+  fail-fast. Making the kind explicit lets a spec be reused outside an HTTP
+  request (management command, cron job, non-DRF caller) without the
+  semantics living implicitly in the call site.
+- `ServiceSpec`'s output pipeline is collapsed into a single nested field:
+  `output_selector_spec: SelectorSpec | None`. The previous flat fields
+  `output_selector`, `output_serializer`, `output_serializer_context`,
+  `select_related`, `prefetch_related`, `annotations`, and
+  `extend_queryset` are removed; they now live on the nested spec (whose
+  `kind` must be `SelectorKind.RETRIEVE`). The mutation dispatch path
+  validates and consumes the nested spec, and `ActionSerializerResolver`
+  reads the response serializer from `output_selector_spec.output_serializer`.
+- `OutputSelector` Protocol removed. The "post-mutation re-fetch" selector
+  is now structurally a `RetrieveSelector` (nested under
+  `ServiceSpec.output_selector_spec`) and the `result` kwarg, when needed,
+  is declared directly on the user's function signature.
+- `@selector_action`'s `detail=` parameter is removed. The DRF URL shape
+  is pinned from `spec.kind` (`LIST → detail=False`, `RETRIEVE →
+  detail=True`) — there is no longer a way to override it. If you need a
+  URL shape that doesn't match the response shape (a detail action that
+  returns a list, or a collection action that returns a single resource),
+  fall back to DRF's plain `@action` and write the dispatch yourself.
+  `@service_action` still takes `detail=` (mutation routing is decoupled
+  from the read-shape distinction).
+- The internal `dispatch_retrieve_selector` helper is folded into
+  `dispatch_selector_for_spec`, which now branches on `spec.kind`. Callers
+  outside the library should not be affected (the helpers live under
+  `selectors/utils.py` and were never part of the public API), but the
+  symbol no longer exists.
+
 ## [0.12.0] — 2026-05-20
 
 ### Added
@@ -657,7 +696,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/Artui/djangorestframework-services/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Artui/djangorestframework-services/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Artui/djangorestframework-services/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Artui/djangorestframework-services/compare/v0.9.0...v0.10.0

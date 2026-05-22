@@ -10,7 +10,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet
 
-from rest_framework_services import SelectorSpec, selector_action
+from rest_framework_services import SelectorKind, SelectorSpec, selector_action
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -26,15 +26,16 @@ class _SelectorViewSet(GenericViewSet):
     queryset = Author.objects.all()
 
     @selector_action(
-        SelectorSpec(selector=lambda **_: list(Author.objects.all())),
-        detail=False,
+        SelectorSpec(kind=SelectorKind.LIST, selector=lambda **_: list(Author.objects.all())),
     )
     def active(self, request):  # type: ignore[no-untyped-def]
         """Stubbed body — replaced by selector_action."""
 
     @selector_action(
-        SelectorSpec(selector=lambda **kwargs: Author.objects.filter(pk=kwargs["pk"]).first()),
-        detail=True,
+        SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=lambda **kwargs: Author.objects.filter(pk=kwargs["pk"]).first(),
+        ),
     )
     def card(self, request, pk=None):  # type: ignore[no-untyped-def]
         """Stubbed."""
@@ -76,7 +77,7 @@ class TestSelectorAction:
             serializer_class = AuthorSerializer
             queryset = Author.objects.all()
 
-            @selector_action(SelectorSpec(selector=selector), detail=True)
+            @selector_action(SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector))
             def card(self, request, pk=None):  # type: ignore[no-untyped-def]
                 ...
 
@@ -96,8 +97,7 @@ class TestSelectorAction:
             serializer_class = AuthorSerializer
 
             @selector_action(
-                SelectorSpec(selector=lambda **_: []),
-                detail=False,
+                SelectorSpec(kind=SelectorKind.LIST, selector=lambda **_: []),
                 methods=["get", "head"],
             )
             def listing(self, request):  # type: ignore[no-untyped-def]
@@ -113,8 +113,7 @@ class TestSelectorAction:
             serializer_class = AuthorSerializer
 
             @selector_action(
-                SelectorSpec(selector=lambda **_: []),
-                detail=False,
+                SelectorSpec(kind=SelectorKind.LIST, selector=lambda **_: []),
                 url_path="recent",
                 url_name="recent-authors",
             )
@@ -136,10 +135,10 @@ class TestSelectorAction:
 
             @selector_action(
                 SelectorSpec(
+                    kind=SelectorKind.LIST,
                     selector=lambda **_: list(Author.objects.all()),
                     output_serializer=_AltSerializer,
                 ),
-                detail=False,
             )
             def names_only(self, request):  # type: ignore[no-untyped-def]
                 ...
@@ -157,8 +156,10 @@ class TestSelectorAction:
             pagination_class = _AuthorListPagination
 
             @selector_action(
-                SelectorSpec(selector=lambda **_: list(Author.objects.all().order_by("name"))),
-                detail=False,
+                SelectorSpec(
+                    kind=SelectorKind.LIST,
+                    selector=lambda **_: list(Author.objects.all().order_by("name")),
+                ),
             )
             def listing(self, request):  # type: ignore[no-untyped-def]
                 ...
@@ -188,8 +189,7 @@ class TestSelectorAction:
             queryset = Author.objects.none()
 
             @selector_action(
-                SelectorSpec(selector=selector, kwargs=provider),
-                detail=False,
+                SelectorSpec(kind=SelectorKind.LIST, selector=selector, kwargs=provider),
             )
             def listing(self, request):  # type: ignore[no-untyped-def]
                 ...
@@ -213,8 +213,7 @@ class TestSelectorAction:
                 return {"tag": "default"}
 
             @selector_action(
-                SelectorSpec(selector=selector),
-                detail=False,
+                SelectorSpec(kind=SelectorKind.LIST, selector=selector),
             )
             def listing(self, request):  # type: ignore[no-untyped-def]
                 ...
@@ -241,8 +240,7 @@ class TestSelectorAction:
                 return {"tag": "per-action"}
 
             @selector_action(
-                SelectorSpec(selector=selector),
-                detail=False,
+                SelectorSpec(kind=SelectorKind.LIST, selector=selector),
             )
             def listing(self, request):  # type: ignore[no-untyped-def]
                 ...
@@ -254,20 +252,20 @@ class TestSelectorAction:
     def test_handler_carries_selector_spec_attribute(self) -> None:
         """Schema generators / introspection rely on this stamp."""
 
-        spec = SelectorSpec(selector=lambda **_: [])
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=lambda **_: [])
 
         class _View(GenericViewSet):
             queryset = Author.objects.none()
             serializer_class = AuthorSerializer
 
-            @selector_action(spec, detail=False)
+            @selector_action(spec)
             def listing(self, request):  # type: ignore[no-untyped-def]
                 ...
 
         assert _View.listing._selector_spec is spec  # type: ignore[attr-defined]
 
     def test_not_found_propagates_for_detail(self) -> None:
-        """``dispatch_retrieve_selector`` raises ``NotFound`` on None — DRF maps to 404."""
+        """``dispatch_selector_for_spec`` raises ``NotFound`` on None — DRF maps to 404."""
 
         def selector(**_: Any) -> Any:
             return None
@@ -276,7 +274,7 @@ class TestSelectorAction:
             serializer_class = AuthorSerializer
             queryset = Author.objects.none()
 
-            @selector_action(SelectorSpec(selector=selector), detail=True)
+            @selector_action(SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector))
             def card(self, request, pk=None):  # type: ignore[no-untyped-def]
                 ...
 
@@ -285,3 +283,21 @@ class TestSelectorAction:
         assert response.status_code == 404
         # Smoke check: NotFound is the one DRF raised.
         assert isinstance(response.exception, bool) or NotFound  # noqa: PT017
+
+    def test_detail_derived_from_spec_kind(self) -> None:
+        """`detail` is pinned from `spec.kind` (LIST→False, RETRIEVE→True)."""
+
+        class _View(GenericViewSet):
+            queryset = Author.objects.none()
+            serializer_class = AuthorSerializer
+
+            @selector_action(SelectorSpec(kind=SelectorKind.LIST, selector=lambda **_: []))
+            def listing(self, request):  # type: ignore[no-untyped-def]
+                ...
+
+            @selector_action(SelectorSpec(kind=SelectorKind.RETRIEVE, selector=lambda **_: None))
+            def card(self, request, pk=None):  # type: ignore[no-untyped-def]
+                ...
+
+        assert _View.listing.detail is False  # type: ignore[attr-defined]
+        assert _View.card.detail is True  # type: ignore[attr-defined]

@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from rest_framework.test import APIRequestFactory
 
-from rest_framework_services import SelectorRetrieveView, SelectorSpec
+from rest_framework_services import SelectorKind, SelectorRetrieveView, SelectorSpec
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -17,7 +17,9 @@ def _get_author(*, pk: int) -> Author | None:
 
 
 class _RetrieveAuthorView(SelectorRetrieveView):
-    spec = SelectorSpec(selector=_get_author, output_serializer=AuthorSerializer)
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE, selector=_get_author, output_serializer=AuthorSerializer
+    )
 
 
 factory = APIRequestFactory()
@@ -42,7 +44,11 @@ class TestSelectorRetrieveView:
             return Author.objects.get(pk=pk)
 
         class _View(SelectorRetrieveView):
-            spec = SelectorSpec(selector=strict_get, output_serializer=AuthorSerializer)
+            spec = SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                selector=strict_get,
+                output_serializer=AuthorSerializer,
+            )
 
         request = factory.get("/")
         response = _View.as_view()(request, pk=999)
@@ -56,7 +62,11 @@ class TestSelectorRetrieveView:
             return Author.objects.filter(pk=pk).first()
 
         class _View(SelectorRetrieveView):
-            spec = SelectorSpec(selector=tenant_get, output_serializer=AuthorSerializer)
+            spec = SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                selector=tenant_get,
+                output_serializer=AuthorSerializer,
+            )
 
             def get_selector_kwargs(self) -> dict[str, Any]:
                 return {"tenant": "acme"}
@@ -78,6 +88,7 @@ class TestSelectorRetrieveView:
 
         class _View(SelectorRetrieveView):
             spec = SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
                 selector=selector,
                 output_serializer=AuthorSerializer,
                 kwargs=provider,
@@ -104,7 +115,7 @@ class TestSelectorRetrieveView:
 
         class _View(SelectorRetrieveView):
             queryset = Author.objects.all()
-            spec = SelectorSpec(output_serializer=AuthorSerializer)
+            spec = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer)
 
         request = factory.get("/")
         response = _View.as_view()(request, pk=author.pk)

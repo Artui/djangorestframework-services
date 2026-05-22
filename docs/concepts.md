@@ -38,23 +38,25 @@ def list_authors(*, request):
     return Author.objects.filter(account=request.user.account)
 ```
 
-Selectors go into `action_specs` wrapped in a `SelectorSpec`:
+Selectors go into `action_specs` wrapped in a `SelectorSpec` whose
+`kind` declares whether the action returns many objects or a single one:
 
 ```python
 action_specs = {
-    "list": SelectorSpec(selector=list_authors),
-    "retrieve": SelectorSpec(selector=get_author),
+    "list": SelectorSpec(kind=SelectorKind.LIST, selector=list_authors),
+    "retrieve": SelectorSpec(kind=SelectorKind.RETRIEVE, selector=get_author),
 }
 ```
 
 ## `SelectorSpec`
 
-`SelectorSpec` is a frozen dataclass bundling everything a read action
-needs:
+`SelectorSpec` is a frozen dataclass (keyword-only fields) bundling
+everything a read action needs:
 
 ```python
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class SelectorSpec(Generic[ResultT, ExtraT]):
+    kind: SelectorKind                              # required
     selector: Callable[..., ResultT] | None = None
     output_serializer: type[Serializer] | None = None
     kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
@@ -66,6 +68,16 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     extend_queryset: Callable[[QuerySet, ServiceView, Request], QuerySet] | None = None
 ```
 
+- **`kind`** — required `SelectorKind` discriminator (`LIST` vs
+  `RETRIEVE`). Drives dispatch: `RETRIEVE` materializes a QuerySet via
+  `.first()` and raises `NotFound` on `None`, `LIST` returns the
+  (optionally shaped) selector result. Also drives the fail-fast
+  cross-check that the spec is mounted on a compatible view — a `LIST`
+  spec on `SelectorRetrieveView` (or `action_specs["retrieve"]`) raises
+  `ImproperlyConfigured` at `as_view()` time. Making the kind explicit
+  also lets a spec be reused outside a request (management command,
+  cron job, non-DRF caller) without the semantics living implicitly in
+  the call site.
 - **`selector`** — the callable invoked by `get_queryset()` (list) or
   `get_object()` (retrieve). `None` means "use the configured `queryset`
   / default DRF behaviour".
@@ -79,7 +91,9 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
   current `Request`. See the [extra-kwargs recipe](recipes/extra-kwargs.md).
 - **`permission_classes`** — overrides the view's class-level
   `permission_classes` for the action the spec backs. `None` (the default)
-  inherits; `[]` means "no permissions" explicitly. See the
+  inherits; `[]` means "no permissions" explicitly. Ignored when the
+  spec is nested under `ServiceSpec.output_selector_spec` (the
+  surrounding mutation's permissions apply). See the
   [permissions recipe](recipes/permissions.md).
 - **`output_serializer_context`** — callable returning extra keys for
   the response serializer's `context=` dict. Sits at the most-specific
@@ -90,59 +104,59 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
   the [queryset-shaping recipe](recipes/queryset-shaping.md).
 
 Generic parameters `ResultT` / `ExtraT` default to `Any`, so
-`SelectorSpec(selector=fn)` keeps working unparameterized.
+`SelectorSpec(kind=..., selector=fn)` keeps working unparameterized.
 
 ## `ServiceSpec`
 
 `ServiceSpec` is a frozen dataclass bundling everything a write action
-needs:
+needs. The entire output pipeline (response serializer, optional
+post-mutation re-fetch, queryset shaping) lives in a single nested
+`output_selector_spec: SelectorSpec | None`:
 
 ```python
 @dataclass(frozen=True)
 class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     service: Callable[..., ResultT]
-    input_serializer: type | None = None
-    output_serializer: type[Serializer] | None = None
-    output_selector: Callable[..., Any] | None = None
     atomic: bool = True
     success_status: int | None = None
-    kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
+    input_serializer: type | None = None
     input_data: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
-    permission_classes: Sequence[type[BasePermission]] | None = None
     input_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
-    output_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
+    output_selector_spec: SelectorSpec[Any, Any] | None = None
+    kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
+    permission_classes: Sequence[type[BasePermission]] | None = None
 ```
 
 - **`service`** — the callable to invoke.
-- **`input_serializer`** — a DRF `Serializer` subclass, a bare
-  `@dataclass` (auto-wrapped in `DataclassSerializer`), or `None` for
-  side-effect-only services.
-- **`output_serializer`** — a DRF `Serializer` subclass to render the
-  result; omit to return whatever the service returned (already
-  JSON-serialisable).
-- **`output_selector`** — a callable run on the service's return value
-  before output rendering. Useful when the service returns an id and the
-  output should be a fully-shaped read model.
 - **`atomic`** — wrap the service call in `transaction.atomic()`
   (defaults `True`).
 - **`success_status`** — override the HTTP status (defaults to
   `201` for create, `200` for update, `204` for delete).
-- **`kwargs`** — callable returning extra kwargs to merge into the pool
-  the service receives. The most-specific level of the kwargs
-  resolution chain; co-located with the service it feeds.
+- **`input_serializer`** — a DRF `Serializer` subclass, a bare
+  `@dataclass` (auto-wrapped in `DataclassSerializer`), or `None` for
+  side-effect-only services.
 - **`input_data`** — callable returning a mapping merged on top of
   `request.data` *before* the `input_serializer` validates it. Useful
   for lifting URL kwargs (e.g. parent IDs from nested routes) into
   fields the serializer can cross-validate. Server-provided keys win
   on conflict.
+- **`input_serializer_context`** — callable returning extra keys for
+  the *input* serializer's `context=` dict. Sits at the most-specific
+  layer of the [serializer-context resolution chain](recipes/serializer-context.md).
+- **`output_selector_spec`** — nested `SelectorSpec`
+  (`kind=SelectorKind.RETRIEVE`) carrying the response serializer, the
+  optional re-fetch `selector`, the output `output_serializer_context`
+  hook, and the queryset-shaping fields. `None` (the default) renders
+  the service's return value directly. The nested spec's
+  `permission_classes` and `kwargs` are ignored — the surrounding
+  mutation's permissions and kwargs chain apply.
+- **`kwargs`** — callable returning extra kwargs to merge into the pool
+  the service receives. The most-specific level of the kwargs
+  resolution chain; co-located with the service it feeds.
 - **`permission_classes`** — overrides the view's class-level
   `permission_classes` for the action the spec backs. `None` (the default)
   inherits; `[]` means "no permissions" explicitly. See the
   [permissions recipe](recipes/permissions.md).
-- **`input_serializer_context`** / **`output_serializer_context`** —
-  callables returning extra keys for the input / output serializer
-  `context=` dicts. Sit at the most-specific layer of the
-  [serializer-context resolution chain](recipes/serializer-context.md).
 
 Generic parameters `InputT` / `ResultT` / `ExtraT` default to `Any`, so
 `ServiceSpec(service=fn)` keeps working unparameterized.
@@ -211,26 +225,34 @@ Selector views are configured by setting `spec` to a `SelectorSpec`.
 mixins. A single `action_specs` mapping wires everything:
 
 ```python
+_author_detail = SelectorSpec(
+    kind=SelectorKind.RETRIEVE,
+    output_serializer=AuthorDetailSerializer,
+)
+
+
 class AuthorViewSet(ServiceViewSet):
     queryset = Author.objects.all()
     action_specs = {
         "list": SelectorSpec(
+            kind=SelectorKind.LIST,
             selector=list_authors,
             output_serializer=AuthorListItemSerializer,
         ),
         "retrieve": SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
             selector=get_author,
             output_serializer=AuthorDetailSerializer,
         ),
         "create": ServiceSpec(
             service=create_author,
             input_serializer=CreateAuthorInput,
-            output_serializer=AuthorDetailSerializer,
+            output_selector_spec=_author_detail,
         ),
         "update": ServiceSpec(
             service=update_author,
             input_serializer=UpdateAuthorInput,
-            output_serializer=AuthorDetailSerializer,
+            output_selector_spec=_author_detail,
         ),
         "destroy": ServiceSpec(service=delete_author),
     }
@@ -258,16 +280,20 @@ entry:
 
 ```python
 spec = action_specs.get(self.action)
-if spec has output_serializer:
+if isinstance(spec, SelectorSpec) and spec.output_serializer:
     return spec.output_serializer
+if isinstance(spec, ServiceSpec) and spec.output_selector_spec and \
+        spec.output_selector_spec.output_serializer:
+    return spec.output_selector_spec.output_serializer
 # falls back to serializer_class
 ```
 
-Works for both `SelectorSpec` and `ServiceSpec` entries. Falls back to
-DRF's standard `serializer_class` when the action has no spec or no
-`output_serializer`. Already included in `ServiceViewSet` and
-`SelectorViewSet`; add it to any custom composition that needs per-action
-serializers.
+Works for both `SelectorSpec` (reads `spec.output_serializer`) and
+`ServiceSpec` (reads `spec.output_selector_spec.output_serializer`)
+entries. Falls back to DRF's standard `serializer_class` when the
+action has no spec or no response serializer is set. Already included
+in `ServiceViewSet` and `SelectorViewSet`; add it to any custom
+composition that needs per-action serializers.
 
 ## `@service_action`
 

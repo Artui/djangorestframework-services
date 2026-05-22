@@ -9,6 +9,7 @@ from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet
 
 from rest_framework_services import (
+    SelectorKind,
     SelectorSpec,
     ServiceCreateView,
     ServiceSpec,
@@ -33,7 +34,11 @@ def _approve(*, instance: Any) -> dict[str, Any]:
 
 
 _create_spec = ServiceSpec(
-    service=_create, input_serializer=_AuthorIn, output_serializer=AuthorSerializer
+    service=_create,
+    input_serializer=_AuthorIn,
+    output_selector_spec=SelectorSpec(
+        kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+    ),
 )
 
 
@@ -44,7 +49,7 @@ class _StandaloneView(ServiceCreateView):
 class _ViewSet(ServiceViewSet):
     action_specs = {
         "create": _create_spec,
-        "list": SelectorSpec(output_serializer=AuthorSerializer),
+        "list": SelectorSpec(kind=SelectorKind.LIST, output_serializer=AuthorSerializer),
     }
 
 

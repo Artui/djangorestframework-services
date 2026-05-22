@@ -9,6 +9,7 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 
 from rest_framework_services import (
+    SelectorKind,
     SelectorListView,
     SelectorRetrieveView,
     SelectorSpec,
@@ -92,7 +93,7 @@ class TestServiceCreateViewValidation:
             spec = ServiceSpec(
                 service=fn,
                 input_serializer=_AuthorIn,
-                output_selector=selector,
+                output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector),
             )
 
         with pytest.raises(ImproperlyConfigured, match="requires `instance`"):
@@ -158,7 +159,10 @@ class TestServiceDeleteViewValidation:
             return None
 
         class _View(ServiceDeleteView):
-            spec = ServiceSpec(service=fn, output_selector=selector)
+            spec = ServiceSpec(
+                service=fn,
+                output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector),
+            )
 
         with pytest.raises(ImproperlyConfigured, match="requires `data`"):
             _View.as_view()
@@ -170,7 +174,7 @@ class TestSelectorViewValidation:
             return []
 
         class _View(SelectorListView):
-            spec = SelectorSpec(selector=fn)
+            spec = SelectorSpec(kind=SelectorKind.LIST, selector=fn)
 
         with pytest.raises(ImproperlyConfigured, match="requires `data`"):
             _View.as_view()
@@ -180,7 +184,7 @@ class TestSelectorViewValidation:
             return None
 
         class _View(SelectorRetrieveView):
-            spec = SelectorSpec(selector=fn)
+            spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=fn)
 
         with pytest.raises(ImproperlyConfigured, match="requires `instance`"):
             _View.as_view()
@@ -192,7 +196,7 @@ class TestSelectorViewValidation:
             return None
 
         class _View(SelectorRetrieveView):
-            spec = SelectorSpec(selector=fn)
+            spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=fn)
 
         _View.as_view()
 
@@ -202,9 +206,48 @@ class TestSelectorViewValidation:
 
     def test_spec_with_no_selector_does_not_raise(self) -> None:
         class _View(SelectorListView):
-            spec = SelectorSpec()
+            spec = SelectorSpec(kind=SelectorKind.LIST)
 
         _View.as_view()
+
+    def test_kind_mismatch_at_mount_point_fails(self) -> None:
+        """A RETRIEVE spec on SelectorListView (or LIST on retrieve) is fail-fast."""
+
+        class _List(SelectorListView):
+            spec = SelectorSpec(kind=SelectorKind.RETRIEVE)
+
+        with pytest.raises(ImproperlyConfigured, match=r"spec.kind"):
+            _List.as_view()
+
+        class _Retrieve(SelectorRetrieveView):
+            spec = SelectorSpec(kind=SelectorKind.LIST)
+
+        with pytest.raises(ImproperlyConfigured, match=r"spec.kind"):
+            _Retrieve.as_view()
+
+    def test_action_kind_mismatch_in_viewset_fails(self) -> None:
+        """In a viewset, the "list" / "retrieve" entries must carry the matching kind."""
+
+        class _View(ServiceViewSet):
+            action_specs = {"list": SelectorSpec(kind=SelectorKind.RETRIEVE)}
+
+        with pytest.raises(ImproperlyConfigured, match=r"spec.kind"):
+            _View.as_view({"get": "list"})
+
+    def test_output_selector_spec_must_be_retrieve_kind(self) -> None:
+        """ServiceSpec.output_selector_spec.kind must be RETRIEVE (post-mutation re-fetch)."""
+
+        def fn(**_: Any) -> None:
+            return None
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=fn,
+                output_selector_spec=SelectorSpec(kind=SelectorKind.LIST),
+            )
+
+        with pytest.raises(ImproperlyConfigured, match=r"output_selector_spec.kind"):
+            _View.as_view()
 
 
 class TestServiceViewSetValidation:
@@ -262,7 +305,7 @@ class TestServiceViewSetValidation:
             return []
 
         class _View(ServiceViewSet):
-            action_specs = {"list": SelectorSpec(selector=fn)}
+            action_specs = {"list": SelectorSpec(kind=SelectorKind.LIST, selector=fn)}
 
         with pytest.raises(ImproperlyConfigured, match="requires `data`"):
             _View.as_view({"get": "list"})
@@ -311,7 +354,12 @@ class TestServiceActionValidation:
 
             class _View:  # noqa: D401
                 @service_action(
-                    ServiceSpec(service=fn, output_selector=selector),
+                    ServiceSpec(
+                        service=fn,
+                        output_selector_spec=SelectorSpec(
+                            kind=SelectorKind.RETRIEVE, selector=selector
+                        ),
+                    ),
                     detail=False,
                     methods=["post"],
                 )

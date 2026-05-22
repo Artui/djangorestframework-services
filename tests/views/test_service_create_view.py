@@ -9,6 +9,8 @@ import pytest
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
+    SelectorKind,
+    SelectorSpec,
     ServiceCreateView,
     ServiceError,
     ServiceSpec,
@@ -35,7 +37,9 @@ class _CreateAuthorView(ServiceCreateView):
     spec = ServiceSpec(
         service=_create_author,
         input_serializer=_CreateAuthorInput,
-        output_serializer=AuthorSerializer,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+        ),
     )
 
 
@@ -43,7 +47,9 @@ class _AsyncCreateAuthorView(ServiceCreateView):
     spec = ServiceSpec(
         service=_create_author_async,
         input_serializer=_CreateAuthorInput,
-        output_serializer=AuthorSerializer,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+        ),
     )
 
 
@@ -93,7 +99,9 @@ class TestServiceCreateView:
             spec = ServiceSpec(
                 service=fn,
                 input_serializer=_CreateAuthorInput,
-                output_serializer=AuthorSerializer,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
                 kwargs=provider,
             )
 
@@ -114,7 +122,9 @@ class TestServiceCreateView:
             spec = ServiceSpec(
                 service=fn,
                 input_serializer=_CreateAuthorInput,
-                output_serializer=AuthorSerializer,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
             )
 
         request = factory.post("/", {"name": "Bob"}, format="json")
@@ -188,7 +198,11 @@ class TestServiceCreateView:
             return {**result, "rendered": True}
 
         class _View(ServiceCreateView):
-            spec = ServiceSpec(service=fn, output_selector=selector, atomic=False)
+            spec = ServiceSpec(
+                service=fn,
+                output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector),
+                atomic=False,
+            )
 
         request = factory.post("/", {}, format="json")
         response = _View.as_view()(request)

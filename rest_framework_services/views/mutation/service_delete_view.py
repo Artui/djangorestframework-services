@@ -20,8 +20,8 @@ class ServiceDeleteView(MutationFlowMixin, GenericAPIView):
     Configure by setting ``spec`` to a :class:`ServiceSpec`. The spec's
     ``input_serializer`` is optional (for delete-with-payload patterns
     such as a deletion reason); ``success_status`` defaults to
-    ``204 No Content``; set ``output_serializer`` on the spec to render
-    a body instead.
+    ``204 No Content``; set ``output_selector_spec`` with an
+    ``output_serializer`` on the spec to render a body instead.
     """
 
     spec: ClassVar[ServiceSpec | None] = None

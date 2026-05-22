@@ -14,7 +14,8 @@ class DeleteService(Protocol[InputT, InstanceT, ResultT]):
 
     Receives the resolved ``instance``. Most delete services return ``None``;
     if you need a response body, return a value and configure
-    ``ServiceSpec.output_serializer`` (or ``output_selector``).
+    ``ServiceSpec.output_selector_spec`` with an ``output_serializer``
+    (and optionally a re-fetch ``selector``).
 
     For *delete with payload* — when the spec carries an ``input_serializer``
     — bind ``InputT`` to your input dataclass and declare ``data`` on the

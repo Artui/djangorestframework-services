@@ -82,14 +82,22 @@ for them vs. writing the service out by hand.
 ## 5. Wire the view
 
 ```python
-from rest_framework_services import ServiceCreateView, ServiceSpec
+from rest_framework_services import (
+    SelectorKind,
+    SelectorSpec,
+    ServiceCreateView,
+    ServiceSpec,
+)
 
 
 class CreateAuthorView(ServiceCreateView):
     spec = ServiceSpec(
         service=create_author,
         input_serializer=CreateAuthorInput,
-        output_serializer=AuthorOutputSerializer,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            output_serializer=AuthorOutputSerializer,
+        ),
     )
 ```
 
@@ -164,7 +172,10 @@ class CreateAuthorView(ServiceCreateView):
     spec = ServiceSpec(
         service=create_author,
         input_serializer=CreateAuthorInput,
-        output_serializer=AuthorSerializer,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            output_serializer=AuthorSerializer,
+        ),
     )
 ```
 

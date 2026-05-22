@@ -8,7 +8,7 @@ import pytest
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.test import APIRequestFactory
 
-from rest_framework_services import SelectorListView, SelectorSpec
+from rest_framework_services import SelectorKind, SelectorListView, SelectorSpec
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -18,7 +18,9 @@ def _list_authors() -> Any:
 
 
 class _ListAuthorsView(SelectorListView):
-    spec = SelectorSpec(selector=_list_authors, output_serializer=AuthorSerializer)
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST, selector=_list_authors, output_serializer=AuthorSerializer
+    )
 
 
 factory = APIRequestFactory()
@@ -42,7 +44,9 @@ class TestSelectorListView:
             page_size = 2
 
         class _Paginated(SelectorListView):
-            spec = SelectorSpec(selector=_list_authors, output_serializer=AuthorSerializer)
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST, selector=_list_authors, output_serializer=AuthorSerializer
+            )
             pagination_class = _Paginator
 
         request = factory.get("/?page=1")
@@ -59,7 +63,11 @@ class TestSelectorListView:
             return Author.objects.none()
 
         class _View(SelectorListView):
-            spec = SelectorSpec(selector=tenant_selector, output_serializer=AuthorSerializer)
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=tenant_selector,
+                output_serializer=AuthorSerializer,
+            )
 
             def get_selector_kwargs(self) -> dict[str, Any]:
                 return {"tenant": "acme"}
@@ -80,6 +88,7 @@ class TestSelectorListView:
 
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 selector=selector,
                 output_serializer=AuthorSerializer,
                 kwargs=provider,
@@ -96,7 +105,11 @@ class TestSelectorListView:
             return Author.objects.filter(pk=author_id).order_by("id")
 
         class _View(SelectorListView):
-            spec = SelectorSpec(selector=by_author, output_serializer=AuthorSerializer)
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=by_author,
+                output_serializer=AuthorSerializer,
+            )
 
         author = Author.objects.create(name="x")
         request = factory.get("/")
@@ -122,7 +135,7 @@ class TestSelectorListView:
 
         class _View(SelectorListView):
             queryset = Author.objects.all().order_by("id")
-            spec = SelectorSpec(output_serializer=AuthorSerializer)
+            spec = SelectorSpec(kind=SelectorKind.LIST, output_serializer=AuthorSerializer)
 
         request = factory.get("/")
         response = _View.as_view()(request)
@@ -140,9 +153,28 @@ class TestSelectorListView:
                 return queryset.filter(name="alpha")
 
         class _Filtered(SelectorListView):
-            spec = SelectorSpec(selector=_list_authors, output_serializer=AuthorSerializer)
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST, selector=_list_authors, output_serializer=AuthorSerializer
+            )
             filter_backends = (_OnlyAlpha,)
 
         request = factory.get("/")
         response = _Filtered.as_view()(request)
         assert [a["name"] for a in response.data] == ["alpha"]
+
+    def test_list_selector_object_does_not_exist_propagates(self) -> None:
+        """LIST kind re-raises ObjectDoesNotExist (only RETRIEVE maps to 404)."""
+        from django.core.exceptions import ObjectDoesNotExist
+
+        def boom(**_: Any) -> Any:
+            raise ObjectDoesNotExist()
+
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=boom,
+                output_serializer=AuthorSerializer,
+            )
+
+        with pytest.raises(ObjectDoesNotExist):
+            _View.as_view()(factory.get("/"))

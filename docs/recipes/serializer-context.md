@@ -18,7 +18,7 @@ Four layers, later wins on overlap:
    `get_<action>_output_serializer_context()`. Viewset-only; skipped on
    standalone single-purpose views.
 4. **Per-spec callable** — `ServiceSpec.input_serializer_context` /
-   `ServiceSpec.output_serializer_context` /
+   `ServiceSpec.output_selector_spec.output_serializer_context` /
    `SelectorSpec.output_serializer_context`. Co-located with the spec
    that backs the action. Has the final say.
 
@@ -42,7 +42,10 @@ class AuthorViewSet(ServiceViewSet):
         "create": ServiceSpec(
             service=create_author,
             input_serializer=CreateAuthorInput,
-            output_serializer=AuthorOutputSerializer,
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                output_serializer=AuthorOutputSerializer,
+            ),
         ),
     }
 
@@ -71,17 +74,23 @@ When only one action needs the extra key, name the hook after the
 action — no branching on `self.action`:
 
 ```python
+_author_out = SelectorSpec(
+    kind=SelectorKind.RETRIEVE,
+    output_serializer=AuthorOutputSerializer,
+)
+
+
 class AuthorViewSet(ServiceViewSet):
     action_specs = {
         "create": ServiceSpec(
             service=create_author,
             input_serializer=CreateAuthorInput,
-            output_serializer=AuthorOutputSerializer,
+            output_selector_spec=_author_out,
         ),
         "update": ServiceSpec(
             service=update_author,
             input_serializer=UpdateAuthorInput,
-            output_serializer=AuthorOutputSerializer,
+            output_selector_spec=_author_out,
         ),
     }
 
@@ -105,15 +114,19 @@ class AuthorViewSet(ServiceViewSet):
         "create": ServiceSpec(
             service=create_author,
             input_serializer=CreateAuthorInput,
-            output_serializer=AuthorOutputSerializer,
             input_serializer_context=lambda view, request: {
                 "tenant": request.tenant,
             },
-            output_serializer_context=lambda view, request: {
-                "include_links": "links" in request.query_params,
-            },
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                output_serializer=AuthorOutputSerializer,
+                output_serializer_context=lambda view, request: {
+                    "include_links": "links" in request.query_params,
+                },
+            ),
         ),
         "list": SelectorSpec(
+            kind=SelectorKind.LIST,
             selector=list_authors,
             output_serializer=AuthorOutputSerializer,
             output_serializer_context=lambda view, request: {
@@ -124,16 +137,19 @@ class AuthorViewSet(ServiceViewSet):
 ```
 
 `SelectorSpec` carries only `output_serializer_context` — selectors don't
-validate input, so there's no symmetrical input hook. The callable
-receives the calling view (typed as `ServiceView`) and the DRF `Request`.
+validate input, so there's no symmetrical input hook. On `ServiceSpec`,
+the output hook lives on the nested `output_selector_spec`; the input
+hook stays at the top level. The callable receives the calling view
+(typed as `ServiceView`) and the DRF `Request`.
 
 ## On standalone views
 
 Standalone mutation views (`ServiceCreateView`, `ServiceUpdateView`,
 `ServiceDeleteView`) and `@service_action` honour the directional hooks
 (`get_input_serializer_context` / `get_output_serializer_context`) plus
-the spec layer (`ServiceSpec.input_serializer_context` /
-`ServiceSpec.output_serializer_context`). The per-action hooks only apply
+the spec layer (`ServiceSpec.input_serializer_context` and
+`ServiceSpec.output_selector_spec.output_serializer_context`). The
+per-action hooks only apply
 where there is an action — i.e. inside viewset mixins and
 `@service_action` / `@selector_action`.
 

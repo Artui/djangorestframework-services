@@ -6,7 +6,7 @@ from typing import Any
 
 from rest_framework.mixins import RetrieveModelMixin
 
-from rest_framework_services.selectors.utils import dispatch_retrieve_selector
+from rest_framework_services.selectors.utils import dispatch_selector_for_spec
 from rest_framework_services.viewsets.utils import (
     _ActionSpecsMixin,
     resolve_action_selector_spec,
@@ -44,4 +44,4 @@ class SelectorRetrieveMixin(RetrieveModelMixin, _ActionSpecsMixin):
         spec = resolve_action_selector_spec(self.action_specs, "retrieve")
         if spec is None:
             return super().get_object()  # ty: ignore[unresolved-attribute]
-        return dispatch_retrieve_selector(self, spec, extra_url_kwargs=self.kwargs)
+        return dispatch_selector_for_spec(self, spec, extra_url_kwargs=self.kwargs)

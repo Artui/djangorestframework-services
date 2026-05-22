@@ -40,6 +40,7 @@ from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
 from rest_framework_services.selectors.utils import apply_queryset_shaping, run_selector
+from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.utils import (
     resolve_callable_kwargs,
@@ -138,8 +139,7 @@ def _execute_mutation(
     *,
     service: Callable[..., Any],
     input_serializer: type | None,
-    output_serializer: type[Serializer] | None,
-    output_selector: Callable[..., Any] | None,
+    output_selector_spec: SelectorSpec[Any, Any] | None,
     atomic: bool,
     success_status: int,
     instance: Any,
@@ -147,10 +147,6 @@ def _execute_mutation(
     extra_input_data: Mapping[str, Any] | None = None,
     input_context: dict[str, Any] | None = None,
     output_context: dict[str, Any] | None = None,
-    select_related: Any = None,
-    prefetch_related: Any = None,
-    annotations: Any = None,
-    extend_queryset: Any = None,
     partial: bool = False,
 ) -> Response:
     """Internal flow runner shared by ``MutationFlowMixin`` and ``@service_action``.
@@ -160,9 +156,12 @@ def _execute_mutation(
       2. Build kwarg pool (request, user, instance?, data?, extras).
       3. Resolve service signature against pool, dispatch.
       4. Map ``ServiceError`` → DRF exception on raise.
-      5. Apply ``output_selector`` if set; else fall back to in-memory instance
-         when service returned None and instance is available.
-      6. Render via ``output_serializer`` (or raw, or 204).
+      5. If ``output_selector_spec`` carries a selector, invoke it (with the
+         service result added to the pool as ``result``) and apply the
+         spec's queryset shaping; materialize a QuerySet via ``.first()``
+         since the nested spec is always retrieve-shaped. Otherwise fall
+         back to the in-memory ``instance`` when the service returned None.
+      6. Render via the nested spec's ``output_serializer`` (or raw, or 204).
 
     ``view`` is intentionally absent from the pool: services and selectors are
     plain business logic and should not reach back into the calling view. When
@@ -196,35 +195,44 @@ def _execute_mutation(
     except ServiceError as exc:
         raise map_service_error(exc) from exc
 
-    if output_selector is not None:
-        selector_pool: dict[str, Any] = {**pool, "result": result}
-        result = run_selector(
-            output_selector,
-            resolve_callable_kwargs(output_selector, selector_pool),
-        )
-        result = apply_queryset_shaping(
-            result,
-            view,
-            request,
-            select_related=select_related,
-            prefetch_related=prefetch_related,
-            annotations=annotations,
-            extend_queryset=extend_queryset,
-            source_label="ServiceSpec.output_selector",
-        )
-        if hasattr(result, "first"):
-            # Materialize a QuerySet return to a single instance — matches
-            # the retrieve dispatcher's behaviour and means a user can write
-            # ``output_selector=lambda result: Model.objects.filter(pk=result.pk)``
-            # and rely on the spec's shaping to apply.
-            result = result.first()
-    elif (
-        result is None and instance is not None and success_status != drf_status.HTTP_204_NO_CONTENT
+    output_serializer: type[Serializer] | None = None
+    if output_selector_spec is not None:
+        output_serializer = output_selector_spec.output_serializer
+        selector = output_selector_spec.selector
+        if selector is not None:
+            selector_pool: dict[str, Any] = {**pool, "result": result}
+            result = run_selector(
+                selector,
+                resolve_callable_kwargs(selector, selector_pool),
+            )
+            result = apply_queryset_shaping(
+                result,
+                view,
+                request,
+                select_related=output_selector_spec.select_related,
+                prefetch_related=output_selector_spec.prefetch_related,
+                annotations=output_selector_spec.annotations,
+                extend_queryset=output_selector_spec.extend_queryset,
+                source_label="ServiceSpec.output_selector_spec.selector",
+            )
+            if hasattr(result, "first"):
+                # Materialize a QuerySet return to a single instance — the
+                # nested spec is retrieve-shaped, so a user can write
+                # ``selector=lambda result: Model.objects.filter(pk=result.pk)``
+                # and rely on the spec's shaping to apply.
+                result = result.first()
+
+    if (
+        result is None
+        and instance is not None
+        and success_status != drf_status.HTTP_204_NO_CONTENT
+        and (output_selector_spec is None or output_selector_spec.selector is None)
     ):
         # Service mutated in place and returned nothing — render the in-memory
         # instance, mirroring DRF's ``UpdateAPIView`` shape. Skipped for 204
         # responses (destroy) where the fallback would surface a stale
-        # post-delete instance with no useful body.
+        # post-delete instance with no useful body, and skipped when an
+        # output selector ran (its None return is authoritative).
         result = instance
 
     if output_serializer is not None:
@@ -282,20 +290,20 @@ def dispatch_mutation_for_spec(
         action_hook=action_input_context_hook,
         spec_provider=spec.input_serializer_context,
     )
+    output_spec = spec.output_selector_spec
     output_context = resolve_serializer_context(
         view,
         request,
         direction_hook="get_output_serializer_context",
         action_hook=action_output_context_hook,
-        spec_provider=spec.output_serializer_context,
+        spec_provider=output_spec.output_serializer_context if output_spec is not None else None,
     )
     return _execute_mutation(
         view,
         request,
         service=spec.service,
         input_serializer=spec.input_serializer,
-        output_serializer=spec.output_serializer,
-        output_selector=spec.output_selector,
+        output_selector_spec=output_spec,
         atomic=spec.atomic,
         success_status=success_status,
         instance=instance,
@@ -303,9 +311,5 @@ def dispatch_mutation_for_spec(
         extra_input_data=input_extras,
         input_context=input_context,
         output_context=output_context,
-        select_related=spec.select_related,
-        prefetch_related=spec.prefetch_related,
-        annotations=spec.annotations,
-        extend_queryset=spec.extend_queryset,
         partial=partial,
     )

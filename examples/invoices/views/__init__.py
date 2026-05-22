@@ -14,28 +14,47 @@ from invoices.services import (
     mark_invoice_sent,
     update_invoice,
 )
-from rest_framework_services import ServiceSpec, ServiceViewSet, service_action
+from rest_framework_services import (
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
+    ServiceViewSet,
+    service_action,
+)
+
+
+def _invoice_response_spec() -> SelectorSpec[Invoice, None]:
+    """The post-mutation re-fetch shared by every write action."""
+
+    return SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        output_serializer=InvoiceSerializer,
+    )
 
 
 class InvoiceViewSet(ServiceViewSet):
     queryset = Invoice.objects.all()
-    serializer_classes = {
-        "list": InvoiceSerializer,
-        "retrieve": InvoiceSerializer,
-    }
 
-    service_specs = {
-        "list": list_invoices,
-        "retrieve": get_invoice,
+    action_specs = {
+        "list": SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=list_invoices,
+            output_serializer=InvoiceSerializer,
+        ),
+        "retrieve": SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=get_invoice,
+            output_serializer=InvoiceSerializer,
+        ),
         "create": ServiceSpec(
             service=create_invoice,
             input_serializer=CreateInvoiceInput,
-            output_serializer=InvoiceSerializer,
+            output_selector_spec=_invoice_response_spec(),
         ),
         "update": ServiceSpec(
             service=update_invoice,
             input_serializer=UpdateInvoiceInput,
-            output_serializer=InvoiceSerializer,
+            output_selector_spec=_invoice_response_spec(),
         ),
         "destroy": ServiceSpec(service=delete_invoice),
     }
@@ -44,7 +63,7 @@ class InvoiceViewSet(ServiceViewSet):
         ServiceSpec(
             service=mark_invoice_sent,
             input_serializer=ApproveInput,
-            output_serializer=InvoiceSerializer,
+            output_selector_spec=_invoice_response_spec(),
         ),
         detail=True,
         methods=["post"],

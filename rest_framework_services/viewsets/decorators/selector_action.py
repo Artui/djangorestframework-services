@@ -10,10 +10,8 @@ from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from rest_framework_services.selectors.utils import (
-    dispatch_retrieve_selector,
-    dispatch_selector_for_spec,
-)
+from rest_framework_services.selectors.utils import dispatch_selector_for_spec
+from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.spec_validation import validate_selector_spec
 from rest_framework_services.views.utils import resolve_serializer_context
@@ -22,7 +20,6 @@ from rest_framework_services.views.utils import resolve_serializer_context
 def selector_action(
     spec: SelectorSpec[Any, Any],
     *,
-    detail: bool = False,
     methods: list[str] | None = None,
     url_path: str | None = None,
     url_name: str | None = None,
@@ -34,21 +31,31 @@ def selector_action(
     the handler. The method exists so that ``@selector_action`` can attach
     DRF ``@action`` metadata and pick up the action name from ``__name__``.
 
-    Pass a :class:`SelectorSpec` for the selector wiring. ``detail``
-    controls the dispatch shape:
+    Pass a :class:`SelectorSpec` for the selector wiring. The dispatch shape
+    and the DRF URL shape are both driven by ``spec.kind`` — ``kind`` is
+    the single source of truth, with no separate ``detail=`` parameter to
+    keep in sync:
 
-    - ``detail=False`` (default) — collection action; the selector is
-      expected to return an iterable. The result flows through
+    - :attr:`SelectorKind.LIST` — collection action (``detail=False``); the
+      selector is expected to return an iterable. The result flows through
       ``self.paginate_queryset`` / ``self.get_paginated_response`` if
       pagination is configured, otherwise it's serialized many=True.
-    - ``detail=True`` — detail action; the selector is expected to return a
-      single object (or ``None``, which surfaces as 404, matching
-      :class:`SelectorRetrieveView`).
+    - :attr:`SelectorKind.RETRIEVE` — detail action (``detail=True``); the
+      selector is expected to return a single object (or ``None`` / raise
+      :exc:`~django.core.exceptions.ObjectDoesNotExist`, both of which
+      surface as 404).
+
+    If you need a URL shape that doesn't match the response shape (a
+    detail action that returns a list, or a collection action that returns
+    a single resource), fall back to DRF's plain ``@action`` and write
+    the dispatch yourself.
 
     Output serialization resolves to ``spec.output_serializer`` when set,
     falling back to ``self.get_serializer(...)`` otherwise.
     """
-    drf_kwargs: dict[str, Any] = {"detail": detail}
+    is_retrieve = spec.kind is SelectorKind.RETRIEVE
+
+    drf_kwargs: dict[str, Any] = {"detail": is_retrieve}
     if methods is not None:
         drf_kwargs["methods"] = methods
     if url_path is not None:
@@ -65,8 +72,8 @@ def selector_action(
 
         @functools.wraps(fn)
         def handler(self: Any, request: Request, *args: Any, **kwargs: Any) -> Response:
-            if detail:
-                instance = dispatch_retrieve_selector(self, spec, extra_url_kwargs=self.kwargs)
+            if is_retrieve:
+                instance = dispatch_selector_for_spec(self, spec, extra_url_kwargs=self.kwargs)
                 serializer = _build_serializer(self, spec, instance, many=False)
                 return Response(serializer.data)
 

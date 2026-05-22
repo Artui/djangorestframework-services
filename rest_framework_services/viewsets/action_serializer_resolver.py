@@ -12,17 +12,26 @@ from rest_framework_services.viewsets.utils import _ActionSpecsMixin
 class ActionSerializerResolver(_ActionSpecsMixin):
     """Resolve ``get_serializer_class()`` from ``action_specs``.
 
-    Consults the ``action_specs`` map for an ``output_serializer`` on the
-    active action's :class:`SelectorSpec` or :class:`ServiceSpec` entry,
-    then falls back to DRF's standard ``serializer_class`` attribute (and
-    raises the usual DRF ``AssertionError`` if neither is set).
+    Consults the ``action_specs`` map for the active action's entry:
+
+    - :class:`SelectorSpec` — uses ``spec.output_serializer`` directly.
+    - :class:`ServiceSpec` — uses
+      ``spec.output_selector_spec.output_serializer`` (the output pipeline
+      is collapsed into the nested selector spec).
+
+    Falls back to DRF's standard ``serializer_class`` attribute (and raises
+    the usual DRF ``AssertionError`` if neither is set).
 
     Example::
 
         class InvoiceViewSet(ActionSerializerResolver, GenericViewSet):
             action_specs = {
-                "list": SelectorSpec(output_serializer=InvoiceListSerializer),
-                "retrieve": SelectorSpec(output_serializer=InvoiceDetailSerializer),
+                "list": SelectorSpec(
+                    kind=SelectorKind.LIST, output_serializer=InvoiceListSerializer,
+                ),
+                "retrieve": SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=InvoiceDetailSerializer,
+                ),
             }
     """
 
@@ -31,6 +40,12 @@ class ActionSerializerResolver(_ActionSpecsMixin):
 
     def get_serializer_class(self) -> type[Serializer]:
         spec = self.action_specs.get(self.action) if self.action else None
-        if isinstance(spec, (SelectorSpec, ServiceSpec)) and spec.output_serializer is not None:
+        if isinstance(spec, SelectorSpec) and spec.output_serializer is not None:
             return spec.output_serializer
+        if (
+            isinstance(spec, ServiceSpec)
+            and spec.output_selector_spec is not None
+            and spec.output_selector_spec.output_serializer is not None
+        ):
+            return spec.output_selector_spec.output_serializer
         return super().get_serializer_class()  # ty: ignore[unresolved-attribute]

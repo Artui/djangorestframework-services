@@ -24,6 +24,7 @@ from typing import Any
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.permissions import BasePermission
 
+from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 
@@ -106,8 +107,8 @@ def validate_callable_signature(
     if _FRAMEWORK_KEY_RESULT in required and not has_result:
         raise ImproperlyConfigured(
             f"{spec_label}: {fn_label} requires `result` but this callable "
-            "is not an `output_selector`. Remove `result` from the signature or "
-            "attach the callable to `ServiceSpec.output_selector`."
+            "is not an output selector. Remove `result` from the signature or "
+            "attach the callable to `ServiceSpec.output_selector_spec.selector`."
         )
 
     if permissive_extras or spec_kwargs is not None:
@@ -150,7 +151,7 @@ def is_overridden(view_cls: type, base_cls: type, method_name: str) -> bool:
     return getattr(view_cls, method_name, None) is not base
 
 
-def _has_any_shaping(spec: SelectorSpec[Any, Any] | ServiceSpec[Any, Any, Any]) -> bool:
+def _has_any_shaping(spec: SelectorSpec[Any, Any]) -> bool:
     return (
         spec.select_related is not None
         or spec.prefetch_related is not None
@@ -180,29 +181,6 @@ def _validate_selector_shaping(
         )
 
 
-def _validate_service_shaping(
-    spec: ServiceSpec[Any, Any, Any],
-    *,
-    label: str,
-) -> None:
-    """Raise :exc:`ImproperlyConfigured` when shaping is set without
-    ``output_selector``.
-
-    On ``ServiceSpec`` the shaping fields apply to the ``output_selector``'s
-    return value. Without an ``output_selector``, the service's direct
-    return is used (typically an instance) and shaping has nothing to
-    attach to. Surface that misuse at ``as_view()`` time.
-    """
-    if spec.output_selector is None and _has_any_shaping(spec):
-        raise ImproperlyConfigured(
-            f"{label}: select_related / prefetch_related / annotations / "
-            "extend_queryset are set but `output_selector` is not. Set an "
-            "output_selector (typically a re-fetch of the just-mutated "
-            "instance) or drop the shaping fields — they only run when the "
-            "output_selector dispatches."
-        )
-
-
 def _validate_permission_classes(
     permission_classes: Any,
     *,
@@ -225,6 +203,46 @@ def _validate_permission_classes(
             )
 
 
+def _validate_output_selector_spec(
+    output_spec: SelectorSpec[Any, Any],
+    *,
+    label: str,
+    has_instance: bool,
+    permissive_extras: bool,
+    spec_kwargs: Callable[..., Any] | None,
+    input_serializer: type | None,
+) -> None:
+    """Validate the nested :class:`SelectorSpec` on :attr:`ServiceSpec.output_selector_spec`.
+
+    The post-mutation re-fetch is always retrieve-shaped (it materializes a
+    single instance), so ``output_spec.kind`` must be
+    :attr:`SelectorKind.RETRIEVE`. The nested spec's ``selector`` is
+    validated with ``has_result=True`` (the service's return joins the
+    selector's kwargs pool as ``result``) and the surrounding mutation's
+    ``kwargs`` / view-level ``get_*_service_kwargs`` chain is what feeds
+    the extras — the nested spec's own ``kwargs`` / ``permission_classes``
+    are ignored at request time, so we don't validate them as a selector
+    spec would.
+    """
+    if output_spec.kind is not SelectorKind.RETRIEVE:
+        raise ImproperlyConfigured(
+            f"{label}: output_selector_spec.kind must be SelectorKind.RETRIEVE; "
+            f"got {output_spec.kind!r}. The post-mutation re-fetch materializes "
+            "a single instance."
+        )
+    _validate_selector_shaping(output_spec, label=label)
+    if output_spec.selector is not None:
+        validate_callable_signature(
+            output_spec.selector,
+            spec_label=f"{label}.selector",
+            has_data=input_serializer is not None,
+            has_instance=has_instance,
+            has_result=True,
+            spec_kwargs=spec_kwargs,
+            permissive_extras=permissive_extras,
+        )
+
+
 def validate_service_spec(
     spec: ServiceSpec[Any, Any, Any],
     *,
@@ -232,14 +250,13 @@ def validate_service_spec(
     has_instance: bool,
     permissive_extras: bool,
 ) -> None:
-    """Validate a :class:`ServiceSpec`'s ``service`` and ``output_selector``.
+    """Validate a :class:`ServiceSpec`'s ``service`` and ``output_selector_spec``.
 
     Shared between standalone mutation views, viewset mixins, and
     ``@service_action``. ``has_instance`` is fixed by the action context
     (``False`` for create, ``True`` for update / destroy / detail actions).
     """
     _validate_permission_classes(spec.permission_classes, label=label)
-    _validate_service_shaping(spec, label=label)
     validate_callable_signature(
         spec.service,
         spec_label=label,
@@ -249,15 +266,14 @@ def validate_service_spec(
         spec_kwargs=spec.kwargs,
         permissive_extras=permissive_extras,
     )
-    if spec.output_selector is not None:
-        validate_callable_signature(
-            spec.output_selector,
-            spec_label=f"{label}.output_selector",
-            has_data=spec.input_serializer is not None,
+    if spec.output_selector_spec is not None:
+        _validate_output_selector_spec(
+            spec.output_selector_spec,
+            label=f"{label}.output_selector_spec",
             has_instance=has_instance,
-            has_result=True,
-            spec_kwargs=spec.kwargs,
             permissive_extras=permissive_extras,
+            spec_kwargs=spec.kwargs,
+            input_serializer=spec.input_serializer,
         )
 
 
@@ -265,6 +281,7 @@ def validate_selector_spec(
     spec: SelectorSpec[Any, Any],
     *,
     label: str,
+    expected_kind: SelectorKind | None = None,
 ) -> None:
     """Validate a :class:`SelectorSpec`'s ``selector``.
 
@@ -272,9 +289,20 @@ def validate_selector_spec(
     ``get_selector_kwargs`` are dynamic), so the only fatal misuses are
     requesting framework-only keys that don't exist in the selector pool
     (``data``, ``instance``, ``result``).
+
+    ``expected_kind`` (when supplied) fails fast if ``spec.kind`` does not
+    match — e.g. a ``LIST`` spec mounted on :class:`SelectorRetrieveView`
+    raises at ``as_view()`` time rather than producing surprising
+    runtime behaviour.
     """
     _validate_permission_classes(spec.permission_classes, label=label)
     _validate_selector_shaping(spec, label=label)
+    if expected_kind is not None and spec.kind is not expected_kind:
+        raise ImproperlyConfigured(
+            f"{label}: spec.kind is {spec.kind!r} but this mount point "
+            f"expects {expected_kind!r}. Construct the spec with "
+            f"kind={expected_kind!r} or move it to the matching view."
+        )
     if spec.selector is None:
         return
     validate_callable_signature(
@@ -316,13 +344,20 @@ def validate_mutation_view_spec(
     )
 
 
-def validate_selector_view_spec(view_cls: type) -> None:
+def validate_selector_view_spec(
+    view_cls: type,
+    *,
+    expected_kind: SelectorKind,
+) -> None:
     """Validate ``view_cls.spec`` on a standalone selector view.
 
-    No-op when ``spec`` is unset or carries no ``selector`` (the spec then
-    means "use vanilla DRF" and there is nothing to validate).
+    No-op when ``spec`` is unset (the spec then means "use vanilla DRF" and
+    there is nothing to validate). ``expected_kind`` is the kind the view
+    is shaped for (``LIST`` for :class:`SelectorListView`, ``RETRIEVE``
+    for :class:`SelectorRetrieveView`); a spec whose ``kind`` does not
+    match fails fast at ``as_view()`` time.
     """
     spec: SelectorSpec[Any, Any] | None = getattr(view_cls, "spec", None)
     if spec is None:
         return
-    validate_selector_spec(spec, label=f"{view_cls.__name__}.spec")
+    validate_selector_spec(spec, label=f"{view_cls.__name__}.spec", expected_kind=expected_kind)

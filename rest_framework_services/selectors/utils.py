@@ -11,6 +11,7 @@ from rest_framework.exceptions import NotFound
 from rest_framework.request import Request
 
 from rest_framework_services._compat.is_async import is_async
+from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.utils import (
     resolve_callable_kwargs,
@@ -57,12 +58,7 @@ def apply_queryset_shaping(
     ``qs`` is not a Django QuerySet (no ``annotate`` method) — loud
     failure beats a stale ``AttributeError`` deep in DRF rendering.
     ``source_label`` is included in the error to point at the misuse
-    (``"SelectorSpec.selector"`` vs ``"ServiceSpec.output_selector"``).
-
-    Shared by :func:`dispatch_selector_for_spec` (selector-backed reads)
-    and :func:`_execute_mutation` (the ``output_selector`` step of a
-    mutation flow); both specs carry the same field names with identical
-    semantics.
+    (``"SelectorSpec.selector"`` vs ``"ServiceSpec.output_selector_spec.selector"``).
     """
     if (
         select_related is None
@@ -94,6 +90,7 @@ def dispatch_selector_for_spec(
     spec: SelectorSpec[Any, Any],
     *,
     extra_url_kwargs: dict[str, Any] | None = None,
+    source_label: str = "SelectorSpec.selector",
 ) -> Any:
     """End-to-end dispatch for one ``SelectorSpec`` call.
 
@@ -104,63 +101,58 @@ def dispatch_selector_for_spec(
     shaping. Used by both selector viewset mixins and the standalone
     selector views so the call shape lives in one place.
 
+    When ``spec.kind`` is :attr:`SelectorKind.RETRIEVE`, the returned
+    QuerySet (if any) is materialized via ``.first()`` and ``None`` /
+    :exc:`~django.core.exceptions.ObjectDoesNotExist` are translated to
+    :exc:`~rest_framework.exceptions.NotFound`. ``SelectorKind.LIST``
+    returns the (optionally shaped) selector return as-is.
+
     The caller must check ``spec.selector is not None`` before calling and
     fall back to vanilla DRF otherwise.
+
+    ``source_label`` is forwarded to :func:`apply_queryset_shaping` for
+    error messages, so a misconfiguration on a nested
+    ``output_selector_spec`` points at the right place.
     """
     selector = spec.selector
     assert selector is not None  # noqa: S101 — caller guarantees this
     request = view.request
     action: str | None = getattr(view, "action", None)
     action_hook: str | None = f"get_{action}_selector_kwargs" if action else None
-    extras = resolve_extra_kwargs(
-        view,
-        request,
-        spec_kwargs=spec.kwargs,
-        action_hook=action_hook,
-        catch_all_hook="get_selector_kwargs",
-    )
-    pool: dict[str, Any] = {
-        "request": request,
-        "user": getattr(request, "user", None),
-        **(extra_url_kwargs or {}),
-        **extras,
-    }
-    result = run_selector(selector, resolve_callable_kwargs(selector, pool))
-    return apply_queryset_shaping(
-        result,
-        view,
-        request,
-        select_related=spec.select_related,
-        prefetch_related=spec.prefetch_related,
-        annotations=spec.annotations,
-        extend_queryset=spec.extend_queryset,
-        source_label="SelectorSpec.selector",
-    )
 
-
-def dispatch_retrieve_selector(
-    view: Any,
-    spec: SelectorSpec[Any, Any],
-    *,
-    extra_url_kwargs: dict[str, Any] | None = None,
-) -> Any:
-    """Like :func:`dispatch_selector_for_spec`, with retrieve-flavoured 404s.
-
-    Wraps :exc:`~django.core.exceptions.ObjectDoesNotExist` and a ``None``
-    return as :exc:`~rest_framework.exceptions.NotFound`. Used by both the
-    standalone retrieve view and the retrieve viewset mixin.
-
-    If the selector returns a QuerySet (which is the natural shape when
-    spec-level shaping is configured — declarative fields and
-    ``extend_queryset`` only apply to QuerySets), the dispatcher
-    materializes it via ``.first()`` after shaping has run. Selectors that
-    return a single instance directly keep working unchanged.
-    """
     try:
-        result = dispatch_selector_for_spec(view, spec, extra_url_kwargs=extra_url_kwargs)
+        extras = resolve_extra_kwargs(
+            view,
+            request,
+            spec_kwargs=spec.kwargs,
+            action_hook=action_hook,
+            catch_all_hook="get_selector_kwargs",
+        )
+        pool: dict[str, Any] = {
+            "request": request,
+            "user": getattr(request, "user", None),
+            **(extra_url_kwargs or {}),
+            **extras,
+        }
+        result = run_selector(selector, resolve_callable_kwargs(selector, pool))
+        result = apply_queryset_shaping(
+            result,
+            view,
+            request,
+            select_related=spec.select_related,
+            prefetch_related=spec.prefetch_related,
+            annotations=spec.annotations,
+            extend_queryset=spec.extend_queryset,
+            source_label=source_label,
+        )
     except ObjectDoesNotExist as exc:
-        raise NotFound() from exc
-    instance = result.first() if hasattr(result, "first") else result
-    if instance is None:
-        raise NotFound()
-    return instance
+        if spec.kind is SelectorKind.RETRIEVE:
+            raise NotFound() from exc
+        raise
+
+    if spec.kind is SelectorKind.RETRIEVE:
+        instance = result.first() if hasattr(result, "first") else result
+        if instance is None:
+            raise NotFound()
+        return instance
+    return result

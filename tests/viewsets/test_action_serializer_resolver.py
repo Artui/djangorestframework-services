@@ -5,7 +5,12 @@ from __future__ import annotations
 import pytest
 from rest_framework.viewsets import GenericViewSet
 
-from rest_framework_services import ActionSerializerResolver, SelectorSpec, ServiceSpec
+from rest_framework_services import (
+    ActionSerializerResolver,
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
+)
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -17,9 +22,14 @@ class _Vs(ActionSerializerResolver, GenericViewSet):
     queryset = Author.objects.all()
     serializer_class = AuthorSerializer
     action_specs = {
-        "list": SelectorSpec(output_serializer=AuthorSerializer),
-        "create": ServiceSpec(service=_noop, output_serializer=AuthorSerializer),
-        "retrieve": SelectorSpec(),
+        "list": SelectorSpec(kind=SelectorKind.LIST, output_serializer=AuthorSerializer),
+        "create": ServiceSpec(
+            service=_noop,
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+            ),
+        ),
+        "retrieve": SelectorSpec(kind=SelectorKind.RETRIEVE),
     }
 
 

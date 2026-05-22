@@ -25,7 +25,6 @@ from rest_framework_services import (
     DeleteService,
     ListSelector,
     NoInput,
-    OutputSelector,
     RetrieveSelector,
     UpdateService,
     implements,
@@ -62,10 +61,6 @@ class _ListExtras(TypedDict):
 
 class _RetrieveExtras(TypedDict):
     pk: NotRequired[int]
-
-
-class _OutputExtras(TypedDict):
-    rendered_at: NotRequired[str]
 
 
 # ---------------------------------------------------------------------------
@@ -153,18 +148,3 @@ def retrieve_drift_return(
     **extras: Unpack[_RetrieveExtras],
 ) -> int | None:
     return None
-
-
-# ---------------------------------------------------------------------------
-# Drift case 7: output selector — wrong input type
-# ---------------------------------------------------------------------------
-
-
-# expect-error: incompatible parameter type
-@implements(OutputSelector[_Author, _Author])
-def output_drift_input(
-    *,
-    result: int,
-    **extras: Unpack[_OutputExtras],
-) -> _Author:
-    return _Author(id=result, name="x")

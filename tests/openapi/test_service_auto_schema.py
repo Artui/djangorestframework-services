@@ -12,6 +12,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework.viewsets import GenericViewSet
 
 from rest_framework_services import (
+    SelectorKind,
     SelectorSpec,
     ServiceCreateView,
     ServiceDeleteView,
@@ -56,7 +57,9 @@ class _CreateView(ServiceCreateView):
     spec = ServiceSpec(
         service=_create,
         input_serializer=_AuthorIn,
-        output_serializer=AuthorSerializer,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+        ),
     )
 
 
@@ -65,7 +68,9 @@ class _UpdateView(ServiceUpdateView):
     spec = ServiceSpec(
         service=_update,
         input_serializer=_AuthorIn,
-        output_serializer=AuthorSerializer,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+        ),
     )
 
 
@@ -96,9 +101,13 @@ class _AuthorViewSet(ServiceViewSet):
         "create": ServiceSpec(
             service=_create,
             input_serializer=_AuthorIn,
-            output_serializer=AuthorSerializer,
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+            ),
         ),
-        "list": SelectorSpec(selector=_list_authors, output_serializer=AuthorSerializer),
+        "list": SelectorSpec(
+            kind=SelectorKind.LIST, selector=_list_authors, output_serializer=AuthorSerializer
+        ),
     }
 
 
@@ -106,7 +115,12 @@ class _ApproveViewSet(GenericViewSet):
     queryset = Author.objects.all()
 
     @service_action(
-        ServiceSpec(service=_approve, output_serializer=AuthorSerializer),
+        ServiceSpec(
+            service=_approve,
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+            ),
+        ),
         detail=True,
         methods=["post"],
     )

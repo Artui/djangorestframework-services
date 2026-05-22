@@ -8,6 +8,7 @@ from typing import Any, ClassVar
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.exceptions import MethodNotAllowed
 
+from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
@@ -25,7 +26,10 @@ _MUTATION_ACTIONS: dict[str, dict[str, Any]] = {
     "update": {"has_instance": True},
     "destroy": {"has_instance": True},
 }
-_SELECTOR_ACTIONS = {"list", "retrieve"}
+_SELECTOR_ACTION_KIND: dict[str, SelectorKind] = {
+    "list": SelectorKind.LIST,
+    "retrieve": SelectorKind.RETRIEVE,
+}
 
 
 def resolve_action_service_spec(
@@ -90,8 +94,8 @@ def _validate_action_spec(view_cls: type, action: str, spec: object) -> None:
             has_instance=_MUTATION_ACTIONS[action]["has_instance"],
             permissive_extras=permissive,
         )
-    elif action in _SELECTOR_ACTIONS and isinstance(spec, SelectorSpec):
-        validate_selector_spec(spec, label=label)
+    elif action in _SELECTOR_ACTION_KIND and isinstance(spec, SelectorSpec):
+        validate_selector_spec(spec, label=label, expected_kind=_SELECTOR_ACTION_KIND[action])
 
 
 class _ActionSpecsMixin:

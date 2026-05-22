@@ -30,6 +30,8 @@ Before — hand-written stubs:
 
 ```python
 from rest_framework_services import (
+    SelectorKind,
+    SelectorSpec,
     ServiceSpec,
     ServiceViewSet,
     create_from_input,
@@ -51,18 +53,24 @@ def delete_author(*, instance: Author, **_):
     instance.delete()
 
 
+_author_out = SelectorSpec(
+    kind=SelectorKind.RETRIEVE,
+    output_serializer=AuthorOutSerializer,
+)
+
+
 class AuthorViewSet(ServiceViewSet):
     queryset = Author.objects.all()
     action_specs = {
         "create": ServiceSpec(
             service=create_author,
             input_serializer=AuthorInSerializer,
-            output_serializer=AuthorOutSerializer,
+            output_selector_spec=_author_out,
         ),
         "update": ServiceSpec(
             service=update_author,
             input_serializer=AuthorInSerializer,
-            output_serializer=AuthorOutSerializer,
+            output_selector_spec=_author_out,
         ),
         "destroy": ServiceSpec(service=delete_author),
     }
@@ -72,6 +80,8 @@ After — factories:
 
 ```python
 from rest_framework_services import (
+    SelectorKind,
+    SelectorSpec,
     ServiceSpec,
     ServiceViewSet,
     create_model,
@@ -82,18 +92,24 @@ from rest_framework_services import (
 from myapp.models import Author
 
 
+_author_out = SelectorSpec(
+    kind=SelectorKind.RETRIEVE,
+    output_serializer=AuthorOutSerializer,
+)
+
+
 class AuthorViewSet(ServiceViewSet):
     queryset = Author.objects.all()
     action_specs = {
         "create": ServiceSpec(
             service=create_model(Author),
             input_serializer=AuthorInSerializer,
-            output_serializer=AuthorOutSerializer,
+            output_selector_spec=_author_out,
         ),
         "update": ServiceSpec(
             service=update_model(Author),
             input_serializer=AuthorInSerializer,
-            output_serializer=AuthorOutSerializer,
+            output_selector_spec=_author_out,
         ),
         "destroy": ServiceSpec(service=delete_model(Author)),
     }

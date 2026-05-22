@@ -26,7 +26,6 @@ from rest_framework_services import (
     HttpExtras,
     ListSelector,
     NoInput,
-    OutputSelector,
     RetrieveSelector,
     UpdateService,
 )
@@ -221,11 +220,6 @@ def test_retrieve_selector_accepts_strict_extras_callable() -> None:
     assert fn is _retrieve
 
 
-def test_output_selector_accepts_strict_extras_callable() -> None:
-    fn: OutputSelector[_Author, _Author] = _output
-    assert fn is _output
-
-
 def test_create_service_accepts_http_extras_callable() -> None:
     fn: CreateService[_AuthorIn, _Author] = _create_http
     assert fn is _create_http
@@ -249,8 +243,3 @@ def test_list_selector_accepts_http_extras_callable() -> None:
 def test_retrieve_selector_accepts_http_extras_callable() -> None:
     fn: RetrieveSelector[_Author] = _retrieve_http
     assert fn is _retrieve_http
-
-
-def test_output_selector_accepts_http_extras_callable() -> None:
-    fn: OutputSelector[_Author, _Author] = _output_http
-    assert fn is _output_http

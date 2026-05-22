@@ -12,6 +12,7 @@ from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet
 
 from rest_framework_services import (
+    SelectorKind,
     SelectorSpec,
     SelectorViewSet,
     ServiceSpec,
@@ -53,7 +54,10 @@ class TestActionSpecsMixinPermissions:
                 "create": ServiceSpec(
                     service=_create_author,
                     input_serializer=_AuthorIn,
-                    output_serializer=AuthorSerializer,
+                    output_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE,
+                        output_serializer=AuthorSerializer,
+                    ),
                     permission_classes=[_DenyAll],
                 ),
             }
@@ -70,6 +74,7 @@ class TestActionSpecsMixinPermissions:
             queryset = Author.objects.all()
             action_specs = {
                 "list": SelectorSpec(
+                    kind=SelectorKind.LIST,
                     selector=_list_authors,
                     output_serializer=AuthorSerializer,
                     permission_classes=[AllowAny],
@@ -77,7 +82,10 @@ class TestActionSpecsMixinPermissions:
                 "create": ServiceSpec(
                     service=_create_author,
                     input_serializer=_AuthorIn,
-                    output_serializer=AuthorSerializer,
+                    output_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE,
+                        output_serializer=AuthorSerializer,
+                    ),
                     permission_classes=[_DenyAll],
                 ),
             }
@@ -99,7 +107,10 @@ class TestActionSpecsMixinPermissions:
                 "create": ServiceSpec(
                     service=_create_author,
                     input_serializer=_AuthorIn,
-                    output_serializer=AuthorSerializer,
+                    output_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE,
+                        output_serializer=AuthorSerializer,
+                    ),
                 ),
             }
 
@@ -194,6 +205,7 @@ class TestSelectorActionDecoratorPermissions:
 
             @selector_action(
                 SelectorSpec(
+                    kind=SelectorKind.LIST,
                     selector=_list_authors,
                     output_serializer=AuthorSerializer,
                     permission_classes=[_DenyAll],
@@ -211,6 +223,7 @@ class TestSelectorActionDecoratorPermissions:
 
             @selector_action(
                 SelectorSpec(
+                    kind=SelectorKind.LIST,
                     selector=_list_authors,
                     output_serializer=AuthorSerializer,
                     permission_classes=[AllowAny],
@@ -227,6 +240,7 @@ class TestSelectorActionDecoratorPermissions:
 
             @selector_action(
                 SelectorSpec(
+                    kind=SelectorKind.LIST,
                     selector=_list_authors,
                     output_serializer=AuthorSerializer,
                     permission_classes=[_DenyAll],

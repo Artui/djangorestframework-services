@@ -11,6 +11,7 @@ from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
+    SelectorKind,
     SelectorListView,
     SelectorRetrieveView,
     SelectorSpec,
@@ -65,7 +66,9 @@ class TestServiceCreateViewPermissions:
             spec = ServiceSpec(
                 service=_create_author,
                 input_serializer=_AuthorIn,
-                output_serializer=AuthorSerializer,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
                 permission_classes=[_DenyAll],
             )
 
@@ -78,7 +81,9 @@ class TestServiceCreateViewPermissions:
             spec = ServiceSpec(
                 service=_create_author,
                 input_serializer=_AuthorIn,
-                output_serializer=AuthorSerializer,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
                 permission_classes=[_DenyAll],
             )
 
@@ -91,7 +96,9 @@ class TestServiceCreateViewPermissions:
             spec = ServiceSpec(
                 service=_create_author,
                 input_serializer=_AuthorIn,
-                output_serializer=AuthorSerializer,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
             )
 
         response = _View.as_view()(factory.post("/", {"name": "Ada"}, format="json"))
@@ -103,7 +110,9 @@ class TestServiceCreateViewPermissions:
             spec = ServiceSpec(
                 service=_create_author,
                 input_serializer=_AuthorIn,
-                output_serializer=AuthorSerializer,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
                 permission_classes=[],
             )
 
@@ -121,7 +130,9 @@ class TestServiceUpdateViewPermissions:
             spec = ServiceSpec(
                 service=_update_author,
                 input_serializer=_AuthorIn,
-                output_serializer=AuthorSerializer,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
                 permission_classes=[_DenyAll],
             )
 
@@ -150,6 +161,7 @@ class TestSelectorListViewPermissions:
     def test_spec_permission_denies(self) -> None:
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 selector=_list_authors,
                 output_serializer=AuthorSerializer,
                 permission_classes=[_DenyAll],
@@ -162,6 +174,7 @@ class TestSelectorListViewPermissions:
         class _View(SelectorListView):
             permission_classes = [_DenyAll]
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 selector=_list_authors,
                 output_serializer=AuthorSerializer,
             )
@@ -186,6 +199,7 @@ class TestSelectorRetrieveViewPermissions:
 
         class _View(SelectorRetrieveView):
             spec = SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
                 selector=_get_author,
                 output_serializer=AuthorSerializer,
                 permission_classes=[_DenyAll],
@@ -236,6 +250,7 @@ class TestPermissionClassesValidation:
 
         class _View(SelectorListView):
             spec = SelectorSpec(
+                kind=SelectorKind.LIST,
                 selector=_list_authors,
                 permission_classes=[_NotAPermission],  # type: ignore[list-item]
             )
