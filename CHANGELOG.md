@@ -30,10 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is now structurally a `RetrieveSelector` (nested under
   `ServiceSpec.output_selector_spec`) and the `result` kwarg, when needed,
   is declared directly on the user's function signature.
-- `@selector_action`'s `detail=` parameter is now optional and defaults
-  from `spec.kind` (`LIST → False`, `RETRIEVE → True`). When provided, it
-  must agree with `spec.kind` or `ImproperlyConfigured` is raised at
-  decoration time.
+- `@selector_action`'s `detail=` parameter is removed. The DRF URL shape
+  is pinned from `spec.kind` (`LIST → detail=False`, `RETRIEVE →
+  detail=True`) — there is no longer a way to override it. If you need a
+  URL shape that doesn't match the response shape (a detail action that
+  returns a list, or a collection action that returns a single resource),
+  fall back to DRF's plain `@action` and write the dispatch yourself.
+  `@service_action` still takes `detail=` (mutation routing is decoupled
+  from the read-shape distinction).
 - The internal `dispatch_retrieve_selector` helper is folded into
   `dispatch_selector_for_spec`, which now branches on `spec.kind`. Callers
   outside the library should not be affected (the helpers live under

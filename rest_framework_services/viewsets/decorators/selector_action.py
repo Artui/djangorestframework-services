@@ -6,7 +6,6 @@ import functools
 from collections.abc import Callable
 from typing import Any
 
-from django.core.exceptions import ImproperlyConfigured
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -21,7 +20,6 @@ from rest_framework_services.views.utils import resolve_serializer_context
 def selector_action(
     spec: SelectorSpec[Any, Any],
     *,
-    detail: bool | None = None,
     methods: list[str] | None = None,
     url_path: str | None = None,
     url_name: str | None = None,
@@ -34,36 +32,30 @@ def selector_action(
     DRF ``@action`` metadata and pick up the action name from ``__name__``.
 
     Pass a :class:`SelectorSpec` for the selector wiring. The dispatch shape
-    is driven by ``spec.kind``:
+    and the DRF URL shape are both driven by ``spec.kind`` — ``kind`` is
+    the single source of truth, with no separate ``detail=`` parameter to
+    keep in sync:
 
-    - :attr:`SelectorKind.LIST` — collection action; the selector is
-      expected to return an iterable. The result flows through
+    - :attr:`SelectorKind.LIST` — collection action (``detail=False``); the
+      selector is expected to return an iterable. The result flows through
       ``self.paginate_queryset`` / ``self.get_paginated_response`` if
       pagination is configured, otherwise it's serialized many=True.
-    - :attr:`SelectorKind.RETRIEVE` — detail action; the selector is
-      expected to return a single object (or ``None`` / raise
+    - :attr:`SelectorKind.RETRIEVE` — detail action (``detail=True``); the
+      selector is expected to return a single object (or ``None`` / raise
       :exc:`~django.core.exceptions.ObjectDoesNotExist`, both of which
       surface as 404).
 
-    ``detail`` defaults to ``kind is RETRIEVE`` — i.e. the DRF URL shape
-    follows the spec's kind. Passing ``detail`` explicitly is supported
-    but must agree with ``spec.kind``; a mismatch raises
-    :exc:`~django.core.exceptions.ImproperlyConfigured` at decoration time.
+    If you need a URL shape that doesn't match the response shape (a
+    detail action that returns a list, or a collection action that returns
+    a single resource), fall back to DRF's plain ``@action`` and write
+    the dispatch yourself.
 
     Output serialization resolves to ``spec.output_serializer`` when set,
     falling back to ``self.get_serializer(...)`` otherwise.
     """
     is_retrieve = spec.kind is SelectorKind.RETRIEVE
-    if detail is None:
-        detail = is_retrieve
-    elif detail is not is_retrieve:
-        raise ImproperlyConfigured(
-            f"@selector_action: detail={detail!r} disagrees with spec.kind="
-            f"{spec.kind!r}. Omit `detail` (it defaults from `spec.kind`) or "
-            "construct the spec with the matching kind."
-        )
 
-    drf_kwargs: dict[str, Any] = {"detail": detail}
+    drf_kwargs: dict[str, Any] = {"detail": is_retrieve}
     if methods is not None:
         drf_kwargs["methods"] = methods
     if url_path is not None:
