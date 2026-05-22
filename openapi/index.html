@@ -1433,6 +1433,10 @@ every view.</p>
 <code>SelectorViewSet</code>). The <code>DEFAULT_SCHEMA_CLASS</code> setting covers anything
 else.</p>
 <h2 id="what-you-get-for-free">What you get for free<a class="headerlink" href="#what-you-get-for-free" title="Permanent link">&para;</a></h2>
+<p>For mutation surfaces, the response shape is read from
+<code>spec.output_selector_spec.output_serializer</code> (the nested
+<code>SelectorSpec</code>). For read surfaces it's read from
+<code>spec.output_serializer</code> directly.</p>
 <table>
 <thead>
 <tr>
@@ -1446,49 +1450,49 @@ else.</p>
 <tr>
 <td><code>ServiceCreateView</code></td>
 <td><code>spec.input_serializer</code> ✓</td>
-<td><code>spec.output_serializer</code> ✓</td>
+<td><code>spec.output_selector_spec.output_serializer</code> ✓</td>
 <td>✓</td>
 </tr>
 <tr>
 <td><code>ServiceUpdateView</code></td>
 <td><code>spec.input_serializer</code> ✓</td>
-<td><code>spec.output_serializer</code> ✓</td>
+<td><code>spec.output_selector_spec.output_serializer</code> ✓</td>
 <td>✓</td>
 </tr>
 <tr>
 <td><code>ServiceDeleteView</code></td>
 <td><code>spec.input_serializer</code> ✓</td>
-<td><code>spec.output_serializer</code> ✓</td>
+<td><code>spec.output_selector_spec.output_serializer</code> ✓</td>
 <td>✓</td>
 </tr>
 <tr>
 <td><code>ServiceViewSet["create"]</code></td>
 <td><code>spec.input_serializer</code> ✓</td>
-<td><code>spec.output_serializer</code> ✓</td>
+<td><code>spec.output_selector_spec.output_serializer</code> ✓</td>
 <td>✓</td>
 </tr>
 <tr>
 <td><code>ServiceViewSet["update"]</code></td>
 <td><code>spec.input_serializer</code> ✓</td>
-<td><code>spec.output_serializer</code> ✓</td>
+<td><code>spec.output_selector_spec.output_serializer</code> ✓</td>
 <td>✓</td>
 </tr>
 <tr>
 <td><code>ServiceViewSet["partial_update"]</code></td>
 <td><code>spec.input_serializer</code> (partial) ✓</td>
-<td><code>spec.output_serializer</code> ✓</td>
+<td><code>spec.output_selector_spec.output_serializer</code> ✓</td>
 <td>✓</td>
 </tr>
 <tr>
 <td><code>ServiceViewSet["destroy"]</code></td>
 <td><code>spec.input_serializer</code> ✓</td>
-<td><code>spec.output_serializer</code> ✓</td>
+<td><code>spec.output_selector_spec.output_serializer</code> ✓</td>
 <td>✓</td>
 </tr>
 <tr>
 <td><code>@service_action</code></td>
 <td><code>spec.input_serializer</code> ✓</td>
-<td><code>spec.output_serializer</code> ✓</td>
+<td><code>spec.output_selector_spec.output_serializer</code> ✓</td>
 <td>✓</td>
 </tr>
 <tr>

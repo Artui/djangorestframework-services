@@ -1083,6 +1083,28 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#selectorkind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SelectorKind
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.selector_kind.SelectorKind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SelectorKind
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#selectorspec" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1363,6 +1385,28 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#selectorkind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SelectorKind
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.selector_kind.SelectorKind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SelectorKind
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#selectorspec" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1570,7 +1614,67 @@
 
 
 <h1 id="types">Types<a class="headerlink" href="#types" title="Permanent link">&para;</a></h1>
-<h2 id="selectorspec"><code>SelectorSpec</code><a class="headerlink" href="#selectorspec" title="Permanent link">&para;</a></h2>
+<h2 id="selectorkind"><code>SelectorKind</code><a class="headerlink" href="#selectorkind" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.types.selector_kind.SelectorKind" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SelectorKind</span>
+
+
+<a href="#rest_framework_services.types.selector_kind.SelectorKind" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="str">str</span></code>, <code><span title="enum.Enum">Enum</span></code></p>
+
+
+
+        <p>Whether a :class:<code>SelectorSpec</code> returns many objects or a single one.</p>
+<p>The kind is what tells the framework — and any future caller that
+reuses a spec outside an HTTP request — whether to materialize the
+selector's return as a collection (<code>LIST</code>) or as a single instance
+with retrieve-flavoured 404 semantics (<code>RETRIEVE</code>). Mounting a spec
+on a mismatched view (e.g. a <code>LIST</code> spec on a
+:class:<code>SelectorRetrieveView</code>) raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at <code>as_view()</code>
+time.</p>
+<p>Inheriting from <code>str</code> keeps the value JSON-serializable and
+print-friendly while still behaving as a proper enum for <code>is</code> /
+<code>==</code> checks.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="selectorspec"><code>SelectorSpec</code><a class="headerlink" href="#selectorspec" title="Permanent link">&para;</a></h2>
 
 
 <div class="doc doc-object doc-class">
@@ -1595,15 +1699,30 @@
 
 
         <p>All wiring for a single read action in one record.</p>
-<p>Used as a value in <code>action_specs</code> on viewsets and as the <code>spec=</code>
-argument to :class:<code>SelectorListView</code> / :class:<code>SelectorRetrieveView</code>.</p>
+<p>Used as a value in <code>action_specs</code> on viewsets, as the <code>spec=</code>
+argument to :class:<code>SelectorListView</code> / :class:<code>SelectorRetrieveView</code>,
+and as the <code>output_selector_spec</code> field on :class:<code>ServiceSpec</code>
+(where it describes the post-mutation re-fetch).</p>
 <p>Generic parameters (both default to <code>Any</code>):</p>
 <ul>
 <li><code>ResultT</code> — the selector's return type.</li>
 <li><code>ExtraT</code> — a <code>TypedDict</code> describing the keys returned by <code>kwargs</code>.</li>
 </ul>
+<p>All fields are keyword-only: <code>SelectorSpec(kind=SelectorKind.LIST,
+selector=fn)</code> rather than positional. <code>kind</code> is required and has no
+default — see below.</p>
 <p>Fields:</p>
 <ul>
+<li><strong><code>kind</code></strong> — required :class:<code>SelectorKind</code> discriminator (<code>LIST</code> vs
+  <code>RETRIEVE</code>). Drives the dispatcher: <code>RETRIEVE</code> materializes a
+  QuerySet via <code>.first()</code> and raises
+  :exc:<code>~rest_framework.exceptions.NotFound</code> on <code>None</code> / missing-object,
+  <code>LIST</code> returns whatever the selector returns unchanged. Also drives
+  the fail-fast check that the spec is mounted on a compatible view (a
+  <code>LIST</code> spec on :class:<code>SelectorRetrieveView</code> raises at <code>as_view()</code>).
+  Making it explicit lets a spec be reused outside a request — from a
+  management command, a cron job, or any non-DRF caller — without the
+  semantics living implicitly in the call site.</li>
 <li><strong><code>selector</code></strong> — callable invoked by <code>get_queryset()</code> (list) or
   <code>get_object()</code> (retrieve). <code>None</code> means "use the configured
   <code>queryset</code> / default DRF behaviour".</li>
@@ -1620,7 +1739,9 @@ argument to :class:<code>SelectorListView</code> / :class:<code>SelectorRetrieve
   sequence means "no permissions" explicitly. Forwarded through DRF's
   <code>@action(permission_classes=...)</code> for the <code>@selector_action</code>
   decorator, and surfaced via <code>get_permissions</code> for the viewset
-  mixins and standalone views.</li>
+  mixins and standalone views. Ignored when the spec is nested under
+  :attr:<code>ServiceSpec.output_selector_spec</code> — the surrounding mutation
+  action's permissions apply.</li>
 <li><strong><code>output_serializer_context</code></strong> — per-spec hook for the response
   serializer's <code>context=</code> dict. Sits at the most-specific layer of
   the resolution chain (<code>view.get_serializer_context</code> →
@@ -1711,17 +1832,16 @@ argument to :func:<code>service_action</code> / :class:<code>ServiceCreateView</
 <li><code>InputT</code> — the validated-data type produced by <code>input_serializer</code>.
   For dataclass-based serializers this is the dataclass; for plain
   <code>ModelSerializer</code> it is typically <code>dict[str, Any]</code>.</li>
-<li><code>ResultT</code> — the value returned by the service callable, the input to
-  <code>output_selector</code> (when set), and the value rendered by
-  <code>output_serializer</code>.</li>
+<li><code>ResultT</code> — the value returned by the service callable, and (when
+  <code>output_selector_spec</code> is set) the input to its <code>selector</code>.</li>
 <li><code>ExtraT</code> — a <code>TypedDict</code> describing the keys returned by <code>kwargs</code>.</li>
 </ul>
 <p>All three default to <code>Any</code>, so <code>ServiceSpec(service=fn)</code> keeps working
 unchanged.</p>
 <p>Fields are grouped by what they configure: the service callable itself,
-the input pipeline (<code>input_*</code>), the output pipeline (<code>output_*</code>
-plus the queryset-shaping fields, which attach to <code>output_selector</code>),
-and the cross-cutting concerns (<code>kwargs</code>, <code>permission_classes</code>).</p>
+the input pipeline (<code>input_*</code>), the output pipeline (a single nested
+:class:<code>SelectorSpec</code>), and the cross-cutting concerns (<code>kwargs</code>,
+<code>permission_classes</code>).</p>
 <p><code>success_status</code> is left as <code>None</code> so each consumer can supply its
 own action-appropriate default (201 for create, 200 for update, 204
 for destroy).</p>
@@ -1730,24 +1850,26 @@ Returns a mapping merged on top of <code>request.data</code> before the
 <code>input_serializer</code> validates it — useful for lifting URL kwargs
 (e.g. parent IDs from nested routes) into fields the serializer can
 cross-validate. Server-provided keys win on conflict.</p>
-<p><code>input_serializer_context</code> and <code>output_serializer_context</code> are
-per-spec hooks for the serializer <code>context=</code> dict. They sit at the
-most-specific layer of the resolution chain
-(<code>view.get_serializer_context</code> →
-<code>view.get_&lt;direction&gt;_serializer_context</code> →
-<code>view.get_&lt;action&gt;_&lt;direction&gt;_serializer_context</code> → spec hook), so
-the spec wins on overlapping keys. <code>None</code> (the default) leaves the
-three earlier layers intact.</p>
-<p><code>select_related</code> / <code>prefetch_related</code> / <code>annotations</code> /
-<code>extend_queryset</code> shape the queryset returned by <code>output_selector</code>
-before the framework materializes a single instance via <code>.first()</code>.
-Use these when the output_selector re-fetches the freshly-mutated
-instance with relations the response serializer will read. Identical
-semantics to the same-named fields on :class:<code>SelectorSpec</code>. All four
-require <code>output_selector</code> to be set; configuring them without one
-raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at
-<code>as_view()</code> time, and a non-QuerySet <code>output_selector</code> return
-raises at request time.</p>
+<p><code>input_serializer_context</code> is a per-spec hook for the input
+serializer's <code>context=</code> dict. It sits at the most-specific layer of
+the resolution chain (<code>view.get_serializer_context</code> →
+<code>view.get_input_serializer_context</code> →
+<code>view.get_&lt;action&gt;_input_serializer_context</code> → spec hook), so the
+spec wins on overlapping keys. <code>None</code> (the default) leaves the
+three earlier layers intact. The symmetrical output hook lives on the
+nested <code>output_selector_spec.output_serializer_context</code>.</p>
+<p><code>output_selector_spec</code> is the full output pipeline collapsed into a
+single :class:<code>SelectorSpec</code>. Its <code>kind</code> must be
+:attr:<code>SelectorKind.RETRIEVE</code> (the post-mutation re-fetch always
+materializes a single instance). Set it to render the response through
+a different shape than what the service returned (typical pattern: the
+service returns a freshly created/updated instance, the
+<code>output_selector_spec.selector</code> re-fetches it with the relations the
+response serializer needs, and the spec's <code>output_serializer</code>
+renders the result). <code>None</code> (the default) means "render the service's
+return value directly". The nested spec's <code>permission_classes</code> and
+<code>kwargs</code> are ignored — the surrounding mutation's permissions and
+kwargs chain apply.</p>
 <p><code>kwargs</code> is a callable that returns extra kwargs to merge into the
 pool the service receives. Co-locating it with the spec lets each action
 declare its own contract — no <code>if self.action == ...</code> branching in a

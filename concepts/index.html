@@ -1475,28 +1475,40 @@ backends, pagination, and serialization stay vanilla DRF.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_authors</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="k">return</span> <span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">account</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="o">.</span><span class="n">account</span><span class="p">)</span>
 </span></code></pre></div>
-<p>Selectors go into <code>action_specs</code> wrapped in a <code>SelectorSpec</code>:</p>
+<p>Selectors go into <code>action_specs</code> wrapped in a <code>SelectorSpec</code> whose
+<code>kind</code> declares whether the action returns many objects or a single one:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">action_specs</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">&quot;list&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span><span class="n">selector</span><span class="o">=</span><span class="n">list_authors</span><span class="p">),</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">&quot;retrieve&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span><span class="n">selector</span><span class="o">=</span><span class="n">get_author</span><span class="p">),</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="s2">&quot;list&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span> <span class="n">selector</span><span class="o">=</span><span class="n">list_authors</span><span class="p">),</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="s2">&quot;retrieve&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span> <span class="n">selector</span><span class="o">=</span><span class="n">get_author</span><span class="p">),</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="p">}</span>
 </span></code></pre></div>
 <h2 id="selectorspec"><code>SelectorSpec</code><a class="headerlink" href="#selectorspec" title="Permanent link">&para;</a></h2>
-<p><code>SelectorSpec</code> is a frozen dataclass bundling everything a read action
-needs:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<p><code>SelectorSpec</code> is a frozen dataclass (keyword-only fields) bundling
+everything a read action needs:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">SelectorSpec</span><span class="p">(</span><span class="n">Generic</span><span class="p">[</span><span class="n">ResultT</span><span class="p">,</span> <span class="n">ExtraT</span><span class="p">]):</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">selector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">output_serializer</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Serializer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">kwargs</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">ExtraT</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">permission_classes</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">BasePermission</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">output_serializer_context</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">select_related</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">prefetch_related</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="n">Prefetch</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">annotations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">extend_queryset</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">QuerySet</span><span class="p">,</span> <span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">QuerySet</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">kind</span><span class="p">:</span> <span class="n">SelectorKind</span>                              <span class="c1"># required</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">selector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">output_serializer</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Serializer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">kwargs</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">ExtraT</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">permission_classes</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">BasePermission</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">output_serializer_context</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">select_related</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">prefetch_related</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="n">Prefetch</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">annotations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">extend_queryset</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">QuerySet</span><span class="p">,</span> <span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">QuerySet</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </span></code></pre></div>
 <ul>
+<li><strong><code>kind</code></strong> — required <code>SelectorKind</code> discriminator (<code>LIST</code> vs
+  <code>RETRIEVE</code>). Drives dispatch: <code>RETRIEVE</code> materializes a QuerySet via
+  <code>.first()</code> and raises <code>NotFound</code> on <code>None</code>, <code>LIST</code> returns the
+  (optionally shaped) selector result. Also drives the fail-fast
+  cross-check that the spec is mounted on a compatible view — a <code>LIST</code>
+  spec on <code>SelectorRetrieveView</code> (or <code>action_specs["retrieve"]</code>) raises
+  <code>ImproperlyConfigured</code> at <code>as_view()</code> time. Making the kind explicit
+  also lets a spec be reused outside a request (management command,
+  cron job, non-DRF caller) without the semantics living implicitly in
+  the call site.</li>
 <li><strong><code>selector</code></strong> — the callable invoked by <code>get_queryset()</code> (list) or
   <code>get_object()</code> (retrieve). <code>None</code> means "use the configured <code>queryset</code>
   / default DRF behaviour".</li>
@@ -1510,7 +1522,9 @@ needs:</p>
   current <code>Request</code>. See the <a href="../recipes/extra-kwargs/">extra-kwargs recipe</a>.</li>
 <li><strong><code>permission_classes</code></strong> — overrides the view's class-level
   <code>permission_classes</code> for the action the spec backs. <code>None</code> (the default)
-  inherits; <code>[]</code> means "no permissions" explicitly. See the
+  inherits; <code>[]</code> means "no permissions" explicitly. Ignored when the
+  spec is nested under <code>ServiceSpec.output_selector_spec</code> (the
+  surrounding mutation's permissions apply). See the
   <a href="../recipes/permissions/">permissions recipe</a>.</li>
 <li><strong><code>output_serializer_context</code></strong> — callable returning extra keys for
   the response serializer's <code>context=</code> dict. Sits at the most-specific
@@ -1521,55 +1535,55 @@ needs:</p>
   the <a href="../recipes/queryset-shaping/">queryset-shaping recipe</a>.</li>
 </ul>
 <p>Generic parameters <code>ResultT</code> / <code>ExtraT</code> default to <code>Any</code>, so
-<code>SelectorSpec(selector=fn)</code> keeps working unparameterized.</p>
+<code>SelectorSpec(kind=..., selector=fn)</code> keeps working unparameterized.</p>
 <h2 id="servicespec"><code>ServiceSpec</code><a class="headerlink" href="#servicespec" title="Permanent link">&para;</a></h2>
 <p><code>ServiceSpec</code> is a frozen dataclass bundling everything a write action
-needs:</p>
+needs. The entire output pipeline (response serializer, optional
+post-mutation re-fetch, queryset shaping) lives in a single nested
+<code>output_selector_spec: SelectorSpec | None</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">ServiceSpec</span><span class="p">(</span><span class="n">Generic</span><span class="p">[</span><span class="n">InputT</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">,</span> <span class="n">ExtraT</span><span class="p">]):</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">service</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">]</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">input_serializer</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">output_serializer</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Serializer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">output_selector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">success_status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="n">kwargs</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">ExtraT</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">input_data</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">success_status</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">input_serializer</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">input_data</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">input_serializer_context</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="n">output_selector_spec</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">kwargs</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">ExtraT</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="n">permission_classes</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">BasePermission</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">input_serializer_context</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="n">output_serializer_context</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ServiceView</span><span class="p">,</span> <span class="n">Request</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </span></code></pre></div>
 <ul>
 <li><strong><code>service</code></strong> — the callable to invoke.</li>
-<li><strong><code>input_serializer</code></strong> — a DRF <code>Serializer</code> subclass, a bare
-  <code>@dataclass</code> (auto-wrapped in <code>DataclassSerializer</code>), or <code>None</code> for
-  side-effect-only services.</li>
-<li><strong><code>output_serializer</code></strong> — a DRF <code>Serializer</code> subclass to render the
-  result; omit to return whatever the service returned (already
-  JSON-serialisable).</li>
-<li><strong><code>output_selector</code></strong> — a callable run on the service's return value
-  before output rendering. Useful when the service returns an id and the
-  output should be a fully-shaped read model.</li>
 <li><strong><code>atomic</code></strong> — wrap the service call in <code>transaction.atomic()</code>
   (defaults <code>True</code>).</li>
 <li><strong><code>success_status</code></strong> — override the HTTP status (defaults to
   <code>201</code> for create, <code>200</code> for update, <code>204</code> for delete).</li>
-<li><strong><code>kwargs</code></strong> — callable returning extra kwargs to merge into the pool
-  the service receives. The most-specific level of the kwargs
-  resolution chain; co-located with the service it feeds.</li>
+<li><strong><code>input_serializer</code></strong> — a DRF <code>Serializer</code> subclass, a bare
+  <code>@dataclass</code> (auto-wrapped in <code>DataclassSerializer</code>), or <code>None</code> for
+  side-effect-only services.</li>
 <li><strong><code>input_data</code></strong> — callable returning a mapping merged on top of
   <code>request.data</code> <em>before</em> the <code>input_serializer</code> validates it. Useful
   for lifting URL kwargs (e.g. parent IDs from nested routes) into
   fields the serializer can cross-validate. Server-provided keys win
   on conflict.</li>
+<li><strong><code>input_serializer_context</code></strong> — callable returning extra keys for
+  the <em>input</em> serializer's <code>context=</code> dict. Sits at the most-specific
+  layer of the <a href="../recipes/serializer-context/">serializer-context resolution chain</a>.</li>
+<li><strong><code>output_selector_spec</code></strong> — nested <code>SelectorSpec</code>
+  (<code>kind=SelectorKind.RETRIEVE</code>) carrying the response serializer, the
+  optional re-fetch <code>selector</code>, the output <code>output_serializer_context</code>
+  hook, and the queryset-shaping fields. <code>None</code> (the default) renders
+  the service's return value directly. The nested spec's
+  <code>permission_classes</code> and <code>kwargs</code> are ignored — the surrounding
+  mutation's permissions and kwargs chain apply.</li>
+<li><strong><code>kwargs</code></strong> — callable returning extra kwargs to merge into the pool
+  the service receives. The most-specific level of the kwargs
+  resolution chain; co-located with the service it feeds.</li>
 <li><strong><code>permission_classes</code></strong> — overrides the view's class-level
   <code>permission_classes</code> for the action the spec backs. <code>None</code> (the default)
   inherits; <code>[]</code> means "no permissions" explicitly. See the
   <a href="../recipes/permissions/">permissions recipe</a>.</li>
-<li><strong><code>input_serializer_context</code></strong> / <strong><code>output_serializer_context</code></strong> —
-  callables returning extra keys for the input / output serializer
-  <code>context=</code> dicts. Sit at the most-specific layer of the
-  <a href="../recipes/serializer-context/">serializer-context resolution chain</a>.</li>
 </ul>
 <p>Generic parameters <code>InputT</code> / <code>ResultT</code> / <code>ExtraT</code> default to <code>Any</code>, so
 <code>ServiceSpec(service=fn)</code> keeps working unparameterized.</p>
@@ -1679,29 +1693,37 @@ Selector views are configured by setting <code>spec</code> to a <code>SelectorSp
 <h2 id="viewsets">Viewsets<a class="headerlink" href="#viewsets" title="Permanent link">&para;</a></h2>
 <p><code>ServiceViewSet</code> is a router-compatible viewset composed of per-action
 mixins. A single <code>action_specs</code> mapping wires everything:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorViewSet</span><span class="p">(</span><span class="n">ServiceViewSet</span><span class="p">):</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">action_specs</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        <span class="s2">&quot;list&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">list_authors</span><span class="p">,</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">AuthorListItemSerializer</span><span class="p">,</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>        <span class="p">),</span>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>        <span class="s2">&quot;retrieve&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">get_author</span><span class="p">,</span>
-</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">AuthorDetailSerializer</span><span class="p">,</span>
-</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>        <span class="p">),</span>
-</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>        <span class="s2">&quot;create&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>            <span class="n">service</span><span class="o">=</span><span class="n">create_author</span><span class="p">,</span>
-</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>            <span class="n">input_serializer</span><span class="o">=</span><span class="n">CreateAuthorInput</span><span class="p">,</span>
-</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">AuthorDetailSerializer</span><span class="p">,</span>
-</span><span id="__span-6-16"><a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>        <span class="p">),</span>
-</span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>        <span class="s2">&quot;update&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>            <span class="n">service</span><span class="o">=</span><span class="n">update_author</span><span class="p">,</span>
-</span><span id="__span-6-19"><a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>            <span class="n">input_serializer</span><span class="o">=</span><span class="n">UpdateAuthorInput</span><span class="p">,</span>
-</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">AuthorDetailSerializer</span><span class="p">,</span>
-</span><span id="__span-6-21"><a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>        <span class="p">),</span>
-</span><span id="__span-6-22"><a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>        <span class="s2">&quot;destroy&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span><span class="n">service</span><span class="o">=</span><span class="n">delete_author</span><span class="p">),</span>
-</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>    <span class="p">}</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">_author_detail</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">output_serializer</span><span class="o">=</span><span class="n">AuthorDetailSerializer</span><span class="p">,</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="p">)</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorViewSet</span><span class="p">(</span><span class="n">ServiceViewSet</span><span class="p">):</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="n">action_specs</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>        <span class="s2">&quot;list&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">list_authors</span><span class="p">,</span>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">AuthorListItemSerializer</span><span class="p">,</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>        <span class="p">),</span>
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>        <span class="s2">&quot;retrieve&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-6-16"><a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span>
+</span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">get_author</span><span class="p">,</span>
+</span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">AuthorDetailSerializer</span><span class="p">,</span>
+</span><span id="__span-6-19"><a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>        <span class="p">),</span>
+</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>        <span class="s2">&quot;create&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-6-21"><a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>            <span class="n">service</span><span class="o">=</span><span class="n">create_author</span><span class="p">,</span>
+</span><span id="__span-6-22"><a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>            <span class="n">input_serializer</span><span class="o">=</span><span class="n">CreateAuthorInput</span><span class="p">,</span>
+</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>            <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">_author_detail</span><span class="p">,</span>
+</span><span id="__span-6-24"><a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>        <span class="p">),</span>
+</span><span id="__span-6-25"><a id="__codelineno-6-25" name="__codelineno-6-25" href="#__codelineno-6-25"></a>        <span class="s2">&quot;update&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-6-26"><a id="__codelineno-6-26" name="__codelineno-6-26" href="#__codelineno-6-26"></a>            <span class="n">service</span><span class="o">=</span><span class="n">update_author</span><span class="p">,</span>
+</span><span id="__span-6-27"><a id="__codelineno-6-27" name="__codelineno-6-27" href="#__codelineno-6-27"></a>            <span class="n">input_serializer</span><span class="o">=</span><span class="n">UpdateAuthorInput</span><span class="p">,</span>
+</span><span id="__span-6-28"><a id="__codelineno-6-28" name="__codelineno-6-28" href="#__codelineno-6-28"></a>            <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">_author_detail</span><span class="p">,</span>
+</span><span id="__span-6-29"><a id="__codelineno-6-29" name="__codelineno-6-29" href="#__codelineno-6-29"></a>        <span class="p">),</span>
+</span><span id="__span-6-30"><a id="__codelineno-6-30" name="__codelineno-6-30" href="#__codelineno-6-30"></a>        <span class="s2">&quot;destroy&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span><span class="n">service</span><span class="o">=</span><span class="n">delete_author</span><span class="p">),</span>
+</span><span id="__span-6-31"><a id="__codelineno-6-31" name="__codelineno-6-31" href="#__codelineno-6-31"></a>    <span class="p">}</span>
 </span></code></pre></div>
 <ul>
 <li>Read-side actions take a <code>SelectorSpec</code>.</li>
@@ -1721,15 +1743,19 @@ exported so you can compose only the actions you need — see the
 <p>Resolves <code>get_serializer_class()</code> from the active action's <code>action_specs</code>
 entry:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">spec</span> <span class="o">=</span> <span class="n">action_specs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">action</span><span class="p">)</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">if</span> <span class="n">spec</span> <span class="n">has</span> <span class="n">output_serializer</span><span class="p">:</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">SelectorSpec</span><span class="p">)</span> <span class="ow">and</span> <span class="n">spec</span><span class="o">.</span><span class="n">output_serializer</span><span class="p">:</span>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="k">return</span> <span class="n">spec</span><span class="o">.</span><span class="n">output_serializer</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># falls back to serializer_class</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">ServiceSpec</span><span class="p">)</span> <span class="ow">and</span> <span class="n">spec</span><span class="o">.</span><span class="n">output_selector_spec</span> <span class="ow">and</span> \
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>        <span class="n">spec</span><span class="o">.</span><span class="n">output_selector_spec</span><span class="o">.</span><span class="n">output_serializer</span><span class="p">:</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="k">return</span> <span class="n">spec</span><span class="o">.</span><span class="n">output_selector_spec</span><span class="o">.</span><span class="n">output_serializer</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># falls back to serializer_class</span>
 </span></code></pre></div>
-<p>Works for both <code>SelectorSpec</code> and <code>ServiceSpec</code> entries. Falls back to
-DRF's standard <code>serializer_class</code> when the action has no spec or no
-<code>output_serializer</code>. Already included in <code>ServiceViewSet</code> and
-<code>SelectorViewSet</code>; add it to any custom composition that needs per-action
-serializers.</p>
+<p>Works for both <code>SelectorSpec</code> (reads <code>spec.output_serializer</code>) and
+<code>ServiceSpec</code> (reads <code>spec.output_selector_spec.output_serializer</code>)
+entries. Falls back to DRF's standard <code>serializer_class</code> when the
+action has no spec or no response serializer is set. Already included
+in <code>ServiceViewSet</code> and <code>SelectorViewSet</code>; add it to any custom
+composition that needs per-action serializers.</p>
 <h2 id="service_action"><code>@service_action</code><a class="headerlink" href="#service_action" title="Permanent link">&para;</a></h2>
 <p>Custom viewset actions wrapped in the same plumbing as the standard
 mutation flow. See the <a href="../recipes/service-action/">service-action recipe</a>.</p>

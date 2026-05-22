@@ -1971,15 +1971,24 @@ action-specific override, do it explicitly in your own <code>get_object()</code>
 
 
         <p>Resolve <code>get_serializer_class()</code> from <code>action_specs</code>.</p>
-<p>Consults the <code>action_specs</code> map for an <code>output_serializer</code> on the
-active action's :class:<code>SelectorSpec</code> or :class:<code>ServiceSpec</code> entry,
-then falls back to DRF's standard <code>serializer_class</code> attribute (and
-raises the usual DRF <code>AssertionError</code> if neither is set).</p>
+<p>Consults the <code>action_specs</code> map for the active action's entry:</p>
+<ul>
+<li>:class:<code>SelectorSpec</code> — uses <code>spec.output_serializer</code> directly.</li>
+<li>:class:<code>ServiceSpec</code> — uses
+  <code>spec.output_selector_spec.output_serializer</code> (the output pipeline
+  is collapsed into the nested selector spec).</li>
+</ul>
+<p>Falls back to DRF's standard <code>serializer_class</code> attribute (and raises
+the usual DRF <code>AssertionError</code> if neither is set).</p>
 <p>Example::</p>
 <div class="language-text highlight"><pre><span></span><code>class InvoiceViewSet(ActionSerializerResolver, GenericViewSet):
     action_specs = {
-        &quot;list&quot;: SelectorSpec(output_serializer=InvoiceListSerializer),
-        &quot;retrieve&quot;: SelectorSpec(output_serializer=InvoiceDetailSerializer),
+        &quot;list&quot;: SelectorSpec(
+            kind=SelectorKind.LIST, output_serializer=InvoiceListSerializer,
+        ),
+        &quot;retrieve&quot;: SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=InvoiceDetailSerializer,
+        ),
     }
 </code></pre></div>
 
@@ -2058,12 +2067,11 @@ are forwarded to DRF's <code>@action</code>.</p>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">selector_action</span><span class="p">(</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">detail</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">methods</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">url_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">url_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="o">**</span><span class="n">action_kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">methods</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">url_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">url_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="o">**</span><span class="n">action_kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2072,17 +2080,24 @@ are forwarded to DRF's <code>@action</code>.</p>
 <p>The decorated method's body is <em>not</em> executed — the decorator supplies
 the handler. The method exists so that <code>@selector_action</code> can attach
 DRF <code>@action</code> metadata and pick up the action name from <code>__name__</code>.</p>
-<p>Pass a :class:<code>SelectorSpec</code> for the selector wiring. <code>detail</code>
-controls the dispatch shape:</p>
+<p>Pass a :class:<code>SelectorSpec</code> for the selector wiring. The dispatch shape
+and the DRF URL shape are both driven by <code>spec.kind</code> — <code>kind</code> is
+the single source of truth, with no separate <code>detail=</code> parameter to
+keep in sync:</p>
 <ul>
-<li><code>detail=False</code> (default) — collection action; the selector is
-  expected to return an iterable. The result flows through
+<li>:attr:<code>SelectorKind.LIST</code> — collection action (<code>detail=False</code>); the
+  selector is expected to return an iterable. The result flows through
   <code>self.paginate_queryset</code> / <code>self.get_paginated_response</code> if
   pagination is configured, otherwise it's serialized many=True.</li>
-<li><code>detail=True</code> — detail action; the selector is expected to return a
-  single object (or <code>None</code>, which surfaces as 404, matching
-  :class:<code>SelectorRetrieveView</code>).</li>
+<li>:attr:<code>SelectorKind.RETRIEVE</code> — detail action (<code>detail=True</code>); the
+  selector is expected to return a single object (or <code>None</code> / raise
+  :exc:<code>~django.core.exceptions.ObjectDoesNotExist</code>, both of which
+  surface as 404).</li>
 </ul>
+<p>If you need a URL shape that doesn't match the response shape (a
+detail action that returns a list, or a collection action that returns
+a single resource), fall back to DRF's plain <code>@action</code> and write
+the dispatch yourself.</p>
 <p>Output serialization resolves to <code>spec.output_serializer</code> when set,
 falling back to <code>self.get_serializer(...)</code> otherwise.</p>
 

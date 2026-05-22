@@ -789,10 +789,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#on-servicespec-shaping-the-output_selector-return" class="md-nav__link">
+  <a href="#on-servicespec-shaping-the-post-mutation-re-fetch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        On ServiceSpec — shaping the output_selector return
+        On ServiceSpec — shaping the post-mutation re-fetch
       
     </span>
   </a>
@@ -1247,10 +1247,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#on-servicespec-shaping-the-output_selector-return" class="md-nav__link">
+  <a href="#on-servicespec-shaping-the-post-mutation-re-fetch" class="md-nav__link">
     <span class="md-ellipsis">
       
-        On ServiceSpec — shaping the output_selector return
+        On ServiceSpec — shaping the post-mutation re-fetch
       
     </span>
   </a>
@@ -1307,13 +1307,14 @@ shaping depend on the request.</p>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Post</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">action_specs</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        <span class="s2">&quot;list&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">list_posts</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">PostSerializer</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>            <span class="n">select_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;author&quot;</span><span class="p">],</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>            <span class="n">prefetch_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;tags&quot;</span><span class="p">,</span> <span class="n">Prefetch</span><span class="p">(</span><span class="s2">&quot;comments&quot;</span><span class="p">,</span> <span class="n">queryset</span><span class="o">=</span><span class="n">Comment</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">active</span><span class="p">())],</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>            <span class="n">annotations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;reaction_count&quot;</span><span class="p">:</span> <span class="n">Count</span><span class="p">(</span><span class="s2">&quot;reactions&quot;</span><span class="p">)},</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>        <span class="p">),</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="p">}</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">list_posts</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">PostSerializer</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>            <span class="n">select_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;author&quot;</span><span class="p">],</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>            <span class="n">prefetch_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;tags&quot;</span><span class="p">,</span> <span class="n">Prefetch</span><span class="p">(</span><span class="s2">&quot;comments&quot;</span><span class="p">,</span> <span class="n">queryset</span><span class="o">=</span><span class="n">Comment</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">active</span><span class="p">())],</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>            <span class="n">annotations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;reaction_count&quot;</span><span class="p">:</span> <span class="n">Count</span><span class="p">(</span><span class="s2">&quot;reactions&quot;</span><span class="p">)},</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>        <span class="p">),</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="p">}</span>
 </span></code></pre></div>
 <p>The fields are applied in fixed order — <code>select_related</code> →
 <code>prefetch_related</code> → <code>annotations</code> → <code>extend_queryset</code> — to the queryset
@@ -1336,12 +1337,13 @@ so it always sees the fully statically-shaped queryset.</p>
 </span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Post</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
 </span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">action_specs</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>        <span class="s2">&quot;list&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">list_posts</span><span class="p">,</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">PostSerializer</span><span class="p">,</span>
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>            <span class="n">select_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;author&quot;</span><span class="p">],</span>
-</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>            <span class="n">extend_queryset</span><span class="o">=</span><span class="n">include_relations_from_query_param</span><span class="p">,</span>
-</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>        <span class="p">),</span>
-</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>    <span class="p">}</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">list_posts</span><span class="p">,</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">PostSerializer</span><span class="p">,</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>            <span class="n">select_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;author&quot;</span><span class="p">],</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>            <span class="n">extend_queryset</span><span class="o">=</span><span class="n">include_relations_from_query_param</span><span class="p">,</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>        <span class="p">),</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>    <span class="p">}</span>
 </span></code></pre></div>
 <p>The callable signature is <code>(queryset, view, request) -&gt; QuerySet</code>. <code>view</code>
 is typed as <code>ServiceView</code>; the queryset that goes in must come back out
@@ -1361,23 +1363,25 @@ of a single instance. The framework applies shaping then materializes via
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">queryset</span> <span class="o">=</span> <span class="n">Post</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">action_specs</span> <span class="o">=</span> <span class="p">{</span>
 </span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="s2">&quot;retrieve&quot;</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">get_post</span><span class="p">,</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">PostSerializer</span><span class="p">,</span>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>            <span class="n">select_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;author&quot;</span><span class="p">],</span>
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>            <span class="n">prefetch_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;tags&quot;</span><span class="p">],</span>
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>        <span class="p">),</span>
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="p">}</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">get_post</span><span class="p">,</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">PostSerializer</span><span class="p">,</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>            <span class="n">select_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;author&quot;</span><span class="p">],</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>            <span class="n">prefetch_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;tags&quot;</span><span class="p">],</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>        <span class="p">),</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="p">}</span>
 </span></code></pre></div>
 <p>Selectors that return an instance directly (the existing pattern) keep
 working unchanged, but shaping is a no-op on a materialized instance —
 configure either declarative shaping or your own <code>.select_related(...)</code>
 inside the selector, not both.</p>
-<h2 id="on-servicespec-shaping-the-output_selector-return">On <code>ServiceSpec</code> — shaping the <code>output_selector</code> return<a class="headerlink" href="#on-servicespec-shaping-the-output_selector-return" title="Permanent link">&para;</a></h2>
-<p>The same four fields are on <code>ServiceSpec</code>. There they apply to the
-queryset returned by <code>output_selector</code> (the re-fetch step of a mutation
+<h2 id="on-servicespec-shaping-the-post-mutation-re-fetch">On <code>ServiceSpec</code> — shaping the post-mutation re-fetch<a class="headerlink" href="#on-servicespec-shaping-the-post-mutation-re-fetch" title="Permanent link">&para;</a></h2>
+<p>The same shaping fields live on the nested
+<code>ServiceSpec.output_selector_spec</code>. There they apply to the queryset
+returned by that spec's <code>selector</code> (the re-fetch step of a mutation
 flow). The typical pattern: the service creates or updates an instance;
-the output_selector returns a filtered QuerySet; the spec declares the
-eager-loading the response serializer needs.</p>
+the nested <code>selector</code> returns a filtered QuerySet; the nested spec
+declares the eager-loading the response serializer needs.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_post</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="k">return</span> <span class="n">Post</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">title</span><span class="p">,</span> <span class="n">author</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
@@ -1388,25 +1392,30 @@ eager-loading the response serializer needs.</p>
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>        <span class="n">service</span><span class="o">=</span><span class="n">create_post</span><span class="p">,</span>
 </span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">CreatePostInput</span><span class="p">,</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>        <span class="n">output_serializer</span><span class="o">=</span><span class="n">PostSerializer</span><span class="p">,</span>
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>        <span class="n">output_selector</span><span class="o">=</span><span class="n">refetch_post</span><span class="p">,</span>
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>        <span class="n">select_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;author&quot;</span><span class="p">],</span>
-</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>        <span class="n">prefetch_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;tags&quot;</span><span class="p">],</span>
-</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>    <span class="p">)</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>        <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">refetch_post</span><span class="p">,</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">PostSerializer</span><span class="p">,</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>            <span class="n">select_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;author&quot;</span><span class="p">],</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>            <span class="n">prefetch_related</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;tags&quot;</span><span class="p">],</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>        <span class="p">),</span>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>    <span class="p">)</span>
 </span></code></pre></div>
 <p>After shaping, the framework <code>.first()</code>s the QuerySet to a single
-instance before the output serializer runs. Output selectors that return
-a materialized instance directly (no <code>.filter().select_related(...)</code>)
-keep working — shaping is a no-op in that case.</p>
-<p>The shaping fields require <code>output_selector</code> to be set. Configuring them
-without one raises <code>ImproperlyConfigured</code> at <code>as_view()</code> time, mirroring
-the <code>SelectorSpec</code>/<code>selector</code> rule.</p>
+instance before the output serializer runs. Re-fetch selectors that
+return a materialized instance directly (no
+<code>.filter().select_related(...)</code>) keep working — shaping is a no-op in
+that case.</p>
+<p>The shaping fields require <code>selector</code> to be set on the nested spec.
+Configuring them on a nested spec with no selector raises
+<code>ImproperlyConfigured</code> at <code>as_view()</code> time, mirroring the standalone
+<code>SelectorSpec</code>/<code>selector</code> rule.</p>
 <h2 id="where-shaping-does-not-apply">Where shaping does <em>not</em> apply<a class="headerlink" href="#where-shaping-does-not-apply" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><code>SelectorSpec.selector</code> or <code>ServiceSpec.output_selector</code> is <code>None</code></strong> —
-  the spec has nothing to shape. Configuring shaping in either case raises
-  <code>ImproperlyConfigured</code> at <code>as_view()</code> time to surface the misconfiguration
-  loudly.</li>
+<li><strong>The nested <code>SelectorSpec.selector</code> is <code>None</code></strong> — the spec has
+  nothing to shape. Configuring shaping then raises
+  <code>ImproperlyConfigured</code> at <code>as_view()</code> time to surface the
+  misconfiguration loudly.</li>
 <li><strong>The shaped callable returns a non-QuerySet</strong> (a list, dict, instance,
   generator). Shaping requires a queryset to chain <code>.select_related(...)</code> /
   <code>.prefetch_related(...)</code> / <code>.annotate(...)</code>. The dispatcher raises

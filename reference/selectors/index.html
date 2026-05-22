@@ -1110,17 +1110,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.output_selector.OutputSelector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        OutputSelector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#helpers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1248,17 +1237,6 @@
     <span class="md-ellipsis">
       
         dispatch_selector_for_spec
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.dispatch_retrieve_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        dispatch_retrieve_selector
       
     </span>
   </a>
@@ -1452,17 +1430,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.output_selector.OutputSelector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        OutputSelector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#helpers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1590,17 +1557,6 @@
     <span class="md-ellipsis">
       
         dispatch_selector_for_spec
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.dispatch_retrieve_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        dispatch_retrieve_selector
       
     </span>
   </a>
@@ -1846,59 +1802,6 @@ extras-typing notes.</p>
 
     </div>
 
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.selectors.output_selector.OutputSelector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">OutputSelector</span>
-
-
-<a href="#rest_framework_services.selectors.output_selector.OutputSelector" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.selectors.output_selector.InT">InT</span>, <span title="rest_framework_services.selectors.output_selector.OutT">OutT</span>]</code></p>
-
-
-
-        <p>Structural shape for a <code>ServiceSpec.output_selector</code> callable.</p>
-<p>Invoked after the service returns. Receives the service's return value as
-<code>result</code> and may transform it (e.g. attach computed fields, swap to a
-different shape) before serialization.</p>
-<p>See :class:<code>~rest_framework_services.services.CreateService</code> for the
-extras-typing notes.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
 </div><h2 id="helpers">Helpers<a class="headerlink" href="#helpers" title="Permanent link">&para;</a></h2>
 <h3 id="call_selector"><code>call_selector</code><a class="headerlink" href="#call_selector" title="Permanent link">&para;</a></h3>
 
@@ -2071,11 +1974,7 @@ is configured.</p>
 <code>qs</code> is not a Django QuerySet (no <code>annotate</code> method) — loud
 failure beats a stale <code>AttributeError</code> deep in DRF rendering.
 <code>source_label</code> is included in the error to point at the misuse
-(<code>"SelectorSpec.selector"</code> vs <code>"ServiceSpec.output_selector"</code>).</p>
-<p>Shared by :func:<code>dispatch_selector_for_spec</code> (selector-backed reads)
-and :func:<code>_execute_mutation</code> (the <code>output_selector</code> step of a
-mutation flow); both specs carry the same field names with identical
-semantics.</p>
+(<code>"SelectorSpec.selector"</code> vs <code>"ServiceSpec.output_selector_spec.selector"</code>).</p>
 
 
     </div>
@@ -2095,7 +1994,8 @@ semantics.</p>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">extra_url_kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">source_label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;SelectorSpec.selector&quot;</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2107,41 +2007,16 @@ the resulting pool against the selector's signature, invokes the
 selector sync-or-async, then applies declarative + dynamic queryset
 shaping. Used by both selector viewset mixins and the standalone
 selector views so the call shape lives in one place.</p>
+<p>When <code>spec.kind</code> is :attr:<code>SelectorKind.RETRIEVE</code>, the returned
+QuerySet (if any) is materialized via <code>.first()</code> and <code>None</code> /
+:exc:<code>~django.core.exceptions.ObjectDoesNotExist</code> are translated to
+:exc:<code>~rest_framework.exceptions.NotFound</code>. <code>SelectorKind.LIST</code>
+returns the (optionally shaped) selector return as-is.</p>
 <p>The caller must check <code>spec.selector is not None</code> before calling and
 fall back to vanilla DRF otherwise.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="rest_framework_services.selectors.utils.dispatch_retrieve_selector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">dispatch_retrieve_selector</span>
-
-
-<a href="#rest_framework_services.selectors.utils.dispatch_retrieve_selector" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">dispatch_retrieve_selector</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">extra_url_kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Like :func:<code>dispatch_selector_for_spec</code>, with retrieve-flavoured 404s.</p>
-<p>Wraps :exc:<code>~django.core.exceptions.ObjectDoesNotExist</code> and a <code>None</code>
-return as :exc:<code>~rest_framework.exceptions.NotFound</code>. Used by both the
-standalone retrieve view and the retrieve viewset mixin.</p>
-<p>If the selector returns a QuerySet (which is the natural shape when
-spec-level shaping is configured — declarative fields and
-<code>extend_queryset</code> only apply to QuerySets), the dispatcher
-materializes it via <code>.first()</code> after shaping has run. Selectors that
-return a single instance directly keep working unchanged.</p>
+<p><code>source_label</code> is forwarded to :func:<code>apply_queryset_shaping</code> for
+error messages, so a misconfiguration on a nested
+<code>output_selector_spec</code> points at the right place.</p>
 
 
     </div>

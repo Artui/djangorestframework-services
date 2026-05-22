@@ -1970,7 +1970,8 @@ one minor version of one type checker (<code>ty</code> 0.0.32) and is not portab
         <p>Structural shape for a delete-action service callable.</p>
 <p>Receives the resolved <code>instance</code>. Most delete services return <code>None</code>;
 if you need a response body, return a value and configure
-<code>ServiceSpec.output_serializer</code> (or <code>output_selector</code>).</p>
+<code>ServiceSpec.output_selector_spec</code> with an <code>output_serializer</code>
+(and optionally a re-fetch <code>selector</code>).</p>
 <p>For <em>delete with payload</em> — when the spec carries an <code>input_serializer</code>
 — bind <code>InputT</code> to your input dataclass and declare <code>data</code> on the
 service. <code>data</code> is optional in the Protocol (default :data:<code>Ellipsis</code>)

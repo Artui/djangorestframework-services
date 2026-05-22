@@ -2107,8 +2107,8 @@
 <p>Configure by setting <code>spec</code> to a :class:<code>ServiceSpec</code>. The spec's
 <code>input_serializer</code> is optional (for delete-with-payload patterns
 such as a deletion reason); <code>success_status</code> defaults to
-<code>204 No Content</code>; set <code>output_serializer</code> on the spec to render
-a body instead.</p>
+<code>204 No Content</code>; set <code>output_selector_spec</code> with an
+<code>output_serializer</code> on the spec to render a body instead.</p>
 
 
 
@@ -2920,7 +2920,7 @@ validation for that callable).</p>
 
     <div class="doc doc-contents ">
 
-        <p>Validate a :class:<code>ServiceSpec</code>'s <code>service</code> and <code>output_selector</code>.</p>
+        <p>Validate a :class:<code>ServiceSpec</code>'s <code>service</code> and <code>output_selector_spec</code>.</p>
 <p>Shared between standalone mutation views, viewset mixins, and
 <code>@service_action</code>. <code>has_instance</code> is fixed by the action context
 (<code>False</code> for create, <code>True</code> for update / destroy / detail actions).</p>
@@ -2938,7 +2938,12 @@ validation for that callable).</p>
 
 
 <a href="#rest_framework_services.views.spec_validation.validate_selector_spec" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">validate_selector_spec</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">validate_selector_spec</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">expected_kind</span><span class="p">:</span> <span class="n">SelectorKind</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2948,6 +2953,10 @@ validation for that callable).</p>
 <code>get_selector_kwargs</code> are dynamic), so the only fatal misuses are
 requesting framework-only keys that don't exist in the selector pool
 (<code>data</code>, <code>instance</code>, <code>result</code>).</p>
+<p><code>expected_kind</code> (when supplied) fails fast if <code>spec.kind</code> does not
+match — e.g. a <code>LIST</code> spec mounted on :class:<code>SelectorRetrieveView</code>
+raises at <code>as_view()</code> time rather than producing surprising
+runtime behaviour.</p>
 
 
     </div>
@@ -2984,14 +2993,17 @@ placeholder so <code>as_view()</code> itself doesn't trip).</p>
 
 
 <a href="#rest_framework_services.views.spec_validation.validate_selector_view_spec" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">validate_selector_view_spec</span><span class="p">(</span><span class="n">view_cls</span><span class="p">:</span> <span class="nb">type</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">validate_selector_view_spec</span><span class="p">(</span><span class="n">view_cls</span><span class="p">:</span> <span class="nb">type</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">expected_kind</span><span class="p">:</span> <span class="n">SelectorKind</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
         <p>Validate <code>view_cls.spec</code> on a standalone selector view.</p>
-<p>No-op when <code>spec</code> is unset or carries no <code>selector</code> (the spec then
-means "use vanilla DRF" and there is nothing to validate).</p>
+<p>No-op when <code>spec</code> is unset (the spec then means "use vanilla DRF" and
+there is nothing to validate). <code>expected_kind</code> is the kind the view
+is shaped for (<code>LIST</code> for :class:<code>SelectorListView</code>, <code>RETRIEVE</code>
+for :class:<code>SelectorRetrieveView</code>); a spec whose <code>kind</code> does not
+match fails fast at <code>as_view()</code> time.</p>
 
 
     </div>

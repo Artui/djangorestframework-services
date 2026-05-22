@@ -1382,7 +1382,7 @@ a known kwargs <strong>pool</strong>:</p>
 <td><code>request</code>, <code>user</code>, URL kwargs, plus extras</td>
 </tr>
 <tr>
-<td><code>output_selector</code></td>
+<td>Output selector (nested)</td>
 <td><code>request</code>, <code>user</code>, <code>result</code>, the action's pool, extras</td>
 </tr>
 </tbody>
@@ -1483,8 +1483,9 @@ for typed access:</p>
   input dataclass for delete-with-payload, or to
   <a href="../reference/types/#noinput"><code>NoInput</code></a> when no body is read.</li>
 <li><code>ListSelector[ResultT]</code></li>
-<li><code>RetrieveSelector[ResultT]</code></li>
-<li><code>OutputSelector[InT, OutT]</code></li>
+<li><code>RetrieveSelector[ResultT]</code> — also used for the post-mutation re-fetch
+  selector mounted under <code>ServiceSpec.output_selector_spec.selector</code>,
+  where the kwargs pool additionally carries <code>result</code>.</li>
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Migrating from <code>Strict*</code> / 3-arg parameterisation (0.6 – 0.10)</p>
@@ -1605,7 +1606,14 @@ request:</p>
 <ul>
 <li>Service requires <code>data</code> but the spec has no <code>input_serializer</code>.</li>
 <li>Service requires <code>instance</code> but the action is create / list (no instance).</li>
-<li>Output selector requires a key that's only present in service-call context.</li>
+<li>The nested <code>output_selector_spec.selector</code> requires a key that's only
+  present in service-call context.</li>
+<li>A mounted <code>SelectorSpec</code>'s <code>kind</code> disagrees with the view it's attached
+  to — e.g. a <code>SelectorKind.LIST</code> spec on <code>SelectorRetrieveView</code>, or a
+  <code>SelectorKind.RETRIEVE</code> entry under <code>action_specs["list"]</code>.</li>
+<li>A <code>ServiceSpec.output_selector_spec</code> is supplied with a <code>kind</code> other
+  than <code>SelectorKind.RETRIEVE</code> (the post-mutation re-fetch always
+  materializes a single instance).</li>
 <li>A required parameter is not framework-provided and the view has no
   <code>kwargs=</code> provider, no <code>get_&lt;action&gt;_*_kwargs</code>, and no <code>get_*_kwargs</code> —
   the parameter would be silently dropped at request time.</li>

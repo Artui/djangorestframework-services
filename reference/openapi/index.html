@@ -1332,8 +1332,8 @@ classes that set <code>schema = ...</code> explicitly keep their own choice.</p>
 <li>Request body is derived from <code>spec.input_serializer</code> (a bare
   dataclass is auto-wrapped in :class:<code>DataclassSerializer</code>).</li>
 <li>Response body for the success status is derived from
-  <code>spec.output_serializer</code> (or rendered as a no-content response when
-  unset and the action's default status is 204).</li>
+  <code>spec.output_selector_spec.output_serializer</code> (or rendered as a
+  no-content response when unset and the action's default status is 204).</li>
 <li>A <code>422</code> response documenting :class:<code>ServiceErrorSerializer</code> is
   attached so consumers know about the <code>ServiceError</code> contract.</li>
 <li>Partial-update actions instantiate the request serializer with
