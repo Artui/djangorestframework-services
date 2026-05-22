@@ -34,14 +34,18 @@ def _invoice_response_spec() -> SelectorSpec[Invoice, None]:
 
 class InvoiceViewSet(ServiceViewSet):
     queryset = Invoice.objects.all()
-    serializer_classes = {
-        "list": InvoiceSerializer,
-        "retrieve": InvoiceSerializer,
-    }
 
-    service_specs = {
-        "list": list_invoices,
-        "retrieve": get_invoice,
+    action_specs = {
+        "list": SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=list_invoices,
+            output_serializer=InvoiceSerializer,
+        ),
+        "retrieve": SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=get_invoice,
+            output_serializer=InvoiceSerializer,
+        ),
         "create": ServiceSpec(
             service=create_invoice,
             input_serializer=CreateInvoiceInput,

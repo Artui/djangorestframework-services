@@ -402,10 +402,11 @@ class AuthorViewSet(ServiceViewSet):
     }
 ```
 
-Each factory takes the same `field_map` / `exclude_fields` / `m2m`
-kwargs as the underlying mutation helper. `m2m` accepts a static mapping
-or a callable receiving the validated `data`. `delete_model` takes an
-optional `soft_delete=` hook for the archive case. Async variants —
+`create_model` / `update_model` (and their async siblings) take the same
+`field_map` / `exclude_fields` / `m2m` kwargs as the underlying mutation
+helper; `m2m` accepts a static mapping or a callable receiving the
+validated `data`. `update_model` also takes `update_fields`. `delete_model`
+takes an optional `soft_delete=` hook for the archive case. Async variants —
 `acreate_model` / `aupdate_model` / `adelete_model` — wrap
 `acreate_from_input` / `aupdate_from_input` / `await instance.adelete()`.
 Keep writing custom services the moment you need anything else
