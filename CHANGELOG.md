@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-05-31
+
 ### Added
 
 - `UnsetType` is now part of the public API (re-exported from
@@ -706,7 +708,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/Artui/djangorestframework-services/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Artui/djangorestframework-services/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Artui/djangorestframework-services/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Artui/djangorestframework-services/compare/v0.10.0...v0.11.0
