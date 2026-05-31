@@ -13,7 +13,7 @@ from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.service_view import ServiceView
-from rest_framework_services.types.unset import UNSET
+from rest_framework_services.types.unset import UNSET, UnsetType
 
 __all__ = [
     "UNSET",
@@ -25,4 +25,5 @@ __all__ = [
     "SelectorSpec",
     "ServiceSpec",
     "ServiceView",
+    "UnsetType",
 ]

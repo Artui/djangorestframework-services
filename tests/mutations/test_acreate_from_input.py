@@ -8,7 +8,7 @@ import pytest
 
 from rest_framework_services.mutations import acreate_from_input
 from rest_framework_services.types import UNSET
-from rest_framework_services.types.unset import _Unset
+from rest_framework_services.types.unset import UnsetType
 from tests.testapp.models import Author, Post, Tag
 
 
@@ -31,7 +31,7 @@ class TestACreateFromInput:
         assert result.changed_fields == ("name",)
         change = result.get_field_change("name")
         assert change is not None
-        assert isinstance(change.old, _Unset)
+        assert isinstance(change.old, UnsetType)
         assert change.new == "Ada"
 
     async def test_dataclass_input(self) -> None:

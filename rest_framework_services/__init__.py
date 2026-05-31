@@ -47,6 +47,7 @@ from rest_framework_services.types import (
     SelectorSpec,
     ServiceSpec,
     ServiceView,
+    UnsetType,
 )
 from rest_framework_services.version import __version__
 from rest_framework_services.views import (
@@ -102,6 +103,7 @@ __all__ = [
     "ServiceView",
     "ServiceViewSet",
     "UNSET",
+    "UnsetType",
     "UpdateService",
     "acall_selector",
     "acall_service",

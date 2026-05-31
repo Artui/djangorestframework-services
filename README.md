@@ -260,7 +260,9 @@ class ChangeResult:
 ```
 
 The `UNSET` sentinel distinguishes "field omitted from input" from "field
-explicitly set to `None`" — critical for correct `PATCH` semantics.
+explicitly set to `None`" — critical for correct `PATCH` semantics. Annotate
+sentinel-defaulted fields with its type, `UnsetType`, so they type-check
+cleanly: `bio: str | None | UnsetType = UNSET`.
 
 ---
 
