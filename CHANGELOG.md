@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `UnsetType` is now part of the public API (re-exported from
+  `rest_framework_services`). It is the type of the `UNSET` sentinel, exported
+  so callers can annotate sentinel-defaulted fields cleanly —
+  `bio: str | None | UnsetType = UNSET` — instead of suppressing the
+  type-checker with `# type: ignore[assignment]`. The class was previously
+  private (`_Unset`); it has been renamed and promoted (the old name was never
+  exported, so this is not a breaking change).
+
 ## [0.13.0] — 2026-05-22
 
 ### Changed (breaking)

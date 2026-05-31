@@ -18,7 +18,7 @@ signatures from the source — when in doubt, follow the source link
 - **[Selectors](selectors.md)** — selector Protocols and the
   `call_selector` / `acall_selector` HTTP-scope helpers.
 - **[Types](types.md)** — `ServiceSpec`, `SelectorSpec`, `ChangeResult`,
-  `FieldChange`, `UNSET`, `NoInput`, `HttpExtras`.
+  `FieldChange`, `UNSET`, `UnsetType`, `NoInput`, `HttpExtras`.
 - **[Exceptions](exceptions.md)** — `ServiceError`,
   `ServiceValidationError`.
 - **[OpenAPI](openapi.md)** — `enable_openapi`, `ServiceAutoSchema`,
@@ -87,6 +87,7 @@ from rest_framework_services import (
     ChangeResult,
     FieldChange,
     UNSET,
+    UnsetType,
     NoInput,
     HttpExtras,
     # exceptions

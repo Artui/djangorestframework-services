@@ -8,7 +8,7 @@ import pytest
 
 from rest_framework_services.mutations import create_from_input
 from rest_framework_services.types import UNSET
-from rest_framework_services.types.unset import _Unset
+from rest_framework_services.types.unset import UnsetType
 from tests.testapp.models import Author, Post, Tag
 
 
@@ -31,7 +31,7 @@ class TestCreateFromInput:
         assert result.changed_fields == ("name",)
         change = result.get_field_change("name")
         assert change is not None
-        assert isinstance(change.old, _Unset)
+        assert isinstance(change.old, UnsetType)
         assert change.new == "Ada"
 
     def test_dataclass_input(self) -> None:
@@ -82,7 +82,7 @@ class TestCreateFromInput:
         assert "tags" in result.changed_fields
         tags_change = result.get_field_change("tags")
         assert tags_change is not None
-        assert isinstance(tags_change.old, _Unset)
+        assert isinstance(tags_change.old, UnsetType)
 
     def test_m2m_with_pks(self) -> None:
         red = Tag.objects.create(name="red")

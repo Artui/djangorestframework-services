@@ -148,13 +148,13 @@ for change in result.changes:
 ```python
 from dataclasses import dataclass
 
-from rest_framework_services import UNSET
+from rest_framework_services import UNSET, UnsetType
 
 
 @dataclass
 class UpdateAuthorInput:
     name: str | None = None
-    bio: str | None = UNSET   # type: ignore[assignment]
+    bio: str | None | UnsetType = UNSET
 
 
 def update_author(*, instance, data):
@@ -168,6 +168,9 @@ def update_author(*, instance, data):
         instance.bio = data.bio
         instance.save(update_fields=["bio"])
 ```
+
+Annotate the field with `UnsetType` (the type of the `UNSET` singleton) so
+the sentinel default type-checks cleanly — no `# type: ignore` needed.
 
 Critical for correct `PATCH` semantics: a missing key and `null` mean
 different things. The mutation helpers themselves treat `UNSET` as

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import copy
 
-from rest_framework_services.types.unset import UNSET, _Unset
+from rest_framework_services.types.unset import UNSET, UnsetType
 
 
 def test_unset_is_singleton() -> None:
-    assert _Unset() is UNSET
-    assert _Unset() is _Unset()
+    assert UnsetType() is UNSET
+    assert UnsetType() is UnsetType()
 
 
 def test_unset_repr() -> None:
