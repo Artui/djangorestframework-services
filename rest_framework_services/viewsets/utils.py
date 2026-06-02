@@ -158,6 +158,15 @@ class _ActionSpecsMixin:
         entry: SelectorSpec | ServiceSpec | None = self.action_specs.get(action) if action else None
         if not isinstance(entry, SelectorSpec):
             return base
+        # Offer the resolved data stashed by the selector list / retrieve
+        # mixin under the action-appropriate name (``page`` for list,
+        # ``instance`` for retrieve). Providers receive only what they declare.
+        # A SelectorSpec entry is only ever the ``list`` or ``retrieve``
+        # action, so the two arms are exhaustive.
+        if _SELECTOR_ACTION_KIND.get(action) is SelectorKind.LIST:  # ty: ignore[invalid-argument-type]
+            extras: dict[str, Any] = {"page": getattr(self, "_resolved_page", None)}
+        else:
+            extras = {"instance": getattr(self, "_resolved_instance", None)}
         return layer_serializer_context(
             base,
             self,
@@ -165,6 +174,7 @@ class _ActionSpecsMixin:
             direction_hook=None,
             action_hook=f"get_{action}_output_serializer_context",
             spec_provider=entry.output_serializer_context,
+            extras=extras,
         )
 
     def get_permissions(self) -> list[Any]:

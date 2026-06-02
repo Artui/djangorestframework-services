@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import functools
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from rest_framework.decorators import action
@@ -74,15 +74,17 @@ def selector_action(
         def handler(self: Any, request: Request, *args: Any, **kwargs: Any) -> Response:
             if is_retrieve:
                 instance = dispatch_selector_for_spec(self, spec, extra_url_kwargs=self.kwargs)
-                serializer = _build_serializer(self, spec, instance, many=False)
+                serializer = _build_serializer(
+                    self, spec, instance, many=False, extras={"instance": instance}
+                )
                 return Response(serializer.data)
 
             result = dispatch_selector_for_spec(self, spec, extra_url_kwargs=self.kwargs)
             page = self.paginate_queryset(result) if hasattr(self, "paginate_queryset") else None
             if page is not None:
-                serializer = _build_serializer(self, spec, page, many=True)
+                serializer = _build_serializer(self, spec, page, many=True, extras={"page": page})
                 return self.get_paginated_response(serializer.data)
-            serializer = _build_serializer(self, spec, result, many=True)
+            serializer = _build_serializer(self, spec, result, many=True, extras={"page": result})
             return Response(serializer.data)
 
         # Stash the spec on the handler so schema generators (and any future
@@ -99,6 +101,7 @@ def _build_serializer(
     instance: Any,
     *,
     many: bool,
+    extras: Mapping[str, Any],
 ) -> Any:
     """Instantiate the response serializer for a ``@selector_action`` result.
 
@@ -112,6 +115,10 @@ def _build_serializer(
     ``get_<action>_output_serializer_context`` (if defined). The directional
     hook is optional, so plain ``ViewSet`` subclasses get DRF default
     context plus any per-action override they declare.
+
+    ``extras`` carries the resolved data (the ``instance`` for a detail
+    action, the ``page`` for a collection action), offered to each context
+    provider by keyword when it declares the name.
     """
     if spec.output_serializer is not None:
         action: str | None = getattr(view, "action", None)
@@ -122,6 +129,7 @@ def _build_serializer(
             direction_hook="get_output_serializer_context",
             action_hook=action_hook,
             spec_provider=spec.output_serializer_context,
+            extras=extras,
         )
         return spec.output_serializer(instance, many=many, context=context)
     return view.get_serializer(instance, many=many)

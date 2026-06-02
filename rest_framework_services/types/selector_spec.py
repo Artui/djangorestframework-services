@@ -76,6 +76,18 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
       wins on overlapping keys. ``None`` (the default) leaves the three
       earlier layers intact. Selectors don't validate input, so there's
       no symmetrical ``input_serializer_context``.
+
+      The provider is called with ``(view, request)`` positionally and may
+      additionally declare the resolved data being serialized as a keyword
+      parameter — ``page`` on a ``LIST`` spec (the paginated object list, or
+      the full queryset when pagination is off) or ``instance`` on a
+      ``RETRIEVE`` spec. It is passed only when declared (or when the
+      provider accepts ``**kwargs``), so legacy ``(view, request)``
+      providers are unaffected. This lets the provider run a single batched
+      query against the exact objects being serialized and propagate the
+      result through context — e.g.
+      ``lambda view, request, *, page: {"votes": tally(page)}``. The hook
+      always runs *after* the data is resolved.
     - **``select_related``** / **``prefetch_related``** / **``annotations``**
       — declarative queryset shaping applied to the selector's return value
       before it leaves :func:`dispatch_selector_for_spec`. ``select_related``
@@ -107,7 +119,11 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     # Output pipeline (selector → serializer → context) plus the shaping
     # fields applied to the selector's QuerySet return.
     output_serializer: type[Serializer] | None = None
-    output_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
+    # Called as ``(view, request)`` plus an optional resolved-data keyword
+    # (``page`` for LIST, ``instance`` for RETRIEVE) when the provider
+    # declares it; hence the open ``...`` parameter spec. See the class
+    # docstring's ``output_serializer_context`` entry.
+    output_serializer_context: Callable[..., Mapping[str, Any]] | None = None
     select_related: Sequence[str] | None = None
     prefetch_related: Sequence[str | Prefetch] | None = None
     annotations: Mapping[str, Any] | None = None

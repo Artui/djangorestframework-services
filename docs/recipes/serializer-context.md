@@ -142,6 +142,65 @@ the output hook lives on the nested `output_selector_spec`; the input
 hook stays at the top level. The callable receives the calling view
 (typed as `ServiceView`) and the DRF `Request`.
 
+## Output context that depends on the resolved data
+
+Sometimes the output serializer needs data derived from the very objects
+it's about to render — and you want that derived data fetched in a
+**single** batched query rather than one query per row. The output
+context provider can receive the resolved data and run that one query.
+
+An **output** context provider (the directional
+`get_output_serializer_context` hook, the per-action
+`get_<action>_output_serializer_context` hook, or the spec-level
+`output_serializer_context`) may declare an extra keyword parameter
+naming the data about to be serialized:
+
+| Action | Keyword | Value |
+|---|---|---|
+| mutation output | `result` | the final (post-`output_selector_spec`) instance |
+| retrieve | `instance` | the resolved object |
+| list | `page` | the paginated object list (the full queryset when pagination is off) |
+
+The extra is passed **only when the provider declares it** (or accepts
+`**kwargs`), so existing `(view, request)` providers keep working
+unchanged — `view` and `request` are always positional. The provider
+always runs *after* the data is resolved, so the value is real, not a
+placeholder.
+
+```python
+from django.db.models import Count
+
+class PostViewSet(SelectorViewSet):
+    queryset = Post.objects.all()
+    action_specs = {
+        "list": SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=list_posts,
+            output_serializer=PostOutputSerializer,
+            # One query for the whole page, keyed on the page's ids.
+            output_serializer_context=lambda view, request, *, page: {
+                "comment_counts": dict(
+                    Comment.objects.filter(post__in=page)
+                    .values_list("post")
+                    .annotate(n=Count("id"))
+                ),
+            },
+        ),
+    }
+```
+
+The serializer reads `self.context["comment_counts"][obj.id]` per row,
+with no extra query. The same shape works for a mutation
+(`*, result`) or a retrieve (`*, instance`), and on the view-method
+hooks too — e.g. `def get_list_output_serializer_context(self, *, page): ...`.
+
+For an unpaginated list the `page` value is the full queryset; reading
+ids off it (`[p.id for p in page]`) reuses the same evaluated queryset
+DRF serializes, so it still costs one batched query, not two.
+
+The **input** context provider has no such extra — there is no resolved
+output before the service runs.
+
 ## On standalone views
 
 Standalone mutation views (`ServiceCreateView`, `ServiceUpdateView`,

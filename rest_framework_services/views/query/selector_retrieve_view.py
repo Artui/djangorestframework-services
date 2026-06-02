@@ -67,13 +67,20 @@ class SelectorRetrieveView(RetrieveModelMixin, GenericAPIView):
             direction_hook=None,
             action_hook=None,
             spec_provider=s.output_serializer_context,
+            extras={"instance": getattr(self, "_resolved_instance", None)},
         )
 
     def get_object(self) -> Any:
         s: SelectorSpec | None = get_class_attr(self, "spec")
         if s is None or s.selector is None:
-            return super().get_object()
-        return dispatch_selector_for_spec(self, s, extra_url_kwargs=self.kwargs)
+            obj = super().get_object()
+        else:
+            obj = dispatch_selector_for_spec(self, s, extra_url_kwargs=self.kwargs)
+        # Stash the resolved instance so the output context provider can read
+        # it via the ``instance`` extra; DRF calls get_object before
+        # get_serializer_context in the retrieve flow.
+        self._resolved_instance = obj
+        return obj
 
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         return self.retrieve(request, *args, **kwargs)

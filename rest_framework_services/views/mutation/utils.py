@@ -146,7 +146,7 @@ def _execute_mutation(
     extra_kwargs: dict[str, Any] | None = None,
     extra_input_data: Mapping[str, Any] | None = None,
     input_context: dict[str, Any] | None = None,
-    output_context: dict[str, Any] | None = None,
+    output_context_resolver: Callable[[Any], dict[str, Any]] | None = None,
     partial: bool = False,
 ) -> Response:
     """Internal flow runner shared by ``MutationFlowMixin`` and ``@service_action``.
@@ -162,6 +162,13 @@ def _execute_mutation(
          since the nested spec is always retrieve-shaped. Otherwise fall
          back to the in-memory ``instance`` when the service returned None.
       6. Render via the nested spec's ``output_serializer`` (or raw, or 204).
+
+    ``output_context_resolver`` builds the output serializer's ``context=``
+    dict. It is called with the *final* ``result`` (post-selector,
+    post-fallback) so the output context provider can see — and run a single
+    batched query against — the exact instance being serialized. Resolving
+    it lazily here, rather than eagerly in :func:`dispatch_mutation_for_spec`,
+    is what makes ``result`` available to the provider.
 
     ``view`` is intentionally absent from the pool: services and selectors are
     plain business logic and should not reach back into the calling view. When
@@ -236,7 +243,8 @@ def _execute_mutation(
         result = instance
 
     if output_serializer is not None:
-        serializer = output_serializer(result, context=output_context or {})
+        output_context = output_context_resolver(result) if output_context_resolver else {}
+        serializer = output_serializer(result, context=output_context)
         return Response(serializer.data, status=success_status)
     if result is None:
         return Response(status=drf_status.HTTP_204_NO_CONTENT)
@@ -291,13 +299,21 @@ def dispatch_mutation_for_spec(
         spec_provider=spec.input_serializer_context,
     )
     output_spec = spec.output_selector_spec
-    output_context = resolve_serializer_context(
-        view,
-        request,
-        direction_hook="get_output_serializer_context",
-        action_hook=action_output_context_hook,
-        spec_provider=output_spec.output_serializer_context if output_spec is not None else None,
-    )
+    output_provider = output_spec.output_serializer_context if output_spec is not None else None
+
+    def resolve_output_context(result: Any) -> dict[str, Any]:
+        # Resolved lazily with the final ``result`` so the output context
+        # provider can run a single batched query against the exact instance
+        # being serialized (offered as the ``result`` extra).
+        return resolve_serializer_context(
+            view,
+            request,
+            direction_hook="get_output_serializer_context",
+            action_hook=action_output_context_hook,
+            spec_provider=output_provider,
+            extras={"result": result},
+        )
+
     return _execute_mutation(
         view,
         request,
@@ -310,6 +326,6 @@ def dispatch_mutation_for_spec(
         extra_kwargs=extras,
         extra_input_data=input_extras,
         input_context=input_context,
-        output_context=output_context,
+        output_context_resolver=resolve_output_context,
         partial=partial,
     )

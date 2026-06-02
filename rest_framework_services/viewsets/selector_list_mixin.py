@@ -36,6 +36,14 @@ class SelectorListMixin(ListModelMixin, _ActionSpecsMixin):
         """Hook for additional kwargs available to the selector signature."""
         return {}
 
+    def paginate_queryset(self, queryset: Any) -> Any:
+        # Stash the materialized page (or the full queryset when pagination
+        # is off) so a SelectorSpec's output context provider can read it via
+        # the ``page`` extra. See ``_ActionSpecsMixin.get_serializer_context``.
+        page = super().paginate_queryset(queryset)  # ty: ignore[unresolved-attribute]
+        self._resolved_page = page if page is not None else queryset
+        return page
+
     def get_queryset(self) -> Any:
         spec = resolve_action_selector_spec(self.action_specs, "list")
         if spec is None:
