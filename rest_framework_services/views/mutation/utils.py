@@ -146,7 +146,7 @@ def _execute_mutation(
     extra_kwargs: dict[str, Any] | None = None,
     extra_input_data: Mapping[str, Any] | None = None,
     input_context: dict[str, Any] | None = None,
-    output_context_resolver: Callable[[Any], dict[str, Any]] | None = None,
+    resolve_output_context: Callable[[Any], dict[str, Any]] | None = None,
     partial: bool = False,
 ) -> Response:
     """Internal flow runner shared by ``MutationFlowMixin`` and ``@service_action``.
@@ -163,7 +163,7 @@ def _execute_mutation(
          back to the in-memory ``instance`` when the service returned None.
       6. Render via the nested spec's ``output_serializer`` (or raw, or 204).
 
-    ``output_context_resolver`` builds the output serializer's ``context=``
+    ``resolve_output_context`` builds the output serializer's ``context=``
     dict. It is called with the *final* ``result`` (post-selector,
     post-fallback) so the output context provider can see — and run a single
     batched query against — the exact instance being serialized. Resolving
@@ -243,7 +243,7 @@ def _execute_mutation(
         result = instance
 
     if output_serializer is not None:
-        output_context = output_context_resolver(result) if output_context_resolver else {}
+        output_context = resolve_output_context(result) if resolve_output_context else {}
         serializer = output_serializer(result, context=output_context)
         return Response(serializer.data, status=success_status)
     if result is None:
@@ -326,6 +326,6 @@ def dispatch_mutation_for_spec(
         extra_kwargs=extras,
         extra_input_data=input_extras,
         input_context=input_context,
-        output_context_resolver=resolve_output_context,
+        resolve_output_context=resolve_output_context,
         partial=partial,
     )
