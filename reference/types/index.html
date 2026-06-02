@@ -1784,7 +1784,19 @@ default — see below.</p>
   wins on overlapping keys. <code>None</code> (the default) leaves the three
   earlier layers intact. Selectors don't validate input, so there's
   no symmetrical <code>input_serializer_context</code>.</li>
-<li><strong><code>select_related</code></strong> / <strong><code>prefetch_related</code></strong> / <strong><code>annotations</code></strong>
+</ul>
+<p>The provider is called with <code>(view, request)</code> positionally and may
+  additionally declare the resolved data being serialized as a keyword
+  parameter — <code>page</code> on a <code>LIST</code> spec (the paginated object list, or
+  the full queryset when pagination is off) or <code>instance</code> on a
+  <code>RETRIEVE</code> spec. It is passed only when declared (or when the
+  provider accepts <code>**kwargs</code>), so legacy <code>(view, request)</code>
+  providers are unaffected. This lets the provider run a single batched
+  query against the exact objects being serialized and propagate the
+  result through context — e.g.
+  <code>lambda view, request, *, page: {"votes": tally(page)}</code>. The hook
+  always runs <em>after</em> the data is resolved.
+- <strong><code>select_related</code></strong> / <strong><code>prefetch_related</code></strong> / <strong><code>annotations</code></strong>
   — declarative queryset shaping applied to the selector's return value
   before it leaves :func:<code>dispatch_selector_for_spec</code>. <code>select_related</code>
   is a sequence of relation names (forwarded as
@@ -1792,15 +1804,14 @@ default — see below.</p>
   a sequence of relation names or :class:<code>Prefetch</code> objects;
   <code>annotations</code> is a mapping merged into a single <code>.annotate(**...)</code>
   call. Use these for the common case where the same shaping applies
-  every request — they're introspectable for OpenAPI / future tooling.</li>
-<li><strong><code>extend_queryset</code></strong> — dynamic escape hatch. A
+  every request — they're introspectable for OpenAPI / future tooling.
+- <strong><code>extend_queryset</code></strong> — dynamic escape hatch. A
   <code>Callable[[QuerySet, ServiceView, Request], QuerySet]</code> invoked
   <em>after</em> the declarative fields have applied, so it always sees the
   fully statically-shaped queryset. Use it when the shaping depends on
   the request (e.g. only prefetch when a query string opts in).
   Synchronous only — it manipulates the queryset's lazy expression
-  tree, not the database.</li>
-</ul>
+  tree, not the database.</p>
 <p>All four shaping fields require <code>selector</code> to be set and the selector
 to return a Django :class:<code>QuerySet</code>. Configuring shaping with no
 selector raises :exc:<code>ImproperlyConfigured</code> at <code>as_view()</code> time; a
@@ -1891,7 +1902,12 @@ the resolution chain (<code>view.get_serializer_context</code> →
 <code>view.get_&lt;action&gt;_input_serializer_context</code> → spec hook), so the
 spec wins on overlapping keys. <code>None</code> (the default) leaves the
 three earlier layers intact. The symmetrical output hook lives on the
-nested <code>output_selector_spec.output_serializer_context</code>.</p>
+nested <code>output_selector_spec.output_serializer_context</code>; that hook may
+additionally declare a <code>result</code> keyword to receive the final
+(post-selector) instance being serialized — passed only when declared —
+so it can run a single batched query against it and propagate the
+outcome through context. The output hook always runs <em>after</em> the service
+and output selector have resolved <code>result</code>.</p>
 <p><code>output_selector_spec</code> is the full output pipeline collapsed into a
 single :class:<code>SelectorSpec</code>. Its <code>kind</code> must be
 :attr:<code>SelectorKind.RETRIEVE</code> (the post-mutation re-fetch always
