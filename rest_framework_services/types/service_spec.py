@@ -59,7 +59,12 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     ``view.get_<action>_input_serializer_context`` → spec hook), so the
     spec wins on overlapping keys. ``None`` (the default) leaves the
     three earlier layers intact. The symmetrical output hook lives on the
-    nested ``output_selector_spec.output_serializer_context``.
+    nested ``output_selector_spec.output_serializer_context``; that hook may
+    additionally declare a ``result`` keyword to receive the final
+    (post-selector) instance being serialized — passed only when declared —
+    so it can run a single batched query against it and propagate the
+    outcome through context. The output hook always runs *after* the service
+    and output selector have resolved ``result``.
 
     ``output_selector_spec`` is the full output pipeline collapsed into a
     single :class:`SelectorSpec`. Its ``kind`` must be

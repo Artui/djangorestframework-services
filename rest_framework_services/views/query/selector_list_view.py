@@ -57,6 +57,14 @@ class SelectorListView(ListModelMixin, GenericAPIView):
             return s.output_serializer
         return super().get_serializer_class()
 
+    def paginate_queryset(self, queryset: Any) -> Any:
+        # Stash the materialized page (or the full queryset when pagination
+        # is off) so the output context provider can read it via the ``page``
+        # extra. DRF resolves the page here, before ``get_serializer_context``.
+        page = super().paginate_queryset(queryset)
+        self._resolved_page = page if page is not None else queryset
+        return page
+
     def get_serializer_context(self) -> dict[str, Any]:
         base: dict[str, Any] = dict(super().get_serializer_context())
         s: SelectorSpec | None = get_class_attr(self, "spec")
@@ -69,6 +77,7 @@ class SelectorListView(ListModelMixin, GenericAPIView):
             direction_hook=None,
             action_hook=None,
             spec_provider=s.output_serializer_context,
+            extras={"page": getattr(self, "_resolved_page", None)},
         )
 
     def get_queryset(self) -> Any:

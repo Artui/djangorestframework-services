@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Output serializer-context providers can now receive the resolved data
+  about to be serialized, so they can populate context from a **single**
+  batched query instead of re-fetching. A provider (the
+  `get_output_serializer_context` directional hook, a
+  `get_<action>_output_serializer_context` per-action hook, or a spec-level
+  `output_serializer_context`) may declare an extra keyword parameter —
+  `result` (mutation output), `instance` (retrieve), or `page` (list) — and
+  it is passed only when declared. `view` and `request` stay positional, so
+  existing `(view, request)` providers are unaffected. The output context is
+  now resolved *after* the service and output selector run, guaranteeing the
+  value reflects exactly what will be rendered. See the
+  [serializer-context recipe](https://artui.github.io/djangorestframework-services/recipes/serializer-context/).
+
 ## [0.14.0] — 2026-05-31
 
 ### Added
