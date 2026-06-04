@@ -39,7 +39,11 @@ from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
-from rest_framework_services.selectors.utils import apply_queryset_shaping, run_selector
+from rest_framework_services.selectors.utils import (
+    apply_queryset_shaping,
+    is_queryset,
+    run_selector,
+)
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.utils import (
@@ -233,7 +237,7 @@ def _execute_mutation(
                 extend_queryset=output_selector_spec.extend_queryset,
                 source_label="ServiceSpec.output_selector_spec.selector",
             )
-            if hasattr(result, "first"):
+            if is_queryset(result):
                 # Materialize a QuerySet return to a single instance — the
                 # nested spec is retrieve-shaped, so a user can write
                 # ``selector=lambda result: Model.objects.filter(pk=result.pk)``

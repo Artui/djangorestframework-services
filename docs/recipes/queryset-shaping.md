@@ -152,3 +152,36 @@ Configuring them on a nested spec with no selector raises
   fields or have the callable return a QuerySet.
 - **Filter backends and pagination** still run as usual on top of the
   shaped queryset.
+
+## List selectors aren't required to return a QuerySet
+
+The shaping fields are the *only* part of the pipeline that needs a
+QuerySet. A `LIST` selector can return **any iterable** — a plain `list`,
+a `tuple`, the output of a `@dataclass`-building comprehension, results
+stitched together from an external API — and it is serialized as-is:
+
+```python
+def recent_activity(*, user):
+    # not a QuerySet — a hand-built list of dataclasses
+    return [ActivityItem.from_event(e) for e in fetch_events(user)]
+
+class ActivityView(SelectorListView):
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=recent_activity,
+        output_serializer=ActivityItemSerializer,
+    )
+```
+
+Two caveats, both inherent rather than framework-imposed:
+
+- **Don't combine a non-QuerySet return with the shaping fields.**
+  `select_related` / `prefetch_related` / `annotations` / `extend_queryset`
+  are QuerySet operations; setting them while returning a list raises
+  `ImproperlyConfigured` at request time (see above).
+- **Pagination needs a sized, sliceable sequence.** A `list`/`tuple`
+  paginates fine (Django's `Paginator` only needs `len()` + slicing). A
+  lazy **generator** works when pagination is *off*, but the paginators
+  that slice or count (`PageNumberPagination`, `LimitOffsetPagination`,
+  `CursorPagination`) will consume or reject it — materialize to a `list`
+  first if you need pagination.

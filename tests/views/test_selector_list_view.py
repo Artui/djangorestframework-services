@@ -162,6 +162,68 @@ class TestSelectorListView:
         response = _Filtered.as_view()(request)
         assert [a["name"] for a in response.data] == ["alpha"]
 
+    def test_list_selector_may_return_a_plain_iterable(self) -> None:
+        """A LIST selector is not required to return a QuerySet — any iterable
+        (here a plain ``list``) is serialized as-is, as long as no
+        queryset-only shaping fields are set."""
+        Author.objects.create(name="a")
+        Author.objects.create(name="b")
+
+        def as_list(**_: Any) -> list[Author]:
+            return list(Author.objects.all().order_by("id"))
+
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST, selector=as_list, output_serializer=AuthorSerializer
+            )
+
+        response = _View.as_view()(factory.get("/"))
+        assert response.status_code == 200
+        assert [item["name"] for item in response.data] == ["a", "b"]
+
+    def test_plain_iterable_list_selector_paginates(self) -> None:
+        """Pagination works over a non-QuerySet sequence too (Django's
+        ``Paginator`` only needs ``len()`` + slicing)."""
+        for i in range(5):
+            Author.objects.create(name=f"a{i}")
+
+        def as_list(**_: Any) -> list[Author]:
+            return list(Author.objects.all().order_by("id"))
+
+        class _Paginator(PageNumberPagination):
+            page_size = 2
+
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST, selector=as_list, output_serializer=AuthorSerializer
+            )
+            pagination_class = _Paginator
+
+        response = _View.as_view()(factory.get("/?page=1"))
+        assert response.status_code == 200
+        assert len(response.data["results"]) == 2
+        assert response.data["count"] == 5
+
+    def test_shaping_fields_on_non_queryset_selector_fail_loud(self) -> None:
+        """Queryset-only shaping fields combined with a non-QuerySet return
+        raise ImproperlyConfigured rather than failing obscurely later."""
+        from django.core.exceptions import ImproperlyConfigured
+
+        def as_list(**_: Any) -> list[Author]:
+            return list(Author.objects.all())
+
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=as_list,
+                output_serializer=AuthorSerializer,
+                select_related=("favorite_book",),
+            )
+
+        Author.objects.create(name="a")
+        with pytest.raises(ImproperlyConfigured, match="not a Django QuerySet"):
+            _View.as_view()(factory.get("/"))
+
     def test_list_selector_object_does_not_exist_propagates(self) -> None:
         """LIST kind re-raises ObjectDoesNotExist (only RETRIEVE maps to 404)."""
         from django.core.exceptions import ObjectDoesNotExist
