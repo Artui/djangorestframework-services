@@ -71,6 +71,10 @@ def service_action(
                 spec,
                 instance=instance,
                 success_status=success_status,
+                # Detail actions are update-shaped: a service that mutates in
+                # place and returns ``None`` renders the instance. Non-detail
+                # actions have no instance, so the flag is moot.
+                render_instance_on_none=detail,
             )
 
         # Stash the spec on the handler so schema generators (and any future

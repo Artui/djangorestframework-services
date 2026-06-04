@@ -142,6 +142,8 @@ def _execute_mutation(
     output_selector_spec: SelectorSpec[Any, Any] | None,
     atomic: bool,
     success_status: int,
+    empty_body_status: int,
+    render_instance_on_none: bool,
     instance: Any,
     extra_kwargs: dict[str, Any] | None = None,
     extra_input_data: Mapping[str, Any] | None = None,
@@ -161,7 +163,16 @@ def _execute_mutation(
          spec's queryset shaping; materialize a QuerySet via ``.first()``
          since the nested spec is always retrieve-shaped. Otherwise fall
          back to the in-memory ``instance`` when the service returned None.
-      6. Render via the nested spec's ``output_serializer`` (or raw, or 204).
+      6. Render via the nested spec's ``output_serializer`` (or raw, or an
+         empty-body response). A ``None`` result with no output serializer
+         renders an empty body at ``empty_body_status`` (the caller's
+         explicit ``spec.success_status``, else 204); a selector that
+         returned ``None`` always renders 204.
+
+    ``render_instance_on_none`` is the update-vs-destroy intent flag: update
+    callers pass ``True`` so a service that mutates in place and returns
+    ``None`` still renders the instance; destroy passes ``False`` so a stale
+    post-delete instance is never surfaced.
 
     ``resolve_output_context`` builds the output serializer's ``context=``
     dict. It is called with the *final* ``result`` (post-selector,
@@ -229,17 +240,27 @@ def _execute_mutation(
                 # and rely on the spec's shaping to apply.
                 result = result.first()
 
+    selector_ran: bool = (
+        output_selector_spec is not None and output_selector_spec.selector is not None
+    )
+
     if (
         result is None
         and instance is not None
-        and success_status != drf_status.HTTP_204_NO_CONTENT
-        and (output_selector_spec is None or output_selector_spec.selector is None)
+        and render_instance_on_none
+        and output_serializer is not None
+        and not selector_ran
     ):
-        # Service mutated in place and returned nothing — render the in-memory
-        # instance, mirroring DRF's ``UpdateAPIView`` shape. Skipped for 204
-        # responses (destroy) where the fallback would surface a stale
-        # post-delete instance with no useful body, and skipped when an
-        # output selector ran (its None return is authoritative).
+        # Update-in-place that returned nothing — render the in-memory instance
+        # through the configured output serializer, mirroring DRF's
+        # ``UpdateAPIView`` shape. Gated three ways: it needs an output
+        # serializer (there is nothing to render a raw model instance with
+        # otherwise — see the empty-body branch below); it is keyed on the
+        # caller's ``render_instance_on_none`` intent rather than on the status
+        # code, so destroy (which passes ``False``) never surfaces a stale
+        # post-delete instance even when given a custom success status; and it
+        # is skipped when an output selector already ran (its ``None`` return
+        # is authoritative).
         result = instance
 
     if output_serializer is not None:
@@ -247,7 +268,14 @@ def _execute_mutation(
         serializer = output_serializer(result, context=output_context)
         return Response(serializer.data, status=success_status)
     if result is None:
-        return Response(status=drf_status.HTTP_204_NO_CONTENT)
+        # Empty body. A selector that returned ``None`` is an authoritative
+        # no-content result → always 204. Otherwise honor ``empty_body_status``
+        # — the caller's explicitly-set ``spec.success_status`` if any, else
+        # 204. This is what lets a destroy (or any no-output mutation) carry a
+        # custom success status while a body-less default still reads as 204.
+        if selector_ran:
+            return Response(status=drf_status.HTTP_204_NO_CONTENT)
+        return Response(status=empty_body_status)
     return Response(result, status=success_status)
 
 
@@ -258,6 +286,7 @@ def dispatch_mutation_for_spec(
     *,
     instance: Any,
     success_status: int,
+    render_instance_on_none: bool,
     partial: bool = False,
 ) -> Response:
     """End-to-end dispatch for one ``ServiceSpec`` call.
@@ -322,6 +351,12 @@ def dispatch_mutation_for_spec(
         output_selector_spec=output_spec,
         atomic=spec.atomic,
         success_status=success_status,
+        empty_body_status=(
+            spec.success_status
+            if spec.success_status is not None
+            else drf_status.HTTP_204_NO_CONTENT
+        ),
+        render_instance_on_none=render_instance_on_none,
         instance=instance,
         extra_kwargs=extras,
         extra_input_data=input_extras,

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A `destroy`/`DELETE` `ServiceSpec` with a custom `success_status` whose
+  service returns `None` now renders an **empty body at the configured
+  status**. Previously the update-in-place fallback misfired (it keyed off
+  "status ≠ 204" as a proxy for "this is an update"), surfacing the stale
+  post-delete instance as the response body — which then failed to serialize.
+  The fallback is now driven by an explicit update-vs-destroy intent flag.
+- No-output mutations (no `output_selector_spec`) whose service returns `None`
+  now always render an empty body instead of attempting to serialize the raw
+  in-memory model instance. This makes no-input/no-output `update` and
+  `destroy` services work as expected. An explicitly-set `spec.success_status`
+  is honored for the empty-body response; otherwise it falls back to `204`. A
+  selector that returns `None` still renders `204` (its result is
+  authoritative).
+
 ## [0.15.0] — 2026-06-02
 
 ### Added

@@ -190,3 +190,45 @@ class TestServiceUpdateView:
         response = _View.as_view()(request, pk=author.pk)
         assert response.status_code == 200
         assert response.data["name"] == "renamed"
+
+    def test_no_output_serializer_with_none_service_renders_empty_body(self) -> None:
+        """A no-output update whose service returns ``None`` renders an empty
+        204 body rather than trying (and failing) to serialize the raw
+        in-memory instance."""
+        author = Author.objects.create(name="orig")
+
+        def void_update(*, instance: Author, data: _UpdateAuthorInput) -> None:
+            instance.name = data.name
+            instance.save(update_fields=["name"])
+
+        class _View(ServiceUpdateView):
+            queryset = Author.objects.all()
+            spec = ServiceSpec(service=void_update, input_serializer=_UpdateAuthorInput)
+
+        request = factory.patch("/", {"name": "renamed"}, format="json")
+        response = _View.as_view()(request, pk=author.pk)
+        assert response.status_code == 204
+        assert response.data is None
+        assert response.render().content == b""
+        author.refresh_from_db()
+        assert author.name == "renamed"
+
+    def test_no_input_no_output_update(self) -> None:
+        """An update with neither an input serializer nor an output serializer
+        is supported: the service runs on the looked-up instance and the
+        response is an empty 204."""
+        author = Author.objects.create(name="orig")
+
+        def touch(*, instance: Author) -> None:
+            instance.name = "touched"
+            instance.save(update_fields=["name"])
+
+        class _View(ServiceUpdateView):
+            queryset = Author.objects.all()
+            spec = ServiceSpec(service=touch)
+
+        response = _View.as_view()(factory.patch("/"), pk=author.pk)
+        assert response.status_code == 204
+        assert response.data is None
+        author.refresh_from_db()
+        assert author.name == "touched"
