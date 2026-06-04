@@ -30,16 +30,19 @@ def resolve_spec(view: Any) -> ServiceSpec[Any, Any, Any] | None:
         return spec
 
     action_name = getattr(view, "action", None)
-    if action_name is not None:
-        # ``@service_action``-decorated method.
-        handler = getattr(view, action_name, None)
-        action_spec = getattr(handler, "_service_spec", None)
-        if isinstance(action_spec, ServiceSpec):
-            return action_spec
-        # ``ServiceCreateMixin`` / ``ServiceUpdateMixin`` / ``ServiceDestroyMixin``.
-        action_specs = getattr(view, "action_specs", None)
-        if action_specs is not None:
-            entry = action_specs.get(action_name)
-            if isinstance(entry, ServiceSpec):
-                return entry
+    if action_name is None:
+        return None
+
+    # ``@service_action``-decorated method.
+    handler = getattr(view, action_name, None)
+    action_spec = getattr(handler, "_service_spec", None)
+    if isinstance(action_spec, ServiceSpec):
+        return action_spec
+
+    # ``ServiceCreateMixin`` / ``ServiceUpdateMixin`` / ``ServiceDestroyMixin``.
+    action_specs = getattr(view, "action_specs", None)
+    if action_specs is not None:
+        entry = action_specs.get(action_name)
+        if isinstance(entry, ServiceSpec):
+            return entry
     return None
