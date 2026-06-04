@@ -810,6 +810,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#list-selectors-arent-required-to-return-a-queryset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        List selectors aren't required to return a QuerySet
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1268,6 +1279,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#list-selectors-arent-required-to-return-a-queryset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        List selectors aren't required to return a QuerySet
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1424,6 +1446,35 @@ Configuring them on a nested spec with no selector raises
   fields or have the callable return a QuerySet.</li>
 <li><strong>Filter backends and pagination</strong> still run as usual on top of the
   shaped queryset.</li>
+</ul>
+<h2 id="list-selectors-arent-required-to-return-a-queryset">List selectors aren't required to return a QuerySet<a class="headerlink" href="#list-selectors-arent-required-to-return-a-queryset" title="Permanent link">&para;</a></h2>
+<p>The shaping fields are the <em>only</em> part of the pipeline that needs a
+QuerySet. A <code>LIST</code> selector can return <strong>any iterable</strong> — a plain <code>list</code>,
+a <code>tuple</code>, the output of a <code>@dataclass</code>-building comprehension, results
+stitched together from an external API — and it is serialized as-is:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">recent_activity</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="c1"># not a QuerySet — a hand-built list of dataclasses</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">ActivityItem</span><span class="o">.</span><span class="n">from_event</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">fetch_events</span><span class="p">(</span><span class="n">user</span><span class="p">)]</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">ActivityView</span><span class="p">(</span><span class="n">SelectorListView</span><span class="p">):</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        <span class="n">selector</span><span class="o">=</span><span class="n">recent_activity</span><span class="p">,</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="n">output_serializer</span><span class="o">=</span><span class="n">ActivityItemSerializer</span><span class="p">,</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="p">)</span>
+</span></code></pre></div>
+<p>Two caveats, both inherent rather than framework-imposed:</p>
+<ul>
+<li><strong>Don't combine a non-QuerySet return with the shaping fields.</strong>
+  <code>select_related</code> / <code>prefetch_related</code> / <code>annotations</code> / <code>extend_queryset</code>
+  are QuerySet operations; setting them while returning a list raises
+  <code>ImproperlyConfigured</code> at request time (see above).</li>
+<li><strong>Pagination needs a sized, sliceable sequence.</strong> A <code>list</code>/<code>tuple</code>
+  paginates fine (Django's <code>Paginator</code> only needs <code>len()</code> + slicing). A
+  lazy <strong>generator</strong> works when pagination is <em>off</em>, but the paginators
+  that slice or count (<code>PageNumberPagination</code>, <code>LimitOffsetPagination</code>,
+  <code>CursorPagination</code>) will consume or reject it — materialize to a <code>list</code>
+  first if you need pagination.</li>
 </ul>
 
 

@@ -1200,6 +1200,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.is_queryset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        is_queryset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#rest_framework_services.selectors.utils.run_selector" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1518,6 +1529,17 @@
   
     <nav class="md-nav" aria-label="utils">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.is_queryset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        is_queryset
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#rest_framework_services.selectors.utils.run_selector" class="md-nav__link">
@@ -1895,6 +1917,34 @@ Async selectors are bridged via <code>async_to_sync</code>.</p>
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.selectors.utils.is_queryset" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">is_queryset</span>
+
+
+<a href="#rest_framework_services.selectors.utils.is_queryset" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">is_queryset</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>True for Django <code>QuerySet</code> objects and <code>Manager</code> instances.</p>
+<p>These are the queryset-shaping targets: the things the four shaping
+fields can be applied to, and the things a RETRIEVE selector / output
+selector should be materialized from via <code>.first()</code>. Centralizes the
+"is this a queryset?" decision so the selector and mutation dispatch
+paths agree on one definition instead of duck-typing on a method name
+(<code>hasattr(..., "first")</code>), which would also match an unrelated domain
+object that happens to expose <code>first</code>. <code>QuerySet</code> subclasses
+(<code>.values()</code>, <code>.values_list()</code>, polymorphic querysets, …) all pass.</p>
+
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-function">
 
