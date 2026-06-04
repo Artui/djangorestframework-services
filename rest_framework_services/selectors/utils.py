@@ -7,6 +7,8 @@ from typing import Any
 
 from asgiref.sync import async_to_sync
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
+from django.db.models import QuerySet
+from django.db.models.manager import BaseManager
 from rest_framework.exceptions import NotFound
 from rest_framework.request import Request
 
@@ -17,6 +19,21 @@ from rest_framework_services.views.utils import (
     resolve_callable_kwargs,
     resolve_extra_kwargs,
 )
+
+
+def is_queryset(obj: Any) -> bool:
+    """True for Django ``QuerySet`` objects and ``Manager`` instances.
+
+    These are the queryset-shaping targets: the things the four shaping
+    fields can be applied to, and the things a RETRIEVE selector / output
+    selector should be materialized from via ``.first()``. Centralizes the
+    "is this a queryset?" decision so the selector and mutation dispatch
+    paths agree on one definition instead of duck-typing on a method name
+    (``hasattr(..., "first")``), which would also match an unrelated domain
+    object that happens to expose ``first``. ``QuerySet`` subclasses
+    (``.values()``, ``.values_list()``, polymorphic querysets, …) all pass.
+    """
+    return isinstance(obj, (QuerySet, BaseManager))
 
 
 def run_selector(fn: Callable[..., Any], kwargs: dict[str, Any]) -> Any:
@@ -67,7 +84,7 @@ def apply_queryset_shaping(
         and extend_queryset is None
     ):
         return qs
-    if not hasattr(qs, "annotate"):
+    if not is_queryset(qs):
         raise ImproperlyConfigured(
             "select_related / prefetch_related / annotations / extend_queryset "
             f"are set on the spec but {source_label} returned "
@@ -152,7 +169,7 @@ def dispatch_selector_for_spec(
 
     if spec.kind is not SelectorKind.RETRIEVE:
         return result
-    instance = result.first() if hasattr(result, "first") else result
+    instance = result.first() if is_queryset(result) else result
     if instance is None:
         raise NotFound()
     return instance

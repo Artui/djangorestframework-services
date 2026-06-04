@@ -25,6 +25,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selector that returns `None` still renders `204` (its result is
   authoritative).
 
+### Changed
+
+- The internal "is this a Django QuerySet?" check used by the selector and
+  mutation-output dispatch paths is now a single `is_queryset()` predicate
+  (`isinstance` against `QuerySet`/`Manager`) instead of three scattered
+  `hasattr(..., "first")` / `hasattr(..., "annotate")` duck-typing checks.
+  More precise (a domain object that merely exposes `.first()` is no longer
+  mistaken for a queryset) and self-documenting. No public API change.
+
+### Documentation
+
+- Clarified that `LIST` selectors may return **any iterable** (plain
+  `list`, `tuple`, hand-built dataclass sequences, …), not only a
+  QuerySet. The only constraints are inherent: the queryset-only shaping
+  fields cannot be combined with a non-QuerySet return, and lazy
+  generators do not survive slicing/counting paginators. See the
+  [queryset-shaping recipe](https://artui.github.io/djangorestframework-services/recipes/queryset-shaping/).
+
 ## [0.15.0] — 2026-06-02
 
 ### Added
