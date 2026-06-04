@@ -43,5 +43,6 @@ class ServiceUpdateMixin(MutationFlowMixin, _ActionSpecsMixin):
             spec,
             instance=self.get_object(),
             success_status=spec.success_status or drf_status.HTTP_200_OK,
+            render_instance_on_none=True,
             partial=partial,
         )

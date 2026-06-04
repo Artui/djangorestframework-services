@@ -666,3 +666,8 @@ class TestServiceViewSetSpecOverrides:
         view = _View.as_view({"delete": "destroy"})
         response = view(factory.delete("/"), pk=author.pk)
         assert response.status_code == 200
+        # ``_delete_author`` returns None: the body must be empty and render
+        # cleanly, not the stale (unserializable) post-delete instance.
+        assert response.data is None
+        assert response.render().content == b""
+        assert not Author.objects.filter(pk=author.pk).exists()

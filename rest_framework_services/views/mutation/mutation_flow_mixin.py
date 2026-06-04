@@ -102,6 +102,7 @@ class MutationFlowMixin:
         *,
         instance: Any,
         success_status: int,
+        render_instance_on_none: bool = False,
         partial: bool = False,
     ) -> Response:
         return dispatch_mutation_for_spec(
@@ -110,5 +111,6 @@ class MutationFlowMixin:
             spec,
             instance=instance,
             success_status=success_status,
+            render_instance_on_none=render_instance_on_none,
             partial=partial,
         )

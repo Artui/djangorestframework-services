@@ -170,3 +170,22 @@ class TestServiceDeleteView:
         response = _View.as_view()(request, pk=author.pk)
         assert response.status_code == 200
         assert response.data == {"deleted": author.pk}
+
+    def test_none_returning_service_honors_custom_success_status_with_empty_body(
+        self,
+    ) -> None:
+        """A delete whose service returns ``None`` must honor a custom
+        ``success_status`` and render an *empty* body — not the stale
+        post-delete instance (which is unserializable)."""
+
+        class _View(ServiceDeleteView):
+            queryset = Author.objects.all()
+            spec = ServiceSpec(service=_delete_author, success_status=202, atomic=False)
+
+        author = Author.objects.create(name="x")
+        response = _View.as_view()(factory.delete("/"), pk=author.pk)
+        assert response.status_code == 202
+        assert response.data is None
+        # The response must actually render (a raw model instance would not).
+        assert response.render().content == b""
+        assert not Author.objects.filter(pk=author.pk).exists()
