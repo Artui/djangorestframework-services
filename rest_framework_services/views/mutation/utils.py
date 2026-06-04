@@ -267,16 +267,16 @@ def _execute_mutation(
         output_context = resolve_output_context(result) if resolve_output_context else {}
         serializer = output_serializer(result, context=output_context)
         return Response(serializer.data, status=success_status)
-    if result is None:
-        # Empty body. A selector that returned ``None`` is an authoritative
-        # no-content result → always 204. Otherwise honor ``empty_body_status``
-        # — the caller's explicitly-set ``spec.success_status`` if any, else
-        # 204. This is what lets a destroy (or any no-output mutation) carry a
-        # custom success status while a body-less default still reads as 204.
-        if selector_ran:
-            return Response(status=drf_status.HTTP_204_NO_CONTENT)
-        return Response(status=empty_body_status)
-    return Response(result, status=success_status)
+    if result is not None:
+        return Response(result, status=success_status)
+    # Empty body. A selector that returned ``None`` is an authoritative
+    # no-content result → always 204. Otherwise honor ``empty_body_status`` —
+    # the caller's explicitly-set ``spec.success_status`` if any, else 204.
+    # This is what lets a destroy (or any no-output mutation) carry a custom
+    # success status while a body-less default still reads as 204.
+    if selector_ran:
+        return Response(status=drf_status.HTTP_204_NO_CONTENT)
+    return Response(status=empty_body_status)
 
 
 def dispatch_mutation_for_spec(

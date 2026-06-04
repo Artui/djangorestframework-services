@@ -150,9 +150,9 @@ def dispatch_selector_for_spec(
             raise NotFound() from exc
         raise
 
-    if spec.kind is SelectorKind.RETRIEVE:
-        instance = result.first() if hasattr(result, "first") else result
-        if instance is None:
-            raise NotFound()
-        return instance
-    return result
+    if spec.kind is not SelectorKind.RETRIEVE:
+        return result
+    instance = result.first() if hasattr(result, "first") else result
+    if instance is None:
+        raise NotFound()
+    return instance
