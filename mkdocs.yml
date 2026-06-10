@@ -93,6 +93,7 @@ nav:
   - Reference:
       - reference/index.md
       - Views: reference/views.md
+      - Dispatch (stable surface): reference/dispatch.md
       - Viewsets: reference/viewsets.md
       - Mutations: reference/mutations.md
       - Services: reference/services.md

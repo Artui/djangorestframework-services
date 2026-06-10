@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The stable dispatch surface** (SURF-1). The leaves an alternate
+  transport builds on are now documented public API, re-exported from the
+  top-level package with a semver stability promise — see the new
+  *Dispatch (stable surface)* reference page: `resolve_callable_kwargs`
+  (shared); `run_service`, `arun_service`, `build_input_serializer`,
+  `validate_input`, `resolve_mutation_instance` (service side);
+  `run_selector`, `arun_selector`, `is_queryset`,
+  `apply_queryset_shaping` (selector side). Previously downstream packages
+  (drf-mcp) imported these from private/`utils` paths, so a within-range
+  refactor could break them silently.
+- `run_service` / `arun_service` moved out of the private `_compat`
+  package into `services/`. The old `_compat.run_service` /
+  `_compat.arun_service` leaf paths keep working as compatibility shims
+  (drf-mcp ≤0.7 imports them) — an import-surface test pins both the
+  blessed exports and the shims.
+
+### Documentation
+
+- The view-coupled orchestrators (`dispatch_mutation_for_spec`,
+  `dispatch_selector_for_spec`) are explicitly **not** part of the stable
+  surface — a transport-neutral spec dispatcher is future work that will
+  compose the blessed leaves.
+
 ## [0.16.0] — 2026-06-10
 
 ### Added

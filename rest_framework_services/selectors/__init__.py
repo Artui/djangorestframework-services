@@ -10,6 +10,12 @@ from rest_framework_services.selectors.call_selector import call_selector
 from rest_framework_services.selectors.list_selector import ListSelector
 from rest_framework_services.selectors.retrieve_selector import RetrieveSelector
 from rest_framework_services.selectors.selector import Selector
+from rest_framework_services.selectors.utils import (
+    apply_queryset_shaping,
+    arun_selector,
+    is_queryset,
+    run_selector,
+)
 
 __all__ = [
     "AsyncSelector",
@@ -17,5 +23,9 @@ __all__ = [
     "RetrieveSelector",
     "Selector",
     "acall_selector",
+    "apply_queryset_shaping",
+    "arun_selector",
     "call_selector",
+    "is_queryset",
+    "run_selector",
 ]

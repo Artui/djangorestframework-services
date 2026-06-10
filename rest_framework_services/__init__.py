@@ -22,7 +22,11 @@ from rest_framework_services.selectors import (
     RetrieveSelector,
     Selector,
     acall_selector,
+    apply_queryset_shaping,
+    arun_selector,
     call_selector,
+    is_queryset,
+    run_selector,
 )
 from rest_framework_services.services import (
     CreateService,
@@ -31,10 +35,12 @@ from rest_framework_services.services import (
     acall_service,
     acreate_model,
     adelete_model,
+    arun_service,
     aupdate_model,
     call_service,
     create_model,
     delete_model,
+    run_service,
     update_model,
 )
 from rest_framework_services.types import (
@@ -58,6 +64,12 @@ from rest_framework_services.views import (
     ServiceUpdateView,
 )
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
+from rest_framework_services.views.mutation.utils import (
+    build_input_serializer,
+    resolve_mutation_instance,
+    validate_input,
+)
+from rest_framework_services.views.utils import resolve_callable_kwargs
 from rest_framework_services.viewsets import (
     ActionSerializerResolver,
     SelectorListMixin,
@@ -111,16 +123,26 @@ __all__ = [
     "acreate_model",
     "adelete_model",
     "apply_input",
+    "apply_queryset_shaping",
+    "arun_selector",
+    "arun_service",
     "aupdate_from_input",
     "aupdate_model",
+    "build_input_serializer",
     "call_selector",
     "call_service",
     "create_from_input",
     "create_model",
     "delete_model",
     "implements",
+    "is_queryset",
+    "resolve_callable_kwargs",
+    "resolve_mutation_instance",
+    "run_selector",
+    "run_service",
     "selector_action",
     "service_action",
     "update_from_input",
     "update_model",
+    "validate_input",
 ]

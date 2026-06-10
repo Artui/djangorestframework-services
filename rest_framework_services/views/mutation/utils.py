@@ -39,9 +39,7 @@ from rest_framework.response import Response
 from rest_framework.serializers import Serializer
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
-from rest_framework_services._compat.arun_service import arun_service
 from rest_framework_services._compat.is_async import is_async
-from rest_framework_services._compat.run_service import run_service
 from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
@@ -52,6 +50,8 @@ from rest_framework_services.selectors.utils import (
     is_queryset,
     run_selector,
 )
+from rest_framework_services.services.arun_service import arun_service
+from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.utils import (
