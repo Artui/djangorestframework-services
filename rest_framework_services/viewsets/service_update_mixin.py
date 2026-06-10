@@ -10,6 +10,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
+from rest_framework_services.views.mutation.utils import resolve_mutation_instance
 from rest_framework_services.viewsets.utils import (
     _ActionSpecsMixin,
     resolve_action_service_spec,
@@ -19,8 +20,13 @@ from rest_framework_services.viewsets.utils import (
 class ServiceUpdateMixin(MutationFlowMixin, _ActionSpecsMixin):
     """Provides ``update`` (``PUT``) and ``partial_update`` (``PATCH``) actions.
 
-    Looks up the instance via DRF's ``get_object()``. Reads its config from
-    ``action_specs["update"]``; when that key is absent both actions raise
+    Looks up the instance via ``spec.instance_selector_spec`` when set,
+    falling back to DRF's ``get_object()``. ``PUT`` reads its config from
+    ``action_specs["update"]``; ``PATCH`` reads ``action_specs["partial_update"]``
+    first and falls back to ``"update"`` — defining *only*
+    ``"partial_update"`` yields a PATCH-only endpoint (PUT raises
+    :exc:`~rest_framework.exceptions.MethodNotAllowed`). When neither key
+    resolves, both actions raise
     :exc:`~rest_framework.exceptions.MethodNotAllowed`. A non-``ServiceSpec``
     entry raises :exc:`~django.core.exceptions.ImproperlyConfigured`.
     """
@@ -36,12 +42,14 @@ class ServiceUpdateMixin(MutationFlowMixin, _ActionSpecsMixin):
 
     def _update(self, request: Request, *, partial: bool) -> Response:
         spec = resolve_action_service_spec(
-            self.action_specs, "update", "PATCH" if partial else "PUT"
+            self.action_specs,
+            "partial_update" if partial else "update",
+            "PATCH" if partial else "PUT",
         )
         return self._run_mutation(
             request,
             spec,
-            instance=self.get_object(),
+            instance=resolve_mutation_instance(self, spec),
             success_status=spec.success_status or drf_status.HTTP_200_OK,
             render_instance_on_none=True,
             partial=partial,

@@ -10,6 +10,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
+from rest_framework_services.views.mutation.utils import resolve_mutation_instance
 from rest_framework_services.viewsets.utils import (
     _ActionSpecsMixin,
     resolve_action_service_spec,
@@ -19,7 +20,8 @@ from rest_framework_services.viewsets.utils import (
 class ServiceDestroyMixin(MutationFlowMixin, _ActionSpecsMixin):
     """Provides the ``destroy`` action.
 
-    Looks up the instance via DRF's ``get_object()``. Reads its config from
+    Looks up the instance via ``spec.instance_selector_spec`` when set,
+    falling back to DRF's ``get_object()``. Reads its config from
     ``action_specs["destroy"]``; when that key is absent the action raises
     :exc:`~rest_framework.exceptions.MethodNotAllowed`. A non-``ServiceSpec``
     entry raises :exc:`~django.core.exceptions.ImproperlyConfigured`.
@@ -33,6 +35,6 @@ class ServiceDestroyMixin(MutationFlowMixin, _ActionSpecsMixin):
         return self._run_mutation(
             request,
             spec,
-            instance=self.get_object(),
+            instance=resolve_mutation_instance(self, spec),
             success_status=spec.success_status or drf_status.HTTP_204_NO_CONTENT,
         )

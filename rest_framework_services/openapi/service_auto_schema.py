@@ -35,6 +35,10 @@ class ServiceAutoSchema(AutoSchema):
       attached so consumers know about the ``ServiceError`` contract.
     - Partial-update actions instantiate the request serializer with
       ``partial=True`` so optional-on-PATCH semantics show up correctly.
+      ``spec.partial`` overrides the action-derived flag with the same
+      precedence the runtime dispatch applies: ``partial=True`` documents a
+      partial body on any verb, ``partial=False`` keeps the full-update
+      schema (required fields intact) even under PATCH.
 
     Read surfaces (``Selector*View`` and the read-side action mixins) are
     left to the base ``AutoSchema``: their ``output_serializer`` is already
@@ -50,7 +54,12 @@ class ServiceAutoSchema(AutoSchema):
         if spec is not None:
             cls = to_serializer_class(spec.input_serializer)
             if cls is not None:
-                partial = getattr(self.view, "action", None) == "partial_update"
+                # ``spec.partial`` overrides the action-derived flag, the
+                # same precedence the runtime dispatch applies.
+                if spec.partial is not None:
+                    partial = spec.partial
+                else:
+                    partial = getattr(self.view, "action", None) == "partial_update"
                 return cls(partial=partial)
         return super().get_request_serializer()
 
@@ -67,6 +76,19 @@ class ServiceAutoSchema(AutoSchema):
             if spec is not None and spec.input_serializer is not None:
                 saved = self.method
                 self.method = "POST"
+                try:
+                    return super()._get_request_body(direction)
+                finally:
+                    self.method = saved
+        if self.method == "PATCH":
+            # spectacular unconditionally re-stamps ``partial=True`` on PATCH
+            # request serializers ("we simulate what DRF is doing"), which
+            # would override a forced ``spec.partial=False``. Same swap trick:
+            # presenting the call as PUT keeps the full-update schema.
+            spec = resolve_spec(self.view)
+            if spec is not None and spec.partial is False and spec.input_serializer is not None:
+                saved = self.method
+                self.method = "PUT"
                 try:
                     return super()._get_request_body(direction)
                 finally:

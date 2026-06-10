@@ -2,12 +2,19 @@
 
 Public leaf helpers:
 
+- ``build_input_serializer`` — construct and validate the bound input
+  serializer (instance-aware on update/destroy flows); ``None`` when the
+  spec has no ``input_serializer``.
 - ``validate_input`` — turn ``request.data`` into the serializer's
   ``validated_data`` (dict for ``ModelSerializer``, dataclass instance for
-  dataclass-based serializers).
+  dataclass-based serializers). Thin wrapper over
+  ``build_input_serializer``.
 - ``dispatch_service`` — sync/async dispatch with optional atomic wrapping.
 - ``map_service_error`` — translate a framework-agnostic ``ServiceError``
   into the appropriate DRF exception.
+- ``resolve_mutation_instance`` — resolve the instance an update / destroy /
+  detail action targets: ``spec.instance_selector_spec`` when set, else the
+  view's ``get_object()`` chain.
 - ``_ServiceAPIException`` — the 422 mapping target.
 
 Internal:
@@ -41,6 +48,7 @@ from rest_framework_services.exceptions.service_validation_error import (
 )
 from rest_framework_services.selectors.utils import (
     apply_queryset_shaping,
+    dispatch_selector_for_spec,
     is_queryset,
     run_selector,
 )
@@ -62,15 +70,16 @@ class _ServiceAPIException(drf_exceptions.APIException):
     default_code = "service_error"
 
 
-def validate_input(
+def build_input_serializer(
     request: Request,
     input_serializer: type | None,
     *,
     partial: bool = False,
     extra_data: Mapping[str, Any] | None = None,
     context: dict[str, Any] | None = None,
-) -> Any:
-    """Validate ``request.data`` against ``input_serializer``; ``None`` if absent.
+    instance: Any = None,
+) -> Serializer | None:
+    """Construct + validate the bound input serializer; ``None`` if absent.
 
     ``input_serializer`` may be:
 
@@ -90,8 +99,15 @@ def validate_input(
     kwarg so DRF-style ``self.context["request"]`` / ``["view"]`` lookups
     work inside validators and fields.
 
-    The serializer's ``validated_data`` is returned (never ``.save()``); the
-    service is responsible for persistence.
+    ``instance`` (when supplied) is the resolved mutation target on
+    update / destroy flows. The serializer is constructed DRF-style —
+    ``serializer(instance, data=data, partial=partial)`` — so
+    ``self.instance`` is populated inside ``validate()`` / field validators
+    and instance-aware validators (e.g. ``UniqueValidator`` excluding the
+    current row) behave as they do under DRF's own update flow.
+
+    The serializer is returned validated (``is_valid(raise_exception=True)``
+    has run) but never saved; the service owns persistence.
     """
     if input_serializer is None:
         return None
@@ -100,6 +116,8 @@ def validate_input(
     else:
         data = request.data
     serializer_kwargs: dict[str, Any] = {"data": data, "partial": partial}
+    if instance is not None:
+        serializer_kwargs["instance"] = instance
     if context is not None:
         serializer_kwargs["context"] = context
     if isinstance(input_serializer, type) and issubclass(input_serializer, Serializer):
@@ -115,7 +133,33 @@ def validate_input(
             f"got {input_serializer!r}."
         )
     serializer.is_valid(raise_exception=True)
-    return serializer.validated_data
+    return serializer
+
+
+def validate_input(
+    request: Request,
+    input_serializer: type | None,
+    *,
+    partial: bool = False,
+    extra_data: Mapping[str, Any] | None = None,
+    context: dict[str, Any] | None = None,
+    instance: Any = None,
+) -> Any:
+    """Validate ``request.data`` against ``input_serializer``; ``None`` if absent.
+
+    Thin wrapper over :func:`build_input_serializer` (see there for the
+    parameter semantics) returning only ``validated_data`` — kept for
+    callers that don't need the bound serializer itself.
+    """
+    serializer = build_input_serializer(
+        request,
+        input_serializer,
+        partial=partial,
+        extra_data=extra_data,
+        context=context,
+        instance=instance,
+    )
+    return None if serializer is None else serializer.validated_data
 
 
 def dispatch_service(
@@ -158,8 +202,12 @@ def _execute_mutation(
     """Internal flow runner shared by ``MutationFlowMixin`` and ``@service_action``.
 
     Steps:
-      1. Validate input → dataclass instance.
-      2. Build kwarg pool (request, user, instance?, data?, extras).
+      1. Validate input → bound serializer + ``validated_data``. On
+         update / destroy flows the resolved ``instance`` is threaded into
+         the serializer (``serializer(instance, data=..., partial=...)``)
+         so instance-dependent validation works.
+      2. Build kwarg pool (request, user, instance?, data?, serializer?,
+         extras).
       3. Resolve service signature against pool, dispatch.
       4. Map ``ServiceError`` → DRF exception on raise.
       5. If ``output_selector_spec`` carries a selector, invoke it (with the
@@ -190,21 +238,28 @@ def _execute_mutation(
     a callable needs view state (URL kwargs, action name, etc.), pipe it
     through ``ServiceSpec.kwargs`` / ``SelectorSpec.kwargs`` instead.
     """
-    data: Any = validate_input(
+    serializer_instance: Serializer | None = build_input_serializer(
         request,
         input_serializer,
         partial=partial,
         extra_data=extra_input_data,
         context=input_context,
+        instance=instance,
     )
+    data: Any = serializer_instance.validated_data if serializer_instance is not None else None
     pool: dict[str, Any] = {
         "request": request,
         "user": getattr(request, "user", None),
     }
     if instance is not None:
         pool["instance"] = instance
-    if input_serializer is not None:
+    if serializer_instance is not None:
+        # ``serializer`` is a reserved framework seed (like ``request`` /
+        # ``user`` / ``data``): only services that declare it receive the
+        # bound, validated serializer — e.g. to call ``.save()`` when
+        # persistence lives on the serializer (nested-write patterns).
         pool["data"] = data
+        pool["serializer"] = serializer_instance
     if extra_kwargs:
         pool.update(extra_kwargs)
 
@@ -300,7 +355,15 @@ def dispatch_mutation_for_spec(
     underlying mutation flow. Used by :class:`MutationFlowMixin`,
     standalone mutation views, and ``@service_action`` so the call shape
     lives in one place.
+
+    ``partial`` is the transport-derived flag (PATCH → ``True``);
+    ``spec.partial`` overrides it when set. Being the single call-shape
+    point, the override is honoured uniformly across every surface —
+    including create dispatch, so a create spec with ``partial=True``
+    validates partially.
     """
+    if spec.partial is not None:
+        partial = spec.partial
     action: str | None = getattr(view, "action", None)
     action_kwargs_hook: str | None = f"get_{action}_service_kwargs" if action else None
     action_input_hook: str | None = f"get_{action}_input_data" if action else None
@@ -323,6 +386,9 @@ def dispatch_mutation_for_spec(
         spec_input_data=spec.input_data,
         action_hook=action_input_hook,
         catch_all_hook="get_input_data",
+        # Offered to providers that declare ``instance`` (``None`` on
+        # create) so pre-validation input mutation can read the current row.
+        extras={"instance": instance},
     )
     input_context = resolve_serializer_context(
         view,
@@ -368,3 +434,45 @@ def dispatch_mutation_for_spec(
         resolve_output_context=resolve_output_context,
         partial=partial,
     )
+
+
+def resolve_mutation_instance(
+    view: Any,
+    spec: ServiceSpec[Any, Any, Any],
+) -> Any:
+    """Resolve the instance an update / destroy / detail action targets.
+
+    Precedence: ``spec.instance_selector_spec`` (when set with a selector)
+    → the view's ``get_object()`` chain (an ``action_specs["retrieve"]``
+    selector via :class:`SelectorRetrieveMixin`, else DRF's default
+    ``queryset`` / ``lookup_field`` lookup, else a user ``get_object()``
+    override). Used by the update / destroy viewset mixins, the standalone
+    update / delete views, and ``@service_action`` detail actions so the
+    precedence lives in one place.
+
+    The spec path dispatches through :func:`dispatch_selector_for_spec`
+    (the standard selector call shape: ``{request, user}`` + the view's
+    URL kwargs + the selector extras chain, queryset shaping applied,
+    RETRIEVE materialization via ``.first()``). The nested spec's
+    ``none_as_404`` flag is ignored — a mutation against a missing row is
+    always a 404, so a ``None`` resolution raises
+    :exc:`~rest_framework.exceptions.NotFound` regardless. Object-level
+    permissions run against the resolved instance
+    (``view.check_object_permissions``), matching DRF's own ``get_object()``
+    contract.
+    """
+    instance_spec = spec.instance_selector_spec
+    if instance_spec is None or instance_spec.selector is None:
+        return view.get_object()
+    instance = dispatch_selector_for_spec(
+        view,
+        instance_spec,
+        extra_url_kwargs=getattr(view, "kwargs", None),
+        source_label="ServiceSpec.instance_selector_spec.selector",
+    )
+    if instance is None:
+        # Only reachable with ``none_as_404=False`` on the nested spec —
+        # the flag expresses a nullable *read* contract and is ignored here.
+        raise drf_exceptions.NotFound()
+    view.check_object_permissions(view.request, instance)
+    return instance

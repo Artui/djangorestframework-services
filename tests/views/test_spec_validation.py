@@ -5,9 +5,11 @@ from __future__ import annotations
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 
+from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec
 from rest_framework_services.views.spec_validation import (
     is_overridden,
     validate_callable_signature,
+    validate_service_spec,
 )
 
 
@@ -158,6 +160,101 @@ class TestValidateCallableSignature:
             has_instance=True,
             has_result=True,
             spec_kwargs=None,
+            permissive_extras=False,
+        )
+
+    def test_serializer_required_without_input_serializer_fails(self) -> None:
+        def fn(*, serializer: object) -> None:
+            return None
+
+        with pytest.raises(ImproperlyConfigured, match="requires `serializer`"):
+            validate_callable_signature(
+                fn,
+                spec_label="X",
+                has_data=False,
+                has_instance=False,
+                has_result=False,
+                spec_kwargs=None,
+                permissive_extras=False,
+            )
+
+    def test_serializer_allowed_when_input_serializer_present(self) -> None:
+        def fn(*, serializer: object) -> None:
+            return None
+
+        validate_callable_signature(
+            fn,
+            spec_label="X",
+            has_data=True,
+            has_instance=False,
+            has_result=False,
+            spec_kwargs=None,
+            permissive_extras=False,
+        )
+
+
+class TestValidateInstanceSelectorSpec:
+    def _spec(self, instance_spec: SelectorSpec) -> ServiceSpec:
+        def service(*, instance: object) -> None:
+            return None
+
+        return ServiceSpec(service=service, instance_selector_spec=instance_spec)
+
+    def test_valid_spec_passes(self) -> None:
+        validate_service_spec(
+            self._spec(SelectorSpec(kind=SelectorKind.RETRIEVE, selector=lambda *, pk: None)),
+            label="X",
+            has_instance=True,
+            permissive_extras=False,
+        )
+
+    def test_list_kind_fails(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="must be SelectorKind.RETRIEVE"):
+            validate_service_spec(
+                self._spec(SelectorSpec(kind=SelectorKind.LIST, selector=lambda *, pk: None)),
+                label="X",
+                has_instance=True,
+                permissive_extras=False,
+            )
+
+    def test_fails_on_instanceless_action(self) -> None:
+        spec = ServiceSpec(
+            service=lambda: None,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=lambda *, pk: None
+            ),
+        )
+        with pytest.raises(ImproperlyConfigured, match="does not target an instance"):
+            validate_service_spec(spec, label="X", has_instance=False, permissive_extras=False)
+
+    def test_shaping_without_selector_fails(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="`selector` is not"):
+            validate_service_spec(
+                self._spec(SelectorSpec(kind=SelectorKind.RETRIEVE, select_related=("author",))),
+                label="X",
+                has_instance=True,
+                permissive_extras=False,
+            )
+
+    def test_selector_requiring_data_fails(self) -> None:
+        def lookup(*, data: object) -> None:
+            return None
+
+        with pytest.raises(ImproperlyConfigured, match="requires `data`"):
+            validate_service_spec(
+                self._spec(SelectorSpec(kind=SelectorKind.RETRIEVE, selector=lookup)),
+                label="X",
+                has_instance=True,
+                permissive_extras=False,
+            )
+
+    def test_selector_none_passes_validation(self) -> None:
+        # ``selector=None`` means "fall back to the view's get_object()
+        # chain"; nothing to validate on the nested spec.
+        validate_service_spec(
+            self._spec(SelectorSpec(kind=SelectorKind.RETRIEVE)),
+            label="X",
+            has_instance=True,
             permissive_extras=False,
         )
 

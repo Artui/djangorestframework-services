@@ -130,3 +130,60 @@ class TestSelectorRetrieveView:
         request = factory.get("/")
         response = _Vanilla.as_view()(request, pk=999)
         assert response.status_code == 404
+
+
+class _RecordingSerializer(AuthorSerializer):
+    instantiated: list[Any] = []
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        type(self).instantiated.append(args[0] if args else kwargs.get("instance"))
+        super().__init__(*args, **kwargs)
+
+
+class _NullableAuthorView(SelectorRetrieveView):
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=_get_author,
+        output_serializer=_RecordingSerializer,
+        none_as_404=False,
+    )
+
+
+@pytest.mark.django_db
+class TestNoneAs404:
+    def test_none_resolution_renders_200_null(self) -> None:
+        _RecordingSerializer.instantiated.clear()
+        response = _NullableAuthorView.as_view()(factory.get("/"), pk=99999)
+        assert response.status_code == 200
+        assert response.data is None
+
+    def test_output_serializer_not_invoked_on_none(self) -> None:
+        _RecordingSerializer.instantiated.clear()
+        _NullableAuthorView.as_view()(factory.get("/"), pk=99999)
+        assert _RecordingSerializer.instantiated == []
+
+    def test_resolved_instance_still_serialized(self) -> None:
+        author = Author.objects.create(name="Ada")
+        response = _NullableAuthorView.as_view()(factory.get("/"), pk=author.pk)
+        assert response.status_code == 200
+        assert response.data == {"id": author.pk, "name": "Ada"}
+
+    def test_does_not_exist_also_renders_200_null(self) -> None:
+        def strict_get(*, pk: int) -> Author:
+            return Author.objects.get(pk=pk)
+
+        class _View(SelectorRetrieveView):
+            spec = SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                selector=strict_get,
+                output_serializer=AuthorSerializer,
+                none_as_404=False,
+            )
+
+        response = _View.as_view()(factory.get("/"), pk=99999)
+        assert response.status_code == 200
+        assert response.data is None
+
+    def test_default_none_as_404_unchanged(self) -> None:
+        response = _RetrieveAuthorView.as_view()(factory.get("/"), pk=99999)
+        assert response.status_code == 404

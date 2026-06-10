@@ -55,6 +55,7 @@ def resolve_input_extras(
     spec_input_data: Callable[..., Mapping[str, Any]] | None,
     action_hook: str | None,
     catch_all_hook: str,
+    extras: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Collect the extras to merge into the serializer input dict.
 
@@ -72,18 +73,24 @@ def resolve_input_extras(
 
     Each layer's result is merged with ``dict.update`` so the spec-level
     provider has the final say on overlapping keys.
+
+    ``extras`` carries the resolved data available before validation —
+    currently the mutation target ``instance`` (``None`` on create). Each
+    provider receives only the extras it declares by name (see
+    :func:`_invoke_with_extras`); legacy providers are unaffected.
     """
-    extras: dict[str, Any] = {}
+    payload: Mapping[str, Any] = extras if extras is not None else {}
+    collected: dict[str, Any] = {}
     catch_all = getattr(view, catch_all_hook, None)
     if catch_all is not None:
-        extras.update(catch_all(request))
+        collected.update(_invoke_with_extras(catch_all, request, extras=payload))
     if action_hook is not None:
         hook = getattr(view, action_hook, None)
         if hook is not None:
-            extras.update(hook(request))
+            collected.update(_invoke_with_extras(hook, request, extras=payload))
     if spec_input_data is not None:
-        extras.update(spec_input_data(view, request))
-    return extras
+        collected.update(_invoke_with_extras(spec_input_data, view, request, extras=payload))
+    return collected
 
 
 def _invoke_with_extras(

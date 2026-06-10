@@ -32,6 +32,7 @@ from rest_framework_services.types.service_spec import ServiceSpec
 _FRAMEWORK_KEY_DATA = "data"
 _FRAMEWORK_KEY_INSTANCE = "instance"
 _FRAMEWORK_KEY_RESULT = "result"
+_FRAMEWORK_KEY_SERIALIZER = "serializer"
 
 
 def _required_kw_params(fn: Callable[..., Any]) -> dict[str, inspect.Parameter]:
@@ -97,6 +98,13 @@ def validate_callable_signature(
             "`input_serializer`. Either set `input_serializer=...` on the spec "
             "or remove `data` from the signature."
         )
+    if _FRAMEWORK_KEY_SERIALIZER in required and not has_data:
+        raise ImproperlyConfigured(
+            f"{spec_label}: {fn_label} requires `serializer` but the spec has "
+            "no `input_serializer` to bind one from. Either set "
+            "`input_serializer=...` on the spec or remove `serializer` from "
+            "the signature."
+        )
     if _FRAMEWORK_KEY_INSTANCE in required and not has_instance:
         raise ImproperlyConfigured(
             f"{spec_label}: {fn_label} requires `instance` but this action "
@@ -119,6 +127,7 @@ def validate_callable_signature(
     known: set[str] = {"request", "user"}
     if has_data:
         known.add(_FRAMEWORK_KEY_DATA)
+        known.add(_FRAMEWORK_KEY_SERIALIZER)
     if has_instance:
         known.add(_FRAMEWORK_KEY_INSTANCE)
     if has_result:
@@ -243,6 +252,48 @@ def _validate_output_selector_spec(
         )
 
 
+def _validate_instance_selector_spec(
+    instance_spec: SelectorSpec[Any, Any],
+    *,
+    label: str,
+    has_instance: bool,
+) -> None:
+    """Validate the nested :class:`SelectorSpec` on :attr:`ServiceSpec.instance_selector_spec`.
+
+    Instance resolution is always retrieve-shaped, so ``kind`` must be
+    :attr:`SelectorKind.RETRIEVE`. The spec is only consulted on actions
+    that target an instance — configuring it on a create / non-detail
+    action would silently never run, so that fails fast too. The selector
+    runs *before* input validation against the ``{request, user}`` + URL
+    kwargs pool, so requesting ``data`` / ``instance`` / ``result`` is
+    always a misuse; other extras stay permissive (URL kwargs and the
+    selector kwargs chain are dynamic).
+    """
+    if not has_instance:
+        raise ImproperlyConfigured(
+            f"{label}: instance_selector_spec is set but this action does not "
+            "target an instance (e.g. a create or non-detail action). Remove "
+            "it or attach the spec to an update / destroy / detail action."
+        )
+    if instance_spec.kind is not SelectorKind.RETRIEVE:
+        raise ImproperlyConfigured(
+            f"{label}: instance_selector_spec.kind must be SelectorKind.RETRIEVE; "
+            f"got {instance_spec.kind!r}. Instance resolution materializes a "
+            "single instance."
+        )
+    _validate_selector_shaping(instance_spec, label=label)
+    if instance_spec.selector is not None:
+        validate_callable_signature(
+            instance_spec.selector,
+            spec_label=f"{label}.selector",
+            has_data=False,
+            has_instance=False,
+            has_result=False,
+            spec_kwargs=instance_spec.kwargs,
+            permissive_extras=True,
+        )
+
+
 def validate_service_spec(
     spec: ServiceSpec[Any, Any, Any],
     *,
@@ -250,7 +301,7 @@ def validate_service_spec(
     has_instance: bool,
     permissive_extras: bool,
 ) -> None:
-    """Validate a :class:`ServiceSpec`'s ``service`` and ``output_selector_spec``.
+    """Validate a :class:`ServiceSpec`'s ``service`` and nested selector specs.
 
     Shared between standalone mutation views, viewset mixins, and
     ``@service_action``. ``has_instance`` is fixed by the action context
@@ -266,6 +317,12 @@ def validate_service_spec(
         spec_kwargs=spec.kwargs,
         permissive_extras=permissive_extras,
     )
+    if spec.instance_selector_spec is not None:
+        _validate_instance_selector_spec(
+            spec.instance_selector_spec,
+            label=f"{label}.instance_selector_spec",
+            has_instance=has_instance,
+        )
     if spec.output_selector_spec is not None:
         _validate_output_selector_spec(
             spec.output_selector_spec,

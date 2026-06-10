@@ -17,6 +17,7 @@ from rest_framework_dataclasses.serializers import DataclassSerializer
 from rest_framework_services.exceptions import ServiceError, ServiceValidationError
 from rest_framework_services.views.mutation.utils import (
     _ServiceAPIException,
+    build_input_serializer,
     dispatch_service,
     map_service_error,
     validate_input,
@@ -35,6 +36,49 @@ def _drf_request(method: str, data: Any = None) -> Request:
     """Wrap an APIRequestFactory call in a DRF :class:`Request`."""
     raw = getattr(factory, method)("/", data, format="json")
     return Request(raw, parsers=[JSONParser()])
+
+
+class TestBuildInputSerializer:
+    def test_returns_none_when_input_is_none(self) -> None:
+        assert build_input_serializer(_drf_request("post", {"name": "x"}), None) is None
+
+    def test_returns_bound_validated_serializer(self) -> None:
+        serializer = build_input_serializer(_drf_request("post", {"name": "Ada"}), _Sample)
+        assert serializer is not None
+        assert serializer.validated_data == _Sample(name="Ada")
+
+    def test_instance_threaded_into_serializer(self) -> None:
+        class _Plain(serializers.Serializer):
+            name = serializers.CharField()
+
+        marker = object()
+        serializer = build_input_serializer(
+            _drf_request("put", {"name": "x"}), _Plain, instance=marker
+        )
+        assert serializer is not None
+        assert serializer.instance is marker
+
+    def test_validate_sees_instance(self) -> None:
+        seen: dict[str, Any] = {}
+
+        class _Plain(serializers.Serializer):
+            name = serializers.CharField()
+
+            def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+                seen["instance"] = self.instance
+                return attrs
+
+        marker = object()
+        build_input_serializer(_drf_request("put", {"name": "x"}), _Plain, instance=marker)
+        assert seen["instance"] is marker
+
+    def test_no_instance_keeps_serializer_unbound(self) -> None:
+        class _Plain(serializers.Serializer):
+            name = serializers.CharField()
+
+        serializer = build_input_serializer(_drf_request("post", {"name": "x"}), _Plain)
+        assert serializer is not None
+        assert serializer.instance is None
 
 
 class TestValidateInput:

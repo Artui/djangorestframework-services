@@ -6,7 +6,10 @@ from rest_framework.serializers import Serializer
 
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
-from rest_framework_services.viewsets.utils import _ActionSpecsMixin
+from rest_framework_services.viewsets.utils import (
+    _ActionSpecsMixin,
+    resolve_action_spec_entry,
+)
 
 
 class ActionSerializerResolver(_ActionSpecsMixin):
@@ -39,7 +42,9 @@ class ActionSerializerResolver(_ActionSpecsMixin):
     action: str | None
 
     def get_serializer_class(self) -> type[Serializer]:
-        spec = self.action_specs.get(self.action) if self.action else None
+        # Same fallback chain as dispatch and ``get_permissions``
+        # (``"partial_update"`` → ``"update"``) so the three sites agree.
+        spec = resolve_action_spec_entry(self.action_specs, self.action)
         if isinstance(spec, SelectorSpec) and spec.output_serializer is not None:
             return spec.output_serializer
         if (

@@ -128,6 +128,18 @@ class _ApproveViewSet(GenericViewSet):
         ...
 
 
+class _ForcedFullUpdateView(ServiceUpdateView):
+    queryset = Author.objects.all()
+    spec = ServiceSpec(
+        service=_update,
+        input_serializer=_AuthorIn,
+        partial=False,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+        ),
+    )
+
+
 _router = DefaultRouter()
 _router.register("authors", _AuthorViewSet, basename="authors")
 _router.register("approvals", _ApproveViewSet, basename="approvals")
@@ -135,6 +147,7 @@ _router.register("approvals", _ApproveViewSet, basename="approvals")
 urlpatterns = [
     path("create/", _CreateView.as_view()),
     path("update/<int:pk>/", _UpdateView.as_view()),
+    path("forced-full/<int:pk>/", _ForcedFullUpdateView.as_view()),
     path("delete/<int:pk>/", _DeleteView.as_view()),
     path("plain-delete/<int:pk>/", _DeletePlainView.as_view()),
     *_router.urls,
@@ -178,6 +191,17 @@ class TestStandaloneViewSchema:
         component = schema["components"]["schemas"][ref.rsplit("/", 1)[1]]
         # spectacular emits a ``Patched*`` component for partial requests.
         assert "Patched" in ref or component.get("required") in (None, [])
+
+    def test_spec_partial_false_overrides_patch_partiality(self) -> None:
+        schema = _generate()
+        op = schema["paths"]["/forced-full/{id}/"]["patch"]
+        body = op["requestBody"]["content"]["application/json"]["schema"]
+        ref = body["$ref"]
+        component = schema["components"]["schemas"][ref.rsplit("/", 1)[1]]
+        # ``partial=False`` forces full-update semantics, so no ``Patched*``
+        # component and the required list survives under PATCH.
+        assert "Patched" not in ref
+        assert component.get("required") == ["name"]
 
 
 @pytest.mark.django_db
