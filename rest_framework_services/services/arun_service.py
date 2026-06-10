@@ -1,7 +1,7 @@
 """``arun_service`` — asynchronous service dispatch with optional atomic wrapping.
 
 Part of the **stable dispatch surface** (see the dispatch reference page);
-promoted out of the private ``_compat`` package in 0.17.
+lived in the private ``_compat`` package before 0.17.
 
 Django's ``transaction.atomic`` context manager is sync-only; to run an
 async service inside an atomic block we hop back to a sync thread (via

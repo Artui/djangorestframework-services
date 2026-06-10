@@ -9,6 +9,7 @@ for typical usage; deeper imports (``rest_framework_services.mutations``,
 
 from rest_framework_services.exceptions import ServiceError, ServiceValidationError
 from rest_framework_services.implements import implements
+from rest_framework_services.is_async import is_async
 from rest_framework_services.mutations import (
     acreate_from_input,
     apply_input,
@@ -135,6 +136,7 @@ __all__ = [
     "create_model",
     "delete_model",
     "implements",
+    "is_async",
     "is_queryset",
     "resolve_callable_kwargs",
     "resolve_mutation_instance",

@@ -7,7 +7,7 @@ from typing import Any, TypeVar, cast
 
 from rest_framework.request import Request
 
-from rest_framework_services._compat.is_async import is_async
+from rest_framework_services.is_async import is_async
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
 ResultT = TypeVar("ResultT")

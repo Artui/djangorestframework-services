@@ -1,4 +1,10 @@
-"""Detect whether a callable is async."""
+"""``is_async`` — detect whether a callable is async.
+
+Part of the **stable dispatch surface** (see the dispatch reference page):
+transports that bridge sync and async callables (the package's own views,
+``djangorestframework-mcp-server``'s handlers) branch on this predicate.
+Lived in the private ``_compat`` package before 0.17.
+"""
 
 from __future__ import annotations
 
@@ -21,3 +27,6 @@ def is_async(fn: Callable[..., Any]) -> bool:
     # ``B004`` doesn't apply: we're not using this to test callability.
     cls_call: Any = getattr(type(fn), "__call__", None)  # noqa: B004
     return cls_call is not None and inspect.iscoroutinefunction(cls_call)
+
+
+__all__ = ["is_async"]
