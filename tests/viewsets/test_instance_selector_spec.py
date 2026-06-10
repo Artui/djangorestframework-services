@@ -94,9 +94,9 @@ class TestInstanceSelectorResolution:
         response = view(factory.put("/", {"name": "new"}, format="json"), pk=99999)
         assert response.status_code == 404
 
-    def test_none_as_404_false_is_ignored_for_instance_resolution(self) -> None:
+    def test_allow_none_is_ignored_for_instance_resolution(self) -> None:
         nullable_lookup = SelectorSpec(
-            kind=SelectorKind.RETRIEVE, selector=_author_by_pk, none_as_404=False
+            kind=SelectorKind.RETRIEVE, selector=_author_by_pk, allow_none=True
         )
 
         class _View(ServiceViewSet):

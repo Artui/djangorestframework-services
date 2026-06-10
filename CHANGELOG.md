@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (precedence: spec selector → `action_specs["retrieve"]` selector → DRF
   default `get_object()`). The selector pool is `{request, user}` + URL
   kwargs + the selector extras chain; queryset shaping applies; `None` /
-  missing → 404 (the nested spec's `none_as_404` is ignored here); the
+  missing → 404 (the nested spec's `allow_none` is ignored here); the
   nested `permission_classes` / `output_serializer` /
   `output_serializer_context` are ignored. Spec-resolved instances run
   object-level permissions (`check_object_permissions`) — closing a gap the
@@ -40,10 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   all resolution sites (dispatch, `get_permissions`,
   `ActionSerializerResolver`, and schema-time `resolve_spec`). Defining
   *only* `"partial_update"` yields a PATCH-only endpoint (PUT → 405).
-- **`SelectorSpec.none_as_404`** — `RETRIEVE`-only. `False` expresses a
+- **`SelectorSpec.allow_none`** — `RETRIEVE`-only. `True` expresses a
   nullable-resource contract: a `None` / missing resolution renders `200`
   with a JSON `null` body (output serializer skipped) on
-  `SelectorRetrieveView` and the retrieve viewset mixin. Default `True`
+  `SelectorRetrieveView` and the retrieve viewset mixin. Default `False`
   keeps the `NotFound` behaviour. Ignored on nested specs
   (`output_selector_spec` keeps authoritative-`None` → 204;
   `instance_selector_spec` always 404s).

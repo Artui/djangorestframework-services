@@ -123,9 +123,9 @@ class TestInstanceSelectorSpecValidation:
 
 
 @pytest.mark.django_db
-class TestNestedOutputSpecIgnoresNoneAs404:
+class TestNestedOutputSpecIgnoresAllowNone:
     def test_output_selector_none_still_renders_204(self) -> None:
-        # ``none_as_404`` expresses a *standalone read* contract; the nested
+        # ``allow_none`` expresses a *standalone read* contract; the nested
         # output spec keeps its authoritative-None → 204 behaviour.
         def _vanishing(*, result: Author) -> None:
             return None
@@ -138,7 +138,7 @@ class TestNestedOutputSpecIgnoresNoneAs404:
                 output_selector_spec=SelectorSpec(
                     kind=SelectorKind.RETRIEVE,
                     selector=_vanishing,
-                    none_as_404=False,
+                    allow_none=True,
                 ),
             )
 

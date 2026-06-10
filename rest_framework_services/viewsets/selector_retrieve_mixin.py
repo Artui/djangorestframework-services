@@ -24,7 +24,7 @@ class SelectorRetrieveMixin(RetrieveModelMixin, _ActionSpecsMixin):
     falling through to DRF's standard lookup. The selector receives the
     URL kwargs plus the standard pool. Returning ``None`` or raising
     ``Model.DoesNotExist`` results in a 404 — or, when the spec sets
-    ``none_as_404=False``, a ``200`` with a JSON ``null`` body (the
+    ``allow_none=True``, a ``200`` with a JSON ``null`` body (the
     nullable-resource contract; the output serializer is skipped).
 
     ``action_specs["retrieve"] = SelectorSpec(selector=None)`` or an absent
@@ -46,7 +46,7 @@ class SelectorRetrieveMixin(RetrieveModelMixin, _ActionSpecsMixin):
 
     def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         spec = resolve_action_selector_spec(self.action_specs, "retrieve")
-        if spec is None or spec.none_as_404:
+        if spec is None or not spec.allow_none:
             return super().retrieve(request, *args, **kwargs)
         # Nullable-resource contract: ``get_object()`` may resolve ``None``
         # (instead of raising ``NotFound``); render it as a literal JSON
