@@ -3,7 +3,7 @@
 Part of the **stable dispatch surface** (see the dispatch reference page):
 the primitive alternate transports (e.g. ``djangorestframework-mcp-server``)
 build on instead of re-implementing the "how to call a service" rules.
-Promoted out of the private ``_compat`` package in 0.17.
+Lived in the private ``_compat`` package before 0.17.
 """
 
 from __future__ import annotations

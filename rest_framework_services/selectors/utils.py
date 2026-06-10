@@ -12,7 +12,7 @@ from django.db.models.manager import BaseManager
 from rest_framework.exceptions import NotFound
 from rest_framework.request import Request
 
-from rest_framework_services._compat.is_async import is_async
+from rest_framework_services.is_async import is_async
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.utils import (

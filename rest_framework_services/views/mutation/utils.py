@@ -39,11 +39,11 @@ from rest_framework.response import Response
 from rest_framework.serializers import Serializer
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
-from rest_framework_services._compat.is_async import is_async
 from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
+from rest_framework_services.is_async import is_async
 from rest_framework_services.selectors.utils import (
     apply_queryset_shaping,
     dispatch_selector_for_spec,

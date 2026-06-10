@@ -1,19 +1,17 @@
-"""The stable dispatch surface: blessed re-exports + compat shims.
+"""The stable dispatch surface: blessed top-level re-exports.
 
 SURF-1 (0.17): the dispatch leaves alternate transports build on are part
-of the documented public API. This test pins two contracts:
-
-- every blessed symbol is importable from the top-level package and is
-  *the same object* as its leaf-module home (no divergent copies);
-- the pre-0.17 ``_compat`` leaf paths keep working — downstreams
-  (drf-mcp ≤0.7) import them directly.
+of the documented public API. This test pins the contract: every blessed
+symbol is importable from the top-level package and is *the same object*
+as its leaf-module home (no divergent copies). The private ``_compat``
+package was removed in the same release — downstreams re-point their
+imports here when they bump past 0.17.
 """
 
 from __future__ import annotations
 
 import rest_framework_services as pkg
-from rest_framework_services._compat.arun_service import arun_service as compat_arun_service
-from rest_framework_services._compat.run_service import run_service as compat_run_service
+from rest_framework_services.is_async import is_async
 from rest_framework_services.selectors.utils import (
     apply_queryset_shaping,
     arun_selector,
@@ -35,6 +33,7 @@ _SURFACE = {
     "arun_selector": arun_selector,
     "arun_service": arun_service,
     "build_input_serializer": build_input_serializer,
+    "is_async": is_async,
     "is_queryset": is_queryset,
     "resolve_callable_kwargs": resolve_callable_kwargs,
     "resolve_mutation_instance": resolve_mutation_instance,
@@ -50,15 +49,9 @@ def test_every_blessed_symbol_is_a_top_level_export() -> None:
         assert getattr(pkg, name) is original, f"{name} diverged from its leaf module"
 
 
-def test_compat_shims_alias_the_promoted_runners() -> None:
-    # drf-mcp ≤0.7 imports these leaf paths; the shims must stay aliases of
-    # the promoted implementations, not copies.
-    assert compat_run_service is run_service
-    assert compat_arun_service is arun_service
+def test_the_compat_package_is_gone() -> None:
+    # Removed in 0.17 — anything still importing it should fail loudly here
+    # rather than in a downstream release.
+    import importlib.util
 
-
-def test_compat_package_init_keeps_exporting_the_runners() -> None:
-    from rest_framework_services import _compat
-
-    assert _compat.run_service is run_service
-    assert _compat.arun_service is arun_service
+    assert importlib.util.find_spec("rest_framework_services._compat") is None

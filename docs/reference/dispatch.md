@@ -5,9 +5,10 @@ The **stable dispatch surface**: the primitives an alternate transport
 builds on instead of re-implementing the "how to call a service / selector"
 rules. Every symbol here is importable from the top-level package, follows
 semantic versioning, and will not move or change signature within a major
-version. Blessed in 0.17 — `run_service` / `arun_service` were promoted out
-of the private `_compat` package (compatibility shims remain at the old
-paths).
+version. Blessed in 0.17, which also **removed the private `_compat`
+package** — `run_service` / `arun_service` now live in `services/` and
+`is_async` at the package root; downstreams re-point their imports here
+when they bump past 0.17.
 
 Deliberately **not** part of this surface: `dispatch_mutation_for_spec` and
 `dispatch_selector_for_spec`. They are view-coupled orchestrators (they take
@@ -20,6 +21,10 @@ compose the leaves below.
 ### `resolve_callable_kwargs`
 
 ::: rest_framework_services.views.utils.resolve_callable_kwargs
+
+### `is_async`
+
+::: rest_framework_services.is_async.is_async
 
 ## Service side
 

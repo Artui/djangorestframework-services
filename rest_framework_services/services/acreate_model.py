@@ -22,7 +22,7 @@ def acreate_model(
 
     Returns an ``async def`` closure that wraps
     :func:`~rest_framework_services.mutations.acreate_from_input`. The
-    framework's :func:`~rest_framework_services._compat.is_async.is_async`
+    framework's :func:`~rest_framework_services.is_async.is_async`
     detection routes it through the async dispatch path automatically.
     """
 

@@ -14,18 +14,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The stable dispatch surface** (SURF-1). The leaves an alternate
   transport builds on are now documented public API, re-exported from the
   top-level package with a semver stability promise — see the new
-  *Dispatch (stable surface)* reference page: `resolve_callable_kwargs`
-  (shared); `run_service`, `arun_service`, `build_input_serializer`,
-  `validate_input`, `resolve_mutation_instance` (service side);
-  `run_selector`, `arun_selector`, `is_queryset`,
+  *Dispatch (stable surface)* reference page: `resolve_callable_kwargs`,
+  `is_async` (shared); `run_service`, `arun_service`,
+  `build_input_serializer`, `validate_input`, `resolve_mutation_instance`
+  (service side); `run_selector`, `arun_selector`, `is_queryset`,
   `apply_queryset_shaping` (selector side). Previously downstream packages
   (drf-mcp) imported these from private/`utils` paths, so a within-range
-  refactor could break them silently.
-- `run_service` / `arun_service` moved out of the private `_compat`
-  package into `services/`. The old `_compat.run_service` /
-  `_compat.arun_service` leaf paths keep working as compatibility shims
-  (drf-mcp ≤0.7 imports them) — an import-surface test pins both the
-  blessed exports and the shims.
+  refactor could break them silently. An import-surface test pins the
+  blessed exports.
+
+### Removed
+
+- **The private `_compat` package.** `run_service` / `arun_service` moved
+  to `services/` and `is_async` to the package root (all three are part of
+  the blessed surface above). **Breaking for anything importing
+  `rest_framework_services._compat.*`** — in practice only
+  drf-mcp ≤0.7, whose dependency cap (`<0.17`) keeps it on 0.16; its next
+  release re-points the imports and widens the pin.
 
 ### Documentation
 
