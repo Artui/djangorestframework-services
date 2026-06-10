@@ -24,12 +24,46 @@ from rest_framework_services.views.utils import layer_serializer_context
 _MUTATION_ACTIONS: dict[str, dict[str, Any]] = {
     "create": {"has_instance": False},
     "update": {"has_instance": True},
+    "partial_update": {"has_instance": True},
     "destroy": {"has_instance": True},
 }
 _SELECTOR_ACTION_KIND: dict[str, SelectorKind] = {
     "list": SelectorKind.LIST,
     "retrieve": SelectorKind.RETRIEVE,
 }
+
+# Action-key fallbacks applied identically at every resolution site
+# (dispatch, ``get_permissions``, ``ActionSerializerResolver``, and
+# schema-time ``resolve_spec``): ``"partial_update"`` resolves first and
+# falls back to ``"update"``, so PATCH and PUT share one spec unless a
+# dedicated PATCH entry is defined.
+_ACTION_SPEC_FALLBACKS: dict[str, str] = {
+    "partial_update": "update",
+}
+
+
+def resolve_action_spec_entry(
+    action_specs: Mapping[str, SelectorSpec | ServiceSpec],
+    action: str | None,
+) -> SelectorSpec | ServiceSpec | None:
+    """Return the ``action_specs`` entry for ``action``, following fallbacks.
+
+    The single source of truth for the action→spec-key chain. Every site
+    that keys behaviour on the active action's spec entry must resolve it
+    through here — dispatch, permission resolution, and serializer
+    resolution disagreeing on the key is exactly the bug class this
+    prevents (a ``"update"``-keyed spec whose ``permission_classes``
+    silently didn't apply under PATCH).
+    """
+    if action is None:
+        return None
+    entry = action_specs.get(action)
+    if entry is not None:
+        return entry
+    fallback = _ACTION_SPEC_FALLBACKS.get(action)
+    if fallback is not None:
+        return action_specs.get(fallback)
+    return None
 
 
 def resolve_action_service_spec(
@@ -39,11 +73,13 @@ def resolve_action_service_spec(
 ) -> ServiceSpec[Any, Any, Any]:
     """Pick a :class:`ServiceSpec` from ``action_specs`` for a mutation action.
 
-    Raises :exc:`MethodNotAllowed` when the action is not configured and
-    :exc:`ImproperlyConfigured` when the entry is the wrong spec type.
-    Centralised so all three mutation viewset mixins share one error path.
+    Follows the :func:`resolve_action_spec_entry` fallback chain
+    (``"partial_update"`` → ``"update"``). Raises :exc:`MethodNotAllowed`
+    when the action is not configured and :exc:`ImproperlyConfigured` when
+    the entry is the wrong spec type. Centralised so all three mutation
+    viewset mixins share one error path.
     """
-    entry = action_specs.get(action)
+    entry = resolve_action_spec_entry(action_specs, action)
     if entry is None:
         raise MethodNotAllowed(method)
     if not isinstance(entry, ServiceSpec):
@@ -155,7 +191,9 @@ class _ActionSpecsMixin:
         """
         base: dict[str, Any] = dict(super().get_serializer_context())  # ty: ignore[unresolved-attribute]
         action: str | None = self.action
-        entry: SelectorSpec | ServiceSpec | None = self.action_specs.get(action) if action else None
+        entry: SelectorSpec | ServiceSpec | None = resolve_action_spec_entry(
+            self.action_specs, action
+        )
         if not isinstance(entry, SelectorSpec):
             return base
         # Offer the resolved data stashed by the selector list / retrieve
@@ -178,8 +216,11 @@ class _ActionSpecsMixin:
         )
 
     def get_permissions(self) -> list[Any]:
-        spec: SelectorSpec | ServiceSpec | None = (
-            self.action_specs.get(self.action) if self.action else None
+        # Resolved through the fallback chain so PATCH (action
+        # ``"partial_update"``) enforces an ``"update"``-keyed spec's
+        # ``permission_classes`` — the same chain dispatch uses.
+        spec: SelectorSpec | ServiceSpec | None = resolve_action_spec_entry(
+            self.action_specs, self.action
         )
         if spec is None and self.action is not None:
             # Fall back to a spec attached by ``@service_action`` /

@@ -225,6 +225,33 @@ class TestResolveInputExtras:
             "shared": "spec",
         }
 
+    def test_extras_offered_only_to_providers_that_declare_them(self) -> None:
+        sentinel = object()
+
+        class _View:
+            def get_input_data(self, request: Request, *, instance: Any) -> dict[str, Any]:
+                return {"hook_instance": instance}
+
+            def get_update_input_data(self, request: Request) -> dict[str, Any]:
+                return {"legacy": "untouched"}
+
+        def provider(view: Any, request: Request, *, instance: Any) -> dict[str, Any]:
+            return {"spec_instance": instance}
+
+        result = resolve_input_extras(
+            _View(),
+            _request(),
+            spec_input_data=provider,
+            action_hook="get_update_input_data",
+            catch_all_hook="get_input_data",
+            extras={"instance": sentinel},
+        )
+        assert result == {
+            "hook_instance": sentinel,
+            "legacy": "untouched",
+            "spec_instance": sentinel,
+        }
+
     def test_spec_input_data_receives_view_and_request(self) -> None:
         captured: dict[str, Any] = {}
 

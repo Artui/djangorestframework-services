@@ -12,7 +12,10 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from rest_framework_services.types.service_spec import ServiceSpec
-from rest_framework_services.views.mutation.utils import dispatch_mutation_for_spec
+from rest_framework_services.views.mutation.utils import (
+    dispatch_mutation_for_spec,
+    resolve_mutation_instance,
+)
 from rest_framework_services.views.spec_validation import validate_service_spec
 
 
@@ -64,7 +67,7 @@ def service_action(
 
         @functools.wraps(fn)
         def handler(self: Any, request: Request, *args: Any, **kwargs: Any) -> Response:
-            instance: Any = self.get_object() if detail else None
+            instance: Any = resolve_mutation_instance(self, spec) if detail else None
             return dispatch_mutation_for_spec(
                 self,
                 request,

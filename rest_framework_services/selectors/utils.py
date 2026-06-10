@@ -121,8 +121,11 @@ def dispatch_selector_for_spec(
     When ``spec.kind`` is :attr:`SelectorKind.RETRIEVE`, the returned
     QuerySet (if any) is materialized via ``.first()`` and ``None`` /
     :exc:`~django.core.exceptions.ObjectDoesNotExist` are translated to
-    :exc:`~rest_framework.exceptions.NotFound`. ``SelectorKind.LIST``
-    returns the (optionally shaped) selector return as-is.
+    :exc:`~rest_framework.exceptions.NotFound` — unless the spec sets
+    ``none_as_404=False``, in which case the missing-object case returns
+    ``None`` and the calling view decides how to render it (the retrieve
+    views render 200 + JSON ``null``). ``SelectorKind.LIST`` returns the
+    (optionally shaped) selector return as-is.
 
     The caller must check ``spec.selector is not None`` before calling and
     fall back to vanilla DRF otherwise.
@@ -164,12 +167,14 @@ def dispatch_selector_for_spec(
         )
     except ObjectDoesNotExist as exc:
         if spec.kind is SelectorKind.RETRIEVE:
+            if not spec.none_as_404:
+                return None
             raise NotFound() from exc
         raise
 
     if spec.kind is not SelectorKind.RETRIEVE:
         return result
     instance = result.first() if is_queryset(result) else result
-    if instance is None:
+    if instance is None and spec.none_as_404:
         raise NotFound()
     return instance

@@ -7,6 +7,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`ServiceSpec.instance_selector_spec`** — the input-side twin of
+  `output_selector_spec`. A nested `SelectorSpec` (`kind=RETRIEVE`) embeds
+  the update/destroy instance lookup in the spec itself, so a mutation spec
+  is genuinely self-contained: standalone `ServiceUpdateView` /
+  `ServiceDeleteView` subclasses need no `queryset` / `lookup_field`, and
+  viewset `update` / `partial_update` / `destroy` actions and
+  `@service_action(detail=True)` actions resolve the instance from the spec
+  (precedence: spec selector → `action_specs["retrieve"]` selector → DRF
+  default `get_object()`). The selector pool is `{request, user}` + URL
+  kwargs + the selector extras chain; queryset shaping applies; `None` /
+  missing → 404 (the nested spec's `none_as_404` is ignored here); the
+  nested `permission_classes` / `output_serializer` /
+  `output_serializer_context` are ignored. Spec-resolved instances run
+  object-level permissions (`check_object_permissions`) — closing a gap the
+  selector-driven `get_object()` chain has. `kind=LIST` or configuring it
+  on a create/non-detail action fails fast at `as_view()` time.
+- **`ServiceSpec.partial`** — force or suppress partial validation
+  regardless of HTTP verb. `None` (default) keeps the method-derived flag;
+  `partial=False` on a PATCH action makes `required` fields enforce like a
+  PUT; `partial=True` relaxes any verb (including create). Applied once at
+  `dispatch_mutation_for_spec`, so viewset mixins, standalone views, and
+  `@service_action` all honour it. The OpenAPI `ServiceAutoSchema` reflects
+  the override (a forced-full PATCH keeps its `required` list instead of
+  the `Patched*` component).
+- **`action_specs["partial_update"]`** — PATCH now resolves a dedicated
+  `"partial_update"` key first and falls back to `"update"`, uniformly at
+  all resolution sites (dispatch, `get_permissions`,
+  `ActionSerializerResolver`, and schema-time `resolve_spec`). Defining
+  *only* `"partial_update"` yields a PATCH-only endpoint (PUT → 405).
+- **`SelectorSpec.none_as_404`** — `RETRIEVE`-only. `False` expresses a
+  nullable-resource contract: a `None` / missing resolution renders `200`
+  with a JSON `null` body (output serializer skipped) on
+  `SelectorRetrieveView` and the retrieve viewset mixin. Default `True`
+  keeps the `NotFound` behaviour. Ignored on nested specs
+  (`output_selector_spec` keeps authoritative-`None` → 204;
+  `instance_selector_spec` always 404s).
+- **Bound serializer in the service kwarg pool** — services may declare a
+  `serializer` parameter to receive the bound, validated input serializer
+  (opt-in declare-to-receive, like `request` / `user` / `data`). With the
+  instance-aware construction below, `serializer.save()` performs a
+  DRF-correct create or update — the home for nested-write persistence
+  that lives on the serializer. Declaring `serializer` with no
+  `input_serializer` on the spec fails fast at `as_view()` time.
+- `input_data` providers (spec-level and the `get_input_data` /
+  `get_<action>_input_data` view hooks) may declare `instance` to receive
+  the resolved mutation target (`None` on create) — passed only when
+  declared; legacy providers unaffected.
+- New public leaf helpers in `views/mutation/utils.py`:
+  `build_input_serializer` (the bound-serializer sibling of
+  `validate_input`) and `resolve_mutation_instance`.
+
+### Changed
+
+- **Behaviour change — instance-aware input validation.** On update /
+  destroy flows the input serializer is now constructed DRF-style with the
+  resolved instance: `serializer(instance, data=..., partial=...)`. Code
+  inside `validate()` / field validators that reads `self.instance`
+  (previously always `None` here) starts seeing the actual row — that is
+  the fix, and instance-aware validators (e.g. `UniqueValidator`) now
+  correctly exclude the current row. But if a serializer *branches* on
+  `self.instance` to detect "create vs update", it now takes the update
+  branch on update requests. Applies on both the spec-selector and legacy
+  `get_object()` lookup paths.
+- **Behaviour change / bugfix — PATCH permission fallback.** Permission and
+  serializer resolution previously keyed on `self.action`
+  (`"partial_update"` under PATCH) while dispatch resolved
+  `action_specs["update"]` — so an `"update"`-keyed spec's
+  `permission_classes` silently did **not** apply to PATCH requests unless
+  the spec was duplicated under a second key. All resolution sites now
+  share one fallback chain; PATCH is guarded by the `"update"` spec's
+  permissions out of the box. If you relied on PATCH bypassing spec
+  permissions (unlikely, but it was the old behaviour), add an explicit
+  `"partial_update"` entry.
+
+### Documentation
+
+- Concepts page now documents the full **result-rendering matrix**
+  (service return × output spec × `success_status` → response shape), the
+  **stale fetch-time annotations** pitfall (annotations resolved by the
+  instance lookup reflect pre-mutation state; re-fetch via
+  `output_selector_spec` for the post-mutation truth), the
+  PATCH-that-validates-like-PUT recipe, the standalone-no-queryset
+  example, and an explicit non-goal: constant/no-logic endpoints are fine
+  as plain DRF views.
+
 ## [0.15.1] — 2026-06-04
 
 ### Fixed

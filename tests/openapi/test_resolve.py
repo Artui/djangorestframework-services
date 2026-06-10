@@ -102,3 +102,20 @@ class TestResolveSpec:
         class _Bare(GenericViewSet): ...
 
         assert resolve_spec(_bound(_Bare, "list")) is None
+
+    def test_partial_update_falls_back_to_update_key(self) -> None:
+        update_spec = ServiceSpec(service=_create)
+
+        class _View(ServiceViewSet):
+            action_specs = {"update": update_spec}
+
+        assert resolve_spec(_bound(_View, "partial_update")) is update_spec
+
+    def test_dedicated_partial_update_key_wins(self) -> None:
+        update_spec = ServiceSpec(service=_create)
+        patch_spec = ServiceSpec(service=_create)
+
+        class _View(ServiceViewSet):
+            action_specs = {"update": update_spec, "partial_update": patch_spec}
+
+        assert resolve_spec(_bound(_View, "partial_update")) is patch_spec

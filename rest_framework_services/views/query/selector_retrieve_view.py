@@ -26,7 +26,9 @@ class SelectorRetrieveView(RetrieveModelMixin, GenericAPIView):
     - ``spec.selector`` overrides ``get_object()``; ``None`` falls back to
       ``self.get_object()`` — standard DRF lookup using ``queryset`` and
       ``lookup_field``. Returning ``None`` or raising ``Model.DoesNotExist``
-      results in a 404.
+      results in a 404 — or, when the spec sets ``none_as_404=False``, a
+      ``200`` with a JSON ``null`` body (the nullable-resource contract;
+      the output serializer is skipped).
     - ``spec.output_serializer`` overrides ``get_serializer_class()``; ``None``
       falls back to DRF's standard ``serializer_class`` attribute.
 
@@ -83,4 +85,14 @@ class SelectorRetrieveView(RetrieveModelMixin, GenericAPIView):
         return obj
 
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        return self.retrieve(request, *args, **kwargs)
+        s: SelectorSpec | None = get_class_attr(self, "spec")
+        if not isinstance(s, SelectorSpec) or s.selector is None or s.none_as_404:
+            return self.retrieve(request, *args, **kwargs)
+        # Nullable-resource contract: ``get_object()`` may resolve ``None``
+        # (instead of raising ``NotFound``); render it as a literal JSON
+        # ``null`` without invoking the output serializer.
+        instance = self.get_object()
+        if instance is None:
+            return Response(None)
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)

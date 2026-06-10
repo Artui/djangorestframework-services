@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.viewsets.utils import resolve_action_spec_entry
 
 
 def resolve_spec(view: Any) -> ServiceSpec[Any, Any, Any] | None:
@@ -19,7 +20,9 @@ def resolve_spec(view: Any) -> ServiceSpec[Any, Any, Any] | None:
        carries ``_service_spec`` stamped at decoration time.
     3. **Viewset action keyed in** ``action_specs`` — looked up by
        ``view.action`` (DRF sets this on the bound view before the schema
-       generator inspects it).
+       generator inspects it), following the same action-key fallback chain
+       as runtime dispatch (``"partial_update"`` → ``"update"``) so the
+       documented PATCH schema matches what actually validates.
 
     Returns ``None`` when the view is not driven by a service-style spec
     (e.g. a vanilla ``GenericAPIView``, an unset spec, or a read-side
@@ -42,7 +45,7 @@ def resolve_spec(view: Any) -> ServiceSpec[Any, Any, Any] | None:
     # ``ServiceCreateMixin`` / ``ServiceUpdateMixin`` / ``ServiceDestroyMixin``.
     action_specs = getattr(view, "action_specs", None)
     if action_specs is not None:
-        entry = action_specs.get(action_name)
+        entry = resolve_action_spec_entry(action_specs, action_name)
         if isinstance(entry, ServiceSpec):
             return entry
     return None

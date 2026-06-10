@@ -58,6 +58,7 @@ everything a read action needs:
 class SelectorSpec(Generic[ResultT, ExtraT]):
     kind: SelectorKind                              # required
     selector: Callable[..., ResultT] | None = None
+    none_as_404: bool = True
     output_serializer: type[Serializer] | None = None
     kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
@@ -81,6 +82,14 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
 - **`selector`** — the callable invoked by `get_queryset()` (list) or
   `get_object()` (retrieve). `None` means "use the configured `queryset`
   / default DRF behaviour".
+- **`none_as_404`** — `RETRIEVE`-only knob for the `None` / missing-object
+  case. `True` (the default) raises `NotFound`. `False` expresses a
+  nullable-resource contract: the retrieve view / viewset mixin renders
+  `200` with a JSON `null` body, skipping the output serializer — for
+  singleton-style resources that legitimately may not exist yet. Ignored
+  on nested specs: `output_selector_spec` keeps its authoritative-`None`
+  → 204 contract, and `instance_selector_spec` always 404s (a mutation
+  against a missing row is not a nullable read).
 - **`output_serializer`** — a DRF `Serializer` subclass used by
   `get_serializer_class()` for this action. `None` falls back to DRF's
   standard `serializer_class`.
@@ -119,9 +128,11 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     service: Callable[..., ResultT]
     atomic: bool = True
     success_status: int | None = None
+    partial: bool | None = None
     input_serializer: type | None = None
-    input_data: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
+    input_data: Callable[..., Mapping[str, Any]] | None = None
     input_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
+    instance_selector_spec: SelectorSpec[Any, Any] | None = None
     output_selector_spec: SelectorSpec[Any, Any] | None = None
     kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
@@ -132,6 +143,12 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   (defaults `True`).
 - **`success_status`** — override the HTTP status (defaults to
   `201` for create, `200` for update, `204` for delete).
+- **`partial`** — override the transport-derived partial-validation flag.
+  `None` (the default) inherits what the verb implies (`False` for
+  PUT/POST, `True` for PATCH); `True`/`False` forces it. Applied once at
+  the central dispatch point, so it works uniformly across viewset
+  mixins, standalone views, `@service_action` — and create dispatch.
+  See [PATCH that validates like PUT](#patch-that-validates-like-put).
 - **`input_serializer`** — a DRF `Serializer` subclass, a bare
   `@dataclass` (auto-wrapped in `DataclassSerializer`), or `None` for
   side-effect-only services.
@@ -139,7 +156,25 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   `request.data` *before* the `input_serializer` validates it. Useful
   for lifting URL kwargs (e.g. parent IDs from nested routes) into
   fields the serializer can cross-validate. Server-provided keys win
-  on conflict.
+  on conflict. May additionally declare `instance` as a keyword
+  parameter to receive the resolved mutation target (`None` on create)
+  — passed only when declared — so pre-validation input mutation that
+  depends on the current row has a home.
+- **`instance_selector_spec`** — nested `SelectorSpec`
+  (`kind=SelectorKind.RETRIEVE`) resolving the instance an update /
+  destroy / detail action targets, embedding the lookup in the spec
+  instead of the view's `queryset` / `get_object()` chain. The selector
+  pool is `{request, user}` + the URL kwargs + the selector extras
+  chain, so `selector=lambda *, pk: Project.objects.filter(pk=pk)`
+  resolves the row from the route. Resolution happens *before* input
+  validation; the resolved instance feeds the input serializer
+  (DRF-style `serializer(instance, data=..., partial=...)`), the
+  service pool (`instance`), and object-level permission checks
+  (`check_object_permissions`). `None` / missing → `404`. Queryset
+  shaping applies; the nested spec's `permission_classes`,
+  `output_serializer`, and `output_serializer_context` are ignored.
+  `None` (the default) keeps the `get_object()` chain. See
+  [Standalone update without a queryset](#standalone-update-without-a-queryset).
 - **`input_serializer_context`** — callable returning extra keys for
   the *input* serializer's `context=` dict. Sits at the most-specific
   layer of the [serializer-context resolution chain](recipes/serializer-context.md).
@@ -161,6 +196,52 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
 Generic parameters `InputT` / `ResultT` / `ExtraT` default to `Any`, so
 `ServiceSpec(service=fn)` keeps working unparameterized.
 
+### PATCH that validates like PUT
+
+`partial` composes with the `"partial_update"` action key (which resolves
+first and falls back to `"update"` — uniformly at dispatch, permission
+resolution, and serializer resolution):
+
+```python
+action_specs = {
+    "partial_update": ServiceSpec(
+        service=set_project_status,
+        input_serializer=ProjectStatusInput,  # one required field
+        partial=False,                        # required stays required under PATCH
+    ),
+}
+```
+
+Defining *only* `"partial_update"` gives a PATCH-only update endpoint —
+PUT returns `405`. On the standalone `ServiceUpdateView` both verbs share
+one spec, so a forced `partial` applies to PUT *and* PATCH; set
+`http_method_names = ["patch"]` for the PATCH-only standalone equivalent.
+
+### Standalone update without a queryset
+
+With `instance_selector_spec`, a standalone mutation view needs no
+`queryset` / `lookup_field` — the spec is self-contained:
+
+```python
+class SetProjectStatusView(ServiceUpdateView):
+    spec = ServiceSpec(
+        service=set_project_status,
+        input_serializer=ProjectStatusInput,
+        instance_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=lambda *, pk: Project.objects.filter(pk=pk),
+        ),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=ProjectSerializer
+        ),
+    )
+```
+
+The same field works on viewset `update` / `partial_update` / `destroy`
+entries and `@service_action(detail=True)` actions, where it takes
+precedence over an `action_specs["retrieve"]` selector and the DRF
+default lookup.
+
 ## Dispatch
 
 The view inspects the service / selector signature with
@@ -170,10 +251,11 @@ declares from a known pool:
 | Kwarg | Source |
 |---|---|
 | `data` | `serializer.validated_data` (a dataclass instance for `DataclassSerializer`, a `dict` for plain `Serializer` / `ModelSerializer`) |
-| `instance` | `self.get_object()` (update / destroy only) |
+| `serializer` | the bound, validated input serializer (update flows construct it instance-aware) — declare it to call `.save()` from the service when persistence lives on the serializer (nested-write patterns) |
+| `instance` | `spec.instance_selector_spec` when set, else `self.get_object()` (update / destroy only) |
 | `request` | `self.request` |
 | `user` | `self.request.user` |
-| URL kwargs | `self.kwargs` (list / retrieve selectors only — `pk`, parent IDs from nested routes, etc.) |
+| URL kwargs | `self.kwargs` (list / retrieve selectors and `instance_selector_spec` lookups — `pk`, parent IDs from nested routes, etc.) |
 | extras | `self.get_service_kwargs()` / `self.get_selector_kwargs()`, plus per-action and per-spec hooks |
 
 `view` is intentionally not in the pool — services and selectors are
@@ -206,13 +288,55 @@ This matters because:
   flag, a clock for tests). See the
   [extra-kwargs recipe](recipes/extra-kwargs.md).
 
+## Result rendering
+
+What a mutation responds with is decided by three inputs: what the
+service returns, whether the spec carries an output pipeline, and
+whether `success_status` is set explicitly. The full matrix:
+
+| Service returns | `output_selector_spec` | Response |
+|---|---|---|
+| a value | with `output_serializer` (no selector) | serialized value at `success_status` (default 200/201) |
+| a value | with `selector` | selector re-fetches (shaping applied, QuerySet materialized via `.first()`); result serialized at `success_status` |
+| a value | `None` | the raw value at `success_status` — only useful for JSON-native returns (dicts, lists) |
+| `None` | with `output_serializer` (no selector) | update flows render the *in-memory instance* through the serializer at `success_status` (DRF `UpdateAPIView` shape); destroy never resurrects the deleted instance — empty body |
+| `None` | with `selector` that returns `None` | the selector's `None` is authoritative → empty body at `204` (always, even with a custom `success_status`) |
+| `None` | `None` | empty body at the explicitly-set `spec.success_status`, else `204` |
+
+Two consequences worth knowing:
+
+- A destroy (or any no-output mutation) can carry a custom
+  `success_status` and still send an empty body.
+- **Stale fetch-time annotations:** when the service mutates in place
+  and returns `None`, the update fallback renders the instance *as it
+  was looked up* — annotations and shaping from the instance lookup
+  reflect **pre-mutation** state. The supported pattern for "respond
+  with the post-mutation truth" is an `output_selector_spec` re-fetch:
+
+```python
+# Before — counter annotated at lookup time is stale in the response:
+ServiceSpec(service=add_item, instance_selector_spec=_with_item_count)
+
+# After — re-fetch renders post-mutation state:
+ServiceSpec(
+    service=add_item,
+    instance_selector_spec=_by_pk,
+    output_selector_spec=SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=lambda *, result: Checklist.objects.filter(pk=result.pk),
+        annotations={"item_count": Count("items")},
+        output_serializer=ChecklistSerializer,
+    ),
+)
+```
+
 ## Views
 
 | Class | Method | Purpose |
 |---|---|---|
 | `ServiceCreateView` | `POST` | runs `service` to create |
-| `ServiceUpdateView` | `PUT` / `PATCH` | runs `service` to update; instance from `get_object()` |
-| `ServiceDeleteView` | `DELETE` | runs `service` to delete |
+| `ServiceUpdateView` | `PUT` / `PATCH` | runs `service` to update; instance from `spec.instance_selector_spec` or `get_object()` |
+| `ServiceDeleteView` | `DELETE` | runs `service` to delete; instance from `spec.instance_selector_spec` or `get_object()` |
 | `SelectorListView` | `GET` | uses `spec.selector` (or `queryset`) for list |
 | `SelectorRetrieveView` | `GET` | uses `spec.selector` (or `queryset` + `lookup_field`) for retrieve |
 
@@ -260,6 +384,11 @@ class AuthorViewSet(ServiceViewSet):
 
 - Read-side actions take a `SelectorSpec`.
 - Write-side actions take a `ServiceSpec`.
+- `PATCH` resolves `action_specs["partial_update"]` first and falls back
+  to `"update"` — the same chain applies at dispatch, permission
+  resolution, and serializer resolution, so an `"update"`-keyed spec's
+  `permission_classes` guard PATCH too. A dedicated `"partial_update"`
+  entry can carry its own serializer / service / `partial` override.
 - Absent entries on a write action make that action return
   `405 Method Not Allowed`.
 - A wrong-type entry (e.g. `SelectorSpec` on `create`) raises
@@ -276,10 +405,11 @@ exported so you can compose only the actions you need — see the
 ## `ActionSerializerResolver`
 
 Resolves `get_serializer_class()` from the active action's `action_specs`
-entry:
+entry (following the same `"partial_update"` → `"update"` fallback chain
+as dispatch):
 
 ```python
-spec = action_specs.get(self.action)
+spec = resolve_action_spec_entry(action_specs, self.action)
 if isinstance(spec, SelectorSpec) and spec.output_serializer:
     return spec.output_serializer
 if isinstance(spec, ServiceSpec) and spec.output_selector_spec and \
@@ -309,3 +439,7 @@ mutation flow. See the [service-action recipe](recipes/service-action.md).
   `ModelSerializer`) or a bare `@dataclass`.
 - It does not decide your project layout. The `startserviceapp`
   scaffold is a starting point, not a contract.
+- It does not insist every endpoint be a spec. Constant / no-logic
+  endpoints (an enum map, a static config payload) are fine as plain
+  DRF views — there is no service or selector to declare, so wrapping
+  them buys nothing.
