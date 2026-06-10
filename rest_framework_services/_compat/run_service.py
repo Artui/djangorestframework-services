@@ -1,21 +1,10 @@
-"""Synchronous service dispatch with optional atomic wrapping."""
+"""Backwards-compatibility shim — ``run_service`` moved to ``services/`` in 0.17.
 
-from __future__ import annotations
+Kept because downstream packages (drf-mcp ≤0.7) import this leaf path.
+New code should import from ``rest_framework_services`` (top level) or
+``rest_framework_services.services.run_service``.
+"""
 
-from collections.abc import Callable
-from typing import Any
+from rest_framework_services.services.run_service import run_service
 
-from django.db import transaction
-
-
-def run_service(
-    fn: Callable[..., Any],
-    kwargs: dict[str, Any],
-    *,
-    atomic: bool,
-) -> Any:
-    """Call ``fn(**kwargs)``, optionally inside ``transaction.atomic()``."""
-    if atomic:
-        with transaction.atomic():
-            return fn(**kwargs)
-    return fn(**kwargs)
+__all__ = ["run_service"]

@@ -21,12 +21,14 @@ entire body is a one-line wrapper over the mutation helpers.
 from rest_framework_services.services.acall_service import acall_service
 from rest_framework_services.services.acreate_model import acreate_model
 from rest_framework_services.services.adelete_model import adelete_model
+from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.aupdate_model import aupdate_model
 from rest_framework_services.services.call_service import call_service
 from rest_framework_services.services.create_model import create_model
 from rest_framework_services.services.create_service import CreateService
 from rest_framework_services.services.delete_model import delete_model
 from rest_framework_services.services.delete_service import DeleteService
+from rest_framework_services.services.run_service import run_service
 from rest_framework_services.services.update_model import update_model
 from rest_framework_services.services.update_service import UpdateService
 
@@ -37,9 +39,11 @@ __all__ = [
     "acall_service",
     "acreate_model",
     "adelete_model",
+    "arun_service",
     "aupdate_model",
     "call_service",
     "create_model",
     "delete_model",
+    "run_service",
     "update_model",
 ]
