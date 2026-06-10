@@ -1337,7 +1337,11 @@ classes that set <code>schema = ...</code> explicitly keep their own choice.</p>
 <li>A <code>422</code> response documenting :class:<code>ServiceErrorSerializer</code> is
   attached so consumers know about the <code>ServiceError</code> contract.</li>
 <li>Partial-update actions instantiate the request serializer with
-  <code>partial=True</code> so optional-on-PATCH semantics show up correctly.</li>
+  <code>partial=True</code> so optional-on-PATCH semantics show up correctly.
+  <code>spec.partial</code> overrides the action-derived flag with the same
+  precedence the runtime dispatch applies: <code>partial=True</code> documents a
+  partial body on any verb, <code>partial=False</code> keeps the full-update
+  schema (required fields intact) even under PATCH.</li>
 </ul>
 <p>Read surfaces (<code>Selector*View</code> and the read-side action mixins) are
 left to the base <code>AutoSchema</code>: their <code>output_serializer</code> is already

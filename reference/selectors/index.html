@@ -2060,8 +2060,11 @@ selector views so the call shape lives in one place.</p>
 <p>When <code>spec.kind</code> is :attr:<code>SelectorKind.RETRIEVE</code>, the returned
 QuerySet (if any) is materialized via <code>.first()</code> and <code>None</code> /
 :exc:<code>~django.core.exceptions.ObjectDoesNotExist</code> are translated to
-:exc:<code>~rest_framework.exceptions.NotFound</code>. <code>SelectorKind.LIST</code>
-returns the (optionally shaped) selector return as-is.</p>
+:exc:<code>~rest_framework.exceptions.NotFound</code> — unless the spec sets
+<code>allow_none=True</code>, in which case the missing-object case returns
+<code>None</code> and the calling view decides how to render it (the retrieve
+views render 200 + JSON <code>null</code>). <code>SelectorKind.LIST</code> returns the
+(optionally shaped) selector return as-is.</p>
 <p>The caller must check <code>spec.selector is not None</code> before calling and
 fall back to vanilla DRF otherwise.</p>
 <p><code>source_label</code> is forwarded to :func:<code>apply_queryset_shaping</code> for

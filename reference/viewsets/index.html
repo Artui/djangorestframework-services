@@ -1728,8 +1728,13 @@ raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 
 
         <p>Provides <code>update</code> (<code>PUT</code>) and <code>partial_update</code> (<code>PATCH</code>) actions.</p>
-<p>Looks up the instance via DRF's <code>get_object()</code>. Reads its config from
-<code>action_specs["update"]</code>; when that key is absent both actions raise
+<p>Looks up the instance via <code>spec.instance_selector_spec</code> when set,
+falling back to DRF's <code>get_object()</code>. <code>PUT</code> reads its config from
+<code>action_specs["update"]</code>; <code>PATCH</code> reads <code>action_specs["partial_update"]</code>
+first and falls back to <code>"update"</code> — defining <em>only</em>
+<code>"partial_update"</code> yields a PATCH-only endpoint (PUT raises
+:exc:<code>~rest_framework.exceptions.MethodNotAllowed</code>). When neither key
+resolves, both actions raise
 :exc:<code>~rest_framework.exceptions.MethodNotAllowed</code>. A non-<code>ServiceSpec</code>
 entry raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 
@@ -1780,7 +1785,8 @@ entry raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 
 
         <p>Provides the <code>destroy</code> action.</p>
-<p>Looks up the instance via DRF's <code>get_object()</code>. Reads its config from
+<p>Looks up the instance via <code>spec.instance_selector_spec</code> when set,
+falling back to DRF's <code>get_object()</code>. Reads its config from
 <code>action_specs["destroy"]</code>; when that key is absent the action raises
 :exc:<code>~rest_framework.exceptions.MethodNotAllowed</code>. A non-<code>ServiceSpec</code>
 entry raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
@@ -1914,7 +1920,9 @@ Any other entry type raises
 a non-<code>None</code> <code>selector</code>, <code>get_object()</code> invokes it instead of
 falling through to DRF's standard lookup. The selector receives the
 URL kwargs plus the standard pool. Returning <code>None</code> or raising
-<code>Model.DoesNotExist</code> results in a 404.</p>
+<code>Model.DoesNotExist</code> results in a 404 — or, when the spec sets
+<code>allow_none=True</code>, a <code>200</code> with a JSON <code>null</code> body (the
+nullable-resource contract; the output serializer is skipped).</p>
 <p><code>action_specs["retrieve"] = SelectorSpec(selector=None)</code> or an absent
 <code>"retrieve"</code> key both fall through to DRF's default <code>get_object()</code>.
 Any other entry type raises

@@ -1760,6 +1760,16 @@ default — see below.</p>
 <li><strong><code>selector</code></strong> — callable invoked by <code>get_queryset()</code> (list) or
   <code>get_object()</code> (retrieve). <code>None</code> means "use the configured
   <code>queryset</code> / default DRF behaviour".</li>
+<li><strong><code>allow_none</code></strong> — <code>RETRIEVE</code>-only knob for the <code>None</code> /
+  missing-object case. <code>False</code> (the default) keeps the standard
+  behaviour: raise :exc:<code>~rest_framework.exceptions.NotFound</code>. <code>True</code>
+  expresses a nullable-resource contract: the standalone retrieve view
+  and the retrieve viewset mixin render <code>200</code> with a JSON <code>null</code>
+  body, skipping the output serializer. The flag is <strong>ignored</strong> when
+  the spec is nested — :attr:<code>ServiceSpec.output_selector_spec</code> keeps
+  its authoritative-<code>None</code> → 204 contract, and
+  :attr:<code>ServiceSpec.instance_selector_spec</code> always 404s (an update
+  against a missing row is not a nullable read).</li>
 <li><strong><code>output_serializer</code></strong> — DRF <code>Serializer</code> subclass used by
   <code>get_serializer_class()</code> for this action. <code>None</code> falls back to
   DRF's standard <code>serializer_class</code>.</li>
@@ -1894,7 +1904,13 @@ for destroy).</p>
 Returns a mapping merged on top of <code>request.data</code> before the
 <code>input_serializer</code> validates it — useful for lifting URL kwargs
 (e.g. parent IDs from nested routes) into fields the serializer can
-cross-validate. Server-provided keys win on conflict.</p>
+cross-validate. Server-provided keys win on conflict. The provider is
+called with <code>(view, request)</code> positionally and may additionally
+declare <code>instance</code> as a keyword parameter to receive the resolved
+mutation target (<code>None</code> on create) — passed only when declared, so
+pre-validation input mutation that depends on the current row has a
+home. The same declare-to-receive rule applies to the
+<code>get_input_data</code> / <code>get_&lt;action&gt;_input_data</code> view hooks.</p>
 <p><code>input_serializer_context</code> is a per-spec hook for the input
 serializer's <code>context=</code> dict. It sits at the most-specific layer of
 the resolution chain (<code>view.get_serializer_context</code> →
@@ -1920,6 +1936,34 @@ renders the result). <code>None</code> (the default) means "render the service's
 return value directly". The nested spec's <code>permission_classes</code> and
 <code>kwargs</code> are ignored — the surrounding mutation's permissions and
 kwargs chain apply.</p>
+<p><code>instance_selector_spec</code> is the input-side twin of
+<code>output_selector_spec</code>: a nested :class:<code>SelectorSpec</code> (<code>kind</code> must
+be :attr:<code>SelectorKind.RETRIEVE</code>) that resolves the instance an
+update / destroy / detail action targets, embedding the lookup in the
+spec instead of relying on the view's <code>queryset</code> / <code>get_object()</code>
+chain. The selector's kwarg pool is <code>{request, user}</code> plus the URL
+kwargs (plus the standard selector extras chain), so
+<code>selector=lambda *, pk: Project.objects.filter(pk=pk)</code> resolves the
+row from the route. Resolution happens <strong>before</strong> input validation —
+the resolved instance is handed to the input serializer
+(DRF-style <code>serializer(instance, data=..., partial=...)</code>) and seeded
+into the service kwarg pool as <code>instance</code>. A <code>None</code> / missing
+resolution raises :exc:<code>~rest_framework.exceptions.NotFound</code> (the
+nested spec's <code>allow_none</code> flag is ignored — an update against a
+missing row is always a 404), and object-level permissions
+(<code>check_object_permissions</code>) run against the resolved instance. The
+queryset-shaping fields apply; <code>permission_classes</code>,
+<code>output_serializer</code>, and <code>output_serializer_context</code> on the nested
+spec are ignored. <code>None</code> (the default) keeps today's <code>get_object()</code>
+chain.</p>
+<p><code>partial</code> overrides the transport-derived partial-validation flag.
+<code>None</code> (the default) inherits the flag the calling surface derives
+(<code>False</code> for PUT/POST, <code>True</code> for PATCH); <code>True</code> / <code>False</code>
+forces it regardless of HTTP method — e.g. <code>partial=False</code> on an
+<code>action_specs["partial_update"]</code> entry makes a PATCH endpoint
+enforce <code>required</code> fields like a PUT. Applied once, at
+<code>dispatch_mutation_for_spec</code>, so it is honoured uniformly by the
+viewset mixins, the standalone views, and <code>@service_action</code>.</p>
 <p><code>kwargs</code> is a callable that returns extra kwargs to merge into the
 pool the service receives. Co-locating it with the spec lets each action
 declare its own contract — no <code>if self.action == ...</code> branching in a

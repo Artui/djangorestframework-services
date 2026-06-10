@@ -2051,11 +2051,14 @@
 
 
         <p><code>PUT</code> / <code>PATCH</code> endpoint that runs a service callable.</p>
-<p>The instance to update is fetched via DRF's <code>get_object()</code> (so set
-<code>queryset</code> and <code>lookup_field</code> on the subclass), or by overriding
-<code>get_object()</code> for custom resolution.</p>
+<p>The instance to update is resolved via <code>spec.instance_selector_spec</code>
+when set — no <code>queryset</code> / <code>lookup_field</code> required on the subclass —
+falling back to DRF's <code>get_object()</code> (set <code>queryset</code> and
+<code>lookup_field</code>, or override <code>get_object()</code>).</p>
 <p>Configure by setting <code>spec</code> to a :class:<code>ServiceSpec</code>. The spec's
-<code>success_status</code> defaults to <code>200 OK</code> when unset.</p>
+<code>success_status</code> defaults to <code>200 OK</code> when unset. Both verbs share
+the one spec, so a forced <code>spec.partial</code> applies to PUT <em>and</em> PATCH —
+set <code>http_method_names = ["patch"]</code> for a PATCH-only endpoint.</p>
 
 
 
@@ -2104,6 +2107,9 @@
 
 
         <p><code>DELETE</code> endpoint that runs a service callable.</p>
+<p>The instance to delete is resolved via <code>spec.instance_selector_spec</code>
+when set — no <code>queryset</code> / <code>lookup_field</code> required on the subclass —
+falling back to DRF's <code>get_object()</code>.</p>
 <p>Configure by setting <code>spec</code> to a :class:<code>ServiceSpec</code>. The spec's
 <code>input_serializer</code> is optional (for delete-with-payload patterns
 such as a deletion reason); <code>success_status</code> defaults to
@@ -2243,7 +2249,9 @@ the output serializer. Both fields are optional:</p>
 <li><code>spec.selector</code> overrides <code>get_object()</code>; <code>None</code> falls back to
   <code>self.get_object()</code> — standard DRF lookup using <code>queryset</code> and
   <code>lookup_field</code>. Returning <code>None</code> or raising <code>Model.DoesNotExist</code>
-  results in a 404.</li>
+  results in a 404 — or, when the spec sets <code>allow_none=True</code>, a
+  <code>200</code> with a JSON <code>null</code> body (the nullable-resource contract;
+  the output serializer is skipped).</li>
 <li><code>spec.output_serializer</code> overrides <code>get_serializer_class()</code>; <code>None</code>
   falls back to DRF's standard <code>serializer_class</code> attribute.</li>
 </ul>
@@ -2627,7 +2635,8 @@ provider has the final say on any overlapping keys.</p>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">spec_input_data</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">action_hook</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">catch_all_hook</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">extras</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2647,6 +2656,10 @@ applied in order of increasing specificity (later wins on overlap):</p>
 </ol>
 <p>Each layer's result is merged with <code>dict.update</code> so the spec-level
 provider has the final say on overlapping keys.</p>
+<p><code>extras</code> carries the resolved data available before validation —
+currently the mutation target <code>instance</code> (<code>None</code> on create). Each
+provider receives only the extras it declares by name (see
+:func:<code>_invoke_with_extras</code>); legacy providers are unaffected.</p>
 
 
     </div>
@@ -2931,7 +2944,7 @@ validation for that callable).</p>
 
     <div class="doc doc-contents ">
 
-        <p>Validate a :class:<code>ServiceSpec</code>'s <code>service</code> and <code>output_selector_spec</code>.</p>
+        <p>Validate a :class:<code>ServiceSpec</code>'s <code>service</code> and nested selector specs.</p>
 <p>Shared between standalone mutation views, viewset mixins, and
 <code>@service_action</code>. <code>has_instance</code> is fixed by the action context
 (<code>False</code> for create, <code>True</code> for update / destroy / detail actions).</p>
