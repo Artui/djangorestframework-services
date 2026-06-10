@@ -152,7 +152,7 @@ root = ["./rest_framework_services"]
 # CHANGELOG [Unreleased] block under a new dated heading. Run via
 # `uvx bump-my-version` (no permanent dependency added to the project).
 [tool.bumpversion]
-current_version = "0.15.1"
+current_version = "0.16.0"
 allow_dirty = false
 commit = false
 tag = false
