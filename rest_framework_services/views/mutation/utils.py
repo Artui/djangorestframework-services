@@ -454,7 +454,7 @@ def resolve_mutation_instance(
     (the standard selector call shape: ``{request, user}`` + the view's
     URL kwargs + the selector extras chain, queryset shaping applied,
     RETRIEVE materialization via ``.first()``). The nested spec's
-    ``none_as_404`` flag is ignored — a mutation against a missing row is
+    ``allow_none`` flag is ignored — a mutation against a missing row is
     always a 404, so a ``None`` resolution raises
     :exc:`~rest_framework.exceptions.NotFound` regardless. Object-level
     permissions run against the resolved instance
@@ -471,7 +471,7 @@ def resolve_mutation_instance(
         source_label="ServiceSpec.instance_selector_spec.selector",
     )
     if instance is None:
-        # Only reachable with ``none_as_404=False`` on the nested spec —
+        # Only reachable with ``allow_none=True`` on the nested spec —
         # the flag expresses a nullable *read* contract and is ignored here.
         raise drf_exceptions.NotFound()
     view.check_object_permissions(view.request, instance)

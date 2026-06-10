@@ -98,7 +98,7 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     (DRF-style ``serializer(instance, data=..., partial=...)``) and seeded
     into the service kwarg pool as ``instance``. A ``None`` / missing
     resolution raises :exc:`~rest_framework.exceptions.NotFound` (the
-    nested spec's ``none_as_404`` flag is ignored — an update against a
+    nested spec's ``allow_none`` flag is ignored — an update against a
     missing row is always a 404), and object-level permissions
     (``check_object_permissions``) run against the resolved instance. The
     queryset-shaping fields apply; ``permission_classes``,

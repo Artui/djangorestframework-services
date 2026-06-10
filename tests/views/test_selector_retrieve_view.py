@@ -145,12 +145,12 @@ class _NullableAuthorView(SelectorRetrieveView):
         kind=SelectorKind.RETRIEVE,
         selector=_get_author,
         output_serializer=_RecordingSerializer,
-        none_as_404=False,
+        allow_none=True,
     )
 
 
 @pytest.mark.django_db
-class TestNoneAs404:
+class TestAllowNone:
     def test_none_resolution_renders_200_null(self) -> None:
         _RecordingSerializer.instantiated.clear()
         response = _NullableAuthorView.as_view()(factory.get("/"), pk=99999)
@@ -177,13 +177,13 @@ class TestNoneAs404:
                 kind=SelectorKind.RETRIEVE,
                 selector=strict_get,
                 output_serializer=AuthorSerializer,
-                none_as_404=False,
+                allow_none=True,
             )
 
         response = _View.as_view()(factory.get("/"), pk=99999)
         assert response.status_code == 200
         assert response.data is None
 
-    def test_default_none_as_404_unchanged(self) -> None:
+    def test_default_still_renders_404(self) -> None:
         response = _RetrieveAuthorView.as_view()(factory.get("/"), pk=99999)
         assert response.status_code == 404

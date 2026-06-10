@@ -58,7 +58,7 @@ everything a read action needs:
 class SelectorSpec(Generic[ResultT, ExtraT]):
     kind: SelectorKind                              # required
     selector: Callable[..., ResultT] | None = None
-    none_as_404: bool = True
+    allow_none: bool = False
     output_serializer: type[Serializer] | None = None
     kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
@@ -82,8 +82,8 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
 - **`selector`** — the callable invoked by `get_queryset()` (list) or
   `get_object()` (retrieve). `None` means "use the configured `queryset`
   / default DRF behaviour".
-- **`none_as_404`** — `RETRIEVE`-only knob for the `None` / missing-object
-  case. `True` (the default) raises `NotFound`. `False` expresses a
+- **`allow_none`** — `RETRIEVE`-only knob for the `None` / missing-object
+  case. `False` (the default) raises `NotFound`. `True` expresses a
   nullable-resource contract: the retrieve view / viewset mixin renders
   `200` with a JSON `null` body, skipping the output serializer — for
   singleton-style resources that legitimately may not exist yet. Ignored

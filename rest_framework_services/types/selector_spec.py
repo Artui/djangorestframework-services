@@ -52,9 +52,9 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     - **``selector``** — callable invoked by ``get_queryset()`` (list) or
       ``get_object()`` (retrieve). ``None`` means "use the configured
       ``queryset`` / default DRF behaviour".
-    - **``none_as_404``** — ``RETRIEVE``-only knob for the ``None`` /
-      missing-object case. ``True`` (the default) keeps the standard
-      behaviour: raise :exc:`~rest_framework.exceptions.NotFound`. ``False``
+    - **``allow_none``** — ``RETRIEVE``-only knob for the ``None`` /
+      missing-object case. ``False`` (the default) keeps the standard
+      behaviour: raise :exc:`~rest_framework.exceptions.NotFound`. ``True``
       expresses a nullable-resource contract: the standalone retrieve view
       and the retrieve viewset mixin render ``200`` with a JSON ``null``
       body, skipping the output serializer. The flag is **ignored** when
@@ -125,9 +125,9 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
 
     # The selector callable.
     selector: Callable[..., ResultT] | None = None
-    # RETRIEVE-only: ``False`` renders a ``None`` resolution as 200 + JSON
+    # RETRIEVE-only: ``True`` renders a ``None`` resolution as 200 + JSON
     # ``null`` instead of raising ``NotFound``. Ignored on nested specs.
-    none_as_404: bool = True
+    allow_none: bool = False
 
     # Output pipeline (selector → serializer → context) plus the shaping
     # fields applied to the selector's QuerySet return.
