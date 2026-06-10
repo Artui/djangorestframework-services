@@ -29,3 +29,10 @@ repos:
         pass_filenames: false
         language: system
         stages: [pre-commit]
+
+      - id: forbid-local-paths
+        name: "forbid local filesystem paths / personal handles"
+        entry: "/Users/|arturveres"
+        language: pygrep
+        types: [text]
+        exclude: '^\.pre-commit-config\.yaml$'
