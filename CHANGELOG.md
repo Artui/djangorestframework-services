@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-06-10
+
 ### Added
 
 - **The stable dispatch surface** (SURF-1). The leaves an alternate
@@ -875,7 +877,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/Artui/djangorestframework-services/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/Artui/djangorestframework-services/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/Artui/djangorestframework-services/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/Artui/djangorestframework-services/compare/v0.14.0...v0.15.0
