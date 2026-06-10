@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/reference/selectors/">
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/reference/dispatch/">
       
       
-        <link rel="prev" href="../services/">
+        <link rel="prev" href="../views/">
       
       
-        <link rel="next" href="../types/">
+        <link rel="next" href="../viewsets/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Selectors - djangorestframework-services</title>
+        <title>Dispatch (stable surface) - djangorestframework-services</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#selectors" class="md-skip">
+        <a href="#dispatch-stable-surface" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Selectors
+              Dispatch (stable surface)
             
           </span>
         </div>
@@ -910,10 +910,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../dispatch/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dispatch (stable surface)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -929,6 +956,367 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#shared" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shared
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Shared">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resolve_callable_kwargs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_callable_kwargs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.resolve_callable_kwargs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_callable_kwargs
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="resolve_callable_kwargs">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#is_async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        is_async
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.is_async.is_async" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        is_async
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#service-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Service side
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Service side">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#run_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_service
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.services.run_service.run_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_service
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="run_service">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arun_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arun_service
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.services.arun_service.arun_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arun_service
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="arun_service">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build_input_serializer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_input_serializer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.utils.build_input_serializer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_input_serializer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="build_input_serializer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#validate_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_input
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.utils.validate_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_input
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="validate_input">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resolve_mutation_instance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_mutation_instance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.utils.resolve_mutation_instance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_mutation_instance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selector-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selector side
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Selector side">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#run_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_selector
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.run_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_selector
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="run_selector">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arun_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arun_selector
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.arun_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arun_selector
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="arun_selector">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#is_queryset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        is_queryset
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.is_queryset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        is_queryset
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="is_queryset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#apply_queryset_shaping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        apply_queryset_shaping
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        apply_queryset_shaping
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1022,37 +1410,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Selectors
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../selectors/" class="md-nav__link">
         
   
   
@@ -1068,231 +1429,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#protocols" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Protocols
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.selector.Selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Selector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.async_selector.AsyncSelector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        AsyncSelector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.list_selector.ListSelector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ListSelector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.retrieve_selector.RetrieveSelector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RetrieveSelector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#helpers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Helpers
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Helpers">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#call_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        call_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.call_selector.call_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        call_selector
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="call_selector">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#acall_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        acall_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.acall_selector.acall_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        acall_selector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#dispatch" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Dispatch
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        utils
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="utils">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.is_queryset" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        is_queryset
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.run_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        run_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.arun_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        arun_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        apply_queryset_shaping
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.dispatch_selector_for_spec" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        dispatch_selector_for_spec
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1416,77 +1552,22 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#protocols" class="md-nav__link">
+  <a href="#shared" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Protocols
+        Shared
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.selector.Selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Selector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.async_selector.AsyncSelector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        AsyncSelector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.list_selector.ListSelector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ListSelector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.retrieve_selector.RetrieveSelector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RetrieveSelector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#helpers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Helpers
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Helpers">
+    <nav class="md-nav" aria-label="Shared">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#call_selector" class="md-nav__link">
+  <a href="#resolve_callable_kwargs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        call_selector
+        resolve_callable_kwargs
       
     </span>
   </a>
@@ -1499,22 +1580,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.call_selector.call_selector" class="md-nav__link">
+  <a href="#rest_framework_services.views.utils.resolve_callable_kwargs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        call_selector
+        resolve_callable_kwargs
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="call_selector">
+    <nav class="md-nav" aria-label="resolve_callable_kwargs">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#acall_selector" class="md-nav__link">
+  <a href="#is_async" class="md-nav__link">
     <span class="md-ellipsis">
       
-        acall_selector
+        is_async
       
     </span>
   </a>
@@ -1527,10 +1608,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.acall_selector.acall_selector" class="md-nav__link">
+  <a href="#rest_framework_services.is_async.is_async" class="md-nav__link">
     <span class="md-ellipsis">
       
-        acall_selector
+        is_async
       
     </span>
   </a>
@@ -1538,41 +1619,170 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#dispatch" class="md-nav__link">
+  <a href="#service-side" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Dispatch
+        Service side
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        utils
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="utils">
+    <nav class="md-nav" aria-label="Service side">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.is_queryset" class="md-nav__link">
+  <a href="#run_service" class="md-nav__link">
     <span class="md-ellipsis">
       
-        is_queryset
+        run_service
       
     </span>
   </a>
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.services.run_service.run_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_service
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="run_service">
+      <ul class="md-nav__list">
+        
           <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.run_selector" class="md-nav__link">
+  <a href="#arun_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arun_service
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.services.arun_service.arun_service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arun_service
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="arun_service">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build_input_serializer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_input_serializer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.utils.build_input_serializer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_input_serializer
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="build_input_serializer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#validate_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_input
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.utils.validate_input" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_input
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="validate_input">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resolve_mutation_instance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_mutation_instance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.views.mutation.utils.resolve_mutation_instance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_mutation_instance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selector-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selector side
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Selector side">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#run_selector" class="md-nav__link">
     <span class="md-ellipsis">
       
         run_selector
@@ -1582,8 +1792,25 @@
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.run_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_selector
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="run_selector">
+      <ul class="md-nav__list">
+        
           <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.arun_selector" class="md-nav__link">
+  <a href="#arun_selector" class="md-nav__link">
     <span class="md-ellipsis">
       
         arun_selector
@@ -1593,8 +1820,53 @@
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.arun_selector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arun_selector
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="arun_selector">
+      <ul class="md-nav__list">
+        
           <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="md-nav__link">
+  <a href="#is_queryset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        is_queryset
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.is_queryset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        is_queryset
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="is_queryset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#apply_queryset_shaping" class="md-nav__link">
     <span class="md-ellipsis">
       
         apply_queryset_shaping
@@ -1604,19 +1876,19 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.dispatch_selector_for_spec" class="md-nav__link">
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="md-nav__link">
     <span class="md-ellipsis">
       
-        dispatch_selector_for_spec
+        apply_queryset_shaping
       
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1637,7 +1909,7 @@
 
 
   
-    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/reference/selectors.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/reference/dispatch.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1645,321 +1917,305 @@
   
 
 
-<h1 id="selectors">Selectors<a class="headerlink" href="#selectors" title="Permanent link">&para;</a></h1>
-<h2 id="protocols">Protocols<a class="headerlink" href="#protocols" title="Permanent link">&para;</a></h2>
-<p>Each Protocol is parameterised on input / instance / result types only;
-<code>**extras</code> is typed <code>Any</code>. Strict-typed extras live on the user's function
-signature via <code>**extras: Unpack[YourKw]</code> — see
-<a href="../../typing/">Typing services and selectors</a> for the full pattern.</p>
-
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.selectors.selector.Selector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">Selector</span>
-
-
-<a href="#rest_framework_services.selectors.selector.Selector" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
-
-
-
-        <p>Any callable returning a queryset, list, or single object.</p>
-<p>Used as a structural type for documentation purposes; the views accept
-any plain callable, so satisfying this protocol is optional.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.selectors.async_selector.AsyncSelector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">AsyncSelector</span>
-
-
-<a href="#rest_framework_services.selectors.async_selector.AsyncSelector" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
-
-
-
-        <p>Async sibling of :class:<code>Selector</code>.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.selectors.list_selector.ListSelector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">ListSelector</span>
-
-
-<a href="#rest_framework_services.selectors.list_selector.ListSelector" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.selectors.list_selector.ResultT">ResultT</span>]</code></p>
-
-
-
-        <p>Structural shape for a list-action selector callable.</p>
-<p>The framework calls this from <code>get_queryset()</code>; the returned iterable
-flows through DRF's filter backends, pagination, and <code>output_serializer</code>.</p>
-<p>See :class:<code>~rest_framework_services.services.CreateService</code> for the
-extras-typing notes.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.selectors.retrieve_selector.RetrieveSelector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">RetrieveSelector</span>
-
-
-<a href="#rest_framework_services.selectors.retrieve_selector.RetrieveSelector" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.selectors.retrieve_selector.ResultT">ResultT</span>]</code></p>
-
-
-
-        <p>Structural shape for a retrieve-action selector callable.</p>
-<p>The framework calls this from <code>get_object()</code>. Returning <code>None</code> (or
-raising <code>Model.DoesNotExist</code>) results in a 404. The URL lookup field
-(typically <code>pk</code>) is delivered via <code>**extras</code>.</p>
-<p>See :class:<code>~rest_framework_services.services.CreateService</code> for the
-extras-typing notes.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div><h2 id="helpers">Helpers<a class="headerlink" href="#helpers" title="Permanent link">&para;</a></h2>
-<h3 id="call_selector"><code>call_selector</code><a class="headerlink" href="#call_selector" title="Permanent link">&para;</a></h3>
+<h1 id="dispatch-stable-surface">Dispatch (stable surface)<a class="headerlink" href="#dispatch-stable-surface" title="Permanent link">&para;</a></h1>
+<p>The <strong>stable dispatch surface</strong>: the primitives an alternate transport
+(such as <a href="https://github.com/Artui/djangorestframework-mcp-server">djangorestframework-mcp-server</a>)
+builds on instead of re-implementing the "how to call a service / selector"
+rules. Every symbol here is importable from the top-level package, follows
+semantic versioning, and will not move or change signature within a major
+version. Blessed in 0.17, which also <strong>removed the private <code>_compat</code>
+package</strong> — <code>run_service</code> / <code>arun_service</code> now live in <code>services/</code> and
+<code>is_async</code> at the package root; downstreams re-point their imports here
+when they bump past 0.17.</p>
+<p>Deliberately <strong>not</strong> part of this surface: <code>dispatch_mutation_for_spec</code> and
+<code>dispatch_selector_for_spec</code>. They are view-coupled orchestrators (they take
+a view, read its URL kwargs, and walk the <code>get_&lt;action&gt;_*_kwargs</code> hook
+chains); a transport-neutral spec dispatcher is future work that will
+compose the leaves below.</p>
+<h2 id="shared">Shared<a class="headerlink" href="#shared" title="Permanent link">&para;</a></h2>
+<h3 id="resolve_callable_kwargs"><code>resolve_callable_kwargs</code><a class="headerlink" href="#resolve_callable_kwargs" title="Permanent link">&para;</a></h3>
 
 
 <div class="doc doc-object doc-function">
 
 
-<h2 id="rest_framework_services.selectors.call_selector.call_selector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">call_selector</span>
+<h2 id="rest_framework_services.views.utils.resolve_callable_kwargs" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">resolve_callable_kwargs</span>
 
 
-<a href="#rest_framework_services.selectors.call_selector.call_selector" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">call_selector</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">selector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Any</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ResultT</span>
+<a href="#rest_framework_services.views.utils.resolve_callable_kwargs" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">resolve_callable_kwargs</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">pool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p>Invoke <code>selector</code> with the framework's kwargs pool.</p>
-<p><code>request</code> is required; <code>user</code> is derived from <code>request.user</code>.
-Async selectors are bridged via <code>async_to_sync</code>.</p>
+        <p>Pick the subset of <code>pool</code> matching <code>fn</code>'s declared parameters.</p>
+<p>If <code>fn</code> declares <code>**kwargs</code>, the entire pool is passed.
+Otherwise only parameters present in the signature are forwarded.</p>
 
 
     </div>
 
-</div><h3 id="acall_selector"><code>acall_selector</code><a class="headerlink" href="#acall_selector" title="Permanent link">&para;</a></h3>
+</div><h3 id="is_async"><code>is_async</code><a class="headerlink" href="#is_async" title="Permanent link">&para;</a></h3>
 
 
 <div class="doc doc-object doc-function">
 
 
-<h2 id="rest_framework_services.selectors.acall_selector.acall_selector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">acall_selector</span>
+<h2 id="rest_framework_services.is_async.is_async" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">is_async</span>
+
+
+<a href="#rest_framework_services.is_async.is_async" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">is_async</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Return True if calling <code>fn(...)</code> produces a coroutine.</p>
+<p>Handles plain <code>async def</code> functions, <code>functools.partial</code> wrapping
+one (via <code>inspect.iscoroutinefunction</code>'s built-in unwrapping), and
+any callable whose <code>__call__</code> is a coroutine function.</p>
+
+
+    </div>
+
+</div><h2 id="service-side">Service side<a class="headerlink" href="#service-side" title="Permanent link">&para;</a></h2>
+<h3 id="run_service"><code>run_service</code><a class="headerlink" href="#run_service" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.services.run_service.run_service" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">run_service</span>
+
+
+<a href="#rest_framework_services.services.run_service.run_service" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_service</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Call <code>fn(**kwargs)</code>, optionally inside <code>transaction.atomic()</code>.</p>
+
+
+    </div>
+
+</div><h3 id="arun_service"><code>arun_service</code><a class="headerlink" href="#arun_service" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.services.arun_service.arun_service" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">arun_service</span>
 
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-async"><code>async</code></small>
   </span>
 
-<a href="#rest_framework_services.selectors.acall_selector.acall_selector" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">acall_selector</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">selector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">ResultT</span><span class="p">]],</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ResultT</span>
+<a href="#rest_framework_services.services.arun_service.arun_service" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">arun_service</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">Any</span><span class="p">]],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">atomic</span><span class="p">:</span> <span class="nb">bool</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p>Invoke <code>selector</code> from async code with the framework's kwargs pool.</p>
-<p>Async selectors are awaited; sync selectors are called inline.</p>
+        <p>Await <code>fn(**kwargs)</code>, optionally inside <code>transaction.atomic()</code>.</p>
 
 
     </div>
 
-</div><h2 id="dispatch">Dispatch<a class="headerlink" href="#dispatch" title="Permanent link">&para;</a></h2>
-
-
-<div class="doc doc-object doc-module">
-
-
-
-<h2 id="rest_framework_services.selectors.utils" class="doc doc-heading">
-            <span class="doc doc-object-name doc-module-name">utils</span>
-
-
-<a href="#rest_framework_services.selectors.utils" class="headerlink" title="Permanent link">&para;</a></h2>
-
-    <div class="doc doc-contents first">
-
-        <p>Internal selector dispatch helpers (sync + async).</p>
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
+</div><h3 id="build_input_serializer"><code>build_input_serializer</code><a class="headerlink" href="#build_input_serializer" title="Permanent link">&para;</a></h3>
 
 
 <div class="doc doc-object doc-function">
 
 
-<h3 id="rest_framework_services.selectors.utils.is_queryset" class="doc doc-heading">
+<h2 id="rest_framework_services.views.mutation.utils.build_input_serializer" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">build_input_serializer</span>
+
+
+<a href="#rest_framework_services.views.mutation.utils.build_input_serializer" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_input_serializer</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">input_serializer</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">extra_data</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Serializer</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Construct + validate the bound input serializer; <code>None</code> if absent.</p>
+<p><code>input_serializer</code> may be:</p>
+<ul>
+<li>a bare dataclass type — wrapped in a <code>DataclassSerializer</code> on the fly;
+  <code>validated_data</code> is a dataclass instance;</li>
+<li>a <code>DataclassSerializer</code> subclass — instantiated directly;
+  <code>validated_data</code> is a dataclass instance;</li>
+<li>any other <code>Serializer</code> subclass (e.g. <code>ModelSerializer</code>) —
+  instantiated directly; <code>validated_data</code> is a <code>dict</code>.</li>
+</ul>
+<p><code>extra_data</code> (when supplied) is merged on top of <code>request.data</code>
+before the serializer instantiates — server-provided keys win on
+overlap. This is the seam used by the <code>input_data</code> resolver chain
+to lift URL kwargs into serializer input.</p>
+<p><code>context</code> (when supplied) is forwarded to the serializer's <code>context=</code>
+kwarg so DRF-style <code>self.context["request"]</code> / <code>["view"]</code> lookups
+work inside validators and fields.</p>
+<p><code>instance</code> (when supplied) is the resolved mutation target on
+update / destroy flows. The serializer is constructed DRF-style —
+<code>serializer(instance, data=data, partial=partial)</code> — so
+<code>self.instance</code> is populated inside <code>validate()</code> / field validators
+and instance-aware validators (e.g. <code>UniqueValidator</code> excluding the
+current row) behave as they do under DRF's own update flow.</p>
+<p>The serializer is returned validated (<code>is_valid(raise_exception=True)</code>
+has run) but never saved; the service owns persistence.</p>
+
+
+    </div>
+
+</div><h3 id="validate_input"><code>validate_input</code><a class="headerlink" href="#validate_input" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.views.mutation.utils.validate_input" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">validate_input</span>
+
+
+<a href="#rest_framework_services.views.mutation.utils.validate_input" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">validate_input</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">input_serializer</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">extra_data</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Validate <code>request.data</code> against <code>input_serializer</code>; <code>None</code> if absent.</p>
+<p>Thin wrapper over :func:<code>build_input_serializer</code> (see there for the
+parameter semantics) returning only <code>validated_data</code> — kept for
+callers that don't need the bound serializer itself.</p>
+
+
+    </div>
+
+</div><h3 id="resolve_mutation_instance"><code>resolve_mutation_instance</code><a class="headerlink" href="#resolve_mutation_instance" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.views.mutation.utils.resolve_mutation_instance" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">resolve_mutation_instance</span>
+
+
+<a href="#rest_framework_services.views.mutation.utils.resolve_mutation_instance" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">resolve_mutation_instance</span><span class="p">(</span><span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Resolve the instance an update / destroy / detail action targets.</p>
+<p>Precedence: <code>spec.instance_selector_spec</code> (when set with a selector)
+→ the view's <code>get_object()</code> chain (an <code>action_specs["retrieve"]</code>
+selector via :class:<code>SelectorRetrieveMixin</code>, else DRF's default
+<code>queryset</code> / <code>lookup_field</code> lookup, else a user <code>get_object()</code>
+override). Used by the update / destroy viewset mixins, the standalone
+update / delete views, and <code>@service_action</code> detail actions so the
+precedence lives in one place.</p>
+<p>The spec path dispatches through :func:<code>dispatch_selector_for_spec</code>
+(the standard selector call shape: <code>{request, user}</code> + the view's
+URL kwargs + the selector extras chain, queryset shaping applied,
+RETRIEVE materialization via <code>.first()</code>). The nested spec's
+<code>allow_none</code> flag is ignored — a mutation against a missing row is
+always a 404, so a <code>None</code> resolution raises
+:exc:<code>~rest_framework.exceptions.NotFound</code> regardless. Object-level
+permissions run against the resolved instance
+(<code>view.check_object_permissions</code>), matching DRF's own <code>get_object()</code>
+contract.</p>
+
+
+    </div>
+
+</div><h2 id="selector-side">Selector side<a class="headerlink" href="#selector-side" title="Permanent link">&para;</a></h2>
+<h3 id="run_selector"><code>run_selector</code><a class="headerlink" href="#run_selector" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.selectors.utils.run_selector" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">run_selector</span>
+
+
+<a href="#rest_framework_services.selectors.utils.run_selector" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_selector</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Call a selector from sync code, transparently bridging async ones.</p>
+
+
+    </div>
+
+</div><h3 id="arun_selector"><code>arun_selector</code><a class="headerlink" href="#arun_selector" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.selectors.utils.arun_selector" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">arun_selector</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#rest_framework_services.selectors.utils.arun_selector" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">arun_selector</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">Any</span><span class="p">]],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Call a selector from async code; sync ones run inline.</p>
+
+
+    </div>
+
+</div><h3 id="is_queryset"><code>is_queryset</code><a class="headerlink" href="#is_queryset" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.selectors.utils.is_queryset" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">is_queryset</span>
 
 
-<a href="#rest_framework_services.selectors.utils.is_queryset" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#rest_framework_services.selectors.utils.is_queryset" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">is_queryset</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
 </span></code></pre></div>
 
-    <div class="doc doc-contents ">
+    <div class="doc doc-contents first">
 
         <p>True for Django <code>QuerySet</code> objects and <code>Manager</code> instances.</p>
 <p>These are the queryset-shaping targets: the things the four shaping
@@ -1974,62 +2230,17 @@ object that happens to expose <code>first</code>. <code>QuerySet</code> subclass
 
     </div>
 
-</div>
+</div><h3 id="apply_queryset_shaping"><code>apply_queryset_shaping</code><a class="headerlink" href="#apply_queryset_shaping" title="Permanent link">&para;</a></h3>
+
 
 <div class="doc doc-object doc-function">
 
 
-<h3 id="rest_framework_services.selectors.utils.run_selector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">run_selector</span>
-
-
-<a href="#rest_framework_services.selectors.utils.run_selector" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_selector</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Call a selector from sync code, transparently bridging async ones.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="rest_framework_services.selectors.utils.arun_selector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">arun_selector</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-async"><code>async</code></small>
-  </span>
-
-<a href="#rest_framework_services.selectors.utils.arun_selector" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">arun_selector</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">Any</span><span class="p">]],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Call a selector from async code; sync ones run inline.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="rest_framework_services.selectors.utils.apply_queryset_shaping" class="doc doc-heading">
+<h2 id="rest_framework_services.selectors.utils.apply_queryset_shaping" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">apply_queryset_shaping</span>
 
 
-<a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">apply_queryset_shaping</span><span class="p">(</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">qs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
@@ -2043,7 +2254,7 @@ object that happens to expose <code>first</code>. <code>QuerySet</code> subclass
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
-    <div class="doc doc-contents ">
+    <div class="doc doc-contents first">
 
         <p>Apply the four shaping fields to <code>qs</code>.</p>
 <p>Declarative fields apply first (in declaration order), then
@@ -2056,59 +2267,6 @@ failure beats a stale <code>AttributeError</code> deep in DRF rendering.
 <code>source_label</code> is included in the error to point at the misuse
 (<code>"SelectorSpec.selector"</code> vs <code>"ServiceSpec.output_selector_spec.selector"</code>).</p>
 
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="rest_framework_services.selectors.utils.dispatch_selector_for_spec" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">dispatch_selector_for_spec</span>
-
-
-<a href="#rest_framework_services.selectors.utils.dispatch_selector_for_spec" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">dispatch_selector_for_spec</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">extra_url_kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">source_label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;SelectorSpec.selector&quot;</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>End-to-end dispatch for one <code>SelectorSpec</code> call.</p>
-<p>Runs the kwargs-resolution chain (<code>spec.kwargs</code> →
-<code>get_&lt;action&gt;_selector_kwargs</code> → <code>get_selector_kwargs</code>), filters
-the resulting pool against the selector's signature, invokes the
-selector sync-or-async, then applies declarative + dynamic queryset
-shaping. Used by both selector viewset mixins and the standalone
-selector views so the call shape lives in one place.</p>
-<p>When <code>spec.kind</code> is :attr:<code>SelectorKind.RETRIEVE</code>, the returned
-QuerySet (if any) is materialized via <code>.first()</code> and <code>None</code> /
-:exc:<code>~django.core.exceptions.ObjectDoesNotExist</code> are translated to
-:exc:<code>~rest_framework.exceptions.NotFound</code> — unless the spec sets
-<code>allow_none=True</code>, in which case the missing-object case returns
-<code>None</code> and the calling view decides how to render it (the retrieve
-views render 200 + JSON <code>null</code>). <code>SelectorKind.LIST</code> returns the
-(optionally shaped) selector return as-is.</p>
-<p>The caller must check <code>spec.selector is not None</code> before calling and
-fall back to vanilla DRF otherwise.</p>
-<p><code>source_label</code> is forwarded to :func:<code>apply_queryset_shaping</code> for
-error messages, so a misconfiguration on a nested
-<code>output_selector_spec</code> points at the right place.</p>
-
-
-    </div>
-
-</div>
-
-
-
-  </div>
 
     </div>
 
