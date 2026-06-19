@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `DjangoFilterBackend` (they apply the same FilterSet), so configuring both
   would filter the queryset twice. Retrieve is unaffected (its selector path
   overrides `get_object()` and never calls `filter_queryset`).
+- **`ServiceSpec.document_service_error`** (SCH-1) — a tri-state OpenAPI flag
+  (`bool | None`, default `None`) controlling whether the generated schema
+  documents the `422` `ServiceError` response. `None` gates it on whether the
+  operation validates input; `True` / `False` force it. Schema-only; runtime
+  behaviour is unchanged.
 
 ### Changed
 
@@ -34,12 +39,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   optional `filter_set` keyword argument (default `None`) and now applies a
   spec's FilterSet as the final shaping step. Backward-compatible: existing
   callers that don't pass `filter_set` are unaffected.
+- **Unified provider invocation** (PROV-1). Every spec-level provider
+  (`kwargs`, `input_data`, `input_serializer_context`,
+  `output_serializer_context`) **and** the corresponding view hooks are now
+  dispatched through the same signature-filtering keyword pool that services
+  and selectors use. A provider declares only what it needs — any subset of
+  `view` / `request` plus the resolved-data extras (`result` / `instance` /
+  `page`), or `**kwargs` — instead of the previous mandatory positional
+  `(view, request)`. Providers using the documented `(view, request)`
+  signature are unaffected.
+- **The 422 `ServiceError` response is now gated in the OpenAPI schema**
+  (SCH-1). It was attached to *every* spec-driven mutation; it now defaults to
+  operations that validate input (`spec.input_serializer is not None`), so a
+  no-input mutation (e.g. a plain delete) no longer carries a spurious 422.
+  Override per spec with `document_service_error`.
+
+### Fixed
+
+- **Stale prefetched data after a mutating service** (PF-1). When a mutation
+  target was resolved through a prefetching `instance_selector_spec` (or a
+  prefetching `get_object()` queryset) and the service changed a related
+  collection via a path Django doesn't self-invalidate (e.g. creating reverse-FK
+  rows), the rendered response could reflect the stale prefetch cache. The flow
+  now clears `_prefetched_objects_cache` on the resolved instance after the
+  service runs, mirroring DRF's `UpdateModelMixin`. A no-op on create and when
+  nothing was prefetched; an `output_selector_spec` re-fetch keeps its own
+  intentional `prefetch_related`.
 
 ### Documentation
 
 - New recipe: *Filter a selector with `filter_set`* (FILT-3) — list and
   retrieve usage, the "replaces `DjangoFilterBackend`" rule, and the
   `kwargs`-vs-`filter_set` boundary for computed (non-queryset) results.
+- OpenAPI guide documents the 422 gating + `document_service_error`; the
+  serializer-context recipe notes the flexible provider-signature declaration.
 
 ## [0.17.0] — 2026-06-10
 

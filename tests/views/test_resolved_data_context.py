@@ -5,10 +5,11 @@ keyword for the data about to be serialized — ``result`` (mutation output),
 ``instance`` (retrieve), or ``page`` (list) — and receive it only when
 declared, so it can run a *single* batched query against the exact objects
 and propagate the outcome through ``context``. Legacy ``(view, request)``
-providers must be unaffected.
+providers must be unaffected, and a provider may now declare any *subset* of
+``view`` / ``request`` / the extras.
 
 The mechanism lives in
-:func:`rest_framework_services.views.utils._invoke_with_extras`; these tests
+:func:`rest_framework_services.views.utils._invoke_provider`; these tests
 exercise it end-to-end through every entry point plus a few unit-level
 assertions on the helper itself.
 """
@@ -35,7 +36,7 @@ from rest_framework_services import (
     ServiceViewSet,
     selector_action,
 )
-from rest_framework_services.views.utils import _invoke_with_extras
+from rest_framework_services.views.utils import _invoke_provider
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -63,20 +64,40 @@ class _SmallPage(PageNumberPagination):
     page_size = 2
 
 
-# --- unit: _invoke_with_extras -------------------------------------------
+# --- unit: _invoke_provider ----------------------------------------------
 
 
-class TestInvokeWithExtras:
-    def test_legacy_two_arg_provider_gets_exactly_view_and_request(self) -> None:
+class TestInvokeProvider:
+    def test_provider_declaring_view_and_request_gets_exactly_those(self) -> None:
         seen: dict[str, Any] = {}
 
         def provider(view: Any, request: Any) -> dict[str, Any]:
             seen["args"] = (view, request)
             return {}
 
-        _invoke_with_extras(provider, "VIEW", "REQ", extras={"result": "R", "page": "P"})
+        _invoke_provider(provider, view="VIEW", request="REQ", extras={"result": "R", "page": "P"})
         # The undeclared extras must not leak in — called with exactly two.
         assert seen["args"] == ("VIEW", "REQ")
+
+    def test_provider_declaring_only_request(self) -> None:
+        seen: dict[str, Any] = {}
+
+        def provider(request: Any) -> dict[str, Any]:
+            seen["request"] = request
+            return {}
+
+        _invoke_provider(provider, view="VIEW", request="REQ", extras={})
+        assert seen == {"request": "REQ"}
+
+    def test_provider_declaring_only_view(self) -> None:
+        seen: dict[str, Any] = {}
+
+        def provider(view: Any) -> dict[str, Any]:
+            seen["view"] = view
+            return {}
+
+        _invoke_provider(provider, view="VIEW", request="REQ", extras={})
+        assert seen == {"view": "VIEW"}
 
     def test_declared_extra_is_passed_by_keyword(self) -> None:
         seen: dict[str, Any] = {}
@@ -85,27 +106,27 @@ class TestInvokeWithExtras:
             seen["result"] = result
             return {}
 
-        _invoke_with_extras(provider, "VIEW", "REQ", extras={"result": "R", "page": "P"})
+        _invoke_provider(provider, view="VIEW", request="REQ", extras={"result": "R", "page": "P"})
         assert seen["result"] == "R"
 
-    def test_var_keyword_provider_receives_all_extras(self) -> None:
+    def test_var_keyword_provider_receives_the_whole_pool(self) -> None:
         seen: dict[str, Any] = {}
 
-        def provider(view: Any, request: Any, **extra: Any) -> dict[str, Any]:
-            seen.update(extra)
+        def provider(**pool: Any) -> dict[str, Any]:
+            seen.update(pool)
             return {}
 
-        _invoke_with_extras(provider, "VIEW", "REQ", extras={"result": "R", "page": "P"})
-        assert seen == {"result": "R", "page": "P"}
+        _invoke_provider(provider, view="VIEW", request="REQ", extras={"result": "R", "page": "P"})
+        assert seen == {"view": "VIEW", "request": "REQ", "result": "R", "page": "P"}
 
-    def test_bound_view_hook_no_leading_args(self) -> None:
+    def test_bound_view_hook_declares_only_extras(self) -> None:
         seen: dict[str, Any] = {}
 
         def hook(*, page: Any) -> dict[str, Any]:
             seen["page"] = page
             return {}
 
-        _invoke_with_extras(hook, extras={"page": "P"})
+        _invoke_provider(hook, view="VIEW", request="REQ", extras={"page": "P"})
         assert seen["page"] == "P"
 
 
@@ -181,7 +202,7 @@ class TestMutationResultExtra:
                 output_selector_spec=SelectorSpec(
                     kind=SelectorKind.RETRIEVE,
                     output_serializer=capturing,
-                    output_serializer_context=lambda view, req: {"legacy": True},
+                    output_serializer_context=lambda view, request: {"legacy": True},
                 ),
             )
 
@@ -228,7 +249,7 @@ class TestRetrieveInstanceExtra:
                 kind=SelectorKind.RETRIEVE,
                 selector=lambda pk: Author.objects.filter(pk=pk).first(),
                 output_serializer=capturing,
-                output_serializer_context=lambda view, req, *, instance: {
+                output_serializer_context=lambda view, request, *, instance: {
                     "instance_pk": instance.pk
                 },
             )
@@ -247,7 +268,7 @@ class TestRetrieveInstanceExtra:
                     kind=SelectorKind.RETRIEVE,
                     selector=lambda pk: Author.objects.filter(pk=pk).first(),
                     output_serializer=capturing,
-                    output_serializer_context=lambda view, req, *, instance: {
+                    output_serializer_context=lambda view, request, *, instance: {
                         "instance_pk": instance.pk
                     },
                 ),
@@ -273,7 +294,7 @@ class TestListPageExtra:
                 kind=SelectorKind.LIST,
                 selector=lambda: Author.objects.all().order_by("id"),
                 output_serializer=capturing,
-                output_serializer_context=lambda view, req, *, page: {"page_size": len(page)},
+                output_serializer_context=lambda view, request, *, page: {"page_size": len(page)},
             )
 
         _View.as_view()(factory.get("/"))
@@ -291,7 +312,7 @@ class TestListPageExtra:
                 kind=SelectorKind.LIST,
                 selector=lambda: Author.objects.all().order_by("id"),
                 output_serializer=capturing,
-                output_serializer_context=lambda view, req, *, page: {"n": len(list(page))},
+                output_serializer_context=lambda view, request, *, page: {"n": len(list(page))},
             )
 
         _View.as_view()(factory.get("/"))
@@ -310,7 +331,9 @@ class TestListPageExtra:
                     kind=SelectorKind.LIST,
                     selector=lambda: Author.objects.all().order_by("id"),
                     output_serializer=capturing,
-                    output_serializer_context=lambda view, req, *, page: {"page_size": len(page)},
+                    output_serializer_context=lambda view, request, *, page: {
+                        "page_size": len(page)
+                    },
                 ),
             }
 
@@ -362,7 +385,7 @@ class TestSelectorActionExtras:
                     kind=SelectorKind.RETRIEVE,
                     selector=lambda pk: Author.objects.filter(pk=pk).first(),
                     output_serializer=capturing,
-                    output_serializer_context=lambda view, req, *, instance: {
+                    output_serializer_context=lambda view, request, *, instance: {
                         "instance_pk": instance.pk
                     },
                 ),
@@ -388,7 +411,9 @@ class TestSelectorActionExtras:
                     kind=SelectorKind.LIST,
                     selector=lambda: Author.objects.all().order_by("id"),
                     output_serializer=capturing,
-                    output_serializer_context=lambda view, req, *, page: {"page_size": len(page)},
+                    output_serializer_context=lambda view, request, *, page: {
+                        "page_size": len(page)
+                    },
                 ),
             )
             def many(self, request):  # type: ignore[no-untyped-def]
@@ -412,7 +437,7 @@ class TestSelectorActionExtras:
                     kind=SelectorKind.LIST,
                     selector=lambda: list(Author.objects.all().order_by("id")),
                     output_serializer=capturing,
-                    output_serializer_context=lambda view, req, *, page: {"n": len(page)},
+                    output_serializer_context=lambda view, request, *, page: {"n": len(page)},
                 ),
             )
             def many(self, request):  # type: ignore[no-untyped-def]

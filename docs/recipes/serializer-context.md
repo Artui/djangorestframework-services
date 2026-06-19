@@ -161,11 +161,13 @@ naming the data about to be serialized:
 | retrieve | `instance` | the resolved object |
 | list | `page` | the paginated object list (the full queryset when pagination is off) |
 
-The extra is passed **only when the provider declares it** (or accepts
-`**kwargs`), so existing `(view, request)` providers keep working
-unchanged — `view` and `request` are always positional. The provider
-always runs *after* the data is resolved, so the value is real, not a
-placeholder.
+Every provider is invoked through the framework's keyword pool, so it
+declares **only what it needs** — any subset of `view` / `request` plus the
+resolved-data extra above, or `**kwargs` for the whole pool. A
+`(view, request)` provider keeps working unchanged (both bind by keyword),
+and `lambda *, page: ...` or `lambda request: ...` are equally valid. The
+provider always runs *after* the data is resolved, so the value is real, not
+a placeholder.
 
 ```python
 from django.db.models import Count

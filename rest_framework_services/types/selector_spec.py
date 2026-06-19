@@ -87,15 +87,15 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
       earlier layers intact. Selectors don't validate input, so there's
       no symmetrical ``input_serializer_context``.
 
-      The provider is called with ``(view, request)`` positionally and may
-      additionally declare the resolved data being serialized as a keyword
-      parameter — ``page`` on a ``LIST`` spec (the paginated object list, or
-      the full queryset when pagination is off) or ``instance`` on a
-      ``RETRIEVE`` spec. It is passed only when declared (or when the
-      provider accepts ``**kwargs``), so legacy ``(view, request)``
-      providers are unaffected. This lets the provider run a single batched
-      query against the exact objects being serialized and propagate the
-      result through context — e.g.
+      The provider is invoked through the framework's keyword-pool
+      convention, so it declares only what it needs: ``view``, ``request``,
+      and/or the resolved data being serialized — ``page`` on a ``LIST`` spec
+      (the paginated object list, or the full queryset when pagination is off)
+      or ``instance`` on a ``RETRIEVE`` spec — or ``**kwargs`` for the whole
+      pool. Any subset works (just ``view``, just ``request``, just ``page``,
+      none). This lets the provider run a single batched query against the
+      exact objects being serialized and propagate the result through context
+      — e.g. ``lambda *, page: {"votes": tally(page)}`` or
       ``lambda view, request, *, page: {"votes": tally(page)}``. The hook
       always runs *after* the data is resolved.
     - **``select_related``** / **``prefetch_related``** / **``annotations``**
@@ -154,10 +154,11 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     # Output pipeline (selector → serializer → context) plus the shaping
     # fields applied to the selector's QuerySet return.
     output_serializer: type[Serializer] | None = None
-    # Called as ``(view, request)`` plus an optional resolved-data keyword
-    # (``page`` for LIST, ``instance`` for RETRIEVE) when the provider
-    # declares it; hence the open ``...`` parameter spec. See the class
-    # docstring's ``output_serializer_context`` entry.
+    # Invoked through the framework's keyword pool: the provider declares any
+    # subset of ``view`` / ``request`` plus the resolved-data extra (``page``
+    # for LIST, ``instance`` for RETRIEVE), or ``**kwargs``; hence the open
+    # ``...`` parameter spec. See the class docstring's
+    # ``output_serializer_context`` entry.
     output_serializer_context: Callable[..., Mapping[str, Any]] | None = None
     select_related: Sequence[str] | None = None
     prefetch_related: Sequence[str | Prefetch] | None = None
@@ -170,6 +171,8 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     # (the dependency-sink rule); services applies it by duck typing.
     filter_set: Any | None = None
 
-    # Cross-cutting.
-    kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
+    # Cross-cutting. ``kwargs`` is invoked through the framework's keyword
+    # pool, so it declares any subset of ``view`` / ``request`` (or ``**kwargs``)
+    # — hence the open ``...`` parameter spec.
+    kwargs: Callable[..., ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None

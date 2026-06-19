@@ -478,7 +478,7 @@ class TestServiceSpecInputContext:
                 service=lambda **_: {"ok": True},
                 input_serializer=_ContextCapturingInputSerializer,
                 atomic=False,
-                input_serializer_context=lambda view, req: {"spec_key": "input"},
+                input_serializer_context=lambda view, request: {"spec_key": "input"},
             )
 
         _View.as_view()(factory.post("/", {"name": "Ada"}, format="json"))
@@ -492,7 +492,7 @@ class TestServiceSpecInputContext:
                 service=lambda **_: {"id": 1, "name": "x"},
                 input_serializer=_ContextCapturingInputSerializer,
                 atomic=False,
-                input_serializer_context=lambda view, req: {"input_only": True},
+                input_serializer_context=lambda view, request: {"input_only": True},
                 output_selector_spec=_output_capturing_spec(),
             )
 
@@ -508,7 +508,7 @@ class TestServiceSpecInputContext:
                 service=lambda **_: {"ok": True},
                 input_serializer=_ContextCapturingInputSerializer,
                 atomic=False,
-                input_serializer_context=lambda view, req: {"layer": "spec"},
+                input_serializer_context=lambda view, request: {"layer": "spec"},
             )
 
             def get_input_serializer_context(self) -> dict[str, Any]:
@@ -557,7 +557,7 @@ class TestServiceSpecOutputContext:
                 input_serializer=_AuthorIn,
                 atomic=False,
                 output_selector_spec=_output_capturing_spec(
-                    output_serializer_context=lambda view, req: {"spec_key": "output"},
+                    output_serializer_context=lambda view, request: {"spec_key": "output"},
                 ),
             )
 
@@ -575,7 +575,7 @@ class TestServiceSpecOutputContext:
                     input_serializer=_AuthorIn,
                     atomic=False,
                     output_selector_spec=_output_capturing_spec(
-                        output_serializer_context=lambda view, req: {"layer": "spec"},
+                        output_serializer_context=lambda view, request: {"layer": "spec"},
                     ),
                 ),
             }
@@ -603,7 +603,7 @@ class TestSelectorSpecOutputContext:
                 kind=SelectorKind.LIST,
                 selector=lambda: list(Author.objects.all()),
                 output_serializer=capturing,
-                output_serializer_context=lambda view, req: {"from_spec": True},
+                output_serializer_context=lambda view, request: {"from_spec": True},
             )
 
         _View.as_view()(factory.get("/"))
@@ -620,7 +620,7 @@ class TestSelectorSpecOutputContext:
                 kind=SelectorKind.RETRIEVE,
                 selector=lambda pk: Author.objects.filter(pk=pk).first(),
                 output_serializer=capturing,
-                output_serializer_context=lambda view, req: {"from_spec": True},
+                output_serializer_context=lambda view, request: {"from_spec": True},
             )
 
         _View.as_view()(factory.get("/"), pk=author.pk)
@@ -639,7 +639,7 @@ class TestSelectorSpecOutputContext:
                     kind=SelectorKind.LIST,
                     selector=lambda: list(Author.objects.all()),
                     output_serializer=capturing,
-                    output_serializer_context=lambda view, req: {"from_spec": True},
+                    output_serializer_context=lambda view, request: {"from_spec": True},
                 ),
             }
 
@@ -659,7 +659,7 @@ class TestSelectorSpecOutputContext:
                     kind=SelectorKind.RETRIEVE,
                     selector=lambda pk: Author.objects.filter(pk=pk).first(),
                     output_serializer=capturing,
-                    output_serializer_context=lambda view, req: {"from_spec": True},
+                    output_serializer_context=lambda view, request: {"from_spec": True},
                 ),
             }
 
@@ -683,7 +683,7 @@ class TestSelectorSpecOutputContext:
                     kind=SelectorKind.LIST,
                     selector=lambda: list(Author.objects.all()),
                     output_serializer=capturing,
-                    output_serializer_context=lambda view, req: {"from_spec": True},
+                    output_serializer_context=lambda view, request: {"from_spec": True},
                 ),
             )
             def active(self, request):  # type: ignore[no-untyped-def]
@@ -706,7 +706,7 @@ class TestSelectorSpecOutputContext:
                     kind=SelectorKind.LIST,
                     selector=lambda: list(Author.objects.all()),
                     output_serializer=capturing,
-                    output_serializer_context=lambda view, req: {"layer": "spec"},
+                    output_serializer_context=lambda view, request: {"layer": "spec"},
                 ),
             }
 
@@ -733,7 +733,7 @@ class TestSelectorSpecOutputContext:
                     input_serializer=_ContextCapturingInputSerializer,
                     atomic=False,
                     output_selector_spec=_output_capturing_spec(
-                        output_serializer_context=lambda view, req: {"output_only": True},
+                        output_serializer_context=lambda view, request: {"output_only": True},
                     ),
                 ),
             }

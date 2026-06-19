@@ -29,22 +29,25 @@ def resolve_extra_kwargs(
        ``get_create_service_kwargs`` / ``get_list_selector_kwargs``. Skipped
        when ``action_hook`` is ``None`` (e.g. on standalone single-purpose
        views) or the method is absent.
-    3. ``spec_kwargs(view, request)`` — per-spec callable from
-       :attr:`ServiceSpec.kwargs` / :attr:`SelectorSpec.kwargs`.
+    3. ``spec_kwargs`` — per-spec callable from :attr:`ServiceSpec.kwargs` /
+       :attr:`SelectorSpec.kwargs`.
 
-    Each layer's result is merged with ``dict.update``, so the spec-level
-    provider has the final say on any overlapping keys.
+    Every layer is invoked through :func:`_invoke_provider`, so each callable
+    receives only the subset of ``{view, request}`` it declares (or the whole
+    pool via ``**kwargs``) — declare just ``view``, just ``request``, both, or
+    neither. Each layer's result is merged with ``dict.update``, so the
+    spec-level provider has the final say on any overlapping keys.
     """
     extras: dict[str, Any] = {}
     catch_all = getattr(view, catch_all_hook, None)
     if catch_all is not None:
-        extras.update(catch_all())
+        extras.update(_invoke_provider(catch_all, view=view, request=request, extras={}))
     if action_hook is not None:
         hook = getattr(view, action_hook, None)
         if hook is not None:
-            extras.update(hook())
+            extras.update(_invoke_provider(hook, view=view, request=request, extras={}))
     if spec_kwargs is not None:
-        extras.update(spec_kwargs(view, request))
+        extras.update(_invoke_provider(spec_kwargs, view=view, request=request, extras={}))
     return extras
 
 
@@ -63,61 +66,61 @@ def resolve_input_extras(
     ``input_serializer``-bound data, not the service-call pool. Layers,
     applied in order of increasing specificity (later wins on overlap):
 
-    1. ``view.<catch_all_hook>(request)`` — global fallback
-       (``get_input_data``); typically returns ``{}``.
-    2. ``view.<action_hook>(request)`` — per-action method on the view
+    1. ``view.<catch_all_hook>`` — global fallback (``get_input_data``);
+       typically returns ``{}``.
+    2. ``view.<action_hook>`` — per-action method on the view
        (``get_<action>_input_data``). Skipped when ``action_hook`` is
        ``None`` (standalone single-purpose views) or the method is absent.
-    3. ``spec_input_data(view, request)`` — per-spec callable from
+    3. ``spec_input_data`` — per-spec callable from
        :attr:`ServiceSpec.input_data`.
 
     Each layer's result is merged with ``dict.update`` so the spec-level
     provider has the final say on overlapping keys.
 
-    ``extras`` carries the resolved data available before validation —
-    currently the mutation target ``instance`` (``None`` on create). Each
-    provider receives only the extras it declares by name (see
-    :func:`_invoke_with_extras`); legacy providers are unaffected.
+    Every layer is invoked through :func:`_invoke_provider`, so a provider
+    declares only what it needs from ``{view, request}`` plus ``extras`` (or
+    ``**kwargs``). ``extras`` carries the resolved data available before
+    validation — currently the mutation target ``instance`` (``None`` on
+    create) — offered by keyword only when declared.
     """
     payload: Mapping[str, Any] = extras if extras is not None else {}
     collected: dict[str, Any] = {}
     catch_all = getattr(view, catch_all_hook, None)
     if catch_all is not None:
-        collected.update(_invoke_with_extras(catch_all, request, extras=payload))
+        collected.update(_invoke_provider(catch_all, view=view, request=request, extras=payload))
     if action_hook is not None:
         hook = getattr(view, action_hook, None)
         if hook is not None:
-            collected.update(_invoke_with_extras(hook, request, extras=payload))
+            collected.update(_invoke_provider(hook, view=view, request=request, extras=payload))
     if spec_input_data is not None:
-        collected.update(_invoke_with_extras(spec_input_data, view, request, extras=payload))
+        collected.update(
+            _invoke_provider(spec_input_data, view=view, request=request, extras=payload)
+        )
     return collected
 
 
-def _invoke_with_extras(
+def _invoke_provider(
     fn: Callable[..., Any],
-    *leading: Any,
+    *,
+    view: Any,
+    request: Request,
     extras: Mapping[str, Any],
 ) -> Any:
-    """Call ``fn(*leading, **declared)`` passing only the extras it declares.
+    """Call ``fn`` with the subset of ``{view, request, **extras}`` it declares.
 
-    ``leading`` is forwarded positionally and unconditionally (the
-    ``view, request`` pair for spec providers, nothing for bound view-method
-    hooks). Each entry in ``extras`` (the resolved data — ``result`` /
-    ``instance`` / ``page``) is passed by keyword **only** when ``fn``
-    declares a parameter of that name or accepts ``**kwargs``.
-
-    This is what keeps the widening backward compatible: a legacy
-    ``(view, request)`` provider declares neither extra, so it is called as
-    ``fn(view, request)`` exactly as before — regardless of how it names
-    those two positional parameters. Mirrors :func:`resolve_callable_kwargs`'s
-    "pass only what you declare" rule for the context-provider call sites.
+    The single provider-invocation convention for the framework. Every
+    provider — the spec-level ``kwargs`` / ``input_data`` /
+    ``*_serializer_context`` callables **and** the view's ``get_*`` hooks — is
+    dispatched through :func:`resolve_callable_kwargs` against a pool of
+    ``view`` / ``request`` plus the resolved-data ``extras`` (``result`` /
+    ``instance`` / ``page``). A provider declares only what it needs — just
+    ``view``, just ``request``, any subset of the extras, both, neither, or
+    ``**kwargs`` — exactly as services and selectors are dispatched. Bound
+    view-method hooks simply don't declare ``view`` (it is their ``self``), so
+    it is filtered out for them.
     """
-    params = inspect.signature(fn).parameters
-    accepts_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
-    declared: dict[str, Any] = {
-        name: value for name, value in extras.items() if accepts_var_keyword or name in params
-    }
-    return fn(*leading, **declared)
+    pool: dict[str, Any] = {"view": view, "request": request, **extras}
+    return fn(**resolve_callable_kwargs(fn, pool))
 
 
 def layer_serializer_context(
@@ -145,22 +148,23 @@ def layer_serializer_context(
 
     ``extras`` carries the resolved data about to be serialized (the
     ``result`` of a mutation, the retrieved ``instance``, or the list
-    ``page``). Each provider receives only the extras it declares by name
-    (see :func:`_invoke_with_extras`); legacy ``(view, request)`` providers
-    are unaffected. ``None`` is treated as an empty mapping.
+    ``page``). Every layer is invoked through :func:`_invoke_provider`, so a
+    provider receives only the subset of ``{view, request, **extras}`` it
+    declares (or the whole pool via ``**kwargs``). ``None`` is treated as an
+    empty mapping.
     """
     payload: Mapping[str, Any] = extras if extras is not None else {}
     context: dict[str, Any] = dict(base)
     if direction_hook is not None:
         direction = getattr(view, direction_hook, None)
         if direction is not None:
-            context.update(_invoke_with_extras(direction, extras=payload))
+            context.update(_invoke_provider(direction, view=view, request=request, extras=payload))
     if action_hook is not None:
         hook = getattr(view, action_hook, None)
         if hook is not None:
-            context.update(_invoke_with_extras(hook, extras=payload))
+            context.update(_invoke_provider(hook, view=view, request=request, extras=payload))
     if spec_provider is not None:
-        context.update(_invoke_with_extras(spec_provider, view, request, extras=payload))
+        context.update(_invoke_provider(spec_provider, view=view, request=request, extras=payload))
     return context
 
 

@@ -84,10 +84,26 @@ the runtime would return.
 ### 422 ServiceError responses
 
 `ServiceAutoSchema` attaches a `422` response with a single `detail`
-field to every spec-driven mutation, documenting the contract that
-`ServiceError` produces at runtime. The component is exposed as
+field documenting the contract that `ServiceError` produces at runtime.
+The component is exposed as
 `rest_framework_services.openapi.ServiceErrorSerializer` if you want to
 re-use it elsewhere.
+
+By default the 422 is attached only to operations that **validate input**
+(`spec.input_serializer is not None`), so a no-input mutation — a plain
+delete, a no-body action — doesn't carry a spurious 422 you have to suppress
+by hand. Override the heuristic per spec with `document_service_error`:
+
+```python
+# A no-input service that *does* raise ServiceError — document the 422:
+ServiceSpec(service=approve, document_service_error=True)
+
+# An input-bearing service that never raises one — drop the 422:
+ServiceSpec(service=create, input_serializer=CreateInput, document_service_error=False)
+```
+
+`None` (the default) uses the input-validation heuristic; `True` / `False`
+force it. The flag is schema-only — it never affects runtime behaviour.
 
 ## Override per view
 
