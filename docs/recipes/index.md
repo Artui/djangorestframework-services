@@ -19,6 +19,10 @@ the [Quickstart](../quickstart.md) and [Concepts](../concepts.md).
   `select_related` / `prefetch_related` / `annotations` to a selector
   spec, plus an `extend_queryset` callable for request-dependent
   shaping.
+- **[Filter a selector with `filter_set`](selector-filtering.md)** — point
+  a `django-filter` FilterSet at a list or retrieve selector's queryset,
+  the "replaces `DjangoFilterBackend`" rule, and the boundary with
+  `kwargs` for computed (non-queryset) results.
 - **[Customise serializer context](serializer-context.md)** — direction-
   and action-specific hooks for `get_serializer_context()`, so the input
   and output serializers can see different keys.

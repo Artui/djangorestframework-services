@@ -166,6 +166,7 @@ def _has_any_shaping(spec: SelectorSpec[Any, Any]) -> bool:
         or spec.prefetch_related is not None
         or spec.annotations is not None
         or spec.extend_queryset is not None
+        or spec.filter_set is not None
     )
 
 
@@ -177,17 +178,67 @@ def _validate_selector_shaping(
     """Raise :exc:`ImproperlyConfigured` when shaping is set without a selector.
 
     ``select_related`` / ``prefetch_related`` / ``annotations`` /
-    ``extend_queryset`` only run inside :func:`dispatch_selector_for_spec`,
-    which is skipped when ``spec.selector is None``. Catching the misuse
-    at ``as_view()`` time beats a silent no-op at request time.
+    ``extend_queryset`` / ``filter_set`` only run inside
+    :func:`dispatch_selector_for_spec`, which is skipped when
+    ``spec.selector is None``. Catching the misuse at ``as_view()`` time
+    beats a silent no-op at request time.
     """
     if spec.selector is None and _has_any_shaping(spec):
         raise ImproperlyConfigured(
             f"{label}: select_related / prefetch_related / annotations / "
-            "extend_queryset are set but `selector` is not. Set a selector or "
-            "drop the shaping fields — they only run when the spec's selector "
-            "dispatches."
+            "extend_queryset / filter_set are set but `selector` is not. Set a "
+            "selector or drop the shaping fields — they only run when the "
+            "spec's selector dispatches."
         )
+
+
+def _uses_django_filter_backend(view_cls: type) -> bool:
+    """True when ``view_cls.filter_backends`` includes a ``DjangoFilterBackend``.
+
+    Detected by class name across each backend's MRO (so subclasses count)
+    rather than ``isinstance``: ``django-filter`` is an optional dependency
+    this package never imports, so the check must hold whether or not it is
+    installed.
+    """
+    backends = getattr(view_cls, "filter_backends", None) or ()
+    return any(
+        any(
+            getattr(klass, "__name__", "") == "DjangoFilterBackend"
+            for klass in getattr(backend, "__mro__", ())
+        )
+        for backend in backends
+    )
+
+
+def validate_filter_set_no_backend_conflict(
+    view_cls: type,
+    spec: SelectorSpec[Any, Any],
+    *,
+    label: str,
+) -> None:
+    """Reject a list selector that sets ``filter_set`` *and* wires ``DjangoFilterBackend``.
+
+    On the list path DRF's ``list()`` runs ``filter_queryset()`` over
+    ``filter_backends`` while the dispatcher *also* applies
+    ``spec.filter_set`` — so a queryset is filtered twice. The two are
+    equivalent (``DjangoFilterBackend`` does
+    ``filterset_class(query_params, qs, request).qs``), so ``filter_set``
+    **replaces** the backend; configuring both for one action is the
+    misconfiguration this catches at ``as_view()`` time.
+
+    Callers gate this on the **list** path only. Retrieve has no such
+    conflict: the selector retrieve path overrides ``get_object()`` and never
+    calls ``filter_queryset``, so ``filter_set`` is the only filter applied.
+    """
+    if spec.filter_set is None or not _uses_django_filter_backend(view_cls):
+        return
+    raise ImproperlyConfigured(
+        f"{label}: spec.filter_set is set and the view's filter_backends "
+        "includes DjangoFilterBackend. `filter_set` replaces "
+        "DjangoFilterBackend (both apply a FilterSet to the list queryset), so "
+        "the queryset would be filtered twice. Drop DjangoFilterBackend from "
+        "filter_backends for this action, or remove filter_set from the spec."
+    )
 
 
 def _validate_permission_classes(
@@ -417,4 +468,7 @@ def validate_selector_view_spec(
     spec: SelectorSpec[Any, Any] | None = getattr(view_cls, "spec", None)
     if spec is None:
         return
-    validate_selector_spec(spec, label=f"{view_cls.__name__}.spec", expected_kind=expected_kind)
+    label = f"{view_cls.__name__}.spec"
+    validate_selector_spec(spec, label=label, expected_kind=expected_kind)
+    if expected_kind is SelectorKind.LIST:
+        validate_filter_set_no_backend_conflict(view_cls, spec, label=label)

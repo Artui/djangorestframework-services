@@ -14,6 +14,7 @@ from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
 from rest_framework_services.views.spec_validation import (
     is_overridden,
+    validate_filter_set_no_backend_conflict,
     validate_selector_spec,
     validate_service_spec,
 )
@@ -131,7 +132,10 @@ def _validate_action_spec(view_cls: type, action: str, spec: object) -> None:
             permissive_extras=permissive,
         )
     elif action in _SELECTOR_ACTION_KIND and isinstance(spec, SelectorSpec):
-        validate_selector_spec(spec, label=label, expected_kind=_SELECTOR_ACTION_KIND[action])
+        kind = _SELECTOR_ACTION_KIND[action]
+        validate_selector_spec(spec, label=label, expected_kind=kind)
+        if kind is SelectorKind.LIST:
+            validate_filter_set_no_backend_conflict(view_cls, spec, label=label)
 
 
 class _ActionSpecsMixin:

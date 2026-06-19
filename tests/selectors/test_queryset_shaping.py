@@ -63,6 +63,26 @@ def _post_qs_by_pk(*, pk: int) -> QuerySet[Post]:
     return Post.objects.filter(pk=pk)
 
 
+class _PublishedFilterSet:
+    """Duck-typed ``django-filter`` FilterSet stand-in: ``(data, queryset) -> .qs``.
+
+    Exercises the only contract services relies on — narrow by ``?published=`` —
+    without pulling in the optional ``django-filter`` dependency.
+    """
+
+    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
+        self._data = data
+        self._queryset = queryset
+
+    @property
+    def qs(self) -> QuerySet[Post]:
+        raw = self._data.get("published")
+        if raw is None:
+            return self._queryset
+        wanted = str(raw).lower() in ("1", "true", "yes")
+        return self._queryset.filter(published=wanted)
+
+
 @pytest.mark.django_db
 class TestSelectRelated:
     def test_reduces_query_count_for_fk(self) -> None:
@@ -325,6 +345,86 @@ class TestViewsetMixins:
 
 
 @pytest.mark.django_db
+class TestFilterSet:
+    def test_narrows_list_by_query_params(self) -> None:
+        author = Author.objects.create(name="Ada")
+        Post.objects.create(title="shipped", author=author, published=True)
+        Post.objects.create(title="draft", author=author, published=False)
+
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=_all_posts,
+                output_serializer=_PostWithAuthorSerializer,
+                filter_set=_PublishedFilterSet,
+            )
+
+        published = _View.as_view()(factory.get("/?published=true"))
+        assert [row["title"] for row in published.data] == ["shipped"]
+
+        # No param -> the FilterSet is a no-op, so every row comes back.
+        unfiltered = _View.as_view()(factory.get("/"))
+        assert {row["title"] for row in unfiltered.data} == {"shipped", "draft"}
+
+    def test_applied_before_first_on_retrieve(self) -> None:
+        author = Author.objects.create(name="Ada")
+        Post.objects.create(title="draft", author=author, published=False)
+        published = Post.objects.create(title="shipped", author=author, published=True)
+
+        class _View(SelectorRetrieveView):
+            spec = SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                selector=_all_posts,  # a multi-row QuerySet
+                output_serializer=_PostWithAuthorSerializer,
+                filter_set=_PublishedFilterSet,
+            )
+
+        # filter_set narrows the queryset to the single published row, which is
+        # what ``.first()`` then materializes — proving it runs before it.
+        response = _View.as_view()(factory.get("/?published=true"))
+        assert response.data["id"] == published.pk
+        assert response.data["title"] == "shipped"
+
+    def test_composes_with_select_related(self) -> None:
+        author = Author.objects.create(name="Ada")
+        Post.objects.create(title="shipped", author=author, published=True)
+        Post.objects.create(title="draft", author=author, published=False)
+
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=_all_posts,
+                output_serializer=_PostWithAuthorSerializer,
+                select_related=["author"],
+                filter_set=_PublishedFilterSet,
+            )
+
+        with django_assert_num_queries(1):  # one filtered query, author joined
+            response = _View.as_view()(factory.get("/?published=true"))
+        assert [row["title"] for row in response.data] == ["shipped"]
+        assert response.data[0]["author_name"] == "Ada"
+
+    def test_on_viewset_list_action(self) -> None:
+        author = Author.objects.create(name="Ada")
+        Post.objects.create(title="shipped", author=author, published=True)
+        Post.objects.create(title="draft", author=author, published=False)
+
+        class _ViewSet(SelectorViewSet):
+            queryset = Post.objects.all()
+            action_specs = {
+                "list": SelectorSpec(
+                    kind=SelectorKind.LIST,
+                    selector=_all_posts,
+                    output_serializer=_PostWithAuthorSerializer,
+                    filter_set=_PublishedFilterSet,
+                ),
+            }
+
+        response = _ViewSet.as_view({"get": "list"})(factory.get("/?published=true"))
+        assert [row["title"] for row in response.data] == ["shipped"]
+
+
+@pytest.mark.django_db
 class TestNonQuerySetReturn:
     def test_raises_when_selector_returns_list_with_shaping(self) -> None:
         Author.objects.create(name="Ada")
@@ -338,6 +438,25 @@ class TestNonQuerySetReturn:
                 selector=_list_of_dicts,
                 output_serializer=_PostWithAuthorSerializer,
                 select_related=["author"],
+            )
+
+        with pytest.raises(ImproperlyConfigured, match="not a Django QuerySet"):
+            _View.as_view()(factory.get("/"))
+
+    def test_raises_when_filter_set_is_the_only_shaping_on_non_queryset(self) -> None:
+        """filter_set alone still trips the is-a-QuerySet guard — covers the
+        early-return branch where filter_set is the sole shaping field set."""
+        Author.objects.create(name="Ada")
+
+        def _list_of_dicts() -> list[dict[str, Any]]:
+            return [{"id": 1, "title": "x", "author_name": None}]
+
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=_list_of_dicts,
+                output_serializer=_PostWithAuthorSerializer,
+                filter_set=_PublishedFilterSet,
             )
 
         with pytest.raises(ImproperlyConfigured, match="not a Django QuerySet"):
@@ -365,6 +484,17 @@ class TestValidation:
                 kind=SelectorKind.LIST,
                 output_serializer=_PostWithAuthorSerializer,
                 extend_queryset=extend,
+            )
+
+        with pytest.raises(ImproperlyConfigured, match="selector"):
+            _View.as_view()
+
+    def test_filter_set_without_selector_raises_at_as_view(self) -> None:
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                output_serializer=_PostWithAuthorSerializer,
+                filter_set=_PublishedFilterSet,
             )
 
         with pytest.raises(ImproperlyConfigured, match="selector"):
