@@ -114,11 +114,33 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
       the request (e.g. only prefetch when a query string opts in).
       Synchronous only — it manipulates the queryset's lazy expression
       tree, not the database.
+    - **``filter_set``** — transport-neutral filtering applied to the
+      selector's QuerySet. Holds a ``django-filter`` ``FilterSet`` class (or
+      any object honouring the same ``(data, queryset) -> .qs`` contract):
+      the dispatcher calls ``filter_set(data=request.query_params,
+      queryset=qs).qs``, so the *declaration* of which fields are filterable
+      (with which lookups) lives on the spec while the *values* come from the
+      request. Applied **after** the four shaping fields above and **before**
+      the retrieve ``.first()`` materialization, so it composes with shaping
+      and narrows both ``LIST`` and ``RETRIEVE`` selectors — closing the
+      retrieve-path gap where ``RetrieveModelMixin`` runs no filter step.
 
-    All four shaping fields require ``selector`` to be set and the selector
-    to return a Django :class:`QuerySet`. Configuring shaping with no
-    selector raises :exc:`ImproperlyConfigured` at ``as_view()`` time; a
-    non-QuerySet return raises at request time.
+      Because the values are read off ``request.query_params``, a
+      ``FilterSet`` here is exactly what
+      :class:`~django_filters.rest_framework.DjangoFilterBackend` applies
+      view-side, so on the list path it **replaces** that backend rather than
+      stacking with it — wiring both for one action raises at ``as_view()``.
+      ``None`` (the default) applies no filtering. Reach for ``filter_set``
+      only when the selector returns a QuerySet; when it returns an
+      aggregate / computed object the ``?param`` values are computation
+      inputs — use ``kwargs`` / ``get_selector_kwargs()`` instead.
+
+    All five shaping fields (``select_related`` / ``prefetch_related`` /
+    ``annotations`` / ``extend_queryset`` / ``filter_set``) require
+    ``selector`` to be set and the selector to return a Django
+    :class:`QuerySet`. Configuring any of them with no selector raises
+    :exc:`ImproperlyConfigured` at ``as_view()`` time; a non-QuerySet return
+    raises at request time.
     """
 
     kind: SelectorKind
@@ -141,6 +163,12 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     prefetch_related: Sequence[str | Prefetch] | None = None
     annotations: Mapping[str, Any] | None = None
     extend_queryset: Callable[[QuerySet[Any], ServiceView, Request], QuerySet[Any]] | None = None
+    # Transport-neutral filtering: a django-filter ``FilterSet`` (or any
+    # ``(data, queryset) -> .qs`` object) applied after the shaping fields,
+    # before the retrieve ``.first()``. Replaces ``DjangoFilterBackend`` on
+    # the list path. Typed ``Any`` so ``types/`` never imports django-filter
+    # (the dependency-sink rule); services applies it by duck typing.
+    filter_set: Any | None = None
 
     # Cross-cutting.
     kwargs: Callable[[ServiceView, Request], ExtraT] | None = None

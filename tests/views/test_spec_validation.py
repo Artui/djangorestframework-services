@@ -2,15 +2,59 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 
-from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec
+from rest_framework_services import (
+    SelectorKind,
+    SelectorListView,
+    SelectorRetrieveView,
+    SelectorSpec,
+    SelectorViewSet,
+    ServiceSpec,
+)
 from rest_framework_services.views.spec_validation import (
+    _uses_django_filter_backend,
     is_overridden,
     validate_callable_signature,
+    validate_filter_set_no_backend_conflict,
     validate_service_spec,
 )
+
+
+class DjangoFilterBackend:
+    """A no-op stand-in for django-filter's backend.
+
+    The guard detects the real backend purely by class name (django-filter is
+    an optional dep this package never imports), so a same-named stub is all
+    the tests need.
+    """
+
+    def filter_queryset(self, request: Any, queryset: Any, view: Any) -> Any:
+        return queryset
+
+
+class _SubclassedFilterBackend(DjangoFilterBackend):
+    """A project subclass of the real backend — the MRO name-walk must catch it."""
+
+
+class _UnrelatedBackend:
+    """A different backend that must not trip the guard."""
+
+    def filter_queryset(self, request: Any, queryset: Any, view: Any) -> Any:
+        return queryset
+
+
+# Any non-None object satisfies the guard; it is never instantiated at
+# ``as_view()`` time, only checked for presence.
+_FILTER_SET = object()
+
+
+def _selector() -> None:
+    """A valid no-arg selector; never invoked (``as_view`` only validates)."""
+    return None
 
 
 class TestValidateCallableSignature:
@@ -291,3 +335,94 @@ class TestIsOverridden:
 
         assert is_overridden(WithHook, Base, "hook") is True
         assert is_overridden(WithoutHook, Base, "hook") is False
+
+
+class TestUsesDjangoFilterBackend:
+    def test_false_when_no_filter_backends(self) -> None:
+        assert _uses_django_filter_backend(type("V", (), {})) is False
+
+    def test_false_when_filter_backends_empty(self) -> None:
+        assert _uses_django_filter_backend(type("V", (), {"filter_backends": []})) is False
+
+    def test_true_for_django_filter_backend(self) -> None:
+        view = type("V", (), {"filter_backends": [DjangoFilterBackend]})
+        assert _uses_django_filter_backend(view) is True
+
+    def test_true_for_subclass(self) -> None:
+        view = type("V", (), {"filter_backends": [_SubclassedFilterBackend]})
+        assert _uses_django_filter_backend(view) is True
+
+    def test_false_for_unrelated_backend(self) -> None:
+        view = type("V", (), {"filter_backends": [_UnrelatedBackend]})
+        assert _uses_django_filter_backend(view) is False
+
+
+class TestValidateFilterSetNoBackendConflict:
+    def _list_spec(self, **kw: Any) -> SelectorSpec:
+        return SelectorSpec(kind=SelectorKind.LIST, selector=_selector, **kw)
+
+    def test_silent_when_no_filter_set(self) -> None:
+        view = type("V", (), {"filter_backends": [DjangoFilterBackend]})
+        validate_filter_set_no_backend_conflict(view, self._list_spec(), label="X")
+
+    def test_silent_when_no_backend(self) -> None:
+        view = type("V", (), {"filter_backends": []})
+        validate_filter_set_no_backend_conflict(
+            view, self._list_spec(filter_set=_FILTER_SET), label="X"
+        )
+
+    def test_raises_on_conflict(self) -> None:
+        view = type("V", (), {"filter_backends": [DjangoFilterBackend]})
+        with pytest.raises(ImproperlyConfigured, match="filter_set"):
+            validate_filter_set_no_backend_conflict(
+                view, self._list_spec(filter_set=_FILTER_SET), label="X"
+            )
+
+
+class TestFilterSetGuardAtAsView:
+    """End-to-end: the guard fires through each ``as_view()`` mount point."""
+
+    def test_list_view_raises_on_conflict(self) -> None:
+        class _View(SelectorListView):
+            filter_backends = [DjangoFilterBackend]
+            spec = SelectorSpec(kind=SelectorKind.LIST, selector=_selector, filter_set=_FILTER_SET)
+
+        with pytest.raises(ImproperlyConfigured, match="filter_set"):
+            _View.as_view()
+
+    def test_list_view_silent_without_backend(self) -> None:
+        class _View(SelectorListView):
+            filter_backends = []  # type: ignore[var-annotated]
+            spec = SelectorSpec(kind=SelectorKind.LIST, selector=_selector, filter_set=_FILTER_SET)
+
+        assert _View.as_view() is not None
+
+    def test_list_view_silent_with_backend_but_no_filter_set(self) -> None:
+        class _View(SelectorListView):
+            filter_backends = [DjangoFilterBackend]
+            spec = SelectorSpec(kind=SelectorKind.LIST, selector=_selector)
+
+        assert _View.as_view() is not None
+
+    def test_retrieve_view_silent_with_backend(self) -> None:
+        # Retrieve overrides get_object and never calls filter_queryset, so the
+        # guard is skipped even with both filter_set and DjangoFilterBackend.
+        class _View(SelectorRetrieveView):
+            filter_backends = [DjangoFilterBackend]
+            spec = SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_selector, filter_set=_FILTER_SET
+            )
+
+        assert _View.as_view() is not None
+
+    def test_viewset_list_action_raises_on_conflict(self) -> None:
+        class _ViewSet(SelectorViewSet):
+            filter_backends = [DjangoFilterBackend]
+            action_specs = {
+                "list": SelectorSpec(
+                    kind=SelectorKind.LIST, selector=_selector, filter_set=_FILTER_SET
+                ),
+            }
+
+        with pytest.raises(ImproperlyConfigured, match="filter_set"):
+            _ViewSet.as_view({"get": "list"})

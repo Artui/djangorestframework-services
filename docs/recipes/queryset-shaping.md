@@ -5,9 +5,12 @@ Selectors are meant to stay agnostic of any one consumer — a single
 needs its own `select_related` / `prefetch_related` / `annotate` shaping
 so the response serializer doesn't trigger an N+1.
 
-`SelectorSpec` carries four shaping fields. Three are declarative (apply
-the same shaping every request); the fourth is a callable that lets the
-shaping depend on the request.
+`SelectorSpec` carries five queryset-shaping fields. Three are declarative
+eager-loading fields (`select_related` / `prefetch_related` /
+`annotations`, applied every request); `extend_queryset` is a callable for
+request-dependent shaping; and `filter_set` applies a `django-filter`
+FilterSet — that one has its own recipe,
+[filter a selector with `filter_set`](selector-filtering.md).
 
 ```python
 from django.db.models import Count, Prefetch
@@ -27,9 +30,9 @@ class PostViewSet(SelectorViewSet):
 ```
 
 The fields are applied in fixed order — `select_related` →
-`prefetch_related` → `annotations` → `extend_queryset` — to the queryset
-the selector returns. They run inside `dispatch_selector_for_spec`, so
-both list and retrieve flows pick them up.
+`prefetch_related` → `annotations` → `extend_queryset` → `filter_set` — to
+the queryset the selector returns. They run inside
+`dispatch_selector_for_spec`, so both list and retrieve flows pick them up.
 
 ## Dynamic shaping with `extend_queryset`
 
@@ -176,9 +179,9 @@ class ActivityView(SelectorListView):
 Two caveats, both inherent rather than framework-imposed:
 
 - **Don't combine a non-QuerySet return with the shaping fields.**
-  `select_related` / `prefetch_related` / `annotations` / `extend_queryset`
-  are QuerySet operations; setting them while returning a list raises
-  `ImproperlyConfigured` at request time (see above).
+  `select_related` / `prefetch_related` / `annotations` / `extend_queryset` /
+  `filter_set` are QuerySet operations; setting them while returning a list
+  raises `ImproperlyConfigured` at request time (see above).
 - **Pagination needs a sized, sliceable sequence.** A `list`/`tuple`
   paginates fine (Django's `Paginator` only needs `len()` + slicing). A
   lazy **generator** works when pagination is *off*, but the paginators

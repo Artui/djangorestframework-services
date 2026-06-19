@@ -62,32 +62,40 @@ def apply_queryset_shaping(
     prefetch_related: Any,
     annotations: Any,
     extend_queryset: Any,
+    filter_set: Any = None,
     source_label: str,
 ) -> Any:
-    """Apply the four shaping fields to ``qs``.
+    """Apply the five shaping fields to ``qs``.
 
     Declarative fields apply first (in declaration order), then
     ``extend_queryset`` runs so the user callable always sees the fully
-    statically-shaped queryset. Returns ``qs`` unchanged when no shaping
-    is configured.
+    statically-shaped queryset, and finally ``filter_set`` narrows it via
+    the transport-neutral ``filter_set(data=request.query_params,
+    queryset=qs).qs`` contract — so filtering composes with shaping and runs
+    before the retrieve ``.first()`` materialization the caller does next.
+    Returns ``qs`` unchanged when no shaping is configured.
 
     Raises :exc:`ImproperlyConfigured` when shaping is configured but
     ``qs`` is not a Django QuerySet (no ``annotate`` method) — loud
     failure beats a stale ``AttributeError`` deep in DRF rendering.
     ``source_label`` is included in the error to point at the misuse
     (``"SelectorSpec.selector"`` vs ``"ServiceSpec.output_selector_spec.selector"``).
+
+    ``filter_set`` defaults to ``None`` so existing callers of this blessed
+    surface keep working unchanged.
     """
     if (
         select_related is None
         and prefetch_related is None
         and annotations is None
         and extend_queryset is None
+        and filter_set is None
     ):
         return qs
     if not is_queryset(qs):
         raise ImproperlyConfigured(
             "select_related / prefetch_related / annotations / extend_queryset "
-            f"are set on the spec but {source_label} returned "
+            f"/ filter_set are set on the spec but {source_label} returned "
             f"{type(qs).__name__}, which is not a Django QuerySet. Drop the "
             "shaping fields or have the callable return a QuerySet."
         )
@@ -99,6 +107,8 @@ def apply_queryset_shaping(
         qs = qs.annotate(**annotations)
     if extend_queryset is not None:
         qs = extend_queryset(qs, view, request)
+    if filter_set is not None:
+        qs = filter_set(data=request.query_params, queryset=qs).qs
     return qs
 
 
@@ -163,6 +173,7 @@ def dispatch_selector_for_spec(
             prefetch_related=spec.prefetch_related,
             annotations=spec.annotations,
             extend_queryset=spec.extend_queryset,
+            filter_set=spec.filter_set,
             source_label=source_label,
         )
     except ObjectDoesNotExist as exc:

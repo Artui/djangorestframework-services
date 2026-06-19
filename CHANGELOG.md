@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`SelectorSpec.filter_set` — transport-neutral filtering on the spec**
+  (FILT-1). A `django-filter` `FilterSet` (or any object honouring the same
+  `(data, queryset) -> .qs` contract) set on a selector spec is applied to
+  the selector's queryset after the shaping fields, reading the values off
+  `request.query_params`. It composes with `select_related` /
+  `prefetch_related` / `annotations` / `extend_queryset`, works on both
+  `LIST` and `RETRIEVE` selectors — closing the retrieve-path gap where
+  `RetrieveModelMixin` runs no filter step — and requires the selector to
+  return a `QuerySet` (same guards as the other shaping fields). Applied by
+  duck typing, so it adds **no dependency** to the package. See the new
+  *Filter a selector with `filter_set`* recipe.
+- **Fail-fast guard for the list double-apply** (FILT-2). A `LIST` selector
+  spec that carries `filter_set` while its view also lists
+  `DjangoFilterBackend` in `filter_backends` now raises
+  `ImproperlyConfigured` at `as_view()` time — `filter_set` *replaces*
+  `DjangoFilterBackend` (they apply the same FilterSet), so configuring both
+  would filter the queryset twice. Retrieve is unaffected (its selector path
+  overrides `get_object()` and never calls `filter_queryset`).
+
+### Changed
+
+- `apply_queryset_shaping` (part of the stable dispatch surface) gained an
+  optional `filter_set` keyword argument (default `None`) and now applies a
+  spec's FilterSet as the final shaping step. Backward-compatible: existing
+  callers that don't pass `filter_set` are unaffected.
+
+### Documentation
+
+- New recipe: *Filter a selector with `filter_set`* (FILT-3) — list and
+  retrieve usage, the "replaces `DjangoFilterBackend`" rule, and the
+  `kwargs`-vs-`filter_set` boundary for computed (non-queryset) results.
+
 ## [0.17.0] — 2026-06-10
 
 ### Added
