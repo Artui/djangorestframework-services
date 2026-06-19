@@ -272,6 +272,17 @@ def _execute_mutation(
     except ServiceError as exc:
         raise map_service_error(exc) from exc
 
+    # Mirror DRF's ``UpdateModelMixin``: a mutating service may have changed a
+    # related collection the target instance prefetched (via a prefetching
+    # ``instance_selector_spec`` or the ``get_object()`` queryset), leaving its
+    # ``_prefetched_objects_cache`` stale. Clear it on the resolved in-memory
+    # instance so a re-serialization reads fresh related data. Guarded: a no-op
+    # on create (``instance`` is ``None``) and when nothing was prefetched. The
+    # final ``result`` is deliberately left untouched — an ``output_selector_spec``
+    # re-fetch carries its own intentional ``prefetch_related`` that must survive.
+    if instance is not None and getattr(instance, "_prefetched_objects_cache", None):
+        instance._prefetched_objects_cache = {}
+
     output_serializer: type[Serializer] | None = None
     if output_selector_spec is not None:
         output_serializer = output_selector_spec.output_serializer

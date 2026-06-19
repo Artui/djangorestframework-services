@@ -32,7 +32,11 @@ class ServiceAutoSchema(AutoSchema):
       ``spec.output_selector_spec.output_serializer`` (or rendered as a
       no-content response when unset and the action's default status is 204).
     - A ``422`` response documenting :class:`ServiceErrorSerializer` is
-      attached so consumers know about the ``ServiceError`` contract.
+      attached when the operation can surface a ``ServiceError``. By default
+      that is gated on whether the operation validates input
+      (``spec.input_serializer is not None``), so a no-input mutation (e.g. a
+      plain delete) carries no spurious 422; ``spec.document_service_error``
+      forces the decision either way.
     - Partial-update actions instantiate the request serializer with
       ``partial=True`` so optional-on-PATCH semantics show up correctly.
       ``spec.partial`` overrides the action-derived flag with the same
@@ -110,7 +114,15 @@ class ServiceAutoSchema(AutoSchema):
         # for each status entry; mix them depending on whether a response
         # body is configured.
         success: Any = out_cls if out_cls is not None else OpenApiResponse(description="")
-        return {
-            status: success,
-            422: ServiceErrorSerializer,
-        }
+        responses: dict[Any, Any] = {status: success}
+        # Gate the 422 ServiceError response: ``document_service_error`` forces
+        # it when set, otherwise default to documenting it only for operations
+        # that validate input (a no-input delete then carries no spurious 422).
+        document_422 = (
+            spec.document_service_error
+            if spec.document_service_error is not None
+            else spec.input_serializer is not None
+        )
+        if document_422:
+            responses[422] = ServiceErrorSerializer
+        return responses

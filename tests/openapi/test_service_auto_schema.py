@@ -95,6 +95,25 @@ class _DeletePlainView(ServiceDeleteView):
     spec = ServiceSpec(service=_delete_plain)
 
 
+class _ForcedErrorDeleteView(ServiceDeleteView):
+    # No input_serializer, but ``document_service_error=True`` forces the 422
+    # back on (a no-input service that *does* raise ServiceError).
+    queryset = Author.objects.all()
+    spec = ServiceSpec(service=_delete_plain, document_service_error=True)
+
+
+class _NoErrorCreateView(ServiceCreateView):
+    # Input-bearing, but ``document_service_error=False`` drops the 422.
+    spec = ServiceSpec(
+        service=_create,
+        input_serializer=_AuthorIn,
+        document_service_error=False,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+        ),
+    )
+
+
 class _AuthorViewSet(ServiceViewSet):
     queryset = Author.objects.all()
     action_specs = {
@@ -150,6 +169,8 @@ urlpatterns = [
     path("forced-full/<int:pk>/", _ForcedFullUpdateView.as_view()),
     path("delete/<int:pk>/", _DeleteView.as_view()),
     path("plain-delete/<int:pk>/", _DeletePlainView.as_view()),
+    path("force-error-delete/<int:pk>/", _ForcedErrorDeleteView.as_view()),
+    path("no-error-create/", _NoErrorCreateView.as_view()),
     *_router.urls,
 ]
 
@@ -242,13 +263,41 @@ class TestViewsetSchema:
 
 @pytest.mark.django_db
 class TestServiceActionSchema:
-    def test_action_emits_request_and_response(self) -> None:
+    def test_action_emits_response_and_gates_out_no_input_422(self) -> None:
         schema = _generate()
         # ``approve`` is a detail action; spectacular places it under
         # /approvals/{id}/approve/.
         op = schema["paths"]["/approvals/{id}/approve/"]["post"]
         assert "200" in op["responses"]
+        # The approve spec has no ``input_serializer``, so the 422 ServiceError
+        # response is gated out (SCH-1) — no spurious diff for a no-input action.
+        assert "422" not in op["responses"]
+
+
+@pytest.mark.django_db
+class TestServiceErrorResponseGating:
+    def test_no_input_delete_omits_422(self) -> None:
+        schema = _generate()
+        op = schema["paths"]["/plain-delete/{id}/"]["delete"]
+        # No input_serializer → no spurious ServiceError response.
+        assert "422" not in op["responses"]
+
+    def test_input_bearing_mutation_keeps_422(self) -> None:
+        schema = _generate()
+        op = schema["paths"]["/create/"]["post"]
         assert "422" in op["responses"]
+
+    def test_flag_true_forces_422_on_no_input(self) -> None:
+        schema = _generate()
+        op = schema["paths"]["/force-error-delete/{id}/"]["delete"]
+        # document_service_error=True overrides the no-input heuristic.
+        assert "422" in op["responses"]
+
+    def test_flag_false_drops_422_on_input(self) -> None:
+        schema = _generate()
+        op = schema["paths"]["/no-error-create/"]["post"]
+        # document_service_error=False overrides the input-present heuristic.
+        assert "422" not in op["responses"]
 
 
 class TestServiceErrorSerializer:

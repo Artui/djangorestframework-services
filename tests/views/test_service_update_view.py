@@ -6,10 +6,11 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
+from rest_framework import serializers
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec, ServiceUpdateView
-from tests.testapp.models import Author
+from tests.testapp.models import Author, Post
 from tests.testapp.serializers import AuthorSerializer
 
 
@@ -232,3 +233,60 @@ class TestServiceUpdateView:
         assert response.data is None
         author.refresh_from_db()
         assert author.name == "touched"
+
+
+@pytest.mark.django_db
+class TestPrefetchCacheCleared:
+    """PF-1: a mutating service that changes a prefetched relation renders
+    fresh data, mirroring DRF's ``UpdateModelMixin`` prefetch-cache invalidation.
+
+    The target is resolved with its ``posts`` reverse FK prefetched, then the
+    service adds a row via the ``Post`` manager — a path Django does *not*
+    self-invalidate (unlike an m2m ``.add()``), so the parent's prefetch cache
+    stays stale unless the framework clears it.
+    """
+
+    def test_renders_fresh_related_data_after_service_mutates_relation(self) -> None:
+        author = Author.objects.create(name="Ada")
+        Post.objects.create(title="old", author=author)
+
+        def fetch_author(*, pk: int) -> Any:
+            return Author.objects.filter(pk=pk)
+
+        def add_post(*, instance: Author) -> None:
+            # Creates a related row without touching ``instance.posts``, so the
+            # prefetch cache is left stale; returns None so the update flow
+            # re-serializes the in-memory instance.
+            Post.objects.create(title="new", author=instance)
+
+        class _AuthorPostsSerializer(serializers.ModelSerializer):
+            post_titles = serializers.SerializerMethodField()
+
+            class Meta:
+                model = Author
+                fields = ("id", "post_titles")
+
+            def get_post_titles(self, obj: Author) -> list[str]:
+                return sorted(p.title for p in obj.posts.all())
+
+        class _View(ServiceUpdateView):
+            queryset = Author.objects.all()
+            spec = ServiceSpec(
+                service=add_post,
+                # Resolves the target with ``posts`` prefetched, so its cache is
+                # populated (and goes stale) before the service mutates it.
+                instance_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=fetch_author,
+                    prefetch_related=["posts"],
+                ),
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=_AuthorPostsSerializer
+                ),
+                atomic=False,
+            )
+
+        response = _View.as_view()(factory.put("/", {}, format="json"), pk=author.pk)
+        assert response.status_code == 200
+        # Without the prefetch-cache clear this would be the stale ["old"].
+        assert response.data["post_titles"] == ["new", "old"]

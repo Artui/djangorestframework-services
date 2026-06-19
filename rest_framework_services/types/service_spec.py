@@ -7,10 +7,8 @@ from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
 from rest_framework.permissions import BasePermission
-from rest_framework.request import Request
 
 from rest_framework_services.types.selector_spec import SelectorSpec
-from rest_framework_services.types.service_view import ServiceView
 
 InputT = TypeVar("InputT")
 ResultT = TypeVar("ResultT")
@@ -51,12 +49,12 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     ``input_serializer`` validates it — useful for lifting URL kwargs
     (e.g. parent IDs from nested routes) into fields the serializer can
     cross-validate. Server-provided keys win on conflict. The provider is
-    called with ``(view, request)`` positionally and may additionally
-    declare ``instance`` as a keyword parameter to receive the resolved
-    mutation target (``None`` on create) — passed only when declared, so
-    pre-validation input mutation that depends on the current row has a
-    home. The same declare-to-receive rule applies to the
-    ``get_input_data`` / ``get_<action>_input_data`` view hooks.
+    invoked through the framework's keyword pool, so it declares any subset of
+    ``view`` / ``request`` plus ``instance`` (the resolved mutation target,
+    ``None`` on create) — or ``**kwargs`` — receiving only what it names, so
+    pre-validation input mutation that depends on the current row has a home.
+    The same declare-to-receive rule applies to the ``get_input_data`` /
+    ``get_<action>_input_data`` view hooks.
 
     ``input_serializer_context`` is a per-spec hook for the input
     serializer's ``context=`` dict. It sits at the most-specific layer of
@@ -115,6 +113,17 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     ``dispatch_mutation_for_spec``, so it is honoured uniformly by the
     viewset mixins, the standalone views, and ``@service_action``.
 
+    ``document_service_error`` is an **OpenAPI-only** flag controlling whether
+    the generated schema documents the ``422`` :class:`ServiceError` response
+    (it has no effect on runtime behaviour — a service may always raise
+    ``ServiceError``). ``None`` (the default) gates the 422 on whether the
+    operation validates input (``input_serializer is not None``), so a
+    no-input mutation (e.g. a plain delete) doesn't carry a spurious 422 in
+    its schema. Set ``True`` to document it anyway (a no-input service that
+    *does* raise ``ServiceError``) or ``False`` to drop it (an input-bearing
+    service that never raises one). Only consulted when the ``[spectacular]``
+    extra is enabled via :func:`~rest_framework_services.openapi.enable_openapi`.
+
     ``kwargs`` is a callable that returns extra kwargs to merge into the
     pool the service receives. Co-locating it with the spec lets each action
     declare its own contract — no ``if self.action == ...`` branching in a
@@ -134,15 +143,20 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     atomic: bool = True
     success_status: int | None = None
     partial: bool | None = None
+    # OpenAPI-only: whether the generated schema documents the 422
+    # ``ServiceError`` response. ``None`` gates it on ``input_serializer is not
+    # None``; ``True`` / ``False`` force it. Runtime behaviour is unaffected.
+    document_service_error: bool | None = None
 
     # Input pipeline.
     input_serializer: type | None = None
-    # ``input_data`` providers are called as ``(view, request)`` and may
-    # additionally declare ``instance`` (the resolved mutation target,
-    # ``None`` on create) as a keyword parameter — passed only when
-    # declared; hence the open ``...`` parameter spec.
+    # Providers are invoked through the framework's keyword pool: ``input_data``
+    # declares any subset of ``view`` / ``request`` plus ``instance`` (the
+    # resolved mutation target, ``None`` on create); the context provider
+    # declares any subset of ``view`` / ``request`` — or ``**kwargs``. Hence
+    # the open ``...`` parameter specs.
     input_data: Callable[..., Mapping[str, Any]] | None = None
-    input_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
+    input_serializer_context: Callable[..., Mapping[str, Any]] | None = None
     # Instance resolution for update / destroy / detail actions — the
     # input-side twin of ``output_selector_spec`` (kind=RETRIEVE).
     instance_selector_spec: SelectorSpec[Any, Any] | None = None
@@ -151,6 +165,8 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     # inside a nested SelectorSpec (kind=RETRIEVE).
     output_selector_spec: SelectorSpec[Any, Any] | None = None
 
-    # Cross-cutting.
-    kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
+    # Cross-cutting. ``kwargs`` is invoked through the framework's keyword
+    # pool, so it declares any subset of ``view`` / ``request`` (or ``**kwargs``)
+    # — hence the open ``...`` parameter spec.
+    kwargs: Callable[..., ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
