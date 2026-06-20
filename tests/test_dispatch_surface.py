@@ -11,6 +11,9 @@ imports here when they bump past 0.17.
 from __future__ import annotations
 
 import rest_framework_services as pkg
+from rest_framework_services.dispatch.adispatch_spec import adispatch_spec
+from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
+from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.is_async import is_async
 from rest_framework_services.selectors.utils import (
     apply_queryset_shaping,
@@ -22,6 +25,7 @@ from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.views.mutation.utils import (
     build_input_serializer,
+    build_input_serializer_from_data,
     resolve_mutation_instance,
     validate_input,
 )
@@ -29,12 +33,16 @@ from rest_framework_services.views.utils import resolve_callable_kwargs
 
 # Blessed name → the leaf-module original it must alias.
 _SURFACE = {
+    "adispatch_spec": adispatch_spec,
     "apply_queryset_shaping": apply_queryset_shaping,
     "arun_selector": arun_selector,
     "arun_service": arun_service,
     "build_input_serializer": build_input_serializer,
+    "build_input_serializer_from_data": build_input_serializer_from_data,
+    "dispatch_spec": dispatch_spec,
     "is_async": is_async,
     "is_queryset": is_queryset,
+    "render_spec_output": render_spec_output,
     "resolve_callable_kwargs": resolve_callable_kwargs,
     "resolve_mutation_instance": resolve_mutation_instance,
     "run_selector": run_selector,

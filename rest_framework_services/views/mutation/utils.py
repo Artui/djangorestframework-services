@@ -115,6 +115,33 @@ def build_input_serializer(
         data: Any = {**request.data, **extra_data}
     else:
         data = request.data
+    return build_input_serializer_from_data(
+        data,
+        input_serializer,
+        partial=partial,
+        context=context,
+        instance=instance,
+    )
+
+
+def build_input_serializer_from_data(
+    data: Any,
+    input_serializer: type | None,
+    *,
+    partial: bool = False,
+    context: dict[str, Any] | None = None,
+    instance: Any = None,
+) -> Serializer | None:
+    """Construct + validate the bound input serializer from a raw ``data`` dict.
+
+    The transport-neutral core of :func:`build_input_serializer`: it takes the
+    input ``data`` directly instead of reaching into a DRF ``request.data``, so
+    a non-HTTP caller (``dispatch_spec``) and the HTTP view path share one
+    validation implementation. See :func:`build_input_serializer` for the
+    ``input_serializer`` / ``partial`` / ``context`` / ``instance`` semantics.
+    """
+    if input_serializer is None:
+        return None
     serializer_kwargs: dict[str, Any] = {"data": data, "partial": partial}
     if instance is not None:
         serializer_kwargs["instance"] = instance
