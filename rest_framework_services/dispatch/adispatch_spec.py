@@ -9,6 +9,7 @@ from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 
 from rest_framework_services.dispatch.utils import (
+    COLLECTION_SOURCE,
     INSTANCE_SOURCE,
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
@@ -32,7 +33,7 @@ async def adispatch_spec(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     *,
     user: Any,
-    params: Mapping[str, Any],
+    params: Mapping[str, Any] | list[Any],
     request: Any = None,
     view: Any = None,
     success_status: int | None = None,
@@ -65,7 +66,7 @@ async def _adispatch_selector(
     spec: SelectorSpec[Any, Any],
     *,
     user: Any,
-    params: Mapping[str, Any],
+    params: Any,
     request: Any,
     view: Any,
 ) -> DispatchResult:
@@ -103,16 +104,27 @@ async def _adispatch_service(
     spec: ServiceSpec[Any, Any, Any],
     *,
     user: Any,
-    params: Mapping[str, Any],
+    params: Any,
     request: Any,
     view: Any,
     success_status: int | None,
 ) -> DispatchResult:
-    found, instance = await _aresolve_instance(
+    if spec.many:
+        return await _adispatch_service_many(
+            spec,
+            user=user,
+            params=params,
+            request=request,
+            view=view,
+            success_status=success_status,
+        )
+
+    mode, target = await _aresolve_target(
         spec, user=user, params=params, request=request, view=view
     )
-    if not found:
+    if mode == "missing":
         return DispatchResult(value=None, kind="not_found", status=404)
+    instance = target if mode == "instance" else None
 
     input_context = resolve_input_context(spec, view=view, request=request)
     # Validation can touch the DB (e.g. ``UniqueValidator``); run it off-loop.
@@ -126,7 +138,9 @@ async def _adispatch_service(
 
     pool: dict[str, Any] = base_pool(user=user, request=request)
     pool.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
-    if instance is not None:
+    if mode == "collection":
+        pool["collection"] = target
+    elif instance is not None:
         pool["instance"] = instance
     if serializer is not None:
         pool["data"] = serializer.validated_data
@@ -141,6 +155,69 @@ async def _adispatch_service(
 
     status = success_status if success_status is not None else (spec.success_status or 200)
     return DispatchResult(value=result, kind="instance", status=status)
+
+
+async def _adispatch_service_many(
+    spec: ServiceSpec[Any, Any, Any],
+    *,
+    user: Any,
+    params: Any,
+    request: Any,
+    view: Any,
+    success_status: int | None,
+) -> DispatchResult:
+    input_context = resolve_input_context(spec, view=view, request=request)
+    serializer = await sync_to_async(build_input_serializer_from_data, thread_sensitive=True)(
+        params,
+        spec.input_serializer,
+        partial=spec.partial or False,
+        many=True,
+        context=input_context,
+    )
+    pool: dict[str, Any] = base_pool(user=user, request=request)
+    pool.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
+    if serializer is not None:
+        pool["data"] = serializer.validated_data
+        pool["serializer"] = serializer
+    result: Any = await arun_service_callable(
+        spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic
+    )
+    status = success_status if success_status is not None else (spec.success_status or 200)
+    return DispatchResult(value=result, kind="list", status=status)
+
+
+async def _aresolve_target(
+    spec: ServiceSpec[Any, Any, Any],
+    *,
+    user: Any,
+    params: Mapping[str, Any],
+    request: Any,
+    view: Any,
+) -> tuple[str, Any]:
+    coll_spec = spec.collection_selector_spec
+    if coll_spec is not None:
+        if coll_spec.selector is None:
+            raise ImproperlyConfigured(
+                "collection_selector_spec requires a `selector` resolving the target set."
+            )
+        pool: dict[str, Any] = {**base_pool(user=user, request=request), **params}
+        pool.update(resolve_provider(coll_spec.kwargs, {"view": view, "request": request}))
+        result: Any = await arun_callable(
+            coll_spec.selector, resolve_callable_kwargs(coll_spec.selector, pool)
+        )
+        collection = shape_queryset(
+            coll_spec,
+            result,
+            view=view,
+            request=request,
+            params=params,
+            source_label=COLLECTION_SOURCE,
+        )
+        return ("collection", collection)
+    found, instance = await _aresolve_instance(
+        spec, user=user, params=params, request=request, view=view
+    )
+    return ("instance", instance) if found else ("missing", None)
 
 
 async def _arun_output_selector(

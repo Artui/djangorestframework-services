@@ -90,6 +90,7 @@ nav:
       - Per-spec queryset shaping: recipes/queryset-shaping.md
       - Filter a selector with filter_set: recipes/selector-filtering.md
       - Nested / child-collection writes: recipes/nested-writes.md
+      - Bulk & collection mutations: recipes/bulk-mutations.md
       - Customise serializer context: recipes/serializer-context.md
       - Scaffold a service app: recipes/scaffold-app.md
   - Reference:

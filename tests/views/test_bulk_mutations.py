@@ -1,0 +1,201 @@
+"""Bulk mutations through the HTTP views (many + collection targets)."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+import pytest
+from django.core.exceptions import ImproperlyConfigured
+from django.db.models import QuerySet
+from rest_framework import serializers
+from rest_framework.test import APIRequestFactory
+
+from rest_framework_services import (
+    SelectorKind,
+    SelectorSpec,
+    ServiceCreateView,
+    ServiceDeleteView,
+    ServiceError,
+    ServiceSpec,
+    ServiceUpdateView,
+    delete_collection,
+)
+from tests.testapp.models import Post
+
+factory = APIRequestFactory()
+
+
+@dataclass
+class _PostIn:
+    title: str
+
+
+class _PostSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Post
+        fields = ("id", "title")
+
+
+class _PublishedFilterSet:
+    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
+        self._data = data
+        self._queryset = queryset
+
+    @property
+    def qs(self) -> QuerySet[Post]:
+        raw = self._data.get("published")
+        if raw is None:
+            return self._queryset
+        return self._queryset.filter(published=str(raw).lower() in ("1", "true", "yes"))
+
+
+def _all_posts() -> QuerySet[Post]:
+    return Post.objects.all().order_by("id")
+
+
+def _bulk_create(*, data: list[_PostIn]) -> list[Post]:
+    return [Post.objects.create(title=item.title) for item in data]
+
+
+@pytest.mark.django_db
+class TestBulkCreateMany:
+    def test_list_in_list_out_201(self) -> None:
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=_bulk_create,
+                input_serializer=_PostIn,
+                many=True,
+                atomic=False,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=_PostSerializer
+                ),
+            )
+
+        response = _View.as_view()(
+            factory.post("/", [{"title": "a"}, {"title": "b"}], format="json")
+        )
+        assert response.status_code == 201
+        assert [row["title"] for row in response.data] == ["a", "b"]
+
+
+@pytest.mark.django_db
+class TestBulkDeleteCollection:
+    def test_delete_over_query_filter_204(self) -> None:
+        Post.objects.create(title="shipped", published=True)
+        Post.objects.create(title="draft", published=False)
+
+        class _View(ServiceDeleteView):
+            spec = ServiceSpec(
+                service=delete_collection(Post),
+                collection_selector_spec=SelectorSpec(
+                    kind=SelectorKind.LIST, selector=_all_posts, filter_set=_PublishedFilterSet
+                ),
+                atomic=False,
+            )
+
+        response = _View.as_view()(factory.delete("/?published=true"))
+        assert response.status_code == 204
+        assert set(Post.objects.values_list("title", flat=True)) == {"draft"}
+
+    def test_count_return_bumps_204_to_200(self) -> None:
+        Post.objects.create(title="a")
+        Post.objects.create(title="b")
+
+        def count_delete(*, collection: QuerySet[Post]) -> dict[str, int]:
+            n, _ = collection.delete()
+            return {"deleted": n}
+
+        class _View(ServiceDeleteView):
+            spec = ServiceSpec(
+                service=count_delete,
+                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts),
+                atomic=False,
+            )
+
+        response = _View.as_view()(factory.delete("/"))
+        assert response.status_code == 200
+        assert response.data == {"deleted": 2}
+
+    def test_service_error_maps_to_422(self) -> None:
+        def boom(*, collection: QuerySet[Post]) -> None:
+            raise ServiceError("nope")
+
+        class _View(ServiceDeleteView):
+            spec = ServiceSpec(
+                service=boom,
+                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts),
+                atomic=False,
+            )
+
+        response = _View.as_view()(factory.delete("/"))
+        assert response.status_code == 422
+
+
+@pytest.mark.django_db
+class TestBulkUpdateCollection:
+    def test_bulk_update_over_filter(self) -> None:
+        Post.objects.create(title="a", published=False)
+        Post.objects.create(title="b", published=False)
+
+        def publish_all(*, collection: QuerySet[Post]) -> dict[str, int]:
+            return {"updated": collection.update(published=True)}
+
+        class _View(ServiceUpdateView):
+            spec = ServiceSpec(
+                service=publish_all,
+                collection_selector_spec=SelectorSpec(
+                    kind=SelectorKind.LIST, selector=_all_posts, filter_set=_PublishedFilterSet
+                ),
+                atomic=False,
+            )
+
+        response = _View.as_view()(factory.put("/?published=false"))
+        assert response.status_code == 200
+        assert response.data == {"updated": 2}
+        assert Post.objects.filter(published=True).count() == 2
+
+
+class TestBulkValidation:
+    def test_many_and_collection_mutually_exclusive(self) -> None:
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=_bulk_create,
+                input_serializer=_PostIn,
+                many=True,
+                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts),
+            )
+
+        with pytest.raises(ImproperlyConfigured, match="mutually exclusive"):
+            _View.as_view()
+
+    def test_collection_selector_must_be_list_kind(self) -> None:
+        class _View(ServiceDeleteView):
+            spec = ServiceSpec(
+                service=delete_collection(Post),
+                collection_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, selector=_all_posts
+                ),
+            )
+
+        with pytest.raises(ImproperlyConfigured, match="must be SelectorKind.LIST"):
+            _View.as_view()
+
+    def test_collection_selector_requires_selector_at_as_view(self) -> None:
+        class _View(ServiceDeleteView):
+            spec = ServiceSpec(
+                service=delete_collection(Post),
+                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST),
+            )
+
+        with pytest.raises(ImproperlyConfigured, match="requires a `selector`"):
+            _View.as_view()
+
+    def test_valid_collection_spec_passes(self) -> None:
+        class _View(ServiceDeleteView):
+            spec = ServiceSpec(
+                service=delete_collection(Post),
+                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts),
+            )
+
+        assert _View.as_view() is not None

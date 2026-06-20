@@ -124,6 +124,20 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     service that never raises one). Only consulted when the ``[spectacular]``
     extra is enabled via :func:`~rest_framework_services.openapi.enable_openapi`.
 
+    ``many`` and ``collection_selector_spec`` are the two **bulk** shapes,
+    mutually exclusive with each other. ``many=True`` validates the request
+    body as a list (``input_serializer`` runs ``many=True``) and renders the
+    result list the same way — the service receives the validated list as
+    ``data`` and loops itself (``bulk_create`` / a comprehension), so one call
+    does the batch. ``collection_selector_spec`` is the LIST-kind twin of
+    ``instance_selector_spec``: its resolved set (a queryset or any iterable,
+    scoped by the selector + ``filter_set``) is seeded into the pool as
+    ``collection`` for the service to ``.delete()`` / ``.update()`` / iterate —
+    an instance-less "operate on the filtered set" action (bulk delete/update),
+    where an empty set is a harmless no-op. Both run all-or-nothing under
+    ``atomic=True``; authorization is per-set (the view / spec
+    ``permission_classes`` plus the scoped selector), with no per-row check.
+
     ``kwargs`` is a callable that returns extra kwargs to merge into the
     pool the service receives. Co-locating it with the spec lets each action
     declare its own contract — no ``if self.action == ...`` branching in a
@@ -143,6 +157,12 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     atomic: bool = True
     success_status: int | None = None
     partial: bool | None = None
+    # Bulk list-payload: validate the request body as a list (``many=True``)
+    # and render the result list the same way. The service receives the
+    # validated list as ``data`` and loops itself (``bulk_create`` / a
+    # comprehension). Mutually exclusive with ``collection_selector_spec``;
+    # all-or-nothing under ``atomic=True``.
+    many: bool = False
     # OpenAPI-only: whether the generated schema documents the 422
     # ``ServiceError`` response. ``None`` gates it on ``input_serializer is not
     # None``; ``True`` / ``False`` force it. Runtime behaviour is unaffected.
@@ -160,6 +180,13 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     # Instance resolution for update / destroy / detail actions — the
     # input-side twin of ``output_selector_spec`` (kind=RETRIEVE).
     instance_selector_spec: SelectorSpec[Any, Any] | None = None
+    # Collection (bulk) target — a LIST-kind nested spec whose resolved value
+    # (a queryset or any iterable) is seeded into the service pool as
+    # ``collection`` (for ``collection.delete()`` / ``.update()`` / a loop).
+    # The collection-target twin of ``instance_selector_spec``; reuses
+    # ``filter_set`` to scope the set. An empty set is a no-op, not a 404.
+    # Mutually exclusive with ``many``.
+    collection_selector_spec: SelectorSpec[Any, Any] | None = None
 
     # Output pipeline — the full re-fetch / serialize / shape group lives
     # inside a nested SelectorSpec (kind=RETRIEVE).

@@ -78,6 +78,7 @@ def build_input_serializer(
     extra_data: Mapping[str, Any] | None = None,
     context: dict[str, Any] | None = None,
     instance: Any = None,
+    many: bool = False,
 ) -> Serializer | None:
     """Construct + validate the bound input serializer; ``None`` if absent.
 
@@ -106,6 +107,9 @@ def build_input_serializer(
     and instance-aware validators (e.g. ``UniqueValidator`` excluding the
     current row) behave as they do under DRF's own update flow.
 
+    ``many`` (when ``True``) validates ``data`` as a list — the bulk
+    list-payload path; ``validated_data`` is then a list of items.
+
     The serializer is returned validated (``is_valid(raise_exception=True)``
     has run) but never saved; the service owns persistence.
     """
@@ -121,6 +125,7 @@ def build_input_serializer(
         partial=partial,
         context=context,
         instance=instance,
+        many=many,
     )
 
 
@@ -131,6 +136,7 @@ def build_input_serializer_from_data(
     partial: bool = False,
     context: dict[str, Any] | None = None,
     instance: Any = None,
+    many: bool = False,
 ) -> Serializer | None:
     """Construct + validate the bound input serializer from a raw ``data`` dict.
 
@@ -138,11 +144,14 @@ def build_input_serializer_from_data(
     input ``data`` directly instead of reaching into a DRF ``request.data``, so
     a non-HTTP caller (``dispatch_spec``) and the HTTP view path share one
     validation implementation. See :func:`build_input_serializer` for the
-    ``input_serializer`` / ``partial`` / ``context`` / ``instance`` semantics.
+    ``input_serializer`` / ``partial`` / ``context`` / ``instance`` / ``many``
+    semantics.
     """
     if input_serializer is None:
         return None
     serializer_kwargs: dict[str, Any] = {"data": data, "partial": partial}
+    if many:
+        serializer_kwargs["many"] = True
     if instance is not None:
         serializer_kwargs["instance"] = instance
     if context is not None:
@@ -376,6 +385,62 @@ def _execute_mutation(
     return Response(status=empty_body_status)
 
 
+def _dispatch_bulk_via_spec(
+    view: Any,
+    request: Request,
+    spec: ServiceSpec[Any, Any, Any],
+    *,
+    success_status: int,
+) -> Response:
+    """Render a bulk (``many`` / collection) spec through ``dispatch_spec``.
+
+    The list body / collection target, validation, and per-set scoping all live
+    in the transport-neutral path; here we only map its
+    :class:`~rest_framework_services.DispatchResult` to a DRF ``Response`` and
+    translate a ``ServiceError`` the same way the single-instance flow does.
+    """
+    # Local import: ``dispatch_spec`` composes ``build_input_serializer_from_data``
+    # from this module, so the dependency is one-directional only at runtime.
+    from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
+    from rest_framework_services.dispatch.render_spec_output import render_spec_output
+
+    if spec.many:
+        # ``many`` is a list body straight through.
+        params: Any = request.data
+    else:
+        # Collection target: the filter lives in the query string (a DELETE
+        # carries no body), merged over any body payload for the service.
+        body = request.data if isinstance(request.data, dict) else {}
+        params = {**request.query_params.dict(), **body}
+
+    try:
+        result = dispatch_spec(
+            spec,
+            user=getattr(request, "user", None),
+            params=params,
+            request=request,
+            view=view,
+        )
+    except ServiceError as exc:
+        raise map_service_error(exc) from exc
+
+    if result.value is None:
+        return Response(status=spec.success_status or success_status)
+    payload = render_spec_output(
+        spec,
+        result.value,
+        many=(result.kind == "list"),
+        view=view,
+        request=request,
+        extras={"result": result.value},
+    )
+    status = spec.success_status or success_status
+    if status == drf_status.HTTP_204_NO_CONTENT:
+        # A bulk op that returns a body but inherited the destroy default.
+        status = drf_status.HTTP_200_OK
+    return Response(payload, status=status)
+
+
 def dispatch_mutation_for_spec(
     view: Any,
     request: Request,
@@ -399,9 +464,16 @@ def dispatch_mutation_for_spec(
     point, the override is honoured uniformly across every surface —
     including create dispatch, so a create spec with ``partial=True``
     validates partially.
+
+    A bulk spec (``many=True`` or a ``collection_selector_spec``) is routed
+    through the transport-neutral :func:`dispatch_spec` instead of the
+    single-instance flow, then rendered for the HTTP response — so the bulk
+    rules live in one place.
     """
     if spec.partial is not None:
         partial = spec.partial
+    if spec.many or spec.collection_selector_spec is not None:
+        return _dispatch_bulk_via_spec(view, request, spec, success_status=success_status)
     action: str | None = getattr(view, "action", None)
     action_kwargs_hook: str | None = f"get_{action}_service_kwargs" if action else None
     action_input_hook: str | None = f"get_{action}_input_data" if action else None
@@ -498,7 +570,14 @@ def resolve_mutation_instance(
     permissions run against the resolved instance
     (``view.check_object_permissions``), matching DRF's own ``get_object()``
     contract.
+
+    Returns ``None`` for a **bulk** spec (``many=True`` or a
+    ``collection_selector_spec``): there is no single instance, and the
+    ``get_object()`` lookup would 404 a body-only bulk endpoint. The bulk path
+    resolves its target inside :func:`dispatch_mutation_for_spec` instead.
     """
+    if spec.many or spec.collection_selector_spec is not None:
+        return None
     instance_spec = spec.instance_selector_spec
     if instance_spec is None or instance_spec.selector is None:
         return view.get_object()

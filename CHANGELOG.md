@@ -66,6 +66,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   orchestration. New blessed surface: `dispatch_spec`, `adispatch_spec`,
   `render_spec_output`, `build_input_serializer_from_data`, and the
   `DispatchResult` type.
+- **Bulk & collection mutations** (BULK-1/2). `ServiceSpec` gains two bulk
+  shapes (mutually exclusive): **`many: bool`** validates a list request body
+  (`input_serializer` runs `many=True`) and renders the result list — the
+  service receives the validated list and loops itself (`bulk_create` /
+  comprehension); and **`collection_selector_spec`** — the LIST-kind twin of
+  `instance_selector_spec` — resolves a scoped set (queryset or any iterable,
+  via the selector + `filter_set`) and seeds it into the service pool as
+  `collection` for an instance-less bulk delete / update. An empty set is a
+  no-op; authorization is per-set; both run all-or-nothing under `atomic=True`
+  (per-item partial-success responses are a planned follow-up). Works through
+  the HTTP mutation views **and** `dispatch_spec`. New default service
+  `delete_collection` / `adelete_collection` (`collection.delete()`, with a
+  `soft_delete` hook). Fail-fast validation: `many` xor
+  `collection_selector_spec`, and the collection spec must be LIST-kind with a
+  selector.
 
 ### Changed
 

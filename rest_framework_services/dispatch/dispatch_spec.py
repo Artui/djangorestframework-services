@@ -8,6 +8,7 @@ from typing import Any
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 
 from rest_framework_services.dispatch.utils import (
+    COLLECTION_SOURCE,
     INSTANCE_SOURCE,
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
@@ -30,7 +31,7 @@ def dispatch_spec(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     *,
     user: Any,
-    params: Mapping[str, Any],
+    params: Mapping[str, Any] | list[Any],
     request: Any = None,
     view: Any = None,
     success_status: int | None = None,
@@ -79,7 +80,7 @@ def _dispatch_selector(
     spec: SelectorSpec[Any, Any],
     *,
     user: Any,
-    params: Mapping[str, Any],
+    params: Any,
     request: Any,
     view: Any,
 ) -> DispatchResult:
@@ -119,14 +120,25 @@ def _dispatch_service(
     spec: ServiceSpec[Any, Any, Any],
     *,
     user: Any,
-    params: Mapping[str, Any],
+    params: Any,
     request: Any,
     view: Any,
     success_status: int | None,
 ) -> DispatchResult:
-    found, instance = _resolve_instance(spec, user=user, params=params, request=request, view=view)
-    if not found:
+    if spec.many:
+        return _dispatch_service_many(
+            spec,
+            user=user,
+            params=params,
+            request=request,
+            view=view,
+            success_status=success_status,
+        )
+
+    mode, target = _resolve_target(spec, user=user, params=params, request=request, view=view)
+    if mode == "missing":
         return DispatchResult(value=None, kind="not_found", status=404)
+    instance = target if mode == "instance" else None
 
     input_context = resolve_input_context(spec, view=view, request=request)
     serializer = build_input_serializer_from_data(
@@ -139,7 +151,9 @@ def _dispatch_service(
 
     pool: dict[str, Any] = base_pool(user=user, request=request)
     pool.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
-    if instance is not None:
+    if mode == "collection":
+        pool["collection"] = target
+    elif instance is not None:
         pool["instance"] = instance
     if serializer is not None:
         pool["data"] = serializer.validated_data
@@ -154,6 +168,82 @@ def _dispatch_service(
 
     status = success_status if success_status is not None else (spec.success_status or 200)
     return DispatchResult(value=result, kind="instance", status=status)
+
+
+def _dispatch_service_many(
+    spec: ServiceSpec[Any, Any, Any],
+    *,
+    user: Any,
+    params: Any,
+    request: Any,
+    view: Any,
+    success_status: int | None,
+) -> DispatchResult:
+    """Bulk list-payload: ``params`` is the array; the service gets the list."""
+    input_context = resolve_input_context(spec, view=view, request=request)
+    serializer = build_input_serializer_from_data(
+        params,
+        spec.input_serializer,
+        partial=spec.partial or False,
+        many=True,
+        context=input_context,
+    )
+    pool: dict[str, Any] = base_pool(user=user, request=request)
+    pool.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
+    if serializer is not None:
+        pool["data"] = serializer.validated_data
+        pool["serializer"] = serializer
+    result: Any = run_service(
+        spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic
+    )
+    status = success_status if success_status is not None else (spec.success_status or 200)
+    return DispatchResult(value=result, kind="list", status=status)
+
+
+def _resolve_target(
+    spec: ServiceSpec[Any, Any, Any],
+    *,
+    user: Any,
+    params: Mapping[str, Any],
+    request: Any,
+    view: Any,
+) -> tuple[str, Any]:
+    """Resolve the mutation target: ``("collection", qs)``, ``("instance", obj)``,
+    or ``("missing", None)`` when a required instance wasn't found.
+
+    A ``collection_selector_spec`` (bulk) takes precedence; an empty collection
+    is a valid no-op (never ``"missing"``).
+    """
+    coll_spec = spec.collection_selector_spec
+    if coll_spec is not None:
+        return (
+            "collection",
+            _resolve_collection(coll_spec, user=user, params=params, request=request, view=view),
+        )
+    found, instance = _resolve_instance(spec, user=user, params=params, request=request, view=view)
+    return ("instance", instance) if found else ("missing", None)
+
+
+def _resolve_collection(
+    coll_spec: SelectorSpec[Any, Any],
+    *,
+    user: Any,
+    params: Mapping[str, Any],
+    request: Any,
+    view: Any,
+) -> Any:
+    if coll_spec.selector is None:
+        raise ImproperlyConfigured(
+            "collection_selector_spec requires a `selector` resolving the target set."
+        )
+    pool: dict[str, Any] = {**base_pool(user=user, request=request), **params}
+    pool.update(resolve_provider(coll_spec.kwargs, {"view": view, "request": request}))
+    result: Any = run_selector(
+        coll_spec.selector, resolve_callable_kwargs(coll_spec.selector, pool)
+    )
+    return shape_queryset(
+        coll_spec, result, view=view, request=request, params=params, source_label=COLLECTION_SOURCE
+    )
 
 
 def _run_output_selector(
