@@ -37,8 +37,9 @@ def base_pool(*, user: Any, request: Any) -> dict[str, Any]:
 def resolve_provider(provider: Callable[..., Any] | None, pool: dict[str, Any]) -> dict[str, Any]:
     """Invoke a ``spec.kwargs`` / context provider through the keyword pool.
 
-    Mirrors the PROV-1 invocation convention: the provider receives only the
-    subset of ``pool`` it declares. Returns ``{}`` when ``provider`` is ``None``.
+    Mirrors the framework's keyword-pool invocation convention: the provider
+    receives only the subset of ``pool`` it declares. Returns ``{}`` when
+    ``provider`` is ``None``.
     """
     if provider is None:
         return {}
@@ -97,7 +98,7 @@ def resolve_output_context(
 
     ``extras`` carries the resolved-data keyword the provider may declare
     (``result`` for a mutation, ``instance`` for a retrieve, ``page`` for a
-    list). Invoked through the PROV-1 keyword pool.
+    list). Invoked through the keyword pool.
     """
     provider = _output_context_provider(spec)
     if provider is None:

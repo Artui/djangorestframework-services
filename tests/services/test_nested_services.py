@@ -1,4 +1,4 @@
-"""``children=`` passthrough on the default model service factories (NEST-1b)."""
+"""``children=`` passthrough on the default model service factories."""
 
 from __future__ import annotations
 

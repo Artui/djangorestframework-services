@@ -1,6 +1,6 @@
 """The stable dispatch surface: blessed top-level re-exports.
 
-SURF-1 (0.17): the dispatch leaves alternate transports build on are part
+Stable since 0.17: the dispatch leaves alternate transports build on are part
 of the documented public API. This test pins the contract: every blessed
 symbol is importable from the top-level package and is *the same object*
 as its leaf-module home (no divergent copies). The private ``_compat``

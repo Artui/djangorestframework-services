@@ -237,7 +237,7 @@ class TestServiceUpdateView:
 
 @pytest.mark.django_db
 class TestPrefetchCacheCleared:
-    """PF-1: a mutating service that changes a prefetched relation renders
+    """A mutating service that changes a prefetched relation renders
     fresh data, mirroring DRF's ``UpdateModelMixin`` prefetch-cache invalidation.
 
     The target is resolved with its ``posts`` reverse FK prefetched, then the
