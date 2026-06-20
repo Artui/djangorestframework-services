@@ -656,6 +656,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -839,6 +845,90 @@
     
   
     Per-spec queryset shaping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/selector-filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filter a selector with filter_set
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/nested-writes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested / child-collection writes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/bulk-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk & collection mutations
   
 
     
@@ -1442,6 +1532,10 @@ also take:</p>
 <ul>
 <li><strong><code>m2m: dict[str, Any] | None</code></strong> — many-to-many assignments applied
   <em>post-save</em>. Each value is passed to the manager's <code>set()</code>.</li>
+<li><strong><code>children: Mapping[str, ChildSpec] | None</code></strong> — reverse-FK child
+  collections written from <code>data[relation]</code> (create / update / orphan
+  reconcile, recursively). See the
+  <a href="../recipes/nested-writes/">nested-writes recipe</a>.</li>
 </ul>
 <p><code>update_from_input</code> (and <code>aupdate_from_input</code>) additionally take:</p>
 <ul>

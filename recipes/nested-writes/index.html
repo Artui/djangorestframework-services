@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/recipes/scaffold-app/">
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/recipes/nested-writes/">
       
       
-        <link rel="prev" href="../serializer-context/">
+        <link rel="prev" href="../selector-filtering/">
       
       
-        <link rel="next" href="../../reference/">
+        <link rel="next" href="../bulk-mutations/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Scaffold a service app - djangorestframework-services</title>
+        <title>Nested / child-collection writes - djangorestframework-services</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#scaffold-a-service-app" class="md-skip">
+        <a href="#nested-writes-parent-child-collections" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Scaffold a service app
+              Nested / child-collection writes
             
           </span>
         </div>
@@ -766,10 +766,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../nested-writes/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested / child-collection writes
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -785,6 +812,92 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The shape
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#grandchildren" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Grandchildren
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#declarative-no-service-body" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declarative — no service body
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deleting-children" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleting children
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-changed-in-the-response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What changed in the response
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migrating-off-a-writable-nested-serializer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migrating off a writable-nested serializer
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -850,37 +963,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Scaffold a service app
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../scaffold-app/" class="md-nav__link">
         
   
   
@@ -896,70 +982,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#setup" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Setup
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-you-get" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What you get
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#a-note-on-validators" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        A note on validators/
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#use-it-ignore-it-or-rename-it" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Use it, ignore it, or rename it
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1345,10 +1367,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#setup" class="md-nav__link">
+  <a href="#the-shape" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Setup
+        The shape
       
     </span>
   </a>
@@ -1356,10 +1378,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-you-get" class="md-nav__link">
+  <a href="#grandchildren" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What you get
+        Grandchildren
       
     </span>
   </a>
@@ -1367,10 +1389,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#a-note-on-validators" class="md-nav__link">
+  <a href="#declarative-no-service-body" class="md-nav__link">
     <span class="md-ellipsis">
       
-        A note on validators/
+        Declarative — no service body
       
     </span>
   </a>
@@ -1378,10 +1400,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#use-it-ignore-it-or-rename-it" class="md-nav__link">
+  <a href="#deleting-children" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Use it, ignore it, or rename it
+        Deleting children
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-changed-in-the-response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What changed in the response
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migrating-off-a-writable-nested-serializer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migrating off a writable-nested serializer
       
     </span>
   </a>
@@ -1405,7 +1449,7 @@
 
 
   
-    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/recipes/scaffold-app.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/recipes/nested-writes.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1413,85 +1457,108 @@
   
 
 
-<h1 id="scaffold-a-service-app">Scaffold a service app<a class="headerlink" href="#scaffold-a-service-app" title="Permanent link">&para;</a></h1>
-<p>The package ships a <code>startserviceapp</code> management command — a subclass
-of Django's <code>startapp</code> that lays out an app the way this library
-encourages.</p>
-<h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
-<p>Add the package to <code>INSTALLED_APPS</code> to make the command discoverable:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="s2">&quot;rest_framework_services&quot;</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="p">]</span>
+<h1 id="nested-writes-parent-child-collections">Nested writes — parent + child collections<a class="headerlink" href="#nested-writes-parent-child-collections" title="Permanent link">&para;</a></h1>
+<p>The mutation helpers persist a model's scalar columns and its many-to-many
+relations. Reverse-FK <strong>child collections</strong> ("one-to-many" — an <code>Author</code> with
+<code>books</code>, an <code>Order</code> with <code>lines</code>) are written through the <code>children=</code> argument,
+so you can save a parent and its children from one request <strong>without</strong> binding a
+writable-nested serializer and delegating persistence back to <code>serializer.save()</code>.</p>
+<h2 id="the-shape">The shape<a class="headerlink" href="#the-shape" title="Permanent link">&para;</a></h2>
+<p><code>children</code> maps a relation name to a
+<a href="../../reference/types/#childspec"><code>ChildSpec</code></a>. The child rows are read from
+<code>data[relation]</code>; each child runs back through <code>create_from_input</code> /
+<code>update_from_input</code>, so scalar / m2m / nested semantics compose recursively.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChildSpec</span><span class="p">,</span> <span class="n">update_from_input</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="k">return</span> <span class="n">update_from_input</span><span class="p">(</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        <span class="n">instance</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        <span class="n">data</span><span class="p">,</span>                       <span class="c1"># {&quot;name&quot;: ..., &quot;books&quot;: [{...}, {...}]}</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="n">children</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>            <span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">),</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        <span class="p">},</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="p">)</span><span class="o">.</span><span class="n">instance</span>
 </span></code></pre></div>
-<p>Then:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>manage.py<span class="w"> </span>startserviceapp<span class="w"> </span>billing
-</span></code></pre></div>
-<h2 id="what-you-get">What you get<a class="headerlink" href="#what-you-get" title="Permanent link">&para;</a></h2>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>billing/
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>├── __init__.py
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>├── apps.py
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>├── admin.py
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>├── urls.py
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>├── models/__init__.py
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>├── views/__init__.py
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>├── services/__init__.py
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>├── selectors/__init__.py
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>├── specs/__init__.py
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>├── validators/__init__.py
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>├── serializers/__init__.py
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>├── utils/__init__.py
-</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>├── migrations/__init__.py
-</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>└── tests/__init__.py
-</span></code></pre></div>
-<p>Differences vs. plain <code>startapp</code>:</p>
 <ul>
-<li><code>models/</code> and <code>views/</code> are <strong>packages</strong>, not single files. The single-
-  file shape is a poor fit when each model and each view is its own
-  unit of work.</li>
-<li><code>services/</code>, <code>selectors/</code>, <code>specs/</code>, <code>validators/</code>, <code>serializers/</code>,
-  <code>utils/</code> are added as packages alongside.</li>
-<li><code>specs/</code> is a conventional home for <code>ServiceSpec</code> / <code>SelectorSpec</code>
-  instances — the wiring that pairs a service or selector with its
-  serializers and per-action kwargs provider.</li>
-<li>An empty <code>urls.py</code> is included — <code>startapp</code> doesn't ship one.</li>
+<li><strong><code>fk</code></strong> is the child's forward FK field pointing at the parent — set
+  automatically on created children.</li>
+<li><strong><code>match_key</code></strong> (default <code>"pk"</code>) pairs an incoming row with an existing child:
+  a row whose key matches updates it, a row with no match is created. Use
+  <code>match_key="id"</code> when your serializer emits <code>id</code> rather than <code>pk</code>.</li>
+<li><strong><code>mode</code></strong> — <code>"replace"</code> (default) reconciles the collection: create new,
+  update matched, and <strong>remove orphans</strong> (existing children absent from the
+  incoming list). <code>"merge"</code> upserts only and never removes.</li>
 </ul>
-<h2 id="a-note-on-validators">A note on <code>validators/</code><a class="headerlink" href="#a-note-on-validators" title="Permanent link">&para;</a></h2>
-<p>The <code>validators/</code> package is a stylistic convention, not a library
-feature. The library doesn't import from it or look it up by name. It
-exists to give business-level validation a home of its own — rules like
-<em>"a draft invoice can only be sent if the customer has a verified email"</em>
-or <em>"refunds beyond 30 days require manager approval"</em>. These belong
-neither in the model nor in the serializer.</p>
-<p>The split this layout suggests:</p>
-<table>
-<thead>
-<tr>
-<th>Concern</th>
-<th>Lives in</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Type validation, required fields, format checks</td>
-<td>DRF serializers (<code>serializers/</code>), including <code>DataclassSerializer</code> for service inputs</td>
-</tr>
-<tr>
-<td>Business rules / cross-record invariants / external-state checks</td>
-<td>Functions in <code>validators/</code>, called from services</td>
-</tr>
-<tr>
-<td>Side effects, persistence, orchestration</td>
-<td><code>services/</code></td>
-</tr>
-</tbody>
-</table>
-<h2 id="use-it-ignore-it-or-rename-it">Use it, ignore it, or rename it<a class="headerlink" href="#use-it-ignore-it-or-rename-it" title="Permanent link">&para;</a></h2>
-<p>The scaffolding is a starting point, not a contract. Nothing in the
-library cares whether your service lives in <code>myapp/services/foo.py</code> or
-<code>myapp/foo_service.py</code>. Pick the layout that makes your codebase easier
-to navigate; the convention exists because there's value in a project
-where every app looks the same.</p>
+<p>An orphan is <strong>unlinked</strong> (its FK set to <code>None</code>) when the FK is nullable, and
+<strong>deleted</strong> otherwise — mirroring <code>on_delete=SET_NULL</code> vs <code>CASCADE</code>. A relation
+the input omits entirely is left untouched; send an explicit <code>[]</code> to clear it.</p>
+<h2 id="grandchildren">Grandchildren<a class="headerlink" href="#grandchildren" title="Permanent link">&para;</a></h2>
+<p>A <code>ChildSpec</code> can carry its own <code>children=</code>, so depth follows the declared tree:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">children</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="s2">&quot;sections&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>        <span class="n">model</span><span class="o">=</span><span class="n">Section</span><span class="p">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;catalog&quot;</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        <span class="n">children</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;items&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Item</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;section&quot;</span><span class="p">)},</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="p">),</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="p">}</span>
+</span></code></pre></div>
+<h2 id="declarative-no-service-body">Declarative — no service body<a class="headerlink" href="#declarative-no-service-body" title="Permanent link">&para;</a></h2>
+<p>The default model services forward <code>children=</code>, so a parent-with-children
+resource needs no hand-written service:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceSpec</span><span class="p">,</span> <span class="n">create_model</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">service</span><span class="o">=</span><span class="n">create_model</span><span class="p">(</span><span class="n">Author</span><span class="p">,</span> <span class="n">children</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}),</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">AuthorInput</span><span class="p">,</span>   <span class="c1"># validates name + the books list</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><code>children</code> lives on the <strong>helper</strong>, never on <code>ServiceSpec</code> — the dispatch
+surface stays about transport, not persistence shape.</p>
+<h2 id="deleting-children">Deleting children<a class="headerlink" href="#deleting-children" title="Permanent link">&para;</a></h2>
+<p><code>delete_model</code> accepts <code>children=</code> to remove collections <strong>before</strong> the parent
+(grandchildren first) — useful when the FK can't cascade for you (a <code>PROTECT</code>
+relation, or a <code>soft_delete</code> Django won't cascade through). Nullable-FK children
+are unlinked, the rest deleted, exactly like the orphan rule above:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">delete_model</span><span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">Catalog</span><span class="p">,</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">children</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;sections&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Section</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;catalog&quot;</span><span class="p">)},</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>For a plain hard delete, you usually don't need this — the FK's <code>on_delete</code>
+already cascades.</p>
+<h2 id="what-changed-in-the-response">What changed in the response<a class="headerlink" href="#what-changed-in-the-response" title="Permanent link">&para;</a></h2>
+<p><code>ChangeResult.children</code> carries one
+<a href="../../reference/types/#childcollectionchange"><code>ChildCollectionChange</code></a> per
+relation, with the <code>created</code> / <code>updated</code> / <code>deleted</code> / <code>unlinked</code> child pks:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">update_from_input</span><span class="p">(</span><span class="n">author</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">children</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)})</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">delta</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get_child_change</span><span class="p">(</span><span class="s2">&quot;books&quot;</span><span class="p">)</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">delta</span><span class="o">.</span><span class="n">created</span><span class="p">,</span> <span class="n">delta</span><span class="o">.</span><span class="n">updated</span><span class="p">,</span> <span class="n">delta</span><span class="o">.</span><span class="n">deleted</span><span class="p">,</span> <span class="n">delta</span><span class="o">.</span><span class="n">unlinked</span>
+</span></code></pre></div>
+<h2 id="migrating-off-a-writable-nested-serializer">Migrating off a writable-nested serializer<a class="headerlink" href="#migrating-off-a-writable-nested-serializer" title="Permanent link">&para;</a></h2>
+<p><strong>Before</strong> — persistence lives in the serializer, and the service delegates to it:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">WritableNestedModelSerializer</span><span class="p">):</span>   <span class="c1"># drf-writable-nested / drf-nested</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">serializer</span><span class="p">):</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="k">return</span> <span class="n">serializer</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>        <span class="c1"># the coupling we&#39;re removing</span>
+</span></code></pre></div>
+<p><strong>After</strong> — the serializer only validates; the service owns persistence:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>   <span class="c1"># plain nested serializer, validation only</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">Author</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;books&quot;</span><span class="p">]</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="k">return</span> <span class="n">update_from_input</span><span class="p">(</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>        <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">children</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>    <span class="p">)</span><span class="o">.</span><span class="n">instance</span>
+</span></code></pre></div>
+<p>Field-level validation stays in the serializer / dataclass; the helper owns the
+writes, inside the service's atomic block. The nested serializer no longer needs
+a <code>create()</code> / <code>update()</code> override, and the <code>drf-writable-nested</code>-style base
+class can go.</p>
 
 
 

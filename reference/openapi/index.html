@@ -532,6 +532,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -715,6 +721,90 @@
     
   
     Per-spec queryset shaping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/selector-filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filter a selector with filter_set
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/nested-writes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested / child-collection writes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/bulk-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk & collection mutations
   
 
     
@@ -1365,7 +1455,11 @@ classes that set <code>schema = ...</code> explicitly keep their own choice.</p>
   <code>spec.output_selector_spec.output_serializer</code> (or rendered as a
   no-content response when unset and the action's default status is 204).</li>
 <li>A <code>422</code> response documenting :class:<code>ServiceErrorSerializer</code> is
-  attached so consumers know about the <code>ServiceError</code> contract.</li>
+  attached when the operation can surface a <code>ServiceError</code>. By default
+  that is gated on whether the operation validates input
+  (<code>spec.input_serializer is not None</code>), so a no-input mutation (e.g. a
+  plain delete) carries no spurious 422; <code>spec.document_service_error</code>
+  forces the decision either way.</li>
 <li>Partial-update actions instantiate the request serializer with
   <code>partial=True</code> so optional-on-PATCH semantics show up correctly.
   <code>spec.partial</code> overrides the action-derived flag with the same

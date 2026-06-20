@@ -16,7 +16,7 @@
         <link rel="prev" href="../permissions/">
       
       
-        <link rel="next" href="../serializer-context/">
+        <link rel="next" href="../selector-filtering/">
       
       
         
@@ -534,6 +534,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -825,6 +831,90 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../selector-filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filter a selector with filter_set
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nested-writes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested / child-collection writes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bulk-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk & collection mutations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1350,9 +1440,12 @@
 <code>list_authors</code> selector backs many endpoints. But each endpoint often
 needs its own <code>select_related</code> / <code>prefetch_related</code> / <code>annotate</code> shaping
 so the response serializer doesn't trigger an N+1.</p>
-<p><code>SelectorSpec</code> carries four shaping fields. Three are declarative (apply
-the same shaping every request); the fourth is a callable that lets the
-shaping depend on the request.</p>
+<p><code>SelectorSpec</code> carries five queryset-shaping fields. Three are declarative
+eager-loading fields (<code>select_related</code> / <code>prefetch_related</code> /
+<code>annotations</code>, applied every request); <code>extend_queryset</code> is a callable for
+request-dependent shaping; and <code>filter_set</code> applies a <code>django-filter</code>
+FilterSet — that one has its own recipe,
+<a href="../selector-filtering/">filter a selector with <code>filter_set</code></a>.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.db.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Count</span><span class="p">,</span> <span class="n">Prefetch</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">PostViewSet</span><span class="p">(</span><span class="n">SelectorViewSet</span><span class="p">):</span>
@@ -1369,9 +1462,9 @@ shaping depend on the request.</p>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="p">}</span>
 </span></code></pre></div>
 <p>The fields are applied in fixed order — <code>select_related</code> →
-<code>prefetch_related</code> → <code>annotations</code> → <code>extend_queryset</code> — to the queryset
-the selector returns. They run inside <code>dispatch_selector_for_spec</code>, so
-both list and retrieve flows pick them up.</p>
+<code>prefetch_related</code> → <code>annotations</code> → <code>extend_queryset</code> → <code>filter_set</code> — to
+the queryset the selector returns. They run inside
+<code>dispatch_selector_for_spec</code>, so both list and retrieve flows pick them up.</p>
 <h2 id="dynamic-shaping-with-extend_queryset">Dynamic shaping with <code>extend_queryset</code><a class="headerlink" href="#dynamic-shaping-with-extend_queryset" title="Permanent link">&para;</a></h2>
 <p>When the shaping depends on the incoming request — only prefetch when a
 query string opts in, annotate different aggregates per role — set
@@ -1496,9 +1589,9 @@ stitched together from an external API — and it is serialized as-is:</p>
 <p>Two caveats, both inherent rather than framework-imposed:</p>
 <ul>
 <li><strong>Don't combine a non-QuerySet return with the shaping fields.</strong>
-  <code>select_related</code> / <code>prefetch_related</code> / <code>annotations</code> / <code>extend_queryset</code>
-  are QuerySet operations; setting them while returning a list raises
-  <code>ImproperlyConfigured</code> at request time (see above).</li>
+  <code>select_related</code> / <code>prefetch_related</code> / <code>annotations</code> / <code>extend_queryset</code> /
+  <code>filter_set</code> are QuerySet operations; setting them while returning a list
+  raises <code>ImproperlyConfigured</code> at request time (see above).</li>
 <li><strong>Pagination needs a sized, sliceable sequence.</strong> A <code>list</code>/<code>tuple</code>
   paginates fine (Django's <code>Paginator</code> only needs <code>len()</code> + slicing). A
   lazy <strong>generator</strong> works when pagination is <em>off</em>, but the paginators

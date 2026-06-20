@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://artui.github.io/djangorestframework-services/recipes/serializer-context/">
       
       
-        <link rel="prev" href="../queryset-shaping/">
+        <link rel="prev" href="../bulk-mutations/">
       
       
         <link rel="next" href="../scaffold-app/">
@@ -534,6 +534,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -715,6 +721,90 @@
     
   
     Per-spec queryset shaping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../selector-filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filter a selector with filter_set
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nested-writes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested / child-collection writes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bulk-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk & collection mutations
   
 
     
@@ -1504,11 +1594,13 @@ naming the data about to be serialized:</p>
 </tr>
 </tbody>
 </table>
-<p>The extra is passed <strong>only when the provider declares it</strong> (or accepts
-<code>**kwargs</code>), so existing <code>(view, request)</code> providers keep working
-unchanged — <code>view</code> and <code>request</code> are always positional. The provider
-always runs <em>after</em> the data is resolved, so the value is real, not a
-placeholder.</p>
+<p>Every provider is invoked through the framework's keyword pool, so it
+declares <strong>only what it needs</strong> — any subset of <code>view</code> / <code>request</code> plus the
+resolved-data extra above, or <code>**kwargs</code> for the whole pool. A
+<code>(view, request)</code> provider keeps working unchanged (both bind by keyword),
+and <code>lambda *, page: ...</code> or <code>lambda request: ...</code> are equally valid. The
+provider always runs <em>after</em> the data is resolved, so the value is real, not
+a placeholder.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.db.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Count</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">PostViewSet</span><span class="p">(</span><span class="n">SelectorViewSet</span><span class="p">):</span>

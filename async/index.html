@@ -634,6 +634,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -817,6 +823,90 @@
     
   
     Per-spec queryset shaping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/selector-filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filter a selector with filter_set
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/nested-writes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested / child-collection writes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/bulk-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk & collection mutations
   
 
     
@@ -1385,9 +1475,9 @@ coroutine via <code>inspect.iscoroutinefunction</code> and routes it correctly:<
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">aupdate_from_input</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">instance</span>
 </span></code></pre></div>
-<p><code>apply_input</code> is a pure attribute-setter and can be awaited or called
-directly — but the helpers that call <code>save()</code> need the async variants
-to avoid <code>SynchronousOnlyOperation</code>.</p>
+<p><code>apply_input</code> is a pure attribute-setter — call it directly inside an
+<code>async def</code> (there is no async variant, and it needs none); only the helpers
+that call <code>save()</code> need the <code>a*</code> variants to avoid <code>SynchronousOnlyOperation</code>.</p>
 <p>For the one-line-glue case, the async siblings of the
 <a href="../default-model-services/">default model service factories</a> —
 <code>acreate_model</code>, <code>aupdate_model</code>, <code>adelete_model</code> — return an

@@ -532,6 +532,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -715,6 +721,90 @@
     
   
     Per-spec queryset shaping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/selector-filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filter a selector with filter_set
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/nested-writes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested / child-collection writes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/bulk-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk & collection mutations
   
 
     
@@ -1223,6 +1313,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.change_result.ChangeResult.get_child_change" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_child_change
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1244,6 +1345,50 @@
     <span class="md-ellipsis">
       
         FieldChange
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#childspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChildSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.child_spec.ChildSpec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChildSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#childcollectionchange" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChildCollectionChange
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.child_collection_change.ChildCollectionChange" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChildCollectionChange
       
     </span>
   </a>
@@ -1542,6 +1687,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.change_result.ChangeResult.get_child_change" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_child_change
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1563,6 +1719,50 @@
     <span class="md-ellipsis">
       
         FieldChange
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#childspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChildSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.child_spec.ChildSpec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChildSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#childcollectionchange" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChildCollectionChange
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.child_collection_change.ChildCollectionChange" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChildCollectionChange
       
     </span>
   </a>
@@ -1825,15 +2025,15 @@ default — see below.</p>
   earlier layers intact. Selectors don't validate input, so there's
   no symmetrical <code>input_serializer_context</code>.</li>
 </ul>
-<p>The provider is called with <code>(view, request)</code> positionally and may
-  additionally declare the resolved data being serialized as a keyword
-  parameter — <code>page</code> on a <code>LIST</code> spec (the paginated object list, or
-  the full queryset when pagination is off) or <code>instance</code> on a
-  <code>RETRIEVE</code> spec. It is passed only when declared (or when the
-  provider accepts <code>**kwargs</code>), so legacy <code>(view, request)</code>
-  providers are unaffected. This lets the provider run a single batched
-  query against the exact objects being serialized and propagate the
-  result through context — e.g.
+<p>The provider is invoked through the framework's keyword-pool
+  convention, so it declares only what it needs: <code>view</code>, <code>request</code>,
+  and/or the resolved data being serialized — <code>page</code> on a <code>LIST</code> spec
+  (the paginated object list, or the full queryset when pagination is off)
+  or <code>instance</code> on a <code>RETRIEVE</code> spec — or <code>**kwargs</code> for the whole
+  pool. Any subset works (just <code>view</code>, just <code>request</code>, just <code>page</code>,
+  none). This lets the provider run a single batched query against the
+  exact objects being serialized and propagate the result through context
+  — e.g. <code>lambda *, page: {"votes": tally(page)}</code> or
   <code>lambda view, request, *, page: {"votes": tally(page)}</code>. The hook
   always runs <em>after</em> the data is resolved.
 - <strong><code>select_related</code></strong> / <strong><code>prefetch_related</code></strong> / <strong><code>annotations</code></strong>
@@ -1851,11 +2051,32 @@ default — see below.</p>
   fully statically-shaped queryset. Use it when the shaping depends on
   the request (e.g. only prefetch when a query string opts in).
   Synchronous only — it manipulates the queryset's lazy expression
-  tree, not the database.</p>
-<p>All four shaping fields require <code>selector</code> to be set and the selector
-to return a Django :class:<code>QuerySet</code>. Configuring shaping with no
-selector raises :exc:<code>ImproperlyConfigured</code> at <code>as_view()</code> time; a
-non-QuerySet return raises at request time.</p>
+  tree, not the database.
+- <strong><code>filter_set</code></strong> — transport-neutral filtering applied to the
+  selector's QuerySet. Holds a <code>django-filter</code> <code>FilterSet</code> class (or
+  any object honouring the same <code>(data, queryset) -&gt; .qs</code> contract):
+  the dispatcher calls <code>filter_set(data=request.query_params,
+  queryset=qs).qs</code>, so the <em>declaration</em> of which fields are filterable
+  (with which lookups) lives on the spec while the <em>values</em> come from the
+  request. Applied <strong>after</strong> the four shaping fields above and <strong>before</strong>
+  the retrieve <code>.first()</code> materialization, so it composes with shaping
+  and narrows both <code>LIST</code> and <code>RETRIEVE</code> selectors — closing the
+  retrieve-path gap where <code>RetrieveModelMixin</code> runs no filter step.</p>
+<p>Because the values are read off <code>request.query_params</code>, a
+  <code>FilterSet</code> here is exactly what
+  :class:<code>~django_filters.rest_framework.DjangoFilterBackend</code> applies
+  view-side, so on the list path it <strong>replaces</strong> that backend rather than
+  stacking with it — wiring both for one action raises at <code>as_view()</code>.
+  <code>None</code> (the default) applies no filtering. Reach for <code>filter_set</code>
+  only when the selector returns a QuerySet; when it returns an
+  aggregate / computed object the <code>?param</code> values are computation
+  inputs — use <code>kwargs</code> / <code>get_selector_kwargs()</code> instead.</p>
+<p>All five shaping fields (<code>select_related</code> / <code>prefetch_related</code> /
+<code>annotations</code> / <code>extend_queryset</code> / <code>filter_set</code>) require
+<code>selector</code> to be set and the selector to return a Django
+:class:<code>QuerySet</code>. Configuring any of them with no selector raises
+:exc:<code>ImproperlyConfigured</code> at <code>as_view()</code> time; a non-QuerySet return
+raises at request time.</p>
 
 
 
@@ -1935,12 +2156,12 @@ Returns a mapping merged on top of <code>request.data</code> before the
 <code>input_serializer</code> validates it — useful for lifting URL kwargs
 (e.g. parent IDs from nested routes) into fields the serializer can
 cross-validate. Server-provided keys win on conflict. The provider is
-called with <code>(view, request)</code> positionally and may additionally
-declare <code>instance</code> as a keyword parameter to receive the resolved
-mutation target (<code>None</code> on create) — passed only when declared, so
-pre-validation input mutation that depends on the current row has a
-home. The same declare-to-receive rule applies to the
-<code>get_input_data</code> / <code>get_&lt;action&gt;_input_data</code> view hooks.</p>
+invoked through the framework's keyword pool, so it declares any subset of
+<code>view</code> / <code>request</code> plus <code>instance</code> (the resolved mutation target,
+<code>None</code> on create) — or <code>**kwargs</code> — receiving only what it names, so
+pre-validation input mutation that depends on the current row has a home.
+The same declare-to-receive rule applies to the <code>get_input_data</code> /
+<code>get_&lt;action&gt;_input_data</code> view hooks.</p>
 <p><code>input_serializer_context</code> is a per-spec hook for the input
 serializer's <code>context=</code> dict. It sits at the most-specific layer of
 the resolution chain (<code>view.get_serializer_context</code> →
@@ -1955,17 +2176,18 @@ so it can run a single batched query against it and propagate the
 outcome through context. The output hook always runs <em>after</em> the service
 and output selector have resolved <code>result</code>.</p>
 <p><code>output_selector_spec</code> is the full output pipeline collapsed into a
-single :class:<code>SelectorSpec</code>. Its <code>kind</code> must be
-:attr:<code>SelectorKind.RETRIEVE</code> (the post-mutation re-fetch always
-materializes a single instance). Set it to render the response through
-a different shape than what the service returned (typical pattern: the
-service returns a freshly created/updated instance, the
-<code>output_selector_spec.selector</code> re-fetches it with the relations the
-response serializer needs, and the spec's <code>output_serializer</code>
-renders the result). <code>None</code> (the default) means "render the service's
-return value directly". The nested spec's <code>permission_classes</code> and
-<code>kwargs</code> are ignored — the surrounding mutation's permissions and
-kwargs chain apply.</p>
+single :class:<code>SelectorSpec</code>. Its <code>kind</code> declares the response
+cardinality: :attr:<code>SelectorKind.RETRIEVE</code> (the default) re-fetches a
+single instance (typical pattern: the service returns a freshly
+created/updated instance, the <code>output_selector_spec.selector</code> re-fetches
+it with the relations the response serializer needs, and the spec's
+<code>output_serializer</code> renders the result); :attr:<code>SelectorKind.LIST</code>
+re-fetches and renders a <em>set</em> (<code>many=True</code>) and is valid only alongside
+<code>collection_selector_spec</code> — the bulk-output twin that lets a
+collection mutation return the affected set. <code>None</code> (the default) means
+"render the service's return value directly". The nested spec's
+<code>permission_classes</code> and <code>kwargs</code> are ignored — the surrounding
+mutation's permissions and kwargs chain apply.</p>
 <p><code>instance_selector_spec</code> is the input-side twin of
 <code>output_selector_spec</code>: a nested :class:<code>SelectorSpec</code> (<code>kind</code> must
 be :attr:<code>SelectorKind.RETRIEVE</code>) that resolves the instance an
@@ -1994,6 +2216,29 @@ forces it regardless of HTTP method — e.g. <code>partial=False</code> on an
 enforce <code>required</code> fields like a PUT. Applied once, at
 <code>dispatch_mutation_for_spec</code>, so it is honoured uniformly by the
 viewset mixins, the standalone views, and <code>@service_action</code>.</p>
+<p><code>document_service_error</code> is an <strong>OpenAPI-only</strong> flag controlling whether
+the generated schema documents the <code>422</code> :class:<code>ServiceError</code> response
+(it has no effect on runtime behaviour — a service may always raise
+<code>ServiceError</code>). <code>None</code> (the default) gates the 422 on whether the
+operation validates input (<code>input_serializer is not None</code>), so a
+no-input mutation (e.g. a plain delete) doesn't carry a spurious 422 in
+its schema. Set <code>True</code> to document it anyway (a no-input service that
+<em>does</em> raise <code>ServiceError</code>) or <code>False</code> to drop it (an input-bearing
+service that never raises one). Only consulted when the <code>[spectacular]</code>
+extra is enabled via :func:<code>~rest_framework_services.openapi.enable_openapi</code>.</p>
+<p><code>many</code> and <code>collection_selector_spec</code> are the two <strong>bulk</strong> shapes,
+mutually exclusive with each other. <code>many=True</code> validates the request
+body as a list (<code>input_serializer</code> runs <code>many=True</code>) and renders the
+result list the same way — the service receives the validated list as
+<code>data</code> and loops itself (<code>bulk_create</code> / a comprehension), so one call
+does the batch. <code>collection_selector_spec</code> is the LIST-kind twin of
+<code>instance_selector_spec</code>: its resolved set (a queryset or any iterable,
+scoped by the selector + <code>filter_set</code>) is seeded into the pool as
+<code>collection</code> for the service to <code>.delete()</code> / <code>.update()</code> / iterate —
+an instance-less "operate on the filtered set" action (bulk delete/update),
+where an empty set is a harmless no-op. Both run all-or-nothing under
+<code>atomic=True</code>; authorization is per-set (the view / spec
+<code>permission_classes</code> plus the scoped selector), with no per-row check.</p>
 <p><code>kwargs</code> is a callable that returns extra kwargs to merge into the
 pool the service receives. Co-locating it with the spec lets each action
 declare its own contract — no <code>if self.action == ...</code> branching in a
@@ -2061,7 +2306,9 @@ for the viewset mixins and standalone views.</p>
 <p><code>instance</code> is the model instance after the mutation. <code>created</code> is True
 iff this came from :func:<code>create_from_input</code> / :func:<code>acreate_from_input</code>.
 <code>changes</code> records every field whose value actually differed from its
-prior value (or from <code>UNSET</code> for creates).</p>
+prior value (or from <code>UNSET</code> for creates). <code>children</code> carries one
+:class:<code>ChildCollectionChange</code> per reverse-FK collection written via the
+<code>children=</code> argument — empty for the common no-nested-write case.</p>
 <p>The class is generic over the concrete model type: callers that pass
 <code>Author</code> into a mutation helper get back a <code>ChangeResult[Author]</code>
 whose <code>.instance</code> is typed as <code>Author</code>. The bare name
@@ -2133,6 +2380,26 @@ keeps working for callers that don't care.</p>
 
 </div>
 
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.types.change_result.ChangeResult.get_child_change" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_child_change</span>
+
+
+<a href="#rest_framework_services.types.change_result.ChangeResult.get_child_change" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_child_change</span><span class="p">(</span><span class="n">relation</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChildCollectionChange</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return the :class:<code>ChildCollectionChange</code> for <code>relation</code>, or <code>None</code>.</p>
+
+
+    </div>
+
+</div>
+
 
 
   </div>
@@ -2164,6 +2431,165 @@ keeps working for callers that don't care.</p>
         <p>One field's before/after pair from a mutation.</p>
 <p><code>old</code> will be <code>UNSET</code> for fields populated as part of a <code>create</code>
 (no prior value existed).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="childspec"><code>ChildSpec</code><a class="headerlink" href="#childspec" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.types.child_spec.ChildSpec" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ChildSpec</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.child_spec.ChildSpec" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>How to persist one reverse-FK ("one-to-many") child collection.</p>
+<p>Passed in the <code>children={relation_name: ChildSpec(...)}</code> map of
+:func:<code>~rest_framework_services.create_from_input</code> /
+:func:<code>~rest_framework_services.update_from_input</code> (and their async
+siblings), and forwarded by the default
+:func:<code>~rest_framework_services.create_model</code> /
+:func:<code>~rest_framework_services.update_model</code> /
+:func:<code>~rest_framework_services.delete_model</code> services. The incoming child
+rows are read from <code>data[relation_name]</code>; each child is persisted by
+running it back through the same mutation helpers, so scalar / m2m / nested
+semantics compose recursively.</p>
+<p>Fields:</p>
+<ul>
+<li><strong><code>model</code></strong> — the child model class.</li>
+<li><strong><code>fk</code></strong> — the name of the child's forward foreign-key field pointing
+  at the parent (e.g. <code>"author"</code> for <code>Book.author</code>). It is set
+  automatically on created children and used to resolve the parent's
+  reverse manager.</li>
+<li><strong><code>match_key</code></strong> — the field used to pair an incoming row with an
+  existing child (default <code>"pk"</code>). An incoming row whose <code>match_key</code>
+  matches an existing child updates it; one with no match (or no key) is
+  created. The same name is read off both the incoming mapping
+  (<code>item[match_key]</code>) and the existing instance
+  (<code>getattr(child, match_key)</code>), so serializers emitting <code>"id"</code> should
+  set <code>match_key="id"</code>.</li>
+<li><strong><code>mode</code></strong> — <code>"replace"</code> (the default) matches incoming to existing,
+  creates new, updates matched, and removes orphans (existing children
+  absent from the incoming set); <code>"merge"</code> upserts only and never removes.
+  An orphan is <strong>unlinked</strong> (its <code>fk</code> set to <code>None</code>) when the FK is
+  nullable, else <strong>deleted</strong> — mirroring <code>on_delete=SET_NULL</code> vs
+  <code>CASCADE</code>.</li>
+<li><strong><code>field_map</code></strong> / <strong><code>exclude_fields</code></strong> — forwarded to the per-child
+  <code>create_from_input</code> / <code>update_from_input</code> call, exactly as for the
+  parent.</li>
+<li><strong><code>m2m</code></strong> — optional callable <code>(child_row) -&gt; mapping</code> deriving the
+  child's many-to-many assignments from its incoming row (the per-child
+  analogue of :func:<code>~rest_framework_services.create_model</code>'s <code>m2m</code>).</li>
+<li><strong><code>children</code></strong> — a nested <code>{relation_name: ChildSpec}</code> map for
+  grandchildren; recursion follows the declared tree, so depth is bounded
+  by how deeply you nest specs.</li>
+</ul>
+<p>The whole parent + children write runs inside the service's atomic block;
+field-level validation stays in the input serializer / dataclass — the
+helper owns persistence only.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="childcollectionchange"><code>ChildCollectionChange</code><a class="headerlink" href="#childcollectionchange" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.types.child_collection_change.ChildCollectionChange" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ChildCollectionChange</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.child_collection_change.ChildCollectionChange" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>What a nested write did to one reverse-FK child collection.</p>
+<p>Carried in :attr:<code>~rest_framework_services.ChangeResult.children</code>, one
+entry per <code>children=</code> relation. The tuples hold child <strong>primary keys</strong>:</p>
+<ul>
+<li><strong><code>created</code></strong> — children inserted.</li>
+<li><strong><code>updated</code></strong> — existing children whose row was updated (matched by the
+  :class:<code>~rest_framework_services.ChildSpec</code>'s <code>match_key</code>).</li>
+<li><strong><code>deleted</code></strong> — orphaned children removed because their FK is
+  non-nullable.</li>
+<li><strong><code>unlinked</code></strong> — orphaned children detached (FK set to <code>None</code>) because
+  their FK is nullable.</li>
+</ul>
+<p><code>updated</code> records every matched child the helper ran through
+<code>update_from_input</code>, regardless of whether that child's own columns
+actually changed.</p>
 
 
 

@@ -651,6 +651,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -834,6 +840,90 @@
     
   
     Per-spec queryset shaping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/selector-filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filter a selector with filter_set
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/nested-writes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested / child-collection writes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/bulk-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk & collection mutations
   
 
     
@@ -1641,9 +1731,11 @@ request:</p>
 <li>A mounted <code>SelectorSpec</code>'s <code>kind</code> disagrees with the view it's attached
   to — e.g. a <code>SelectorKind.LIST</code> spec on <code>SelectorRetrieveView</code>, or a
   <code>SelectorKind.RETRIEVE</code> entry under <code>action_specs["list"]</code>.</li>
-<li>A <code>ServiceSpec.output_selector_spec</code> is supplied with a <code>kind</code> other
-  than <code>SelectorKind.RETRIEVE</code> (the post-mutation re-fetch always
-  materializes a single instance).</li>
+<li>A <code>ServiceSpec.output_selector_spec</code> is given <code>kind=SelectorKind.LIST</code>
+  without a paired <code>collection_selector_spec</code> — a single-instance mutation
+  re-fetches one row, so its <code>output_selector_spec</code> must be
+  <code>SelectorKind.RETRIEVE</code>; <code>kind=LIST</code> (list-shaped output) is valid only
+  for a collection mutation.</li>
 <li>A required parameter is not framework-provided and the view has no
   <code>kwargs=</code> provider, no <code>get_&lt;action&gt;_*_kwargs</code>, and no <code>get_*_kwargs</code> —
   the parameter would be silently dropped at request time.</li>

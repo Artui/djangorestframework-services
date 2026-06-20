@@ -534,6 +534,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -715,6 +721,90 @@
     
   
     Per-spec queryset shaping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="selector-filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filter a selector with filter_set
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="nested-writes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested / child-collection writes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="bulk-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk & collection mutations
   
 
     
@@ -1200,6 +1290,17 @@ the <a href="../quickstart/">Quickstart</a> and <a href="../concepts/">Concepts<
   <code>select_related</code> / <code>prefetch_related</code> / <code>annotations</code> to a selector
   spec, plus an <code>extend_queryset</code> callable for request-dependent
   shaping.</li>
+<li><strong><a href="selector-filtering/">Filter a selector with <code>filter_set</code></a></strong> — point
+  a <code>django-filter</code> FilterSet at a list or retrieve selector's queryset,
+  the "replaces <code>DjangoFilterBackend</code>" rule, and the boundary with
+  <code>kwargs</code> for computed (non-queryset) results.</li>
+<li><strong><a href="nested-writes/">Nested / child-collection writes</a></strong> — write a parent
+  plus its reverse-FK children from one request with <code>children=</code> /
+  <code>ChildSpec</code> (replace vs merge, orphan delete/unlink, recursion), and
+  migrate off a writable-nested serializer.</li>
+<li><strong><a href="bulk-mutations/">Bulk &amp; collection mutations</a></strong> — <code>many=True</code> list
+  in/out and a <code>collection_selector_spec</code> target for instance-less bulk
+  delete / update over a filtered set.</li>
 <li><strong><a href="serializer-context/">Customise serializer context</a></strong> — direction-
   and action-specific hooks for <code>get_serializer_context()</code>, so the input
   and output serializers can see different keys.</li>

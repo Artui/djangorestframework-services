@@ -532,6 +532,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -715,6 +721,90 @@
     
   
     Per-spec queryset shaping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/selector-filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filter a selector with filter_set
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/nested-writes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested / child-collection writes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/bulk-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk & collection mutations
   
 
     
@@ -2039,22 +2129,33 @@ object that happens to expose <code>first</code>. <code>QuerySet</code> subclass
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">prefetch_related</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">annotations</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">extend_queryset</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">source_label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">filter_set</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">filter_data</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">source_label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Apply the four shaping fields to <code>qs</code>.</p>
+        <p>Apply the five shaping fields to <code>qs</code>.</p>
 <p>Declarative fields apply first (in declaration order), then
 <code>extend_queryset</code> runs so the user callable always sees the fully
-statically-shaped queryset. Returns <code>qs</code> unchanged when no shaping
-is configured.</p>
+statically-shaped queryset, and finally <code>filter_set</code> narrows it via the
+transport-neutral <code>filter_set(data=filter_data, queryset=qs).qs</code> contract
+— so filtering composes with shaping and runs before the retrieve
+<code>.first()</code> materialization the caller does next. Returns <code>qs</code> unchanged
+when no shaping is configured.</p>
 <p>Raises :exc:<code>ImproperlyConfigured</code> when shaping is configured but
 <code>qs</code> is not a Django QuerySet (no <code>annotate</code> method) — loud
 failure beats a stale <code>AttributeError</code> deep in DRF rendering.
 <code>source_label</code> is included in the error to point at the misuse
 (<code>"SelectorSpec.selector"</code> vs <code>"ServiceSpec.output_selector_spec.selector"</code>).</p>
+<p><code>filter_set</code> defaults to <code>None</code> so existing callers of this blessed
+surface keep working unchanged. <code>filter_data</code> is the data the FilterSet
+reads (a flat <code>{field: value}</code> mapping); it defaults to <code>None</code>, in
+which case the value falls back to <code>request.query_params</code> — the HTTP view
+path. A transport-neutral caller (<code>dispatch_spec</code>) passes its own params
+here, so the FilterSet never reaches into a DRF request it doesn't have.</p>
 
 
     </div>
