@@ -60,9 +60,9 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     selector: Callable[..., ResultT] | None = None
     allow_none: bool = False
     output_serializer: type[Serializer] | None = None
-    kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
+    kwargs: Callable[..., ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
-    output_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
+    output_serializer_context: Callable[..., Mapping[str, Any]] | None = None
     select_related: Sequence[str] | None = None
     prefetch_related: Sequence[str | Prefetch] | None = None
     annotations: Mapping[str, Any] | None = None
@@ -95,9 +95,10 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
   standard `serializer_class`.
 - **`kwargs`** — callable returning extra kwargs to merge into the pool
   the selector receives. The most-specific level of the kwargs
-  resolution chain; co-located with the selector it feeds. Receives
-  the view (typed as the narrow `ServiceView` Protocol) and the
-  current `Request`. See the [extra-kwargs recipe](recipes/extra-kwargs.md).
+  resolution chain; co-located with the selector it feeds. Invoked through
+  the framework's keyword pool — it declares any subset of `view` /
+  `request` (or `**kwargs`) and receives only what it asks for. See the
+  [extra-kwargs recipe](recipes/extra-kwargs.md).
 - **`permission_classes`** — overrides the view's class-level
   `permission_classes` for the action the spec backs. `None` (the default)
   inherits; `[]` means "no permissions" explicitly. Ignored when the
@@ -131,10 +132,10 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     partial: bool | None = None
     input_serializer: type | None = None
     input_data: Callable[..., Mapping[str, Any]] | None = None
-    input_serializer_context: Callable[[ServiceView, Request], Mapping[str, Any]] | None = None
+    input_serializer_context: Callable[..., Mapping[str, Any]] | None = None
     instance_selector_spec: SelectorSpec[Any, Any] | None = None
     output_selector_spec: SelectorSpec[Any, Any] | None = None
-    kwargs: Callable[[ServiceView, Request], ExtraT] | None = None
+    kwargs: Callable[..., ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
 ```
 

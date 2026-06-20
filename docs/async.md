@@ -47,9 +47,9 @@ async def update_author(*, instance, data):
     return result.instance
 ```
 
-`apply_input` is a pure attribute-setter and can be awaited or called
-directly — but the helpers that call `save()` need the async variants
-to avoid `SynchronousOnlyOperation`.
+`apply_input` is a pure attribute-setter — call it directly inside an
+`async def` (there is no async variant, and it needs none); only the helpers
+that call `save()` need the `a*` variants to avoid `SynchronousOnlyOperation`.
 
 For the one-line-glue case, the async siblings of the
 [default model service factories](default-model-services.md) —
