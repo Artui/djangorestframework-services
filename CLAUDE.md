@@ -41,6 +41,18 @@ These are non-negotiable. They are what keep the package navigable.
 
 ---
 
+## Public API naming
+
+Spec fields (`ServiceSpec` / `SelectorSpec`) follow **one rule with three outputs**. Apply it to every new field so naming is never re-litigated per feature:
+
+1. **Mirror Django/DRF verbatim for wrapped concepts and behavioural flags — bare name, no prefix.** A field that surfaces a DRF/Django kwarg takes that kwarg's name: `partial` (DRF `serializer(partial=…)`), `many` (`serializer(many=True)`), `atomic`, `allow_none`, `select_related`, `prefetch_related`, `annotations`, `permission_classes`.
+2. **Directional `input_` / `output_` prefix for serialization-pipeline config.** Input phase: `input_serializer`, `input_serializer_context`, `input_data`. Output phase: `output_serializer`, `output_serializer_context`, `output_selector_spec`. The prefix marks *which phase* the field configures — **not** its cardinality. `output_selector_spec` resolves a single instance (`kind=RETRIEVE`) or a set (`kind=LIST`), so it stays cardinality-agnostic by design; do **not** rename it to `output_instance_selector_spec`.
+3. **Nested target specs: `<resolved-noun>_selector_spec`.** Named for what the nested spec resolves: `instance_selector_spec` (one row, `kind=RETRIEVE`), `collection_selector_spec` (a set, `kind=LIST`).
+
+The `_selector_spec` trio reads as two axes (direction for `output_`, resolved-noun for `instance_`/`collection_`) but answers two different questions: the input pair is distinguished by *cardinality* (one vs many targets); `output_` marks the lone output-phase re-fetch by *phase*. That is intentional, not an inconsistency — keep it. When a genuinely new field doesn't fit these three, decide the name deliberately and record the rationale next to the field, rather than inventing an ad-hoc style.
+
+---
+
 ## Adding a new feature
 
 **Always work on a dedicated branch.** Any new feature, bugfix, or version-bump

@@ -66,6 +66,45 @@ summary like `{"updated": n}` to get a `200` body instead of `204`).
 `delete_collection` / `adelete_collection` are batteries-included; pass
 `soft_delete=lambda qs: qs.update(is_archived=True)` to archive instead.
 
+### Return the affected set
+
+By default a collection mutation renders whatever the service returns — a
+summary like `{"updated": n}`, or an empty `204`. To render the **set itself**,
+add an `output_selector_spec` with `kind=SelectorKind.LIST`: it re-fetches and
+renders a list — the output twin of the bulk input. Capture the affected pks
+*before* the write, since the collection's own filter may no longer match
+afterwards.
+
+```python
+def publish_drafts(*, collection: QuerySet[Post]) -> list[int]:
+    ids = list(collection.values_list("id", flat=True))
+    Post.objects.filter(id__in=ids).update(published=True)
+    return ids                                  # the service result → `result`
+
+def published_by_ids(*, result: list[int]) -> QuerySet[Post]:
+    return Post.objects.filter(id__in=result).order_by("id")
+
+class PublishDraftsView(ServiceUpdateView):
+    spec = ServiceSpec(
+        service=publish_drafts,
+        collection_selector_spec=SelectorSpec(
+            kind=SelectorKind.LIST, selector=all_posts, filter_set=PostFilterSet,
+        ),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.LIST,                 # ← renders a list, not one row
+            selector=published_by_ids,
+            output_serializer=PostSerializer,
+        ),
+    )
+```
+
+`PUT /posts/?published=false` publishes the drafts and responds `200` with the
+JSON array of the now-published rows. `kind=LIST` on `output_selector_spec` is
+valid **only** alongside `collection_selector_spec` — a single-instance
+mutation returns one representation (`kind=RETRIEVE`, the default). The re-fetch
+runs inside the same transport-neutral `dispatch_spec`, so the MCP server
+renders the list identically.
+
 ## Permissions & failures
 
 - **Per-set** — the view / spec `permission_classes` plus the scoped selector

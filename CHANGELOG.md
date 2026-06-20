@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`SelectorSpec.filter_set` — transport-neutral filtering on the spec**
-  (FILT-1). A `django-filter` `FilterSet` (or any object honouring the same
+- **`SelectorSpec.filter_set` — transport-neutral filtering on the spec**.
+  A `django-filter` `FilterSet` (or any object honouring the same
   `(data, queryset) -> .qs` contract) set on a selector spec is applied to
   the selector's queryset after the shaping fields, reading the values off
   `request.query_params`. It composes with `select_related` /
@@ -20,19 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   return a `QuerySet` (same guards as the other shaping fields). Applied by
   duck typing, so it adds **no dependency** to the package. See the new
   *Filter a selector with `filter_set`* recipe.
-- **Fail-fast guard for the list double-apply** (FILT-2). A `LIST` selector
+- **Fail-fast guard for the list double-apply**. A `LIST` selector
   spec that carries `filter_set` while its view also lists
   `DjangoFilterBackend` in `filter_backends` now raises
   `ImproperlyConfigured` at `as_view()` time — `filter_set` *replaces*
   `DjangoFilterBackend` (they apply the same FilterSet), so configuring both
   would filter the queryset twice. Retrieve is unaffected (its selector path
   overrides `get_object()` and never calls `filter_queryset`).
-- **`ServiceSpec.document_service_error`** (SCH-1) — a tri-state OpenAPI flag
+- **`ServiceSpec.document_service_error`** — a tri-state OpenAPI flag
   (`bool | None`, default `None`) controlling whether the generated schema
   documents the `422` `ServiceError` response. `None` gates it on whether the
   operation validates input; `True` / `False` force it. Schema-only; runtime
   behaviour is unchanged.
-- **Native nested / child-collection writes** (NEST-1/2). `create_from_input`
+- **Native nested / child-collection writes**. `create_from_input`
   and `update_from_input` (plus the `acreate`/`aupdate` async siblings) take a
   `children={relation: ChildSpec(...)}` argument that writes reverse-FK
   ("one-to-many") collections from `data[relation]` — create / update matched /
@@ -50,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`created`/`updated`/`deleted`/`unlinked` child pks) plus
   `get_child_change(relation)`. See the new *Nested / child-collection writes*
   recipe.
-- **Transport-neutral `dispatch_spec`** (KEY-1). A single, view-free execution
+- **Transport-neutral `dispatch_spec`**. A single, view-free execution
   path for a `ServiceSpec` or `SelectorSpec`:
   `dispatch_spec(spec, *, user, params, request=None, view=None)` (and the
   async `adispatch_spec`) validates input, resolves the mutation target via
@@ -66,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   orchestration. New blessed surface: `dispatch_spec`, `adispatch_spec`,
   `render_spec_output`, `build_input_serializer_from_data`, and the
   `DispatchResult` type.
-- **Bulk & collection mutations** (BULK-1/2). `ServiceSpec` gains two bulk
+- **Bulk & collection mutations**. `ServiceSpec` gains two bulk
   shapes (mutually exclusive): **`many: bool`** validates a list request body
   (`input_serializer` runs `many=True`) and renders the result list — the
   service receives the validated list and loops itself (`bulk_create` /
@@ -81,6 +81,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `soft_delete` hook). Fail-fast validation: `many` xor
   `collection_selector_spec`, and the collection spec must be LIST-kind with a
   selector.
+- **List-shaped output for collection mutations**. `output_selector_spec`
+  now honours its `kind`: `RETRIEVE` (the default) re-fetches a single instance
+  as before, while **`kind=LIST`** re-fetches and renders the affected *set*
+  (`many=True`) — the output twin of `collection_selector_spec`, so a bulk
+  update can respond with the rows it touched instead of only a summary. Valid
+  only alongside `collection_selector_spec` (a single-instance mutation returns
+  one representation); enforced at `as_view()` time. Runs through the HTTP
+  mutation views **and** `dispatch_spec` / `adispatch_spec`. See the
+  *Bulk & collection mutations* recipe.
 
 ### Changed
 
@@ -97,7 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `build_input_serializer_from_data(data, …)` (blessed), so validation runs the
   same way on and off the HTTP path. `build_input_serializer(request, …)` is a
   thin wrapper over it — its signature is unchanged.
-- **Unified provider invocation** (PROV-1). Every spec-level provider
+- **Unified provider invocation**. Every spec-level provider
   (`kwargs`, `input_data`, `input_serializer_context`,
   `output_serializer_context`) **and** the corresponding view hooks are now
   dispatched through the same signature-filtering keyword pool that services
@@ -106,15 +115,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `page`), or `**kwargs` — instead of the previous mandatory positional
   `(view, request)`. Providers using the documented `(view, request)`
   signature are unaffected.
-- **The 422 `ServiceError` response is now gated in the OpenAPI schema**
-  (SCH-1). It was attached to *every* spec-driven mutation; it now defaults to
+- **The 422 `ServiceError` response is now gated in the OpenAPI schema**.
+  It was attached to *every* spec-driven mutation; it now defaults to
   operations that validate input (`spec.input_serializer is not None`), so a
   no-input mutation (e.g. a plain delete) no longer carries a spurious 422.
   Override per spec with `document_service_error`.
 
 ### Fixed
 
-- **Stale prefetched data after a mutating service** (PF-1). When a mutation
+- **Stale prefetched data after a mutating service**. When a mutation
   target was resolved through a prefetching `instance_selector_spec` (or a
   prefetching `get_object()` queryset) and the service changed a related
   collection via a path Django doesn't self-invalidate (e.g. creating reverse-FK
@@ -126,7 +135,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
-- New recipe: *Filter a selector with `filter_set`* (FILT-3) — list and
+- New recipe: *Filter a selector with `filter_set`* — list and
   retrieve usage, the "replaces `DjangoFilterBackend`" rule, and the
   `kwargs`-vs-`filter_set` boundary for computed (non-queryset) results.
 - OpenAPI guide documents the 422 gating + `document_service_error`; the
@@ -136,7 +145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **The stable dispatch surface** (SURF-1). The leaves an alternate
+- **The stable dispatch surface**. The leaves an alternate
   transport builds on are now documented public API, re-exported from the
   top-level package with a semver stability promise — see the new
   *Dispatch (stable surface)* reference page: `resolve_callable_kwargs`,

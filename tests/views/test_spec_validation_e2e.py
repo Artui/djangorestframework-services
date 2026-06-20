@@ -234,8 +234,8 @@ class TestSelectorViewValidation:
         with pytest.raises(ImproperlyConfigured, match=r"spec.kind"):
             _View.as_view({"get": "list"})
 
-    def test_output_selector_spec_must_be_retrieve_kind(self) -> None:
-        """ServiceSpec.output_selector_spec.kind must be RETRIEVE (post-mutation re-fetch)."""
+    def test_output_selector_spec_list_kind_requires_collection(self) -> None:
+        """output_selector_spec.kind=LIST is only valid alongside collection_selector_spec."""
 
         def fn(**_: Any) -> None:
             return None
@@ -246,7 +246,7 @@ class TestSelectorViewValidation:
                 output_selector_spec=SelectorSpec(kind=SelectorKind.LIST),
             )
 
-        with pytest.raises(ImproperlyConfigured, match=r"output_selector_spec.kind"):
+        with pytest.raises(ImproperlyConfigured, match=r"output_selector_spec.kind=LIST"):
             _View.as_view()
 
 

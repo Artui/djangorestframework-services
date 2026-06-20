@@ -149,12 +149,14 @@ async def _adispatch_service(
     result: Any = await arun_service_callable(
         spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic
     )
-    result = await _arun_output_selector(
+    result, output_is_list = await _arun_output_selector(
         spec, result, user=user, request=request, view=view, params=params
     )
 
     status = success_status if success_status is not None else (spec.success_status or 200)
-    return DispatchResult(value=result, kind="instance", status=status)
+    return DispatchResult(
+        value=result, kind="list" if output_is_list else "instance", status=status
+    )
 
 
 async def _adispatch_service_many(
@@ -228,10 +230,17 @@ async def _arun_output_selector(
     request: Any,
     view: Any,
     params: Mapping[str, Any],
-) -> Any:
+) -> tuple[Any, bool]:
+    """Async :func:`~...dispatch.dispatch_spec._run_output_selector`.
+
+    Same ``(value, is_list)`` contract and ``kind`` semantics. A ``LIST``
+    output returns the lazy shaped queryset (the async transport materializes /
+    paginates it in a thread, like any list result); a ``RETRIEVE`` output
+    awaits ``.afirst()``.
+    """
     out_spec = spec.output_selector_spec
     if out_spec is None or out_spec.selector is None:
-        return result
+        return result, False
     pool: dict[str, Any] = {
         **base_pool(user=user, request=request),
         "instance": result,
@@ -243,7 +252,9 @@ async def _arun_output_selector(
     selected = shape_queryset(
         out_spec, selected, view=view, request=request, params=params, source_label=OUTPUT_SOURCE
     )
-    return await selected.afirst() if is_queryset(selected) else selected
+    if out_spec.kind is SelectorKind.LIST:
+        return selected, True
+    return (await selected.afirst() if is_queryset(selected) else selected), False
 
 
 async def _aresolve_instance(
