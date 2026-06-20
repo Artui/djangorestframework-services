@@ -150,6 +150,11 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   the central dispatch point, so it works uniformly across viewset
   mixins, standalone views, `@service_action` — and create dispatch.
   See [PATCH that validates like PUT](#patch-that-validates-like-put).
+- **`many`** — validate the request body as a *list* and hand the
+  validated list to the service (which loops itself); the result list is
+  rendered the same way. The `serializer(many=True)` sibling of `partial`,
+  mutually exclusive with `collection_selector_spec`. See
+  [Bulk mutations](#bulk-mutations).
 - **`input_serializer`** — a DRF `Serializer` subclass, a bare
   `@dataclass` (auto-wrapped in `DataclassSerializer`), or `None` for
   side-effect-only services.
@@ -176,6 +181,11 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   `output_serializer`, and `output_serializer_context` are ignored.
   `None` (the default) keeps the `get_object()` chain. See
   [Standalone update without a queryset](#standalone-update-without-a-queryset).
+- **`collection_selector_spec`** — the bulk twin of
+  `instance_selector_spec`: a `kind=SelectorKind.LIST` nested spec that
+  resolves a *set* (scoped by the selector + `filter_set`) and seeds it
+  into the service pool as `collection` for an instance-less bulk delete /
+  update. Mutually exclusive with `many`. See [Bulk mutations](#bulk-mutations).
 - **`input_serializer_context`** — callable returning extra keys for
   the *input* serializer's `context=` dict. Sits at the most-specific
   layer of the [serializer-context resolution chain](recipes/serializer-context.md).
@@ -242,6 +252,48 @@ The same field works on viewset `update` / `partial_update` / `destroy`
 entries and `@service_action(detail=True)` actions, where it takes
 precedence over an `action_specs["retrieve"]` selector and the DRF
 default lookup.
+
+### Bulk mutations
+
+Two mutually-exclusive `ServiceSpec` fields cover what a single-instance spec
+can't. Both run through the same validate → dispatch → render flow — and the
+same transport-neutral `dispatch_spec` — so the rules hold on and off HTTP.
+
+**`many=True`** — a list body in, a list out. The `input_serializer` validates
+the payload as a list and the service receives that validated list, looping
+itself:
+
+```python
+class BulkCreateBooksView(ServiceCreateView):
+    spec = ServiceSpec(
+        service=bulk_create_books,          # (*, data: list[BookIn]) -> list[Book]
+        input_serializer=BookIn,
+        many=True,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=BookSerializer
+        ),
+    )
+```
+
+**`collection_selector_spec`** — operate on a filtered set with no `pk` in the
+URL. Its `kind=SelectorKind.LIST` selector (scoped by `filter_set`) resolves the
+target set and seeds it into the service as `collection` for a bulk delete /
+update; an empty set is a harmless no-op:
+
+```python
+class BulkDeleteBooksView(ServiceDeleteView):
+    spec = ServiceSpec(
+        service=delete_collection(Book),    # collection.delete()
+        collection_selector_spec=SelectorSpec(
+            kind=SelectorKind.LIST, selector=published_books, filter_set=BookFilterSet
+        ),
+    )
+```
+
+To render the affected set instead of a summary, give that collection target an
+`output_selector_spec` whose `kind` is `SelectorKind.LIST` — it re-fetches and
+renders the rows as a list. Full walkthrough in the
+[bulk & collection mutations recipe](recipes/bulk-mutations.md).
 
 ## Dispatch
 
