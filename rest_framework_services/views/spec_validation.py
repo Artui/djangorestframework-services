@@ -345,6 +345,40 @@ def _validate_instance_selector_spec(
         )
 
 
+def _validate_collection_selector_spec(
+    collection_spec: SelectorSpec[Any, Any],
+    *,
+    label: str,
+) -> None:
+    """Validate the nested :class:`SelectorSpec` on ``ServiceSpec.collection_selector_spec``.
+
+    A collection target resolves a *set*, so ``kind`` must be
+    :attr:`SelectorKind.LIST` (the LIST twin of ``instance_selector_spec``'s
+    RETRIEVE) and a ``selector`` is required — there is no view fallback. The
+    selector runs against ``{request, user}`` + the dispatch params, so its
+    extras stay permissive.
+    """
+    if collection_spec.kind is not SelectorKind.LIST:
+        raise ImproperlyConfigured(
+            f"{label}: collection_selector_spec.kind must be SelectorKind.LIST; "
+            f"got {collection_spec.kind!r}. It resolves a collection, not a single instance."
+        )
+    if collection_spec.selector is None:
+        raise ImproperlyConfigured(
+            f"{label}: collection_selector_spec requires a `selector` resolving the target set."
+        )
+    _validate_selector_shaping(collection_spec, label=label)
+    validate_callable_signature(
+        collection_spec.selector,
+        spec_label=f"{label}.selector",
+        has_data=False,
+        has_instance=False,
+        has_result=False,
+        spec_kwargs=collection_spec.kwargs,
+        permissive_extras=True,
+    )
+
+
 def validate_service_spec(
     spec: ServiceSpec[Any, Any, Any],
     *,
@@ -358,6 +392,11 @@ def validate_service_spec(
     ``@service_action``. ``has_instance`` is fixed by the action context
     (``False`` for create, ``True`` for update / destroy / detail actions).
     """
+    if spec.many and spec.collection_selector_spec is not None:
+        raise ImproperlyConfigured(
+            f"{label}: `many` and `collection_selector_spec` are mutually exclusive "
+            "— a list-payload bulk and a collection-target bulk are different shapes."
+        )
     _validate_permission_classes(spec.permission_classes, label=label)
     validate_callable_signature(
         spec.service,
@@ -367,7 +406,14 @@ def validate_service_spec(
         has_result=False,
         spec_kwargs=spec.kwargs,
         permissive_extras=permissive_extras,
+        # A collection-target service receives the resolved set as ``collection``.
+        extra_known_keys=("collection",) if spec.collection_selector_spec is not None else (),
     )
+    if spec.collection_selector_spec is not None:
+        _validate_collection_selector_spec(
+            spec.collection_selector_spec,
+            label=f"{label}.collection_selector_spec",
+        )
     if spec.instance_selector_spec is not None:
         _validate_instance_selector_spec(
             spec.instance_selector_spec,

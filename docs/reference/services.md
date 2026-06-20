@@ -40,6 +40,14 @@ extras live on the user's function signature via `**extras: Unpack[YourKw]`
 
 ::: rest_framework_services.services.adelete_model.adelete_model
 
+### `delete_collection`
+
+::: rest_framework_services.services.delete_collection.delete_collection
+
+### `adelete_collection`
+
+::: rest_framework_services.services.adelete_collection.adelete_collection
+
 ## Decorators
 
 ::: rest_framework_services.implements.implements

@@ -25,6 +25,7 @@ from rest_framework_services.views.utils import resolve_callable_kwargs
 # the offending spec field.
 SELECTOR_SOURCE = "SelectorSpec.selector"
 INSTANCE_SOURCE = "ServiceSpec.instance_selector_spec.selector"
+COLLECTION_SOURCE = "ServiceSpec.collection_selector_spec.selector"
 OUTPUT_SOURCE = "ServiceSpec.output_selector_spec.selector"
 
 

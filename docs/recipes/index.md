@@ -27,6 +27,9 @@ the [Quickstart](../quickstart.md) and [Concepts](../concepts.md).
   plus its reverse-FK children from one request with `children=` /
   `ChildSpec` (replace vs merge, orphan delete/unlink, recursion), and
   migrate off a writable-nested serializer.
+- **[Bulk & collection mutations](bulk-mutations.md)** — `many=True` list
+  in/out and a `collection_selector_spec` target for instance-less bulk
+  delete / update over a filtered set.
 - **[Customise serializer context](serializer-context.md)** — direction-
   and action-specific hooks for `get_serializer_context()`, so the input
   and output serializers can see different keys.
