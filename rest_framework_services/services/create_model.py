@@ -8,6 +8,7 @@ from typing import Any
 from rest_framework_services.mutations.create_from_input import create_from_input
 from rest_framework_services.services._resolve_m2m import resolve_m2m
 from rest_framework_services.types.change_result import ModelT
+from rest_framework_services.types.child_spec import ChildSpec
 
 
 def create_model(
@@ -16,6 +17,7 @@ def create_model(
     field_map: dict[str, str] | None = None,
     exclude_fields: list[str] | None = None,
     m2m: Mapping[str, Any] | Callable[[Any], Mapping[str, Any]] | None = None,
+    children: Mapping[str, ChildSpec] | None = None,
 ) -> Callable[..., ModelT]:
     """Return a service callable that builds ``model`` from validated input.
 
@@ -37,6 +39,15 @@ def create_model(
             m2m=lambda data: {"tags": data.tags},
         )
 
+    ``children`` is forwarded to
+    :func:`~rest_framework_services.mutations.create_from_input` to write
+    reverse-FK child collections declaratively (no hand-written service)::
+
+        create_model(
+            Author,
+            children={"books": ChildSpec(model=Book, fk="author")},
+        )
+
     The returned closure accepts ``**kwargs`` so the framework's kwargs pool
     (``request``, ``user``, URL kwargs, ``ServiceSpec.kwargs`` returns) is
     absorbed without the service caring — matching the unified
@@ -51,6 +62,7 @@ def create_model(
             field_map=field_map,
             exclude_fields=exclude_fields,
             m2m=resolve_m2m(m2m, data),
+            children=children,
         ).instance
 
     return _service

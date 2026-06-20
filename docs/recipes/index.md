@@ -23,6 +23,10 @@ the [Quickstart](../quickstart.md) and [Concepts](../concepts.md).
   a `django-filter` FilterSet at a list or retrieve selector's queryset,
   the "replaces `DjangoFilterBackend`" rule, and the boundary with
   `kwargs` for computed (non-queryset) results.
+- **[Nested / child-collection writes](nested-writes.md)** — write a parent
+  plus its reverse-FK children from one request with `children=` /
+  `ChildSpec` (replace vs merge, orphan delete/unlink, recursion), and
+  migrate off a writable-nested serializer.
 - **[Customise serializer context](serializer-context.md)** — direction-
   and action-specific hooks for `get_serializer_context()`, so the input
   and output serializers can see different keys.

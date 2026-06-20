@@ -47,6 +47,8 @@ from rest_framework_services.services import (
 from rest_framework_services.types import (
     UNSET,
     ChangeResult,
+    ChildCollectionChange,
+    ChildSpec,
     FieldChange,
     HttpExtras,
     NoInput,
@@ -88,6 +90,8 @@ __all__ = [
     "ActionSerializerResolver",
     "AsyncSelector",
     "ChangeResult",
+    "ChildCollectionChange",
+    "ChildSpec",
     "CreateService",
     "DeleteService",
     "FieldChange",

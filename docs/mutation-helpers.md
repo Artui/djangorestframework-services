@@ -33,6 +33,10 @@ also take:
 
 - **`m2m: dict[str, Any] | None`** — many-to-many assignments applied
   *post-save*. Each value is passed to the manager's `set()`.
+- **`children: Mapping[str, ChildSpec] | None`** — reverse-FK child
+  collections written from `data[relation]` (create / update / orphan
+  reconcile, recursively). See the
+  [nested-writes recipe](recipes/nested-writes.md).
 
 `update_from_input` (and `aupdate_from_input`) additionally take:
 
