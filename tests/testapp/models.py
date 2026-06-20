@@ -44,3 +44,48 @@ class Post(models.Model):
 
     class Meta:
         app_label = "testapp"
+
+
+# --- nested-write (NEST) fixtures ----------------------------------------
+#
+# Catalog ──< Section ──< Item        (non-nullable FKs → orphans DELETE)
+#         └─< Note                     (nullable FK     → orphans UNLINK)
+# Section.tags is an m2m so a ChildSpec.m2m callback can be exercised.
+
+
+class Catalog(models.Model):
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        app_label = "testapp"
+
+
+class Section(models.Model):
+    catalog = models.ForeignKey(Catalog, on_delete=models.CASCADE, related_name="sections")
+    title = models.CharField(max_length=100)
+    tags = models.ManyToManyField(Tag, blank=True, related_name="sections")
+
+    class Meta:
+        app_label = "testapp"
+
+
+class Item(models.Model):
+    section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name="items")
+    label = models.CharField(max_length=100)
+
+    class Meta:
+        app_label = "testapp"
+
+
+class Note(models.Model):
+    catalog = models.ForeignKey(
+        Catalog,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notes",
+    )
+    body = models.CharField(max_length=200)
+
+    class Meta:
+        app_label = "testapp"

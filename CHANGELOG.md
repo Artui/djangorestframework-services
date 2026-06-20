@@ -32,6 +32,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   documents the `422` `ServiceError` response. `None` gates it on whether the
   operation validates input; `True` / `False` force it. Schema-only; runtime
   behaviour is unchanged.
+- **Native nested / child-collection writes** (NEST-1/2). `create_from_input`
+  and `update_from_input` (plus the `acreate`/`aupdate` async siblings) take a
+  `children={relation: ChildSpec(...)}` argument that writes reverse-FK
+  ("one-to-many") collections from `data[relation]` — create / update matched /
+  reconcile orphans — so a parent and its children persist from one request
+  without delegating to a writable-nested serializer's `save()`. `replace`
+  (default) removes orphans (unlinking nullable-FK children like `SET_NULL`,
+  deleting the rest like `CASCADE`); `merge` upserts only. A `ChildSpec` may
+  nest its own `children` for grandchildren. The default `create_model` /
+  `update_model` / `delete_model` services (and async siblings) forward
+  `children=` for declarative nested writes with no hand-written service;
+  `delete_model` removes the declared collections before the parent.
+  `children` stays on the helpers, never on `ServiceSpec`. New public
+  `ChildSpec` and `ChildCollectionChange` types; `ChangeResult` gains an
+  additive `children` tuple of per-collection deltas
+  (`created`/`updated`/`deleted`/`unlinked` child pks) plus
+  `get_child_change(relation)`. See the new *Nested / child-collection writes*
+  recipe.
 
 ### Changed
 

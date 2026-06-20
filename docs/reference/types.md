@@ -20,6 +20,14 @@
 
 ::: rest_framework_services.types.field_change.FieldChange
 
+## `ChildSpec`
+
+::: rest_framework_services.types.child_spec.ChildSpec
+
+## `ChildCollectionChange`
+
+::: rest_framework_services.types.child_collection_change.ChildCollectionChange
+
 ## `UNSET`
 
 ::: rest_framework_services.types.unset

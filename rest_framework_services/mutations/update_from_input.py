@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from rest_framework_services.mutations.utils import (
     _auto_now_field_names,
+    apply_children,
     apply_m2m,
     coerce_to_dict,
     diff_attrs,
+    extract_children,
     filter_input,
     m2m_changes,
     resolve_update_fields,
 )
 from rest_framework_services.types.change_result import ChangeResult, ModelT
+from rest_framework_services.types.child_spec import ChildSpec
 
 
 def update_from_input(
@@ -24,6 +28,7 @@ def update_from_input(
     exclude_fields: list[str] | None = None,
     m2m: dict[str, Any] | None = None,
     update_fields: bool | list[str] = True,
+    children: Mapping[str, ChildSpec] | None = None,
 ) -> ChangeResult[ModelT]:
     """Update ``instance`` with values from ``data``, persisting only deltas.
 
@@ -33,8 +38,16 @@ def update_from_input(
     that list so they are refreshed alongside the mutation. Pass ``False`` to
     perform a full save, or an explicit list to control exactly which columns
     are written (no auto-injection in that case).
+
+    ``children`` maps a reverse-FK relation name to a
+    :class:`~rest_framework_services.ChildSpec`. The child rows from
+    ``data[relation]`` are reconciled with the existing collection
+    (create / update / orphan-remove per the spec's ``mode``); a relation the
+    input omits is left untouched. Keep the call inside the service's atomic
+    block.
     """
     raw: dict[str, Any] = coerce_to_dict(data)
+    child_data: dict[str, Any] = extract_children(raw, children)
     new_values: dict[str, Any] = filter_input(
         raw,
         field_map=field_map,
@@ -54,8 +67,12 @@ def update_from_input(
         else:
             instance.save(update_fields=save_fields)
     apply_m2m(instance, to_apply)
+    child_changes = (
+        apply_children(instance, child_data, children, created=False) if children else ()
+    )
     return ChangeResult(
         instance=instance,
         created=False,
         changes=field_changes + m2m_field_changes,
+        children=child_changes,
     )

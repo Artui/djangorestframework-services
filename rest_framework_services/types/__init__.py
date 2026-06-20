@@ -6,6 +6,8 @@ inputs/outputs are not coupled to the mutation helpers themselves.
 """
 
 from rest_framework_services.types.change_result import ChangeResult
+from rest_framework_services.types.child_collection_change import ChildCollectionChange
+from rest_framework_services.types.child_spec import ChildSpec
 from rest_framework_services.types.field_change import FieldChange
 from rest_framework_services.types.http_extras import HttpExtras
 from rest_framework_services.types.no_input import NoInput
@@ -18,6 +20,8 @@ from rest_framework_services.types.unset import UNSET, UnsetType
 __all__ = [
     "UNSET",
     "ChangeResult",
+    "ChildCollectionChange",
+    "ChildSpec",
     "FieldChange",
     "HttpExtras",
     "NoInput",
