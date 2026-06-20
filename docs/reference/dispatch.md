@@ -13,8 +13,30 @@ when they bump past 0.17.
 Deliberately **not** part of this surface: `dispatch_mutation_for_spec` and
 `dispatch_selector_for_spec`. They are view-coupled orchestrators (they take
 a view, read its URL kwargs, and walk the `get_<action>_*_kwargs` hook
-chains); a transport-neutral spec dispatcher is future work that will
-compose the leaves below.
+chains). The transport-neutral spec dispatcher that composes the leaves
+below — `dispatch_spec` — is documented first.
+
+## Transport-neutral dispatch
+
+The single execution path a non-HTTP transport drives: hand a spec, the
+acting `user`, and a flat `params` mapping, get back a `DispatchResult` to
+format for your wire. No view, no `request` required.
+
+### `dispatch_spec`
+
+::: rest_framework_services.dispatch.dispatch_spec.dispatch_spec
+
+### `adispatch_spec`
+
+::: rest_framework_services.dispatch.adispatch_spec.adispatch_spec
+
+### `render_spec_output`
+
+::: rest_framework_services.dispatch.render_spec_output.render_spec_output
+
+### `DispatchResult`
+
+::: rest_framework_services.types.dispatch_result.DispatchResult
 
 ## Shared
 
@@ -39,6 +61,10 @@ compose the leaves below.
 ### `build_input_serializer`
 
 ::: rest_framework_services.views.mutation.utils.build_input_serializer
+
+### `build_input_serializer_from_data`
+
+::: rest_framework_services.views.mutation.utils.build_input_serializer_from_data
 
 ### `validate_input`
 

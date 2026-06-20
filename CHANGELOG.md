@@ -50,6 +50,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`created`/`updated`/`deleted`/`unlinked` child pks) plus
   `get_child_change(relation)`. See the new *Nested / child-collection writes*
   recipe.
+- **Transport-neutral `dispatch_spec`** (KEY-1). A single, view-free execution
+  path for a `ServiceSpec` or `SelectorSpec`:
+  `dispatch_spec(spec, *, user, params, request=None, view=None)` (and the
+  async `adispatch_spec`) validates input, resolves the mutation target via
+  `instance_selector_spec`, runs the service / selector, applies queryset
+  shaping (incl. `filter_set`, reading the new transport-supplied filter data),
+  and materializes a `RETRIEVE` — returning a `DispatchResult`
+  (`value` / `kind` / `status`) the caller formats for its wire. `render_spec_output`
+  is the paired blessed render step (output serializer + context). Ordering,
+  pagination, and the response envelope stay transport concerns. This is the
+  shared path the MCP server and the AG-UI bridge adopt to delete their
+  re-implementations (the surface half of the long-standing dispatch
+  triplication); the HTTP view layer keeps its own request-coupled
+  orchestration. New blessed surface: `dispatch_spec`, `adispatch_spec`,
+  `render_spec_output`, `build_input_serializer_from_data`, and the
+  `DispatchResult` type.
 
 ### Changed
 
@@ -57,6 +73,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   optional `filter_set` keyword argument (default `None`) and now applies a
   spec's FilterSet as the final shaping step. Backward-compatible: existing
   callers that don't pass `filter_set` are unaffected.
+- `apply_queryset_shaping` also gained an optional `filter_data` keyword
+  (default `None`): when set, the FilterSet reads it instead of
+  `request.query_params`, so a transport-neutral caller (`dispatch_spec`)
+  supplies its own params. The HTTP view path passes `None` and keeps reading
+  `request.query_params` — unchanged.
+- `build_input_serializer`'s data-extraction core is now exposed as
+  `build_input_serializer_from_data(data, …)` (blessed), so validation runs the
+  same way on and off the HTTP path. `build_input_serializer(request, …)` is a
+  thin wrapper over it — its signature is unchanged.
 - **Unified provider invocation** (PROV-1). Every spec-level provider
   (`kwargs`, `input_data`, `input_serializer_context`,
   `output_serializer_context`) **and** the corresponding view hooks are now

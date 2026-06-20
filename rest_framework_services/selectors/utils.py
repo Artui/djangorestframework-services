@@ -63,17 +63,18 @@ def apply_queryset_shaping(
     annotations: Any,
     extend_queryset: Any,
     filter_set: Any = None,
+    filter_data: Any = None,
     source_label: str,
 ) -> Any:
     """Apply the five shaping fields to ``qs``.
 
     Declarative fields apply first (in declaration order), then
     ``extend_queryset`` runs so the user callable always sees the fully
-    statically-shaped queryset, and finally ``filter_set`` narrows it via
-    the transport-neutral ``filter_set(data=request.query_params,
-    queryset=qs).qs`` contract — so filtering composes with shaping and runs
-    before the retrieve ``.first()`` materialization the caller does next.
-    Returns ``qs`` unchanged when no shaping is configured.
+    statically-shaped queryset, and finally ``filter_set`` narrows it via the
+    transport-neutral ``filter_set(data=filter_data, queryset=qs).qs`` contract
+    — so filtering composes with shaping and runs before the retrieve
+    ``.first()`` materialization the caller does next. Returns ``qs`` unchanged
+    when no shaping is configured.
 
     Raises :exc:`ImproperlyConfigured` when shaping is configured but
     ``qs`` is not a Django QuerySet (no ``annotate`` method) — loud
@@ -82,7 +83,11 @@ def apply_queryset_shaping(
     (``"SelectorSpec.selector"`` vs ``"ServiceSpec.output_selector_spec.selector"``).
 
     ``filter_set`` defaults to ``None`` so existing callers of this blessed
-    surface keep working unchanged.
+    surface keep working unchanged. ``filter_data`` is the data the FilterSet
+    reads (a flat ``{field: value}`` mapping); it defaults to ``None``, in
+    which case the value falls back to ``request.query_params`` — the HTTP view
+    path. A transport-neutral caller (``dispatch_spec``) passes its own params
+    here, so the FilterSet never reaches into a DRF request it doesn't have.
     """
     if (
         select_related is None
@@ -108,7 +113,8 @@ def apply_queryset_shaping(
     if extend_queryset is not None:
         qs = extend_queryset(qs, view, request)
     if filter_set is not None:
-        qs = filter_set(data=request.query_params, queryset=qs).qs
+        data = filter_data if filter_data is not None else request.query_params
+        qs = filter_set(data=data, queryset=qs).qs
     return qs
 
 

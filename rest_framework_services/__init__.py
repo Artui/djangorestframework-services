@@ -7,6 +7,11 @@ for typical usage; deeper imports (``rest_framework_services.mutations``,
 ``rest_framework_services.selectors``) are stable and supported.
 """
 
+from rest_framework_services.dispatch import (
+    adispatch_spec,
+    dispatch_spec,
+    render_spec_output,
+)
 from rest_framework_services.exceptions import ServiceError, ServiceValidationError
 from rest_framework_services.implements import implements
 from rest_framework_services.is_async import is_async
@@ -49,6 +54,7 @@ from rest_framework_services.types import (
     ChangeResult,
     ChildCollectionChange,
     ChildSpec,
+    DispatchResult,
     FieldChange,
     HttpExtras,
     NoInput,
@@ -69,6 +75,7 @@ from rest_framework_services.views import (
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
 from rest_framework_services.views.mutation.utils import (
     build_input_serializer,
+    build_input_serializer_from_data,
     resolve_mutation_instance,
     validate_input,
 )
@@ -94,6 +101,7 @@ __all__ = [
     "ChildSpec",
     "CreateService",
     "DeleteService",
+    "DispatchResult",
     "FieldChange",
     "HttpExtras",
     "ListSelector",
@@ -127,6 +135,7 @@ __all__ = [
     "acreate_from_input",
     "acreate_model",
     "adelete_model",
+    "adispatch_spec",
     "apply_input",
     "apply_queryset_shaping",
     "arun_selector",
@@ -134,14 +143,17 @@ __all__ = [
     "aupdate_from_input",
     "aupdate_model",
     "build_input_serializer",
+    "build_input_serializer_from_data",
     "call_selector",
     "call_service",
     "create_from_input",
     "create_model",
     "delete_model",
+    "dispatch_spec",
     "implements",
     "is_async",
     "is_queryset",
+    "render_spec_output",
     "resolve_callable_kwargs",
     "resolve_mutation_instance",
     "run_selector",
