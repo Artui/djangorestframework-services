@@ -270,7 +270,7 @@ class TestServiceActionSchema:
         op = schema["paths"]["/approvals/{id}/approve/"]["post"]
         assert "200" in op["responses"]
         # The approve spec has no ``input_serializer``, so the 422 ServiceError
-        # response is gated out (SCH-1) — no spurious diff for a no-input action.
+        # response is gated out — no spurious diff for a no-input action.
         assert "422" not in op["responses"]
 
 
