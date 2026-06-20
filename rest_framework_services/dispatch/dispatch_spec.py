@@ -162,12 +162,14 @@ def _dispatch_service(
     result: Any = run_service(
         spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic
     )
-    result = _run_output_selector(
+    result, output_is_list = _run_output_selector(
         spec, result, user=user, request=request, view=view, params=params
     )
 
     status = success_status if success_status is not None else (spec.success_status or 200)
-    return DispatchResult(value=result, kind="instance", status=status)
+    return DispatchResult(
+        value=result, kind="list" if output_is_list else "instance", status=status
+    )
 
 
 def _dispatch_service_many(
@@ -254,10 +256,19 @@ def _run_output_selector(
     request: Any,
     view: Any,
     params: Mapping[str, Any],
-) -> Any:
+) -> tuple[Any, bool]:
+    """Re-fetch + shape the service result through ``output_selector_spec``.
+
+    Returns ``(value, is_list)``. ``output_selector_spec.kind`` drives the
+    cardinality: ``RETRIEVE`` (the default) collapses a queryset to a single
+    instance via ``.first()`` (``is_list`` ``False``); ``LIST`` — valid only
+    alongside ``collection_selector_spec`` — returns the shaped set untouched
+    (``is_list`` ``True``) so the transport renders it ``many=True``. With no
+    output selector the service return passes through as a single value.
+    """
     out_spec = spec.output_selector_spec
     if out_spec is None or out_spec.selector is None:
-        return result
+        return result, False
     # The nested spec's own kwargs / permissions are ignored (the surrounding
     # mutation owns them); the service return joins the pool as ``result`` /
     # ``instance``.
@@ -272,7 +283,9 @@ def _run_output_selector(
     selected = shape_queryset(
         out_spec, selected, view=view, request=request, params=params, source_label=OUTPUT_SOURCE
     )
-    return selected.first() if is_queryset(selected) else selected
+    if out_spec.kind is SelectorKind.LIST:
+        return selected, True
+    return (selected.first() if is_queryset(selected) else selected), False
 
 
 def _resolve_instance(

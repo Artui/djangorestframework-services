@@ -71,17 +71,18 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     and output selector have resolved ``result``.
 
     ``output_selector_spec`` is the full output pipeline collapsed into a
-    single :class:`SelectorSpec`. Its ``kind`` must be
-    :attr:`SelectorKind.RETRIEVE` (the post-mutation re-fetch always
-    materializes a single instance). Set it to render the response through
-    a different shape than what the service returned (typical pattern: the
-    service returns a freshly created/updated instance, the
-    ``output_selector_spec.selector`` re-fetches it with the relations the
-    response serializer needs, and the spec's ``output_serializer``
-    renders the result). ``None`` (the default) means "render the service's
-    return value directly". The nested spec's ``permission_classes`` and
-    ``kwargs`` are ignored — the surrounding mutation's permissions and
-    kwargs chain apply.
+    single :class:`SelectorSpec`. Its ``kind`` declares the response
+    cardinality: :attr:`SelectorKind.RETRIEVE` (the default) re-fetches a
+    single instance (typical pattern: the service returns a freshly
+    created/updated instance, the ``output_selector_spec.selector`` re-fetches
+    it with the relations the response serializer needs, and the spec's
+    ``output_serializer`` renders the result); :attr:`SelectorKind.LIST`
+    re-fetches and renders a *set* (``many=True``) and is valid only alongside
+    ``collection_selector_spec`` — the bulk-output twin that lets a
+    collection mutation return the affected set. ``None`` (the default) means
+    "render the service's return value directly". The nested spec's
+    ``permission_classes`` and ``kwargs`` are ignored — the surrounding
+    mutation's permissions and kwargs chain apply.
 
     ``instance_selector_spec`` is the input-side twin of
     ``output_selector_spec``: a nested :class:`SelectorSpec` (``kind`` must

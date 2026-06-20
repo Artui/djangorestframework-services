@@ -59,6 +59,18 @@ def _bulk_delete(*, collection: QuerySet[Post]) -> dict[str, int]:
     return {"deleted": n}
 
 
+def _bulk_publish(*, collection: QuerySet[Post]) -> list[int]:
+    # Capture pks *before* the update so the output selector can re-fetch the
+    # affected rows (the collection's own filter no longer matches post-update).
+    ids = list(collection.values_list("id", flat=True))
+    Post.objects.filter(id__in=ids).update(published=True)
+    return ids
+
+
+def _posts_by_ids(*, result: list[int]) -> QuerySet[Post]:
+    return Post.objects.filter(id__in=result).order_by("id")
+
+
 @pytest.mark.django_db
 class TestDispatchMany:
     def test_list_in_list_out(self) -> None:
@@ -134,6 +146,28 @@ class TestDispatchCollection:
         with pytest.raises(ImproperlyConfigured, match="requires a `selector`"):
             dispatch_spec(spec, user=None, params={})
 
+    def test_collection_update_renders_list_output(self) -> None:
+        # A LIST-kind output_selector_spec re-fetches and returns the affected
+        # set, so a bulk update can render its result as a list (kind="list").
+        Post.objects.create(title="a", published=False)
+        Post.objects.create(title="b", published=False)
+        Post.objects.create(title="c", published=True)
+        spec = ServiceSpec(
+            service=_bulk_publish,
+            collection_selector_spec=SelectorSpec(
+                kind=SelectorKind.LIST, selector=_all_posts, filter_set=_PublishedFilterSet
+            ),
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.LIST, selector=_posts_by_ids, output_serializer=_PostSerializer
+            ),
+            atomic=False,
+        )
+        result = dispatch_spec(spec, user=None, params={"published": "false"})
+        assert result.kind == "list"
+        rendered = render_spec_output(spec, result.value, many=(result.kind == "list"))
+        assert [row["title"] for row in rendered] == ["a", "b"]
+        assert all(row["published"] for row in rendered)
+
 
 @pytest.mark.django_db(transaction=True)
 class TestADispatchBulk:
@@ -182,3 +216,31 @@ class TestADispatchBulk:
         spec = ServiceSpec(service=make_one, many=True, atomic=False)
         result = await adispatch_spec(spec, user=None, params=[{}])
         assert len(result.value) == 1
+
+    async def test_acollection_update_renders_list_output(self) -> None:
+        await Post.objects.acreate(title="a", published=False)
+        await Post.objects.acreate(title="b", published=False)
+
+        async def abulk_publish(*, collection: QuerySet[Post]) -> list[int]:
+            ids = [pk async for pk in collection.values_list("id", flat=True)]
+            await Post.objects.filter(id__in=ids).aupdate(published=True)
+            return ids
+
+        async def aall_posts() -> QuerySet[Post]:
+            return Post.objects.all()
+
+        async def aposts_by_ids(*, result: list[int]) -> QuerySet[Post]:
+            return Post.objects.filter(id__in=result).order_by("id")
+
+        spec = ServiceSpec(
+            service=abulk_publish,
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=aall_posts),
+            output_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=aposts_by_ids),
+            atomic=False,
+        )
+        result = await adispatch_spec(spec, user=None, params={})
+        assert result.kind == "list"
+        # LIST output is the lazy shaped queryset — materialize it off the spec.
+        posts = [p async for p in result.value]
+        assert sorted(p.title for p in posts) == ["a", "b"]
+        assert all(p.published for p in posts)

@@ -155,6 +155,38 @@ class TestBulkUpdateCollection:
         assert response.data == {"updated": 2}
         assert Post.objects.filter(published=True).count() == 2
 
+    def test_bulk_update_renders_list_output(self) -> None:
+        Post.objects.create(title="a", published=False)
+        Post.objects.create(title="b", published=False)
+        Post.objects.create(title="c", published=True)
+
+        def publish_drafts(*, collection: QuerySet[Post]) -> list[int]:
+            ids = list(collection.values_list("id", flat=True))
+            Post.objects.filter(id__in=ids).update(published=True)
+            return ids
+
+        def published_by_ids(*, result: list[int]) -> QuerySet[Post]:
+            return Post.objects.filter(id__in=result).order_by("id")
+
+        class _View(ServiceUpdateView):
+            spec = ServiceSpec(
+                service=publish_drafts,
+                collection_selector_spec=SelectorSpec(
+                    kind=SelectorKind.LIST, selector=_all_posts, filter_set=_PublishedFilterSet
+                ),
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.LIST,
+                    selector=published_by_ids,
+                    output_serializer=_PostSerializer,
+                ),
+                atomic=False,
+            )
+
+        response = _View.as_view()(factory.put("/?published=false"))
+        assert response.status_code == 200
+        assert [row["title"] for row in response.data] == ["a", "b"]
+        assert Post.objects.filter(published=True).count() == 3
+
 
 class TestBulkValidation:
     def test_many_and_collection_mutually_exclusive(self) -> None:

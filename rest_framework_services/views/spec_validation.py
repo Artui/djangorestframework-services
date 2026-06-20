@@ -268,27 +268,31 @@ def _validate_output_selector_spec(
     *,
     label: str,
     has_instance: bool,
+    has_collection: bool,
     permissive_extras: bool,
     spec_kwargs: Callable[..., Any] | None,
     input_serializer: type | None,
 ) -> None:
     """Validate the nested :class:`SelectorSpec` on :attr:`ServiceSpec.output_selector_spec`.
 
-    The post-mutation re-fetch is always retrieve-shaped (it materializes a
-    single instance), so ``output_spec.kind`` must be
-    :attr:`SelectorKind.RETRIEVE`. The nested spec's ``selector`` is
-    validated with ``has_result=True`` (the service's return joins the
-    selector's kwargs pool as ``result``) and the surrounding mutation's
-    ``kwargs`` / view-level ``get_*_service_kwargs`` chain is what feeds
-    the extras — the nested spec's own ``kwargs`` / ``permission_classes``
-    are ignored at request time, so we don't validate them as a selector
-    spec would.
+    ``output_spec.kind`` declares the response cardinality:
+    :attr:`SelectorKind.RETRIEVE` (the default) re-fetches a single instance;
+    :attr:`SelectorKind.LIST` re-fetches and renders a *set* and is valid only
+    alongside ``collection_selector_spec`` — bulk output pairs with a bulk
+    operation, and a single-instance mutation returns one representation. The
+    nested spec's ``selector`` is validated with ``has_result=True`` (the
+    service's return joins the selector's kwargs pool as ``result``) and the
+    surrounding mutation's ``kwargs`` / view-level ``get_*_service_kwargs``
+    chain is what feeds the extras — the nested spec's own ``kwargs`` /
+    ``permission_classes`` are ignored at request time, so we don't validate
+    them as a selector spec would.
     """
-    if output_spec.kind is not SelectorKind.RETRIEVE:
+    if output_spec.kind is SelectorKind.LIST and not has_collection:
         raise ImproperlyConfigured(
-            f"{label}: output_selector_spec.kind must be SelectorKind.RETRIEVE; "
-            f"got {output_spec.kind!r}. The post-mutation re-fetch materializes "
-            "a single instance."
+            f"{label}: output_selector_spec.kind=LIST renders a list and is only "
+            "valid alongside collection_selector_spec (bulk output pairs with a "
+            "bulk operation). A single-instance mutation returns one "
+            "representation — use kind=SelectorKind.RETRIEVE."
         )
     _validate_selector_shaping(output_spec, label=label)
     if output_spec.selector is not None:
@@ -425,6 +429,7 @@ def validate_service_spec(
             spec.output_selector_spec,
             label=f"{label}.output_selector_spec",
             has_instance=has_instance,
+            has_collection=spec.collection_selector_spec is not None,
             permissive_extras=permissive_extras,
             spec_kwargs=spec.kwargs,
             input_serializer=spec.input_serializer,
