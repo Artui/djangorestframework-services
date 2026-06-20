@@ -188,11 +188,13 @@ is merged on top of `request.data` *before* the serializer is
 instantiated:
 
 ```python
+from dataclasses import dataclass
 from typing import Any
 from rest_framework.request import Request
 from rest_framework_services import ServiceSpec, ServiceView
 
 
+@dataclass
 class CreateChildIn:
     name: str
     parent_id: int  # required field, but server-provided

@@ -122,7 +122,8 @@ def archive_old(self, request):
 ```
 
 The service receives `request` (and not `instance`). `archive_old_invoices`
-can declare any subset of `{request, user, data}` it needs.
+can declare any subset of `{request, user}` it needs — plus `data` only if
+the spec sets an `input_serializer`.
 
 ## Why not just `@action`?
 

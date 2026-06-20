@@ -69,6 +69,11 @@ For mutation surfaces, the response shape is read from
 | `SelectorListView` / `["list"]`      | n/a                       | `spec.output_serializer` ✓                             | n/a          |
 | `SelectorRetrieveView` / `["retrieve"]` | n/a                    | `spec.output_serializer` ✓                             | n/a          |
 
+The request-body and `422` cells apply when the spec validates input
+(`input_serializer` is set); a no-input operation (e.g. a plain delete)
+carries neither, unless `document_service_error=True` forces the `422` —
+see *422 ServiceError responses* below.
+
 ### Bare dataclass `input_serializer`
 
 The runtime auto-wraps a bare `@dataclass` type in a `DataclassSerializer`.

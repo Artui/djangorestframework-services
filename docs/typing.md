@@ -283,9 +283,11 @@ request:
 - A mounted `SelectorSpec`'s `kind` disagrees with the view it's attached
   to — e.g. a `SelectorKind.LIST` spec on `SelectorRetrieveView`, or a
   `SelectorKind.RETRIEVE` entry under `action_specs["list"]`.
-- A `ServiceSpec.output_selector_spec` is supplied with a `kind` other
-  than `SelectorKind.RETRIEVE` (the post-mutation re-fetch always
-  materializes a single instance).
+- A `ServiceSpec.output_selector_spec` is given `kind=SelectorKind.LIST`
+  without a paired `collection_selector_spec` — a single-instance mutation
+  re-fetches one row, so its `output_selector_spec` must be
+  `SelectorKind.RETRIEVE`; `kind=LIST` (list-shaped output) is valid only
+  for a collection mutation.
 - A required parameter is not framework-provided and the view has no
   `kwargs=` provider, no `get_<action>_*_kwargs`, and no `get_*_kwargs` —
   the parameter would be silently dropped at request time.
