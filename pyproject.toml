@@ -45,6 +45,11 @@ dependencies = [
 # OpenAPI / Swagger via drf-spectacular. Pulled in only when the user
 # installs the extra and calls ``rest_framework_services.openapi.enable_openapi``.
 spectacular = ["drf-spectacular>=0.27,<1.0"]
+# django-filter introspection for ``filterset_to_json_schema``. The core never
+# imports django-filter (``SelectorSpec.filter_set`` is applied by duck typing);
+# only the JSON Schema introspection of a ``FilterSet`` needs the real classes,
+# so it lives behind this extra and imports lazily.
+filter = ["django-filter>=23.0"]
 
 [project.urls]
 Homepage = "https://github.com/Artui/djangorestframework-services"
@@ -64,6 +69,7 @@ dev = [
     "django-stubs>=6.0.4",
     "djangorestframework-stubs>=3.17.0",
     "drf-spectacular>=0.29.0",
+    "django-filter>=23.0",
 ]
 docs = [
     "mkdocs>=1.6.1",

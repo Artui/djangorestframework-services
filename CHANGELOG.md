@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **View-free JSON Schema generation (`rest_framework_services.jsonschema`)** —
+  the first part of the off-HTTP "SURF-2" surface. Three new top-level helpers
+  turn a spec (or a bare serializer / dataclass) into a JSON Schema dict, with
+  **no** view, request, or `drf-spectacular` import in the path — what an
+  alternate transport (a Pydantic-AI toolset, the MCP server) builds tool
+  definitions from:
+  - `serializer_to_json_schema(serializer, *, partial=False)` — input schema for
+    a DRF `Serializer` subclass, a bare `@dataclass`, or `None`; `partial` drops
+    the `required` list (mirroring `spec.partial`).
+  - `output_to_json_schema(output_serializer, *, kind=None, paginate=False)` —
+    output schema, or `None` when undeclared; `kind=LIST` wraps the item schema
+    in an array, `paginate=True` in the `{items, page, totalPages, hasNext}`
+    envelope.
+  - `spec_to_json_schema(spec, *, phase="input"|"output")` — reads the right
+    serializer / kind off a `ServiceSpec` or `SelectorSpec`. For a `SelectorSpec`
+    carrying a `filter_set`, the input schema's `properties` are the filter
+    fields.
+  - `filterset_to_json_schema(filter_set)` — maps a `django-filter` `FilterSet`
+    to JSON Schema properties. Behind a new **`[filter]` extra** (the core still
+    imports no `django-filter` — `SelectorSpec.filter_set` is duck-typed); the
+    import is lazy and only fires when a `filter_set` is actually introspected.
+
+  drf-spectacular `@extend_schema_field` / `@extend_schema_serializer` overrides
+  are honoured by reading the stamped attribute via `getattr`, so the support is
+  cost-free whether or not spectacular is installed. Distinct from
+  `rest_framework_services.openapi`, which emits DRF serializer classes for DRF's
+  own OpenAPI generators.
+- **Off-HTTP dispatch context (`build_offline_context`, `OfflineContext`,
+  `OfflineServiceView`)** — synthesize the `request` + `view` a spec's callables
+  (`kwargs` providers, `extend_queryset`, context providers) expect, so a spec
+  written for the HTTP transport can be driven from a Pydantic-AI toolset, the
+  MCP server, a management command, or a task runner. `build_offline_context(user,
+  params, *, http_request=None, action=None, kwargs=None)` sets `request.user`,
+  seeds `request.data` from `params`, and returns the trio bundled as an
+  `OfflineContext` ready to pass into `dispatch_spec(..., request=, view=)`.
+- **`enforce_permissions(spec, context, *, instance=None)`** — run a spec's
+  `permission_classes` off the HTTP path. `dispatch_spec` deliberately does not
+  consult `permission_classes` (authorization is the view's job on HTTP), so an
+  alternate transport must call this before dispatching or it would skip authz
+  entirely. Mirrors a DRF view's `has_permission` check against the synthetic
+  request/view, additionally checks `has_object_permission` when an `instance` is
+  supplied (object-level parity the HTTP path has), and raises
+  `rest_framework.exceptions.PermissionDenied` (carrying the permission's
+  `message` / `code`) on the first failure. `permission_classes` of `None` or `[]`
+  is a no-op.
+
 ## [0.18.0] — 2026-06-20
 
 ### Added
