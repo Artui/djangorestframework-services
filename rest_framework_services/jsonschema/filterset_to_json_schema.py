@@ -4,8 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
+from rest_framework_services.types.json_schema_registry import (
+    DEFAULT_JSON_SCHEMA_REGISTRY,
+    JsonSchemaRegistry,
+)
 
-def filterset_to_json_schema(filter_set_class: Any) -> dict[str, dict[str, Any]]:
+
+def filterset_to_json_schema(
+    filter_set_class: Any,
+    *,
+    registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+) -> dict[str, dict[str, Any]]:
     """Map a django-filter ``FilterSet`` class to JSON Schema properties.
 
     Returns a dict shaped like the ``"properties"`` key of a JSON Schema object
@@ -15,10 +24,12 @@ def filterset_to_json_schema(filter_set_class: Any) -> dict[str, dict[str, Any]]
     filter narrows the queryset but is never required to call the operation, so
     no name is added to a ``required`` array.
 
-    Common filter classes get accurate mappings; anything unrecognised falls
-    back to ``{}`` (JSON Schema "any value") so a custom filter never breaks
-    generation. Reads ``FilterSet.base_filters`` directly (populated by the
-    metaclass at class-creation time) so the FilterSet isn't instantiated.
+    ``registry.filters`` rules are tried first (so a consumer can map a custom
+    filter type or override a built-in); otherwise common filter classes get
+    accurate mappings and anything unrecognised falls back to ``{}`` (JSON Schema
+    "any value") so a custom filter never breaks generation. Reads
+    ``FilterSet.base_filters`` directly (populated by the metaclass at
+    class-creation time) so the FilterSet isn't instantiated.
 
     Requires the ``[filter]`` extra (``django-filter``). The core never imports
     it — ``SelectorSpec.filter_set`` is applied by duck typing — so the import is
@@ -29,7 +40,8 @@ def filterset_to_json_schema(filter_set_class: Any) -> dict[str, dict[str, Any]]
     module = _import_django_filters()
     base_filters: dict[str, Any] = dict(getattr(filter_set_class, "base_filters", {}))
     return {
-        name: _filter_to_schema(module, filter_obj) for name, filter_obj in base_filters.items()
+        name: _filter_to_schema(module, filter_obj, registry)
+        for name, filter_obj in base_filters.items()
     }
 
 
@@ -44,12 +56,18 @@ def _import_django_filters() -> Any:
     return django_filters
 
 
-def _filter_to_schema(module: Any, filter_obj: Any) -> dict[str, Any]:
+def _filter_to_schema(
+    module: Any, filter_obj: Any, registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY
+) -> dict[str, Any]:
     """Map a single filter instance to a JSON Schema fragment.
 
-    Order matters: subclass checks come before their base classes. Falls back to
-    the scalar mapping (and ultimately ``{}``) for unrecognised filters.
+    ``registry.filters`` rules win first. Otherwise order matters: subclass
+    checks come before their base classes, falling back to the scalar mapping
+    (and ultimately ``{}``) for unrecognised filters.
     """
+    for rule_type, rule_schema in registry.filters:
+        if isinstance(filter_obj, rule_type):
+            return dict(rule_schema)
     # Range filters → object with min / max of the base scalar.
     if isinstance(filter_obj, module.BaseRangeFilter):
         scalar = _scalar_for(module, filter_obj)

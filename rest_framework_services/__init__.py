@@ -60,6 +60,7 @@ from rest_framework_services.services import (
     update_model,
 )
 from rest_framework_services.types import (
+    DEFAULT_JSON_SCHEMA_REGISTRY,
     UNSET,
     ChangeResult,
     ChildCollectionChange,
@@ -67,6 +68,7 @@ from rest_framework_services.types import (
     DispatchResult,
     FieldChange,
     HttpExtras,
+    JsonSchemaRegistry,
     NoInput,
     OfflineContext,
     OfflineServiceView,
@@ -112,10 +114,12 @@ __all__ = [
     "ChildCollectionChange",
     "ChildSpec",
     "CreateService",
+    "DEFAULT_JSON_SCHEMA_REGISTRY",
     "DeleteService",
     "DispatchResult",
     "FieldChange",
     "HttpExtras",
+    "JsonSchemaRegistry",
     "ListSelector",
     "MutationFlowMixin",
     "NoInput",

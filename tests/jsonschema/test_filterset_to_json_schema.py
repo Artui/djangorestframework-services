@@ -14,6 +14,7 @@ from rest_framework_services.jsonschema.filterset_to_json_schema import (
     _scalar_for,
     filterset_to_json_schema,
 )
+from rest_framework_services.types.json_schema_registry import DEFAULT_JSON_SCHEMA_REGISTRY
 from tests.testapp.models import Author
 
 
@@ -21,6 +22,9 @@ class _NumberInFilter(django_filters.BaseInFilter, django_filters.NumberFilter):
 
 
 class _NumberRangeFilter(django_filters.BaseRangeFilter, django_filters.NumberFilter): ...
+
+
+class _CustomFilter(django_filters.Filter): ...
 
 
 # --- filterset_to_json_schema (public) ---------------------------------------
@@ -145,3 +149,35 @@ def test_choice_schema_without_choices_is_string() -> None:
 
 def test_choice_schema_without_extra_is_string() -> None:
     assert _choice_schema(object()) == {"type": "string"}
+
+
+# --- registry rules (filters) ------------------------------------------------
+
+
+def test_registry_filter_rule_maps_a_custom_filter() -> None:
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+        filters=[(_CustomFilter, {"type": "string", "format": "custom"})]
+    )
+    assert _filter_to_schema(django_filters, _CustomFilter(), registry) == {
+        "type": "string",
+        "format": "custom",
+    }
+
+
+def test_registry_filter_rule_present_but_unmatched_falls_through() -> None:
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(filters=[(_CustomFilter, {"x": 1})])
+    assert _filter_to_schema(django_filters, django_filters.CharFilter(), registry) == {
+        "type": "string"
+    }
+
+
+def test_registry_filter_rule_flows_through_filterset() -> None:
+    class _FS(django_filters.FilterSet):
+        ref = _CustomFilter()
+
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+        filters=[(_CustomFilter, {"type": "string", "format": "custom"})]
+    )
+    assert filterset_to_json_schema(_FS, registry=registry) == {
+        "ref": {"type": "string", "format": "custom"}
+    }

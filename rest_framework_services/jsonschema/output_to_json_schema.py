@@ -8,6 +8,10 @@ from typing import Any
 from rest_framework import serializers
 
 from rest_framework_services.jsonschema.utils import dataclass_to_schema, serializer_to_schema
+from rest_framework_services.types.json_schema_registry import (
+    DEFAULT_JSON_SCHEMA_REGISTRY,
+    JsonSchemaRegistry,
+)
 from rest_framework_services.types.selector_kind import SelectorKind
 
 
@@ -16,6 +20,7 @@ def output_to_json_schema(
     *,
     kind: SelectorKind | None = None,
     paginate: bool = False,
+    registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
 ) -> dict[str, Any] | None:
     """Build a JSON Schema for an output serializer, or ``None`` when undeclared.
 
@@ -27,8 +32,11 @@ def output_to_json_schema(
     - ``kind=LIST, paginate=False`` — ``{type: array, items: <item>}``.
     - ``kind=LIST, paginate=True`` — the pagination envelope
       ``{items, page, totalPages, hasNext}``.
+
+    ``registry`` supplies consumer rules for custom field / Python types — see
+    :class:`~rest_framework_services.JsonSchemaRegistry`.
     """
-    item_schema: dict[str, Any] | None = _item_schema(output_serializer)
+    item_schema: dict[str, Any] | None = _item_schema(output_serializer, registry)
     if item_schema is None:
         return None
     if kind is not SelectorKind.LIST:
@@ -48,13 +56,15 @@ def output_to_json_schema(
     }
 
 
-def _item_schema(output_serializer: type | None) -> dict[str, Any] | None:
+def _item_schema(
+    output_serializer: type | None, registry: JsonSchemaRegistry
+) -> dict[str, Any] | None:
     if output_serializer is None:
         return None
     if isinstance(output_serializer, type) and issubclass(
         output_serializer, serializers.Serializer
     ):
-        return serializer_to_schema(output_serializer())
+        return serializer_to_schema(output_serializer(), registry)
     if isinstance(output_serializer, type) and dataclasses.is_dataclass(output_serializer):
-        return dataclass_to_schema(output_serializer)
+        return dataclass_to_schema(output_serializer, registry)
     return None
