@@ -9,12 +9,20 @@ for typical usage; deeper imports (``rest_framework_services.mutations``,
 
 from rest_framework_services.dispatch import (
     adispatch_spec,
+    build_offline_context,
     dispatch_spec,
+    enforce_permissions,
     render_spec_output,
 )
 from rest_framework_services.exceptions import ServiceError, ServiceValidationError
 from rest_framework_services.implements import implements
 from rest_framework_services.is_async import is_async
+from rest_framework_services.jsonschema import (
+    filterset_to_json_schema,
+    output_to_json_schema,
+    serializer_to_json_schema,
+    spec_to_json_schema,
+)
 from rest_framework_services.mutations import (
     acreate_from_input,
     apply_input,
@@ -60,6 +68,8 @@ from rest_framework_services.types import (
     FieldChange,
     HttpExtras,
     NoInput,
+    OfflineContext,
+    OfflineServiceView,
     SelectorKind,
     SelectorSpec,
     ServiceSpec,
@@ -109,6 +119,8 @@ __all__ = [
     "ListSelector",
     "MutationFlowMixin",
     "NoInput",
+    "OfflineContext",
+    "OfflineServiceView",
     "RetrieveSelector",
     "Selector",
     "SelectorKind",
@@ -147,6 +159,7 @@ __all__ = [
     "aupdate_model",
     "build_input_serializer",
     "build_input_serializer_from_data",
+    "build_offline_context",
     "call_selector",
     "call_service",
     "create_from_input",
@@ -154,16 +167,21 @@ __all__ = [
     "delete_collection",
     "delete_model",
     "dispatch_spec",
+    "enforce_permissions",
+    "filterset_to_json_schema",
     "implements",
     "is_async",
     "is_queryset",
+    "output_to_json_schema",
     "render_spec_output",
     "resolve_callable_kwargs",
     "resolve_mutation_instance",
     "run_selector",
     "run_service",
     "selector_action",
+    "serializer_to_json_schema",
     "service_action",
+    "spec_to_json_schema",
     "update_from_input",
     "update_model",
     "validate_input",
