@@ -116,3 +116,38 @@ def test_selector_output_retrieve_kind_is_item() -> None:
 def test_selector_output_without_serializer_is_none() -> None:
     spec = SelectorSpec(kind=SelectorKind.RETRIEVE)
     assert spec_to_json_schema(spec, phase="output") is None
+
+
+def test_registry_is_forwarded_to_service_input() -> None:
+    from rest_framework_services.types.json_schema_registry import DEFAULT_JSON_SCHEMA_REGISTRY
+
+    class _MoneyField(serializers.Field): ...
+
+    class _Order(serializers.Serializer):
+        total = _MoneyField()
+
+    spec = ServiceSpec(service=_service, input_serializer=_Order)
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+        fields=[(_MoneyField, {"type": "string", "format": "money"})]
+    )
+    schema = spec_to_json_schema(spec, registry=registry)
+    assert schema is not None
+    assert schema["properties"]["total"] == {"type": "string", "format": "money"}
+
+
+def test_registry_is_forwarded_to_selector_filter() -> None:
+    from rest_framework_services.types.json_schema_registry import DEFAULT_JSON_SCHEMA_REGISTRY
+
+    class _RefFilter(django_filters.Filter): ...
+
+    class _FS(django_filters.FilterSet):
+        ref = _RefFilter()
+
+    spec = SelectorSpec(kind=SelectorKind.LIST, filter_set=_FS)
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+        filters=[(_RefFilter, {"type": "string", "format": "ref"})]
+    )
+    assert spec_to_json_schema(spec, registry=registry) == {
+        "type": "object",
+        "properties": {"ref": {"type": "string", "format": "ref"}},
+    }

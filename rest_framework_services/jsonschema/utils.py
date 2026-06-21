@@ -17,6 +17,11 @@ from typing import Any, get_args, get_origin, get_type_hints
 from rest_framework import serializers
 from rest_framework.fields import empty as _drf_empty
 
+from rest_framework_services.types.json_schema_registry import (
+    DEFAULT_JSON_SCHEMA_REGISTRY,
+    JsonSchemaRegistry,
+)
+
 # Map DRF field types to JSON Schema fragments. Order matters: more specific
 # subclasses (BooleanField, IntegerField) must come before broader ones
 # (CharField) because we walk this list and use the first ``isinstance`` hit.
@@ -37,23 +42,33 @@ _DRF_FIELD_TO_SCHEMA: list[tuple[type[serializers.Field], dict[str, Any]]] = [
 ]
 
 
-def field_to_schema(field: serializers.Field) -> dict[str, Any]:
+def field_to_schema(
+    field: serializers.Field,
+    registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+) -> dict[str, Any]:
     """Convert a single DRF field into a JSON Schema fragment.
 
-    Recurses into nested serializers and list fields. Unknown field types
-    fall back to ``{}`` (any), so an exotic field type never breaks generation.
-    A drf-spectacular ``@extend_schema_field`` override is honoured as a
-    final pass — when the field carries a ``_spectacular_annotation`` dict with
-    a dict-shaped ``field`` value, that schema replaces the auto-derived one.
+    Recurses into nested serializers and list fields. ``registry.fields`` rules
+    are tried first (so a consumer can map a custom field type or override a
+    built-in); unknown field types fall back to ``{}`` (any), so an exotic field
+    never breaks generation. A drf-spectacular ``@extend_schema_field`` override
+    is honoured as a final pass — when the field carries a
+    ``_spectacular_annotation`` dict with a dict-shaped ``field`` value, that
+    schema replaces the auto-derived one.
     """
-    default: dict[str, Any] = _field_to_schema_default(field)
+    default: dict[str, Any] = _field_to_schema_default(field, registry)
     return apply_field_override(field, default)
 
 
-def _field_to_schema_default(field: serializers.Field) -> dict[str, Any]:
+def _field_to_schema_default(
+    field: serializers.Field, registry: JsonSchemaRegistry
+) -> dict[str, Any]:
+    for rule_type, rule_schema in registry.fields:
+        if isinstance(field, rule_type):
+            return dict(rule_schema)
     if isinstance(field, serializers.ListField):
         child: serializers.Field | None = field.child
-        item_schema: dict[str, Any] = field_to_schema(child) if child is not None else {}
+        item_schema: dict[str, Any] = field_to_schema(child, registry) if child is not None else {}
         return {"type": "array", "items": item_schema}
     if isinstance(field, serializers.ListSerializer):
         # The DRF stub types ``ListSerializer.child`` as ``Field``, but in
@@ -62,9 +77,9 @@ def _field_to_schema_default(field: serializers.Field) -> dict[str, Any]:
         list_child: serializers.Serializer | None = field.child  # ty: ignore[invalid-assignment]
         if list_child is None:
             return {"type": "array", "items": {}}
-        return {"type": "array", "items": serializer_to_schema(list_child)}
+        return {"type": "array", "items": serializer_to_schema(list_child, registry)}
     if isinstance(field, serializers.Serializer):
-        return serializer_to_schema(field)
+        return serializer_to_schema(field, registry)
     if isinstance(field, serializers.ChoiceField):
         return {"enum": list(field.choices.keys())}
     for cls, schema in _DRF_FIELD_TO_SCHEMA:
@@ -73,21 +88,24 @@ def _field_to_schema_default(field: serializers.Field) -> dict[str, Any]:
     return {}
 
 
-def serializer_to_schema(serializer: serializers.Serializer) -> dict[str, Any]:
+def serializer_to_schema(
+    serializer: serializers.Serializer,
+    registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+) -> dict[str, Any]:
     """Convert a DRF serializer instance into a JSON Schema object.
 
     Required fields (DRF ``required=True``) populate ``required``; everything
     else is optional. ``read_only`` fields are skipped (they're output, not
-    input). Field-level help text becomes ``description``. Class-level
-    ``@extend_schema_serializer`` overrides are layered on top — see
-    :func:`apply_serializer_overrides`.
+    input). Field-level help text becomes ``description``. ``registry`` rules
+    flow into each field. Class-level ``@extend_schema_serializer`` overrides are
+    layered on top — see :func:`apply_serializer_overrides`.
     """
     properties: dict[str, Any] = {}
     required: list[str] = []
     for name, field in serializer.fields.items():
         if field.read_only:
             continue
-        properties[name] = field_to_schema(field)
+        properties[name] = field_to_schema(field, registry)
         if field.help_text:
             properties[name]["description"] = str(field.help_text)
         if field.required:
@@ -98,13 +116,19 @@ def serializer_to_schema(serializer: serializers.Serializer) -> dict[str, Any]:
     return apply_serializer_overrides(schema, type(serializer))
 
 
-def _python_type_to_schema(annotation: Any) -> dict[str, Any]:
+def _python_type_to_schema(
+    annotation: Any, registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY
+) -> dict[str, Any]:
     """Best-effort mapping from a Python type annotation to JSON Schema.
 
     Used when introspecting bare dataclasses (the convention drf-services
     services use for ``data`` when no ``input_serializer`` is configured).
-    Falls back to ``{}`` for unknown types.
+    ``registry.python_types`` rules (matched by identity) win first; unknown
+    types fall back to ``{}``.
     """
+    for rule_type, rule_schema in registry.python_types:
+        if annotation is rule_type:
+            return dict(rule_schema)
     if annotation is str:
         return {"type": "string"}
     if annotation is int:
@@ -116,24 +140,27 @@ def _python_type_to_schema(annotation: Any) -> dict[str, Any]:
     origin: Any = get_origin(annotation)
     if origin is list:
         (item_type,) = get_args(annotation) or (Any,)
-        return {"type": "array", "items": _python_type_to_schema(item_type)}
+        return {"type": "array", "items": _python_type_to_schema(item_type, registry)}
     return {}
 
 
-def dataclass_to_schema(cls: type) -> dict[str, Any]:
+def dataclass_to_schema(
+    cls: type,
+    registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+) -> dict[str, Any]:
     """Convert a plain ``@dataclass`` type into a JSON Schema object.
 
     Field annotations are resolved via :func:`typing.get_type_hints` so
     dataclasses declared under ``from __future__ import annotations`` (string
-    annotations) work. A field is ``required`` when it has neither a default
-    nor a default factory.
+    annotations) work. ``registry.python_types`` rules extend the type mapping.
+    A field is ``required`` when it has neither a default nor a default factory.
     """
     hints: dict[str, Any] = get_type_hints(cls)
     properties: dict[str, Any] = {}
     required: list[str] = []
     for f in dataclasses.fields(cls):
         annotation: Any = hints.get(f.name, f.type)
-        properties[f.name] = _python_type_to_schema(annotation)
+        properties[f.name] = _python_type_to_schema(annotation, registry)
         if f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING:
             required.append(f.name)
     schema: dict[str, Any] = {"type": "object", "properties": properties}

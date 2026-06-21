@@ -38,6 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cost-free whether or not spectacular is installed. Distinct from
   `rest_framework_services.openapi`, which emits DRF serializer classes for DRF's
   own OpenAPI generators.
+- **Consumer-extensible mappings (`JsonSchemaRegistry`)** — every
+  `*_to_json_schema` helper takes an optional `registry=` of consumer rules so a
+  project can map its own DRF field / `django-filter` filter / Python types (or
+  override a built-in) without forking the package. `JsonSchemaRegistry` is an
+  immutable value carrier with three rule lists (`fields`, `filters`,
+  `python_types`); build one with `DEFAULT_JSON_SCHEMA_REGISTRY.extend(...)` (rules
+  are tried before the built-ins, first match wins) and pass it through. No global
+  mutable state — there is nothing to register into and nothing to leak between
+  callers or tests.
 - **Off-HTTP dispatch context (`build_offline_context`, `OfflineContext`,
   `OfflineServiceView`)** — synthesize the `request` + `view` a spec's callables
   (`kwargs` providers, `extend_queryset`, context providers) expect, so a spec

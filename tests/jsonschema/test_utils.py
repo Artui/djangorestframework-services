@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import typing
+from decimal import Decimal
 from typing import Any
 
 from rest_framework import serializers
@@ -16,6 +17,10 @@ from rest_framework_services.jsonschema.utils import (
     field_to_schema,
     serializer_to_schema,
 )
+from rest_framework_services.types.json_schema_registry import DEFAULT_JSON_SCHEMA_REGISTRY
+
+
+class _MoneyField(serializers.Field): ...
 
 
 class _Inner(serializers.Serializer):
@@ -221,3 +226,68 @@ def test_field_override_ignores_non_dict_form() -> None:
 
 def test_field_override_no_op_without_annotation() -> None:
     assert apply_field_override(serializers.CharField(), {"type": "string"}) == {"type": "string"}
+
+
+# --- registry rules (fields / python types) ----------------------------------
+
+
+def test_registry_field_rule_maps_a_custom_field() -> None:
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+        fields=[(_MoneyField, {"type": "string", "format": "money"})]
+    )
+    assert field_to_schema(_MoneyField(), registry) == {"type": "string", "format": "money"}
+
+
+def test_registry_field_rule_present_but_unmatched_falls_through() -> None:
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(fields=[(_MoneyField, {"x": 1})])
+    assert field_to_schema(serializers.CharField(), registry) == {"type": "string"}
+
+
+def test_registry_field_rule_overrides_a_builtin() -> None:
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+        fields=[(serializers.CharField, {"type": "string", "format": "slug"})]
+    )
+    assert field_to_schema(serializers.CharField(), registry) == {
+        "type": "string",
+        "format": "slug",
+    }
+
+
+def test_registry_field_rule_does_not_mutate_the_registered_schema() -> None:
+    fragment = {"type": "string"}
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(fields=[(_MoneyField, fragment)])
+
+    class _S(serializers.Serializer):
+        amount = _MoneyField(help_text="how much")
+
+    serializer_to_schema(_S(), registry)
+    # ``description`` was added to the per-call copy, not the registered dict.
+    assert fragment == {"type": "string"}
+
+
+def test_registry_python_type_rule_maps_a_custom_type() -> None:
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+        python_types=[(Decimal, {"type": "string", "format": "decimal"})]
+    )
+    assert _python_type_to_schema(Decimal, registry) == {"type": "string", "format": "decimal"}
+
+
+def test_registry_python_type_rule_present_but_unmatched_falls_through() -> None:
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(python_types=[(Decimal, {"x": 1})])
+    assert _python_type_to_schema(str, registry) == {"type": "string"}
+
+
+def test_registry_python_type_rule_flows_through_dataclass_walk() -> None:
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+        python_types=[(Decimal, {"type": "string", "format": "decimal"})]
+    )
+
+    @dataclasses.dataclass
+    class _DC:
+        price: Decimal
+
+    assert dataclass_to_schema(_DC, registry) == {
+        "type": "object",
+        "properties": {"price": {"type": "string", "format": "decimal"}},
+        "required": ["price"],
+    }

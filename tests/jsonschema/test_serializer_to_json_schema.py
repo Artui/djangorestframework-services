@@ -46,3 +46,18 @@ def test_partial_drops_required() -> None:
     schema = serializer_to_json_schema(_S, partial=True)
     assert "required" not in schema
     assert schema["properties"]["name"] == {"type": "string"}
+
+
+def test_registry_is_forwarded_to_fields() -> None:
+    from rest_framework_services.types.json_schema_registry import DEFAULT_JSON_SCHEMA_REGISTRY
+
+    class _MoneyField(serializers.Field): ...
+
+    class _Order(serializers.Serializer):
+        total = _MoneyField()
+
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+        fields=[(_MoneyField, {"type": "string", "format": "money"})]
+    )
+    schema = serializer_to_json_schema(_Order, registry=registry)
+    assert schema["properties"]["total"] == {"type": "string", "format": "money"}
