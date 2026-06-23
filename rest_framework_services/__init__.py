@@ -62,6 +62,7 @@ from rest_framework_services.services import (
 from rest_framework_services.types import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     UNSET,
+    ArgumentBinding,
     ChangeResult,
     ChildCollectionChange,
     ChildSpec,
@@ -76,6 +77,8 @@ from rest_framework_services.types import (
     SelectorSpec,
     ServiceSpec,
     ServiceView,
+    TargetGuard,
+    UnknownArguments,
     UnsetType,
 )
 from rest_framework_services.version import __version__
@@ -109,6 +112,7 @@ from rest_framework_services.viewsets import (
 
 __all__ = [
     "ActionSerializerResolver",
+    "ArgumentBinding",
     "AsyncSelector",
     "ChangeResult",
     "ChildCollectionChange",
@@ -145,7 +149,9 @@ __all__ = [
     "ServiceValidationError",
     "ServiceView",
     "ServiceViewSet",
+    "TargetGuard",
     "UNSET",
+    "UnknownArguments",
     "UnsetType",
     "UpdateService",
     "acall_selector",

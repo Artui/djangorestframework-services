@@ -16,15 +16,23 @@ from rest_framework_services.dispatch.utils import (
     arun_callable,
     arun_service_callable,
     base_pool,
+    call_target_guard,
+    merge_arguments,
+    resolve_argument_binding,
     resolve_input_context,
     resolve_provider,
+    resolve_unknown_arguments,
+    service_input,
     shape_queryset,
 )
 from rest_framework_services.selectors.utils import is_queryset
+from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.types.target_guard import TargetGuard
+from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.views.mutation.utils import build_input_serializer_from_data
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
@@ -37,14 +45,18 @@ async def adispatch_spec(
     request: Any = None,
     view: Any = None,
     success_status: int | None = None,
+    argument_binding: ArgumentBinding = ArgumentBinding.AUTO,
+    unknown_arguments: UnknownArguments = UnknownArguments.IGNORE,
+    on_target_resolved: TargetGuard | None = None,
 ) -> DispatchResult:
     """Async :func:`~rest_framework_services.dispatch_spec`.
 
-    Same contract and :class:`DispatchResult` shape; async selectors / services
-    are awaited and sync ones run in Django's thread-sensitive executor so the
-    ORM stays safe off the event loop. A ``LIST`` result is returned as the
-    (lazy) shaped queryset — the async transport materializes / paginates it in
-    a thread, exactly as on the sync path.
+    Same contract, :class:`DispatchResult` shape, and ``argument_binding`` /
+    ``unknown_arguments`` / ``on_target_resolved`` policies; async selectors /
+    services are awaited and sync ones run in Django's thread-sensitive executor
+    so the ORM stays safe off the event loop. A ``LIST`` result is returned as
+    the (lazy) shaped queryset — the async transport materializes / paginates it
+    in a thread, exactly as on the sync path.
     """
     if isinstance(spec, ServiceSpec):
         return await _adispatch_service(
@@ -54,9 +66,20 @@ async def adispatch_spec(
             request=request,
             view=view,
             success_status=success_status,
+            argument_binding=argument_binding,
+            unknown_arguments=unknown_arguments,
+            on_target_resolved=on_target_resolved,
         )
     if isinstance(spec, SelectorSpec):
-        return await _adispatch_selector(spec, user=user, params=params, request=request, view=view)
+        return await _adispatch_selector(
+            spec,
+            user=user,
+            params=params,
+            request=request,
+            view=view,
+            argument_binding=argument_binding,
+            unknown_arguments=unknown_arguments,
+        )
     raise TypeError(
         f"adispatch_spec expects a ServiceSpec or SelectorSpec; got {type(spec).__name__}."
     )
@@ -69,11 +92,20 @@ async def _adispatch_selector(
     params: Any,
     request: Any,
     view: Any,
+    argument_binding: ArgumentBinding,
+    unknown_arguments: UnknownArguments,
 ) -> DispatchResult:
     if spec.selector is None:
         raise ImproperlyConfigured("adispatch_spec requires the SelectorSpec to set a `selector`.")
-    pool: dict[str, Any] = {**base_pool(user=user, request=request), **params}
-    pool.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
+    resolve_unknown_arguments(spec, params, unknown_arguments=unknown_arguments, serializer=None)
+    binding = resolve_argument_binding(spec, argument_binding)
+    pool: dict[str, Any] = base_pool(user=user, request=request)
+    merge_arguments(
+        pool,
+        binding=binding,
+        spread_source=params,
+        provider_kwargs=resolve_provider(spec.kwargs, {"view": view, "request": request}),
+    )
     try:
         result: Any = await arun_callable(
             spec.selector, resolve_callable_kwargs(spec.selector, pool)
@@ -108,6 +140,9 @@ async def _adispatch_service(
     request: Any,
     view: Any,
     success_status: int | None,
+    argument_binding: ArgumentBinding,
+    unknown_arguments: UnknownArguments,
+    on_target_resolved: TargetGuard | None,
 ) -> DispatchResult:
     if spec.many:
         return await _adispatch_service_many(
@@ -117,6 +152,8 @@ async def _adispatch_service(
             request=request,
             view=view,
             success_status=success_status,
+            argument_binding=argument_binding,
+            on_target_resolved=on_target_resolved,
         )
 
     mode, target = await _aresolve_target(
@@ -124,6 +161,10 @@ async def _adispatch_service(
     )
     if mode == "missing":
         return DispatchResult(value=None, kind="not_found", status=404)
+    # The guard may run ``has_object_permission`` (DB), so keep it off the loop.
+    await sync_to_async(call_target_guard, thread_sensitive=True)(
+        on_target_resolved, spec, target, user=user, request=request, view=view
+    )
     instance = target if mode == "instance" else None
 
     input_context = resolve_input_context(spec, view=view, request=request)
@@ -135,16 +176,28 @@ async def _adispatch_service(
         context=input_context,
         instance=instance,
     )
+    extras = resolve_unknown_arguments(
+        spec, params, unknown_arguments=unknown_arguments, serializer=serializer
+    )
+    data, spread_source = service_input(serializer, extras)
 
+    binding = resolve_argument_binding(spec, argument_binding)
     pool: dict[str, Any] = base_pool(user=user, request=request)
-    pool.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
+    merge_arguments(
+        pool,
+        binding=binding,
+        spread_source=spread_source,
+        provider_kwargs=resolve_provider(spec.kwargs, {"view": view, "request": request}),
+    )
     if mode == "collection":
         pool["collection"] = target
     elif instance is not None:
         pool["instance"] = instance
     if serializer is not None:
-        pool["data"] = serializer.validated_data
+        pool["data"] = data
         pool["serializer"] = serializer
+    elif extras:
+        pool["data"] = data
 
     result: Any = await arun_service_callable(
         spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic
@@ -167,7 +220,12 @@ async def _adispatch_service_many(
     request: Any,
     view: Any,
     success_status: int | None,
+    argument_binding: ArgumentBinding,
+    on_target_resolved: TargetGuard | None,
 ) -> DispatchResult:
+    await sync_to_async(call_target_guard, thread_sensitive=True)(
+        on_target_resolved, spec, None, user=user, request=request, view=view
+    )
     input_context = resolve_input_context(spec, view=view, request=request)
     serializer = await sync_to_async(build_input_serializer_from_data, thread_sensitive=True)(
         params,

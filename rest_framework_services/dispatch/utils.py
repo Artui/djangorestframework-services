@@ -8,17 +8,23 @@ points are :func:`~rest_framework_services.dispatch_spec`,
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
 from asgiref.sync import sync_to_async
+from rest_framework.exceptions import ValidationError
 
 from rest_framework_services.is_async import is_async
 from rest_framework_services.selectors.utils import apply_queryset_shaping
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
+from rest_framework_services.types.argument_binding import ArgumentBinding
+from rest_framework_services.types.offline_context import OfflineContext
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.types.target_guard import TargetGuard
+from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
 # Labels handed to ``apply_queryset_shaping`` so a misconfiguration points at
@@ -28,10 +34,203 @@ INSTANCE_SOURCE = "ServiceSpec.instance_selector_spec.selector"
 COLLECTION_SOURCE = "ServiceSpec.collection_selector_spec.selector"
 OUTPUT_SOURCE = "ServiceSpec.output_selector_spec.selector"
 
+# Pool keys carrying transport-controlled seeds. A client-supplied argument
+# named after one of these would override the dispatcher's authoritative value
+# (a credential-spoofing footgun), so the ``SPREAD_*`` argument-binding modes
+# strip them from the spread. The dispatched callable may still *declare* a
+# parameter of that name — it receives the seed, the documented idiom.
+RESERVED_POOL_SEEDS: frozenset[str] = frozenset(
+    {"request", "user", "data", "serializer", "instance", "collection"}
+)
+
 
 def base_pool(*, user: Any, request: Any) -> dict[str, Any]:
     """The two seeds every dispatched callable's pool carries."""
     return {"request": request, "user": user}
+
+
+def resolve_argument_binding(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
+    argument_binding: ArgumentBinding,
+) -> ArgumentBinding:
+    """Resolve ``AUTO`` to the per-spec-type default; pass any other mode through.
+
+    ``AUTO`` reproduces the pre-policy behaviour: a :class:`ServiceSpec` takes
+    its payload as one ``data`` bundle (``BUNDLE``); a :class:`SelectorSpec`
+    spreads its params with the author's ``kwargs`` winning conflicts
+    (``SPREAD_AUTHOR_WINS``).
+    """
+    if argument_binding is not ArgumentBinding.AUTO:
+        return argument_binding
+    if isinstance(spec, ServiceSpec):
+        return ArgumentBinding.BUNDLE
+    return ArgumentBinding.SPREAD_AUTHOR_WINS
+
+
+def merge_arguments(
+    pool: dict[str, Any],
+    *,
+    binding: ArgumentBinding,
+    spread_source: Mapping[str, Any],
+    provider_kwargs: dict[str, Any],
+) -> None:
+    """Merge spread args + the ``spec.kwargs`` provider into ``pool`` per ``binding``.
+
+    ``binding`` must already be resolved (never ``AUTO``). ``BUNDLE`` spreads
+    nothing — only the provider's keys join the pool. The ``SPREAD_*`` modes
+    spread ``spread_source`` (with the reserved seeds stripped) and differ only
+    in precedence against the provider: ``SPREAD_AUTHOR_WINS`` lets the provider
+    override the spread, ``SPREAD_CALLER_WINS`` lets the spread override the
+    provider.
+    """
+    if binding is ArgumentBinding.BUNDLE:
+        pool.update(provider_kwargs)
+        return
+    spread = {k: v for k, v in spread_source.items() if k not in RESERVED_POOL_SEEDS}
+    if binding is ArgumentBinding.SPREAD_AUTHOR_WINS:
+        pool.update(spread)
+        pool.update(provider_kwargs)
+    else:  # SPREAD_CALLER_WINS
+        pool.update(provider_kwargs)
+        pool.update(spread)
+
+
+def _callable_param_names(fn: Callable[..., Any]) -> set[str] | None:
+    """Declared keyword-acceptable parameter names of ``fn``; ``None`` if open.
+
+    ``None`` (open) when ``fn`` declares ``**kwargs`` — it accepts anything, so
+    no key can be called "unknown" (mirrors :func:`resolve_callable_kwargs`).
+    """
+    parameters = inspect.signature(fn).parameters
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()):
+        return None
+    return {
+        name
+        for name, p in parameters.items()
+        if p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    }
+
+
+def _selector_consumed_keys(sel_spec: SelectorSpec[Any, Any] | None) -> set[str] | None:
+    """Params keys a nested target selector consumes; ``None`` if open.
+
+    Open when the selector has a duck-typed ``filter_set`` (its fields are
+    opaque to the core) or declares ``**kwargs``.
+    """
+    if sel_spec is None or sel_spec.selector is None:
+        return set()
+    if sel_spec.filter_set is not None:
+        return None
+    return _callable_param_names(sel_spec.selector)
+
+
+def declared_input_keys(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
+    *,
+    serializer: Any,
+) -> set[str] | None:
+    """The set of ``params`` keys ``spec`` declares as input, or ``None`` if open.
+
+    Derived from the spec alone — no transport knowledge. A :class:`ServiceSpec`
+    declares its ``input_serializer`` fields plus the keys its nested target
+    selectors consume (e.g. the ``pk`` an ``instance_selector_spec`` reads). A
+    :class:`SelectorSpec` declares its ``selector``'s parameters. ``None`` means
+    the set can't be enumerated (a ``**kwargs`` callable or a duck-typed
+    ``filter_set``), so there is nothing to flag as unknown.
+    """
+    if isinstance(spec, SelectorSpec):
+        if spec.filter_set is not None:
+            return None
+        return _callable_param_names(spec.selector) if spec.selector is not None else set()
+    declared: set[str] = set(serializer.fields) if serializer is not None else set()
+    for nested in (spec.instance_selector_spec, spec.collection_selector_spec):
+        consumed = _selector_consumed_keys(nested)
+        if consumed is None:
+            return None
+        declared |= consumed
+    return declared
+
+
+def resolve_unknown_arguments(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
+    params: Mapping[str, Any],
+    *,
+    unknown_arguments: UnknownArguments,
+    serializer: Any,
+) -> dict[str, Any]:
+    """Enforce the unknown-argument policy; return ``PASSTHROUGH`` extras (else ``{}``).
+
+    ``IGNORE`` and the "open" spec case are no-ops returning ``{}``. ``REJECT``
+    raises :exc:`~rest_framework.exceptions.ValidationError` listing the
+    undeclared keys. ``PASSTHROUGH`` returns the undeclared key/values so the
+    caller can fold them into the dispatched callable's input. Reserved pool
+    seeds are never considered "unknown".
+    """
+    if unknown_arguments is UnknownArguments.IGNORE:
+        return {}
+    declared = declared_input_keys(spec, serializer=serializer)
+    if declared is None:
+        return {}
+    unknown = {
+        key: value
+        for key, value in params.items()
+        if key not in declared and key not in RESERVED_POOL_SEEDS
+    }
+    if not unknown:
+        return {}
+    if unknown_arguments is UnknownArguments.REJECT:
+        names = ", ".join(repr(key) for key in sorted(unknown))
+        raise ValidationError({"non_field_errors": [f"Unexpected argument(s): {names}."]})
+    return unknown
+
+
+def service_input(serializer: Any, extras: dict[str, Any]) -> tuple[Any, Mapping[str, Any]]:
+    """Return ``(data, spread_source)`` for a service pool, folding in PASSTHROUGH ``extras``.
+
+    ``data`` is what a callable declaring ``data=`` receives; ``spread_source``
+    is what the ``SPREAD_*`` binding modes spread as individual kwargs:
+
+    - dict-validated input — ``extras`` merge into both ``data`` and the spread.
+    - dataclass-validated input (opaque to the spread) — ``data`` is the
+      dataclass instance unchanged; ``extras`` can reach a callable only via the
+      spread (so a ``BUNDLE`` dataclass mutation drops them, by design).
+    - no ``input_serializer`` — ``data`` is the ``extras`` dict, or ``None``.
+
+    With no ``extras`` (``IGNORE`` / ``REJECT`` passed) the result is exactly the
+    pre-policy input: ``data`` is ``serializer.validated_data`` and the spread is
+    that same dict (services), or empty (dataclass / no serializer).
+    """
+    validated = serializer.validated_data if serializer is not None else None
+    if isinstance(validated, dict):
+        data = {**validated, **extras} if extras else validated
+        return data, data
+    if validated is not None:
+        return validated, extras
+    return (extras or None), extras
+
+
+def call_target_guard(
+    on_target_resolved: TargetGuard | None,
+    spec: ServiceSpec[Any, Any, Any],
+    target: Any,
+    *,
+    user: Any,
+    request: Any,
+    view: Any,
+) -> None:
+    """Invoke the object-permission hook with the resolved target, if supplied.
+
+    ``target`` is the resolved row (update), the resolved set (bulk), or
+    ``None`` (create / list-payload). ``dispatch_spec`` assembles the
+    :class:`OfflineContext` itself — it already holds ``user`` / ``request`` /
+    ``view`` — so the guard (e.g. ``enforce_permissions``) is passed by name. A
+    raise aborts before the service runs. May touch the DB
+    (``has_object_permission``), so the async path runs it off the event loop.
+    """
+    if on_target_resolved is None:
+        return
+    context = OfflineContext(user=user, request=request, view=view)
+    on_target_resolved(spec, context, instance=target)
 
 
 def resolve_provider(provider: Callable[..., Any] | None, pool: dict[str, Any]) -> dict[str, Any]:

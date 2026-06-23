@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-06-23
+
+### Added
+
+- **Caller-side input policies for `dispatch_spec` / `adispatch_spec`** —
+  three optional, additive parameters that let a non-HTTP transport map its wire
+  onto a spec, finishing `dispatch_spec` as the single transport-neutral
+  entrypoint. The principle: a **spec declares *what*** (its inputs, filters,
+  output shape, permissions); the **caller declares *how*** its flat input
+  becomes callable arguments. Every default reproduces the pre-policy behaviour
+  exactly, so existing callers are unaffected.
+  - `argument_binding=ArgumentBinding.AUTO` — whether client input lands as a
+    single `data` bundle (`BUNDLE`) or is spread as individual kwargs
+    (`SPREAD_AUTHOR_WINS` / `SPREAD_CALLER_WINS`, differing in precedence against
+    the author's `kwargs`). `AUTO` resolves per spec type — service → `BUNDLE`,
+    selector → `SPREAD_AUTHOR_WINS` — matching what each did before. The
+    `SPREAD_*` modes strip the reserved pool seeds (`request` / `user` / `data` /
+    `serializer` / `instance` / `collection`) from the spread, so a client can't
+    poison transport-controlled state by naming an argument after one.
+  - `unknown_arguments=UnknownArguments.IGNORE` — strictness about `params` keys
+    outside the spec's declared set: `IGNORE` drops them (today's behaviour),
+    `REJECT` raises a `ValidationError`, `PASSTHROUGH` forwards them to the
+    callable. The declared set is derived from the spec alone — a service's
+    `input_serializer` fields plus the keys its nested target selectors consume; a
+    selector's `selector` parameters — and a `**kwargs` callable or a duck-typed
+    `filter_set` makes the set "open" (nothing is unknown).
+  - `on_target_resolved=None` — an optional object-permission hook (the
+    `TargetGuard` protocol) invoked with the resolved mutation target before the
+    service runs. Its signature is identical to `enforce_permissions`, so that
+    primitive is passed **directly by name** (no `lambda`): the guard receives the
+    resolved row (update), the resolved set (bulk), or `None` (create), restoring
+    `has_object_permission` parity for off-HTTP transports. `dispatch_spec` itself
+    stays authorization-agnostic — it only invokes the supplied guard.
+- **`ArgumentBinding`, `UnknownArguments`, `TargetGuard`** are new top-level
+  exports (and live under `rest_framework_services.types`).
+
 ## [0.19.0] — 2026-06-21
 
 ### Added
@@ -1077,7 +1113,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/Artui/djangorestframework-services/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/Artui/djangorestframework-services/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/Artui/djangorestframework-services/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Artui/djangorestframework-services/compare/v0.16.0...v0.17.0
