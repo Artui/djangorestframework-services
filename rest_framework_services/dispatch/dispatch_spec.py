@@ -13,16 +13,24 @@ from rest_framework_services.dispatch.utils import (
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
     base_pool,
+    call_target_guard,
+    merge_arguments,
+    resolve_argument_binding,
     resolve_input_context,
     resolve_provider,
+    resolve_unknown_arguments,
+    service_input,
     shape_queryset,
 )
 from rest_framework_services.selectors.utils import is_queryset, run_selector
 from rest_framework_services.services.run_service import run_service
+from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.types.target_guard import TargetGuard
+from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.views.mutation.utils import build_input_serializer_from_data
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
@@ -35,6 +43,9 @@ def dispatch_spec(
     request: Any = None,
     view: Any = None,
     success_status: int | None = None,
+    argument_binding: ArgumentBinding = ArgumentBinding.AUTO,
+    unknown_arguments: UnknownArguments = UnknownArguments.IGNORE,
+    on_target_resolved: TargetGuard | None = None,
 ) -> DispatchResult:
     """Execute ``spec`` without a DRF view, returning a :class:`DispatchResult`.
 
@@ -59,6 +70,21 @@ def dispatch_spec(
     that declare them (``extend_queryset``, the context providers, ``kwargs``);
     a pure non-HTTP caller passes neither. ``success_status`` overrides the
     mutation status hint (else ``spec.success_status`` or ``200``).
+
+    Three caller-side policies tune how the wire maps onto the spec; the
+    defaults reproduce the pre-policy behaviour exactly:
+
+    - ``argument_binding`` (:class:`ArgumentBinding`) — whether client input
+      lands as a single ``data`` bundle or is spread as individual kwargs, and
+      how it ranks against the author's ``kwargs``. ``AUTO`` resolves per spec
+      type (service → bundle, selector → spread).
+    - ``unknown_arguments`` (:class:`UnknownArguments`) — strictness about
+      ``params`` keys outside the spec's declared set: ``IGNORE`` (drop),
+      ``REJECT`` (raise), ``PASSTHROUGH`` (forward to the callable).
+    - ``on_target_resolved`` (:class:`TargetGuard`) — a hook invoked with the
+      resolved mutation target before the service runs. Pass
+      :func:`~rest_framework_services.enforce_permissions` directly to enforce
+      object-level permissions; ``dispatch_spec`` itself stays authz-agnostic.
     """
     if isinstance(spec, ServiceSpec):
         return _dispatch_service(
@@ -68,9 +94,20 @@ def dispatch_spec(
             request=request,
             view=view,
             success_status=success_status,
+            argument_binding=argument_binding,
+            unknown_arguments=unknown_arguments,
+            on_target_resolved=on_target_resolved,
         )
     if isinstance(spec, SelectorSpec):
-        return _dispatch_selector(spec, user=user, params=params, request=request, view=view)
+        return _dispatch_selector(
+            spec,
+            user=user,
+            params=params,
+            request=request,
+            view=view,
+            argument_binding=argument_binding,
+            unknown_arguments=unknown_arguments,
+        )
     raise TypeError(
         f"dispatch_spec expects a ServiceSpec or SelectorSpec; got {type(spec).__name__}."
     )
@@ -83,14 +120,25 @@ def _dispatch_selector(
     params: Any,
     request: Any,
     view: Any,
+    argument_binding: ArgumentBinding,
+    unknown_arguments: UnknownArguments,
 ) -> DispatchResult:
     if spec.selector is None:
         raise ImproperlyConfigured(
             "dispatch_spec requires the SelectorSpec to set a `selector` — there "
             "is no view `get_queryset()` / `get_object()` fallback off the HTTP path."
         )
-    pool: dict[str, Any] = {**base_pool(user=user, request=request), **params}
-    pool.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
+    # A selector has no validation step, so its params already flow through the
+    # spread untouched; only ``REJECT`` has anything to do here (it raises).
+    resolve_unknown_arguments(spec, params, unknown_arguments=unknown_arguments, serializer=None)
+    binding = resolve_argument_binding(spec, argument_binding)
+    pool: dict[str, Any] = base_pool(user=user, request=request)
+    merge_arguments(
+        pool,
+        binding=binding,
+        spread_source=params,
+        provider_kwargs=resolve_provider(spec.kwargs, {"view": view, "request": request}),
+    )
     try:
         result: Any = run_selector(spec.selector, resolve_callable_kwargs(spec.selector, pool))
         result = shape_queryset(
@@ -124,6 +172,9 @@ def _dispatch_service(
     request: Any,
     view: Any,
     success_status: int | None,
+    argument_binding: ArgumentBinding,
+    unknown_arguments: UnknownArguments,
+    on_target_resolved: TargetGuard | None,
 ) -> DispatchResult:
     if spec.many:
         return _dispatch_service_many(
@@ -133,11 +184,14 @@ def _dispatch_service(
             request=request,
             view=view,
             success_status=success_status,
+            argument_binding=argument_binding,
+            on_target_resolved=on_target_resolved,
         )
 
     mode, target = _resolve_target(spec, user=user, params=params, request=request, view=view)
     if mode == "missing":
         return DispatchResult(value=None, kind="not_found", status=404)
+    call_target_guard(on_target_resolved, spec, target, user=user, request=request, view=view)
     instance = target if mode == "instance" else None
 
     input_context = resolve_input_context(spec, view=view, request=request)
@@ -148,16 +202,28 @@ def _dispatch_service(
         context=input_context,
         instance=instance,
     )
+    extras = resolve_unknown_arguments(
+        spec, params, unknown_arguments=unknown_arguments, serializer=serializer
+    )
+    data, spread_source = service_input(serializer, extras)
 
+    binding = resolve_argument_binding(spec, argument_binding)
     pool: dict[str, Any] = base_pool(user=user, request=request)
-    pool.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
+    merge_arguments(
+        pool,
+        binding=binding,
+        spread_source=spread_source,
+        provider_kwargs=resolve_provider(spec.kwargs, {"view": view, "request": request}),
+    )
     if mode == "collection":
         pool["collection"] = target
     elif instance is not None:
         pool["instance"] = instance
     if serializer is not None:
-        pool["data"] = serializer.validated_data
+        pool["data"] = data
         pool["serializer"] = serializer
+    elif extras:
+        pool["data"] = data
 
     result: Any = run_service(
         spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic
@@ -180,8 +246,11 @@ def _dispatch_service_many(
     request: Any,
     view: Any,
     success_status: int | None,
+    argument_binding: ArgumentBinding,
+    on_target_resolved: TargetGuard | None,
 ) -> DispatchResult:
     """Bulk list-payload: ``params`` is the array; the service gets the list."""
+    call_target_guard(on_target_resolved, spec, None, user=user, request=request, view=view)
     input_context = resolve_input_context(spec, view=view, request=request)
     serializer = build_input_serializer_from_data(
         params,

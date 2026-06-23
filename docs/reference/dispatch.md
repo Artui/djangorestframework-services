@@ -38,6 +38,38 @@ format for your wire. No view, no `request` required.
 
 ::: rest_framework_services.types.dispatch_result.DispatchResult
 
+## Input policies
+
+Three optional, caller-side policies let a transport map its wire onto a spec
+without `dispatch_spec` baking in HTTP's implicit answers. The **spec declares
+*what*** (its inputs, filters, output shape, permissions); the **caller declares
+*how*** its flat input becomes callable arguments, how strict to be about
+undeclared keys, and how to authorize a resolved target. The defaults reproduce
+the pre-policy behaviour exactly, so a caller that passes none is unaffected.
+
+### `ArgumentBinding`
+
+How the flat `params` map onto a dispatched callable's keyword arguments —
+bundled as one `data` payload or spread as individual kwargs, and how the spread
+ranks against the spec author's `kwargs`.
+
+::: rest_framework_services.types.argument_binding.ArgumentBinding
+
+### `UnknownArguments`
+
+How strict `dispatch_spec` is about `params` keys outside the spec's declared
+set — drop them, reject them, or pass them through to the callable.
+
+::: rest_framework_services.types.unknown_arguments.UnknownArguments
+
+### `TargetGuard`
+
+The object-permission hook invoked with the resolved mutation target before the
+service runs. Its signature matches `enforce_permissions`, so that primitive is
+passed directly — by name, not wrapped in a `lambda`.
+
+::: rest_framework_services.types.target_guard.TargetGuard
+
 ## Shared
 
 ### `resolve_callable_kwargs`

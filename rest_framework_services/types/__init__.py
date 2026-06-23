@@ -5,6 +5,7 @@ These are intentionally framework-agnostic data carriers. They live outside
 inputs/outputs are not coupled to the mutation helpers themselves.
 """
 
+from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.change_result import ChangeResult
 from rest_framework_services.types.child_collection_change import ChildCollectionChange
 from rest_framework_services.types.child_spec import ChildSpec
@@ -22,11 +23,14 @@ from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.service_view import ServiceView
+from rest_framework_services.types.target_guard import TargetGuard
+from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.types.unset import UNSET, UnsetType
 
 __all__ = [
     "DEFAULT_JSON_SCHEMA_REGISTRY",
     "UNSET",
+    "ArgumentBinding",
     "ChangeResult",
     "ChildCollectionChange",
     "ChildSpec",
@@ -41,5 +45,7 @@ __all__ = [
     "SelectorSpec",
     "ServiceSpec",
     "ServiceView",
+    "TargetGuard",
+    "UnknownArguments",
     "UnsetType",
 ]
