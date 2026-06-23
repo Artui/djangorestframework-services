@@ -2,122 +2,122 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://artui.github.io/djangorestframework-services/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/async/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/concepts/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/default-model-services/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/errors-and-atomic/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/mutation-helpers/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/openapi/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/quickstart/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/typing/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/recipes/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/recipes/bulk-mutations/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/recipes/compose-viewset/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/recipes/extra-kwargs/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/recipes/nested-writes/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/recipes/permissions/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/recipes/queryset-shaping/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/recipes/scaffold-app/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/recipes/selector-filtering/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/recipes/serializer-context/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/recipes/service-action/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/reference/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/reference/dispatch/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/reference/exceptions/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/reference/mutations/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/reference/openapi/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/reference/selectors/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/reference/services/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/reference/types/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/reference/views/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
     <url>
          <loc>https://artui.github.io/djangorestframework-services/reference/viewsets/</loc>
-         <lastmod>2026-06-21</lastmod>
+         <lastmod>2026-06-23</lastmod>
     </url>
 </urlset>
