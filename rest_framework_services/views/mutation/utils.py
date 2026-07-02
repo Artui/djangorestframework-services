@@ -337,6 +337,12 @@ def _execute_mutation(
                 prefetch_related=output_selector_spec.prefetch_related,
                 annotations=output_selector_spec.annotations,
                 extend_queryset=output_selector_spec.extend_queryset,
+                # Parity with dispatch_spec's output re-fetch (CONF-2): apply the
+                # nested spec's filter_set here too. filter_data falls back to
+                # request.query_params (the blessed filter_set source on HTTP),
+                # so the same output_selector_spec filters identically on both the
+                # HTTP and transport-neutral paths.
+                filter_set=output_selector_spec.filter_set,
                 source_label="ServiceSpec.output_selector_spec.selector",
             )
             if is_queryset(result):

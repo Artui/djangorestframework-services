@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`many=True` dispatch now honours `unknown_arguments` per list element
+  (CONF-1).** `dispatch_spec` / `adispatch_spec` previously accepted
+  `unknown_arguments` on a bulk (`many=True`) spec but silently ignored it — a
+  caller passing `REJECT` on a bulk tool got `IGNORE`. The bulk path now applies
+  the policy to each item: `REJECT` raises `ValidationError` on the first item
+  carrying an undeclared key, `PASSTHROUGH` folds each item's extras into that
+  item's data, `IGNORE` drops them (unchanged). `argument_binding` has no
+  counterpart for a list payload — a bulk service receives the whole list as one
+  `data` argument, so there is nothing to spread — and passing a non-default
+  binding with `many=True` now raises `ValueError` rather than being silently
+  ignored. The default (`AUTO` / `IGNORE`) behaviour is unchanged.
+- **`output_selector_spec.filter_set` now applies on the HTTP mutation path too
+  (CONF-2).** `dispatch_spec`'s output re-fetch applied the nested selector's
+  `filter_set`, but the HTTP mutation view did not — the same spec produced
+  different results per transport. The HTTP output re-fetch now applies
+  `output_selector_spec.filter_set` as well, with `filter_data` falling back to
+  `request.query_params` (the blessed `filter_set` source on HTTP), so a given
+  spec filters its re-fetched output identically on both paths.
+
 ## [0.21.0] — 2026-07-02
 
 ### Added

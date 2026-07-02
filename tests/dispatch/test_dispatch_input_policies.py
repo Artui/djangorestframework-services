@@ -299,6 +299,88 @@ class TestUnknownArguments:
         assert seen == {"data_title": "x", "note": "spread"}
 
 
+# ------------------------------------------------------ unknown arguments (bulk)
+
+
+@pytest.mark.django_db
+class TestUnknownArgumentsBulk:
+    """CONF-1: ``many=True`` honours ``unknown_arguments`` per list element."""
+
+    def test_reject_raises_on_item_with_undeclared_key(self) -> None:
+        def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            raise AssertionError("service must not run when an item is rejected")
+
+        spec = ServiceSpec(service=bulk, input_serializer=_TitleSerializer, many=True, atomic=False)
+        with pytest.raises(ValidationError, match="bogus"):
+            dispatch_spec(
+                spec,
+                user=None,
+                params=[{"title": "a"}, {"title": "b", "bogus": 1}],
+                unknown_arguments=UnknownArguments.REJECT,
+            )
+        assert Post.objects.count() == 0
+
+    def test_passthrough_folds_extras_into_each_item(self) -> None:
+        seen: dict[str, Any] = {}
+
+        def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            seen["data"] = [dict(item) for item in data]
+            return [Post.objects.create(title=item["title"]) for item in data]
+
+        spec = ServiceSpec(service=bulk, input_serializer=_TitleSerializer, many=True, atomic=False)
+        dispatch_spec(
+            spec,
+            user=None,
+            params=[{"title": "a", "note": "x"}, {"title": "b", "note": "y"}],
+            unknown_arguments=UnknownArguments.PASSTHROUGH,
+        )
+        assert seen["data"] == [{"title": "a", "note": "x"}, {"title": "b", "note": "y"}]
+
+    def test_ignore_drops_extras_per_item(self) -> None:
+        seen: dict[str, Any] = {}
+
+        def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            seen["data"] = [dict(item) for item in data]
+            return [Post.objects.create(title=item["title"]) for item in data]
+
+        spec = ServiceSpec(service=bulk, input_serializer=_TitleSerializer, many=True, atomic=False)
+        # IGNORE (the default) drops the undeclared ``note`` from every item.
+        dispatch_spec(spec, user=None, params=[{"title": "a", "note": "x"}])
+        assert seen["data"] == [{"title": "a"}]
+
+    def test_passthrough_seeds_data_without_serializer(self) -> None:
+        seen: dict[str, Any] = {}
+
+        def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            seen["data"] = [dict(item) for item in data]
+            return [Post.objects.create(title=item["note"]) for item in data]
+
+        spec = ServiceSpec(service=bulk, many=True, atomic=False)
+        dispatch_spec(
+            spec,
+            user=None,
+            params=[{"note": "a"}, {"note": "b"}],
+            unknown_arguments=UnknownArguments.PASSTHROUGH,
+        )
+        assert seen["data"] == [{"note": "a"}, {"note": "b"}]
+
+    def test_non_default_argument_binding_raises(self) -> None:
+        def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            raise AssertionError("service must not run when binding is rejected")
+
+        spec = ServiceSpec(service=bulk, input_serializer=_TitleSerializer, many=True, atomic=False)
+        # A bulk service takes the whole list as ``data`` — there is nothing to
+        # spread, so a non-default binding is rejected rather than silently ignored.
+        with pytest.raises(ValueError, match="many=True"):
+            dispatch_spec(
+                spec,
+                user=None,
+                params=[{"title": "a"}],
+                argument_binding=ArgumentBinding.SPREAD_CALLER_WINS,
+            )
+        assert Post.objects.count() == 0
+
+
 # ---------------------------------------------------------------- target guard
 
 
