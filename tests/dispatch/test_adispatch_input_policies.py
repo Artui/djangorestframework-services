@@ -48,6 +48,11 @@ class _DenyObject(BasePermission):
         return False
 
 
+class _DenyRequest(BasePermission):
+    def has_permission(self, request: Any, view: Any) -> bool:
+        return False
+
+
 @pytest.mark.django_db(transaction=True)
 class TestAArgumentBinding:
     async def test_selector_caller_wins(self) -> None:
@@ -192,3 +197,58 @@ class TestATargetGuard:
                 params={"pk": post.pk, "title": "x"},
                 on_target_resolved=enforce_permissions,
             )
+
+    # -- selector dispatch fires the guard (AUTHZ-1b) --
+
+    async def test_guard_receives_instance_on_retrieve_selector(self) -> None:
+        post = await Post.objects.acreate(title="a")
+        seen: dict[str, Any] = {}
+
+        def guard(spec: Any, context: Any, *, instance: Any = None) -> None:
+            seen["instance_pk"] = instance.pk
+
+        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk)
+        await adispatch_spec(spec, user=None, params={"pk": post.pk}, on_target_resolved=guard)
+        assert seen["instance_pk"] == post.pk
+
+    async def test_guard_receives_collection_on_list_selector(self) -> None:
+        await Post.objects.acreate(title="a")
+        seen: dict[str, Any] = {}
+
+        def guard(spec: Any, context: Any, *, instance: Any = None) -> None:
+            seen["is_qs"] = isinstance(instance, QuerySet)
+
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts)
+        await adispatch_spec(spec, user=None, params={}, on_target_resolved=guard)
+        assert seen["is_qs"] is True
+
+    async def test_enforce_permissions_denies_object_on_retrieve_selector(self) -> None:
+        post = await Post.objects.acreate(title="a")
+        spec = SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=_post_qs_by_pk,
+            permission_classes=[_DenyObject],
+        )
+        with pytest.raises(PermissionDenied):
+            await adispatch_spec(
+                spec, user=None, params={"pk": post.pk}, on_target_resolved=enforce_permissions
+            )
+
+    async def test_enforce_permissions_class_level_denies_on_list_selector(self) -> None:
+        await Post.objects.acreate(title="a")
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST, selector=_all_posts, permission_classes=[_DenyRequest]
+        )
+        with pytest.raises(PermissionDenied):
+            await adispatch_spec(spec, user=None, params={}, on_target_resolved=enforce_permissions)
+
+    async def test_enforce_permissions_allows_list_selector_despite_deny_object(self) -> None:
+        # Collection-safe (AUTHZ-1a): the LIST queryset skips has_object_permission.
+        await Post.objects.acreate(title="a")
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST, selector=_all_posts, permission_classes=[_DenyObject]
+        )
+        result = await adispatch_spec(
+            spec, user=None, params={}, on_target_resolved=enforce_permissions
+        )
+        assert result.kind == "list"

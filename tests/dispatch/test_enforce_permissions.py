@@ -13,6 +13,7 @@ from rest_framework_services.dispatch.enforce_permissions import enforce_permiss
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
+from tests.testapp.models import Tag
 
 
 class _Allow(BasePermission):
@@ -85,15 +86,15 @@ def test_first_failing_permission_in_a_list_denies() -> None:
         enforce_permissions(spec, _context())
 
 
-def test_object_permission_denies_when_instance_supplied() -> None:
+def test_object_permission_denies_when_model_instance_supplied() -> None:
     spec = ServiceSpec(service=_service, permission_classes=[_DenyObject])
     with pytest.raises(PermissionDenied):
-        enforce_permissions(spec, _context(), instance=object())
+        enforce_permissions(spec, _context(), instance=Tag())
 
 
-def test_object_permission_allows_when_instance_supplied() -> None:
+def test_object_permission_allows_when_model_instance_supplied() -> None:
     spec = ServiceSpec(service=_service, permission_classes=[_Allow])
-    enforce_permissions(spec, _context(), instance=object())
+    enforce_permissions(spec, _context(), instance=Tag())
 
 
 def test_object_permission_skipped_without_instance() -> None:
@@ -101,3 +102,27 @@ def test_object_permission_skipped_without_instance() -> None:
     # only consulted when an instance is supplied — so this passes.
     spec = ServiceSpec(service=_service, permission_classes=[_DenyObject])
     enforce_permissions(spec, _context())
+
+
+def test_object_permission_skipped_for_queryset_instance() -> None:
+    # A collection target (the bulk / LIST queryset) is not a Model, so only the
+    # class-level check runs: ``_DenyObject`` allows ``has_permission`` and
+    # ``has_object_permission`` is never called on the queryset. This is the
+    # per-set authorization the BULK decision specifies — no AttributeError, no
+    # per-row check.
+    spec = SelectorSpec(kind=SelectorKind.LIST, permission_classes=[_DenyObject])
+    enforce_permissions(spec, _context(), instance=Tag.objects.all())
+
+
+def test_class_level_check_still_denies_a_queryset_instance() -> None:
+    # Class-level ``has_permission`` still runs for a collection target.
+    spec = SelectorSpec(kind=SelectorKind.LIST, permission_classes=[_DenyRequest])
+    with pytest.raises(PermissionDenied):
+        enforce_permissions(spec, _context(), instance=Tag.objects.all())
+
+
+def test_object_permission_skipped_for_non_model_instance() -> None:
+    # Any non-``Model`` target (e.g. a selector returning a computed object)
+    # runs class-level only — object permissions are a per-row Model concept.
+    spec = ServiceSpec(service=_service, permission_classes=[_DenyObject])
+    enforce_permissions(spec, _context(), instance=object())

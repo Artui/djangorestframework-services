@@ -211,7 +211,7 @@ def service_input(serializer: Any, extras: dict[str, Any]) -> tuple[Any, Mapping
 
 def call_target_guard(
     on_target_resolved: TargetGuard | None,
-    spec: ServiceSpec[Any, Any, Any],
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     target: Any,
     *,
     user: Any,
@@ -220,8 +220,8 @@ def call_target_guard(
 ) -> None:
     """Invoke the object-permission hook with the resolved target, if supplied.
 
-    ``target`` is the resolved row (update), the resolved set (bulk), or
-    ``None`` (create / list-payload). ``dispatch_spec`` assembles the
+    ``target`` is the resolved row (update / RETRIEVE), the resolved set (bulk /
+    LIST), or ``None`` (create / list-payload). ``dispatch_spec`` assembles the
     :class:`OfflineContext` itself — it already holds ``user`` / ``request`` /
     ``view`` — so the guard (e.g. ``enforce_permissions``) is passed by name. A
     raise aborts before the service runs. May touch the DB
