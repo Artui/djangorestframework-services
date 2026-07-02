@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.1] — 2026-07-02
+
+### Fixed
+
+- **`many=True` dispatch now honours `unknown_arguments` per list element
+  (CONF-1).** `dispatch_spec` / `adispatch_spec` previously accepted
+  `unknown_arguments` on a bulk (`many=True`) spec but silently ignored it — a
+  caller passing `REJECT` on a bulk tool got `IGNORE`. The bulk path now applies
+  the policy to each item: `REJECT` raises `ValidationError` on the first item
+  carrying an undeclared key, `PASSTHROUGH` folds each item's extras into that
+  item's data, `IGNORE` drops them (unchanged). `argument_binding` has no
+  counterpart for a list payload — a bulk service receives the whole list as one
+  `data` argument, so there is nothing to spread — and passing a non-default
+  binding with `many=True` now raises `ValueError` rather than being silently
+  ignored. The default (`AUTO` / `IGNORE`) behaviour is unchanged.
+- **`output_selector_spec.filter_set` now applies on the HTTP mutation path too
+  (CONF-2).** `dispatch_spec`'s output re-fetch applied the nested selector's
+  `filter_set`, but the HTTP mutation view did not — the same spec produced
+  different results per transport. The HTTP output re-fetch now applies
+  `output_selector_spec.filter_set` as well, with `filter_data` falling back to
+  `request.query_params` (the blessed `filter_set` source on HTTP), so a given
+  spec filters its re-fetched output identically on both paths.
+
 ## [0.21.0] — 2026-07-02
 
 ### Added
@@ -1139,7 +1162,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.21.1...HEAD
+[0.21.1]: https://github.com/Artui/djangorestframework-services/compare/v0.21.0...v0.21.1
 [0.21.0]: https://github.com/Artui/djangorestframework-services/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/Artui/djangorestframework-services/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/Artui/djangorestframework-services/compare/v0.18.0...v0.19.0

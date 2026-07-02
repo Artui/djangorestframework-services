@@ -138,6 +138,53 @@ class TestAUnknownArguments:
 
 
 @pytest.mark.django_db(transaction=True)
+class TestAUnknownArgumentsBulk:
+    """CONF-1: async ``many=True`` honours ``unknown_arguments`` per list element."""
+
+    async def test_reject_raises_on_item_with_undeclared_key(self) -> None:
+        async def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            raise AssertionError("service must not run when an item is rejected")
+
+        spec = ServiceSpec(service=bulk, input_serializer=_TitleSerializer, many=True, atomic=False)
+        with pytest.raises(ValidationError, match="bogus"):
+            await adispatch_spec(
+                spec,
+                user=None,
+                params=[{"title": "a"}, {"title": "b", "bogus": 1}],
+                unknown_arguments=UnknownArguments.REJECT,
+            )
+
+    async def test_passthrough_folds_extras_into_each_item(self) -> None:
+        seen: dict[str, Any] = {}
+
+        async def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            seen["data"] = [dict(item) for item in data]
+            return [await Post.objects.acreate(title=item["title"]) for item in data]
+
+        spec = ServiceSpec(service=bulk, input_serializer=_TitleSerializer, many=True, atomic=False)
+        await adispatch_spec(
+            spec,
+            user=None,
+            params=[{"title": "a", "note": "x"}],
+            unknown_arguments=UnknownArguments.PASSTHROUGH,
+        )
+        assert seen["data"] == [{"title": "a", "note": "x"}]
+
+    async def test_non_default_argument_binding_raises(self) -> None:
+        async def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            raise AssertionError("service must not run when binding is rejected")
+
+        spec = ServiceSpec(service=bulk, input_serializer=_TitleSerializer, many=True, atomic=False)
+        with pytest.raises(ValueError, match="many=True"):
+            await adispatch_spec(
+                spec,
+                user=None,
+                params=[{"title": "a"}],
+                argument_binding=ArgumentBinding.SPREAD_CALLER_WINS,
+            )
+
+
+@pytest.mark.django_db(transaction=True)
 class TestATargetGuard:
     async def test_guard_receives_instance_on_update(self) -> None:
         post = await Post.objects.acreate(title="old")
