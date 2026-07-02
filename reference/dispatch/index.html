@@ -1281,6 +1281,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#authorizing-an-off-http-call" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authorizing an off-HTTP call
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Authorizing an off-HTTP call">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#enforce_permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        enforce_permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.enforce_permissions.enforce_permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        enforce_permissions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#shared" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2099,6 +2138,45 @@
     <span class="md-ellipsis">
       
         TargetGuard
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authorizing-an-off-http-call" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authorizing an off-HTTP call
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Authorizing an off-HTTP call">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#enforce_permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        enforce_permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.enforce_permissions.enforce_permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        enforce_permissions
       
     </span>
   </a>
@@ -2974,6 +3052,92 @@ check when there is no object.</p>
 
 
   </div>
+
+    </div>
+
+</div><h2 id="authorizing-an-off-http-call">Authorizing an off-HTTP call<a class="headerlink" href="#authorizing-an-off-http-call" title="Permanent link">&para;</a></h2>
+<p><code>dispatch_spec</code> is authz-agnostic by design — it never consults a spec's
+<code>permission_classes</code> (on HTTP that is the view's job). An off-HTTP transport
+that wants the <em>same</em> authorization a DRF view would apply wires
+<code>enforce_permissions</code> in <strong>two</strong> places:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">adispatch_spec</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">build_offline_context</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">enforce_permissions</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">)</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">context</span> <span class="o">=</span> <span class="n">build_offline_context</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># 1. Class-level `has_permission`, before any work. Covers create / list-payload</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1">#    and every spec that has no resolvable target.</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">enforce_permissions</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># 2. Object-level `has_object_permission`, on the resolved target. Fires on the</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1">#    mutation *and selector* paths (update, retrieve, and — class-level only —</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1">#    bulk / list collections, which are not per-row authorized).</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">adispatch_spec</span><span class="p">(</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">spec</span><span class="p">,</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">request</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">request</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">view</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">view</span><span class="p">,</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">on_target_resolved</span><span class="o">=</span><span class="n">enforce_permissions</span><span class="p">,</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>The upfront call is what authorizes a spec with <strong>no</strong> target (a create, or a
+<code>many=True</code> list-payload); the <code>on_target_resolved</code> hook adds object-level checks
+once the row (or collection) is resolved. Together they are the canonical wiring
+for every spec kind. <code>enforce_permissions</code> is collection-safe: a resolved
+queryset runs only the class-level check, never <code>has_object_permission</code>.</p>
+<h3 id="enforce_permissions"><code>enforce_permissions</code><a class="headerlink" href="#enforce_permissions" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.enforce_permissions.enforce_permissions" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">enforce_permissions</span>
+
+
+<a href="#rest_framework_services.dispatch.enforce_permissions.enforce_permissions" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">enforce_permissions</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">context</span><span class="p">:</span> <span class="n">OfflineContext</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Enforce <code>spec.permission_classes</code> against an off-HTTP context.</p>
+<p>Mirrors what a DRF view does on the HTTP path —
+<code>[perm() for perm in spec.permission_classes]</code> then
+<code>perm.has_permission(request, view)</code> — but against the synthetic request
+and view from :func:<code>build_offline_context</code>. <code>dispatch_spec</code> deliberately
+does <strong>not</strong> consult <code>permission_classes</code> (authorization is the view's job
+on HTTP), so an off-HTTP transport must call this itself before dispatching,
+or it would skip authorization entirely.</p>
+<p>When <code>instance</code> is a Django <code>Model</code>, object-level permissions
+(<code>has_object_permission</code>) are also checked — matching the HTTP path's
+<code>check_object_permissions</code> against a resolved instance. (drf-mcp's adapter
+omits this; off-HTTP parity restores it.) A non-<code>Model</code> <code>instance</code> — most
+importantly the collection queryset a bulk / LIST dispatch resolves — runs
+only the class-level check, never <code>has_object_permission</code>: object
+permissions are a per-row concept (the BULK decision authorizes per-set, not
+per-row), and <code>has_object_permission(request, view, &lt;QuerySet&gt;)</code> would
+<code>AttributeError</code> or silently mis-authorize. This makes
+<code>on_target_resolved=enforce_permissions</code> the safe canonical guard for
+<em>every</em> dispatch mode.</p>
+<p><code>spec.permission_classes is None</code> (the default — "inherit the view's
+class-level permissions" on HTTP) is a <strong>no-op</strong> off-HTTP: there is no view
+class to inherit from, so the transport owns any default policy. An empty
+sequence is likewise a no-op ("no permissions").</p>
+<p>Raises :exc:<code>~rest_framework.exceptions.PermissionDenied</code> (403) on the first
+failing permission, carrying that permission's <code>message</code> / <code>code</code> when it
+declares them — the same surface a DRF view produces.</p>
+<p>Permission classes that read DRF <code>APIView</code> attributes beyond <code>request</code> /
+<code>action</code> / <code>kwargs</code> (e.g. <code>DjangoModelPermissions</code>, which inspects
+<code>view.queryset</code>) are not supported off-HTTP.</p>
+
 
     </div>
 
