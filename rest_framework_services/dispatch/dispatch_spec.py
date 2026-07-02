@@ -107,6 +107,7 @@ def dispatch_spec(
             view=view,
             argument_binding=argument_binding,
             unknown_arguments=unknown_arguments,
+            on_target_resolved=on_target_resolved,
         )
     raise TypeError(
         f"dispatch_spec expects a ServiceSpec or SelectorSpec; got {type(spec).__name__}."
@@ -122,6 +123,7 @@ def _dispatch_selector(
     view: Any,
     argument_binding: ArgumentBinding,
     unknown_arguments: UnknownArguments,
+    on_target_resolved: TargetGuard | None,
 ) -> DispatchResult:
     if spec.selector is None:
         raise ImproperlyConfigured(
@@ -150,10 +152,15 @@ def _dispatch_selector(
         raise
 
     if spec.kind is not SelectorKind.RETRIEVE:
+        # LIST: guard the resolved set (per-set / class-level only — the queryset
+        # is not a Model, so fix (a) skips has_object_permission).
+        call_target_guard(on_target_resolved, spec, result, user=user, request=request, view=view)
         return DispatchResult(value=result, kind="list", status=200)
     instance: Any = result.first() if is_queryset(result) else result
     if instance is None:
         return _missing_or_null(spec)
+    # RETRIEVE: guard the resolved row (object-level permissions run here).
+    call_target_guard(on_target_resolved, spec, instance, user=user, request=request, view=view)
     return DispatchResult(value=instance, kind="instance", status=200)
 
 

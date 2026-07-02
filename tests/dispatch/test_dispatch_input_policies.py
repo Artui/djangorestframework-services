@@ -452,3 +452,84 @@ class TestTargetGuard:
                 spec, user=None, params={"title": "x"}, on_target_resolved=enforce_permissions
             )
         assert Post.objects.count() == 0
+
+    def test_enforce_permissions_allows_bulk_collection_despite_deny_object(self) -> None:
+        # Collection-safe (AUTHZ-1a) on the bulk mutation path: the resolved
+        # queryset runs class-level only, so a per-row-denying permission does not
+        # raise AttributeError on the collection.
+        Post.objects.create(title="a")
+        spec = ServiceSpec(
+            service=lambda *, collection: {"n": collection.count()},
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts),
+            permission_classes=[_DenyObject],
+            atomic=False,
+        )
+        result = dispatch_spec(spec, user=None, params={}, on_target_resolved=enforce_permissions)
+        assert result.value == {"n": 1}
+
+    # -- selector dispatch fires the guard (AUTHZ-1b) --
+
+    def test_guard_receives_resolved_instance_on_retrieve_selector(self) -> None:
+        post = Post.objects.create(title="a")
+        seen: dict[str, Any] = {}
+
+        def guard(spec: Any, context: Any, *, instance: Any = None) -> None:
+            seen["instance"] = instance
+
+        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk)
+        dispatch_spec(spec, user=None, params={"pk": post.pk}, on_target_resolved=guard)
+        assert seen["instance"] == post
+
+    def test_guard_receives_collection_on_list_selector(self) -> None:
+        Post.objects.create(title="a")
+        seen: dict[str, Any] = {}
+
+        def guard(spec: Any, context: Any, *, instance: Any = None) -> None:
+            seen["is_qs"] = isinstance(instance, QuerySet)
+
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts)
+        dispatch_spec(spec, user=None, params={}, on_target_resolved=guard)
+        assert seen["is_qs"] is True
+
+    def test_guard_not_fired_on_missing_retrieve_selector(self) -> None:
+        called = False
+
+        def guard(spec: Any, context: Any, *, instance: Any = None) -> None:
+            nonlocal called
+            called = True
+
+        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk)
+        result = dispatch_spec(spec, user=None, params={"pk": 999}, on_target_resolved=guard)
+        assert result.kind == "not_found"
+        assert called is False
+
+    def test_enforce_permissions_denies_object_on_retrieve_selector(self) -> None:
+        # AUTHZ-2's live bypass, fixed at the source: object-level permissions on
+        # a RETRIEVE read now run through the guard.
+        post = Post.objects.create(title="a")
+        spec = SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=_post_qs_by_pk,
+            permission_classes=[_DenyObject],
+        )
+        with pytest.raises(PermissionDenied):
+            dispatch_spec(
+                spec, user=None, params={"pk": post.pk}, on_target_resolved=enforce_permissions
+            )
+
+    def test_enforce_permissions_class_level_denies_on_list_selector(self) -> None:
+        Post.objects.create(title="a")
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST, selector=_all_posts, permission_classes=[_DenyRequest]
+        )
+        with pytest.raises(PermissionDenied):
+            dispatch_spec(spec, user=None, params={}, on_target_resolved=enforce_permissions)
+
+    def test_enforce_permissions_allows_list_selector_despite_deny_object(self) -> None:
+        # Collection-safe (AUTHZ-1a): the LIST queryset skips has_object_permission.
+        Post.objects.create(title="a")
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST, selector=_all_posts, permission_classes=[_DenyObject]
+        )
+        result = dispatch_spec(spec, user=None, params={}, on_target_resolved=enforce_permissions)
+        assert result.kind == "list"

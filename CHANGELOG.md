@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`on_target_resolved` now fires on selector dispatch.** `dispatch_spec` /
+  `adispatch_spec` previously invoked the object-permission hook only on the
+  service (mutation) paths, so object-level permissions on **reads** were
+  unenforceable through it. The guard now fires on `SelectorSpec` dispatch too —
+  with the resolved instance for a `RETRIEVE` and the resolved queryset for a
+  `LIST` — so `on_target_resolved=enforce_permissions` authorizes selector reads
+  as well as mutations. The default (`None`) is unchanged, so existing callers
+  are unaffected.
+
+### Fixed
+
+- **`enforce_permissions` is collection-safe.** When the resolved target is a
+  collection (the queryset a bulk / `LIST` dispatch produces) rather than a
+  single row, `enforce_permissions` now runs only the class-level
+  `has_permission` check and skips `has_object_permission`. Object permissions
+  are a per-row `Model` concept — the previous behaviour called
+  `has_object_permission(request, view, <QuerySet>)`, which raised
+  `AttributeError` (or silently mis-authorized) on a `collection_selector_spec`
+  guarded with an ownership-style permission. This makes
+  `on_target_resolved=enforce_permissions` the safe canonical guard for every
+  dispatch mode; the per-set BULK authorization decision is unchanged.
+
 ## [0.20.0] — 2026-06-23
 
 ### Added

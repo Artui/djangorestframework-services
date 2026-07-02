@@ -70,6 +70,47 @@ passed directly — by name, not wrapped in a `lambda`.
 
 ::: rest_framework_services.types.target_guard.TargetGuard
 
+## Authorizing an off-HTTP call
+
+`dispatch_spec` is authz-agnostic by design — it never consults a spec's
+`permission_classes` (on HTTP that is the view's job). An off-HTTP transport
+that wants the *same* authorization a DRF view would apply wires
+`enforce_permissions` in **two** places:
+
+```python
+from rest_framework_services import (
+    adispatch_spec,
+    build_offline_context,
+    enforce_permissions,
+)
+
+context = build_offline_context(user)
+# 1. Class-level `has_permission`, before any work. Covers create / list-payload
+#    and every spec that has no resolvable target.
+enforce_permissions(spec, context)
+# 2. Object-level `has_object_permission`, on the resolved target. Fires on the
+#    mutation *and selector* paths (update, retrieve, and — class-level only —
+#    bulk / list collections, which are not per-row authorized).
+result = await adispatch_spec(
+    spec,
+    user=user,
+    params=params,
+    request=context.request,
+    view=context.view,
+    on_target_resolved=enforce_permissions,
+)
+```
+
+The upfront call is what authorizes a spec with **no** target (a create, or a
+`many=True` list-payload); the `on_target_resolved` hook adds object-level checks
+once the row (or collection) is resolved. Together they are the canonical wiring
+for every spec kind. `enforce_permissions` is collection-safe: a resolved
+queryset runs only the class-level check, never `has_object_permission`.
+
+### `enforce_permissions`
+
+::: rest_framework_services.dispatch.enforce_permissions.enforce_permissions
+
 ## Shared
 
 ### `resolve_callable_kwargs`
