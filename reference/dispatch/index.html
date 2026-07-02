@@ -2660,6 +2660,13 @@ defaults reproduce the pre-policy behaviour exactly:</p>
   :func:<code>~rest_framework_services.enforce_permissions</code> directly to enforce
   object-level permissions; <code>dispatch_spec</code> itself stays authz-agnostic.</li>
 </ul>
+<p>On a <code>many=True</code> bulk spec <code>unknown_arguments</code> is honoured <strong>per list
+element</strong> (<code>REJECT</code> raises on the first item with an undeclared key,
+<code>PASSTHROUGH</code> folds each item's extras into its data, <code>IGNORE</code> drops
+them). <code>argument_binding</code> has no meaning there — the service receives the
+whole list as one <code>data</code> argument, so there is nothing to spread — and a
+non-default binding with <code>many=True</code> raises <code>ValueError</code> rather than
+being silently ignored.</p>
 
 
     </div>
@@ -2702,6 +2709,10 @@ services are awaited and sync ones run in Django's thread-sensitive executor
 so the ORM stays safe off the event loop. A <code>LIST</code> result is returned as
 the (lazy) shaped queryset — the async transport materializes / paginates it
 in a thread, exactly as on the sync path.</p>
+<p>As on :func:<code>~rest_framework_services.dispatch_spec</code>, a <code>many=True</code> bulk
+spec honours <code>unknown_arguments</code> per list element and rejects a non-default
+<code>argument_binding</code> (there is no per-item kwarg to spread into a single
+list-payload service call).</p>
 
 
     </div>
