@@ -851,6 +851,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#openapi-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenAPI schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-to-use-kwargs-instead" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1412,6 +1423,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#openapi-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenAPI schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-to-use-kwargs-instead" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1585,6 +1607,21 @@ wires <code>DjangoFilterBackend</code> raises <code>ImproperlyConfigured</code> 
 </span></code></pre></div>
 <p>Retrieve has no such conflict: the selector retrieve path overrides <code>get_object()</code>
 and never calls <code>filter_queryset</code>, so <code>filter_set</code> is the only filter applied.</p>
+<h2 id="openapi-schema">OpenAPI schema<a class="headerlink" href="#openapi-schema" title="Permanent link">&para;</a></h2>
+<p>With the <a href="../../openapi/">OpenAPI integration</a> enabled (<code>enable_openapi()</code> +
+drf-spectacular), a spec-level <code>filter_set</code> documents the <strong>same</strong> query
+parameters a view-level <code>filterset_class</code> + <code>DjangoFilterBackend</code> would — same
+names, types, enums, ordering enum + description, <code>style</code>/<code>explode</code>, and required
+flags. Moving a FilterSet off the view and onto the spec therefore leaves the
+generated OpenAPI document unchanged, so client codegen and "schema must not
+change" review gates keep passing.</p>
+<p>The parameters are emitted on <strong>list</strong> operations, matching drf-spectacular's own
+behaviour (it documents filter parameters only for list views). A retrieve
+selector still filters at runtime — <code>filter_set</code> narrows the queryset before
+<code>.first()</code> — but, like a view-level FilterSet on a detail route, contributes no
+query parameters to the detail operation's schema. User <code>@extend_schema(parameters=...)</code>
+overrides continue to win. The introspection needs the <code>[filter]</code> extra
+(<code>django-filter</code>); without it, schema generation is unaffected.</p>
 <h2 id="when-to-use-kwargs-instead">When to use <code>kwargs</code> instead<a class="headerlink" href="#when-to-use-kwargs-instead" title="Permanent link">&para;</a></h2>
 <p><code>filter_set</code> earns its place only when the selector returns a <strong>queryset</strong>. If a
 selector returns an <code>.aggregate()</code> dict or any other computed object, a FilterSet
