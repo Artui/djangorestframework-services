@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-07-03
+
+### Fixed
+
+- **`ServiceAutoSchema` now emits OpenAPI query parameters for a
+  `SelectorSpec.filter_set`.** Moving a `django-filter` FilterSet off a
+  view-level `filterset_class` + `DjangoFilterBackend` and onto `spec.filter_set`
+  (which the `as_view()` guard requires dropping the backend for) previously
+  dropped every filter query parameter — field filters, ordering, search — from
+  the generated schema, silently regressing any client codegen or
+  "schema must not change" gate even though runtime behaviour was unchanged. The
+  schema now contributes those parameters from the spec by reusing
+  drf-spectacular's own `DjangoFilterExtension`, so a view→spec FilterSet move
+  yields a byte-identical OpenAPI document — same param names, types, enums,
+  ordering enum + description, `style`/`explode`, and required flags. Applies to
+  list selectors (detail operations document no filter params in either
+  configuration, matching drf-spectacular's list-only gate);
+  `@extend_schema(parameters=...)` overrides still win. Introspection is guarded
+  and duck-typed — a no-op when `django-filter` isn't installed or the
+  `filter_set` isn't a real FilterSet.
+
 ## [0.21.1] — 2026-07-02
 
 ### Fixed
@@ -1162,7 +1183,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.21.1...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/Artui/djangorestframework-services/compare/v0.21.1...v0.22.0
 [0.21.1]: https://github.com/Artui/djangorestframework-services/compare/v0.21.0...v0.21.1
 [0.21.0]: https://github.com/Artui/djangorestframework-services/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/Artui/djangorestframework-services/compare/v0.19.0...v0.20.0

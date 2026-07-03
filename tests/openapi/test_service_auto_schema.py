@@ -5,14 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import django_filters
 import pytest
 from django.urls import path
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.generators import SchemaGenerator
 from rest_framework.routers import DefaultRouter
 from rest_framework.viewsets import GenericViewSet
 
 from rest_framework_services import (
     SelectorKind,
+    SelectorListView,
+    SelectorRetrieveView,
     SelectorSpec,
     ServiceCreateView,
     ServiceDeleteView,
@@ -22,8 +26,13 @@ from rest_framework_services import (
     service_action,
 )
 from rest_framework_services.openapi import enable_openapi
-from tests.testapp.models import Author
-from tests.testapp.serializers import AuthorSerializer
+from rest_framework_services.openapi.service_auto_schema import (
+    ServiceAutoSchema,
+    _filter_set_parameters,
+    _SpecFilterBackend,
+)
+from tests.testapp.models import Author, Post
+from tests.testapp.serializers import AuthorSerializer, PostSerializer
 
 
 @dataclass
@@ -159,6 +168,72 @@ class _ForcedFullUpdateView(ServiceUpdateView):
     )
 
 
+# --- filter_set → OpenAPI parameters (parity fixtures) -----------------------
+
+
+class _PostFilter(django_filters.FilterSet):
+    """Exercises field, choice, multi-choice, and ordering filter shapes."""
+
+    title = django_filters.CharFilter(lookup_expr="icontains")
+    published = django_filters.BooleanFilter()
+    views = django_filters.NumberFilter()
+    kind = django_filters.ChoiceFilter(field_name="body", choices=[("a", "A"), ("b", "B")])
+    labels = django_filters.MultipleChoiceFilter(
+        field_name="title", choices=[("x", "X"), ("y", "Y")]
+    )
+    order = django_filters.OrderingFilter(fields=(("title", "title"), ("views", "views")))
+
+    class Meta:
+        model = Post
+        fields: list[str] = []
+
+
+def _list_posts() -> Any:
+    return Post.objects.all().order_by("id")
+
+
+class _ViewLevelFilterListView(SelectorListView):
+    """The *before* config: FilterSet on the view via ``DjangoFilterBackend``."""
+
+    queryset = Post.objects.all()
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = _PostFilter
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST, selector=_list_posts, output_serializer=PostSerializer
+    )
+
+
+class _SpecFilterListView(SelectorListView):
+    """The *after* config: FilterSet on the spec, no backend."""
+
+    queryset = Post.objects.all()
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=_list_posts,
+        output_serializer=PostSerializer,
+        filter_set=_PostFilter,
+    )
+
+
+class _ViewLevelFilterRetrieveView(SelectorRetrieveView):
+    queryset = Post.objects.all()
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = _PostFilter
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE, selector=_list_posts, output_serializer=PostSerializer
+    )
+
+
+class _SpecFilterRetrieveView(SelectorRetrieveView):
+    queryset = Post.objects.all()
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=_list_posts,
+        output_serializer=PostSerializer,
+        filter_set=_PostFilter,
+    )
+
+
 _router = DefaultRouter()
 _router.register("authors", _AuthorViewSet, basename="authors")
 _router.register("approvals", _ApproveViewSet, basename="approvals")
@@ -171,6 +246,10 @@ urlpatterns = [
     path("plain-delete/<int:pk>/", _DeletePlainView.as_view()),
     path("force-error-delete/<int:pk>/", _ForcedErrorDeleteView.as_view()),
     path("no-error-create/", _NoErrorCreateView.as_view()),
+    path("posts-viewlevel/", _ViewLevelFilterListView.as_view()),
+    path("posts-spec/", _SpecFilterListView.as_view()),
+    path("post-viewlevel/<int:pk>/", _ViewLevelFilterRetrieveView.as_view()),
+    path("post-spec/<int:pk>/", _SpecFilterRetrieveView.as_view()),
     *_router.urls,
 ]
 
@@ -308,3 +387,68 @@ class TestServiceErrorSerializer:
         component_name = ref.rsplit("/", 1)[1]
         component = schema["components"]["schemas"][component_name]
         assert "detail" in component["properties"]
+
+
+def _params(schema: dict[str, Any], route: str, method: str) -> list[dict[str, Any]]:
+    return schema["paths"][route][method].get("parameters", [])
+
+
+@pytest.mark.django_db
+class TestFilterSetParameterParity:
+    """Moving a FilterSet view→spec must leave the OpenAPI parameters unchanged."""
+
+    def test_list_parameters_match_view_level_filterset(self) -> None:
+        schema = _generate()
+        view_level = _params(schema, "/posts-viewlevel/", "get")
+        spec_level = _params(schema, "/posts-spec/", "get")
+        # Byte-identical: same names, types, enums, ordering, style/explode.
+        assert spec_level == view_level
+        # And non-trivially present — the FilterSet actually contributed params.
+        names = {p["name"] for p in spec_level}
+        assert {"title", "published", "views", "kind", "labels", "order"} <= names
+
+    def test_ordering_filter_shape(self) -> None:
+        schema = _generate()
+        order = {p["name"]: p for p in _params(schema, "/posts-spec/", "get")}["order"]
+        assert order["in"] == "query"
+        assert order["schema"]["type"] == "array"
+        assert order["explode"] is False
+        assert order["style"] == "form"
+        # Ordering enum (asc + ``-`` desc variants) lives in the array items.
+        assert "enum" in order["schema"]["items"]
+        assert order.get("description")
+
+    def test_multiple_choice_filter_shape(self) -> None:
+        schema = _generate()
+        labels = {p["name"]: p for p in _params(schema, "/posts-spec/", "get")}["labels"]
+        assert labels["schema"]["type"] == "array"
+        assert labels["explode"] is True
+        assert labels["style"] == "form"
+
+    def test_retrieve_parameters_match_and_omit_filters(self) -> None:
+        # A detail operation documents no filter params in either config —
+        # drf-spectacular gates filter params on list views — so parity holds
+        # with both sides empty of filter params (only the path param remains).
+        schema = _generate()
+        view_level = _params(schema, "/post-viewlevel/{id}/", "get")
+        spec_level = _params(schema, "/post-spec/{id}/", "get")
+        assert spec_level == view_level
+        assert "title" not in {p["name"] for p in spec_level}
+
+
+class TestFilterSetParametersHelper:
+    def test_noop_for_duck_typed_non_filterset(self) -> None:
+        # A ``filter_set`` honouring only the ``(data, queryset) -> .qs``
+        # contract (no ``base_filters``) degrades to no parameters.
+        class _DuckFilter:
+            def __init__(self, *, data: Any, queryset: Any) -> None: ...
+
+            @property
+            def qs(self) -> Any: ...
+
+        assert _filter_set_parameters(ServiceAutoSchema(), _DuckFilter) == []
+
+    def test_spec_filter_backend_returns_filter_set(self) -> None:
+        sentinel = object()
+        backend = _SpecFilterBackend(sentinel)
+        assert backend.get_filterset_class(view=None, queryset=None) is sentinel
