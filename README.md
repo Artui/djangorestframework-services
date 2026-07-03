@@ -803,6 +803,31 @@ not a contract.
 
 ---
 
+## Beyond HTTP
+
+The same specs that drive HTTP views can be invoked with no view and no
+request — the surface an alternate transport (a CLI, a task runner, the
+[MCP server](https://github.com/Artui/djangorestframework-mcp-server))
+builds on:
+
+- **`dispatch_spec` / `adispatch_spec`** — call a `ServiceSpec` /
+  `SelectorSpec` with just the acting `user` and a flat `params` mapping;
+  get back a `DispatchResult` to format for your wire. See
+  [Dispatch reference](https://artui.github.io/djangorestframework-services/reference/dispatch/).
+- **`filter_set` on selectors** — declare filtering on a `SelectorSpec`
+  once and it applies transport-neutrally, off the HTTP query-string path.
+- **Bulk and nested writes** — `many=True` on a spec mutates a whole
+  collection, and the mutation helpers accept a `children=` argument for
+  nested child-collection writes, both independent of any request.
+- **JSON-schema helpers** — `serializer_to_json_schema`,
+  `output_to_json_schema`, `filterset_to_json_schema` and
+  `spec_to_json_schema` turn a spec (or bare serializer / dataclass) into a
+  JSON Schema dict with no `drf-spectacular` dependency, for building tool
+  definitions. See
+  [JSON Schema reference](https://artui.github.io/djangorestframework-services/reference/jsonschema/).
+
+---
+
 ## Examples
 
 A minimal but runnable example project lives in

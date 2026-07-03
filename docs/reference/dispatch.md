@@ -107,6 +107,10 @@ once the row (or collection) is resolved. Together they are the canonical wiring
 for every spec kind. `enforce_permissions` is collection-safe: a resolved
 queryset runs only the class-level check, never `has_object_permission`.
 
+### `build_offline_context`
+
+::: rest_framework_services.dispatch.build_offline_context.build_offline_context
+
 ### `enforce_permissions`
 
 ::: rest_framework_services.dispatch.enforce_permissions.enforce_permissions

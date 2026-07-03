@@ -102,5 +102,6 @@ nav:
       - Services: reference/services.md
       - Selectors: reference/selectors.md
       - Types: reference/types.md
+      - JSON Schema: reference/jsonschema.md
       - OpenAPI: reference/openapi.md
       - Exceptions: reference/exceptions.md

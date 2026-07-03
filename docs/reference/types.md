@@ -39,3 +39,7 @@
 ## `HttpExtras`
 
 ::: rest_framework_services.types.http_extras.HttpExtras
+
+## `OfflineContext`
+
+::: rest_framework_services.types.offline_context.OfflineContext

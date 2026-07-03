@@ -337,7 +337,7 @@ def _execute_mutation(
                 prefetch_related=output_selector_spec.prefetch_related,
                 annotations=output_selector_spec.annotations,
                 extend_queryset=output_selector_spec.extend_queryset,
-                # Parity with dispatch_spec's output re-fetch (CONF-2): apply the
+                # Parity with dispatch_spec's output re-fetch: apply the
                 # nested spec's filter_set here too. filter_data falls back to
                 # request.query_params (the blessed filter_set source on HTTP),
                 # so the same output_selector_spec filters identically on both the

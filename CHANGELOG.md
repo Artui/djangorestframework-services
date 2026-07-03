@@ -32,8 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **`many=True` dispatch now honours `unknown_arguments` per list element
-  (CONF-1).** `dispatch_spec` / `adispatch_spec` previously accepted
+- **`many=True` dispatch now honours `unknown_arguments` per list element.**
+  `dispatch_spec` / `adispatch_spec` previously accepted
   `unknown_arguments` on a bulk (`many=True`) spec but silently ignored it — a
   caller passing `REJECT` on a bulk tool got `IGNORE`. The bulk path now applies
   the policy to each item: `REJECT` raises `ValidationError` on the first item
@@ -43,8 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `data` argument, so there is nothing to spread — and passing a non-default
   binding with `many=True` now raises `ValueError` rather than being silently
   ignored. The default (`AUTO` / `IGNORE`) behaviour is unchanged.
-- **`output_selector_spec.filter_set` now applies on the HTTP mutation path too
-  (CONF-2).** `dispatch_spec`'s output re-fetch applied the nested selector's
+- **`output_selector_spec.filter_set` now applies on the HTTP mutation path
+  too.** `dispatch_spec`'s output re-fetch applied the nested selector's
   `filter_set`, but the HTTP mutation view did not — the same spec produced
   different results per transport. The HTTP output re-fetch now applies
   `output_selector_spec.filter_set` as well, with `filter_data` falling back to
@@ -118,7 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **View-free JSON Schema generation (`rest_framework_services.jsonschema`)** —
-  the first part of the off-HTTP "SURF-2" surface. Three new top-level helpers
+  the first part of the off-HTTP surface. Three new top-level helpers
   turn a spec (or a bare serializer / dataclass) into a JSON Schema dict, with
   **no** view, request, or `drf-spectacular` import in the path — what an
   alternate transport (a Pydantic-AI toolset, the MCP server) builds tool
