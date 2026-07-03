@@ -170,6 +170,24 @@ class PostViewSet(SelectorViewSet):
 Retrieve has no such conflict: the selector retrieve path overrides `get_object()`
 and never calls `filter_queryset`, so `filter_set` is the only filter applied.
 
+## OpenAPI schema
+
+With the [OpenAPI integration](../openapi.md) enabled (`enable_openapi()` +
+drf-spectacular), a spec-level `filter_set` documents the **same** query
+parameters a view-level `filterset_class` + `DjangoFilterBackend` would — same
+names, types, enums, ordering enum + description, `style`/`explode`, and required
+flags. Moving a FilterSet off the view and onto the spec therefore leaves the
+generated OpenAPI document unchanged, so client codegen and "schema must not
+change" review gates keep passing.
+
+The parameters are emitted on **list** operations, matching drf-spectacular's own
+behaviour (it documents filter parameters only for list views). A retrieve
+selector still filters at runtime — `filter_set` narrows the queryset before
+`.first()` — but, like a view-level FilterSet on a detail route, contributes no
+query parameters to the detail operation's schema. User `@extend_schema(parameters=...)`
+overrides continue to win. The introspection needs the `[filter]` extra
+(`django-filter`); without it, schema generation is unaffected.
+
 ## When to use `kwargs` instead
 
 `filter_set` earns its place only when the selector returns a **queryset**. If a

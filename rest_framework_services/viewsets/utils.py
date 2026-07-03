@@ -35,7 +35,7 @@ _SELECTOR_ACTION_KIND: dict[str, SelectorKind] = {
 
 # Action-key fallbacks applied identically at every resolution site
 # (dispatch, ``get_permissions``, ``ActionSerializerResolver``, and
-# schema-time ``resolve_spec``): ``"partial_update"`` resolves first and
+# schema-time ``resolve_service_spec``): ``"partial_update"`` resolves first and
 # falls back to ``"update"``, so PATCH and PUT share one spec unless a
 # dedicated PATCH entry is defined.
 _ACTION_SPEC_FALLBACKS: dict[str, str] = {
