@@ -294,7 +294,7 @@ class TestPrefetchCacheCleared:
 
 @pytest.mark.django_db
 class TestOutputSelectorFilterSetParity:
-    """CONF-2: the HTTP mutation output re-fetch applies
+    """The HTTP mutation output re-fetch applies
     ``output_selector_spec.filter_set`` (filter_data falls back to
     ``request.query_params``), matching ``dispatch_spec``'s output re-fetch.
     Previously the HTTP path silently ignored the nested filter_set.

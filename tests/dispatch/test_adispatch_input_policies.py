@@ -139,7 +139,7 @@ class TestAUnknownArguments:
 
 @pytest.mark.django_db(transaction=True)
 class TestAUnknownArgumentsBulk:
-    """CONF-1: async ``many=True`` honours ``unknown_arguments`` per list element."""
+    """Async ``many=True`` honours ``unknown_arguments`` per list element."""
 
     async def test_reject_raises_on_item_with_undeclared_key(self) -> None:
         async def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
@@ -245,7 +245,7 @@ class TestATargetGuard:
                 on_target_resolved=enforce_permissions,
             )
 
-    # -- selector dispatch fires the guard (AUTHZ-1b) --
+    # -- selector dispatch fires the guard --
 
     async def test_guard_receives_instance_on_retrieve_selector(self) -> None:
         post = await Post.objects.acreate(title="a")
@@ -290,7 +290,7 @@ class TestATargetGuard:
             await adispatch_spec(spec, user=None, params={}, on_target_resolved=enforce_permissions)
 
     async def test_enforce_permissions_allows_list_selector_despite_deny_object(self) -> None:
-        # Collection-safe (AUTHZ-1a): the LIST queryset skips has_object_permission.
+        # Collection-safe: the LIST queryset skips has_object_permission.
         await Post.objects.acreate(title="a")
         spec = SelectorSpec(
             kind=SelectorKind.LIST, selector=_all_posts, permission_classes=[_DenyObject]
