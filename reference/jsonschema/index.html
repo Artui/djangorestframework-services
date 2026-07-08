@@ -1803,10 +1803,13 @@ server) calls instead of reaching into spec internals itself.</p>
 <p><code>phase="input"</code> (default) returns the input-argument schema:</p>
 <ul>
 <li>:class:<code>ServiceSpec</code> → its <code>input_serializer</code> (<code>spec.partial</code> honoured).</li>
-<li>:class:<code>SelectorSpec</code> → an object whose <code>properties</code> are the selector's
-  <code>filter_set</code> fields (via <code>filterset_to_json_schema</code>), or a bare
-  <code>{"type": "object"}</code> when it declares no <code>filter_set</code>. (Introspecting a
-  <code>filter_set</code> needs the <code>[filter]</code> extra; a selector without one stays
+<li>:class:<code>SelectorSpec</code> → an object whose <code>properties</code> combine the selector
+  callable's own parameters (names → type from their annotations, skipping the
+  <code>request</code> / <code>user</code> / <code>view</code> transport seeds) with its <code>filter_set</code>
+  fields (via <code>filterset_to_json_schema</code>); a bare <code>{"type": "object"}</code> when
+  it exposes neither. So a retrieve selector like <code>get_widget(user, pk)</code> now
+  advertises <code>pk</code> instead of leaning entirely on its docstring. (Introspecting
+  a <code>filter_set</code> needs the <code>[filter]</code> extra; a selector without one stays
   dependency-free.)</li>
 </ul>
 <p><code>phase="output"</code> returns the output schema, or <code>None</code> when undeclared:</p>
@@ -1821,7 +1824,14 @@ server) calls instead of reaching into spec internals itself.</p>
 
     </div>
 
-</div><h2 id="jsonschemaregistry"><code>JsonSchemaRegistry</code><a class="headerlink" href="#jsonschemaregistry" title="Permanent link">&para;</a></h2>
+</div><p>A selector's input schema reflects the <strong>selector callable's own parameters</strong> —
+names plus a JSON type from each annotation, skipping the <code>request</code> / <code>user</code> /
+<code>view</code> transport seeds — merged with its <code>filter_set</code> fields. So a lookup selector
+like <code>get_widget(user, pk)</code> advertises <code>pk</code> instead of a bare <code>{"type": "object"}</code>
+that leans on the docstring alone. An un-annotated parameter is still surfaced by
+name (untyped <code>{}</code>); a <code>filter_set</code> field wins over a callable parameter of the
+same name.</p>
+<h2 id="jsonschemaregistry"><code>JsonSchemaRegistry</code><a class="headerlink" href="#jsonschemaregistry" title="Permanent link">&para;</a></h2>
 
 
 <div class="doc doc-object doc-class">
