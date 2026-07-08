@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, cast
 
-from django.http import HttpRequest
+from django.http import HttpRequest, QueryDict
 from rest_framework.request import Request
 
 from rest_framework_services.types.offline_context import OfflineContext
@@ -19,6 +19,7 @@ def build_offline_context(
     http_request: HttpRequest | None = None,
     action: str | None = None,
     kwargs: Mapping[str, Any] | None = None,
+    query_params: Mapping[str, Any] | None = None,
 ) -> OfflineContext:
     """Build the :class:`OfflineContext` for dispatching a spec outside an HTTP request.
 
@@ -41,10 +42,23 @@ def build_offline_context(
       real Django request so headers / ``META`` are available); otherwise a bare
       :class:`~django.http.HttpRequest` is created. The method is forced to
       ``POST`` because mutation callables often branch on it.
+    - ``query_params`` seeds the request's ``GET`` :class:`~django.http.QueryDict`
+      — the source ``request.query_params`` reads. This is how read-shaping params
+      that aren't spec inputs reach the serializer over the offline path:
+      drf-services' own ``SelectorSpec.filter_set`` (otherwise dead off-HTTP), and
+      any serializer that branches on ``request.query_params`` (django-restql field
+      selection, custom serializers). Values are stringified as on HTTP; a list /
+      tuple value becomes a multi-valued param (``getlist``). Defaults to empty →
+      no behaviour change. When both ``query_params`` and ``http_request`` are
+      given, this **replaces** the wrapped request's ``GET``.
     - ``action`` / ``kwargs`` populate the :class:`OfflineServiceView`.
     """
     base: HttpRequest = http_request if http_request is not None else HttpRequest()
     base.method = "POST"
+    if query_params is not None:
+        # ``_build_query_dict`` freezes the result (``_mutable = False``), so it is
+        # the immutable ``GET`` the stub's type wants; the stub can't see that.
+        base.GET = _build_query_dict(query_params)  # ty: ignore[invalid-assignment]
     # The django-stubs ``HttpRequest.__new__`` bleeds into the ``Request``
     # subclass, so ty resolves the wrong overload and rejects the call.
     # Construct via ``Any`` and cast back to keep the static type on the result.
@@ -58,3 +72,20 @@ def build_offline_context(
         request=drf_request, action=action, kwargs=dict(kwargs) if kwargs is not None else {}
     )
     return OfflineContext(user=user, request=drf_request, view=view)
+
+
+def _build_query_dict(query_params: Mapping[str, Any]) -> QueryDict:
+    """Build an immutable ``QueryDict`` from a mapping, mirroring an HTTP ``GET``.
+
+    Scalars are stringified (query params are always strings on the wire); a
+    list / tuple value becomes a multi-valued param so ``getlist`` sees each item.
+    The result is frozen (``_mutable = False``) like a real request's ``GET``.
+    """
+    query_dict = QueryDict(mutable=True)
+    for key, value in query_params.items():
+        if isinstance(value, (list, tuple)):
+            query_dict.setlist(key, [str(item) for item in value])
+        else:
+            query_dict[key] = str(value)
+    query_dict._mutable = False
+    return query_dict
