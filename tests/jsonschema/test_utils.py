@@ -13,6 +13,7 @@ from rest_framework_services.jsonschema.utils import (
     _python_type_to_schema,
     apply_field_override,
     apply_serializer_overrides,
+    callable_input_properties,
     dataclass_to_schema,
     field_to_schema,
     serializer_to_schema,
@@ -291,3 +292,31 @@ def test_registry_python_type_rule_flows_through_dataclass_walk() -> None:
         "properties": {"price": {"type": "string", "format": "decimal"}},
         "required": ["price"],
     }
+
+
+# --- callable_input_properties -----------------------------------------------
+
+
+def test_callable_input_properties_maps_annotations_and_skips_names() -> None:
+    def selector(user, request, pk: int, name: str): ...
+
+    props = callable_input_properties(selector, skip=frozenset({"user", "request"}))
+    assert props == {"pk": {"type": "integer"}, "name": {"type": "string"}}
+
+
+def test_callable_input_properties_surfaces_unannotated_param_untyped() -> None:
+    def selector(pk): ...
+
+    assert callable_input_properties(selector) == {"pk": {}}
+
+
+def test_callable_input_properties_skips_var_positional_and_keyword() -> None:
+    def selector(pk: int, *args, **kwargs): ...
+
+    assert callable_input_properties(selector) == {"pk": {"type": "integer"}}
+
+
+def test_callable_input_properties_untyped_on_unresolvable_annotation() -> None:
+    def selector(pk: Ghost): ...  # noqa: F821 — deliberately unresolvable forward ref
+
+    assert callable_input_properties(selector) == {"pk": {}}
