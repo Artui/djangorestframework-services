@@ -205,7 +205,7 @@ class _ActionSpecsMixin:
         # ``instance`` for retrieve). Providers receive only what they declare.
         # A SelectorSpec entry is only ever the ``list`` or ``retrieve``
         # action, so the two arms are exhaustive.
-        if _SELECTOR_ACTION_KIND.get(action) is SelectorKind.LIST:  # ty: ignore[invalid-argument-type]
+        if _SELECTOR_ACTION_KIND.get(action) is SelectorKind.LIST:
             extras: dict[str, Any] = {"page": getattr(self, "_resolved_page", None)}
         else:
             extras = {"instance": getattr(self, "_resolved_instance", None)}
