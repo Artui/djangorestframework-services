@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`build_offline_context(query_params=…)`** — seed the synthetic request's
+  `GET` `QueryDict` (the source `request.query_params` reads) when dispatching a
+  spec off-HTTP. This is how read-shaping params that aren't spec inputs reach the
+  serializer over the offline path: `SelectorSpec.filter_set` (when not handed
+  `filter_data` another way), and any serializer that branches on
+  `request.query_params` (django-restql field selection, custom serializers).
+  Scalars are stringified as on HTTP; a list/tuple value becomes a multi-valued
+  param (`getlist`); the seeded `GET` is immutable like a real request's. Defaults
+  to empty → no behaviour change for existing callers. (QP-1; the seam
+  `djangorestframework-pydantic-ai`'s `SpecToolset` builds request-level param
+  registration on.) It does **not** make DRF `filter_backends`
+  (`SearchFilter`/`OrderingFilter`) run off-HTTP — the offline path never calls
+  `filter_queryset`.
+
 ## [0.22.0] — 2026-07-03
 
 ### Fixed

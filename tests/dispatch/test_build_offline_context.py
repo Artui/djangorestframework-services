@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from django.http import HttpRequest
+import pytest
+from django.http import HttpRequest, QueryDict
 
 from rest_framework_services.dispatch.build_offline_context import build_offline_context
 from rest_framework_services.types.offline_context import OfflineContext
@@ -51,3 +52,34 @@ def test_supplied_http_request_is_wrapped_and_forced_to_post() -> None:
     # Pre-existing META survives, so headers a real transport carries are visible.
     assert ctx.request.META["HTTP_X_CUSTOM"] == "kept"
     assert ctx.request.data == {"a": 1}
+
+
+def test_query_params_default_to_empty() -> None:
+    ctx = build_offline_context(_USER)
+    assert list(ctx.request.query_params.keys()) == []
+
+
+def test_query_params_seed_the_request_get_and_stringify_scalars() -> None:
+    ctx = build_offline_context(_USER, query_params={"query": "{id,name}", "page": 2})
+    assert ctx.request.query_params["query"] == "{id,name}"
+    # Scalars are stringified, mirroring HTTP query strings.
+    assert ctx.request.query_params["page"] == "2"
+
+
+def test_list_query_params_become_multivalued() -> None:
+    ctx = build_offline_context(_USER, query_params={"status": ["open", "closed"]})
+    assert ctx.request.query_params.getlist("status") == ["open", "closed"]
+
+
+def test_seeded_query_params_are_immutable_like_a_real_get() -> None:
+    ctx = build_offline_context(_USER, query_params={"a": "1"})
+    with pytest.raises(AttributeError):
+        ctx.request.query_params["b"] = "2"
+
+
+def test_query_params_replace_a_wrapped_requests_get() -> None:
+    base = HttpRequest()
+    base.GET = QueryDict("a=1")
+    ctx = build_offline_context(_USER, http_request=base, query_params={"b": "2"})
+    assert "a" not in ctx.request.query_params
+    assert ctx.request.query_params["b"] == "2"
