@@ -914,6 +914,8 @@
       
         
       
+        
+      
     
     
     
@@ -1227,6 +1229,28 @@
     <span class="md-ellipsis">
       
         ServiceView
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#offlineserviceview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OfflineServiceView
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.offline_service_view.OfflineServiceView" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OfflineServiceView
       
     </span>
   </a>
@@ -1616,6 +1640,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../jsonschema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    JSON Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../openapi/" class="md-nav__link">
         
   
@@ -1891,6 +1943,28 @@
     <span class="md-ellipsis">
       
         ServiceView
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#offlineserviceview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OfflineServiceView
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.offline_service_view.OfflineServiceView" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OfflineServiceView
       
     </span>
   </a>
@@ -2655,6 +2729,69 @@ only the attributes a provider can rely on across both the standalone
 </ul>
 <p>Keep the surface narrow on purpose: providers should translate view state
 into typed kwargs for the service, not reach for view internals.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="offlineserviceview">OfflineServiceView<a class="headerlink" href="#offlineserviceview" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.types.offline_service_view.OfflineServiceView" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">OfflineServiceView</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.offline_service_view.OfflineServiceView" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A concrete :class:<code>ServiceView</code> for dispatching a spec outside an HTTP request.</p>
+<p>Spec <code>kwargs</code> / <code>extend_queryset</code> / context providers are typed against
+:class:<code>~rest_framework_services.types.service_view.ServiceView</code> — the
+structural <code>request</code> / <code>kwargs</code> / <code>action</code> surface. When a spec is
+dispatched off the HTTP path (a Pydantic-AI toolset, the MCP server, a
+management command) there is no DRF view, so this frozen value stands in:</p>
+<ul>
+<li><code>request</code> — the synthetic DRF :class:<code>~rest_framework.request.Request</code>
+  built by :func:<code>~rest_framework_services.dispatch.build_offline_context</code>.</li>
+<li><code>action</code> — an optional label identifying the operation; <code>None</code> when the
+  caller has no meaningful action name.</li>
+<li><code>kwargs</code> — the URL-kwargs equivalent (e.g. parent ids), empty by default.</li>
+</ul>
 
 
 

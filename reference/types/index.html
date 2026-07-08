@@ -16,7 +16,7 @@
         <link rel="prev" href="../selectors/">
       
       
-        <link rel="next" href="../openapi/">
+        <link rel="next" href="../jsonschema/">
       
       
         
@@ -914,6 +914,8 @@
       
         
       
+        
+      
     
     
     
@@ -1478,10 +1480,60 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#offlinecontext" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OfflineContext
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.offline_context.OfflineContext" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OfflineContext
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../jsonschema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    JSON Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1846,6 +1898,28 @@
     <span class="md-ellipsis">
       
         HttpExtras
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#offlinecontext" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OfflineContext
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.offline_context.OfflineContext" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OfflineContext
       
     </span>
   </a>
@@ -2775,6 +2849,69 @@ def delete_author(
               Bases: <code><span title="typing_extensions.TypedDict">TypedDict</span></code>, <code><span title="typing.Generic">Generic</span>[<span title="rest_framework_services.types.http_extras.UserT">UserT</span>]</code></p>
 
 
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="offlinecontext"><code>OfflineContext</code><a class="headerlink" href="#offlinecontext" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.types.offline_context.OfflineContext" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">OfflineContext</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.offline_context.OfflineContext" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>The HTTP-surrogate a spec needs when dispatched off the HTTP path.</p>
+<p>Produced by :func:<code>~rest_framework_services.dispatch.build_offline_context</code>.
+Its <code>request</code> / <code>view</code> feed the optional <code>request=</code> / <code>view=</code>
+arguments of :func:<code>~rest_framework_services.dispatch_spec</code>, and the whole
+value is consumed by :func:<code>~rest_framework_services.enforce_permissions</code>.</p>
+<ul>
+<li><code>user</code> — the acting principal (<code>request.user</code> is set to the same
+  value); <code>Any</code> because the user model is project-defined.</li>
+<li><code>request</code> — the synthetic DRF Request (<code>.user</code> set, <code>.data</code> carrying
+  the params), forwarded to spec callables that declare <code>request</code>.</li>
+<li><code>view</code> — the :class:<code>OfflineServiceView</code> forwarded to callables that
+  declare <code>view</code> and used as the <code>view</code> argument of permission checks.</li>
+</ul>
 
 
 

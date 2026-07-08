@@ -914,6 +914,8 @@
       
         
       
+        
+      
     
     
     
@@ -1290,6 +1292,34 @@
   </a>
   
     <nav class="md-nav" aria-label="Authorizing an off-HTTP call">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build_offline_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_offline_context
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.build_offline_context.build_offline_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_offline_context
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="build_offline_context">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1844,6 +1874,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../jsonschema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    JSON Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../openapi/" class="md-nav__link">
         
   
@@ -2154,6 +2212,34 @@
   </a>
   
     <nav class="md-nav" aria-label="Authorizing an off-HTTP call">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#build_offline_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_offline_context
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.build_offline_context.build_offline_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_offline_context
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="build_offline_context">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -3098,6 +3184,73 @@ that wants the <em>same</em> authorization a DRF view would apply wires
 once the row (or collection) is resolved. Together they are the canonical wiring
 for every spec kind. <code>enforce_permissions</code> is collection-safe: a resolved
 queryset runs only the class-level check, never <code>has_object_permission</code>.</p>
+<h3 id="build_offline_context"><code>build_offline_context</code><a class="headerlink" href="#build_offline_context" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.build_offline_context.build_offline_context" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">build_offline_context</span>
+
+
+<a href="#rest_framework_services.dispatch.build_offline_context.build_offline_context" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_offline_context</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">user</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">params</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">http_request</span><span class="p">:</span> <span class="n">HttpRequest</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">action</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">kwargs</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">query_params</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OfflineContext</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Build the :class:<code>OfflineContext</code> for dispatching a spec outside an HTTP request.</p>
+<p>:func:<code>~rest_framework_services.dispatch_spec</code> forwards <code>request</code> / <code>view</code>
+to spec callables (<code>kwargs</code> providers, <code>extend_queryset</code>, context
+providers) that declare them, and :func:<code>~rest_framework_services.enforce_permissions</code>
+needs a request + view to evaluate <code>permission_classes</code>. This synthesizes
+both so a spec written for the HTTP transport keeps working when driven from
+a Pydantic-AI toolset, the MCP server, a management command, or a task runner.</p>
+<ul>
+<li><code>user</code> is set on the synthetic request (<code>request.user</code>) so callables
+  and permissions that read it behave as on HTTP.</li>
+<li><code>params</code> seeds <code>request.data</code> for callables that read it. It is <em>not</em>
+  validated here — that is :func:<code>dispatch_spec</code>'s job, which takes <code>params</code>
+  directly and never touches <code>request.data</code>. Pass the same value to both.
+  Seeded into DRF's parsed-data cache directly: <code>params</code> is already
+  structured, so there is nothing to parse and a synthetic request has no
+  WSGI stream to read.</li>
+<li><code>http_request</code> is wrapped when supplied (e.g. the MCP server passes its
+  real Django request so headers / <code>META</code> are available); otherwise a bare
+  :class:<code>~django.http.HttpRequest</code> is created. The method is forced to
+  <code>POST</code> because mutation callables often branch on it.</li>
+<li><code>query_params</code> seeds the request's <code>GET</code> :class:<code>~django.http.QueryDict</code>
+  — the source <code>request.query_params</code> reads. This is how read-shaping params
+  that aren't spec inputs reach the serializer over the offline path:
+  drf-services' own <code>SelectorSpec.filter_set</code> (otherwise dead off-HTTP), and
+  any serializer that branches on <code>request.query_params</code> (django-restql field
+  selection, custom serializers). Values are stringified as on HTTP; a list /
+  tuple value becomes a multi-valued param (<code>getlist</code>). Defaults to empty →
+  no behaviour change. When both <code>query_params</code> and <code>http_request</code> are
+  given, this <strong>replaces</strong> the wrapped request's <code>GET</code>.</li>
+<li><code>action</code> / <code>kwargs</code> populate the :class:<code>OfflineServiceView</code>.</li>
+</ul>
+
+
+    </div>
+
+</div><p><strong>Read-shaping over the offline path.</strong> Pass <code>query_params=</code> to seed the synthetic
+request's <code>GET</code> <code>QueryDict</code> — the source <code>request.query_params</code> reads. That is how
+read-shaping params that are <em>not</em> spec inputs reach the serializer off-HTTP:
+<code>SelectorSpec.filter_set</code> (when you don't hand <code>filter_data</code> in another way), and
+any serializer that branches on <code>request.query_params</code> (django-restql field
+selection, custom serializers). It does <strong>not</strong> make DRF <code>filter_backends</code>
+(<code>SearchFilter</code> / <code>OrderingFilter</code>) run — the offline path never calls
+<code>filter_queryset</code>; <code>filter_set</code> is the drf-services-native equivalent.</p>
 <h3 id="enforce_permissions"><code>enforce_permissions</code><a class="headerlink" href="#enforce_permissions" title="Permanent link">&para;</a></h3>
 
 

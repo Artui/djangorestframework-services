@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/reference/selectors/">
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/reference/jsonschema/">
       
       
-        <link rel="prev" href="../services/">
+        <link rel="prev" href="../types/">
       
       
-        <link rel="next" href="../types/">
+        <link rel="next" href="../openapi/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Selectors - djangorestframework-services</title>
+        <title>JSON Schema - djangorestframework-services</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#selectors" class="md-skip">
+        <a href="#json-schema" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Selectors
+              JSON Schema
             
           </span>
         </div>
@@ -1114,37 +1114,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Selectors
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../selectors/" class="md-nav__link">
         
   
   
@@ -1160,231 +1133,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#protocols" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Protocols
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.selector.Selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Selector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.async_selector.AsyncSelector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        AsyncSelector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.list_selector.ListSelector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ListSelector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.retrieve_selector.RetrieveSelector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RetrieveSelector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#helpers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Helpers
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Helpers">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#call_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        call_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.call_selector.call_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        call_selector
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="call_selector">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#acall_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        acall_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.acall_selector.acall_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        acall_selector
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#dispatch" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Dispatch
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        utils
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="utils">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.is_queryset" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        is_queryset
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.run_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        run_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.arun_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        arun_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        apply_queryset_shaping
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.dispatch_selector_for_spec" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        dispatch_selector_for_spec
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1422,10 +1170,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../jsonschema/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    JSON Schema
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1441,6 +1216,175 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#serializer_to_json_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        serializer_to_json_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.jsonschema.serializer_to_json_schema.serializer_to_json_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        serializer_to_json_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output_to_json_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        output_to_json_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        output_to_json_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filterset_to_json_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        filterset_to_json_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.jsonschema.filterset_to_json_schema.filterset_to_json_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        filterset_to_json_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spec_to_json_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        spec_to_json_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        spec_to_json_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#jsonschemaregistry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JsonSchemaRegistry
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JsonSchemaRegistry
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="JsonSchemaRegistry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry.extend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extend
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#default_json_schema_registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DEFAULT_JSON_SCHEMA_REGISTRY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.json_schema_registry.DEFAULT_JSON_SCHEMA_REGISTRY" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DEFAULT_JSON_SCHEMA_REGISTRY
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1536,10 +1480,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#protocols" class="md-nav__link">
+  <a href="#serializer_to_json_schema" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Protocols
+        serializer_to_json_schema
       
     </span>
   </a>
@@ -1547,10 +1491,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.selector.Selector" class="md-nav__link">
+  <a href="#rest_framework_services.jsonschema.serializer_to_json_schema.serializer_to_json_schema" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Selector
+        serializer_to_json_schema
       
     </span>
   </a>
@@ -1558,10 +1502,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.async_selector.AsyncSelector" class="md-nav__link">
+  <a href="#output_to_json_schema" class="md-nav__link">
     <span class="md-ellipsis">
       
-        AsyncSelector
+        output_to_json_schema
       
     </span>
   </a>
@@ -1569,10 +1513,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.list_selector.ListSelector" class="md-nav__link">
+  <a href="#rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ListSelector
+        output_to_json_schema
       
     </span>
   </a>
@@ -1580,10 +1524,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.retrieve_selector.RetrieveSelector" class="md-nav__link">
+  <a href="#filterset_to_json_schema" class="md-nav__link">
     <span class="md-ellipsis">
       
-        RetrieveSelector
+        filterset_to_json_schema
       
     </span>
   </a>
@@ -1591,22 +1535,66 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#helpers" class="md-nav__link">
+  <a href="#rest_framework_services.jsonschema.filterset_to_json_schema.filterset_to_json_schema" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Helpers
+        filterset_to_json_schema
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Helpers">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spec_to_json_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        spec_to_json_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        spec_to_json_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#jsonschemaregistry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JsonSchemaRegistry
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JsonSchemaRegistry
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="JsonSchemaRegistry">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#call_selector" class="md-nav__link">
+  <a href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry.extend" class="md-nav__link">
     <span class="md-ellipsis">
       
-        call_selector
+        extend
       
     </span>
   </a>
@@ -1619,38 +1607,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.call_selector.call_selector" class="md-nav__link">
+  <a href="#default_json_schema_registry" class="md-nav__link">
     <span class="md-ellipsis">
       
-        call_selector
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="call_selector">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#acall_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        acall_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.acall_selector.acall_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        acall_selector
+        DEFAULT_JSON_SCHEMA_REGISTRY
       
     </span>
   </a>
@@ -1658,85 +1618,13 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#dispatch" class="md-nav__link">
+  <a href="#rest_framework_services.types.json_schema_registry.DEFAULT_JSON_SCHEMA_REGISTRY" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Dispatch
+        DEFAULT_JSON_SCHEMA_REGISTRY
       
     </span>
   </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        utils
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="utils">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.is_queryset" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        is_queryset
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.run_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        run_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.arun_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        arun_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        apply_queryset_shaping
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.dispatch_selector_for_spec" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        dispatch_selector_for_spec
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1757,7 +1645,7 @@
 
 
   
-    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/reference/selectors.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/reference/jsonschema.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1765,288 +1653,224 @@
   
 
 
-<h1 id="selectors">Selectors<a class="headerlink" href="#selectors" title="Permanent link">&para;</a></h1>
-<h2 id="protocols">Protocols<a class="headerlink" href="#protocols" title="Permanent link">&para;</a></h2>
-<p>Each Protocol is parameterised on input / instance / result types only;
-<code>**extras</code> is typed <code>Any</code>. Strict-typed extras live on the user's function
-signature via <code>**extras: Unpack[YourKw]</code> — see
-<a href="../../typing/">Typing services and selectors</a> for the full pattern.</p>
-
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.selectors.selector.Selector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">Selector</span>
-
-
-<a href="#rest_framework_services.selectors.selector.Selector" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
-
-
-
-        <p>Any callable returning a queryset, list, or single object.</p>
-<p>Used as a structural type for documentation purposes; the views accept
-any plain callable, so satisfying this protocol is optional.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.selectors.async_selector.AsyncSelector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">AsyncSelector</span>
-
-
-<a href="#rest_framework_services.selectors.async_selector.AsyncSelector" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
-
-
-
-        <p>Async sibling of :class:<code>Selector</code>.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.selectors.list_selector.ListSelector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">ListSelector</span>
-
-
-<a href="#rest_framework_services.selectors.list_selector.ListSelector" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.selectors.list_selector.ResultT">ResultT</span>]</code></p>
-
-
-
-        <p>Structural shape for a list-action selector callable.</p>
-<p>The framework calls this from <code>get_queryset()</code>; the returned iterable
-flows through DRF's filter backends, pagination, and <code>output_serializer</code>.</p>
-<p>See :class:<code>~rest_framework_services.services.CreateService</code> for the
-extras-typing notes.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.selectors.retrieve_selector.RetrieveSelector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">RetrieveSelector</span>
-
-
-<a href="#rest_framework_services.selectors.retrieve_selector.RetrieveSelector" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.selectors.retrieve_selector.ResultT">ResultT</span>]</code></p>
-
-
-
-        <p>Structural shape for a retrieve-action selector callable.</p>
-<p>The framework calls this from <code>get_object()</code>. Returning <code>None</code> (or
-raising <code>Model.DoesNotExist</code>) results in a 404. The URL lookup field
-(typically <code>pk</code>) is delivered via <code>**extras</code>.</p>
-<p>See :class:<code>~rest_framework_services.services.CreateService</code> for the
-extras-typing notes.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div><h2 id="helpers">Helpers<a class="headerlink" href="#helpers" title="Permanent link">&para;</a></h2>
-<h3 id="call_selector"><code>call_selector</code><a class="headerlink" href="#call_selector" title="Permanent link">&para;</a></h3>
+<h1 id="json-schema">JSON Schema<a class="headerlink" href="#json-schema" title="Permanent link">&para;</a></h1>
+<p>View-free JSON Schema generation. These helpers turn a <code>ServiceSpec</code> /
+<code>SelectorSpec</code> (or a bare DRF serializer / dataclass) into a JSON Schema
+dict, with <strong>no</strong> view, request, or <code>drf-spectacular</code> dependency — what an
+alternate transport (a Pydantic-AI toolset, the MCP server) builds tool
+definitions from. Distinct from the <a href="../openapi/">OpenAPI</a> adapter, which
+produces DRF serializer classes for DRF's own OpenAPI generators.</p>
+<h2 id="serializer_to_json_schema"><code>serializer_to_json_schema</code><a class="headerlink" href="#serializer_to_json_schema" title="Permanent link">&para;</a></h2>
 
 
 <div class="doc doc-object doc-function">
 
 
-<h2 id="rest_framework_services.selectors.call_selector.call_selector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">call_selector</span>
+<h2 id="rest_framework_services.jsonschema.serializer_to_json_schema.serializer_to_json_schema" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">serializer_to_json_schema</span>
 
 
-<a href="#rest_framework_services.selectors.call_selector.call_selector" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">call_selector</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">selector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Any</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ResultT</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>Invoke <code>selector</code> with the framework's kwargs pool.</p>
-<p><code>request</code> is required; <code>user</code> is derived from <code>request.user</code>.
-Async selectors are bridged via <code>async_to_sync</code>.</p>
-
-
-    </div>
-
-</div><h3 id="acall_selector"><code>acall_selector</code><a class="headerlink" href="#acall_selector" title="Permanent link">&para;</a></h3>
-
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="rest_framework_services.selectors.acall_selector.acall_selector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">acall_selector</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-async"><code>async</code></small>
-  </span>
-
-<a href="#rest_framework_services.selectors.acall_selector.acall_selector" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">acall_selector</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">selector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ResultT</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">ResultT</span><span class="p">]],</span>
+<a href="#rest_framework_services.jsonschema.serializer_to_json_schema.serializer_to_json_schema" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">serializer_to_json_schema</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">serializer</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ResultT</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p>Invoke <code>selector</code> from async code with the framework's kwargs pool.</p>
-<p>Async selectors are awaited; sync selectors are called inline.</p>
+        <p>Build a JSON Schema <em>object</em> for an input serializer / dataclass / <code>None</code>.</p>
+<p>Accepts a DRF <code>Serializer</code> subclass, a bare <code>@dataclass</code> type (the
+convention drf-services services use for <code>data</code>), or <code>None</code> (the
+operation takes no input). Always returns an object — <code>{"type": "object"}</code>
+is the convention for "no declared fields", so an alternate transport can
+still describe the tool.</p>
+<p><code>partial=True</code> drops the <code>required</code> list — mirroring <code>spec.partial</code>,
+where the validator accepts omitted fields, so advertising them as required
+would make schema-strict consumers reject calls the service accepts.</p>
+<p><code>registry</code> supplies consumer rules for custom field / Python types — see
+:class:<code>~rest_framework_services.JsonSchemaRegistry</code>.</p>
 
 
     </div>
 
-</div><h2 id="dispatch">Dispatch<a class="headerlink" href="#dispatch" title="Permanent link">&para;</a></h2>
+</div><h2 id="output_to_json_schema"><code>output_to_json_schema</code><a class="headerlink" href="#output_to_json_schema" title="Permanent link">&para;</a></h2>
 
 
-<div class="doc doc-object doc-module">
+<div class="doc doc-object doc-function">
 
 
+<h2 id="rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">output_to_json_schema</span>
 
-<h2 id="rest_framework_services.selectors.utils" class="doc doc-heading">
-            <span class="doc doc-object-name doc-module-name">utils</span>
 
-
-<a href="#rest_framework_services.selectors.utils" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">output_to_json_schema</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">output_serializer</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">kind</span><span class="p">:</span> <span class="n">SelectorKind</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">paginate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p>Internal selector dispatch helpers (sync + async).</p>
+        <p>Build a JSON Schema for an output serializer, or <code>None</code> when undeclared.</p>
+<p>Returns <code>None</code> when there is no <code>output_serializer</code> — callers shouldn't
+fabricate a misleading shape. <code>kind</code> / <code>paginate</code> make the schema match
+what dispatch actually returns:</p>
+<ul>
+<li><code>kind=None</code> / <code>RETRIEVE</code> — the bare item schema.</li>
+<li><code>kind=LIST, paginate=False</code> — <code>{type: array, items: &lt;item&gt;}</code>.</li>
+<li><code>kind=LIST, paginate=True</code> — the pagination envelope
+  <code>{items, page, totalPages, hasNext}</code>.</li>
+</ul>
+<p><code>registry</code> supplies consumer rules for custom field / Python types — see
+:class:<code>~rest_framework_services.JsonSchemaRegistry</code>.</p>
+
+
+    </div>
+
+</div><h2 id="filterset_to_json_schema"><code>filterset_to_json_schema</code><a class="headerlink" href="#filterset_to_json_schema" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.jsonschema.filterset_to_json_schema.filterset_to_json_schema" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">filterset_to_json_schema</span>
+
+
+<a href="#rest_framework_services.jsonschema.filterset_to_json_schema.filterset_to_json_schema" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">filterset_to_json_schema</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">filter_set_class</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Map a django-filter <code>FilterSet</code> class to JSON Schema properties.</p>
+<p>Returns a dict shaped like the <code>"properties"</code> key of a JSON Schema object
+— ready to merge into a spec's input schema (see
+:func:<code>~rest_framework_services.spec_to_json_schema</code>, which does this for a
+<code>SelectorSpec</code> carrying a <code>filter_set</code>). Every filter is optional: a
+filter narrows the queryset but is never required to call the operation, so
+no name is added to a <code>required</code> array.</p>
+<p><code>registry.filters</code> rules are tried first (so a consumer can map a custom
+filter type or override a built-in); otherwise common filter classes get
+accurate mappings and anything unrecognised falls back to <code>{}</code> (JSON Schema
+"any value") so a custom filter never breaks generation. Reads
+<code>FilterSet.base_filters</code> directly (populated by the metaclass at
+class-creation time) so the FilterSet isn't instantiated.</p>
+<p>Requires the <code>[filter]</code> extra (<code>django-filter</code>). The core never imports
+it — <code>SelectorSpec.filter_set</code> is applied by duck typing — so the import is
+function-local here and raises a clear error when the extra is absent. This
+only fires when a <code>filter_set</code> is actually introspected, so projects that
+don't use one are unaffected.</p>
+
+
+    </div>
+
+</div><h2 id="spec_to_json_schema"><code>spec_to_json_schema</code><a class="headerlink" href="#spec_to_json_schema" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">spec_to_json_schema</span>
+
+
+<a href="#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">spec_to_json_schema</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">phase</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;input&quot;</span><span class="p">,</span> <span class="s2">&quot;output&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;input&quot;</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Derive a JSON Schema from a spec, reading the right serializer off it.</p>
+<p>The convenience an alternate transport (a Pydantic-AI toolset, the MCP
+server) calls instead of reaching into spec internals itself.</p>
+<p><code>phase="input"</code> (default) returns the input-argument schema:</p>
+<ul>
+<li>:class:<code>ServiceSpec</code> → its <code>input_serializer</code> (<code>spec.partial</code> honoured).</li>
+<li>:class:<code>SelectorSpec</code> → an object whose <code>properties</code> are the selector's
+  <code>filter_set</code> fields (via <code>filterset_to_json_schema</code>), or a bare
+  <code>{"type": "object"}</code> when it declares no <code>filter_set</code>. (Introspecting a
+  <code>filter_set</code> needs the <code>[filter]</code> extra; a selector without one stays
+  dependency-free.)</li>
+</ul>
+<p><code>phase="output"</code> returns the output schema, or <code>None</code> when undeclared:</p>
+<ul>
+<li>:class:<code>ServiceSpec</code> → its <code>output_selector_spec</code>'s <code>output_serializer</code>
+  and <code>kind</code>.</li>
+<li>:class:<code>SelectorSpec</code> → its own <code>output_serializer</code> and <code>kind</code>.</li>
+</ul>
+<p><code>registry</code> supplies consumer rules for custom field / filter / Python types
+— see :class:<code>~rest_framework_services.JsonSchemaRegistry</code>.</p>
+
+
+    </div>
+
+</div><h2 id="jsonschemaregistry"><code>JsonSchemaRegistry</code><a class="headerlink" href="#jsonschemaregistry" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.types.json_schema_registry.JsonSchemaRegistry" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">JsonSchemaRegistry</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Consumer-extensible <code>type → JSON Schema fragment</code> rules for the helpers.</p>
+<p>Three ordered rule lists, each a sequence of <code>(type, schema_fragment)</code>:</p>
+<ul>
+<li><code>fields</code> — DRF <code>Field</code> subclasses, matched by <code>isinstance</code> when
+  walking a serializer (<code>serializer_to_json_schema</code> / the input side of
+  <code>spec_to_json_schema</code>).</li>
+<li><code>filters</code> — <code>django-filter</code> <code>Filter</code> subclasses, matched by
+  <code>isinstance</code> when walking a <code>FilterSet</code> (<code>filterset_to_json_schema</code>).</li>
+<li><code>python_types</code> — bare Python types, matched by <em>identity</em> when walking a
+  dataclass's field annotations.</li>
+</ul>
+<p>Rules are tried in order and the first match wins, <strong>before</strong> the built-in
+mappings — so a rule both adds support for a custom type and can override a
+built-in. The matched fragment is copied per use, so callers may freely
+mutate the returned schema.</p>
+<p>Immutable: :meth:<code>extend</code> returns a <em>new</em> registry rather than mutating, so
+there is no shared global state to leak across callers or tests. Start from
+:data:<code>DEFAULT_JSON_SCHEMA_REGISTRY</code> (empty) and layer rules on::</p>
+<div class="language-text highlight"><pre><span></span><code>registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+    fields=[(MoneyField, {&quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;money&quot;})],
+)
+schema = serializer_to_json_schema(MySerializer, registry=registry)
+</code></pre></div>
+<p>The built-in mappings are intentionally <em>not</em> held here — they live with the
+walkers (and the filter built-ins import <code>django-filter</code> lazily). A
+registry carries only consumer additions, so the empty default stays
+dependency-free.</p>
+
 
 
 
@@ -2071,166 +1895,22 @@ Async selectors are bridged via <code>async_to_sync</code>.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="rest_framework_services.selectors.utils.is_queryset" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">is_queryset</span>
+<h3 id="rest_framework_services.types.json_schema_registry.JsonSchemaRegistry.extend" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">extend</span>
 
 
-<a href="#rest_framework_services.selectors.utils.is_queryset" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">is_queryset</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+<a href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry.extend" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">extend</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">fields</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">_Rule</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">filters</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">_Rule</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">python_types</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">_Rule</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">JsonSchemaRegistry</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>True for Django <code>QuerySet</code> objects and <code>Manager</code> instances.</p>
-<p>These are the queryset-shaping targets: the things the four shaping
-fields can be applied to, and the things a RETRIEVE selector / output
-selector should be materialized from via <code>.first()</code>. Centralizes the
-"is this a queryset?" decision so the selector and mutation dispatch
-paths agree on one definition instead of duck-typing on a method name
-(<code>hasattr(..., "first")</code>), which would also match an unrelated domain
-object that happens to expose <code>first</code>. <code>QuerySet</code> subclasses
-(<code>.values()</code>, <code>.values_list()</code>, polymorphic querysets, …) all pass.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="rest_framework_services.selectors.utils.run_selector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">run_selector</span>
-
-
-<a href="#rest_framework_services.selectors.utils.run_selector" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_selector</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Call a selector from sync code, transparently bridging async ones.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="rest_framework_services.selectors.utils.arun_selector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">arun_selector</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-async"><code>async</code></small>
-  </span>
-
-<a href="#rest_framework_services.selectors.utils.arun_selector" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">arun_selector</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">Any</span><span class="p">]],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Call a selector from async code; sync ones run inline.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="rest_framework_services.selectors.utils.apply_queryset_shaping" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">apply_queryset_shaping</span>
-
-
-<a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">apply_queryset_shaping</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">qs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">select_related</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">prefetch_related</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">annotations</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">extend_queryset</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">filter_set</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">filter_data</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">source_label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Apply the five shaping fields to <code>qs</code>.</p>
-<p>Declarative fields apply first (in declaration order), then
-<code>extend_queryset</code> runs so the user callable always sees the fully
-statically-shaped queryset, and finally <code>filter_set</code> narrows it via the
-transport-neutral <code>filter_set(data=filter_data, queryset=qs).qs</code> contract
-— so filtering composes with shaping and runs before the retrieve
-<code>.first()</code> materialization the caller does next. Returns <code>qs</code> unchanged
-when no shaping is configured.</p>
-<p>Raises :exc:<code>ImproperlyConfigured</code> when shaping is configured but
-<code>qs</code> is not a Django QuerySet (no <code>annotate</code> method) — loud
-failure beats a stale <code>AttributeError</code> deep in DRF rendering.
-<code>source_label</code> is included in the error to point at the misuse
-(<code>"SelectorSpec.selector"</code> vs <code>"ServiceSpec.output_selector_spec.selector"</code>).</p>
-<p><code>filter_set</code> defaults to <code>None</code> so existing callers of this blessed
-surface keep working unchanged. <code>filter_data</code> is the data the FilterSet
-reads (a flat <code>{field: value}</code> mapping); it defaults to <code>None</code>, in
-which case the value falls back to <code>request.query_params</code> — the HTTP view
-path. A transport-neutral caller (<code>dispatch_spec</code>) passes its own params
-here, so the FilterSet never reaches into a DRF request it doesn't have.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="rest_framework_services.selectors.utils.dispatch_selector_for_spec" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">dispatch_selector_for_spec</span>
-
-
-<a href="#rest_framework_services.selectors.utils.dispatch_selector_for_spec" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">dispatch_selector_for_spec</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">extra_url_kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">source_label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;SelectorSpec.selector&quot;</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>End-to-end dispatch for one <code>SelectorSpec</code> call.</p>
-<p>Runs the kwargs-resolution chain (<code>spec.kwargs</code> →
-<code>get_&lt;action&gt;_selector_kwargs</code> → <code>get_selector_kwargs</code>), filters
-the resulting pool against the selector's signature, invokes the
-selector sync-or-async, then applies declarative + dynamic queryset
-shaping. Used by both selector viewset mixins and the standalone
-selector views so the call shape lives in one place.</p>
-<p>When <code>spec.kind</code> is :attr:<code>SelectorKind.RETRIEVE</code>, the returned
-QuerySet (if any) is materialized via <code>.first()</code> and <code>None</code> /
-:exc:<code>~django.core.exceptions.ObjectDoesNotExist</code> are translated to
-:exc:<code>~rest_framework.exceptions.NotFound</code> — unless the spec sets
-<code>allow_none=True</code>, in which case the missing-object case returns
-<code>None</code> and the calling view decides how to render it (the retrieve
-views render 200 + JSON <code>null</code>). <code>SelectorKind.LIST</code> returns the
-(optionally shaped) selector return as-is.</p>
-<p>The caller must check <code>spec.selector is not None</code> before calling and
-fall back to vanilla DRF otherwise.</p>
-<p><code>source_label</code> is forwarded to :func:<code>apply_queryset_shaping</code> for
-error messages, so a misconfiguration on a nested
-<code>output_selector_spec</code> points at the right place.</p>
+        <p>Return a new registry with the given rules prepended (they win first).</p>
 
 
     </div>
@@ -2240,6 +1920,29 @@ error messages, so a misconfiguration on a nested
 
 
   </div>
+
+    </div>
+
+</div><h2 id="default_json_schema_registry"><code>DEFAULT_JSON_SCHEMA_REGISTRY</code><a class="headerlink" href="#default_json_schema_registry" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h2 id="rest_framework_services.types.json_schema_registry.DEFAULT_JSON_SCHEMA_REGISTRY" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">DEFAULT_JSON_SCHEMA_REGISTRY</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.json_schema_registry.DEFAULT_JSON_SCHEMA_REGISTRY" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">JsonSchemaRegistry</span><span class="p">()</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
 
     </div>
 
