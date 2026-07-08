@@ -14,7 +14,7 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
@@ -33,7 +33,7 @@ jobs:
     name: docs build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
@@ -74,7 +74,7 @@ jobs:
             django-version: "6.0"
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
@@ -91,7 +91,7 @@ jobs:
             --cov-report=html:htmlcov
       - name: Upload coverage artifact
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-py${{ matrix.python-version }}-django${{ matrix.django-version }}
           path: |
@@ -110,7 +110,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           # Need the parent commit so the gate step below can diff
           # version.py against ${{ github.event.before }}. The default
@@ -157,7 +157,7 @@ jobs:
           fi
       - name: Download canonical coverage artifact
         if: steps.gate.outputs.skip != 'true'
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           # Pin to one cell of the matrix — coverage is the same shape across
           # all cells and we only need one number.
@@ -232,7 +232,7 @@ jobs:
     name: secret scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Install gitleaks
