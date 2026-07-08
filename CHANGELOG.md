@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-07-08
+
 ### Added
 
 - **Selector input schemas now reflect the selector callable's parameters.**
@@ -1215,7 +1217,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/Artui/djangorestframework-services/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/Artui/djangorestframework-services/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/Artui/djangorestframework-services/compare/v0.21.1...v0.22.0
 [0.21.1]: https://github.com/Artui/djangorestframework-services/compare/v0.21.0...v0.21.1
