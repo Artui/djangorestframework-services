@@ -17,10 +17,12 @@ from rest_framework_services.dispatch.utils import (
     arun_service_callable,
     base_pool,
     call_target_guard,
+    guard_many_argument_binding,
     merge_arguments,
     resolve_argument_binding,
     resolve_input_context,
     resolve_provider,
+    resolve_service_many_input,
     resolve_unknown_arguments,
     service_input,
     shape_queryset,
@@ -57,6 +59,11 @@ async def adispatch_spec(
     so the ORM stays safe off the event loop. A ``LIST`` result is returned as
     the (lazy) shaped queryset — the async transport materializes / paginates it
     in a thread, exactly as on the sync path.
+
+    As on :func:`~rest_framework_services.dispatch_spec`, a ``many=True`` bulk
+    spec honours ``unknown_arguments`` per list element and rejects a non-default
+    ``argument_binding`` (there is no per-item kwarg to spread into a single
+    list-payload service call).
     """
     if isinstance(spec, ServiceSpec):
         return await _adispatch_service(
@@ -164,6 +171,7 @@ async def _adispatch_service(
             view=view,
             success_status=success_status,
             argument_binding=argument_binding,
+            unknown_arguments=unknown_arguments,
             on_target_resolved=on_target_resolved,
         )
 
@@ -232,8 +240,10 @@ async def _adispatch_service_many(
     view: Any,
     success_status: int | None,
     argument_binding: ArgumentBinding,
+    unknown_arguments: UnknownArguments,
     on_target_resolved: TargetGuard | None,
 ) -> DispatchResult:
+    guard_many_argument_binding(argument_binding)
     await sync_to_async(call_target_guard, thread_sensitive=True)(
         on_target_resolved, spec, None, user=user, request=request, view=view
     )
@@ -245,10 +255,14 @@ async def _adispatch_service_many(
         many=True,
         context=input_context,
     )
+    data, has_data = resolve_service_many_input(
+        spec, serializer, params, unknown_arguments=unknown_arguments
+    )
     pool: dict[str, Any] = base_pool(user=user, request=request)
     pool.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
+    if has_data:
+        pool["data"] = data
     if serializer is not None:
-        pool["data"] = serializer.validated_data
         pool["serializer"] = serializer
     result: Any = await arun_service_callable(
         spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic

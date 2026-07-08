@@ -22,6 +22,10 @@
 
 ::: rest_framework_services.types.service_view.ServiceView
 
+## OfflineServiceView
+
+::: rest_framework_services.types.offline_service_view.OfflineServiceView
+
 ## Kwarg resolution
 
 ::: rest_framework_services.views.utils

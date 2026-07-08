@@ -299,6 +299,88 @@ class TestUnknownArguments:
         assert seen == {"data_title": "x", "note": "spread"}
 
 
+# ------------------------------------------------------ unknown arguments (bulk)
+
+
+@pytest.mark.django_db
+class TestUnknownArgumentsBulk:
+    """``many=True`` honours ``unknown_arguments`` per list element."""
+
+    def test_reject_raises_on_item_with_undeclared_key(self) -> None:
+        def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            raise AssertionError("service must not run when an item is rejected")
+
+        spec = ServiceSpec(service=bulk, input_serializer=_TitleSerializer, many=True, atomic=False)
+        with pytest.raises(ValidationError, match="bogus"):
+            dispatch_spec(
+                spec,
+                user=None,
+                params=[{"title": "a"}, {"title": "b", "bogus": 1}],
+                unknown_arguments=UnknownArguments.REJECT,
+            )
+        assert Post.objects.count() == 0
+
+    def test_passthrough_folds_extras_into_each_item(self) -> None:
+        seen: dict[str, Any] = {}
+
+        def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            seen["data"] = [dict(item) for item in data]
+            return [Post.objects.create(title=item["title"]) for item in data]
+
+        spec = ServiceSpec(service=bulk, input_serializer=_TitleSerializer, many=True, atomic=False)
+        dispatch_spec(
+            spec,
+            user=None,
+            params=[{"title": "a", "note": "x"}, {"title": "b", "note": "y"}],
+            unknown_arguments=UnknownArguments.PASSTHROUGH,
+        )
+        assert seen["data"] == [{"title": "a", "note": "x"}, {"title": "b", "note": "y"}]
+
+    def test_ignore_drops_extras_per_item(self) -> None:
+        seen: dict[str, Any] = {}
+
+        def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            seen["data"] = [dict(item) for item in data]
+            return [Post.objects.create(title=item["title"]) for item in data]
+
+        spec = ServiceSpec(service=bulk, input_serializer=_TitleSerializer, many=True, atomic=False)
+        # IGNORE (the default) drops the undeclared ``note`` from every item.
+        dispatch_spec(spec, user=None, params=[{"title": "a", "note": "x"}])
+        assert seen["data"] == [{"title": "a"}]
+
+    def test_passthrough_seeds_data_without_serializer(self) -> None:
+        seen: dict[str, Any] = {}
+
+        def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            seen["data"] = [dict(item) for item in data]
+            return [Post.objects.create(title=item["note"]) for item in data]
+
+        spec = ServiceSpec(service=bulk, many=True, atomic=False)
+        dispatch_spec(
+            spec,
+            user=None,
+            params=[{"note": "a"}, {"note": "b"}],
+            unknown_arguments=UnknownArguments.PASSTHROUGH,
+        )
+        assert seen["data"] == [{"note": "a"}, {"note": "b"}]
+
+    def test_non_default_argument_binding_raises(self) -> None:
+        def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            raise AssertionError("service must not run when binding is rejected")
+
+        spec = ServiceSpec(service=bulk, input_serializer=_TitleSerializer, many=True, atomic=False)
+        # A bulk service takes the whole list as ``data`` — there is nothing to
+        # spread, so a non-default binding is rejected rather than silently ignored.
+        with pytest.raises(ValueError, match="many=True"):
+            dispatch_spec(
+                spec,
+                user=None,
+                params=[{"title": "a"}],
+                argument_binding=ArgumentBinding.SPREAD_CALLER_WINS,
+            )
+        assert Post.objects.count() == 0
+
+
 # ---------------------------------------------------------------- target guard
 
 
@@ -454,7 +536,7 @@ class TestTargetGuard:
         assert Post.objects.count() == 0
 
     def test_enforce_permissions_allows_bulk_collection_despite_deny_object(self) -> None:
-        # Collection-safe (AUTHZ-1a) on the bulk mutation path: the resolved
+        # Collection-safe on the bulk mutation path: the resolved
         # queryset runs class-level only, so a per-row-denying permission does not
         # raise AttributeError on the collection.
         Post.objects.create(title="a")
@@ -467,7 +549,7 @@ class TestTargetGuard:
         result = dispatch_spec(spec, user=None, params={}, on_target_resolved=enforce_permissions)
         assert result.value == {"n": 1}
 
-    # -- selector dispatch fires the guard (AUTHZ-1b) --
+    # -- selector dispatch fires the guard --
 
     def test_guard_receives_resolved_instance_on_retrieve_selector(self) -> None:
         post = Post.objects.create(title="a")
@@ -504,7 +586,7 @@ class TestTargetGuard:
         assert called is False
 
     def test_enforce_permissions_denies_object_on_retrieve_selector(self) -> None:
-        # AUTHZ-2's live bypass, fixed at the source: object-level permissions on
+        # Object-level permissions on
         # a RETRIEVE read now run through the guard.
         post = Post.objects.create(title="a")
         spec = SelectorSpec(
@@ -526,7 +608,7 @@ class TestTargetGuard:
             dispatch_spec(spec, user=None, params={}, on_target_resolved=enforce_permissions)
 
     def test_enforce_permissions_allows_list_selector_despite_deny_object(self) -> None:
-        # Collection-safe (AUTHZ-1a): the LIST queryset skips has_object_permission.
+        # Collection-safe: the LIST queryset skips has_object_permission.
         Post.objects.create(title="a")
         spec = SelectorSpec(
             kind=SelectorKind.LIST, selector=_all_posts, permission_classes=[_DenyObject]

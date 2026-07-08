@@ -50,6 +50,71 @@ def test_selector_input_is_empty_object() -> None:
     assert spec_to_json_schema(spec) == {"type": "object"}
 
 
+def _get_widget(user, pk: int): ...
+
+
+def test_selector_input_reflects_callable_params() -> None:
+    # A retrieve selector now advertises `pk` (the transport seed `user` skipped).
+    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_get_widget)
+    assert spec_to_json_schema(spec) == {
+        "type": "object",
+        "properties": {"pk": {"type": "integer"}},
+    }
+
+
+def test_selector_input_surfaces_unannotated_params_untyped() -> None:
+    def _sel(user, pk): ...
+
+    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_sel)
+    # `pk` is surfaced by name even without an annotation — just untyped.
+    assert spec_to_json_schema(spec) == {"type": "object", "properties": {"pk": {}}}
+
+
+def test_selector_input_skips_transport_seeds() -> None:
+    def _sel(user, request, view, pk: int): ...
+
+    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_sel)
+    assert spec_to_json_schema(spec)["properties"] == {"pk": {"type": "integer"}}
+
+
+def test_selector_input_skips_var_args_and_kwargs() -> None:
+    def _sel(user, *args, **kwargs): ...
+
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=_sel)
+    assert spec_to_json_schema(spec) == {"type": "object"}
+
+
+def test_selector_input_with_unresolvable_annotation_stays_untyped() -> None:
+    def _sel(user, pk: Ghost): ...  # noqa: F821 — deliberately unresolvable forward ref
+
+    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_sel)
+    assert spec_to_json_schema(spec) == {"type": "object", "properties": {"pk": {}}}
+
+
+def test_selector_input_merges_callable_params_and_filter_set() -> None:
+    class _FS(django_filters.FilterSet):
+        name = django_filters.CharFilter()
+
+    def _sel(user, pk: int): ...
+
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=_sel, filter_set=_FS)
+    assert spec_to_json_schema(spec) == {
+        "type": "object",
+        "properties": {"pk": {"type": "integer"}, "name": {"type": "string"}},
+    }
+
+
+def test_filter_set_field_wins_over_callable_param_of_same_name() -> None:
+    class _FS(django_filters.FilterSet):
+        status = django_filters.NumberFilter()
+
+    def _sel(user, status: str): ...
+
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=_sel, filter_set=_FS)
+    # The declared filter is the more precise source for the shared name.
+    assert spec_to_json_schema(spec)["properties"]["status"] == {"type": "number"}
+
+
 def test_selector_input_merges_filter_set_properties() -> None:
     class _FS(django_filters.FilterSet):
         name = django_filters.CharFilter()

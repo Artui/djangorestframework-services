@@ -40,3 +40,10 @@ repos:
         language: pygrep
         types: [text]
         exclude: '^\.pre-commit-config\.yaml$'
+
+      - id: forbid-plan-labels
+        name: "forbid internal plan-step labels"
+        entry: '(?<![A-Za-z0-9])(SPEC|SURF|DISP|KEY|FILT|BULK|NEST|NAME|THINK|VOICE|THEME|WELL|PAGE|CARD|REST|I18N|CUST|TOOL|PAI|AUTHZ|CONF|AGH|OAS|WCH|HYG|ADOPT|ANNO|ASYNC|ERR|DUP|PROTO|SEC|VER|GATE|STATE|SESS|CTX|AUDIT|HITL|CODE|STEP|SHARE|SKILL|CAP|MOUNT|SAN|PF|PROV|SCH|LIFE|SUB|CI|DOC|EX)-\d|(?<![A-Za-z0-9])(Phase|Wave)\s\d'
+        language: pygrep
+        types: [text]
+        exclude: '^\.pre-commit-config\.yaml$'

@@ -290,3 +290,89 @@ class TestPrefetchCacheCleared:
         assert response.status_code == 200
         # Without the prefetch-cache clear this would be the stale ["old"].
         assert response.data["post_titles"] == ["new", "old"]
+
+
+@pytest.mark.django_db
+class TestOutputSelectorFilterSetParity:
+    """The HTTP mutation output re-fetch applies
+    ``output_selector_spec.filter_set`` (filter_data falls back to
+    ``request.query_params``), matching ``dispatch_spec``'s output re-fetch.
+    Previously the HTTP path silently ignored the nested filter_set.
+    """
+
+    @staticmethod
+    def _build_view(seen: list[Any]) -> type[ServiceUpdateView]:
+        class _PublishedFilterSet:
+            def __init__(self, *, data: Any, queryset: Any) -> None:
+                # ``data`` is ``request.query_params`` (a QueryDict) on the HTTP
+                # path; record the scalar the filter reads to prove parity.
+                seen.append(data.get("published"))
+                self._data = data
+                self._queryset = queryset
+
+            @property
+            def qs(self) -> Any:
+                raw = self._data.get("published")
+                if raw is None:
+                    return self._queryset
+                keep = str(raw).lower() in ("1", "true", "yes")
+                return self._queryset.filter(published=keep)
+
+        class _TitleIn(serializers.Serializer):
+            title = serializers.CharField()
+
+        class _PostSerializer(serializers.ModelSerializer):
+            class Meta:
+                model = Post
+                fields = ("id", "title", "published")
+
+        def _publish(*, instance: Post, data: dict[str, Any]) -> Post:
+            instance.title = data["title"]
+            instance.published = True
+            instance.save(update_fields=["title", "published"])
+            return instance
+
+        def _refetch(*, result: Post) -> Any:
+            return Post.objects.filter(pk=result.pk)
+
+        class _View(ServiceUpdateView):
+            queryset = Post.objects.all()
+            spec = ServiceSpec(
+                service=_publish,
+                input_serializer=_TitleIn,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=_refetch,
+                    filter_set=_PublishedFilterSet,
+                    output_serializer=_PostSerializer,
+                ),
+                atomic=False,
+            )
+
+        return _View
+
+    def test_filter_set_keeps_matching_row(self) -> None:
+        post = Post.objects.create(title="orig", published=False)
+        seen: list[Any] = []
+        view = self._build_view(seen)
+        request = factory.patch("/?published=true", {"title": "updated"}, format="json")
+        response = view.as_view()(request, pk=post.pk)
+        assert response.status_code == 200
+        assert response.data["title"] == "updated"
+        # Proof of parity: the filter_set ran with the query params as filter_data.
+        assert seen == ["true"]
+
+    def test_filter_set_excludes_nonmatching_row(self) -> None:
+        post = Post.objects.create(title="orig", published=False)
+        seen: list[Any] = []
+        view = self._build_view(seen)
+        request = factory.patch("/?published=false", {"title": "updated"}, format="json")
+        response = view.as_view()(request, pk=post.pk)
+        # The service still published the row, but the output filter_set now
+        # excludes it (published=True doesn't match ?published=false), so the
+        # RETRIEVE re-fetch collapses to None. Pre-fix the HTTP path ignored the
+        # filter_set and returned the row.
+        post.refresh_from_db()
+        assert post.published is True
+        assert response.data.get("id") is None
+        assert seen == ["false"]

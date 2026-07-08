@@ -107,6 +107,19 @@ once the row (or collection) is resolved. Together they are the canonical wiring
 for every spec kind. `enforce_permissions` is collection-safe: a resolved
 queryset runs only the class-level check, never `has_object_permission`.
 
+### `build_offline_context`
+
+::: rest_framework_services.dispatch.build_offline_context.build_offline_context
+
+**Read-shaping over the offline path.** Pass `query_params=` to seed the synthetic
+request's `GET` `QueryDict` — the source `request.query_params` reads. That is how
+read-shaping params that are *not* spec inputs reach the serializer off-HTTP:
+`SelectorSpec.filter_set` (when you don't hand `filter_data` in another way), and
+any serializer that branches on `request.query_params` (django-restql field
+selection, custom serializers). It does **not** make DRF `filter_backends`
+(`SearchFilter` / `OrderingFilter`) run — the offline path never calls
+`filter_queryset`; `filter_set` is the drf-services-native equivalent.
+
 ### `enforce_permissions`
 
 ::: rest_framework_services.dispatch.enforce_permissions.enforce_permissions

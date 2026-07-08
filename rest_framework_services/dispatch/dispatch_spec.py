@@ -14,10 +14,12 @@ from rest_framework_services.dispatch.utils import (
     SELECTOR_SOURCE,
     base_pool,
     call_target_guard,
+    guard_many_argument_binding,
     merge_arguments,
     resolve_argument_binding,
     resolve_input_context,
     resolve_provider,
+    resolve_service_many_input,
     resolve_unknown_arguments,
     service_input,
     shape_queryset,
@@ -85,6 +87,14 @@ def dispatch_spec(
       resolved mutation target before the service runs. Pass
       :func:`~rest_framework_services.enforce_permissions` directly to enforce
       object-level permissions; ``dispatch_spec`` itself stays authz-agnostic.
+
+    On a ``many=True`` bulk spec ``unknown_arguments`` is honoured **per list
+    element** (``REJECT`` raises on the first item with an undeclared key,
+    ``PASSTHROUGH`` folds each item's extras into its data, ``IGNORE`` drops
+    them). ``argument_binding`` has no meaning there — the service receives the
+    whole list as one ``data`` argument, so there is nothing to spread — and a
+    non-default binding with ``many=True`` raises ``ValueError`` rather than
+    being silently ignored.
     """
     if isinstance(spec, ServiceSpec):
         return _dispatch_service(
@@ -192,6 +202,7 @@ def _dispatch_service(
             view=view,
             success_status=success_status,
             argument_binding=argument_binding,
+            unknown_arguments=unknown_arguments,
             on_target_resolved=on_target_resolved,
         )
 
@@ -254,9 +265,11 @@ def _dispatch_service_many(
     view: Any,
     success_status: int | None,
     argument_binding: ArgumentBinding,
+    unknown_arguments: UnknownArguments,
     on_target_resolved: TargetGuard | None,
 ) -> DispatchResult:
     """Bulk list-payload: ``params`` is the array; the service gets the list."""
+    guard_many_argument_binding(argument_binding)
     call_target_guard(on_target_resolved, spec, None, user=user, request=request, view=view)
     input_context = resolve_input_context(spec, view=view, request=request)
     serializer = build_input_serializer_from_data(
@@ -266,10 +279,14 @@ def _dispatch_service_many(
         many=True,
         context=input_context,
     )
+    data, has_data = resolve_service_many_input(
+        spec, serializer, params, unknown_arguments=unknown_arguments
+    )
     pool: dict[str, Any] = base_pool(user=user, request=request)
     pool.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
+    if has_data:
+        pool["data"] = data
     if serializer is not None:
-        pool["data"] = serializer.validated_data
         pool["serializer"] = serializer
     result: Any = run_service(
         spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic

@@ -201,12 +201,79 @@ def service_input(serializer: Any, extras: dict[str, Any]) -> tuple[Any, Mapping
     that same dict (services), or empty (dataclass / no serializer).
     """
     validated = serializer.validated_data if serializer is not None else None
+    return service_input_for_validated(validated, extras)
+
+
+def service_input_for_validated(
+    validated: Any, extras: dict[str, Any]
+) -> tuple[Any, Mapping[str, Any]]:
+    """The ``(data, spread_source)`` fold for one already-validated value.
+
+    Extracted from :func:`service_input` so the ``many=True`` path can reuse the
+    same per-item semantics against a single element of the validated list. See
+    :func:`service_input` for the dict / dataclass / no-serializer rules.
+    """
     if isinstance(validated, dict):
         data = {**validated, **extras} if extras else validated
         return data, data
     if validated is not None:
         return validated, extras
     return (extras or None), extras
+
+
+def guard_many_argument_binding(argument_binding: ArgumentBinding) -> None:
+    """Reject a non-default ``argument_binding`` on a ``many=True`` dispatch.
+
+    A bulk service is invoked once with the whole validated list as ``data``, so
+    there is nothing to spread as individual kwargs — the ``SPREAD_*`` modes have
+    no scalar client argument to act on. Failing loudly beats silently ignoring
+    the request (the ``AUTO`` default resolves to ``BUNDLE`` and is a no-op here,
+    so it is always allowed).
+    """
+    if argument_binding is not ArgumentBinding.AUTO:
+        raise ValueError(
+            "argument_binding is not applicable with many=True: a bulk service "
+            "receives the whole list as `data`, so there are no scalar client "
+            "arguments to spread. Pass argument_binding only on single-item specs."
+        )
+
+
+def resolve_service_many_input(
+    spec: ServiceSpec[Any, Any, Any],
+    serializer: Any,
+    params: list[Any],
+    *,
+    unknown_arguments: UnknownArguments,
+) -> tuple[list[Any] | None, bool]:
+    """Assemble the ``data`` list for a ``many=True`` dispatch, honouring
+    ``unknown_arguments`` **per list element**.
+
+    Returns ``(data, has_data)``. Each raw item is checked against the child
+    serializer's declared fields: ``REJECT`` raises on the first item carrying
+    an undeclared key, ``PASSTHROUGH`` folds each item's extras into that item's
+    data, ``IGNORE`` drops them (the pre-policy behaviour). ``has_data`` is
+    ``False`` only for the degenerate no-serializer / no-extras case, where the
+    pool omits ``data`` entirely — exactly as the single-item path omits it.
+
+    ``argument_binding`` has no counterpart here: a bulk service receives the
+    whole list as one ``data`` argument, so there are no scalar client args to
+    spread. The many dispatchers reject a non-default binding upfront rather than
+    silently ignore it.
+    """
+    child = serializer.child if serializer is not None else None
+    validated = serializer.validated_data if serializer is not None else None
+    data_items: list[Any] = []
+    has_data = serializer is not None
+    for index, raw_item in enumerate(params):
+        extras = resolve_unknown_arguments(
+            spec, raw_item, unknown_arguments=unknown_arguments, serializer=child
+        )
+        validated_item = validated[index] if validated is not None else None
+        item_data, _spread = service_input_for_validated(validated_item, extras)
+        data_items.append(item_data)
+        if extras:
+            has_data = True
+    return (data_items if has_data else None), has_data
 
 
 def call_target_guard(

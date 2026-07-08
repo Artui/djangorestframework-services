@@ -7,6 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-07-08
+
+### Added
+
+- **Selector input schemas now reflect the selector callable's parameters.**
+  `spec_to_json_schema(spec, phase="input")` for a `SelectorSpec`
+  previously introspected only `spec.filter_set`, so a lookup selector like
+  `get_widget(user, pk)` advertised a bare `{"type": "object"}` with no `pk` — the
+  tool leaned entirely on its docstring. It now merges the callable's own
+  parameters (names → JSON type from their annotations, skipping the `request` /
+  `user` / `view` transport seeds) with the `filter_set` fields. An un-annotated
+  parameter is still surfaced by name (untyped `{}`); a `filter_set` field wins
+  over a callable parameter of the same name. Consumers building tool definitions
+  off the schema (`djangorestframework-pydantic-ai`, the MCP server) inherit the
+  fidelity for free — no code change on their side.
+
+## [0.23.0] — 2026-07-08
+
+### Added
+
+- **`build_offline_context(query_params=…)`** — seed the synthetic request's
+  `GET` `QueryDict` (the source `request.query_params` reads) when dispatching a
+  spec off-HTTP. This is how read-shaping params that aren't spec inputs reach the
+  serializer over the offline path: `SelectorSpec.filter_set` (when not handed
+  `filter_data` another way), and any serializer that branches on
+  `request.query_params` (django-restql field selection, custom serializers).
+  Scalars are stringified as on HTTP; a list/tuple value becomes a multi-valued
+  param (`getlist`); the seeded `GET` is immutable like a real request's. Defaults
+  to empty → no behaviour change for existing callers. (QP-1; the seam
+  `djangorestframework-pydantic-ai`'s `SpecToolset` builds request-level param
+  registration on.) It does **not** make DRF `filter_backends`
+  (`SearchFilter`/`OrderingFilter`) run off-HTTP — the offline path never calls
+  `filter_queryset`.
+
+## [0.22.0] — 2026-07-03
+
+### Fixed
+
+- **`ServiceAutoSchema` now emits OpenAPI query parameters for a
+  `SelectorSpec.filter_set`.** Moving a `django-filter` FilterSet off a
+  view-level `filterset_class` + `DjangoFilterBackend` and onto `spec.filter_set`
+  (which the `as_view()` guard requires dropping the backend for) previously
+  dropped every filter query parameter — field filters, ordering, search — from
+  the generated schema, silently regressing any client codegen or
+  "schema must not change" gate even though runtime behaviour was unchanged. The
+  schema now contributes those parameters from the spec by reusing
+  drf-spectacular's own `DjangoFilterExtension`, so a view→spec FilterSet move
+  yields a byte-identical OpenAPI document — same param names, types, enums,
+  ordering enum + description, `style`/`explode`, and required flags. Applies to
+  list selectors (detail operations document no filter params in either
+  configuration, matching drf-spectacular's list-only gate);
+  `@extend_schema(parameters=...)` overrides still win. Introspection is guarded
+  and duck-typed — a no-op when `django-filter` isn't installed or the
+  `filter_set` isn't a real FilterSet.
+
+## [0.21.1] — 2026-07-02
+
+### Fixed
+
+- **`many=True` dispatch now honours `unknown_arguments` per list element.**
+  `dispatch_spec` / `adispatch_spec` previously accepted
+  `unknown_arguments` on a bulk (`many=True`) spec but silently ignored it — a
+  caller passing `REJECT` on a bulk tool got `IGNORE`. The bulk path now applies
+  the policy to each item: `REJECT` raises `ValidationError` on the first item
+  carrying an undeclared key, `PASSTHROUGH` folds each item's extras into that
+  item's data, `IGNORE` drops them (unchanged). `argument_binding` has no
+  counterpart for a list payload — a bulk service receives the whole list as one
+  `data` argument, so there is nothing to spread — and passing a non-default
+  binding with `many=True` now raises `ValueError` rather than being silently
+  ignored. The default (`AUTO` / `IGNORE`) behaviour is unchanged.
+- **`output_selector_spec.filter_set` now applies on the HTTP mutation path
+  too.** `dispatch_spec`'s output re-fetch applied the nested selector's
+  `filter_set`, but the HTTP mutation view did not — the same spec produced
+  different results per transport. The HTTP output re-fetch now applies
+  `output_selector_spec.filter_set` as well, with `filter_data` falling back to
+  `request.query_params` (the blessed `filter_set` source on HTTP), so a given
+  spec filters its re-fetched output identically on both paths.
+
 ## [0.21.0] — 2026-07-02
 
 ### Added
@@ -74,7 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **View-free JSON Schema generation (`rest_framework_services.jsonschema`)** —
-  the first part of the off-HTTP "SURF-2" surface. Three new top-level helpers
+  the first part of the off-HTTP surface. Three new top-level helpers
   turn a spec (or a bare serializer / dataclass) into a JSON Schema dict, with
   **no** view, request, or `drf-spectacular` import in the path — what an
   alternate transport (a Pydantic-AI toolset, the MCP server) builds tool
@@ -1139,7 +1217,11 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/Artui/djangorestframework-services/compare/v0.23.0...v0.24.0
+[0.23.0]: https://github.com/Artui/djangorestframework-services/compare/v0.22.0...v0.23.0
+[0.22.0]: https://github.com/Artui/djangorestframework-services/compare/v0.21.1...v0.22.0
+[0.21.1]: https://github.com/Artui/djangorestframework-services/compare/v0.21.0...v0.21.1
 [0.21.0]: https://github.com/Artui/djangorestframework-services/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/Artui/djangorestframework-services/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/Artui/djangorestframework-services/compare/v0.18.0...v0.19.0
