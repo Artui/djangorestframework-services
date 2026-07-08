@@ -23,6 +23,14 @@ produces DRF serializer classes for DRF's own OpenAPI generators.
 
 ::: rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema
 
+A selector's input schema reflects the **selector callable's own parameters** —
+names plus a JSON type from each annotation, skipping the `request` / `user` /
+`view` transport seeds — merged with its `filter_set` fields. So a lookup selector
+like `get_widget(user, pk)` advertises `pk` instead of a bare `{"type": "object"}`
+that leans on the docstring alone. An un-annotated parameter is still surfaced by
+name (untyped `{}`); a `filter_set` field wins over a callable parameter of the
+same name.
+
 ## `JsonSchemaRegistry`
 
 ::: rest_framework_services.types.json_schema_registry.JsonSchemaRegistry

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Selector input schemas now reflect the selector callable's parameters.**
+  `spec_to_json_schema(spec, phase="input")` for a `SelectorSpec`
+  previously introspected only `spec.filter_set`, so a lookup selector like
+  `get_widget(user, pk)` advertised a bare `{"type": "object"}` with no `pk` — the
+  tool leaned entirely on its docstring. It now merges the callable's own
+  parameters (names → JSON type from their annotations, skipping the `request` /
+  `user` / `view` transport seeds) with the `filter_set` fields. An un-annotated
+  parameter is still surfaced by name (untyped `{}`); a `filter_set` field wins
+  over a callable parameter of the same name. Consumers building tool definitions
+  off the schema (`djangorestframework-pydantic-ai`, the MCP server) inherit the
+  fidelity for free — no code change on their side.
+
 ## [0.23.0] — 2026-07-08
 
 ### Added

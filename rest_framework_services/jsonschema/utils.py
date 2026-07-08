@@ -12,6 +12,7 @@ override support is cost-free whether or not spectacular is installed.
 from __future__ import annotations
 
 import dataclasses
+import inspect
 from typing import Any, get_args, get_origin, get_type_hints
 
 from rest_framework import serializers
@@ -142,6 +143,40 @@ def _python_type_to_schema(
         (item_type,) = get_args(annotation) or (Any,)
         return {"type": "array", "items": _python_type_to_schema(item_type, registry)}
     return {}
+
+
+def callable_input_properties(
+    fn: Any,
+    *,
+    skip: frozenset[str] = frozenset(),
+    registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+) -> dict[str, Any]:
+    """JSON Schema ``properties`` for a callable's declared parameters.
+
+    Each parameter becomes one property: its annotation maps to a JSON type via
+    :func:`_python_type_to_schema` (resolved through :func:`typing.get_type_hints`
+    so string annotations under ``from __future__ import annotations`` work). An
+    **un**-annotated (or unresolvable) parameter becomes a bare ``{}`` — the
+    property is still surfaced by name, just untyped, which is the whole point:
+    the caller learns the parameter *exists*.
+
+    ``skip`` drops parameter names the caller does not supply — transport seeds
+    (``request`` / ``user`` / …) and server-provided ``kwargs``. ``*args`` /
+    ``**kwargs`` are always skipped.
+    """
+    try:
+        hints = get_type_hints(fn)
+    except Exception:  # noqa: BLE001 — unresolvable forward refs → untyped, never fatal
+        hints = {}
+    properties: dict[str, Any] = {}
+    for name, parameter in inspect.signature(fn).parameters.items():
+        if name in skip or parameter.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            continue
+        properties[name] = _python_type_to_schema(hints[name], registry) if name in hints else {}
+    return properties
 
 
 def dataclass_to_schema(
