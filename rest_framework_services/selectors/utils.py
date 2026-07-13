@@ -9,7 +9,7 @@ from asgiref.sync import async_to_sync
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.db.models import QuerySet
 from django.db.models.manager import BaseManager
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.request import Request
 
 from rest_framework_services.is_async import is_async
@@ -72,9 +72,10 @@ def apply_queryset_shaping(
     ``extend_queryset`` runs so the user callable always sees the fully
     statically-shaped queryset, and finally ``filter_set`` narrows it via the
     transport-neutral ``filter_set(data=filter_data, queryset=qs).qs`` contract
-    — so filtering composes with shaping and runs before the retrieve
-    ``.first()`` materialization the caller does next. Returns ``qs`` unchanged
-    when no shaping is configured.
+    — validated first (see :func:`_raise_on_invalid_filter`, mirroring
+    ``DjangoFilterBackend``'s 400-on-invalid-filter) — so filtering composes with
+    shaping and runs before the retrieve ``.first()`` materialization the caller
+    does next. Returns ``qs`` unchanged when no shaping is configured.
 
     Raises :exc:`ImproperlyConfigured` when shaping is configured but
     ``qs`` is not a Django QuerySet (no ``annotate`` method) — loud
@@ -114,8 +115,34 @@ def apply_queryset_shaping(
         qs = extend_queryset(qs, view, request)
     if filter_set is not None:
         data = filter_data if filter_data is not None else request.query_params
-        qs = filter_set(data=data, queryset=qs).qs
+        bound = filter_set(data=data, queryset=qs)
+        _raise_on_invalid_filter(bound)
+        qs = bound.qs
     return qs
+
+
+def _raise_on_invalid_filter(filterset: Any) -> None:
+    """Reject invalid filter input the way DRF's ``DjangoFilterBackend`` does.
+
+    A django-filter ``FilterSet`` validates its bound form via ``is_valid()``
+    and exposes the failures on ``.errors``. Reading ``.qs`` *without* validating
+    silently returns the **unfiltered** queryset in django-filter's default
+    non-strict mode — so a bad ``?field=`` value (e.g. a ``ChoiceFilter`` value
+    outside its choices) would answer 200 with unfiltered rows instead of the
+    400 ``DjangoFilterBackend`` gives by default. ``filter_set`` replaces that
+    backend on the list path, so it must keep the same contract.
+
+    Only enforced when the duck-typed ``filter_set`` actually exposes
+    ``is_valid`` — a bare ``(data, queryset) -> .qs`` stand-in that doesn't opt
+    into validation keeps its pass-through behaviour. The DRF ``ValidationError``
+    is built straight from ``filterset.errors`` (a Django form ``ErrorDict``,
+    which DRF renders into the same ``{field: [msg]}`` 400 shape) so the core
+    never has to import django-filter — the reason ``filter_set`` is duck-typed
+    in the first place.
+    """
+    is_valid = getattr(filterset, "is_valid", None)
+    if is_valid is not None and not is_valid():
+        raise ValidationError(filterset.errors)
 
 
 def dispatch_selector_for_spec(

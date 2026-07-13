@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.1] — 2026-07-13
+
+### Fixed
+
+- **`SelectorSpec.filter_set` now validates the FilterSet before filtering.**
+  `apply_queryset_shaping` read `.qs` without calling `is_valid()`, so in
+  django-filter's default non-strict mode an invalid filter value (e.g. a
+  `ChoiceFilter` value outside its choices) silently returned the *unfiltered*
+  queryset — answering `200` with unfiltered results instead of the `400`
+  DRF's `DjangoFilterBackend` gives by default. The FilterSet is now validated
+  and a `ValidationError` (400) is raised on invalid input, restoring parity
+  with the backend `filter_set` replaces. Validation is gated on the FilterSet
+  exposing `is_valid()`, so a bare duck-typed `(data, queryset) -> .qs`
+  stand-in keeps its pass-through behaviour; valid and absent filter values are
+  unchanged. Applies on both the HTTP view path and the transport-neutral
+  `dispatch_spec` path.
+- **`input_data` no longer corrupts form-encoded / multipart request bodies.**
+  When a spec had an `input_data` provider, `build_input_serializer` merged the
+  extras with `{**request.data, **extra_data}`. For a form-encoded body
+  `request.data` is a `QueryDict` (`{key: [values]}` internally), so unpacking
+  it exposed those value lists — turning every scalar field into a one-element
+  list and failing validation (a `ChoiceField` saw `['X']` → `invalid_choice`).
+  The merge now copies the QueryDict and sets extras through its native API, so
+  scalars stay scalars and multi-value fields keep their lists. JSON bodies
+  (plain `dict`) are unaffected.
+
 ## [0.24.0] — 2026-07-08
 
 ### Added
@@ -1217,7 +1243,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.24.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.24.1...HEAD
+[0.24.1]: https://github.com/Artui/djangorestframework-services/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/Artui/djangorestframework-services/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/Artui/djangorestframework-services/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/Artui/djangorestframework-services/compare/v0.21.1...v0.22.0
