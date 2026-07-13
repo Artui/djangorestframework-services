@@ -3440,7 +3440,10 @@ any callable whose <code>__call__</code> is a coroutine function.</p>
 <p><code>extra_data</code> (when supplied) is merged on top of <code>request.data</code>
 before the serializer instantiates — server-provided keys win on
 overlap. This is the seam used by the <code>input_data</code> resolver chain
-to lift URL kwargs into serializer input.</p>
+to lift URL kwargs into serializer input. A form-encoded / multipart
+body arrives as a <code>QueryDict</code> (<code>{key: [values]}</code> internally), so the
+merge goes through :func:<code>_merge_extra_data</code> to avoid flattening scalars
+into one-element lists — see there.</p>
 <p><code>context</code> (when supplied) is forwarded to the serializer's <code>context=</code>
 kwarg so DRF-style <code>self.context["request"]</code> / <code>["view"]</code> lookups
 work inside validators and fields.</p>
@@ -3678,9 +3681,10 @@ object that happens to expose <code>first</code>. <code>QuerySet</code> subclass
 <code>extend_queryset</code> runs so the user callable always sees the fully
 statically-shaped queryset, and finally <code>filter_set</code> narrows it via the
 transport-neutral <code>filter_set(data=filter_data, queryset=qs).qs</code> contract
-— so filtering composes with shaping and runs before the retrieve
-<code>.first()</code> materialization the caller does next. Returns <code>qs</code> unchanged
-when no shaping is configured.</p>
+— validated first (see :func:<code>_raise_on_invalid_filter</code>, mirroring
+<code>DjangoFilterBackend</code>'s 400-on-invalid-filter) — so filtering composes with
+shaping and runs before the retrieve <code>.first()</code> materialization the caller
+does next. Returns <code>qs</code> unchanged when no shaping is configured.</p>
 <p>Raises :exc:<code>ImproperlyConfigured</code> when shaping is configured but
 <code>qs</code> is not a Django QuerySet (no <code>annotate</code> method) — loud
 failure beats a stale <code>AttributeError</code> deep in DRF rendering.

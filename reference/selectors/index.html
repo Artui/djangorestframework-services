@@ -2172,9 +2172,10 @@ object that happens to expose <code>first</code>. <code>QuerySet</code> subclass
 <code>extend_queryset</code> runs so the user callable always sees the fully
 statically-shaped queryset, and finally <code>filter_set</code> narrows it via the
 transport-neutral <code>filter_set(data=filter_data, queryset=qs).qs</code> contract
-— so filtering composes with shaping and runs before the retrieve
-<code>.first()</code> materialization the caller does next. Returns <code>qs</code> unchanged
-when no shaping is configured.</p>
+— validated first (see :func:<code>_raise_on_invalid_filter</code>, mirroring
+<code>DjangoFilterBackend</code>'s 400-on-invalid-filter) — so filtering composes with
+shaping and runs before the retrieve <code>.first()</code> materialization the caller
+does next. Returns <code>qs</code> unchanged when no shaping is configured.</p>
 <p>Raises :exc:<code>ImproperlyConfigured</code> when shaping is configured but
 <code>qs</code> is not a Django QuerySet (no <code>annotate</code> method) — loud
 failure beats a stale <code>AttributeError</code> deep in DRF rendering.
