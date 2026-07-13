@@ -32,6 +32,7 @@ from dataclasses import is_dataclass
 from typing import Any
 
 from asgiref.sync import async_to_sync
+from django.http import QueryDict
 from rest_framework import exceptions as drf_exceptions
 from rest_framework import status as drf_status
 from rest_framework.request import Request
@@ -94,7 +95,10 @@ def build_input_serializer(
     ``extra_data`` (when supplied) is merged on top of ``request.data``
     before the serializer instantiates — server-provided keys win on
     overlap. This is the seam used by the ``input_data`` resolver chain
-    to lift URL kwargs into serializer input.
+    to lift URL kwargs into serializer input. A form-encoded / multipart
+    body arrives as a ``QueryDict`` (``{key: [values]}`` internally), so the
+    merge goes through :func:`_merge_extra_data` to avoid flattening scalars
+    into one-element lists — see there.
 
     ``context`` (when supplied) is forwarded to the serializer's ``context=``
     kwarg so DRF-style ``self.context["request"]`` / ``["view"]`` lookups
@@ -116,7 +120,7 @@ def build_input_serializer(
     if input_serializer is None:
         return None
     if extra_data:
-        data: Any = {**request.data, **extra_data}
+        data: Any = _merge_extra_data(request.data, extra_data)
     else:
         data = request.data
     return build_input_serializer_from_data(
@@ -127,6 +131,31 @@ def build_input_serializer(
         instance=instance,
         many=many,
     )
+
+
+def _merge_extra_data(request_data: Any, extra_data: Mapping[str, Any]) -> Any:
+    """Merge server-provided ``extra_data`` on top of a request body.
+
+    A JSON body parses to a plain ``dict`` and merges by unpacking, extras
+    winning on overlap. A form-encoded / multipart body, however, is a DRF
+    ``QueryDict`` whose internal storage is ``{key: [values]}`` — dict-unpacking
+    it (``{**request_data, ...}``) would expose those value *lists*, turning
+    every scalar field into a one-element list and breaking validation (a
+    ``ChoiceField`` would see ``['X']`` → ``invalid_choice``). Copy the QueryDict
+    (``.copy()`` returns a mutable one) and set each extra through its native
+    API instead — ``setlist`` for list/tuple values, plain assignment for
+    scalars — so scalars stay scalars and multi-value fields keep their lists,
+    matching how DRF's own serializers consume a QueryDict.
+    """
+    if isinstance(request_data, QueryDict):
+        merged = request_data.copy()
+        for key, value in extra_data.items():
+            if isinstance(value, (list, tuple)):
+                merged.setlist(key, list(value))
+            else:
+                merged[key] = value
+        return merged
+    return {**request_data, **extra_data}
 
 
 def build_input_serializer_from_data(

@@ -83,6 +83,37 @@ class _PublishedFilterSet:
         return self._queryset.filter(published=wanted)
 
 
+class _ValidatingFilterSet:
+    """Duck-typed FilterSet that also models django-filter's ``is_valid()`` /
+    ``errors`` surface, so the ``400-on-invalid-filter`` contract can be
+    exercised without pulling in the optional ``django-filter`` dependency.
+
+    Narrows by ``?status=`` against a closed set of choices; an out-of-set value
+    is invalid (as a ``ChoiceFilter`` would be), an absent one is a no-op.
+    """
+
+    _CHOICES = ("draft", "shipped")
+
+    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
+        self._queryset = queryset
+        self._raw = data.get("status")
+
+    def is_valid(self) -> bool:
+        return self._raw is None or self._raw in self._CHOICES
+
+    @property
+    def errors(self) -> dict[str, list[str]]:
+        return {
+            "status": [f"Select a valid choice. {self._raw} is not one of the available choices."]
+        }
+
+    @property
+    def qs(self) -> QuerySet[Post]:
+        if self._raw is None:
+            return self._queryset
+        return self._queryset.filter(title=self._raw)
+
+
 @pytest.mark.django_db
 class TestSelectRelated:
     def test_reduces_query_count_for_fk(self) -> None:
@@ -422,6 +453,47 @@ class TestFilterSet:
 
         response = _ViewSet.as_view({"get": "list"})(factory.get("/?published=true"))
         assert [row["title"] for row in response.data] == ["shipped"]
+
+    def test_invalid_filter_value_returns_400(self) -> None:
+        """An invalid filter value is rejected with 400, matching
+        ``DjangoFilterBackend`` — not silently ignored (which would 200 with
+        unfiltered rows)."""
+        author = Author.objects.create(name="Ada")
+        Post.objects.create(title="shipped", author=author)
+        Post.objects.create(title="draft", author=author)
+
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=_all_posts,
+                output_serializer=_PostWithAuthorSerializer,
+                filter_set=_ValidatingFilterSet,
+            )
+
+        response = _View.as_view()(factory.get("/?status=not-a-choice"))
+        assert response.status_code == 400
+        assert "status" in response.data
+
+    def test_valid_filter_value_applies_after_validation(self) -> None:
+        """A valid value passes ``is_valid()`` and still narrows the queryset;
+        an absent value is a no-op."""
+        author = Author.objects.create(name="Ada")
+        Post.objects.create(title="shipped", author=author)
+        Post.objects.create(title="draft", author=author)
+
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=_all_posts,
+                output_serializer=_PostWithAuthorSerializer,
+                filter_set=_ValidatingFilterSet,
+            )
+
+        narrowed = _View.as_view()(factory.get("/?status=shipped"))
+        assert [row["title"] for row in narrowed.data] == ["shipped"]
+
+        unfiltered = _View.as_view()(factory.get("/"))
+        assert {row["title"] for row in unfiltered.data} == {"shipped", "draft"}
 
 
 @pytest.mark.django_db

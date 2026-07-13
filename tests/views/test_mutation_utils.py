@@ -9,7 +9,7 @@ import pytest
 from rest_framework import exceptions as drf_exceptions
 from rest_framework import serializers
 from rest_framework import status as drf_status
-from rest_framework.parsers import JSONParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 from rest_framework_dataclasses.serializers import DataclassSerializer
@@ -79,6 +79,57 @@ class TestBuildInputSerializer:
         serializer = build_input_serializer(_drf_request("post", {"name": "x"}), _Plain)
         assert serializer is not None
         assert serializer.instance is None
+
+
+def _drf_form_request(data: Any) -> Request:
+    """A form-encoded (multipart) request whose ``request.data`` is a QueryDict."""
+    raw = factory.post("/", data, format="multipart")
+    return Request(raw, parsers=[FormParser(), MultiPartParser()])
+
+
+class TestBuildInputSerializerFormEncoded:
+    """The ``extra_data`` merge must not flatten a QueryDict body's scalars."""
+
+    def test_scalar_field_survives_merge_on_form_body(self) -> None:
+        # Reproduces the reported bug: dict-unpacking a QueryDict would turn
+        # ``status`` into ``['shipped']`` and a ChoiceField would 400 with
+        # invalid_choice. The QueryDict-aware merge keeps it a scalar.
+        class _Choicey(serializers.Serializer):
+            status = serializers.ChoiceField(choices=["draft", "shipped"])
+            parent_id = serializers.IntegerField()
+
+        serializer = build_input_serializer(
+            _drf_form_request({"status": "shipped"}),
+            _Choicey,
+            extra_data={"parent_id": 7},
+        )
+        assert serializer is not None
+        assert serializer.validated_data == {"status": "shipped", "parent_id": 7}
+
+    def test_extra_data_wins_over_form_body_on_conflict(self) -> None:
+        class _Plain(serializers.Serializer):
+            parent_id = serializers.IntegerField()
+
+        serializer = build_input_serializer(
+            _drf_form_request({"parent_id": "1"}),
+            _Plain,
+            extra_data={"parent_id": 99},
+        )
+        assert serializer is not None
+        assert serializer.validated_data == {"parent_id": 99}
+
+    def test_list_extra_data_preserved_via_setlist(self) -> None:
+        class _Multi(serializers.Serializer):
+            name = serializers.CharField()
+            tags = serializers.ListField(child=serializers.CharField())
+
+        serializer = build_input_serializer(
+            _drf_form_request({"name": "Ada"}),
+            _Multi,
+            extra_data={"tags": ["a", "b"]},
+        )
+        assert serializer is not None
+        assert serializer.validated_data == {"name": "Ada", "tags": ["a", "b"]}
 
 
 class TestValidateInput:
