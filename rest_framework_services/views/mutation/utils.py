@@ -147,15 +147,15 @@ def _merge_extra_data(request_data: Any, extra_data: Mapping[str, Any]) -> Any:
     scalars — so scalars stay scalars and multi-value fields keep their lists,
     matching how DRF's own serializers consume a QueryDict.
     """
-    if isinstance(request_data, QueryDict):
-        merged = request_data.copy()
-        for key, value in extra_data.items():
-            if isinstance(value, (list, tuple)):
-                merged.setlist(key, list(value))
-            else:
-                merged[key] = value
-        return merged
-    return {**request_data, **extra_data}
+    if not isinstance(request_data, QueryDict):
+        return {**request_data, **extra_data}
+    merged = request_data.copy()
+    for key, value in extra_data.items():
+        if isinstance(value, (list, tuple)):
+            merged.setlist(key, list(value))
+        else:
+            merged[key] = value
+    return merged
 
 
 def build_input_serializer_from_data(
