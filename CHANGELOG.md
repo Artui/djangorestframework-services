@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-07-16
+
+### Added
+
+- **`PolymorphicServiceSpec` — one action, N mutually exclusive payload shapes.**
+  A new spec accepted anywhere a `ServiceSpec` is (an `action_specs` entry and
+  the `spec=` of `@service_action`). It bundles a `discriminator` callable —
+  resolved through the keyword pool `{request, data, user, view}` and returning a
+  variant key — with a `specs` mapping of full `ServiceSpec` variants, each with
+  its own input serializer and service. Dispatch resolves the key (memoized once
+  per request) and proceeds through the chosen spec exactly as today; a rejected
+  payload is the discriminator's to raise on (`ServiceValidationError` → 400).
+  `permission_strategy` (`"union"` default / `"discriminate"` /
+  `"require_identical"`) controls how `get_permissions` treats the variants,
+  since DRF runs permissions before the body is parsed — `"union"` requires the
+  deduplicated union of every variant's `permission_classes` (the conservative
+  default), `"discriminate"` reads the body early and applies only the chosen
+  variant's, `"require_identical"` is validated to require matching classes. The
+  resolved concrete spec flows through the shared action→spec chain, so the
+  chosen variant's serializer context / kwargs / output pipeline all apply.
+  OpenAPI renders the request body as the union of the variant input serializers
+  (`PolymorphicProxySerializer`, `resource_type_field_name=None`).
+- **`ServiceSpec.success_status` may now be a callable.** In addition to an
+  `int` or `None`, it accepts a callable resolved through the framework keyword
+  pool — declaring any subset of `result` / `instance` / `request` / `view`
+  (or `**kwargs`) — that returns the status code. The callable keys on the
+  *service's* return value (`result`), so an upsert can answer `201` for a
+  freshly created row and `200` for an existing one without a hand-rolled action
+  method. `None` still applies each surface's action-appropriate default (201
+  create / 200 update / 204 destroy), and a plain `int` is unchanged. Resolved
+  uniformly across the viewset mixins, standalone views, `@service_action`, and
+  the transport-neutral `dispatch_spec` / `adispatch_spec` paths. A callable
+  can't be resolved statically, so the generated OpenAPI schema documents the
+  action default for the dynamic case. `@service_action` now resolves the
+  status per-request (previously it was fixed at decoration time), which is what
+  makes the callable form work on custom actions.
+- **`call_service(..., map_errors=True)`** (and its async twin
+  `acall_service`) translates a `ServiceError` raised by
+  the delegated service into the same DRF exception the framework raises on the
+  normal view path — `ServiceValidationError` → `ValidationError` (400), any
+  other `ServiceError` → 422 — so DRF's exception handler renders it as a proper
+  response instead of a 500. The default (`map_errors=False`) still propagates
+  the raw `ServiceError` unchanged. Chosen over a top-level `map_service_error`
+  export so the HTTP-to-error mapping stays a `call_service` concern (the helper
+  is already HTTP-scoped). Internally `map_service_error` moved to its own leaf
+  module `views/mutation/map_service_error.py` so `call_service` can reuse it
+  without importing the heavy mutation-flow module (no public-API change).
+- **`ServiceSpec.response_finalizer`** — a post-serialization hook for HTTP
+  response side effects (cookies, headers, or swapping the response). It runs on
+  the **2xx path only**, after the output serializer has built the `Response`
+  and before it is returned (pre-render); error paths bypass it. Resolved through
+  the framework keyword pool, it declares any subset of `response` / `result` /
+  `request` / `view` / `instance` / `data` (or `**kwargs`) and returns a
+  `Response` (which replaces the built one) or `None` (which keeps it) — so
+  `lambda *, response: response.set_cookie(...) or response` attaches a cookie.
+  `result` is the *service's* return value, so the idiomatic pattern keeps
+  services DRF-free (the service returns domain flags on its result DTO; the
+  finalizer translates flags → transport effects). Applies to both the single
+  and bulk HTTP flows; **skipped on the transport-neutral path**
+  (`dispatch_spec` / `call_service` / MCP), which builds no `Response`. Unlike
+  the service/selector pool it deliberately receives `view`. `@service_action`
+  forwards it automatically.
+
+### Fixed
+
+- **`collection_selector_spec` selectors now receive the view's URL kwargs.**
+  On the HTTP bulk path a `collection_selector_spec` selector was resolved with
+  a pool of `{user, request}` + query params + body but **not** the route's URL
+  kwargs, unlike the instance / retrieve selectors (which get
+  `extra_url_kwargs=view.kwargs`). A nested-route bulk such as
+  `/parents/{parent_pk}/children/` therefore couldn't scope by `parent_pk`
+  without an extra `kwargs` provider. The bulk view now folds `view.kwargs` into
+  the flat `params` mapping it hands `dispatch_spec` (whose contract already
+  documents that mapping as the union of `request.data` / `query_params` / URL
+  kwargs), so a selector like `lambda *, parent_pk: Child.objects.filter(...)`
+  resolves from the route. Route captures are authoritative — they win over a
+  client-supplied query/body key of the same name, so a filter value can't
+  override the route scope. The transport-neutral `dispatch_spec` path is
+  unchanged (callers already pass URL kwargs in `params`).
+
 ## [0.24.1] — 2026-07-13
 
 ### Fixed
@@ -1243,7 +1323,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.24.1...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.25.0...HEAD
+[0.25.0]: https://github.com/Artui/djangorestframework-services/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/Artui/djangorestframework-services/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/Artui/djangorestframework-services/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/Artui/djangorestframework-services/compare/v0.22.0...v0.23.0

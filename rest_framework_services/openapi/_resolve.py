@@ -16,9 +16,34 @@ from __future__ import annotations
 
 from typing import Any
 
+from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.viewsets.utils import resolve_action_spec_entry
+
+
+def resolve_polymorphic_spec(view: Any) -> PolymorphicServiceSpec | None:
+    """Return the ``PolymorphicServiceSpec`` driving ``view``, if any.
+
+    Walks the same surfaces as :func:`resolve_service_spec` — ``@service_action``
+    handler stamp and the viewset ``action_specs`` entry — so the schema
+    generator can render a polymorphic request body as the union of its variant
+    input serializers. (Standalone ``Service*View`` classes take a single
+    ``ServiceSpec``, so ``view.spec`` is never polymorphic.)
+    """
+    action_name = getattr(view, "action", None)
+    if action_name is None:
+        return None
+    handler = getattr(view, action_name, None)
+    action_spec = getattr(handler, "_service_spec", None)
+    if isinstance(action_spec, PolymorphicServiceSpec):
+        return action_spec
+    action_specs = getattr(view, "action_specs", None)
+    if action_specs is not None:
+        entry = resolve_action_spec_entry(action_specs, action_name)
+        if isinstance(entry, PolymorphicServiceSpec):
+            return entry
+    return None
 
 
 def resolve_service_spec(view: Any) -> ServiceSpec[Any, Any, Any] | None:

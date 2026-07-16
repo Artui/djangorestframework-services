@@ -19,6 +19,7 @@ from rest_framework_services.types.json_schema_registry import (
 from rest_framework_services.types.no_input import NoInput
 from rest_framework_services.types.offline_context import OfflineContext
 from rest_framework_services.types.offline_service_view import OfflineServiceView
+from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -41,6 +42,7 @@ __all__ = [
     "NoInput",
     "OfflineContext",
     "OfflineServiceView",
+    "PolymorphicServiceSpec",
     "SelectorKind",
     "SelectorSpec",
     "ServiceSpec",

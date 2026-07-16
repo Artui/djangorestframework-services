@@ -219,6 +219,48 @@ class TestDispatchService:
         result = dispatch_spec(spec, user=None, params={"title": "p"})
         assert result.status == 200
 
+    def test_callable_success_status_keys_on_service_result(self) -> None:
+        def status(*, result: Post) -> int:
+            return 201 if result.title == "new" else 200
+
+        spec = ServiceSpec(
+            service=_create_post,
+            input_serializer=_PostIn,
+            success_status=status,
+            atomic=False,
+        )
+        assert dispatch_spec(spec, user=None, params={"title": "new"}).status == 201
+        assert dispatch_spec(spec, user=None, params={"title": "old"}).status == 200
+
+    def test_callable_success_status_sees_instance_on_update(self) -> None:
+        post = Post.objects.create(title="old")
+
+        def status(*, instance: Post) -> int:
+            return 209 if instance.pk == post.pk else 200
+
+        spec = ServiceSpec(
+            service=_update_post,
+            input_serializer=_PostIn,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk
+            ),
+            success_status=status,
+            atomic=False,
+        )
+        result = dispatch_spec(spec, user=None, params={"pk": post.pk, "title": "fresh"})
+        assert result.status == 209
+
+    def test_callable_success_status_override_wins(self) -> None:
+        def status(**_: Any) -> int:
+            return 200
+
+        spec = ServiceSpec(
+            service=_create_post, input_serializer=_PostIn, success_status=status, atomic=False
+        )
+        # An explicit override short-circuits the callable entirely.
+        result = dispatch_spec(spec, user=None, params={"title": "p"}, success_status=299)
+        assert result.status == 299
+
     def test_service_no_input_serializer(self) -> None:
         captured: dict[str, Any] = {}
 

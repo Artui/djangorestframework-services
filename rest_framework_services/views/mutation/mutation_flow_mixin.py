@@ -101,7 +101,7 @@ class MutationFlowMixin:
         spec: ServiceSpec[Any, Any, Any],
         *,
         instance: Any,
-        success_status: int,
+        default_status: int,
         render_instance_on_none: bool = False,
         partial: bool = False,
     ) -> Response:
@@ -110,7 +110,7 @@ class MutationFlowMixin:
             request,
             spec,
             instance=instance,
-            success_status=success_status,
+            default_status=default_status,
             render_instance_on_none=render_instance_on_none,
             partial=partial,
         )

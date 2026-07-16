@@ -128,7 +128,7 @@ post-mutation re-fetch, queryset shaping) lives in a single nested
 class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     service: Callable[..., ResultT]
     atomic: bool = True
-    success_status: int | None = None
+    success_status: int | Callable[..., int] | None = None
     partial: bool | None = None
     input_serializer: type | None = None
     input_data: Callable[..., Mapping[str, Any]] | None = None
@@ -137,13 +137,38 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     output_selector_spec: SelectorSpec[Any, Any] | None = None
     kwargs: Callable[..., ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
+    response_finalizer: Callable[..., Response | None] | None = None
 ```
 
 - **`service`** — the callable to invoke.
 - **`atomic`** — wrap the service call in `transaction.atomic()`
   (defaults `True`).
 - **`success_status`** — override the HTTP status (defaults to
-  `201` for create, `200` for update, `204` for delete).
+  `201` for create, `200` for update, `204` for delete). May also be a
+  **callable** resolved through the keyword pool (`result` / `instance` /
+  `request` / `view`) returning the status — the callable keys on the
+  *service's* return value, so an upsert can answer `201` when it created a
+  row and `200` when it found one:
+
+  ```python
+  def _upsert(*, data):
+      author, created = Author.objects.get_or_create(name=data.name)
+      return UpsertResult(author=author, created=created)
+
+  ServiceSpec(
+      service=_upsert,
+      input_serializer=AuthorIn,
+      success_status=lambda *, result: 201 if result.created else 200,
+      output_selector_spec=SelectorSpec(
+          kind=SelectorKind.RETRIEVE,
+          selector=lambda *, result: Author.objects.filter(pk=result.author.pk),
+          output_serializer=AuthorSerializer,
+      ),
+  )
+  ```
+
+  OpenAPI documents the action default for the callable case (it can't be
+  resolved statically).
 - **`partial`** — override the transport-derived partial-validation flag.
   `None` (the default) inherits what the verb implies (`False` for
   PUT/POST, `True` for PATCH); `True`/`False` forces it. Applied once at
@@ -203,9 +228,69 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   `permission_classes` for the action the spec backs. `None` (the default)
   inherits; `[]` means "no permissions" explicitly. See the
   [permissions recipe](recipes/permissions.md).
+- **`response_finalizer`** — a post-serialization HTTP hook for cookie /
+  header side effects (or swapping the response). Runs on the **2xx path
+  only**, after the output serializer builds the `Response` and before it is
+  returned; error paths bypass it. Resolved through the keyword pool
+  (`response` / `result` / `request` / `view` / `instance` / `data`), it
+  returns a `Response` to replace the built one, or `None` to keep it:
+
+  ```python
+  def _set_session_cookie(*, response, result):
+      response.set_cookie("session", result.token, httponly=True)
+      return response
+
+  ServiceSpec(service=_login, input_serializer=LoginIn,
+              response_finalizer=_set_session_cookie)
+  ```
+
+  `result` is the *service's* return value, so services stay DRF-free —
+  return domain flags on the result DTO and let the finalizer translate them
+  into transport effects. **HTTP-only**: skipped on the transport-neutral
+  path (`dispatch_spec` / `call_service` / MCP).
 
 Generic parameters `InputT` / `ResultT` / `ExtraT` default to `Any`, so
 `ServiceSpec(service=fn)` keeps working unparameterized.
+
+### Polymorphic actions
+
+`PolymorphicServiceSpec` expresses a single action that accepts several
+mutually exclusive payload shapes — each with its own input serializer and
+service. A `discriminator` inspects the request and picks a variant key; the
+chosen variant then dispatches exactly like a plain `ServiceSpec`. Usable
+anywhere a `ServiceSpec` is (an `action_specs` entry or `@service_action`).
+
+```python
+def _pick(*, data):
+    if "email" in data:
+        return "email"
+    if "token" in data:
+        return "token"
+    raise ServiceValidationError({"detail": "provide an email or token"})
+
+action_specs = {
+    "create": PolymorphicServiceSpec(
+        discriminator=_pick,                       # pool: {request, data, user, view}
+        specs={
+            "email": ServiceSpec(service=register_by_email, input_serializer=EmailIn),
+            "token": ServiceSpec(service=register_by_token, input_serializer=TokenIn),
+        },
+    ),
+}
+```
+
+- The discriminator is resolved once per request; the chosen variant's
+  serializer context, kwargs, and output pipeline all apply.
+- A rejected payload is the discriminator's to raise on
+  (`ServiceValidationError` → 400).
+- **`permission_strategy`** decides how `get_permissions` treats the variants
+  (DRF runs permissions before the body is parsed): `"union"` (the default)
+  requires the union of every variant's `permission_classes` — the
+  conservative choice; `"discriminate"` reads the body early and applies only
+  the chosen variant's; `"require_identical"` validates that all variants
+  declare the same classes.
+- OpenAPI renders the request body as the union of the variant input
+  serializers.
 
 ### PATCH that validates like PUT
 

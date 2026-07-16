@@ -32,7 +32,7 @@ def adelete_model(
         if soft_delete is not None:
             await soft_delete(instance)
         else:
-            await instance.adelete()  # type: ignore[attr-defined]
+            await instance.adelete()
         return None
 
     return _service

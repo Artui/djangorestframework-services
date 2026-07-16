@@ -11,9 +11,10 @@ from typing import Any
 
 from drf_spectacular.contrib.django_filters import DjangoFilterExtension
 from drf_spectacular.openapi import AutoSchema
-from drf_spectacular.utils import OpenApiResponse
+from drf_spectacular.utils import OpenApiResponse, PolymorphicProxySerializer
 
 from rest_framework_services.openapi._resolve import (
+    resolve_polymorphic_spec,
     resolve_selector_spec,
     resolve_service_spec,
 )
@@ -65,6 +66,11 @@ class ServiceAutoSchema(AutoSchema):
     """
 
     def get_request_serializer(self) -> Any:
+        poly = resolve_polymorphic_spec(self.view)
+        if poly is not None:
+            proxy = self._polymorphic_request_serializer(poly)
+            if proxy is not None:
+                return proxy
         spec = resolve_service_spec(self.view)
         if spec is not None:
             cls = to_serializer_class(spec.input_serializer)
@@ -77,6 +83,30 @@ class ServiceAutoSchema(AutoSchema):
                     partial = getattr(self.view, "action", None) == "partial_update"
                 return cls(partial=partial)
         return super().get_request_serializer()
+
+    def _polymorphic_request_serializer(self, poly: Any) -> Any:
+        """Render a polymorphic action's request body as the variant union.
+
+        A ``PolymorphicProxySerializer`` over each variant's ``input_serializer``
+        with ``resource_type_field_name=None`` — an ``anyOf`` of the variant
+        shapes, since the framework discriminates on payload content rather than
+        on a type field. Variants without an ``input_serializer`` contribute
+        nothing; if none have one, defer to the base body.
+        """
+        serializers = [
+            cls()
+            for cls in (to_serializer_class(v.input_serializer) for v in poly.specs.values())
+            if cls is not None
+        ]
+        if not serializers:
+            return None
+        view_name = type(self.view).__name__
+        action_name = getattr(self.view, "action", "") or ""
+        return PolymorphicProxySerializer(
+            component_name=f"{view_name}_{action_name}_Request",
+            serializers=serializers,
+            resource_type_field_name=None,
+        )
 
     def _get_request_body(self, direction: str = "request") -> Any:
         # drf-spectacular hard-codes the allowed verbs to PUT/PATCH/POST in
@@ -114,7 +144,13 @@ class ServiceAutoSchema(AutoSchema):
         spec = resolve_service_spec(self.view)
         if spec is None:
             return super().get_response_serializers()
-        status = spec.success_status or default_status(self.view)
+        # A callable ``success_status`` can't be resolved statically (it keys on
+        # the per-request result); document the action-appropriate default.
+        status = (
+            spec.success_status
+            if isinstance(spec.success_status, int)
+            else default_status(self.view)
+        )
         output_serializer = (
             spec.output_selector_spec.output_serializer
             if spec.output_selector_spec is not None

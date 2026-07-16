@@ -24,6 +24,7 @@ from typing import Any
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.permissions import BasePermission
 
+from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -383,6 +384,67 @@ def _validate_collection_selector_spec(
     )
 
 
+# Keys the status pool offers a ``success_status`` callable.
+_SUCCESS_STATUS_KEYS = frozenset({"result", "instance", "request", "view"})
+
+# Keys the framework offers a ``response_finalizer`` callable.
+_RESPONSE_FINALIZER_KEYS = frozenset({"response", "result", "request", "view", "instance", "data"})
+
+
+def _validate_success_status(
+    success_status: int | Callable[..., int] | None, *, label: str
+) -> None:
+    """Reject a ``success_status`` that is neither int/None nor a well-formed callable.
+
+    A callable may declare any subset of the status pool
+    (``result`` / ``instance`` / ``request`` / ``view``) or ``**kwargs``; a
+    required parameter outside that set can never be supplied, so it fails fast
+    here rather than as a ``TypeError`` deep in dispatch.
+    """
+    if success_status is None or isinstance(success_status, int):
+        return
+    if not callable(success_status):
+        raise ImproperlyConfigured(
+            f"{label}: `success_status` must be an int, a callable returning an int, "
+            f"or None — got {type(success_status).__name__}."
+        )
+    if _accepts_var_keyword(success_status):
+        return
+    unknown = set(_required_kw_params(success_status)) - _SUCCESS_STATUS_KEYS
+    if unknown:
+        raise ImproperlyConfigured(
+            f"{label}: `success_status` callable requires parameter(s) "
+            f"{sorted(unknown)} the framework can't supply — declare only a subset "
+            f"of {sorted(_SUCCESS_STATUS_KEYS)} (or `**kwargs`)."
+        )
+
+
+def _validate_response_finalizer(finalizer: Any, *, label: str) -> None:
+    """Reject a ``response_finalizer`` that isn't a well-formed callable.
+
+    ``None`` is fine; a callable may declare any subset of the finalizer pool
+    (``response`` / ``result`` / ``request`` / ``view`` / ``instance`` /
+    ``data``) or ``**kwargs`` — a required parameter outside that set can never
+    be supplied, so it fails fast here.
+    """
+    if finalizer is None:
+        return
+    if not callable(finalizer):
+        raise ImproperlyConfigured(
+            f"{label}: `response_finalizer` must be a callable returning a Response "
+            f"or None — got {type(finalizer).__name__}."
+        )
+    if _accepts_var_keyword(finalizer):
+        return
+    unknown = set(_required_kw_params(finalizer)) - _RESPONSE_FINALIZER_KEYS
+    if unknown:
+        raise ImproperlyConfigured(
+            f"{label}: `response_finalizer` requires parameter(s) {sorted(unknown)} the "
+            f"framework can't supply — declare only a subset of "
+            f"{sorted(_RESPONSE_FINALIZER_KEYS)} (or `**kwargs`)."
+        )
+
+
 def validate_service_spec(
     spec: ServiceSpec[Any, Any, Any],
     *,
@@ -396,6 +458,8 @@ def validate_service_spec(
     ``@service_action``. ``has_instance`` is fixed by the action context
     (``False`` for create, ``True`` for update / destroy / detail actions).
     """
+    _validate_success_status(spec.success_status, label=label)
+    _validate_response_finalizer(spec.response_finalizer, label=label)
     if spec.many and spec.collection_selector_spec is not None:
         raise ImproperlyConfigured(
             f"{label}: `many` and `collection_selector_spec` are mutually exclusive "
@@ -434,6 +498,45 @@ def validate_service_spec(
             spec_kwargs=spec.kwargs,
             input_serializer=spec.input_serializer,
         )
+
+
+def validate_polymorphic_service_spec(
+    poly: PolymorphicServiceSpec,
+    *,
+    label: str,
+    has_instance: bool,
+    permissive_extras: bool,
+) -> None:
+    """Validate every variant of a :class:`PolymorphicServiceSpec` + its strategy.
+
+    Each ``specs`` value must be a :class:`ServiceSpec` (validated with the same
+    ``has_instance`` / ``permissive_extras`` as a plain entry), ``specs`` must be
+    non-empty, and ``permission_strategy='require_identical'`` requires every
+    variant to declare the same ``permission_classes``.
+    """
+    if not poly.specs:
+        raise ImproperlyConfigured(f"{label}: PolymorphicServiceSpec.specs must not be empty.")
+    for key, variant in poly.specs.items():
+        if not isinstance(variant, ServiceSpec):
+            raise ImproperlyConfigured(
+                f"{label}: variant {key!r} must be a ServiceSpec, got {type(variant).__name__}."
+            )
+        validate_service_spec(
+            variant,
+            label=f"{label}[{key!r}]",
+            has_instance=has_instance,
+            permissive_extras=permissive_extras,
+        )
+    if poly.permission_strategy == "require_identical":
+        distinct = {
+            None if v.permission_classes is None else tuple(v.permission_classes)
+            for v in poly.specs.values()
+        }
+        if len(distinct) > 1:
+            raise ImproperlyConfigured(
+                f"{label}: permission_strategy='require_identical' but the variants declare "
+                "different `permission_classes`. Make them identical or use 'union'."
+            )
 
 
 def validate_selector_spec(

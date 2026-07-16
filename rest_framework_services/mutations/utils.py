@@ -374,6 +374,8 @@ async def aapply_children(
     created: bool,
 ) -> tuple[ChildCollectionChange, ...]:
     """Async variant of :func:`apply_children`."""
+    # Lazy import: genuine recursion cycle — the parent helpers call this, and
+    # this calls them again for each child (and grandchild).
     from rest_framework_services.mutations.acreate_from_input import acreate_from_input
     from rest_framework_services.mutations.aupdate_from_input import aupdate_from_input
 

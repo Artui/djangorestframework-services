@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
 from rest_framework.permissions import BasePermission
+from rest_framework.response import Response
 
 from rest_framework_services.types.selector_spec import SelectorSpec
 
@@ -42,7 +43,15 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
 
     ``success_status`` is left as ``None`` so each consumer can supply its
     own action-appropriate default (201 for create, 200 for update, 204
-    for destroy).
+    for destroy). It may also be a **callable** resolved through the framework
+    keyword pool — declaring any subset of ``result`` / ``instance`` /
+    ``request`` / ``view`` (or ``**kwargs``) — returning the status ``int``.
+    This covers upserts whose code depends on the outcome (``200`` for an
+    existing row, ``201`` for a freshly created one); the callable sees the
+    *service's* return value as ``result``. A ``None`` return from the field
+    itself is not meaningful — return an ``int``. OpenAPI can't resolve a
+    callable statically, so the generated schema documents the mixin default
+    for the dynamic case.
 
     ``input_data`` is the symmetrical hook for the *serializer's* input.
     Returns a mapping merged on top of ``request.data`` before the
@@ -135,7 +144,12 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     scoped by the selector + ``filter_set``) is seeded into the pool as
     ``collection`` for the service to ``.delete()`` / ``.update()`` / iterate —
     an instance-less "operate on the filtered set" action (bulk delete/update),
-    where an empty set is a harmless no-op. Both run all-or-nothing under
+    where an empty set is a harmless no-op. Its selector's kwarg pool carries
+    the request's query params and body plus the view's URL kwargs, so a
+    nested-route bulk (``/parents/{parent_pk}/children/``) can scope by
+    ``parent_pk`` — matching ``instance_selector_spec``. Route captures win over
+    client query / body on a key conflict, so a filter value can't override the
+    route scope. Both run all-or-nothing under
     ``atomic=True``; authorization is per-set (the view / spec
     ``permission_classes`` plus the scoped selector), with no per-row check.
 
@@ -151,12 +165,35 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     explicitly. Forwarded through DRF's ``@action(permission_classes=...)``
     for the ``@service_action`` decorator, and surfaced via ``get_permissions``
     for the viewset mixins and standalone views.
+
+    ``response_finalizer`` is a post-serialization hook for HTTP response side
+    effects (cookies, headers, a swapped response). It runs on the **2xx path
+    only**, after the output serializer has produced the ``Response`` and
+    *before* it is returned (pre-render); error paths bypass it. Invoked through
+    the framework keyword pool, it declares any subset of
+    ``response`` / ``result`` / ``request`` / ``view`` / ``instance`` / ``data``
+    (or ``**kwargs``) and returns either a ``Response`` (which replaces the
+    built one) or ``None`` (which keeps it) — so ``lambda *, response:
+    response.set_cookie(...) or response`` attaches a cookie, and returning a
+    fresh ``Response`` swaps it wholesale. Unlike the service/selector pool it
+    **does** receive ``view`` (a documented exception — a response decision
+    legitimately needs view/request context). ``result`` is the *service's*
+    return value (the flags carrier), so the idiomatic pattern keeps services
+    DRF-free: the service returns domain flags on its result DTO and the
+    finalizer translates flags → transport effects. **HTTP-only:** it is skipped
+    on the transport-neutral path (``dispatch_spec`` / ``call_service`` / MCP),
+    which builds no ``Response``. On the bulk path ``instance`` / ``data`` are
+    absent and ``result`` is the dispatched value (post-output-selector).
     """
 
     # The service callable and per-call dispatch flags.
     service: Callable[..., ResultT]
     atomic: bool = True
-    success_status: int | None = None
+    # An ``int`` is used verbatim; a callable is resolved through the framework
+    # keyword pool (``result`` / ``instance`` / ``request`` / ``view``) and
+    # returns the status — e.g. an upsert returning 200 vs 201; ``None`` lets
+    # each consumer apply its action-appropriate default.
+    success_status: int | Callable[..., int] | None = None
     partial: bool | None = None
     # Bulk list-payload: validate the request body as a list (``many=True``)
     # and render the result list the same way. The service receives the
@@ -198,3 +235,8 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     # — hence the open ``...`` parameter spec.
     kwargs: Callable[..., ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
+    # Post-serialization HTTP hook (2xx only, pre-render): resolved through the
+    # keyword pool (``response`` / ``result`` / ``request`` / ``view`` /
+    # ``instance`` / ``data``), returns a ``Response`` to replace the built one
+    # or ``None`` to keep it. HTTP-only — skipped on the transport-neutral path.
+    response_finalizer: Callable[..., Response | None] | None = None

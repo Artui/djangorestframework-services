@@ -426,3 +426,61 @@ class TestFilterSetGuardAtAsView:
 
         with pytest.raises(ImproperlyConfigured, match="filter_set"):
             _ViewSet.as_view({"get": "list"})
+
+
+class TestValidateSuccessStatus:
+    def _validate(self, success_status: Any) -> None:
+        validate_service_spec(
+            ServiceSpec(service=lambda: None, success_status=success_status),
+            label="X",
+            has_instance=False,
+            permissive_extras=False,
+        )
+
+    def test_int_passes(self) -> None:
+        self._validate(202)
+
+    def test_callable_with_known_params_passes(self) -> None:
+        self._validate(lambda *, result, instance: 200)
+
+    def test_callable_with_var_keyword_passes(self) -> None:
+        self._validate(lambda **_: 200)
+
+    def test_callable_with_optional_unknown_param_passes(self) -> None:
+        # A param with a default is optional from the framework's POV.
+        self._validate(lambda *, result, extra=1: 200)
+
+    def test_callable_with_required_unknown_param_fails(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="tenant_id"):
+            self._validate(lambda *, tenant_id: 200)
+
+    def test_non_int_non_callable_fails(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="must be an int"):
+            self._validate("200")
+
+
+class TestValidateResponseFinalizer:
+    def _validate(self, finalizer: Any) -> None:
+        validate_service_spec(
+            ServiceSpec(service=lambda: None, response_finalizer=finalizer),
+            label="X",
+            has_instance=False,
+            permissive_extras=False,
+        )
+
+    def test_none_passes(self) -> None:
+        self._validate(None)
+
+    def test_callable_with_known_params_passes(self) -> None:
+        self._validate(lambda *, response, result: response)
+
+    def test_callable_with_var_keyword_passes(self) -> None:
+        self._validate(lambda **_: None)
+
+    def test_callable_with_required_unknown_param_fails(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="tenant"):
+            self._validate(lambda *, response, tenant: response)
+
+    def test_non_callable_fails(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="must be a callable"):
+            self._validate("nope")
