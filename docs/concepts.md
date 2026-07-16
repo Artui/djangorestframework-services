@@ -128,7 +128,7 @@ post-mutation re-fetch, queryset shaping) lives in a single nested
 class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     service: Callable[..., ResultT]
     atomic: bool = True
-    success_status: int | None = None
+    success_status: int | Callable[..., int] | None = None
     partial: bool | None = None
     input_serializer: type | None = None
     input_data: Callable[..., Mapping[str, Any]] | None = None
@@ -143,7 +143,31 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
 - **`atomic`** — wrap the service call in `transaction.atomic()`
   (defaults `True`).
 - **`success_status`** — override the HTTP status (defaults to
-  `201` for create, `200` for update, `204` for delete).
+  `201` for create, `200` for update, `204` for delete). May also be a
+  **callable** resolved through the keyword pool (`result` / `instance` /
+  `request` / `view`) returning the status — the callable keys on the
+  *service's* return value, so an upsert can answer `201` when it created a
+  row and `200` when it found one:
+
+  ```python
+  def _upsert(*, data):
+      author, created = Author.objects.get_or_create(name=data.name)
+      return UpsertResult(author=author, created=created)
+
+  ServiceSpec(
+      service=_upsert,
+      input_serializer=AuthorIn,
+      success_status=lambda *, result: 201 if result.created else 200,
+      output_selector_spec=SelectorSpec(
+          kind=SelectorKind.RETRIEVE,
+          selector=lambda *, result: Author.objects.filter(pk=result.author.pk),
+          output_serializer=AuthorSerializer,
+      ),
+  )
+  ```
+
+  OpenAPI documents the action default for the callable case (it can't be
+  resolved statically).
 - **`partial`** — override the transport-derived partial-validation flag.
   `None` (the default) inherits what the verb implies (`False` for
   PUT/POST, `True` for PATCH); `True`/`False` forces it. Applied once at

@@ -38,10 +38,6 @@ def service_action(
     ``methods``, ``url_path``, ``url_name``, and any extra ``**action_kwargs``
     are forwarded to DRF's ``@action``.
     """
-    success_status: int = (
-        spec.success_status if spec.success_status is not None else drf_status.HTTP_200_OK
-    )
-
     drf_kwargs: dict[str, Any] = {"detail": detail}
     if methods is not None:
         drf_kwargs["methods"] = methods
@@ -68,12 +64,16 @@ def service_action(
         @functools.wraps(fn)
         def handler(self: Any, request: Request, *args: Any, **kwargs: Any) -> Response:
             instance: Any = resolve_mutation_instance(self, spec) if detail else None
+            # ``success_status`` is resolved per-request inside the dispatch
+            # (``spec.success_status`` may be a callable keyed on the result),
+            # so the decorator passes only the action default (200) — it is
+            # *not* frozen here at decoration time.
             return dispatch_mutation_for_spec(
                 self,
                 request,
                 spec,
                 instance=instance,
-                success_status=success_status,
+                default_status=drf_status.HTTP_200_OK,
                 # Detail actions are update-shaped: a service that mutates in
                 # place and returns ``None`` renders the instance. Non-detail
                 # actions have no instance, so the flag is moot.

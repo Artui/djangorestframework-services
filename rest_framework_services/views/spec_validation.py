@@ -383,6 +383,38 @@ def _validate_collection_selector_spec(
     )
 
 
+# Keys the status pool offers a ``success_status`` callable.
+_SUCCESS_STATUS_KEYS = frozenset({"result", "instance", "request", "view"})
+
+
+def _validate_success_status(
+    success_status: int | Callable[..., int] | None, *, label: str
+) -> None:
+    """Reject a ``success_status`` that is neither int/None nor a well-formed callable.
+
+    A callable may declare any subset of the status pool
+    (``result`` / ``instance`` / ``request`` / ``view``) or ``**kwargs``; a
+    required parameter outside that set can never be supplied, so it fails fast
+    here rather than as a ``TypeError`` deep in dispatch.
+    """
+    if success_status is None or isinstance(success_status, int):
+        return
+    if not callable(success_status):
+        raise ImproperlyConfigured(
+            f"{label}: `success_status` must be an int, a callable returning an int, "
+            f"or None — got {type(success_status).__name__}."
+        )
+    if _accepts_var_keyword(success_status):
+        return
+    unknown = set(_required_kw_params(success_status)) - _SUCCESS_STATUS_KEYS
+    if unknown:
+        raise ImproperlyConfigured(
+            f"{label}: `success_status` callable requires parameter(s) "
+            f"{sorted(unknown)} the framework can't supply — declare only a subset "
+            f"of {sorted(_SUCCESS_STATUS_KEYS)} (or `**kwargs`)."
+        )
+
+
 def validate_service_spec(
     spec: ServiceSpec[Any, Any, Any],
     *,
@@ -396,6 +428,7 @@ def validate_service_spec(
     ``@service_action``. ``has_instance`` is fixed by the action context
     (``False`` for create, ``True`` for update / destroy / detail actions).
     """
+    _validate_success_status(spec.success_status, label=label)
     if spec.many and spec.collection_selector_spec is not None:
         raise ImproperlyConfigured(
             f"{label}: `many` and `collection_selector_spec` are mutually exclusive "

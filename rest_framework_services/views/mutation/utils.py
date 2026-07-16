@@ -55,6 +55,7 @@ from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.utils import (
     resolve_callable_kwargs,
     resolve_extra_kwargs,
@@ -254,8 +255,8 @@ def _execute_mutation(
     input_serializer: type | None,
     output_selector_spec: SelectorSpec[Any, Any] | None,
     atomic: bool,
-    success_status: int,
-    empty_body_status: int,
+    success_status: int | Callable[..., int] | None,
+    success_default: int,
     render_instance_on_none: bool,
     instance: Any,
     extra_kwargs: dict[str, Any] | None = None,
@@ -280,11 +281,14 @@ def _execute_mutation(
          spec's queryset shaping; materialize a QuerySet via ``.first()``
          since the nested spec is always retrieve-shaped. Otherwise fall
          back to the in-memory ``instance`` when the service returned None.
-      6. Render via the nested spec's ``output_serializer`` (or raw, or an
+      6. Resolve ``success_status`` (an ``int`` verbatim, a callable through
+         the status pool ``{result, instance, request, view}``, else
+         ``success_default``). A callable keys on the *service's* return value.
+      7. Render via the nested spec's ``output_serializer`` (or raw, or an
          empty-body response). A ``None`` result with no output serializer
-         renders an empty body at ``empty_body_status`` (the caller's
-         explicit ``spec.success_status``, else 204); a selector that
-         returned ``None`` always renders 204.
+         renders an empty body at the resolved status when
+         ``success_status`` was set, else 204; a selector that returned
+         ``None`` always renders 204.
 
     ``render_instance_on_none`` is the update-vs-destroy intent flag: update
     callers pass ``True`` so a service that mutates in place and returns
@@ -336,6 +340,11 @@ def _execute_mutation(
         )
     except ServiceError as exc:
         raise map_service_error(exc) from exc
+
+    # The service's raw return value, captured before an output selector can
+    # replace it below — a callable ``success_status`` keys on this (e.g. an
+    # upsert DTO's created flag), not on a re-fetched output instance.
+    service_result: Any = result
 
     # Mirror DRF's ``UpdateModelMixin``: a mutating service may have changed a
     # related collection the target instance prefetched (via a prefetching
@@ -404,20 +413,40 @@ def _execute_mutation(
         # is authoritative).
         result = instance
 
+    # Resolve the success status now that the service has run. A callable
+    # ``success_status`` keys on the service's return value (``result``) and the
+    # resolved ``instance`` — e.g. an upsert returning 200 vs 201. This status
+    # pool is distinct from the service/selector ``pool`` above and, unlike it,
+    # deliberately includes ``view``: a status decision may legitimately read
+    # view/request context, whereas business logic must not (see the pool note
+    # in the docstring).
+    status_pool: dict[str, Any] = {"request": request, "view": view, "result": service_result}
+    if instance is not None:
+        status_pool["instance"] = instance
+    resolved_status: int = resolve_success_status(
+        success_status, default=success_default, pool=status_pool
+    )
+    # Empty-body responses fall back to 204 when ``success_status`` is unset;
+    # a set int/callable applies uniformly (mirrors the pre-callable behaviour
+    # where ``empty_body_status`` was ``spec.success_status`` if set, else 204).
+    resolved_empty_status: int = (
+        drf_status.HTTP_204_NO_CONTENT if success_status is None else resolved_status
+    )
+
     if output_serializer is not None:
         output_context = resolve_output_context(result) if resolve_output_context else {}
         serializer = output_serializer(result, context=output_context)
-        return Response(serializer.data, status=success_status)
+        return Response(serializer.data, status=resolved_status)
     if result is not None:
-        return Response(result, status=success_status)
+        return Response(result, status=resolved_status)
     # Empty body. A selector that returned ``None`` is an authoritative
-    # no-content result → always 204. Otherwise honor ``empty_body_status`` —
-    # the caller's explicitly-set ``spec.success_status`` if any, else 204.
-    # This is what lets a destroy (or any no-output mutation) carry a custom
-    # success status while a body-less default still reads as 204.
+    # no-content result → always 204. Otherwise honor ``resolved_empty_status``
+    # — the caller's explicitly-set ``success_status`` if any, else 204. This is
+    # what lets a destroy (or any no-output mutation) carry a custom success
+    # status while a body-less default still reads as 204.
     if selector_ran:
         return Response(status=drf_status.HTTP_204_NO_CONTENT)
-    return Response(status=empty_body_status)
+    return Response(status=resolved_empty_status)
 
 
 def _dispatch_bulk_via_spec(
@@ -425,7 +454,7 @@ def _dispatch_bulk_via_spec(
     request: Request,
     spec: ServiceSpec[Any, Any, Any],
     *,
-    success_status: int,
+    default_status: int,
 ) -> Response:
     """Render a bulk (``many`` / collection) spec through ``dispatch_spec``.
 
@@ -433,6 +462,11 @@ def _dispatch_bulk_via_spec(
     in the transport-neutral path; here we only map its
     :class:`~rest_framework_services.DispatchResult` to a DRF ``Response`` and
     translate a ``ServiceError`` the same way the single-instance flow does.
+
+    ``success_status`` resolves through the same rule as the single flow: an
+    ``int`` verbatim, a callable through the status pool (``result`` is the
+    bulk return value; ``instance`` is absent on a bulk path), else
+    ``default_status``.
     """
     # Local import: ``dispatch_spec`` composes ``build_input_serializer_from_data``
     # from this module, so the dependency is one-directional only at runtime.
@@ -459,8 +493,10 @@ def _dispatch_bulk_via_spec(
     except ServiceError as exc:
         raise map_service_error(exc) from exc
 
+    status_pool: dict[str, Any] = {"request": request, "view": view, "result": result.value}
+    status = resolve_success_status(spec.success_status, default=default_status, pool=status_pool)
     if result.value is None:
-        return Response(status=spec.success_status or success_status)
+        return Response(status=status)
     payload = render_spec_output(
         spec,
         result.value,
@@ -469,7 +505,6 @@ def _dispatch_bulk_via_spec(
         request=request,
         extras={"result": result.value},
     )
-    status = spec.success_status or success_status
     if status == drf_status.HTTP_204_NO_CONTENT:
         # A bulk op that returns a body but inherited the destroy default.
         status = drf_status.HTTP_200_OK
@@ -482,7 +517,7 @@ def dispatch_mutation_for_spec(
     spec: ServiceSpec[Any, Any, Any],
     *,
     instance: Any,
-    success_status: int,
+    default_status: int,
     render_instance_on_none: bool,
     partial: bool = False,
 ) -> Response:
@@ -508,7 +543,7 @@ def dispatch_mutation_for_spec(
     if spec.partial is not None:
         partial = spec.partial
     if spec.many or spec.collection_selector_spec is not None:
-        return _dispatch_bulk_via_spec(view, request, spec, success_status=success_status)
+        return _dispatch_bulk_via_spec(view, request, spec, default_status=default_status)
     action: str | None = getattr(view, "action", None)
     action_kwargs_hook: str | None = f"get_{action}_service_kwargs" if action else None
     action_input_hook: str | None = f"get_{action}_input_data" if action else None
@@ -565,12 +600,8 @@ def dispatch_mutation_for_spec(
         input_serializer=spec.input_serializer,
         output_selector_spec=output_spec,
         atomic=spec.atomic,
-        success_status=success_status,
-        empty_body_status=(
-            spec.success_status
-            if spec.success_status is not None
-            else drf_status.HTTP_204_NO_CONTENT
-        ),
+        success_status=spec.success_status,
+        success_default=default_status,
         render_instance_on_none=render_instance_on_none,
         instance=instance,
         extra_kwargs=extras,

@@ -107,6 +107,19 @@ class TestADispatchService:
         result = await adispatch_spec(spec, user=None, params={"title": "s"})
         assert result.value.title == "s"
 
+    async def test_callable_success_status_async(self) -> None:
+        async def acreate(*, data: _PostIn) -> Post:
+            return await Post.objects.acreate(title=data.title)
+
+        def status(*, result: Post) -> int:
+            return 201 if result.title == "new" else 200
+
+        spec = ServiceSpec(
+            service=acreate, input_serializer=_PostIn, success_status=status, atomic=False
+        )
+        assert (await adispatch_spec(spec, user=None, params={"title": "new"})).status == 201
+        assert (await adispatch_spec(spec, user=None, params={"title": "old"})).status == 200
+
     async def test_update_resolves_instance_async(self) -> None:
         post = await Post.objects.acreate(title="old")
 

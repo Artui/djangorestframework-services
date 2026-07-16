@@ -91,6 +91,19 @@ class TestDispatchMany:
         assert [row["title"] for row in rendered] == ["a", "b"]
         assert Post.objects.count() == 2
 
+    def test_callable_success_status_on_many(self) -> None:
+        def status(*, result: list[Post]) -> int:
+            return 201 if result else 200
+
+        spec = ServiceSpec(
+            service=_bulk_create,
+            input_serializer=_PostIn,
+            many=True,
+            success_status=status,
+            atomic=False,
+        )
+        assert dispatch_spec(spec, user=None, params=[{"title": "a"}]).status == 201
+
     def test_atomic_rollback(self) -> None:
         def boom(*, data: list[_PostIn]) -> None:
             Post.objects.create(title=data[0].title)
@@ -179,6 +192,23 @@ class TestADispatchBulk:
         result = await adispatch_spec(spec, user=None, params=[{"title": "a"}, {"title": "b"}])
         assert result.kind == "list"
         assert len(result.value) == 2
+
+    async def test_acallable_success_status_on_many(self) -> None:
+        async def abulk_create(*, data: list[_PostIn]) -> list[Post]:
+            return [await Post.objects.acreate(title=item.title) for item in data]
+
+        def status(*, result: list[Post]) -> int:
+            return 201 if result else 200
+
+        spec = ServiceSpec(
+            service=abulk_create,
+            input_serializer=_PostIn,
+            many=True,
+            success_status=status,
+            atomic=False,
+        )
+        result = await adispatch_spec(spec, user=None, params=[{"title": "a"}])
+        assert result.status == 201
 
     async def test_acollection_bulk_delete(self) -> None:
         await Post.objects.acreate(title="a", published=True)

@@ -123,6 +123,23 @@ class _NoErrorCreateView(ServiceCreateView):
     )
 
 
+def _dynamic_status(*, result: _AuthorOut) -> int:
+    return 201 if result.id else 200
+
+
+class _CallableStatusCreateView(ServiceCreateView):
+    # A callable ``success_status`` can't be resolved statically, so the schema
+    # documents the create default (201).
+    spec = ServiceSpec(
+        service=_create,
+        input_serializer=_AuthorIn,
+        success_status=_dynamic_status,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+        ),
+    )
+
+
 class _AuthorViewSet(ServiceViewSet):
     queryset = Author.objects.all()
     action_specs = {
@@ -246,6 +263,7 @@ urlpatterns = [
     path("plain-delete/<int:pk>/", _DeletePlainView.as_view()),
     path("force-error-delete/<int:pk>/", _ForcedErrorDeleteView.as_view()),
     path("no-error-create/", _NoErrorCreateView.as_view()),
+    path("callable-status-create/", _CallableStatusCreateView.as_view()),
     path("posts-viewlevel/", _ViewLevelFilterListView.as_view()),
     path("posts-spec/", _SpecFilterListView.as_view()),
     path("post-viewlevel/<int:pk>/", _ViewLevelFilterRetrieveView.as_view()),
@@ -330,6 +348,12 @@ class TestViewsetSchema:
         assert "422" in op["responses"]
         body = op["requestBody"]["content"]["application/json"]["schema"]
         assert body["$ref"].startswith("#/components/schemas/")
+
+    def test_callable_success_status_documents_default(self) -> None:
+        schema = _generate()
+        op = schema["paths"]["/callable-status-create/"]["post"]
+        # The callable can't be resolved statically → the create default stands.
+        assert "201" in op["responses"]
 
     def test_list_action_schema_left_alone(self) -> None:
         schema = _generate()

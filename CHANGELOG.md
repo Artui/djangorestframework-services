@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`ServiceSpec.success_status` may now be a callable.** In addition to an
+  `int` or `None`, it accepts a callable resolved through the framework keyword
+  pool — declaring any subset of `result` / `instance` / `request` / `view`
+  (or `**kwargs`) — that returns the status code. The callable keys on the
+  *service's* return value (`result`), so an upsert can answer `201` for a
+  freshly created row and `200` for an existing one without a hand-rolled action
+  method. `None` still applies each surface's action-appropriate default (201
+  create / 200 update / 204 destroy), and a plain `int` is unchanged. Resolved
+  uniformly across the viewset mixins, standalone views, `@service_action`, and
+  the transport-neutral `dispatch_spec` / `adispatch_spec` paths. A callable
+  can't be resolved statically, so the generated OpenAPI schema documents the
+  action default for the dynamic case. `@service_action` now resolves the
+  status per-request (previously it was fixed at decoration time), which is what
+  makes the callable form work on custom actions.
+
 ## [0.24.1] — 2026-07-13
 
 ### Fixed

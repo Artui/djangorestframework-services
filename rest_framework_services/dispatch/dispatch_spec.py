@@ -33,6 +33,7 @@ from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.target_guard import TargetGuard
 from rest_framework_services.types.unknown_arguments import UnknownArguments
+from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.mutation.utils import build_input_serializer_from_data
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
@@ -246,13 +247,22 @@ def _dispatch_service(
     result: Any = run_service(
         spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic
     )
-    result, output_is_list = _run_output_selector(
+    output_result, output_is_list = _run_output_selector(
         spec, result, user=user, request=request, view=view, params=params
     )
 
-    status = success_status if success_status is not None else (spec.success_status or 200)
+    # A callable ``spec.success_status`` keys on the *service's* return value
+    # (``result``), captured before the output selector re-fetch replaced it.
+    status_pool: dict[str, Any] = {"request": request, "view": view, "result": result}
+    if instance is not None:
+        status_pool["instance"] = instance
+    status = (
+        success_status
+        if success_status is not None
+        else resolve_success_status(spec.success_status, default=200, pool=status_pool)
+    )
     return DispatchResult(
-        value=result, kind="list" if output_is_list else "instance", status=status
+        value=output_result, kind="list" if output_is_list else "instance", status=status
     )
 
 
@@ -291,7 +301,15 @@ def _dispatch_service_many(
     result: Any = run_service(
         spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic
     )
-    status = success_status if success_status is not None else (spec.success_status or 200)
+    status = (
+        success_status
+        if success_status is not None
+        else resolve_success_status(
+            spec.success_status,
+            default=200,
+            pool={"request": request, "view": view, "result": result},
+        )
+    )
     return DispatchResult(value=result, kind="list", status=status)
 
 

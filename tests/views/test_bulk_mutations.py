@@ -78,9 +78,45 @@ class TestBulkCreateMany:
         assert response.status_code == 201
         assert [row["title"] for row in response.data] == ["a", "b"]
 
+    def test_callable_success_status_on_bulk_body(self) -> None:
+        def status(*, result: list[Post]) -> int:
+            return 201 if result else 200
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=_bulk_create,
+                input_serializer=_PostIn,
+                many=True,
+                success_status=status,
+                atomic=False,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=_PostSerializer
+                ),
+            )
+
+        response = _View.as_view()(factory.post("/", [{"title": "a"}], format="json"))
+        assert response.status_code == 201
+
 
 @pytest.mark.django_db
 class TestBulkDeleteCollection:
+    def test_callable_success_status_empty_body(self) -> None:
+        Post.objects.create(title="a")
+
+        def status(*, result: Any) -> int:
+            return 205
+
+        class _View(ServiceDeleteView):
+            spec = ServiceSpec(
+                service=delete_collection(Post),
+                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts),
+                success_status=status,
+                atomic=False,
+            )
+
+        response = _View.as_view()(factory.delete("/"))
+        assert response.status_code == 205
+
     def test_delete_over_query_filter_204(self) -> None:
         Post.objects.create(title="shipped", published=True)
         Post.objects.create(title="draft", published=False)

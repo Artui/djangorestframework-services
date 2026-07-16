@@ -38,5 +38,5 @@ class ServiceCreateView(MutationFlowMixin, GenericAPIView):
             request,
             spec,
             instance=None,
-            success_status=spec.success_status or drf_status.HTTP_201_CREATED,
+            default_status=drf_status.HTTP_201_CREATED,
         )

@@ -114,7 +114,13 @@ class ServiceAutoSchema(AutoSchema):
         spec = resolve_service_spec(self.view)
         if spec is None:
             return super().get_response_serializers()
-        status = spec.success_status or default_status(self.view)
+        # A callable ``success_status`` can't be resolved statically (it keys on
+        # the per-request result); document the action-appropriate default.
+        status = (
+            spec.success_status
+            if isinstance(spec.success_status, int)
+            else default_status(self.view)
+        )
         output_serializer = (
             spec.output_selector_spec.output_serializer
             if spec.output_selector_spec is not None

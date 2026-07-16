@@ -46,5 +46,5 @@ class ServiceDeleteView(MutationFlowMixin, GenericAPIView):
             request,
             spec,
             instance=resolve_mutation_instance(self, spec),
-            success_status=spec.success_status or drf_status.HTTP_204_NO_CONTENT,
+            default_status=drf_status.HTTP_204_NO_CONTENT,
         )

@@ -42,7 +42,15 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
 
     ``success_status`` is left as ``None`` so each consumer can supply its
     own action-appropriate default (201 for create, 200 for update, 204
-    for destroy).
+    for destroy). It may also be a **callable** resolved through the framework
+    keyword pool — declaring any subset of ``result`` / ``instance`` /
+    ``request`` / ``view`` (or ``**kwargs``) — returning the status ``int``.
+    This covers upserts whose code depends on the outcome (``200`` for an
+    existing row, ``201`` for a freshly created one); the callable sees the
+    *service's* return value as ``result``. A ``None`` return from the field
+    itself is not meaningful — return an ``int``. OpenAPI can't resolve a
+    callable statically, so the generated schema documents the mixin default
+    for the dynamic case.
 
     ``input_data`` is the symmetrical hook for the *serializer's* input.
     Returns a mapping merged on top of ``request.data`` before the
@@ -156,7 +164,11 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     # The service callable and per-call dispatch flags.
     service: Callable[..., ResultT]
     atomic: bool = True
-    success_status: int | None = None
+    # An ``int`` is used verbatim; a callable is resolved through the framework
+    # keyword pool (``result`` / ``instance`` / ``request`` / ``view``) and
+    # returns the status — e.g. an upsert returning 200 vs 201; ``None`` lets
+    # each consumer apply its action-appropriate default.
+    success_status: int | Callable[..., int] | None = None
     partial: bool | None = None
     # Bulk list-payload: validate the request body as a list (``many=True``)
     # and render the result list the same way. The service receives the

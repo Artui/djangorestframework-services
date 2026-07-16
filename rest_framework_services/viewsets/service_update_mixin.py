@@ -50,7 +50,7 @@ class ServiceUpdateMixin(MutationFlowMixin, _ActionSpecsMixin):
             request,
             spec,
             instance=resolve_mutation_instance(self, spec),
-            success_status=spec.success_status or drf_status.HTTP_200_OK,
+            default_status=drf_status.HTTP_200_OK,
             render_instance_on_none=True,
             partial=partial,
         )
