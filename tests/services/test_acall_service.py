@@ -5,9 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from rest_framework import exceptions as drf_exceptions
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import acall_service
+from rest_framework_services.exceptions.service_error import ServiceError
+from rest_framework_services.exceptions.service_validation_error import (
+    ServiceValidationError,
+)
 
 
 def _build_request(*, user: Any) -> Any:
@@ -63,3 +68,32 @@ async def test_signature_filter_drops_undeclared_keys() -> None:
         aservice, request=_build_request(user="x"), tenant_id=7, ignored="zz"
     )
     assert result == 7
+
+
+@pytest.mark.asyncio
+async def test_service_error_propagates_raw_by_default() -> None:
+    async def aservice() -> None:
+        raise ServiceError("nope")
+
+    with pytest.raises(ServiceError):
+        await acall_service(aservice, request=_build_request(user="x"))
+
+
+@pytest.mark.asyncio
+async def test_map_errors_translates_validation_error() -> None:
+    async def aservice() -> None:
+        raise ServiceValidationError({"name": ["required"]})
+
+    with pytest.raises(drf_exceptions.ValidationError) as exc_info:
+        await acall_service(aservice, request=_build_request(user="x"), map_errors=True)
+    assert exc_info.value.detail == {"name": ["required"]}
+
+
+@pytest.mark.asyncio
+async def test_map_errors_maps_generic_error_from_sync_service() -> None:
+    def service() -> None:
+        raise ServiceError("boom")
+
+    with pytest.raises(drf_exceptions.APIException) as exc_info:
+        await acall_service(service, request=_build_request(user="x"), map_errors=True)
+    assert exc_info.value.status_code == 422

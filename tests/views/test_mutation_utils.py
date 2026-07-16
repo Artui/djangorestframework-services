@@ -8,18 +8,14 @@ from typing import Any
 import pytest
 from rest_framework import exceptions as drf_exceptions
 from rest_framework import serializers
-from rest_framework import status as drf_status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
-from rest_framework_services.exceptions import ServiceError, ServiceValidationError
 from rest_framework_services.views.mutation.utils import (
-    _ServiceAPIException,
     build_input_serializer,
     dispatch_service,
-    map_service_error,
     validate_input,
 )
 
@@ -228,26 +224,3 @@ class TestDispatchService:
             return x + 1
 
         assert dispatch_service(fn, {"x": 4}, atomic=False) == 5
-
-
-class TestMapServiceError:
-    def test_validation_error_maps_to_drf_validation(self) -> None:
-        exc = map_service_error(ServiceValidationError({"name": ["required"]}))
-        assert isinstance(exc, drf_exceptions.ValidationError)
-        assert exc.detail == {"name": ["required"]}
-
-    def test_generic_service_error_maps_to_422(self) -> None:
-        exc = map_service_error(ServiceError("nope"))
-        assert isinstance(exc, _ServiceAPIException)
-        assert exc.status_code == drf_status.HTTP_422_UNPROCESSABLE_ENTITY
-
-
-class TestServiceAPIException:
-    def test_default_detail(self) -> None:
-        exc = _ServiceAPIException()
-        assert exc.detail == "Service error."
-        assert exc.status_code == 422
-
-    def test_custom_detail(self) -> None:
-        exc = _ServiceAPIException("custom")
-        assert str(exc.detail) == "custom"

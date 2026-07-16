@@ -23,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   action default for the dynamic case. `@service_action` now resolves the
   status per-request (previously it was fixed at decoration time), which is what
   makes the callable form work on custom actions.
+- **`call_service(..., map_errors=True)`** (and its async twin
+  `acall_service`) translates a `ServiceError` raised by
+  the delegated service into the same DRF exception the framework raises on the
+  normal view path — `ServiceValidationError` → `ValidationError` (400), any
+  other `ServiceError` → 422 — so DRF's exception handler renders it as a proper
+  response instead of a 500. The default (`map_errors=False`) still propagates
+  the raw `ServiceError` unchanged. Chosen over a top-level `map_service_error`
+  export so the HTTP-to-error mapping stays a `call_service` concern (the helper
+  is already HTTP-scoped). Internally `map_service_error` moved to its own leaf
+  module `views/mutation/map_service_error.py` so `call_service` can reuse it
+  without importing the heavy mutation-flow module (no public-API change).
 
 ### Fixed
 

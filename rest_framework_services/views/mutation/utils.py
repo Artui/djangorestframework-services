@@ -11,11 +11,13 @@ Public leaf helpers:
   ``build_input_serializer``.
 - ``dispatch_service`` — sync/async dispatch with optional atomic wrapping.
 - ``map_service_error`` — translate a framework-agnostic ``ServiceError``
-  into the appropriate DRF exception.
+  into the appropriate DRF exception. Lives in the sibling
+  :mod:`~rest_framework_services.views.mutation.map_service_error` leaf module
+  (re-imported here for the flow runner's use); kept separate so
+  ``call_service`` can map errors without importing this heavy module.
 - ``resolve_mutation_instance`` — resolve the instance an update / destroy /
   detail action targets: ``spec.instance_selector_spec`` when set, else the
   view's ``get_object()`` chain.
-- ``_ServiceAPIException`` — the 422 mapping target.
 
 Internal:
 
@@ -41,9 +43,6 @@ from rest_framework.serializers import Serializer
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.exceptions.service_error import ServiceError
-from rest_framework_services.exceptions.service_validation_error import (
-    ServiceValidationError,
-)
 from rest_framework_services.is_async import is_async
 from rest_framework_services.selectors.utils import (
     apply_queryset_shaping,
@@ -55,6 +54,9 @@ from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.views.mutation.map_service_error import (
+    map_service_error,
+)
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.utils import (
     resolve_callable_kwargs,
@@ -62,14 +64,6 @@ from rest_framework_services.views.utils import (
     resolve_input_extras,
     resolve_serializer_context,
 )
-
-
-class _ServiceAPIException(drf_exceptions.APIException):
-    """Default DRF mapping for non-validation :class:`ServiceError`."""
-
-    status_code = drf_status.HTTP_422_UNPROCESSABLE_ENTITY
-    default_detail = "Service error."
-    default_code = "service_error"
 
 
 def build_input_serializer(
@@ -238,13 +232,6 @@ def dispatch_service(
     if is_async(fn):
         return async_to_sync(arun_service)(fn, kwargs, atomic=atomic)
     return run_service(fn, kwargs, atomic=atomic)
-
-
-def map_service_error(exc: ServiceError) -> drf_exceptions.APIException:
-    """Translate a framework-agnostic service error into a DRF exception."""
-    if isinstance(exc, ServiceValidationError):
-        return drf_exceptions.ValidationError(exc.detail)
-    return _ServiceAPIException(str(exc))
 
 
 def _execute_mutation(
