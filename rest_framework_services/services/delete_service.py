@@ -30,6 +30,6 @@ class DeleteService(Protocol[InputT, InstanceT, ResultT]):
         self,
         *,
         instance: InstanceT,
-        data: InputT = ...,  # type: ignore[assignment]
+        data: InputT = ...,
         **extras: Any,
     ) -> ResultT: ...

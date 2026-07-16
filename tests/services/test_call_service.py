@@ -40,8 +40,7 @@ def test_passes_request_and_user() -> None:
 def test_user_is_none_when_request_lacks_user_attr() -> None:
     """Bypassed-auth requests have no ``user`` attribute; helper passes ``None``."""
 
-    class _BareRequest:
-        pass
+    class _BareRequest: ...
 
     captured: dict[str, Any] = {}
 

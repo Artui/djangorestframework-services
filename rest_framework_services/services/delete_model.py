@@ -50,7 +50,7 @@ def delete_model(
         if soft_delete is not None:
             soft_delete(instance)
         else:
-            instance.delete()  # type: ignore[attr-defined]
+            instance.delete()
         return None
 
     return _service
