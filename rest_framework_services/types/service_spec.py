@@ -143,7 +143,12 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     scoped by the selector + ``filter_set``) is seeded into the pool as
     ``collection`` for the service to ``.delete()`` / ``.update()`` / iterate —
     an instance-less "operate on the filtered set" action (bulk delete/update),
-    where an empty set is a harmless no-op. Both run all-or-nothing under
+    where an empty set is a harmless no-op. Its selector's kwarg pool carries
+    the request's query params and body plus the view's URL kwargs, so a
+    nested-route bulk (``/parents/{parent_pk}/children/``) can scope by
+    ``parent_pk`` — matching ``instance_selector_spec``. Route captures win over
+    client query / body on a key conflict, so a filter value can't override the
+    route scope. Both run all-or-nothing under
     ``atomic=True``; authorization is per-set (the view / spec
     ``permission_classes`` plus the scoped selector), with no per-row check.
 

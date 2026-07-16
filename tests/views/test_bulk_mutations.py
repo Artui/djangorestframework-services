@@ -21,7 +21,7 @@ from rest_framework_services import (
     ServiceUpdateView,
     delete_collection,
 )
-from tests.testapp.models import Post
+from tests.testapp.models import Author, Post
 
 factory = APIRequestFactory()
 
@@ -166,6 +166,58 @@ class TestBulkDeleteCollection:
 
         response = _View.as_view()(factory.delete("/"))
         assert response.status_code == 422
+
+    def test_collection_selector_receives_url_kwargs(self) -> None:
+        # Nested route ``/authors/{author_pk}/posts/`` — the collection selector
+        # scopes to the parent from the URL, so the bulk delete only touches
+        # that author's posts (regression: URL kwargs weren't reaching the
+        # collection pool, unlike the instance/retrieve path).
+        ada = Author.objects.create(name="Ada")
+        grace = Author.objects.create(name="Grace")
+        Post.objects.create(title="a1", author=ada)
+        Post.objects.create(title="a2", author=ada)
+        Post.objects.create(title="g1", author=grace)
+
+        def _authors_posts(*, author_pk: int) -> QuerySet[Post]:
+            return Post.objects.filter(author_id=author_pk)
+
+        class _View(ServiceDeleteView):
+            spec = ServiceSpec(
+                service=delete_collection(Post),
+                collection_selector_spec=SelectorSpec(
+                    kind=SelectorKind.LIST, selector=_authors_posts
+                ),
+                atomic=False,
+            )
+
+        response = _View.as_view()(factory.delete("/"), author_pk=ada.pk)
+        assert response.status_code == 204
+        # Only Ada's posts were deleted; Grace's survive.
+        assert set(Post.objects.values_list("title", flat=True)) == {"g1"}
+
+    def test_url_kwargs_win_over_client_query_on_conflict(self) -> None:
+        # A client can't override the route scope by passing the same key in the
+        # query string — route captures are authoritative.
+        ada = Author.objects.create(name="Ada")
+        grace = Author.objects.create(name="Grace")
+        Post.objects.create(title="a1", author=ada)
+        Post.objects.create(title="g1", author=grace)
+
+        def _by_author(*, author_pk: int) -> QuerySet[Post]:
+            return Post.objects.filter(author_id=author_pk)
+
+        class _View(ServiceDeleteView):
+            spec = ServiceSpec(
+                service=delete_collection(Post),
+                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_by_author),
+                atomic=False,
+            )
+
+        # Client tries to redirect the scope to Grace via ?author_pk=<grace>.
+        response = _View.as_view()(factory.delete(f"/?author_pk={grace.pk}"), author_pk=ada.pk)
+        assert response.status_code == 204
+        # The route's author_pk (Ada) won → Grace's post is untouched.
+        assert set(Post.objects.values_list("title", flat=True)) == {"g1"}
 
 
 @pytest.mark.django_db

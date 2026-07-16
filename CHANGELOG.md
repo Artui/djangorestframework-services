@@ -24,6 +24,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   status per-request (previously it was fixed at decoration time), which is what
   makes the callable form work on custom actions.
 
+### Fixed
+
+- **`collection_selector_spec` selectors now receive the view's URL kwargs.**
+  On the HTTP bulk path a `collection_selector_spec` selector was resolved with
+  a pool of `{user, request}` + query params + body but **not** the route's URL
+  kwargs, unlike the instance / retrieve selectors (which get
+  `extra_url_kwargs=view.kwargs`). A nested-route bulk such as
+  `/parents/{parent_pk}/children/` therefore couldn't scope by `parent_pk`
+  without an extra `kwargs` provider. The bulk view now folds `view.kwargs` into
+  the flat `params` mapping it hands `dispatch_spec` (whose contract already
+  documents that mapping as the union of `request.data` / `query_params` / URL
+  kwargs), so a selector like `lambda *, parent_pk: Child.objects.filter(...)`
+  resolves from the route. Route captures are authoritative — they win over a
+  client-supplied query/body key of the same name, so a filter value can't
+  override the route scope. The transport-neutral `dispatch_spec` path is
+  unchanged (callers already pass URL kwargs in `params`).
+
 ## [0.24.1] — 2026-07-13
 
 ### Fixed

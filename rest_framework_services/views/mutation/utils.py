@@ -478,9 +478,18 @@ def _dispatch_bulk_via_spec(
         params: Any = request.data
     else:
         # Collection target: the filter lives in the query string (a DELETE
-        # carries no body), merged over any body payload for the service.
+        # carries no body), merged over any body payload for the service, plus
+        # the view's URL kwargs. ``params`` is dispatch_spec's flat mapping —
+        # documented as the union of ``request.data`` / ``query_params`` / URL
+        # kwargs — so a ``collection_selector_spec`` on a nested route
+        # (``/parents/{parent_pk}/children/``) can scope by ``parent_pk``, just
+        # as the single-instance path passes ``extra_url_kwargs=view.kwargs`` to
+        # its instance selector. Route captures are authoritative: they win over
+        # client-supplied query / body on a key conflict, so a filter value
+        # can't override the route scope.
         body = request.data if isinstance(request.data, dict) else {}
-        params = {**request.query_params.dict(), **body}
+        url_kwargs = getattr(view, "kwargs", None) or {}
+        params = {**request.query_params.dict(), **body, **url_kwargs}
 
     try:
         result = dispatch_spec(
