@@ -2224,7 +2224,15 @@ the input pipeline (<code>input_*</code>), the output pipeline (a single nested
 <code>permission_classes</code>).</p>
 <p><code>success_status</code> is left as <code>None</code> so each consumer can supply its
 own action-appropriate default (201 for create, 200 for update, 204
-for destroy).</p>
+for destroy). It may also be a <strong>callable</strong> resolved through the framework
+keyword pool — declaring any subset of <code>result</code> / <code>instance</code> /
+<code>request</code> / <code>view</code> (or <code>**kwargs</code>) — returning the status <code>int</code>.
+This covers upserts whose code depends on the outcome (<code>200</code> for an
+existing row, <code>201</code> for a freshly created one); the callable sees the
+<em>service's</em> return value as <code>result</code>. A <code>None</code> return from the field
+itself is not meaningful — return an <code>int</code>. OpenAPI can't resolve a
+callable statically, so the generated schema documents the mixin default
+for the dynamic case.</p>
 <p><code>input_data</code> is the symmetrical hook for the <em>serializer's</em> input.
 Returns a mapping merged on top of <code>request.data</code> before the
 <code>input_serializer</code> validates it — useful for lifting URL kwargs
@@ -2310,7 +2318,12 @@ does the batch. <code>collection_selector_spec</code> is the LIST-kind twin of
 scoped by the selector + <code>filter_set</code>) is seeded into the pool as
 <code>collection</code> for the service to <code>.delete()</code> / <code>.update()</code> / iterate —
 an instance-less "operate on the filtered set" action (bulk delete/update),
-where an empty set is a harmless no-op. Both run all-or-nothing under
+where an empty set is a harmless no-op. Its selector's kwarg pool carries
+the request's query params and body plus the view's URL kwargs, so a
+nested-route bulk (<code>/parents/{parent_pk}/children/</code>) can scope by
+<code>parent_pk</code> — matching <code>instance_selector_spec</code>. Route captures win over
+client query / body on a key conflict, so a filter value can't override the
+route scope. Both run all-or-nothing under
 <code>atomic=True</code>; authorization is per-set (the view / spec
 <code>permission_classes</code> plus the scoped selector), with no per-row check.</p>
 <p><code>kwargs</code> is a callable that returns extra kwargs to merge into the
@@ -2324,6 +2337,24 @@ view's class-level permissions"; an empty sequence means "no permissions"
 explicitly. Forwarded through DRF's <code>@action(permission_classes=...)</code>
 for the <code>@service_action</code> decorator, and surfaced via <code>get_permissions</code>
 for the viewset mixins and standalone views.</p>
+<p><code>response_finalizer</code> is a post-serialization hook for HTTP response side
+effects (cookies, headers, a swapped response). It runs on the <strong>2xx path
+only</strong>, after the output serializer has produced the <code>Response</code> and
+<em>before</em> it is returned (pre-render); error paths bypass it. Invoked through
+the framework keyword pool, it declares any subset of
+<code>response</code> / <code>result</code> / <code>request</code> / <code>view</code> / <code>instance</code> / <code>data</code>
+(or <code>**kwargs</code>) and returns either a <code>Response</code> (which replaces the
+built one) or <code>None</code> (which keeps it) — so <code>lambda *, response:
+response.set_cookie(...) or response</code> attaches a cookie, and returning a
+fresh <code>Response</code> swaps it wholesale. Unlike the service/selector pool it
+<strong>does</strong> receive <code>view</code> (a documented exception — a response decision
+legitimately needs view/request context). <code>result</code> is the <em>service's</em>
+return value (the flags carrier), so the idiomatic pattern keeps services
+DRF-free: the service returns domain flags on its result DTO and the
+finalizer translates flags → transport effects. <strong>HTTP-only:</strong> it is skipped
+on the transport-neutral path (<code>dispatch_spec</code> / <code>call_service</code> / MCP),
+which builds no <code>Response</code>. On the bulk path <code>instance</code> / <code>data</code> are
+absent and <code>result</code> is the dispatched value (post-output-selector).</p>
 
 
 

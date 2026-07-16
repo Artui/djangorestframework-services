@@ -2189,7 +2189,7 @@ the usual DRF <code>AssertionError</code> if neither is set).</p>
 
 <a href="#rest_framework_services.viewsets.decorators.service_action.service_action" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">service_action</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">,</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span> <span class="o">|</span> <span class="n">PolymorphicServiceSpec</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">detail</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">methods</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -2205,9 +2205,14 @@ the usual DRF <code>AssertionError</code> if neither is set).</p>
 <p>The decorated method's body is <em>not</em> executed — the decorator supplies
 the handler. The method exists so that <code>@service_action</code> can attach
 DRF <code>@action</code> metadata and pick up the action name from <code>__name__</code>.</p>
-<p>Pass a :class:<code>ServiceSpec</code> for the service wiring. <code>detail</code>,
+<p>Pass a :class:<code>ServiceSpec</code> (or a :class:<code>PolymorphicServiceSpec</code> for one
+action accepting several payload shapes) for the service wiring. <code>detail</code>,
 <code>methods</code>, <code>url_path</code>, <code>url_name</code>, and any extra <code>**action_kwargs</code>
 are forwarded to DRF's <code>@action</code>.</p>
+<p>For a polymorphic action, per-variant <code>permission_classes</code> are enforced by
+the viewset's <code>get_permissions</code> (the <code>_ActionSpecsMixin</code> reads the
+stashed spec) rather than via DRF's <code>@action(permission_classes=...)</code>,
+since there is no single list to forward.</p>
 
 
     </div>

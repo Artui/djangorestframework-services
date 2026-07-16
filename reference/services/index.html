@@ -2631,8 +2631,9 @@ decorator line by <code>ty</code>. mypy refuses <code>type[Protocol]</code> argu
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ResultT</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">map_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ResultT</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2647,6 +2648,16 @@ omitting them mirrors the create / list call shape. Anything else
 goes into <code>**extras</code> and merges into the pool — the framework's
 standard signature filter (:func:<code>resolve_callable_kwargs</code>) decides
 which keys actually reach the service.</p>
+<p><code>map_errors</code> mirrors what the mutation view layer does with a
+:class:<code>~rest_framework_services.exceptions.service_error.ServiceError</code>.
+By default (<code>False</code>) a raised <code>ServiceError</code> propagates unchanged, so a
+caller that forgets to handle it lets the error surface as a <code>500</code>. Set
+<code>True</code> and a <code>ServiceError</code> is translated to the same DRF exception the
+framework raises on the normal view path — <code>ServiceValidationError</code> →
+<code>ValidationError</code> (400), any other <code>ServiceError</code> → 422 — so DRF's
+exception handler renders it as a proper response. Only meaningful because
+<code>call_service</code> is HTTP-scoped; a non-HTTP caller wants the raw
+<code>ServiceError</code> (hence the <code>False</code> default).</p>
 <p>Async services are bridged transparently via <code>async_to_sync</code>;
 sync services are called inline.</p>
 
@@ -2674,16 +2685,19 @@ sync services are called inline.</p>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ResultT</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">map_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ResultT</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
         <p>Invoke <code>service</code> from async code with the framework's kwargs pool.</p>
-<p>Same contract as :func:<code>call_service</code>. Async services are awaited
-directly; sync services are called inline (no thread hop) — caller is
-responsible for any sync-side I/O safety.</p>
+<p>Same contract as :func:<code>call_service</code>, including <code>map_errors</code>: when
+<code>True</code> a raised <code>ServiceError</code> is translated to the matching DRF
+exception (validation → 400, else 422); <code>False</code> (the default) propagates
+it raw. Async services are awaited directly; sync services are called inline
+(no thread hop) — caller is responsible for any sync-side I/O safety.</p>
 
 
     </div>
