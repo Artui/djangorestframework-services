@@ -14,6 +14,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework.viewsets import GenericViewSet
 
 from rest_framework_services import (
+    PolymorphicServiceSpec,
     SelectorKind,
     SelectorListView,
     SelectorRetrieveView,
@@ -185,6 +186,60 @@ class _ForcedFullUpdateView(ServiceUpdateView):
     )
 
 
+@dataclass
+class _EmailIn:
+    email: str
+
+
+@dataclass
+class _TokenIn:
+    token: str
+
+
+def _create_email(*, data: _EmailIn) -> _AuthorOut:
+    return _AuthorOut(id=1, name=data.email)
+
+
+def _create_token(*, data: _TokenIn) -> _AuthorOut:
+    return _AuthorOut(id=1, name=data.token)
+
+
+_POLY_CREATE = PolymorphicServiceSpec(
+    discriminator=lambda *, data: "email" if "email" in data else "token",
+    specs={
+        "email": ServiceSpec(service=_create_email, input_serializer=_EmailIn),
+        "token": ServiceSpec(service=_create_token, input_serializer=_TokenIn),
+    },
+)
+
+
+class _PolyViewSet(ServiceViewSet):
+    queryset = Author.objects.all()
+    action_specs = {"create": _POLY_CREATE}
+
+
+def _side_effect() -> None: ...
+
+
+_POLY_NO_INPUT = PolymorphicServiceSpec(
+    discriminator=lambda: "a",
+    specs={"a": ServiceSpec(service=_side_effect), "b": ServiceSpec(service=_side_effect)},
+)
+
+
+class _PolyNoInputViewSet(ServiceViewSet):
+    queryset = Author.objects.all()
+    action_specs = {"create": _POLY_NO_INPUT}
+
+
+class _PolyActionViewSet(GenericViewSet):
+    queryset = Author.objects.all()
+
+    @service_action(_POLY_CREATE, detail=False, methods=["post"], url_path="switch")
+    def switch(self, request):  # type: ignore[no-untyped-def]
+        ...
+
+
 # --- filter_set → OpenAPI parameters (parity fixtures) -----------------------
 
 
@@ -254,6 +309,9 @@ class _SpecFilterRetrieveView(SelectorRetrieveView):
 _router = DefaultRouter()
 _router.register("authors", _AuthorViewSet, basename="authors")
 _router.register("approvals", _ApproveViewSet, basename="approvals")
+_router.register("poly", _PolyViewSet, basename="poly")
+_router.register("poly-action", _PolyActionViewSet, basename="poly-action")
+_router.register("poly-noinput", _PolyNoInputViewSet, basename="poly-noinput")
 
 urlpatterns = [
     path("create/", _CreateView.as_view()),
@@ -354,6 +412,34 @@ class TestViewsetSchema:
         op = schema["paths"]["/callable-status-create/"]["post"]
         # The callable can't be resolved statically → the create default stands.
         assert "201" in op["responses"]
+
+    def _poly_request_component(self, schema: dict[str, Any], path: str) -> dict[str, Any]:
+        body = schema["paths"][path]["post"]["requestBody"]["content"]["application/json"]["schema"]
+        # The PolymorphicProxySerializer is registered as a named component; the
+        # request body $refs it and the oneOf lives inside.
+        ref = body["$ref"]
+        return schema["components"]["schemas"][ref.rsplit("/", 1)[1]]
+
+    def test_polymorphic_action_request_body_is_variant_union(self) -> None:
+        schema = _generate()
+        component = self._poly_request_component(schema, "/poly/")
+        # PolymorphicProxySerializer(resource_type_field_name=None) → a oneOf of
+        # the variant input serializers, no discriminator field.
+        assert "oneOf" in component
+        assert len(component["oneOf"]) == 2
+
+    def test_polymorphic_service_action_request_body_is_variant_union(self) -> None:
+        schema = _generate()
+        component = self._poly_request_component(schema, "/poly-action/switch/")
+        assert "oneOf" in component
+        assert len(component["oneOf"]) == 2
+
+    def test_polymorphic_without_variant_input_serializers_falls_back(self) -> None:
+        # No variant declares an input_serializer → no proxy is built and the
+        # base body applies (no request body for a no-input mutation).
+        schema = _generate()
+        op = schema["paths"]["/poly-noinput/"]["post"]
+        assert "requestBody" not in op
 
     def test_list_action_schema_left_alone(self) -> None:
         schema = _generate()

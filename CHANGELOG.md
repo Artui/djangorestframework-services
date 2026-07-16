@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`PolymorphicServiceSpec` — one action, N mutually exclusive payload shapes.**
+  A new spec accepted anywhere a `ServiceSpec` is (an `action_specs` entry and
+  the `spec=` of `@service_action`). It bundles a `discriminator` callable —
+  resolved through the keyword pool `{request, data, user, view}` and returning a
+  variant key — with a `specs` mapping of full `ServiceSpec` variants, each with
+  its own input serializer and service. Dispatch resolves the key (memoized once
+  per request) and proceeds through the chosen spec exactly as today; a rejected
+  payload is the discriminator's to raise on (`ServiceValidationError` → 400).
+  `permission_strategy` (`"union"` default / `"discriminate"` /
+  `"require_identical"`) controls how `get_permissions` treats the variants,
+  since DRF runs permissions before the body is parsed — `"union"` requires the
+  deduplicated union of every variant's `permission_classes` (the conservative
+  default), `"discriminate"` reads the body early and applies only the chosen
+  variant's, `"require_identical"` is validated to require matching classes. The
+  resolved concrete spec flows through the shared action→spec chain, so the
+  chosen variant's serializer context / kwargs / output pipeline all apply.
+  OpenAPI renders the request body as the union of the variant input serializers
+  (`PolymorphicProxySerializer`, `resource_type_field_name=None`).
 - **`ServiceSpec.success_status` may now be a callable.** In addition to an
   `int` or `None`, it accepts a callable resolved through the framework keyword
   pool — declaring any subset of `result` / `instance` / `request` / `view`

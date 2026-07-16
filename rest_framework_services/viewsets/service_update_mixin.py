@@ -45,6 +45,7 @@ class ServiceUpdateMixin(MutationFlowMixin, _ActionSpecsMixin):
             self.action_specs,
             "partial_update" if partial else "update",
             "PATCH" if partial else "PUT",
+            view=self,
         )
         return self._run_mutation(
             request,

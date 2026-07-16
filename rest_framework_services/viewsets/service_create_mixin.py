@@ -27,7 +27,7 @@ class ServiceCreateMixin(MutationFlowMixin, _ActionSpecsMixin):
     """
 
     def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        spec = resolve_action_service_spec(self.action_specs, "create", "POST")
+        spec = resolve_action_service_spec(self.action_specs, "create", "POST", view=self)
         return self._run_mutation(
             request,
             spec,

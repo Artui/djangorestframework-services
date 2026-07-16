@@ -252,6 +252,46 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
 Generic parameters `InputT` / `ResultT` / `ExtraT` default to `Any`, so
 `ServiceSpec(service=fn)` keeps working unparameterized.
 
+### Polymorphic actions
+
+`PolymorphicServiceSpec` expresses a single action that accepts several
+mutually exclusive payload shapes — each with its own input serializer and
+service. A `discriminator` inspects the request and picks a variant key; the
+chosen variant then dispatches exactly like a plain `ServiceSpec`. Usable
+anywhere a `ServiceSpec` is (an `action_specs` entry or `@service_action`).
+
+```python
+def _pick(*, data):
+    if "email" in data:
+        return "email"
+    if "token" in data:
+        return "token"
+    raise ServiceValidationError({"detail": "provide an email or token"})
+
+action_specs = {
+    "create": PolymorphicServiceSpec(
+        discriminator=_pick,                       # pool: {request, data, user, view}
+        specs={
+            "email": ServiceSpec(service=register_by_email, input_serializer=EmailIn),
+            "token": ServiceSpec(service=register_by_token, input_serializer=TokenIn),
+        },
+    ),
+}
+```
+
+- The discriminator is resolved once per request; the chosen variant's
+  serializer context, kwargs, and output pipeline all apply.
+- A rejected payload is the discriminator's to raise on
+  (`ServiceValidationError` → 400).
+- **`permission_strategy`** decides how `get_permissions` treats the variants
+  (DRF runs permissions before the body is parsed): `"union"` (the default)
+  requires the union of every variant's `permission_classes` — the
+  conservative choice; `"discriminate"` reads the body early and applies only
+  the chosen variant's; `"require_identical"` validates that all variants
+  declare the same classes.
+- OpenAPI renders the request body as the union of the variant input
+  serializers.
+
 ### PATCH that validates like PUT
 
 `partial` composes with the `"partial_update"` action key (which resolves

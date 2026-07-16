@@ -8,6 +8,7 @@ from typing import Any, ClassVar
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.exceptions import MethodNotAllowed
 
+from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -15,10 +16,17 @@ from rest_framework_services.views.mutation.mutation_flow_mixin import MutationF
 from rest_framework_services.views.spec_validation import (
     is_overridden,
     validate_filter_set_no_backend_conflict,
+    validate_polymorphic_service_spec,
     validate_selector_spec,
     validate_service_spec,
 )
 from rest_framework_services.views.utils import layer_serializer_context
+from rest_framework_services.viewsets.resolve_polymorphic_service_spec import (
+    resolve_polymorphic_service_spec,
+)
+
+# The three shapes an ``action_specs`` value may take.
+ActionSpec = SelectorSpec | ServiceSpec | PolymorphicServiceSpec
 
 # Per-action context: ``has_instance`` controls signature validation +
 # whether the mutation flow expects a fetched instance from ``get_object()``.
@@ -44,9 +52,9 @@ _ACTION_SPEC_FALLBACKS: dict[str, str] = {
 
 
 def resolve_action_spec_entry(
-    action_specs: Mapping[str, SelectorSpec | ServiceSpec],
+    action_specs: Mapping[str, ActionSpec],
     action: str | None,
-) -> SelectorSpec | ServiceSpec | None:
+) -> ActionSpec | None:
     """Return the ``action_specs`` entry for ``action``, following fallbacks.
 
     The single source of truth for the action→spec-key chain. Every site
@@ -68,21 +76,27 @@ def resolve_action_spec_entry(
 
 
 def resolve_action_service_spec(
-    action_specs: Mapping[str, SelectorSpec | ServiceSpec],
+    action_specs: Mapping[str, ActionSpec],
     action: str,
     method: str,
+    *,
+    view: Any,
 ) -> ServiceSpec[Any, Any, Any]:
     """Pick a :class:`ServiceSpec` from ``action_specs`` for a mutation action.
 
     Follows the :func:`resolve_action_spec_entry` fallback chain
-    (``"partial_update"`` → ``"update"``). Raises :exc:`MethodNotAllowed`
-    when the action is not configured and :exc:`ImproperlyConfigured` when
-    the entry is the wrong spec type. Centralised so all three mutation
-    viewset mixins share one error path.
+    (``"partial_update"`` → ``"update"``). A :class:`PolymorphicServiceSpec`
+    entry is resolved to its chosen variant via the discriminator (memoized on
+    ``view`` for the request). Raises :exc:`MethodNotAllowed` when the action is
+    not configured and :exc:`ImproperlyConfigured` when the entry is the wrong
+    spec type. Centralised so all three mutation viewset mixins share one error
+    path.
     """
     entry = resolve_action_spec_entry(action_specs, action)
     if entry is None:
         raise MethodNotAllowed(method)
+    if isinstance(entry, PolymorphicServiceSpec):
+        return resolve_polymorphic_service_spec(entry, view=view, request=view.request)
     if not isinstance(entry, ServiceSpec):
         raise ImproperlyConfigured(
             f"action_specs[{action!r}] must be a ServiceSpec, got "
@@ -93,7 +107,7 @@ def resolve_action_service_spec(
 
 
 def resolve_action_selector_spec(
-    action_specs: Mapping[str, SelectorSpec | ServiceSpec],
+    action_specs: Mapping[str, ActionSpec],
     action: str,
 ) -> SelectorSpec[Any, Any] | None:
     """Pick a :class:`SelectorSpec` from ``action_specs`` for a read action.
@@ -121,7 +135,17 @@ def resolve_action_selector_spec(
 def _validate_action_spec(view_cls: type, action: str, spec: object) -> None:
     """Run signature validation for a single ``action_specs`` entry."""
     label = f"{view_cls.__name__}.action_specs[{action!r}]"
-    if action in _MUTATION_ACTIONS and isinstance(spec, ServiceSpec):
+    if action in _MUTATION_ACTIONS and isinstance(spec, PolymorphicServiceSpec):
+        permissive = is_overridden(view_cls, MutationFlowMixin, "get_service_kwargs") or hasattr(
+            view_cls, f"get_{action}_service_kwargs"
+        )
+        validate_polymorphic_service_spec(
+            spec,
+            label=label,
+            has_instance=_MUTATION_ACTIONS[action]["has_instance"],
+            permissive_extras=permissive,
+        )
+    elif action in _MUTATION_ACTIONS and isinstance(spec, ServiceSpec):
         permissive = is_overridden(view_cls, MutationFlowMixin, "get_service_kwargs") or hasattr(
             view_cls, f"get_{action}_service_kwargs"
         )
@@ -152,10 +176,13 @@ class _ActionSpecsMixin:
     "no permissions" explicitly.
     """
 
-    action_specs: ClassVar[Mapping[str, SelectorSpec | ServiceSpec]] = {}
+    action_specs: ClassVar[Mapping[str, ActionSpec]] = {}
 
     # Provided by ``GenericAPIView`` at runtime.
     action: str | None
+    # DRF's class-level permission classes, consulted for the ``union`` strategy.
+    permission_classes: Any
+    request: Any
 
     @classmethod
     def as_view(cls, *args: Any, **initkwargs: Any) -> Any:
@@ -195,9 +222,10 @@ class _ActionSpecsMixin:
         """
         base: dict[str, Any] = dict(super().get_serializer_context())  # ty: ignore[unresolved-attribute]
         action: str | None = self.action
-        entry: SelectorSpec | ServiceSpec | None = resolve_action_spec_entry(
-            self.action_specs, action
-        )
+        entry: ActionSpec | None = resolve_action_spec_entry(self.action_specs, action)
+        # Only SelectorSpec entries layer context here; mutations (plain or
+        # polymorphic) apply their chosen variant's context inside
+        # ``dispatch_mutation_for_spec``.
         if not isinstance(entry, SelectorSpec):
             return base
         # Offer the resolved data stashed by the selector list / retrieve
@@ -212,7 +240,7 @@ class _ActionSpecsMixin:
         return layer_serializer_context(
             base,
             self,
-            self.request,  # ty: ignore[unresolved-attribute]
+            self.request,
             direction_hook=None,
             action_hook=f"get_{action}_output_serializer_context",
             spec_provider=entry.output_serializer_context,
@@ -223,9 +251,7 @@ class _ActionSpecsMixin:
         # Resolved through the fallback chain so PATCH (action
         # ``"partial_update"``) enforces an ``"update"``-keyed spec's
         # ``permission_classes`` — the same chain dispatch uses.
-        spec: SelectorSpec | ServiceSpec | None = resolve_action_spec_entry(
-            self.action_specs, self.action
-        )
+        spec: ActionSpec | None = resolve_action_spec_entry(self.action_specs, self.action)
         if spec is None and self.action is not None:
             # Fall back to a spec attached by ``@service_action`` /
             # ``@selector_action`` on the bound handler so decorator-based
@@ -235,6 +261,34 @@ class _ActionSpecsMixin:
             spec = getattr(handler, "_service_spec", None) or getattr(
                 handler, "_selector_spec", None
             )
+        if isinstance(spec, PolymorphicServiceSpec):
+            return self._polymorphic_permissions(spec)
         if spec is not None and spec.permission_classes is not None:
             return [permission() for permission in spec.permission_classes]
         return super().get_permissions()  # ty: ignore[unresolved-attribute]
+
+    def _polymorphic_permissions(self, poly: PolymorphicServiceSpec) -> list[Any]:
+        """Permissions for a polymorphic action, per its ``permission_strategy``.
+
+        ``discriminate`` resolves the chosen variant (reading the raw body) and
+        applies only its permissions; ``union`` / ``require_identical`` apply the
+        deduplicated union of every variant's classes (a variant declaring
+        ``None`` contributes the view's class-level ``permission_classes``).
+        """
+        if poly.permission_strategy == "discriminate":
+            chosen = resolve_polymorphic_service_spec(poly, view=self, request=self.request)
+            if chosen.permission_classes is not None:
+                return [permission() for permission in chosen.permission_classes]
+            return super().get_permissions()  # ty: ignore[unresolved-attribute]
+        # union / require_identical: dedup the classes across variants, preserving
+        # first-seen order. A ``None`` variant inherits the view default classes.
+        classes: dict[type, None] = {}
+        for variant in poly.specs.values():
+            variant_classes = (
+                variant.permission_classes
+                if variant.permission_classes is not None
+                else self.permission_classes
+            )
+            for permission_class in variant_classes:
+                classes.setdefault(permission_class, None)
+        return [permission_class() for permission_class in classes]

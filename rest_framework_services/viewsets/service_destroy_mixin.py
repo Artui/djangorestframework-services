@@ -31,7 +31,7 @@ class ServiceDestroyMixin(MutationFlowMixin, _ActionSpecsMixin):
     get_object: Callable[..., Any]
 
     def destroy(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        spec = resolve_action_service_spec(self.action_specs, "destroy", "DELETE")
+        spec = resolve_action_service_spec(self.action_specs, "destroy", "DELETE", view=self)
         return self._run_mutation(
             request,
             spec,

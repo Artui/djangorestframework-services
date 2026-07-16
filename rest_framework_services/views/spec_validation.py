@@ -24,6 +24,7 @@ from typing import Any
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.permissions import BasePermission
 
+from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -497,6 +498,45 @@ def validate_service_spec(
             spec_kwargs=spec.kwargs,
             input_serializer=spec.input_serializer,
         )
+
+
+def validate_polymorphic_service_spec(
+    poly: PolymorphicServiceSpec,
+    *,
+    label: str,
+    has_instance: bool,
+    permissive_extras: bool,
+) -> None:
+    """Validate every variant of a :class:`PolymorphicServiceSpec` + its strategy.
+
+    Each ``specs`` value must be a :class:`ServiceSpec` (validated with the same
+    ``has_instance`` / ``permissive_extras`` as a plain entry), ``specs`` must be
+    non-empty, and ``permission_strategy='require_identical'`` requires every
+    variant to declare the same ``permission_classes``.
+    """
+    if not poly.specs:
+        raise ImproperlyConfigured(f"{label}: PolymorphicServiceSpec.specs must not be empty.")
+    for key, variant in poly.specs.items():
+        if not isinstance(variant, ServiceSpec):
+            raise ImproperlyConfigured(
+                f"{label}: variant {key!r} must be a ServiceSpec, got {type(variant).__name__}."
+            )
+        validate_service_spec(
+            variant,
+            label=f"{label}[{key!r}]",
+            has_instance=has_instance,
+            permissive_extras=permissive_extras,
+        )
+    if poly.permission_strategy == "require_identical":
+        distinct = {
+            None if v.permission_classes is None else tuple(v.permission_classes)
+            for v in poly.specs.values()
+        }
+        if len(distinct) > 1:
+            raise ImproperlyConfigured(
+                f"{label}: permission_strategy='require_identical' but the variants declare "
+                "different `permission_classes`. Make them identical or use 'union'."
+            )
 
 
 def validate_selector_spec(
