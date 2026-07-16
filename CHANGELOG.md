@@ -34,6 +34,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is already HTTP-scoped). Internally `map_service_error` moved to its own leaf
   module `views/mutation/map_service_error.py` so `call_service` can reuse it
   without importing the heavy mutation-flow module (no public-API change).
+- **`ServiceSpec.response_finalizer`** — a post-serialization hook for HTTP
+  response side effects (cookies, headers, or swapping the response). It runs on
+  the **2xx path only**, after the output serializer has built the `Response`
+  and before it is returned (pre-render); error paths bypass it. Resolved through
+  the framework keyword pool, it declares any subset of `response` / `result` /
+  `request` / `view` / `instance` / `data` (or `**kwargs`) and returns a
+  `Response` (which replaces the built one) or `None` (which keeps it) — so
+  `lambda *, response: response.set_cookie(...) or response` attaches a cookie.
+  `result` is the *service's* return value, so the idiomatic pattern keeps
+  services DRF-free (the service returns domain flags on its result DTO; the
+  finalizer translates flags → transport effects). Applies to both the single
+  and bulk HTTP flows; **skipped on the transport-neutral path**
+  (`dispatch_spec` / `call_service` / MCP), which builds no `Response`. Unlike
+  the service/selector pool it deliberately receives `view`. `@service_action`
+  forwards it automatically.
 
 ### Fixed
 

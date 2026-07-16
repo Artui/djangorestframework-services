@@ -457,3 +457,30 @@ class TestValidateSuccessStatus:
     def test_non_int_non_callable_fails(self) -> None:
         with pytest.raises(ImproperlyConfigured, match="must be an int"):
             self._validate("200")
+
+
+class TestValidateResponseFinalizer:
+    def _validate(self, finalizer: Any) -> None:
+        validate_service_spec(
+            ServiceSpec(service=lambda: None, response_finalizer=finalizer),
+            label="X",
+            has_instance=False,
+            permissive_extras=False,
+        )
+
+    def test_none_passes(self) -> None:
+        self._validate(None)
+
+    def test_callable_with_known_params_passes(self) -> None:
+        self._validate(lambda *, response, result: response)
+
+    def test_callable_with_var_keyword_passes(self) -> None:
+        self._validate(lambda **_: None)
+
+    def test_callable_with_required_unknown_param_fails(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="tenant"):
+            self._validate(lambda *, response, tenant: response)
+
+    def test_non_callable_fails(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="must be a callable"):
+            self._validate("nope")

@@ -137,6 +137,7 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     output_selector_spec: SelectorSpec[Any, Any] | None = None
     kwargs: Callable[..., ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
+    response_finalizer: Callable[..., Response | None] | None = None
 ```
 
 - **`service`** — the callable to invoke.
@@ -227,6 +228,26 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   `permission_classes` for the action the spec backs. `None` (the default)
   inherits; `[]` means "no permissions" explicitly. See the
   [permissions recipe](recipes/permissions.md).
+- **`response_finalizer`** — a post-serialization HTTP hook for cookie /
+  header side effects (or swapping the response). Runs on the **2xx path
+  only**, after the output serializer builds the `Response` and before it is
+  returned; error paths bypass it. Resolved through the keyword pool
+  (`response` / `result` / `request` / `view` / `instance` / `data`), it
+  returns a `Response` to replace the built one, or `None` to keep it:
+
+  ```python
+  def _set_session_cookie(*, response, result):
+      response.set_cookie("session", result.token, httponly=True)
+      return response
+
+  ServiceSpec(service=_login, input_serializer=LoginIn,
+              response_finalizer=_set_session_cookie)
+  ```
+
+  `result` is the *service's* return value, so services stay DRF-free —
+  return domain flags on the result DTO and let the finalizer translate them
+  into transport effects. **HTTP-only**: skipped on the transport-neutral
+  path (`dispatch_spec` / `call_service` / MCP).
 
 Generic parameters `InputT` / `ResultT` / `ExtraT` default to `Any`, so
 `ServiceSpec(service=fn)` keeps working unparameterized.

@@ -386,6 +386,9 @@ def _validate_collection_selector_spec(
 # Keys the status pool offers a ``success_status`` callable.
 _SUCCESS_STATUS_KEYS = frozenset({"result", "instance", "request", "view"})
 
+# Keys the framework offers a ``response_finalizer`` callable.
+_RESPONSE_FINALIZER_KEYS = frozenset({"response", "result", "request", "view", "instance", "data"})
+
 
 def _validate_success_status(
     success_status: int | Callable[..., int] | None, *, label: str
@@ -415,6 +418,32 @@ def _validate_success_status(
         )
 
 
+def _validate_response_finalizer(finalizer: Any, *, label: str) -> None:
+    """Reject a ``response_finalizer`` that isn't a well-formed callable.
+
+    ``None`` is fine; a callable may declare any subset of the finalizer pool
+    (``response`` / ``result`` / ``request`` / ``view`` / ``instance`` /
+    ``data``) or ``**kwargs`` — a required parameter outside that set can never
+    be supplied, so it fails fast here.
+    """
+    if finalizer is None:
+        return
+    if not callable(finalizer):
+        raise ImproperlyConfigured(
+            f"{label}: `response_finalizer` must be a callable returning a Response "
+            f"or None — got {type(finalizer).__name__}."
+        )
+    if _accepts_var_keyword(finalizer):
+        return
+    unknown = set(_required_kw_params(finalizer)) - _RESPONSE_FINALIZER_KEYS
+    if unknown:
+        raise ImproperlyConfigured(
+            f"{label}: `response_finalizer` requires parameter(s) {sorted(unknown)} the "
+            f"framework can't supply — declare only a subset of "
+            f"{sorted(_RESPONSE_FINALIZER_KEYS)} (or `**kwargs`)."
+        )
+
+
 def validate_service_spec(
     spec: ServiceSpec[Any, Any, Any],
     *,
@@ -429,6 +458,7 @@ def validate_service_spec(
     (``False`` for create, ``True`` for update / destroy / detail actions).
     """
     _validate_success_status(spec.success_status, label=label)
+    _validate_response_finalizer(spec.response_finalizer, label=label)
     if spec.many and spec.collection_selector_spec is not None:
         raise ImproperlyConfigured(
             f"{label}: `many` and `collection_selector_spec` are mutually exclusive "
