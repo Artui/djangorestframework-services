@@ -2186,7 +2186,12 @@ surface keep working unchanged. <code>filter_data</code> is the data the FilterS
 reads (a flat <code>{field: value}</code> mapping); it defaults to <code>None</code>, in
 which case the value falls back to <code>request.query_params</code> — the HTTP view
 path. A transport-neutral caller (<code>dispatch_spec</code>) passes its own params
-here, so the FilterSet never reaches into a DRF request it doesn't have.</p>
+here. <code>request</code> is forwarded into the FilterSet when its constructor
+declares it (see :func:<code>_filter_set_accepts_request</code>), so a request-scoped
+<code>FilterSet</code> sees the same <code>self.request</code> it would behind
+<code>DjangoFilterBackend</code> instead of <code>None</code> — real on the HTTP / MCP paths, a
+faithful-<code>user</code> / -<code>query_params</code> synthetic off-HTTP; a bare
+<code>(data, queryset)</code> stand-in that doesn't declare <code>request</code> is unaffected.</p>
 
 
     </div>

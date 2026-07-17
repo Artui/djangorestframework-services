@@ -2141,10 +2141,18 @@ default — see below.</p>
   :class:<code>~django_filters.rest_framework.DjangoFilterBackend</code> applies
   view-side, so on the list path it <strong>replaces</strong> that backend rather than
   stacking with it — wiring both for one action raises at <code>as_view()</code>.
-  <code>None</code> (the default) applies no filtering. Reach for <code>filter_set</code>
-  only when the selector returns a QuerySet; when it returns an
-  aggregate / computed object the <code>?param</code> values are computation
-  inputs — use <code>kwargs</code> / <code>get_selector_kwargs()</code> instead.</p>
+  The dispatcher also forwards the <code>request</code> into the FilterSet when its
+  constructor declares one (as <code>django-filter</code>'s does), so a request-scoped
+  FilterSet — <code>self.request.user</code> scoping, a request-aware
+  <code>ModelChoiceFilter</code> <code>queryset</code> — sees the same <code>self.request</code> it would
+  behind <code>DjangoFilterBackend</code> rather than <code>None</code>. That request is real on
+  the HTTP / MCP paths and a synthetic off-HTTP one whose <code>user</code> and
+  <code>query_params</code> are faithful (headers / session are best-effort there); a
+  bare <code>(data, queryset)</code> stand-in never receives it. <code>None</code> (the default)
+  applies no filtering. Reach for <code>filter_set</code> only when the selector returns
+  a QuerySet; when it returns an aggregate / computed object the <code>?param</code>
+  values are computation inputs — use <code>kwargs</code> / <code>get_selector_kwargs()</code>
+  instead.</p>
 <p>All five shaping fields (<code>select_related</code> / <code>prefetch_related</code> /
 <code>annotations</code> / <code>extend_queryset</code> / <code>filter_set</code>) require
 <code>selector</code> to be set and the selector to return a Django

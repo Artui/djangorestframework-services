@@ -851,6 +851,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-request-inside-a-filter_set" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The request inside a filter_set
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#openapi-schema" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1453,6 +1464,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-request-inside-a-filter_set" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The request inside a filter_set
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#openapi-schema" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1617,10 +1639,11 @@ the selector returns a queryset and <code>filter_set</code> narrows it before <c
 <p><code>GET /latest-post/?published=true</code> returns the most recent <em>published</em> post.</p>
 <h2 id="filter_set-replaces-djangofilterbackend-on-the-list-path"><code>filter_set</code> replaces <code>DjangoFilterBackend</code> on the list path<a class="headerlink" href="#filter_set-replaces-djangofilterbackend-on-the-list-path" title="Permanent link">&para;</a></h2>
 <p>On the <strong>list</strong> path DRF's <code>list()</code> already runs <code>filter_queryset()</code> over the
-view's <code>filter_backends</code>. <code>DjangoFilterBackend</code> does exactly
-<code>filterset_class(query_params, queryset, request).qs</code> — the same thing
-<code>filter_set</code> does — so wiring <strong>both</strong> for one action would filter the queryset
-twice.</p>
+view's <code>filter_backends</code>. <code>DjangoFilterBackend</code> does
+<code>filterset_class(query_params, queryset, request=request).qs</code> — the same thing
+<code>filter_set</code> does, down to passing the <code>request</code> when the FilterSet accepts one
+(see <a href="#the-request-inside-a-filter_set">The request inside a <code>filter_set</code></a>) — so
+wiring <strong>both</strong> for one action would filter the queryset twice.</p>
 <p>The rule: <strong><code>filter_set</code> replaces <code>DjangoFilterBackend</code>.</strong> If you set <code>filter_set</code>,
 don't also list <code>DjangoFilterBackend</code> in that view's <code>filter_backends</code>. The library
 enforces it — a list selector spec that carries <code>filter_set</code> while the view also
@@ -1637,6 +1660,62 @@ wires <code>DjangoFilterBackend</code> raises <code>ImproperlyConfigured</code> 
 </span></code></pre></div>
 <p>Retrieve has no such conflict: the selector retrieve path overrides <code>get_object()</code>
 and never calls <code>filter_queryset</code>, so <code>filter_set</code> is the only filter applied.</p>
+<h2 id="the-request-inside-a-filter_set">The request inside a <code>filter_set</code><a class="headerlink" href="#the-request-inside-a-filter_set" title="Permanent link">&para;</a></h2>
+<p>A <code>django-filter</code> <code>FilterSet</code> can reach into <code>self.request</code> — to scope by the
+caller (<code>self.request.user</code>), to build a request-aware choice queryset
+(<code>ModelChoiceFilter(queryset=lambda request: …)</code>), or in an <code>__init__</code> / <code>qs</code>
+override. <code>DjangoFilterBackend</code> fills <code>self.request</code> view-side; <strong><code>filter_set</code>
+fills it too.</strong> The dispatcher forwards the request into the FilterSet whenever its
+constructor declares one (<code>django-filter</code>'s <code>__init__</code> does), so a request-scoped
+FilterSet behaves the same on a spec as behind the backend, instead of seeing
+<code>self.request is None</code> and raising <code>AttributeError</code> (a 500). A bare
+<code>(data, queryset)</code> duck-typed stand-in that doesn't declare <code>request</code> is called
+exactly as before — nothing is forced on it.</p>
+<p>Forwarding is safe on every transport because the request is <em>always present</em> at
+the point filtering runs — it's the same object <code>extend_queryset</code> already receives
+— and its fidelity is well-defined:</p>
+<table>
+<thead>
+<tr>
+<th>Transport</th>
+<th><code>self.request</code></th>
+<th><code>.user</code> / <code>.query_params</code></th>
+<th>headers · session · <code>META</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HTTP view</td>
+<td>live DRF request</td>
+<td>real</td>
+<td>real</td>
+</tr>
+<tr>
+<td>MCP server</td>
+<td>live DRF request (wraps the real Django request)</td>
+<td>real</td>
+<td>real</td>
+</tr>
+<tr>
+<td>Pydantic-AI · AG-UI</td>
+<td>synthetic off-HTTP request</td>
+<td><strong>faithful</strong></td>
+<td>best-effort (usually empty)</td>
+</tr>
+</tbody>
+</table>
+<p>So <code>self.request.user</code> scoping and <code>?param</code> reads work identically everywhere; only
+deep HTTP attributes (headers, session, <code>COOKIES</code>) degrade off-HTTP — and they
+degrade there for <em>every</em> hook that reads the request (<code>extend_queryset</code>, context
+providers), not just filters. Keep a FilterSet meant to run on more than one
+transport to <code>user</code> / <code>query_params</code>; reach for headers or session only in a
+FilterSet you know is HTTP-only.</p>
+<p>Why forward at all, rather than keep filters request-free? Because the request is
+already threaded to every other queryset-shaping hook, so withholding it from
+<code>filter_set</code> alone was the inconsistency — it made a FilterSet that worked behind
+<code>DjangoFilterBackend</code> fail once moved onto a spec. Forwarding closes that gap while
+the signature gate preserves the transport-neutral <code>(data, queryset) -&gt; .qs</code>
+contract for stand-ins that want nothing to do with a request.</p>
 <h2 id="openapi-schema">OpenAPI schema<a class="headerlink" href="#openapi-schema" title="Permanent link">&para;</a></h2>
 <p>With the <a href="../../openapi/">OpenAPI integration</a> enabled (<code>enable_openapi()</code> +
 drf-spectacular), a spec-level <code>filter_set</code> documents the <strong>same</strong> query
