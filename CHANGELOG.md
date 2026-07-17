@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.1] — 2026-07-17
+
 ### Fixed
 
 - **`SelectorSpec.filter_set` now receives the `request`, matching
@@ -1338,7 +1340,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.25.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.25.1...HEAD
+[0.25.1]: https://github.com/Artui/djangorestframework-services/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/Artui/djangorestframework-services/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/Artui/djangorestframework-services/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/Artui/djangorestframework-services/compare/v0.23.0...v0.24.0
