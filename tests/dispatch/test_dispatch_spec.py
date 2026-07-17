@@ -16,6 +16,7 @@ from rest_framework_services import (
     SelectorSpec,
     ServiceError,
     ServiceSpec,
+    build_offline_context,
     dispatch_spec,
     render_spec_output,
 )
@@ -84,6 +85,32 @@ class TestDispatchSelector:
         assert result.status == 200
         rendered = render_spec_output(spec, result.value, many=True)
         assert [row["title"] for row in rendered] == ["shipped"]
+
+    def test_forwards_request_to_request_scoped_filter_set(self) -> None:
+        """An off-HTTP caller that builds an offline context (as the MCP /
+        Pydantic-AI bridges do) has its synthetic request forwarded into the
+        FilterSet, so a request-scoped filter sees the acting user (``.user``)
+        rather than ``None`` — the seam works transport-neutrally, not only on
+        HTTP."""
+        captured: dict[str, Any] = {}
+
+        class _RequestAwareFilterSet:
+            def __init__(self, *, data: Any, queryset: QuerySet[Post], request: Any = None) -> None:
+                captured["request"] = request
+                self._queryset = queryset
+
+            @property
+            def qs(self) -> QuerySet[Post]:
+                return self._queryset
+
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST, selector=_all_posts, filter_set=_RequestAwareFilterSet
+        )
+        context = build_offline_context("ada", {})
+        dispatch_spec(spec, user="ada", params={}, request=context.request, view=context.view)
+
+        assert captured["request"] is context.request
+        assert captured["request"].user == "ada"
 
     def test_retrieve_found(self) -> None:
         post = Post.objects.create(title="p")

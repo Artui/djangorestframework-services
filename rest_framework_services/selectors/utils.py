@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -88,7 +89,12 @@ def apply_queryset_shaping(
     reads (a flat ``{field: value}`` mapping); it defaults to ``None``, in
     which case the value falls back to ``request.query_params`` — the HTTP view
     path. A transport-neutral caller (``dispatch_spec``) passes its own params
-    here, so the FilterSet never reaches into a DRF request it doesn't have.
+    here. ``request`` is forwarded into the FilterSet when its constructor
+    declares it (see :func:`_filter_set_accepts_request`), so a request-scoped
+    ``FilterSet`` sees the same ``self.request`` it would behind
+    ``DjangoFilterBackend`` instead of ``None`` — real on the HTTP / MCP paths, a
+    faithful-``user`` / -``query_params`` synthetic off-HTTP; a bare
+    ``(data, queryset)`` stand-in that doesn't declare ``request`` is unaffected.
     """
     if (
         select_related is None
@@ -115,7 +121,10 @@ def apply_queryset_shaping(
         qs = extend_queryset(qs, view, request)
     if filter_set is not None:
         data = filter_data if filter_data is not None else request.query_params
-        bound = filter_set(data=data, queryset=qs)
+        call_kwargs: dict[str, Any] = {"data": data, "queryset": qs}
+        if _filter_set_accepts_request(filter_set):
+            call_kwargs["request"] = request
+        bound = filter_set(**call_kwargs)
         _raise_on_invalid_filter(bound)
         qs = bound.qs
     return qs
@@ -143,6 +152,44 @@ def _raise_on_invalid_filter(filterset: Any) -> None:
     is_valid = getattr(filterset, "is_valid", None)
     if is_valid is not None and not is_valid():
         raise ValidationError(filterset.errors)
+
+
+def _filter_set_accepts_request(filter_set: Any) -> bool:
+    """True when ``filter_set``'s constructor declares a ``request`` parameter.
+
+    ``filter_set`` is applied by duck typing — the blessed contract is only
+    ``(data, queryset) -> .qs`` (so ``types/`` and the package import nothing). A
+    ``django-filter`` ``FilterSet`` *also* takes ``request`` on its constructor
+    (``def __init__(self, data=None, queryset=None, *, request=None, prefix=None)``)
+    and exposes it as ``self.request`` — the seam ``DjangoFilterBackend`` fills
+    view-side, and the one that request-scoped filters read: ``self.request.user``
+    scoping, a ``ModelChoiceFilter(queryset=lambda request: …)``, an ``__init__`` /
+    ``qs`` override. We forward the request into that seam **only when the
+    constructor declares it**, so those FilterSets behave the same on a spec as
+    behind ``DjangoFilterBackend`` instead of hitting ``self.request is None`` (an
+    ``AttributeError`` → 500); a bare ``(data, queryset)`` stand-in that never
+    declares ``request`` is called exactly as before.
+
+    Forwarding is sound on every transport, and is *not* a coupling this hook
+    invents: ``request`` is always present at the shaping call site — the same
+    object ``extend_queryset`` receives one branch above — real on the HTTP / MCP
+    paths, and a synthetic ``build_offline_context`` request off-HTTP where
+    ``.user`` and ``.query_params`` are faithful (deeper HTTP attributes — headers,
+    ``META``, session — are best-effort there, exactly as they already are for
+    ``extend_queryset`` and every context provider that reads the offline request).
+
+    Detected via :func:`inspect.signature`, which resolves a class to its
+    ``__init__``: a declared ``request`` (positional-or-keyword or keyword-only)
+    parameter counts, as does a ``**kwargs`` catch-all.
+    """
+    parameters = inspect.signature(filter_set).parameters.values()
+    if any(param.kind is inspect.Parameter.VAR_KEYWORD for param in parameters):
+        return True
+    return any(
+        param.name == "request"
+        and param.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+        for param in parameters
+    )
 
 
 def dispatch_selector_for_spec(

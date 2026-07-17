@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`SelectorSpec.filter_set` now receives the `request`, matching
+  `DjangoFilterBackend`.** A `django-filter` `FilterSet` used as `filter_set` was
+  constructed `filter_set(data=…, queryset=…)` with no `request`, so any FilterSet
+  that read `self.request` — caller scoping via `self.request.user`, a request-aware
+  `ModelChoiceFilter(queryset=lambda request: …)`, an `__init__` / `qs` override —
+  saw `self.request is None` and raised `AttributeError` (a 500) once moved off a
+  view's `DjangoFilterBackend` onto a spec. The dispatcher now forwards the
+  `request` into the FilterSet whenever its constructor declares one
+  (signature-gated, so the bare `(data, queryset) -> .qs` duck-typed contract is
+  untouched). The request is the same object every other queryset-shaping hook
+  already receives — real on the HTTP / MCP paths, a synthetic off-HTTP one whose
+  `user` and `query_params` are faithful. See `docs/recipes/selector-filtering.md`.
+
 ## [0.25.0] — 2026-07-16
 
 ### Added
