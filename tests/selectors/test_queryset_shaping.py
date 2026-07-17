@@ -7,11 +7,12 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from django.contrib.auth.models import User
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Count, QuerySet
 from django.db.models.query import Prefetch
 from rest_framework import serializers
-from rest_framework.test import APIRequestFactory
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from rest_framework_services import (
     SelectorKind,
@@ -112,6 +113,24 @@ class _ValidatingFilterSet:
         if self._raw is None:
             return self._queryset
         return self._queryset.filter(title=self._raw)
+
+
+class _OwnerScopedFilterSet:
+    """Request-scoped FilterSet stand-in: narrows by ``self.request.user`` the way a
+    FilterSet migrated off ``DjangoFilterBackend`` would.
+
+    It declares ``request`` on its constructor, so the dispatcher forwards the live
+    request into it. Under the old ``filter_set(data, queryset)`` call it would read
+    ``self.request`` as ``None`` and raise ``AttributeError`` (a 500).
+    """
+
+    def __init__(self, *, data: Any, queryset: QuerySet[Post], request: Any = None) -> None:
+        self._queryset = queryset
+        self.request = request
+
+    @property
+    def qs(self) -> QuerySet[Post]:
+        return self._queryset.filter(author__name=self.request.user.username)
 
 
 @pytest.mark.django_db
@@ -396,6 +415,28 @@ class TestFilterSet:
         # No param -> the FilterSet is a no-op, so every row comes back.
         unfiltered = _View.as_view()(factory.get("/"))
         assert {row["title"] for row in unfiltered.data} == {"shipped", "draft"}
+
+    def test_request_forwarded_to_request_scoped_filter_set(self) -> None:
+        """A FilterSet that reads ``self.request`` is handed the live request, so it
+        scopes by the caller instead of raising ``AttributeError`` on ``None`` — the
+        behaviour a FilterSet keeps when moved off ``DjangoFilterBackend``."""
+        ada = Author.objects.create(name="ada")
+        bea = Author.objects.create(name="bea")
+        Post.objects.create(title="ada-post", author=ada)
+        Post.objects.create(title="bea-post", author=bea)
+
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=_all_posts,
+                output_serializer=_PostWithAuthorSerializer,
+                filter_set=_OwnerScopedFilterSet,
+            )
+
+        request = factory.get("/")
+        force_authenticate(request, user=User.objects.create(username="ada"))
+        response = _View.as_view()(request)
+        assert [row["title"] for row in response.data] == ["ada-post"]
 
     def test_applied_before_first_on_retrieve(self) -> None:
         author = Author.objects.create(name="Ada")

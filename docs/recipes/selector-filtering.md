@@ -145,10 +145,11 @@ class LatestPostView(SelectorRetrieveView):
 ## `filter_set` replaces `DjangoFilterBackend` on the list path
 
 On the **list** path DRF's `list()` already runs `filter_queryset()` over the
-view's `filter_backends`. `DjangoFilterBackend` does exactly
-`filterset_class(query_params, queryset, request).qs` — the same thing
-`filter_set` does — so wiring **both** for one action would filter the queryset
-twice.
+view's `filter_backends`. `DjangoFilterBackend` does
+`filterset_class(query_params, queryset, request=request).qs` — the same thing
+`filter_set` does, down to passing the `request` when the FilterSet accepts one
+(see [The request inside a `filter_set`](#the-request-inside-a-filter_set)) — so
+wiring **both** for one action would filter the queryset twice.
 
 The rule: **`filter_set` replaces `DjangoFilterBackend`.** If you set `filter_set`,
 don't also list `DjangoFilterBackend` in that view's `filter_backends`. The library
@@ -169,6 +170,43 @@ class PostViewSet(SelectorViewSet):
 
 Retrieve has no such conflict: the selector retrieve path overrides `get_object()`
 and never calls `filter_queryset`, so `filter_set` is the only filter applied.
+
+## The request inside a `filter_set`
+
+A `django-filter` `FilterSet` can reach into `self.request` — to scope by the
+caller (`self.request.user`), to build a request-aware choice queryset
+(`ModelChoiceFilter(queryset=lambda request: …)`), or in an `__init__` / `qs`
+override. `DjangoFilterBackend` fills `self.request` view-side; **`filter_set`
+fills it too.** The dispatcher forwards the request into the FilterSet whenever its
+constructor declares one (`django-filter`'s `__init__` does), so a request-scoped
+FilterSet behaves the same on a spec as behind the backend, instead of seeing
+`self.request is None` and raising `AttributeError` (a 500). A bare
+`(data, queryset)` duck-typed stand-in that doesn't declare `request` is called
+exactly as before — nothing is forced on it.
+
+Forwarding is safe on every transport because the request is *always present* at
+the point filtering runs — it's the same object `extend_queryset` already receives
+— and its fidelity is well-defined:
+
+| Transport | `self.request` | `.user` / `.query_params` | headers · session · `META` |
+| --- | --- | --- | --- |
+| HTTP view | live DRF request | real | real |
+| MCP server | live DRF request (wraps the real Django request) | real | real |
+| Pydantic-AI · AG-UI | synthetic off-HTTP request | **faithful** | best-effort (usually empty) |
+
+So `self.request.user` scoping and `?param` reads work identically everywhere; only
+deep HTTP attributes (headers, session, `COOKIES`) degrade off-HTTP — and they
+degrade there for *every* hook that reads the request (`extend_queryset`, context
+providers), not just filters. Keep a FilterSet meant to run on more than one
+transport to `user` / `query_params`; reach for headers or session only in a
+FilterSet you know is HTTP-only.
+
+Why forward at all, rather than keep filters request-free? Because the request is
+already threaded to every other queryset-shaping hook, so withholding it from
+`filter_set` alone was the inconsistency — it made a FilterSet that worked behind
+`DjangoFilterBackend` fail once moved onto a spec. Forwarding closes that gap while
+the signature gate preserves the transport-neutral `(data, queryset) -> .qs`
+contract for stand-ins that want nothing to do with a request.
 
 ## OpenAPI schema
 

@@ -130,10 +130,18 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
       :class:`~django_filters.rest_framework.DjangoFilterBackend` applies
       view-side, so on the list path it **replaces** that backend rather than
       stacking with it — wiring both for one action raises at ``as_view()``.
-      ``None`` (the default) applies no filtering. Reach for ``filter_set``
-      only when the selector returns a QuerySet; when it returns an
-      aggregate / computed object the ``?param`` values are computation
-      inputs — use ``kwargs`` / ``get_selector_kwargs()`` instead.
+      The dispatcher also forwards the ``request`` into the FilterSet when its
+      constructor declares one (as ``django-filter``'s does), so a request-scoped
+      FilterSet — ``self.request.user`` scoping, a request-aware
+      ``ModelChoiceFilter`` ``queryset`` — sees the same ``self.request`` it would
+      behind ``DjangoFilterBackend`` rather than ``None``. That request is real on
+      the HTTP / MCP paths and a synthetic off-HTTP one whose ``user`` and
+      ``query_params`` are faithful (headers / session are best-effort there); a
+      bare ``(data, queryset)`` stand-in never receives it. ``None`` (the default)
+      applies no filtering. Reach for ``filter_set`` only when the selector returns
+      a QuerySet; when it returns an aggregate / computed object the ``?param``
+      values are computation inputs — use ``kwargs`` / ``get_selector_kwargs()``
+      instead.
 
     All five shaping fields (``select_related`` / ``prefetch_related`` /
     ``annotations`` / ``extend_queryset`` / ``filter_set``) require

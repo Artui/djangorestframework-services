@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.1] — 2026-07-17
+
+### Fixed
+
+- **`SelectorSpec.filter_set` now receives the `request`, matching
+  `DjangoFilterBackend`.** A `django-filter` `FilterSet` used as `filter_set` was
+  constructed `filter_set(data=…, queryset=…)` with no `request`, so any FilterSet
+  that read `self.request` — caller scoping via `self.request.user`, a request-aware
+  `ModelChoiceFilter(queryset=lambda request: …)`, an `__init__` / `qs` override —
+  saw `self.request is None` and raised `AttributeError` (a 500) once moved off a
+  view's `DjangoFilterBackend` onto a spec. The dispatcher now forwards the
+  `request` into the FilterSet whenever its constructor declares one
+  (signature-gated, so the bare `(data, queryset) -> .qs` duck-typed contract is
+  untouched). The request is the same object every other queryset-shaping hook
+  already receives — real on the HTTP / MCP paths, a synthetic off-HTTP one whose
+  `user` and `query_params` are faithful. See `docs/recipes/selector-filtering.md`.
+
 ## [0.25.0] — 2026-07-16
 
 ### Added
@@ -1323,7 +1340,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.25.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.25.1...HEAD
+[0.25.1]: https://github.com/Artui/djangorestframework-services/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/Artui/djangorestframework-services/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/Artui/djangorestframework-services/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/Artui/djangorestframework-services/compare/v0.23.0...v0.24.0
