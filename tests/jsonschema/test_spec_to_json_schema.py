@@ -6,6 +6,7 @@ import dataclasses
 
 import django_filters
 from rest_framework import serializers
+from typing_extensions import NotRequired, TypedDict, Unpack
 
 from rest_framework_services.jsonschema.spec_to_json_schema import spec_to_json_schema
 from rest_framework_services.types.selector_kind import SelectorKind
@@ -89,6 +90,25 @@ def test_selector_input_with_unresolvable_annotation_stays_untyped() -> None:
 
     spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_sel)
     assert spec_to_json_schema(spec) == {"type": "object", "properties": {"pk": {}}}
+
+
+class _NestedRouteExtras(TypedDict):  # total=True
+    parent_pk: int  # a required route capture
+    label: NotRequired[str]
+
+
+def test_selector_input_expands_unpack_extras_with_required() -> None:
+    # A nested-route selector reading URL kwargs from ``**extras`` now advertises
+    # them (``parent_pk`` required, ``label`` optional) instead of a hidden
+    # KeyError; the inherited ``request`` / ``user`` seeds stay excluded.
+    def _sel(user, request, **extras: Unpack[_NestedRouteExtras]): ...
+
+    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_sel)
+    assert spec_to_json_schema(spec) == {
+        "type": "object",
+        "properties": {"parent_pk": {"type": "integer"}, "label": {"type": "string"}},
+        "required": ["parent_pk"],
+    }
 
 
 def test_selector_input_merges_callable_params_and_filter_set() -> None:

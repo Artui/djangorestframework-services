@@ -52,6 +52,14 @@ def build_offline_context(
       no behaviour change. When both ``query_params`` and ``http_request`` are
       given, this **replaces** the wrapped request's ``GET``.
     - ``action`` / ``kwargs`` populate the :class:`OfflineServiceView`.
+      ``kwargs`` is the off-HTTP counterpart of a view's URL captures (the
+      ``parent_pk`` of a nested route): it is **the** channel for route-derived
+      values, and :func:`dispatch_spec` spreads it into the selector / target
+      pools exactly where the HTTP path spreads ``extra_url_kwargs=view.kwargs``
+      — authoritative over ``params`` on a key conflict, below a ``spec.kwargs``
+      provider. A ``spec.kwargs`` provider that reads ``view.kwargs`` (e.g. to
+      scope by tenant) also sees it here. Pass every route capture a spec depends
+      on; it defaults to ``{}`` (no URL context).
     """
     base: HttpRequest = http_request if http_request is not None else HttpRequest()
     base.method = "POST"

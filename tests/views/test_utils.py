@@ -7,6 +7,7 @@ from typing import Any
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
+from rest_framework_services.types.unset import UNSET
 from rest_framework_services.views.utils import (
     resolve_callable_kwargs,
     resolve_extra_kwargs,
@@ -154,6 +155,22 @@ class TestResolveExtraKwargs:
         )
         assert captured["view"] is view
         assert captured["request"] is request
+
+    def test_provider_declines_a_key_with_unset(self) -> None:
+        # A provider returning ``UNSET`` for a key is declining it — the key is
+        # dropped, so an earlier layer's real value survives instead of being
+        # overwritten by a sentinel.
+        def provider(**_: Any) -> dict[str, Any]:
+            return {"shared": UNSET, "kept": "value"}
+
+        result = resolve_extra_kwargs(
+            _ViewWithCatchAll(),
+            _request(),
+            spec_kwargs=provider,
+            action_hook=None,
+            catch_all_hook="get_service_kwargs",
+        )
+        assert result == {"a": "catch", "shared": "catch", "kept": "value"}
 
 
 class _ViewWithInputCatchAll:

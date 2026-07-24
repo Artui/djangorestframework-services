@@ -8,12 +8,13 @@ from decimal import Decimal
 from typing import Any
 
 from rest_framework import serializers
+from typing_extensions import NotRequired, Required, TypedDict, Unpack
 
 from rest_framework_services.jsonschema.utils import (
     _python_type_to_schema,
     apply_field_override,
     apply_serializer_overrides,
-    callable_input_properties,
+    callable_input_schema,
     dataclass_to_schema,
     field_to_schema,
     serializer_to_schema,
@@ -294,29 +295,67 @@ def test_registry_python_type_rule_flows_through_dataclass_walk() -> None:
     }
 
 
-# --- callable_input_properties -----------------------------------------------
+# --- callable_input_schema ---------------------------------------------------
 
 
-def test_callable_input_properties_maps_annotations_and_skips_names() -> None:
+def test_callable_input_schema_maps_annotations_and_skips_names() -> None:
     def selector(user, request, pk: int, name: str): ...
 
-    props = callable_input_properties(selector, skip=frozenset({"user", "request"}))
+    props, required = callable_input_schema(selector, skip=frozenset({"user", "request"}))
     assert props == {"pk": {"type": "integer"}, "name": {"type": "string"}}
+    assert required == []
 
 
-def test_callable_input_properties_surfaces_unannotated_param_untyped() -> None:
+def test_callable_input_schema_surfaces_unannotated_param_untyped() -> None:
     def selector(pk): ...
 
-    assert callable_input_properties(selector) == {"pk": {}}
+    assert callable_input_schema(selector) == ({"pk": {}}, [])
 
 
-def test_callable_input_properties_skips_var_positional_and_keyword() -> None:
+def test_callable_input_schema_skips_var_positional_and_bare_var_keyword() -> None:
     def selector(pk: int, *args, **kwargs): ...
 
-    assert callable_input_properties(selector) == {"pk": {"type": "integer"}}
+    assert callable_input_schema(selector) == ({"pk": {"type": "integer"}}, [])
 
 
-def test_callable_input_properties_untyped_on_unresolvable_annotation() -> None:
+def test_callable_input_schema_untyped_on_unresolvable_annotation() -> None:
     def selector(pk: Ghost): ...  # noqa: F821 — deliberately unresolvable forward ref
 
-    assert callable_input_properties(selector) == {"pk": {}}
+    assert callable_input_schema(selector) == ({"pk": {}}, [])
+
+
+class _ChildExtras(TypedDict, total=False):
+    parent_pk: int
+    label: str
+
+
+def test_callable_input_schema_expands_unpack_typed_dict_optional_keys() -> None:
+    def selector(user, **extras: Unpack[_ChildExtras]): ...
+
+    props, required = callable_input_schema(selector, skip=frozenset({"user"}))
+    assert props == {"parent_pk": {"type": "integer"}, "label": {"type": "string"}}
+    assert required == []  # total=False → every key optional
+
+
+class _ScopedExtras(TypedDict):
+    project_pk: int  # required (total=True)
+    note: NotRequired[str]  # opted out, even under PEP 563 stringization
+    user: Required[int]  # required but skipped as a reserved seed
+
+
+def test_callable_input_schema_unpack_required_keys_and_reserved_exclusion() -> None:
+    def selector(**extras: Unpack[_ScopedExtras]): ...
+
+    props, required = callable_input_schema(selector, skip=frozenset({"user", "request"}))
+    assert props == {"project_pk": {"type": "integer"}, "note": {"type": "string"}}
+    # ``project_pk`` is required; ``note`` is NotRequired; ``user`` is skipped
+    # entirely (reserved) so it never appears in properties *or* required.
+    assert required == ["project_pk"]
+
+
+def test_callable_input_schema_bare_var_keyword_reflects_nothing() -> None:
+    def selector(pk: int, **extras: Any): ...
+
+    props, required = callable_input_schema(selector)
+    assert props == {"pk": {"type": "integer"}}
+    assert required == []

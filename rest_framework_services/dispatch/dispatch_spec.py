@@ -23,6 +23,7 @@ from rest_framework_services.dispatch.utils import (
     resolve_unknown_arguments,
     service_input,
     shape_queryset,
+    view_url_kwargs,
 )
 from rest_framework_services.selectors.utils import is_queryset, run_selector
 from rest_framework_services.services.run_service import run_service
@@ -71,7 +72,12 @@ def dispatch_spec(
 
     ``request`` / ``view`` are optional and only forwarded to user callables
     that declare them (``extend_queryset``, the context providers, ``kwargs``);
-    a pure non-HTTP caller passes neither. ``success_status`` overrides the
+    a pure non-HTTP caller passes neither. The ``view``'s ``kwargs`` (a route's
+    captures, seeded by ``build_offline_context(kwargs=…)``) are additionally
+    **spread into the selector / target pools** — the off-HTTP counterpart of the
+    HTTP ``extra_url_kwargs=view.kwargs``, authoritative over ``params`` on a
+    conflict, below the ``spec.kwargs`` provider — so a selector reading a URL
+    kwarg from its extras works off-HTTP. ``success_status`` overrides the
     mutation status hint (else ``spec.success_status`` or ``200``).
 
     Three caller-side policies tune how the wire maps onto the spec; the
@@ -151,6 +157,7 @@ def _dispatch_selector(
         binding=binding,
         spread_source=params,
         provider_kwargs=resolve_provider(spec.kwargs, {"view": view, "request": request}),
+        url_kwargs=view_url_kwargs(view),
     )
     try:
         result: Any = run_selector(spec.selector, resolve_callable_kwargs(spec.selector, pool))
@@ -349,7 +356,11 @@ def _resolve_collection(
         raise ImproperlyConfigured(
             "collection_selector_spec requires a `selector` resolving the target set."
         )
-    pool: dict[str, Any] = {**base_pool(user=user, request=request), **params}
+    pool: dict[str, Any] = {
+        **base_pool(user=user, request=request),
+        **params,
+        **view_url_kwargs(view),
+    }
     pool.update(resolve_provider(coll_spec.kwargs, {"view": view, "request": request}))
     result: Any = run_selector(
         coll_spec.selector, resolve_callable_kwargs(coll_spec.selector, pool)
@@ -415,7 +426,11 @@ def _resolve_instance(
     instance_spec = spec.instance_selector_spec
     if instance_spec is None or instance_spec.selector is None:
         return (True, None)
-    pool: dict[str, Any] = {**base_pool(user=user, request=request), **params}
+    pool: dict[str, Any] = {
+        **base_pool(user=user, request=request),
+        **params,
+        **view_url_kwargs(view),
+    }
     pool.update(resolve_provider(instance_spec.kwargs, {"view": view, "request": request}))
     try:
         result: Any = run_selector(

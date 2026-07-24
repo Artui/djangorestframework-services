@@ -22,6 +22,8 @@ from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
 )
+from rest_framework_services.types.typed_dict_input import typed_dict_input
+from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
 
 # Map DRF field types to JSON Schema fragments. Order matters: more specific
 # subclasses (BooleanField, IntegerField) must come before broader ones
@@ -145,38 +147,80 @@ def _python_type_to_schema(
     return {}
 
 
-def callable_input_properties(
+def callable_input_schema(
     fn: Any,
     *,
     skip: frozenset[str] = frozenset(),
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
-) -> dict[str, Any]:
-    """JSON Schema ``properties`` for a callable's declared parameters.
+) -> tuple[dict[str, Any], list[str]]:
+    """JSON Schema ``(properties, required)`` for a callable's declared inputs.
 
-    Each parameter becomes one property: its annotation maps to a JSON type via
-    :func:`_python_type_to_schema` (resolved through :func:`typing.get_type_hints`
-    so string annotations under ``from __future__ import annotations`` work). An
-    **un**-annotated (or unresolvable) parameter becomes a bare ``{}`` — the
-    property is still surfaced by name, just untyped, which is the whole point:
-    the caller learns the parameter *exists*.
+    Each ordinary parameter becomes one property: its annotation maps to a JSON
+    type via :func:`_python_type_to_schema` (resolved through
+    :func:`typing.get_type_hints` so string annotations under ``from __future__
+    import annotations`` work). An **un**-annotated (or unresolvable) parameter
+    becomes a bare ``{}`` — the property is still surfaced by name, just untyped,
+    which is the whole point: the caller learns the parameter *exists*.
 
-    ``skip`` drops parameter names the caller does not supply — transport seeds
-    (``request`` / ``user`` / …) and server-provided ``kwargs``. ``*args`` /
-    ``**kwargs`` are always skipped.
+    A ``**kwargs`` parameter annotated ``Unpack[SomeExtras]`` — the blessed
+    strict-typing idiom (see :class:`~rest_framework_services.HttpExtras`) — is
+    **expanded**: each ``TypedDict`` key becomes a property, and the TypedDict's
+    required keys populate ``required``. This is what makes a URL-kwarg a
+    selector reads from its extras (``extras["parent_pk"]``) discoverable
+    off-HTTP instead of failing with a bare ``KeyError``. A bare / ``Any``
+    ``**kwargs`` reflects nothing (there is no declared shape).
+
+    ``skip`` drops names the caller does not supply — transport seeds
+    (``request`` / ``user`` / ``view``), applied to both ordinary parameters and
+    expanded TypedDict keys (so the ``request`` / ``user`` inherited from
+    ``HttpExtras`` never surface as tool inputs). ``*args`` is always skipped.
+    ``required`` never contains a skipped key.
     """
     try:
         hints = get_type_hints(fn)
     except Exception:  # noqa: BLE001 — unresolvable forward refs → untyped, never fatal
         hints = {}
     properties: dict[str, Any] = {}
+    required: list[str] = []
     for name, parameter in inspect.signature(fn).parameters.items():
-        if name in skip or parameter.kind in (
-            inspect.Parameter.VAR_POSITIONAL,
-            inspect.Parameter.VAR_KEYWORD,
-        ):
+        if parameter.kind is inspect.Parameter.VAR_KEYWORD:
+            typed_dict = unpack_typed_dict(hints.get(name))
+            if typed_dict is not None:
+                td_props, td_required = _typed_dict_to_schema(
+                    typed_dict, skip=skip, registry=registry
+                )
+                properties.update(td_props)
+                required.extend(td_required)
+            continue
+        if name in skip or parameter.kind is inspect.Parameter.VAR_POSITIONAL:
             continue
         properties[name] = _python_type_to_schema(hints[name], registry) if name in hints else {}
-    return properties
+    return properties, required
+
+
+def _typed_dict_to_schema(
+    typed_dict: type,
+    *,
+    skip: frozenset[str],
+    registry: JsonSchemaRegistry,
+) -> tuple[dict[str, Any], list[str]]:
+    """``(properties, required)`` for the keys of an ``Unpack``-ed ``TypedDict``.
+
+    Field types map through :func:`_python_type_to_schema`; required keys come
+    from :func:`typed_dict_input` (PEP 563-robust). ``skip`` keys are dropped
+    from both, so a required-but-skipped key (``request`` / ``user``) is silently
+    excluded rather than advertised as a required tool input.
+    """
+    field_types, required_keys = typed_dict_input(typed_dict)
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+    for name, hint in field_types.items():
+        if name in skip:
+            continue
+        properties[name] = _python_type_to_schema(hint, registry)
+        if name in required_keys:
+            required.append(name)
+    return properties, required
 
 
 def dataclass_to_schema(

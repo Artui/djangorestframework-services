@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 from rest_framework.exceptions import ValidationError
+from typing_extensions import NotRequired, TypedDict, Unpack
 
 from rest_framework_services.dispatch.utils import (
     RESERVED_POOL_SEEDS,
@@ -15,19 +16,27 @@ from rest_framework_services.dispatch.utils import (
     declared_input_keys,
     merge_arguments,
     resolve_argument_binding,
+    resolve_provider,
     resolve_unknown_arguments,
     service_input,
+    view_url_kwargs,
 )
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.unknown_arguments import UnknownArguments
+from rest_framework_services.types.unset import UNSET
 
 
 @dataclass
 class _PostIn:
     title: str
+
+
+class _ChildExtras(TypedDict, total=False):
+    parent_pk: int
+    label: NotRequired[str]
 
 
 def _service(**_kwargs: object) -> None: ...
@@ -106,6 +115,79 @@ class TestMergeArguments:
         assert pool == {"user": "real", "request": "real", "ok": 1}
         assert {"user", "request", "data", "instance", "collection"} <= RESERVED_POOL_SEEDS
 
+    def test_url_kwargs_author_wins_beats_spread_below_provider(self) -> None:
+        # AUTHOR_WINS (the selector default): url_kwargs out-rank the client
+        # spread (route scope is authoritative) but the provider still wins.
+        pool: dict[str, Any] = {}
+        merge_arguments(
+            pool,
+            binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+            spread_source={"scope": "client", "only_client": 1},
+            provider_kwargs={"owned": "author"},
+            url_kwargs={"scope": "route", "from_url": 2},
+        )
+        assert pool == {"scope": "route", "only_client": 1, "owned": "author", "from_url": 2}
+
+    def test_url_kwargs_provider_still_wins_on_conflict(self) -> None:
+        pool: dict[str, Any] = {}
+        merge_arguments(
+            pool,
+            binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+            spread_source={},
+            provider_kwargs={"scope": "author"},
+            url_kwargs={"scope": "route"},
+        )
+        assert pool == {"scope": "author"}
+
+    def test_url_kwargs_caller_wins_spread_out_ranks_url(self) -> None:
+        # CALLER_WINS: the caller opts to override author-supplied context,
+        # including the route scope.
+        pool: dict[str, Any] = {}
+        merge_arguments(
+            pool,
+            binding=ArgumentBinding.SPREAD_CALLER_WINS,
+            spread_source={"scope": "client"},
+            provider_kwargs={"scope": "author"},
+            url_kwargs={"scope": "route"},
+        )
+        assert pool == {"scope": "client"}
+
+    def test_url_kwargs_bundle_adds_url_below_provider(self) -> None:
+        pool: dict[str, Any] = {}
+        merge_arguments(
+            pool,
+            binding=ArgumentBinding.BUNDLE,
+            spread_source={"ignored": 1},
+            provider_kwargs={"k": "author"},
+            url_kwargs={"k": "route", "u": 3},
+        )
+        assert pool == {"k": "author", "u": 3}
+
+
+class TestViewUrlKwargs:
+    def test_returns_kwargs_stripping_reserved_seeds(self) -> None:
+        view = SimpleNamespace(kwargs={"parent_pk": 5, "user": "spoof", "ok": 1})
+        assert view_url_kwargs(view) == {"parent_pk": 5, "ok": 1}
+
+    def test_empty_when_no_kwargs(self) -> None:
+        assert view_url_kwargs(SimpleNamespace(kwargs={})) == {}
+        assert view_url_kwargs(SimpleNamespace(kwargs=None)) == {}
+
+    def test_empty_when_view_has_no_kwargs_attr(self) -> None:
+        assert view_url_kwargs(None) == {}
+
+
+class TestResolveProviderUnset:
+    def test_none_provider_is_empty(self) -> None:
+        assert resolve_provider(None, {}) == {}
+
+    def test_drops_unset_keys_keeps_the_rest(self) -> None:
+        def provider(**_: Any) -> dict[str, Any]:
+            return {"role": UNSET, "kept": "value", "none_is_kept": None}
+
+        # UNSET means "declined" and is dropped; a real ``None`` is preserved.
+        assert resolve_provider(provider, {}) == {"kept": "value", "none_is_kept": None}
+
 
 class TestDeclaredInputKeys:
     def test_selector_filter_set_is_open(self) -> None:
@@ -119,6 +201,21 @@ class TestDeclaredInputKeys:
     def test_selector_enumerates_params(self) -> None:
         spec = SelectorSpec(kind=SelectorKind.LIST, selector=_by_pk)
         assert declared_input_keys(spec, serializer=None) == {"pk"}
+
+    def test_selector_unpack_var_keyword_enumerates_typed_dict_keys(self) -> None:
+        # A ``**extras: Unpack[TypedDict]`` selector is *closed* — its keys are
+        # enumerable, so ``REJECT`` can accept them and reject strangers.
+        # ``*args`` is skipped, ``pk`` is enumerated, extras are expanded.
+        def selector(pk: int, *args: Any, **extras: Unpack[_ChildExtras]) -> Any: ...
+
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=selector)
+        assert declared_input_keys(spec, serializer=None) == {"pk", "parent_pk", "label"}
+
+    def test_selector_unresolvable_unpack_hints_stay_open(self) -> None:
+        def selector(**extras: Unpack[_Ghost]) -> Any: ...  # noqa: F821 — unresolvable
+
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=selector)
+        assert declared_input_keys(spec, serializer=None) is None
 
     def test_selector_without_selector_is_empty(self) -> None:
         # Unreachable through dispatch (a None selector raises first), but the

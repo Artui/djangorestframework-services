@@ -7,7 +7,7 @@ from typing import Any, Literal
 from rest_framework_services.jsonschema.filterset_to_json_schema import filterset_to_json_schema
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
 from rest_framework_services.jsonschema.serializer_to_json_schema import serializer_to_json_schema
-from rest_framework_services.jsonschema.utils import callable_input_properties
+from rest_framework_services.jsonschema.utils import callable_input_schema
 from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
@@ -43,9 +43,13 @@ def spec_to_json_schema(
       ``request`` / ``user`` / ``view`` transport seeds) with its ``filter_set``
       fields (via ``filterset_to_json_schema``); a bare ``{"type": "object"}`` when
       it exposes neither. So a retrieve selector like ``get_widget(user, pk)`` now
-      advertises ``pk`` instead of leaning entirely on its docstring. (Introspecting
-      a ``filter_set`` needs the ``[filter]`` extra; a selector without one stays
-      dependency-free.)
+      advertises ``pk`` instead of leaning entirely on its docstring. A ``**kwargs:
+      Unpack[SomeExtras]`` parameter is **expanded** into one property per
+      ``TypedDict`` key, with the TypedDict's required keys populating
+      ``required`` — so a URL kwarg a selector reads from ``extras`` (a nested
+      route's ``parent_pk``) is discoverable off-HTTP rather than a hidden
+      ``KeyError``. (Introspecting a ``filter_set`` needs the ``[filter]`` extra;
+      a selector without one stays dependency-free.)
 
     ``phase="output"`` returns the output schema, or ``None`` when undeclared:
 
@@ -70,17 +74,23 @@ def _input_schema(
         )
     schema: dict[str, Any] = {"type": "object"}
     properties: dict[str, Any] = {}
+    required: list[str] = []
     if spec.selector is not None:
-        callable_props = callable_input_properties(
+        callable_props, callable_required = callable_input_schema(
             spec.selector, skip=_SELECTOR_SEED_PARAMS, registry=registry
         )
         properties.update(callable_props)
+        required.extend(callable_required)
     if spec.filter_set is not None:
         # A declared filter_set field is the more precise source for a shared
         # name, so it wins over a bare callable parameter of the same name.
         properties.update(filterset_to_json_schema(spec.filter_set, registry=registry))
     if properties:
         schema["properties"] = properties
+    if required:
+        # Only ``Unpack[TypedDict]`` extras contribute requiredness (ordinary
+        # selector params stay optional, as before); dedupe defensively.
+        schema["required"] = list(dict.fromkeys(required))
     return schema
 
 
