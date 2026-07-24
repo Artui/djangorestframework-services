@@ -2729,7 +2729,12 @@ result with :func:<code>~rest_framework_services.render_spec_output</code>).</p>
 </ul>
 <p><code>request</code> / <code>view</code> are optional and only forwarded to user callables
 that declare them (<code>extend_queryset</code>, the context providers, <code>kwargs</code>);
-a pure non-HTTP caller passes neither. <code>success_status</code> overrides the
+a pure non-HTTP caller passes neither. The <code>view</code>'s <code>kwargs</code> (a route's
+captures, seeded by <code>build_offline_context(kwargs=…)</code>) are additionally
+<strong>spread into the selector / target pools</strong> — the off-HTTP counterpart of the
+HTTP <code>extra_url_kwargs=view.kwargs</code>, authoritative over <code>params</code> on a
+conflict, below the <code>spec.kwargs</code> provider — so a selector reading a URL
+kwarg from its extras works off-HTTP. <code>success_status</code> overrides the
 mutation status hint (else <code>spec.success_status</code> or <code>200</code>).</p>
 <p>Three caller-side policies tune how the wire maps onto the spec; the
 defaults reproduce the pre-policy behaviour exactly:</p>
@@ -3237,7 +3242,15 @@ a Pydantic-AI toolset, the MCP server, a management command, or a task runner.</
   tuple value becomes a multi-valued param (<code>getlist</code>). Defaults to empty →
   no behaviour change. When both <code>query_params</code> and <code>http_request</code> are
   given, this <strong>replaces</strong> the wrapped request's <code>GET</code>.</li>
-<li><code>action</code> / <code>kwargs</code> populate the :class:<code>OfflineServiceView</code>.</li>
+<li><code>action</code> / <code>kwargs</code> populate the :class:<code>OfflineServiceView</code>.
+  <code>kwargs</code> is the off-HTTP counterpart of a view's URL captures (the
+  <code>parent_pk</code> of a nested route): it is <strong>the</strong> channel for route-derived
+  values, and :func:<code>dispatch_spec</code> spreads it into the selector / target
+  pools exactly where the HTTP path spreads <code>extra_url_kwargs=view.kwargs</code>
+  — authoritative over <code>params</code> on a key conflict, below a <code>spec.kwargs</code>
+  provider. A <code>spec.kwargs</code> provider that reads <code>view.kwargs</code> (e.g. to
+  scope by tenant) also sees it here. Pass every route capture a spec depends
+  on; it defaults to <code>{}</code> (no URL context).</li>
 </ul>
 
 

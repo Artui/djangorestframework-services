@@ -1808,9 +1808,13 @@ server) calls instead of reaching into spec internals itself.</p>
   <code>request</code> / <code>user</code> / <code>view</code> transport seeds) with its <code>filter_set</code>
   fields (via <code>filterset_to_json_schema</code>); a bare <code>{"type": "object"}</code> when
   it exposes neither. So a retrieve selector like <code>get_widget(user, pk)</code> now
-  advertises <code>pk</code> instead of leaning entirely on its docstring. (Introspecting
-  a <code>filter_set</code> needs the <code>[filter]</code> extra; a selector without one stays
-  dependency-free.)</li>
+  advertises <code>pk</code> instead of leaning entirely on its docstring. A <code>**kwargs:
+  Unpack[SomeExtras]</code> parameter is <strong>expanded</strong> into one property per
+  <code>TypedDict</code> key, with the TypedDict's required keys populating
+  <code>required</code> — so a URL kwarg a selector reads from <code>extras</code> (a nested
+  route's <code>parent_pk</code>) is discoverable off-HTTP rather than a hidden
+  <code>KeyError</code>. (Introspecting a <code>filter_set</code> needs the <code>[filter]</code> extra;
+  a selector without one stays dependency-free.)</li>
 </ul>
 <p><code>phase="output"</code> returns the output schema, or <code>None</code> when undeclared:</p>
 <ul>
