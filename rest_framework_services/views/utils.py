@@ -8,6 +8,8 @@ from typing import Any
 
 from rest_framework.request import Request
 
+from rest_framework_services.types.unset import UNSET
+
 
 def resolve_extra_kwargs(
     view: Any,
@@ -118,9 +120,18 @@ def _invoke_provider(
     ``**kwargs`` — exactly as services and selectors are dispatched. Bound
     view-method hooks simply don't declare ``view`` (it is their ``self``), so
     it is filtered out for them.
+
+    A returned key whose value is :data:`~rest_framework_services.UNSET` is
+    **dropped** — the provider is declining to set it, not setting it to
+    ``UNSET``. This mirrors the off-HTTP
+    :func:`~rest_framework_services.dispatch.utils.resolve_provider` so the
+    sentinel means the same thing on every transport: a provider that can't (or
+    shouldn't) resolve a key steps aside rather than overriding a value supplied
+    elsewhere.
     """
     pool: dict[str, Any] = {"view": view, "request": request, **extras}
-    return fn(**resolve_callable_kwargs(fn, pool))
+    result: Any = fn(**resolve_callable_kwargs(fn, pool))
+    return {key: value for key, value in result.items() if value is not UNSET}
 
 
 def layer_serializer_context(

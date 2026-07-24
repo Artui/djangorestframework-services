@@ -14,6 +14,7 @@ from typing import Any
 
 from asgiref.sync import sync_to_async
 from rest_framework.exceptions import ValidationError
+from typing_extensions import get_type_hints
 
 from rest_framework_services.is_async import is_async
 from rest_framework_services.selectors.utils import apply_queryset_shaping
@@ -24,7 +25,10 @@ from rest_framework_services.types.offline_context import OfflineContext
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.target_guard import TargetGuard
+from rest_framework_services.types.typed_dict_input import typed_dict_input
 from rest_framework_services.types.unknown_arguments import UnknownArguments
+from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
+from rest_framework_services.types.unset import UNSET
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
 # Labels handed to ``apply_queryset_shaping`` so a misconfiguration points at
@@ -47,6 +51,22 @@ RESERVED_POOL_SEEDS: frozenset[str] = frozenset(
 def base_pool(*, user: Any, request: Any) -> dict[str, Any]:
     """The two seeds every dispatched callable's pool carries."""
     return {"request": request, "user": user}
+
+
+def view_url_kwargs(view: Any) -> dict[str, Any]:
+    """Route-capture kwargs carried by the (offline) view, reserved seeds stripped.
+
+    On HTTP a selector pool spreads ``extra_url_kwargs=view.kwargs`` (the
+    ``parent_pk`` of a nested route); off-HTTP the :class:`OfflineServiceView`
+    carries the same mapping (seeded by ``build_offline_context(kwargs=…)``) but
+    ``dispatch_spec`` must read it explicitly. Returns ``{}`` when the view has no
+    ``kwargs``. Reserved pool seeds are stripped so a route capture named after a
+    seed can't clobber the dispatcher's authoritative ``request`` / ``user`` / … .
+    """
+    kwargs = getattr(view, "kwargs", None)
+    if not kwargs:
+        return {}
+    return {key: value for key, value in kwargs.items() if key not in RESERVED_POOL_SEEDS}
 
 
 def resolve_argument_binding(
@@ -73,24 +93,37 @@ def merge_arguments(
     binding: ArgumentBinding,
     spread_source: Mapping[str, Any],
     provider_kwargs: dict[str, Any],
+    url_kwargs: Mapping[str, Any] | None = None,
 ) -> None:
-    """Merge spread args + the ``spec.kwargs`` provider into ``pool`` per ``binding``.
+    """Merge spread args, URL kwargs, and the ``spec.kwargs`` provider into ``pool``.
 
     ``binding`` must already be resolved (never ``AUTO``). ``BUNDLE`` spreads
-    nothing — only the provider's keys join the pool. The ``SPREAD_*`` modes
-    spread ``spread_source`` (with the reserved seeds stripped) and differ only
-    in precedence against the provider: ``SPREAD_AUTHOR_WINS`` lets the provider
-    override the spread, ``SPREAD_CALLER_WINS`` lets the spread override the
-    provider.
+    nothing from ``spread_source`` — only ``url_kwargs`` and the provider's keys
+    join the pool. The ``SPREAD_*`` modes spread ``spread_source`` (with the
+    reserved seeds stripped) and differ only in precedence against the provider:
+    ``SPREAD_AUTHOR_WINS`` lets the provider override the spread,
+    ``SPREAD_CALLER_WINS`` lets the spread override the provider.
+
+    ``url_kwargs`` (a nested route's captures, e.g. ``parent_pk``) are placed
+    **immediately before the provider** in every mode — so they are authoritative
+    over the client spread in ``SPREAD_AUTHOR_WINS`` (the selector default: a
+    route scope out-ranks client input, mirroring HTTP) while the author's
+    provider remains the final say (also mirroring HTTP, where the ``kwargs``
+    provider's extras apply after ``extra_url_kwargs``). Defaults to empty → the
+    previous behaviour exactly.
     """
+    url = url_kwargs or {}
     if binding is ArgumentBinding.BUNDLE:
+        pool.update(url)
         pool.update(provider_kwargs)
         return
     spread = {k: v for k, v in spread_source.items() if k not in RESERVED_POOL_SEEDS}
     if binding is ArgumentBinding.SPREAD_AUTHOR_WINS:
         pool.update(spread)
+        pool.update(url)
         pool.update(provider_kwargs)
     else:  # SPREAD_CALLER_WINS
+        pool.update(url)
         pool.update(provider_kwargs)
         pool.update(spread)
 
@@ -98,24 +131,39 @@ def merge_arguments(
 def _callable_param_names(fn: Callable[..., Any]) -> set[str] | None:
     """Declared keyword-acceptable parameter names of ``fn``; ``None`` if open.
 
-    ``None`` (open) when ``fn`` declares ``**kwargs`` — it accepts anything, so
-    no key can be called "unknown" (mirrors :func:`resolve_callable_kwargs`).
+    ``None`` (open) when ``fn`` declares a bare ``**kwargs`` — it accepts
+    anything, so no key can be called "unknown" (mirrors
+    :func:`resolve_callable_kwargs`). A ``**kwargs: Unpack[SomeExtras]`` is *not*
+    open: the ``TypedDict`` names its exact keyword surface, so those keys join
+    the declared set (and only those). This is what lets ``UnknownArguments.REJECT``
+    accept a URL kwarg the selector reads from its extras — instead of the old
+    behaviour where the same key was accepted only because the surface happened
+    to be open.
     """
     parameters = inspect.signature(fn).parameters
-    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()):
-        return None
-    return {
-        name
-        for name, p in parameters.items()
-        if p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
-    }
+    names: set[str] = set()
+    for name, p in parameters.items():
+        if p.kind is inspect.Parameter.VAR_KEYWORD:
+            try:
+                hints = get_type_hints(fn)
+            except Exception:  # noqa: BLE001 — unresolvable → treat as open below
+                hints = {}
+            typed_dict = unpack_typed_dict(hints.get(name))
+            if typed_dict is None:
+                return None
+            names |= set(typed_dict_input(typed_dict)[0])
+        elif p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY):
+            names.add(name)
+    return names
 
 
 def _selector_consumed_keys(sel_spec: SelectorSpec[Any, Any] | None) -> set[str] | None:
     """Params keys a nested target selector consumes; ``None`` if open.
 
     Open when the selector has a duck-typed ``filter_set`` (its fields are
-    opaque to the core) or declares ``**kwargs``.
+    opaque to the core) or declares a bare ``**kwargs``. A ``**kwargs:
+    Unpack[TypedDict]`` is closed — its keys are enumerable (see
+    :func:`_callable_param_names`).
     """
     if sel_spec is None or sel_spec.selector is None:
         return set()
@@ -134,9 +182,10 @@ def declared_input_keys(
     Derived from the spec alone — no transport knowledge. A :class:`ServiceSpec`
     declares its ``input_serializer`` fields plus the keys its nested target
     selectors consume (e.g. the ``pk`` an ``instance_selector_spec`` reads). A
-    :class:`SelectorSpec` declares its ``selector``'s parameters. ``None`` means
-    the set can't be enumerated (a ``**kwargs`` callable or a duck-typed
-    ``filter_set``), so there is nothing to flag as unknown.
+    :class:`SelectorSpec` declares its ``selector``'s parameters (a
+    ``**kwargs: Unpack[TypedDict]`` contributes the TypedDict's keys). ``None``
+    means the set can't be enumerated (a bare ``**kwargs`` callable or a
+    duck-typed ``filter_set``), so there is nothing to flag as unknown.
     """
     if isinstance(spec, SelectorSpec):
         if spec.filter_set is not None:
@@ -306,10 +355,20 @@ def resolve_provider(provider: Callable[..., Any] | None, pool: dict[str, Any]) 
     Mirrors the framework's keyword-pool invocation convention: the provider
     receives only the subset of ``pool`` it declares. Returns ``{}`` when
     ``provider`` is ``None``.
+
+    A key whose value is :data:`~rest_framework_services.UNSET` is **dropped** —
+    the provider is *declining* to set it, not setting it to ``UNSET``. This lets
+    a provider that can't resolve a value off-HTTP (middleware state absent on the
+    synthetic request) step aside so a caller-supplied ``params`` value survives
+    the ``SPREAD_AUTHOR_WINS`` merge, instead of a fallback ``None`` silently
+    over-scoping the result. Declining is for *benign* keys only: a provider that
+    owns a **scoping** key must always resolve it (off-HTTP, from ``view.kwargs``),
+    since declining there would let the caller's value through — a scope bypass.
     """
     if provider is None:
         return {}
-    return dict(provider(**resolve_callable_kwargs(provider, pool)))
+    resolved = provider(**resolve_callable_kwargs(provider, pool))
+    return {key: value for key, value in resolved.items() if value is not UNSET}
 
 
 def shape_queryset(

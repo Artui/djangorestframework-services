@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-07-24
+
+### Added
+
+- **URL-kwarg & provider-state parity over the off-HTTP path.** A spec
+  that works over HTTP is now equally usable off-HTTP (`build_offline_context`
+  `+` `dispatch_spec` — the path under every MCP tool, Pydantic-AI tool,
+  management command, and task runner), closing two gaps where a spec depended on
+  values that only existed on the HTTP transport:
+  - **`Unpack[TypedDict]` extras are now reflected and discoverable.** A selector
+    whose keyword surface is the blessed strict-typing idiom
+    `**extras: Unpack[SomeExtras]` (see `HttpExtras`) previously contributed
+    nothing to `spec_to_json_schema(phase="input")`, so a schema-driven caller
+    (an LLM, an MCP client) could not learn that a URL kwarg the selector reads
+    from its extras (`extras["parent_pk"]`) even existed — the call failed with a
+    bare `KeyError`. The schema now **expands** the `TypedDict`: one property per
+    key, with the `TypedDict`'s required keys populating `required`. The inherited
+    `request` / `user` seeds (from `HttpExtras`) are excluded from the expansion,
+    never advertised as tool inputs. Required-key detection is robust under
+    `from __future__ import annotations` (PEP 563), where the raw
+    `__required_keys__` misclassifies `NotRequired` fields.
+  - **`build_offline_context(kwargs=…)` is now *the* channel for URL-derived
+    values, and it actually delivers.** `dispatch_spec` / `adispatch_spec` spread
+    the offline view's `kwargs` (a nested route's captures, e.g. `parent_pk`)
+    into the selector and target-resolution pools — the off-HTTP counterpart of
+    the HTTP `extra_url_kwargs=view.kwargs`. Route captures are **authoritative
+    over `params`** on a key conflict (matching HTTP, where a route scope
+    out-ranks client input) and sit **below a `spec.kwargs` provider** (also
+    matching HTTP). Reserved pool seeds are stripped from the view kwargs.
+    Empty by default → no behaviour change for callers that pass no `kwargs`.
+- **`spec.kwargs` / provider hooks can decline a key with `UNSET`.** A provider
+  that returns `UNSET` for a key is *declining* to set it (not setting it to
+  `UNSET`); the key is dropped from the resolved kwargs on both transports
+  (`resolve_provider` off-HTTP, the `get_*_kwargs` / `input_data` / context
+  hook chain on HTTP). This lets a provider that can't resolve a value off-HTTP
+  (middleware state absent on the synthetic request) step aside so a
+  caller-supplied `params` value survives the `SPREAD_AUTHOR_WINS` merge, instead
+  of a fallback `None` silently over-scoping the result. Declining is for
+  *benign* keys only: a provider that owns a **scoping** key must always resolve
+  it (off-HTTP, from `view.kwargs`), since declining there would let the caller's
+  value through.
+
+### Changed
+
+- **`UnknownArguments.REJECT` now enforces on a `**extras: Unpack[TypedDict]`
+  selector** (was previously a silent no-op). Because such a surface was treated
+  as *open* (like a bare `**kwargs`), `REJECT` had nothing to reject and a URL
+  kwarg was deliverable only by that accident of openness. The `TypedDict` now
+  names the exact declared keyword surface, so `REJECT` **accepts** those keys
+  and **rejects** genuinely unknown ones — the same contract every other closed
+  spec already had. A bare / `Any` `**kwargs` selector stays open, unchanged.
+
 ## [0.25.1] — 2026-07-17
 
 ### Fixed
@@ -1340,7 +1392,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.25.1...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.26.0...HEAD
+[0.26.0]: https://github.com/Artui/djangorestframework-services/compare/v0.25.1...v0.26.0
 [0.25.1]: https://github.com/Artui/djangorestframework-services/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/Artui/djangorestframework-services/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/Artui/djangorestframework-services/compare/v0.24.0...v0.24.1

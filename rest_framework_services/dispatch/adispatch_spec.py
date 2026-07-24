@@ -26,6 +26,7 @@ from rest_framework_services.dispatch.utils import (
     resolve_unknown_arguments,
     service_input,
     shape_queryset,
+    view_url_kwargs,
 )
 from rest_framework_services.selectors.utils import is_queryset
 from rest_framework_services.types.argument_binding import ArgumentBinding
@@ -115,6 +116,7 @@ async def _adispatch_selector(
         binding=binding,
         spread_source=params,
         provider_kwargs=resolve_provider(spec.kwargs, {"view": view, "request": request}),
+        url_kwargs=view_url_kwargs(view),
     )
     try:
         result: Any = await arun_callable(
@@ -303,7 +305,11 @@ async def _aresolve_target(
             raise ImproperlyConfigured(
                 "collection_selector_spec requires a `selector` resolving the target set."
             )
-        pool: dict[str, Any] = {**base_pool(user=user, request=request), **params}
+        pool: dict[str, Any] = {
+            **base_pool(user=user, request=request),
+            **params,
+            **view_url_kwargs(view),
+        }
         pool.update(resolve_provider(coll_spec.kwargs, {"view": view, "request": request}))
         result: Any = await arun_callable(
             coll_spec.selector, resolve_callable_kwargs(coll_spec.selector, pool)
@@ -369,7 +375,11 @@ async def _aresolve_instance(
     instance_spec = spec.instance_selector_spec
     if instance_spec is None or instance_spec.selector is None:
         return (True, None)
-    pool: dict[str, Any] = {**base_pool(user=user, request=request), **params}
+    pool: dict[str, Any] = {
+        **base_pool(user=user, request=request),
+        **params,
+        **view_url_kwargs(view),
+    }
     pool.update(resolve_provider(instance_spec.kwargs, {"view": view, "request": request}))
     try:
         result: Any = await arun_callable(
