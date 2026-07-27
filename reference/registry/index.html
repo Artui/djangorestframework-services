@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/reference/jsonschema/">
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/reference/registry/">
       
       
-        <link rel="prev" href="../registry/">
+        <link rel="prev" href="../types/">
       
       
-        <link rel="next" href="../openapi/">
+        <link rel="next" href="../jsonschema/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>JSON Schema - djangorestframework-services</title>
+        <title>Spec registry - djangorestframework-services</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#json-schema" class="md-skip">
+        <a href="#spec-registry" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              JSON Schema
+              Spec registry
             
           </span>
         </div>
@@ -1202,34 +1202,6 @@
                 
   
   
-  
-  
-    <li class="md-nav__item">
-      <a href="../registry/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Spec registry
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
     
   
   
@@ -1249,7 +1221,7 @@
   <span class="md-ellipsis">
     
   
-    JSON Schema
+    Spec registry
   
 
     
@@ -1267,7 +1239,7 @@
   <span class="md-ellipsis">
     
   
-    JSON Schema
+    Spec registry
   
 
     
@@ -1293,10 +1265,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#serializer_to_json_schema" class="md-nav__link">
+  <a href="#specregistry" class="md-nav__link">
     <span class="md-ellipsis">
       
-        serializer_to_json_schema
+        SpecRegistry
       
     </span>
   </a>
@@ -1304,110 +1276,110 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.jsonschema.serializer_to_json_schema.serializer_to_json_schema" class="md-nav__link">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry" class="md-nav__link">
     <span class="md-ellipsis">
       
-        serializer_to_json_schema
+        SpecRegistry
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#output_to_json_schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        output_to_json_schema
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        output_to_json_schema
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#filterset_to_json_schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        filterset_to_json_schema
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.jsonschema.filterset_to_json_schema.filterset_to_json_schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        filterset_to_json_schema
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#spec_to_json_schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        spec_to_json_schema
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        spec_to_json_schema
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#jsonschemaregistry" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        JsonSchemaRegistry
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        JsonSchemaRegistry
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="JsonSchemaRegistry">
+    <nav class="md-nav" aria-label="SpecRegistry">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry.extend" class="md-nav__link">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.register" class="md-nav__link">
     <span class="md-ellipsis">
       
-        extend
+        register
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.get" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        all
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.mutations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mutations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        queries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.by_tag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        by_tag
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.subset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        subset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.merge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        merge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.specs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        specs
       
     </span>
   </a>
@@ -1420,10 +1392,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#default_json_schema_registry" class="md-nav__link">
+  <a href="#registeredspec" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DEFAULT_JSON_SCHEMA_REGISTRY
+        RegisteredSpec
       
     </span>
   </a>
@@ -1431,10 +1403,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.types.json_schema_registry.DEFAULT_JSON_SCHEMA_REGISTRY" class="md-nav__link">
+  <a href="#rest_framework_services.types.registered_spec.RegisteredSpec" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DEFAULT_JSON_SCHEMA_REGISTRY
+        RegisteredSpec
       
     </span>
   </a>
@@ -1445,6 +1417,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../jsonschema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    JSON Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1540,10 +1540,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#serializer_to_json_schema" class="md-nav__link">
+  <a href="#specregistry" class="md-nav__link">
     <span class="md-ellipsis">
       
-        serializer_to_json_schema
+        SpecRegistry
       
     </span>
   </a>
@@ -1551,110 +1551,110 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.jsonschema.serializer_to_json_schema.serializer_to_json_schema" class="md-nav__link">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry" class="md-nav__link">
     <span class="md-ellipsis">
       
-        serializer_to_json_schema
+        SpecRegistry
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#output_to_json_schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        output_to_json_schema
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        output_to_json_schema
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#filterset_to_json_schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        filterset_to_json_schema
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.jsonschema.filterset_to_json_schema.filterset_to_json_schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        filterset_to_json_schema
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#spec_to_json_schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        spec_to_json_schema
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        spec_to_json_schema
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#jsonschemaregistry" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        JsonSchemaRegistry
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        JsonSchemaRegistry
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="JsonSchemaRegistry">
+    <nav class="md-nav" aria-label="SpecRegistry">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry.extend" class="md-nav__link">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.register" class="md-nav__link">
     <span class="md-ellipsis">
       
-        extend
+        register
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.get" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        all
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.mutations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mutations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        queries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.by_tag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        by_tag
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.subset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        subset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.merge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        merge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.specs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        specs
       
     </span>
   </a>
@@ -1667,10 +1667,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#default_json_schema_registry" class="md-nav__link">
+  <a href="#registeredspec" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DEFAULT_JSON_SCHEMA_REGISTRY
+        RegisteredSpec
       
     </span>
   </a>
@@ -1678,10 +1678,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.types.json_schema_registry.DEFAULT_JSON_SCHEMA_REGISTRY" class="md-nav__link">
+  <a href="#rest_framework_services.types.registered_spec.RegisteredSpec" class="md-nav__link">
     <span class="md-ellipsis">
       
-        DEFAULT_JSON_SCHEMA_REGISTRY
+        RegisteredSpec
       
     </span>
   </a>
@@ -1705,7 +1705,7 @@
 
 
   
-    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/reference/jsonschema.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/reference/registry.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1713,237 +1713,63 @@
   
 
 
-<h1 id="json-schema">JSON Schema<a class="headerlink" href="#json-schema" title="Permanent link">&para;</a></h1>
-<p>View-free JSON Schema generation. These helpers turn a <code>ServiceSpec</code> /
-<code>SelectorSpec</code> (or a bare DRF serializer / dataclass) into a JSON Schema
-dict, with <strong>no</strong> view, request, or <code>drf-spectacular</code> dependency — what an
-alternate transport (a Pydantic-AI toolset, the MCP server) builds tool
-definitions from. Distinct from the <a href="../openapi/">OpenAPI</a> adapter, which
-produces DRF serializer classes for DRF's own OpenAPI generators.</p>
-<h2 id="serializer_to_json_schema"><code>serializer_to_json_schema</code><a class="headerlink" href="#serializer_to_json_schema" title="Permanent link">&para;</a></h2>
-
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="rest_framework_services.jsonschema.serializer_to_json_schema.serializer_to_json_schema" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">serializer_to_json_schema</span>
-
-
-<a href="#rest_framework_services.jsonschema.serializer_to_json_schema.serializer_to_json_schema" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">serializer_to_json_schema</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">serializer</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>Build a JSON Schema <em>object</em> for an input serializer / dataclass / <code>None</code>.</p>
-<p>Accepts a DRF <code>Serializer</code> subclass, a bare <code>@dataclass</code> type (the
-convention drf-services services use for <code>data</code>), or <code>None</code> (the
-operation takes no input). Always returns an object — <code>{"type": "object"}</code>
-is the convention for "no declared fields", so an alternate transport can
-still describe the tool.</p>
-<p><code>partial=True</code> drops the <code>required</code> list — mirroring <code>spec.partial</code>,
-where the validator accepts omitted fields, so advertising them as required
-would make schema-strict consumers reject calls the service accepts.</p>
-<p><code>registry</code> supplies consumer rules for custom field / Python types — see
-:class:<code>~rest_framework_services.JsonSchemaRegistry</code>.</p>
-
-
-    </div>
-
-</div><h2 id="output_to_json_schema"><code>output_to_json_schema</code><a class="headerlink" href="#output_to_json_schema" title="Permanent link">&para;</a></h2>
-
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">output_to_json_schema</span>
-
-
-<a href="#rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">output_to_json_schema</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">output_serializer</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">kind</span><span class="p">:</span> <span class="n">SelectorKind</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">paginate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>Build a JSON Schema for an output serializer, or <code>None</code> when undeclared.</p>
-<p>Returns <code>None</code> when there is no <code>output_serializer</code> — callers shouldn't
-fabricate a misleading shape. <code>kind</code> / <code>paginate</code> make the schema match
-what dispatch actually returns:</p>
-<ul>
-<li><code>kind=None</code> / <code>RETRIEVE</code> — the bare item schema.</li>
-<li><code>kind=LIST, paginate=False</code> — <code>{type: array, items: &lt;item&gt;}</code>.</li>
-<li><code>kind=LIST, paginate=True</code> — the pagination envelope
-  <code>{items, page, totalPages, hasNext}</code>.</li>
-</ul>
-<p><code>registry</code> supplies consumer rules for custom field / Python types — see
-:class:<code>~rest_framework_services.JsonSchemaRegistry</code>.</p>
-
-
-    </div>
-
-</div><h2 id="filterset_to_json_schema"><code>filterset_to_json_schema</code><a class="headerlink" href="#filterset_to_json_schema" title="Permanent link">&para;</a></h2>
-
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="rest_framework_services.jsonschema.filterset_to_json_schema.filterset_to_json_schema" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">filterset_to_json_schema</span>
-
-
-<a href="#rest_framework_services.jsonschema.filterset_to_json_schema.filterset_to_json_schema" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">filterset_to_json_schema</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">filter_set_class</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>Map a django-filter <code>FilterSet</code> class to JSON Schema properties.</p>
-<p>Returns a dict shaped like the <code>"properties"</code> key of a JSON Schema object
-— ready to merge into a spec's input schema (see
-:func:<code>~rest_framework_services.spec_to_json_schema</code>, which does this for a
-<code>SelectorSpec</code> carrying a <code>filter_set</code>). Every filter is optional: a
-filter narrows the queryset but is never required to call the operation, so
-no name is added to a <code>required</code> array.</p>
-<p><code>registry.filters</code> rules are tried first (so a consumer can map a custom
-filter type or override a built-in); otherwise common filter classes get
-accurate mappings and anything unrecognised falls back to <code>{}</code> (JSON Schema
-"any value") so a custom filter never breaks generation. Reads
-<code>FilterSet.base_filters</code> directly (populated by the metaclass at
-class-creation time) so the FilterSet isn't instantiated.</p>
-<p>Requires the <code>[filter]</code> extra (<code>django-filter</code>). The core never imports
-it — <code>SelectorSpec.filter_set</code> is applied by duck typing — so the import is
-function-local here and raises a clear error when the extra is absent. This
-only fires when a <code>filter_set</code> is actually introspected, so projects that
-don't use one are unaffected.</p>
-
-
-    </div>
-
-</div><h2 id="spec_to_json_schema"><code>spec_to_json_schema</code><a class="headerlink" href="#spec_to_json_schema" title="Permanent link">&para;</a></h2>
-
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">spec_to_json_schema</span>
-
-
-<a href="#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">spec_to_json_schema</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">phase</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;input&quot;</span><span class="p">,</span> <span class="s2">&quot;output&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;input&quot;</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>Derive a JSON Schema from a spec, reading the right serializer off it.</p>
-<p>The convenience an alternate transport (a Pydantic-AI toolset, the MCP
-server) calls instead of reaching into spec internals itself.</p>
-<p><code>phase="input"</code> (default) returns the input-argument schema:</p>
-<ul>
-<li>:class:<code>ServiceSpec</code> → its <code>input_serializer</code> (<code>spec.partial</code> honoured).</li>
-<li>:class:<code>SelectorSpec</code> → an object whose <code>properties</code> combine the selector
-  callable's own parameters (names → type from their annotations, skipping the
-  <code>request</code> / <code>user</code> / <code>view</code> transport seeds) with its <code>filter_set</code>
-  fields (via <code>filterset_to_json_schema</code>); a bare <code>{"type": "object"}</code> when
-  it exposes neither. So a retrieve selector like <code>get_widget(user, pk)</code> now
-  advertises <code>pk</code> instead of leaning entirely on its docstring. A <code>**kwargs:
-  Unpack[SomeExtras]</code> parameter is <strong>expanded</strong> into one property per
-  <code>TypedDict</code> key, with the TypedDict's required keys populating
-  <code>required</code> — so a URL kwarg a selector reads from <code>extras</code> (a nested
-  route's <code>parent_pk</code>) is discoverable off-HTTP rather than a hidden
-  <code>KeyError</code>. (Introspecting a <code>filter_set</code> needs the <code>[filter]</code> extra;
-  a selector without one stays dependency-free.)</li>
-</ul>
-<p><code>phase="output"</code> returns the output schema, or <code>None</code> when undeclared:</p>
-<ul>
-<li>:class:<code>ServiceSpec</code> → its <code>output_selector_spec</code>'s <code>output_serializer</code>
-  and <code>kind</code>.</li>
-<li>:class:<code>SelectorSpec</code> → its own <code>output_serializer</code> and <code>kind</code>.</li>
-</ul>
-<p><code>registry</code> supplies consumer rules for custom field / filter / Python types
-— see :class:<code>~rest_framework_services.JsonSchemaRegistry</code>.</p>
-
-
-    </div>
-
-</div><p>A selector's input schema reflects the <strong>selector callable's own parameters</strong> —
-names plus a JSON type from each annotation, skipping the <code>request</code> / <code>user</code> /
-<code>view</code> transport seeds — merged with its <code>filter_set</code> fields. So a lookup selector
-like <code>get_widget(user, pk)</code> advertises <code>pk</code> instead of a bare <code>{"type": "object"}</code>
-that leans on the docstring alone. An un-annotated parameter is still surfaced by
-name (untyped <code>{}</code>); a <code>filter_set</code> field wins over a callable parameter of the
-same name.</p>
-<h2 id="jsonschemaregistry"><code>JsonSchemaRegistry</code><a class="headerlink" href="#jsonschemaregistry" title="Permanent link">&para;</a></h2>
+<h1 id="spec-registry">Spec registry<a class="headerlink" href="#spec-registry" title="Permanent link">&para;</a></h1>
+<p>A named, taggable home for a project's spec set, so each transport reads one
+source instead of enumerating the same specs again. Both symbols are importable
+from the top-level package.</p>
+<p>For the task-shaped walkthrough — where the instance lives, multiple registries,
+filtered views — see the recipe
+<a href="../../recipes/spec-registry/">Declare specs once, project them to many transports</a>.</p>
+<h2 id="specregistry"><code>SpecRegistry</code><a class="headerlink" href="#specregistry" title="Permanent link">&para;</a></h2>
 
 
 <div class="doc doc-object doc-class">
 
 
 
-<h2 id="rest_framework_services.types.json_schema_registry.JsonSchemaRegistry" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">JsonSchemaRegistry</span>
+<h2 id="rest_framework_services.registry.spec_registry.SpecRegistry" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SpecRegistry</span>
 
 
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
-  </span>
-
-<a href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry" class="headerlink" title="Permanent link">&para;</a></h2>
+<a href="#rest_framework_services.registry.spec_registry.SpecRegistry" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
     <div class="doc doc-contents first">
 
 
 
-        <p>Consumer-extensible <code>type → JSON Schema fragment</code> rules for the helpers.</p>
-<p>Three ordered rule lists, each a sequence of <code>(type, schema_fragment)</code>:</p>
-<ul>
-<li><code>fields</code> — DRF <code>Field</code> subclasses, matched by <code>isinstance</code> when
-  walking a serializer (<code>serializer_to_json_schema</code> / the input side of
-  <code>spec_to_json_schema</code>).</li>
-<li><code>filters</code> — <code>django-filter</code> <code>Filter</code> subclasses, matched by
-  <code>isinstance</code> when walking a <code>FilterSet</code> (<code>filterset_to_json_schema</code>).</li>
-<li><code>python_types</code> — bare Python types, matched by <em>identity</em> when walking a
-  dataclass's field annotations.</li>
-</ul>
-<p>Rules are tried in order and the first match wins, <strong>before</strong> the built-in
-mappings — so a rule both adds support for a custom type and can override a
-built-in. The matched fragment is copied per use, so callers may freely
-mutate the returned schema.</p>
-<p>Immutable: :meth:<code>extend</code> returns a <em>new</em> registry rather than mutating, so
-there is no shared global state to leak across callers or tests. Start from
-:data:<code>DEFAULT_JSON_SCHEMA_REGISTRY</code> (empty) and layer rules on::</p>
-<div class="language-text highlight"><pre><span></span><code>registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
-    fields=[(MoneyField, {&quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;money&quot;})],
-)
-schema = serializer_to_json_schema(MySerializer, registry=registry)
-</code></pre></div>
-<p>The built-in mappings are intentionally <em>not</em> held here — they live with the
-walkers (and the filter built-ins import <code>django-filter</code> lazily). A
-registry carries only consumer additions, so the empty default stays
-dependency-free.</p>
+        <p>A <code>name → spec</code> map with tags, stable ordering, and filtered views.</p>
+<p>A project that exposes the same operations over more than one transport
+otherwise writes the list once per transport, and the lists drift. A
+registry gives that set one declaration site: each transport reads the same
+source instead of enumerating specs again.</p>
+<p>It holds only the <strong>invariant</strong> part of an operation — which spec, its
+canonical name, its tags. Per-transport configuration stays at the binding
+that already owns it, so this is a source <em>for</em> a transport's own registry,
+never a replacement for one. Nothing consults a registry per request:
+adapters read it at configuration time to build their binding tables.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_orders&quot;</span><span class="p">,</span> <span class="n">orders_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;read&quot;</span><span class="p">,</span> <span class="s2">&quot;public&quot;</span><span class="p">))</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;refund_order&quot;</span><span class="p">,</span> <span class="n">refund_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;write&quot;</span><span class="p">,</span> <span class="s2">&quot;admin&quot;</span><span class="p">))</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">public</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">by_tag</span><span class="p">(</span><span class="s2">&quot;public&quot;</span><span class="p">)</span>   <span class="c1"># a new registry — a snapshot</span>
+</span></code></pre></div>
+<p>Adoption needs no adapter support: :meth:<code>specs</code> returns the
+<code>dict[str, spec]</code> today's adapters already accept.</p>
+<p><strong>There is no global registry.</strong> A consumer holds its own instances — a
+module attribute in its app, or built in a server's constructor — and may
+hold as many as it likes, with no shared state between them. Two shapes
+both work: <strong>independent registries</strong> (separate name namespaces, full
+isolation, one per mount) and <strong>one registry with many projections</strong>
+(:meth:<code>by_tag</code> / :meth:<code>subset</code> views feeding several toolsets). Both are
+what a multi-instance deployment needs; a blessed global would nudge every
+project toward a single surface instead.</p>
+<p>Registries are <strong>mutable containers</strong> (:meth:<code>register</code> adds), but every
+derivation — :meth:<code>by_tag</code>, :meth:<code>subset</code>, :meth:<code>merge</code> — returns a
+<strong>new</strong> registry holding a snapshot of the selected entries. The spec
+objects themselves are shared, not copied. So a derived view never mutates
+its source, and a later <code>register()</code> on the source does <strong>not</strong> appear in
+a view derived earlier.</p>
 
 
 
@@ -1969,22 +1795,355 @@ dependency-free.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="rest_framework_services.types.json_schema_registry.JsonSchemaRegistry.extend" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">extend</span>
+<h3 id="rest_framework_services.registry.spec_registry.SpecRegistry.register" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">register</span>
 
 
-<a href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry.extend" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">extend</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">fields</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">_Rule</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">filters</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">_Rule</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">python_types</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">_Rule</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">JsonSchemaRegistry</span>
+<a href="#rest_framework_services.registry.spec_registry.SpecRegistry.register" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">register</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">tags</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Return a new registry with the given rules prepended (they win first).</p>
+        <p>Add a spec under <code>name</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>name</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The canonical name. Must be unused <strong>in this registry</strong> —
+a duplicate raises rather than overwriting, so a
+copy-paste declaration fails at import time instead of
+silently shadowing an operation.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>spec</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.service_spec.ServiceSpec)" href="../types/#rest_framework_services.types.service_spec.ServiceSpec">ServiceSpec</a>[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>] | <a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.selector_spec.SelectorSpec)" href="../types/#rest_framework_services.types.selector_spec.SelectorSpec">SelectorSpec</a>[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A <code>ServiceSpec</code> (mutation) or <code>SelectorSpec</code> (read).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>tags</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Iterable">Iterable</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Free-form labels, deduplicated into a frozen set.</p>
+              </div>
+            </td>
+            <td>
+                  <code>()</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>name</code> is already registered here.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>spec</code> is neither a <code>ServiceSpec</code> nor a
+<code>SelectorSpec</code>. A <code>PolymorphicServiceSpec</code> is rejected
+with a pointer at the supported shape: register each of its
+variants under its own name, since transports project one
+operation per variant rather than a union.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.registry.spec_registry.SpecRegistry.get" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get</span>
+
+
+<a href="#rest_framework_services.registry.spec_registry.SpecRegistry.get" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RegisteredSpec</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return the entry registered under <code>name</code>, or <code>None</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.registry.spec_registry.SpecRegistry.all" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">all</span>
+
+
+<a href="#rest_framework_services.registry.spec_registry.SpecRegistry.all" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">all</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">RegisteredSpec</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Every entry, in registration order.</p>
+<p>Order is stable so a transport's tool listing is stable — a listing
+that reshuffles between processes is noise for clients that diff it.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.registry.spec_registry.SpecRegistry.mutations" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">mutations</span>
+
+
+<a href="#rest_framework_services.registry.spec_registry.SpecRegistry.mutations" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">mutations</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">RegisteredSpec</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The <code>ServiceSpec</code> entries, in registration order.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.registry.spec_registry.SpecRegistry.queries" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">queries</span>
+
+
+<a href="#rest_framework_services.registry.spec_registry.SpecRegistry.queries" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">queries</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">RegisteredSpec</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The <code>SelectorSpec</code> entries, in registration order.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.registry.spec_registry.SpecRegistry.by_tag" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">by_tag</span>
+
+
+<a href="#rest_framework_services.registry.spec_registry.SpecRegistry.by_tag" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">by_tag</span><span class="p">(</span><span class="o">*</span><span class="n">tags</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SpecRegistry</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A new registry holding the entries carrying <strong>any</strong> of <code>tags</code>.</p>
+<p>Union rather than intersection, because intersection composes from
+this (<code>reg.by_tag("read").by_tag("public")</code>) while union cannot be
+composed from an intersection. Passing no tags matches nothing and
+returns an empty registry.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.registry.spec_registry.SpecRegistry.subset" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">subset</span>
+
+
+<a href="#rest_framework_services.registry.spec_registry.SpecRegistry.subset" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">subset</span><span class="p">(</span><span class="o">*</span><span class="n">names</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SpecRegistry</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A new registry holding the named entries, in the order given.</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="KeyError">KeyError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A name is not registered here. Naming entries
+explicitly means a typo is a configuration error, not a
+quietly smaller surface.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.registry.spec_registry.SpecRegistry.merge" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">merge</span>
+
+
+<a href="#rest_framework_services.registry.spec_registry.SpecRegistry.merge" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">merge</span><span class="p">(</span><span class="o">*</span><span class="n">others</span><span class="p">:</span> <span class="n">SpecRegistry</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SpecRegistry</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A new registry combining this one with <code>others</code>, in order.</p>
+<p>Names are unique per registry, so independent registries may reuse
+one; merging is the single place that reuse becomes a conflict.</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The same name appears in more than one input.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.registry.spec_registry.SpecRegistry.specs" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">specs</span>
+
+
+<a href="#rest_framework_services.registry.spec_registry.SpecRegistry.specs" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">specs</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>A fresh <code>name → spec</code> dict — the shape adapters already accept.</p>
+<p>This is what makes a registry usable before any adapter grows
+registry-aware sugar: pass <code>registry.specs()</code> wherever a
+<code>dict[str, spec]</code> goes today. Mutating the returned dict does not
+affect the registry.</p>
 
 
     </div>
@@ -1997,26 +2156,76 @@ dependency-free.</p>
 
     </div>
 
-</div><h2 id="default_json_schema_registry"><code>DEFAULT_JSON_SCHEMA_REGISTRY</code><a class="headerlink" href="#default_json_schema_registry" title="Permanent link">&para;</a></h2>
+</div><h2 id="registeredspec"><code>RegisteredSpec</code><a class="headerlink" href="#registeredspec" title="Permanent link">&para;</a></h2>
 
 
-<div class="doc doc-object doc-attribute">
+<div class="doc doc-object doc-class">
 
 
 
-<h2 id="rest_framework_services.types.json_schema_registry.DEFAULT_JSON_SCHEMA_REGISTRY" class="doc doc-heading">
-            <span class="doc doc-object-name doc-attribute-name">DEFAULT_JSON_SCHEMA_REGISTRY</span>
+<h2 id="rest_framework_services.types.registered_spec.RegisteredSpec" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">RegisteredSpec</span>
 
 
   <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
   </span>
 
-<a href="#rest_framework_services.types.json_schema_registry.DEFAULT_JSON_SCHEMA_REGISTRY" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">JsonSchemaRegistry</span><span class="p">()</span>
-</span></code></pre></div>
+<a href="#rest_framework_services.types.registered_spec.RegisteredSpec" class="headerlink" title="Permanent link">&para;</a></h2>
+
 
     <div class="doc doc-contents first">
+
+
+
+        <p>A spec under its canonical name, with free-form tags.</p>
+<p>The value type held by
+:class:<code>~rest_framework_services.registry.spec_registry.SpecRegistry</code>. It
+carries only the part of a "tool" that is <strong>invariant across transports</strong> —
+which spec, what it is called, and how it is grouped. Per-transport knobs
+(MCP annotations and output schemas, Pydantic-AI pagination or query-param
+registrations, …) stay at the binding that configures them.</p>
+<p>Fields:</p>
+<ul>
+<li><strong><code>name</code></strong> — the canonical name for this operation. Unique within the
+  registry that holds it; two independent registries are separate
+  namespaces and may reuse a name.</li>
+<li><strong><code>spec</code></strong> — a :class:<code>~rest_framework_services.types.service_spec.ServiceSpec</code>
+  (a mutation) or a :class:<code>~rest_framework_services.types.selector_spec.SelectorSpec</code>
+  (a read). The kind is deliberately <strong>not</strong> stored: it is derived by
+  <code>isinstance</code> wherever it is needed, so a stored discriminator can never
+  drift from the object it describes.</li>
+<li><strong><code>tags</code></strong> — a frozen set of free-form labels used to derive filtered
+  views (<code>registry.by_tag("public")</code>). Tags carry boolean-ish facts —
+  <code>"read"</code>, <code>"admin"</code>, <code>"destructive"</code> — that every transport can
+  interpret in its own vocabulary. Structured, transport-specific payloads
+  do not belong in a tag string; they belong at the binding.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
 
     </div>
 

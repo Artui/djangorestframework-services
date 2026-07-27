@@ -538,6 +538,8 @@
       
         
       
+        
+      
     
     
     
@@ -853,6 +855,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../recipes/spec-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Declare specs once for many transports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../recipes/scaffold-app/" class="md-nav__link">
         
   
@@ -894,6 +924,8 @@
       
         
           
+        
+      
         
       
         
@@ -1173,6 +1205,34 @@
   
   
     <li class="md-nav__item">
+      <a href="registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="jsonschema/" class="md-nav__link">
         
   
@@ -1337,8 +1397,11 @@ signatures from the source — when in doubt, follow the source link
   decorator, and the <code>call_service</code> / <code>acall_service</code> HTTP-scope helpers.</li>
 <li><strong><a href="selectors/">Selectors</a></strong> — selector Protocols and the
   <code>call_selector</code> / <code>acall_selector</code> HTTP-scope helpers.</li>
-<li><strong><a href="types/">Types</a></strong> — <code>ServiceSpec</code>, <code>SelectorSpec</code>, <code>ChangeResult</code>,
-  <code>FieldChange</code>, <code>UNSET</code>, <code>UnsetType</code>, <code>NoInput</code>, <code>HttpExtras</code>.</li>
+<li><strong><a href="types/">Types</a></strong> — <code>ServiceSpec</code>, <code>SelectorSpec</code>,
+  <code>PolymorphicServiceSpec</code>, <code>ChangeResult</code>, <code>FieldChange</code>, <code>UNSET</code>,
+  <code>UnsetType</code>, <code>NoInput</code>, <code>HttpExtras</code>.</li>
+<li><strong><a href="registry/">Spec registry</a></strong> — <code>SpecRegistry</code>, <code>RegisteredSpec</code>:
+  one declaration site for a spec set that several transports read.</li>
 <li><strong><a href="exceptions/">Exceptions</a></strong> — <code>ServiceError</code>,
   <code>ServiceValidationError</code>.</li>
 <li><strong><a href="openapi/">OpenAPI</a></strong> — <code>enable_openapi</code>, <code>ServiceAutoSchema</code>,
@@ -1407,10 +1470,13 @@ facing API. Everything below is supported, but deeper imports
 </span><span id="__span-0-54"><a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a>    <span class="n">UnsetType</span><span class="p">,</span>
 </span><span id="__span-0-55"><a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a>    <span class="n">NoInput</span><span class="p">,</span>
 </span><span id="__span-0-56"><a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a>    <span class="n">HttpExtras</span><span class="p">,</span>
-</span><span id="__span-0-57"><a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a>    <span class="c1"># exceptions</span>
-</span><span id="__span-0-58"><a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a>    <span class="n">ServiceError</span><span class="p">,</span>
-</span><span id="__span-0-59"><a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a>    <span class="n">ServiceValidationError</span><span class="p">,</span>
-</span><span id="__span-0-60"><a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a><span class="p">)</span>
+</span><span id="__span-0-57"><a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a>    <span class="c1"># registry</span>
+</span><span id="__span-0-58"><a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a>    <span class="n">SpecRegistry</span><span class="p">,</span>
+</span><span id="__span-0-59"><a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a>    <span class="n">RegisteredSpec</span><span class="p">,</span>
+</span><span id="__span-0-60"><a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a>    <span class="c1"># exceptions</span>
+</span><span id="__span-0-61"><a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a>    <span class="n">ServiceError</span><span class="p">,</span>
+</span><span id="__span-0-62"><a id="__codelineno-0-62" name="__codelineno-0-62" href="#__codelineno-0-62"></a>    <span class="n">ServiceValidationError</span><span class="p">,</span>
+</span><span id="__span-0-63"><a id="__codelineno-0-63" name="__codelineno-0-63" href="#__codelineno-0-63"></a><span class="p">)</span>
 </span></code></pre></div>
 
 

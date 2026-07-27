@@ -16,7 +16,7 @@
         <link rel="prev" href="../selectors/">
       
       
-        <link rel="next" href="../jsonschema/">
+        <link rel="next" href="../registry/">
       
       
         
@@ -538,6 +538,8 @@
       
         
       
+        
+      
     
     
     
@@ -853,6 +855,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../recipes/spec-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Declare specs once for many transports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../recipes/scaffold-app/" class="md-nav__link">
         
   
@@ -894,6 +924,8 @@
       
         
           
+        
+      
         
       
         
@@ -1271,6 +1303,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#polymorphicservicespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PolymorphicServiceSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PolymorphicServiceSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#changeresult" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1518,6 +1572,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../jsonschema/" class="md-nav__link">
         
   
@@ -1688,6 +1770,28 @@
     <span class="md-ellipsis">
       
         ServiceSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#polymorphicservicespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PolymorphicServiceSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PolymorphicServiceSpec
       
     </span>
   </a>
@@ -2141,6 +2245,16 @@ default — see below.</p>
   :class:<code>~django_filters.rest_framework.DjangoFilterBackend</code> applies
   view-side, so on the list path it <strong>replaces</strong> that backend rather than
   stacking with it — wiring both for one action raises at <code>as_view()</code>.
+  Replacing it means keeping its contract, so <strong>invalid filter input is
+  rejected with a 400</strong> rather than silently ignored: the <code>FilterSet</code> is
+  validated via <code>is_valid()</code> and its <code>errors</code> are raised as a DRF
+  :exc:<code>~rest_framework.exceptions.ValidationError</code>. (Reading <code>.qs</code>
+  without validating would return the <em>unfiltered</em> queryset in
+  django-filter's default non-strict mode — a bad <code>?field=</code> value would
+  answer 200 with unfiltered rows.) Only enforced when the duck-typed
+  object actually exposes <code>is_valid</code>; a bare
+  <code>(data, queryset) -&gt; .qs</code> stand-in that doesn't opt into validation
+  keeps its pass-through behaviour.
   The dispatcher also forwards the <code>request</code> into the FilterSet when its
   constructor declares one (as <code>django-filter</code>'s does), so a request-scoped
   FilterSet — <code>self.request.user</code> scoping, a request-aware
@@ -2363,6 +2477,95 @@ finalizer translates flags → transport effects. <strong>HTTP-only:</strong> it
 on the transport-neutral path (<code>dispatch_spec</code> / <code>call_service</code> / MCP),
 which builds no <code>Response</code>. On the bulk path <code>instance</code> / <code>data</code> are
 absent and <code>result</code> is the dispatched value (post-output-selector).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="polymorphicservicespec"><code>PolymorphicServiceSpec</code><a class="headerlink" href="#polymorphicservicespec" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">PolymorphicServiceSpec</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A single action that accepts several mutually exclusive payload shapes.</p>
+<p>Each variant has its own input serializer and service, bundled as a full
+:class:<code>ServiceSpec</code> under a string key. A <code>discriminator</code> callable
+inspects the request and returns the key; dispatch then proceeds through the
+chosen spec exactly as a plain <code>ServiceSpec</code> would. Usable anywhere a
+<code>ServiceSpec</code> is: an <code>action_specs</code> entry and the <code>spec=</code> of
+<code>@service_action</code>.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">PolymorphicServiceSpec</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">discriminator</span><span class="o">=</span><span class="n">resolve_flow</span><span class="p">,</span>        <span class="c1"># pool: {request, data, user, view} → key</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">specs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="n">email_spec</span><span class="p">,</span> <span class="s2">&quot;token&quot;</span><span class="p">:</span> <span class="n">token_spec</span><span class="p">},</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><code>discriminator</code> is resolved through the framework keyword pool — it
+declares any subset of <code>request</code> / <code>data</code> (the <em>raw</em> <code>request.data</code>) /
+<code>user</code> / <code>view</code> (or <code>**kwargs</code>) — and returns a key present in
+<code>specs</code>. For a no-match / rejected payload it should <strong>raise</strong>
+(e.g. :exc:<code>~rest_framework_services.exceptions.service_validation_error.ServiceValidationError</code>,
+which the view layer maps to a 400); returning a key absent from <code>specs</code>
+is a configuration error and raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+<p><code>permission_strategy</code> decides how <code>get_permissions</code> behaves, since DRF
+runs permissions before the body is necessarily parsed:</p>
+<ul>
+<li><code>"union"</code> (the default) — require the union of every variant's
+  <code>permission_classes</code>; the request must satisfy them all. No early body
+  read, and the conservative/secure failure mode (a mis-declared
+  discriminator branch can't <em>widen</em> access). For the common "same auth,
+  different payload shapes" case this is identical to <code>"require_identical"</code>.</li>
+<li><code>"discriminate"</code> — run the discriminator early (reading the raw body)
+  and apply only the chosen variant's <code>permission_classes</code>. Most precise,
+  for the genuine "each variant is a different privilege" case; accepts the
+  early-body-read tradeoff.</li>
+<li><code>"require_identical"</code> — validated at <code>as_view()</code> time to require every
+  variant to declare the same <code>permission_classes</code>; sidesteps ordering
+  entirely.</li>
+</ul>
+<p>The resolved concrete spec flows through the shared action→spec chain, so
+the chosen variant's serializer context, kwargs, and output pipeline all
+apply — the discriminator is resolved once per request and reused across
+dispatch, permissions, and serializer resolution.</p>
 
 
 

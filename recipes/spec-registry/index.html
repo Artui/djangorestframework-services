@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/recipes/bulk-mutations/">
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/recipes/spec-registry/">
       
       
-        <link rel="prev" href="../nested-writes/">
+        <link rel="prev" href="../serializer-context/">
       
       
-        <link rel="next" href="../serializer-context/">
+        <link rel="next" href="../scaffold-app/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Bulk & collection mutations - djangorestframework-services</title>
+        <title>Declare specs once for many transports - djangorestframework-services</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#bulk-collection-mutations" class="md-skip">
+        <a href="#declare-specs-once-project-them-to-many-transports" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Bulk & collection mutations
+              Declare specs once for many transports
             
           </span>
         </div>
@@ -796,37 +796,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Bulk & collection mutations
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../bulk-mutations/" class="md-nav__link">
         
   
   
@@ -842,76 +815,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#manytrue-a-list-body-in-a-list-out" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        many=True — a list body in, a list out
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#collection_selector_spec-operate-on-a-filtered-set" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        collection_selector_spec — operate on a filtered set
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="collection_selector_spec — operate on a filtered set">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#return-the-affected-set" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Return the affected set
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#permissions-failures" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Permissions &amp; failures
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -949,10 +852,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../spec-registry/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Declare specs once for many transports
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -968,6 +898,81 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#one-declaration-site" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One declaration site
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-the-instance-lives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the instance lives
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#many-registries-on-purpose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Many registries, on purpose
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tags
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-a-registry-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading a registry back
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1441,10 +1446,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#manytrue-a-list-body-in-a-list-out" class="md-nav__link">
+  <a href="#one-declaration-site" class="md-nav__link">
     <span class="md-ellipsis">
       
-        many=True — a list body in, a list out
+        One declaration site
       
     </span>
   </a>
@@ -1452,38 +1457,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#collection_selector_spec-operate-on-a-filtered-set" class="md-nav__link">
+  <a href="#where-the-instance-lives" class="md-nav__link">
     <span class="md-ellipsis">
       
-        collection_selector_spec — operate on a filtered set
+        Where the instance lives
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="collection_selector_spec — operate on a filtered set">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#return-the-affected-set" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Return the affected set
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#permissions-failures" class="md-nav__link">
+  <a href="#many-registries-on-purpose" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Permissions &amp; failures
+        Many registries, on purpose
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tags
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-a-registry-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading a registry back
       
     </span>
   </a>
@@ -1507,7 +1517,7 @@
 
 
   
-    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/recipes/bulk-mutations.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/recipes/spec-registry.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1515,105 +1525,132 @@
   
 
 
-<h1 id="bulk-collection-mutations">Bulk &amp; collection mutations<a class="headerlink" href="#bulk-collection-mutations" title="Permanent link">&para;</a></h1>
-<p>Two <code>ServiceSpec</code> shapes cover the bulk cases a single-instance spec can't.
-They're mutually exclusive.</p>
-<h2 id="manytrue-a-list-body-in-a-list-out"><code>many=True</code> — a list body in, a list out<a class="headerlink" href="#manytrue-a-list-body-in-a-list-out" title="Permanent link">&para;</a></h2>
-<p>Validate the request body as a list, hand the <strong>validated list</strong> to the
-service, and render the result list. The service loops itself — one call, one
-round-trip where the ORM allows it.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceSpec</span><span class="p">,</span> <span class="n">SelectorKind</span><span class="p">,</span> <span class="n">SelectorSpec</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nd">@dataclass</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">BookIn</span><span class="p">:</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">bulk_create_books</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">BookIn</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Book</span><span class="p">]:</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="k">return</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">bulk_create</span><span class="p">([</span><span class="n">Book</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="n">item</span><span class="o">.</span><span class="n">title</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">data</span><span class="p">])</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="k">class</span><span class="w"> </span><span class="nc">BulkCreateBooksView</span><span class="p">(</span><span class="n">ServiceCreateView</span><span class="p">):</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>        <span class="n">service</span><span class="o">=</span><span class="n">bulk_create_books</span><span class="p">,</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">BookIn</span><span class="p">,</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>        <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span> <span class="n">output_serializer</span><span class="o">=</span><span class="n">BookSerializer</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>        <span class="p">),</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="p">)</span>
+<h1 id="declare-specs-once-project-them-to-many-transports">Declare specs once, project them to many transports<a class="headerlink" href="#declare-specs-once-project-them-to-many-transports" title="Permanent link">&para;</a></h1>
+<p>A spec is transport-neutral by design: the same <code>ServiceSpec</code> / <code>SelectorSpec</code>
+drives an HTTP view, an MCP tool, a Pydantic-AI tool, a management command. But
+each of those transports needs to be <em>told</em> which specs it exposes, so a project
+serving two or three of them ends up writing the same list two or three times:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># somewhere in the MCP wiring</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">mcp</span><span class="o">.</span><span class="n">register_selector_tool</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;list_orders&quot;</span><span class="p">,</span> <span class="n">spec</span><span class="o">=</span><span class="n">orders_spec</span><span class="p">)</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">mcp</span><span class="o">.</span><span class="n">register_service_tool</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;refund_order&quot;</span><span class="p">,</span> <span class="n">spec</span><span class="o">=</span><span class="n">refund_spec</span><span class="p">)</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># and again in the agent wiring</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;list_orders&quot;</span><span class="p">:</span> <span class="n">orders_spec</span><span class="p">,</span> <span class="s2">&quot;refund_order&quot;</span><span class="p">:</span> <span class="n">refund_spec</span><span class="p">})</span>
 </span></code></pre></div>
-<p><code>POST</code> a JSON array; you get a <code>201</code> with the rendered array. Under
-<code>atomic=True</code> (the default) any item's <code>ServiceError</code> rolls the whole batch
-back.</p>
-<h2 id="collection_selector_spec-operate-on-a-filtered-set"><code>collection_selector_spec</code> — operate on a filtered set<a class="headerlink" href="#collection_selector_spec-operate-on-a-filtered-set" title="Permanent link">&para;</a></h2>
-<p>The LIST-kind twin of <code>instance_selector_spec</code>. It resolves a <strong>scoped set</strong>
-(via the selector + <a href="../selector-filtering/"><code>filter_set</code></a>) and seeds it into the
-service as <code>collection</code>. Use it for instance-less bulk delete / update — no
-single <code>pk</code> in the URL.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">delete_collection</span>
+<p>The lists drift — a new spec gets wired into one transport and forgotten in the
+other — and the same operation can end up named differently in each. There is
+also no single object to answer "what operations does this project expose?".</p>
+<p><code>SpecRegistry</code> is that object.</p>
+<h2 id="one-declaration-site">One declaration site<a class="headerlink" href="#one-declaration-site" title="Permanent link">&para;</a></h2>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecRegistry</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">def</span><span class="w"> </span><span class="nf">published_books</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">user</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Book</span><span class="p">]:</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="k">return</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">for_user</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>            <span class="c1"># owner-scoped</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">BulkDeleteBooksView</span><span class="p">(</span><span class="n">ServiceDeleteView</span><span class="p">):</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>        <span class="n">service</span><span class="o">=</span><span class="n">delete_collection</span><span class="p">(</span><span class="n">Book</span><span class="p">),</span>          <span class="c1"># collection.delete()</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>        <span class="n">collection_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">published_books</span><span class="p">,</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>            <span class="n">filter_set</span><span class="o">=</span><span class="n">BookFilterSet</span><span class="p">,</span>             <span class="c1"># ?status=draft&amp;… narrows the set</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>        <span class="p">),</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="p">)</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_orders&quot;</span><span class="p">,</span> <span class="n">orders_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;read&quot;</span><span class="p">,</span> <span class="s2">&quot;public&quot;</span><span class="p">))</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;get_order&quot;</span><span class="p">,</span> <span class="n">order_detail_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;read&quot;</span><span class="p">,</span> <span class="s2">&quot;public&quot;</span><span class="p">))</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;refund_order&quot;</span><span class="p">,</span> <span class="n">refund_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;write&quot;</span><span class="p">,</span> <span class="s2">&quot;admin&quot;</span><span class="p">))</span>
 </span></code></pre></div>
-<p><code>DELETE /books/?status=draft</code> deletes the draft set. The filter comes from the
-query string; an <strong>empty</strong> set is a harmless no-op (idempotent). A bulk update
-is the same shape with a service that calls <code>collection.update(...)</code> (return a
-summary like <code>{"updated": n}</code> to get a <code>200</code> body instead of <code>204</code>).</p>
-<p><code>delete_collection</code> / <code>adelete_collection</code> are batteries-included; pass
-<code>soft_delete=lambda qs: qs.update(is_archived=True)</code> to archive instead.</p>
-<h3 id="return-the-affected-set">Return the affected set<a class="headerlink" href="#return-the-affected-set" title="Permanent link">&para;</a></h3>
-<p>By default a collection mutation renders whatever the service returns — a
-summary like <code>{"updated": n}</code>, or an empty <code>204</code>. To render the <strong>set itself</strong>,
-add an <code>output_selector_spec</code> with <code>kind=SelectorKind.LIST</code>: it re-fetches and
-renders a list — the output twin of the bulk input. Capture the affected pks
-<em>before</em> the write, since the collection's own filter may no longer match
-afterwards.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">publish_drafts</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">collection</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Post</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">collection</span><span class="o">.</span><span class="n">values_list</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="n">flat</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">Post</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="n">ids</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">published</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="k">return</span> <span class="n">ids</span>                                  <span class="c1"># the service result → `result`</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">published_by_ids</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Post</span><span class="p">]:</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="k">return</span> <span class="n">Post</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="k">class</span><span class="w"> </span><span class="nc">PublishDraftsView</span><span class="p">(</span><span class="n">ServiceUpdateView</span><span class="p">):</span>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>        <span class="n">service</span><span class="o">=</span><span class="n">publish_drafts</span><span class="p">,</span>
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>        <span class="n">collection_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span> <span class="n">selector</span><span class="o">=</span><span class="n">all_posts</span><span class="p">,</span> <span class="n">filter_set</span><span class="o">=</span><span class="n">PostFilterSet</span><span class="p">,</span>
-</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>        <span class="p">),</span>
-</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>        <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>                 <span class="c1"># ← renders a list, not one row</span>
-</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">published_by_ids</span><span class="p">,</span>
-</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">PostSerializer</span><span class="p">,</span>
-</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>        <span class="p">),</span>
-</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>    <span class="p">)</span>
+<p>Each transport then reads that one source. Adoption needs no support from the
+adapter: <code>specs()</code> returns the <code>dict[str, spec]</code> they already accept.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="o">=</span><span class="n">registry</span><span class="o">.</span><span class="n">specs</span><span class="p">())</span>
 </span></code></pre></div>
-<p><code>PUT /posts/?published=false</code> publishes the drafts and responds <code>200</code> with the
-JSON array of the now-published rows. <code>kind=LIST</code> on <code>output_selector_spec</code> is
-valid <strong>only</strong> alongside <code>collection_selector_spec</code> — a single-instance
-mutation returns one representation (<code>kind=RETRIEVE</code>, the default). The re-fetch
-runs inside the same transport-neutral <code>dispatch_spec</code>, so the MCP server
-renders the list identically.</p>
-<h2 id="permissions-failures">Permissions &amp; failures<a class="headerlink" href="#permissions-failures" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>Per-set</strong> — the view / spec <code>permission_classes</code> plus the scoped selector
-  authorize the action; there is no per-row <code>check_object_permissions</code> (a
-  per-row opt-in is a planned follow-up).</li>
-<li><strong>All-or-nothing</strong> — <code>atomic=True</code> makes the batch a single transaction.
-  Per-item partial-success responses are a tracked follow-up.</li>
-</ul>
-<p>A bulk spec runs through the same transport-neutral <code>dispatch_spec</code> the MCP
-server uses, so the rules are identical on and off HTTP.</p>
+<p>A registry holds only what is <strong>invariant</strong> across transports — which spec, its
+canonical name, its tags. Everything transport-specific stays where it already
+lives, at the binding that configures it: MCP annotations and output schemas, an
+agent toolset's pagination or query-param registrations. That split is the point;
+a registry is a <em>source</em> for a transport's own binding table, not a replacement
+for one, and it introduces no layer between a caller and
+<a href="../../reference/dispatch/"><code>dispatch_spec</code></a>.</p>
+<h2 id="where-the-instance-lives">Where the instance lives<a class="headerlink" href="#where-the-instance-lives" title="Permanent link">&para;</a></h2>
+<p>There is no global registry, and none is coming. Your project owns the instance —
+most simply as a module attribute populated from an <code>AppConfig.ready()</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># orders/registry.py</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecRegistry</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># orders/apps.py</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.apps</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppConfig</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="k">class</span><span class="w"> </span><span class="nc">OrdersConfig</span><span class="p">(</span><span class="n">AppConfig</span><span class="p">):</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;orders&quot;</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">ready</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">orders</span><span class="w"> </span><span class="kn">import</span> <span class="n">specs</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">orders.registry</span><span class="w"> </span><span class="kn">import</span> <span class="n">registry</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>        <span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_orders&quot;</span><span class="p">,</span> <span class="n">specs</span><span class="o">.</span><span class="n">orders_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;read&quot;</span><span class="p">,</span> <span class="s2">&quot;public&quot;</span><span class="p">))</span>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>        <span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;refund_order&quot;</span><span class="p">,</span> <span class="n">specs</span><span class="o">.</span><span class="n">refund_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;write&quot;</span><span class="p">,</span> <span class="s2">&quot;admin&quot;</span><span class="p">))</span>
+</span></code></pre></div>
+<p>Registering a name twice raises rather than overwriting, so a copy-pasted
+declaration fails at import time instead of silently shadowing an operation.</p>
+<h2 id="many-registries-on-purpose">Many registries, on purpose<a class="headerlink" href="#many-registries-on-purpose" title="Permanent link">&para;</a></h2>
+<p>A deployment that mounts more than one endpoint needs those endpoints to differ,
+and to not share state. Both shapes of "more than one" work.</p>
+<p><strong>Independent registries</strong> — separate name namespaces, full isolation. Names are
+unique <em>within</em> a registry, so two independent registries may reuse one:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">internal</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">internal</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;purge_tenant&quot;</span><span class="p">,</span> <span class="n">purge_spec</span><span class="p">)</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">public</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">public</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_orders&quot;</span><span class="p">,</span> <span class="n">orders_spec</span><span class="p">)</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># /internal/mcp reads `internal`; /public/mcp reads `public`.</span>
+</span></code></pre></div>
+<p><strong>One registry, many projections</strong> — one declaration site, filtered views:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_orders&quot;</span><span class="p">,</span> <span class="n">orders_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;read&quot;</span><span class="p">,</span> <span class="s2">&quot;public&quot;</span><span class="p">))</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;refund_order&quot;</span><span class="p">,</span> <span class="n">refund_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;write&quot;</span><span class="p">,</span> <span class="s2">&quot;admin&quot;</span><span class="p">))</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">public_specs</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">by_tag</span><span class="p">(</span><span class="s2">&quot;public&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">specs</span><span class="p">()</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">admin_specs</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">by_tag</span><span class="p">(</span><span class="s2">&quot;admin&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">specs</span><span class="p">()</span>
+</span></code></pre></div>
+<p><code>by_tag</code> matches <strong>any</strong> of the tags given, so intersection composes from it
+(<code>registry.by_tag("read").by_tag("public")</code>) while a union would not compose from
+an intersection. <code>subset("a", "b")</code> selects by name instead, and raises on a name
+that isn't registered — naming entries explicitly means a typo is a configuration
+error, not a quietly smaller surface.</p>
+<p>Every derivation returns a <strong>new</strong> registry holding a snapshot: the entries are
+selected at call time and the spec objects are shared, not copied. So a view
+never mutates its source, and registering on the source afterwards does not
+appear in a view derived earlier.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">public</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">by_tag</span><span class="p">(</span><span class="s2">&quot;public&quot;</span><span class="p">)</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_refunds&quot;</span><span class="p">,</span> <span class="n">refunds_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;public&quot;</span><span class="p">,))</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">assert</span> <span class="s2">&quot;list_refunds&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">public</span>   <span class="c1"># `public` was a snapshot</span>
+</span></code></pre></div>
+<p><code>merge()</code> goes the other way, combining registries into a new one. It is the only
+place cross-registry name uniqueness is enforced — reusing a name across
+independent surfaces is legal until you actually put them together:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">combined</span> <span class="o">=</span> <span class="n">internal</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">public</span><span class="p">)</span>   <span class="c1"># a shared name here raises</span>
+</span></code></pre></div>
+<h2 id="tags">Tags<a class="headerlink" href="#tags" title="Permanent link">&para;</a></h2>
+<p>Tags are free-form labels, and each transport maps them to its own vocabulary —
+an MCP binding might turn <code>"destructive"</code> into a tool annotation, an agent
+capability might use <code>"admin"</code> to decide which toolset an operation joins.</p>
+<p>Keep them boolean-ish: <code>"read"</code>, <code>"write"</code>, <code>"admin"</code>, <code>"public"</code>,
+<code>"destructive"</code>. A structured payload — a URI, a schema fragment, a config dict —
+does not belong encoded in a tag string. It is almost always transport-specific,
+which means it belongs at the binding, next to the other per-transport knobs.</p>
+<h2 id="reading-a-registry-back">Reading a registry back<a class="headerlink" href="#reading-a-registry-back" title="Permanent link">&para;</a></h2>
+<p>Beyond <code>specs()</code>, a registry introspects:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">len</span><span class="p">(</span><span class="n">registry</span><span class="p">)</span>                 <span class="c1"># how many operations</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="s2">&quot;refund_order&quot;</span> <span class="ow">in</span> <span class="n">registry</span>    <span class="c1"># is this name taken</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;refund_order&quot;</span><span class="p">)</span>  <span class="c1"># the RegisteredSpec, or None</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">registry</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>                <span class="c1"># every entry, in registration order</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">registry</span><span class="o">.</span><span class="n">mutations</span><span class="p">()</span>          <span class="c1"># the ServiceSpec entries</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">registry</span><span class="o">.</span><span class="n">queries</span><span class="p">()</span>            <span class="c1"># the SelectorSpec entries</span>
+</span></code></pre></div>
+<p>Order is registration order everywhere, so a transport's tool listing is stable
+between processes rather than reshuffling for clients that diff it.</p>
+<p><code>mutations()</code> and <code>queries()</code> discriminate by type rather than by a stored flag,
+and together they cover every entry — which is why <code>register()</code> rejects anything
+that is neither a <code>ServiceSpec</code> nor a <code>SelectorSpec</code>. A <code>PolymorphicServiceSpec</code>
+is rejected too, with a pointer at the supported shape: register each of its
+variants under its own name, since a transport that projects one operation per
+name wants one operation per variant, not a union.</p>
+<p>Full signatures in the <a href="../../reference/registry/">spec registry reference</a>.</p>
 
 
 

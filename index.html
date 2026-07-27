@@ -638,6 +638,8 @@
       
         
       
+        
+      
     
     
     
@@ -953,6 +955,34 @@
   
   
     <li class="md-nav__item">
+      <a href="recipes/spec-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Declare specs once for many transports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="recipes/scaffold-app/" class="md-nav__link">
         
   
@@ -992,6 +1022,8 @@
       
         
           
+        
+      
         
       
         
@@ -1273,6 +1305,34 @@
   
   
     <li class="md-nav__item">
+      <a href="reference/registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="reference/jsonschema/" class="md-nav__link">
         
   
@@ -1484,7 +1544,7 @@ you a precise, well-typed seam for the bits in the middle.</p>
 <li><strong>Sync and async</strong> services and selectors, transparently dispatched.</li>
 <li><strong>Atomic by default</strong>, opt-out per spec.</li>
 <li><strong>Framework-agnostic exceptions</strong> — services don't import from DRF.</li>
-<li><strong>Typed end-to-end</strong> — generic <code>ServiceSpec[InputT, ResultT]</code> plus
+<li><strong>Typed end-to-end</strong> — generic <code>ServiceSpec[InputT, ResultT, ExtraT]</code> plus
   lenient and strict Protocols that catch signature drift at type-check
   time, with fail-fast validation at <code>as_view()</code>. See
   <a href="typing/">Typing</a>.</li>

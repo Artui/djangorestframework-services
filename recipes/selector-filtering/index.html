@@ -540,6 +540,8 @@
       
         
       
+        
+      
     
     
     
@@ -851,6 +853,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#invalid-filter-input-is-a-400" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Invalid filter input is a 400
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-request-inside-a-filter_set" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -983,6 +996,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../spec-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Declare specs once for many transports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../scaffold-app/" class="md-nav__link">
         
   
@@ -1022,6 +1063,8 @@
       
         
           
+        
+      
         
       
         
@@ -1303,6 +1346,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../reference/jsonschema/" class="md-nav__link">
         
   
@@ -1457,6 +1528,17 @@
     <span class="md-ellipsis">
       
         filter_set replaces DjangoFilterBackend on the list path
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#invalid-filter-input-is-a-400" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Invalid filter input is a 400
       
     </span>
   </a>
@@ -1660,6 +1742,24 @@ wires <code>DjangoFilterBackend</code> raises <code>ImproperlyConfigured</code> 
 </span></code></pre></div>
 <p>Retrieve has no such conflict: the selector retrieve path overrides <code>get_object()</code>
 and never calls <code>filter_queryset</code>, so <code>filter_set</code> is the only filter applied.</p>
+<h2 id="invalid-filter-input-is-a-400">Invalid filter input is a 400<a class="headerlink" href="#invalid-filter-input-is-a-400" title="Permanent link">&para;</a></h2>
+<p>Replacing <code>DjangoFilterBackend</code> means keeping its contract, and the part of that
+contract that bites is validation. A <code>FilterSet</code> validates its bound form via
+<code>is_valid()</code>; reading <code>.qs</code> <em>without</em> validating returns the <strong>unfiltered</strong>
+queryset in django-filter's default non-strict mode. So a bad <code>?field=</code> value — a
+non-numeric <code>min_views</code> above, a <code>ChoiceFilter</code> value outside its choices —
+would quietly answer <code>200</code> with every row instead of the <code>400</code> the backend gives.</p>
+<p><code>filter_set</code> validates, and raises the FilterSet's <code>errors</code> as a DRF
+<code>ValidationError</code>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>GET /posts/?min_views=lots      → 400 {&quot;min_views&quot;: [&quot;Enter a number.&quot;]}
+</span></code></pre></div>
+<p>The errors render in the usual <code>{field: [message]}</code> shape, because a Django form
+<code>ErrorDict</code> is what DRF already knows how to render — which is how the core stays
+free of any <code>django-filter</code> import.</p>
+<p>This is enforced only when the object you hand to <code>filter_set</code> actually exposes
+<code>is_valid</code>. A bare <code>(data, queryset) -&gt; .qs</code> duck-typed stand-in that doesn't opt
+into validation keeps its pass-through behaviour — it never had a form to
+validate.</p>
 <h2 id="the-request-inside-a-filter_set">The request inside a <code>filter_set</code><a class="headerlink" href="#the-request-inside-a-filter_set" title="Permanent link">&para;</a></h2>
 <p>A <code>django-filter</code> <code>FilterSet</code> can reach into <code>self.request</code> — to scope by the
 caller (<code>self.request.user</code>), to build a request-aware choice queryset
@@ -1737,20 +1837,20 @@ selector returns an <code>.aggregate()</code> dict or any other computed object,
 can't apply to it — those <code>?since=…</code> params are <em>computation inputs</em>, not queryset
 filters. Reach for <code>kwargs</code> / <code>get_selector_kwargs()</code> there and let the selector
 consume them:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">post_stats</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">since</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">query_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;since&quot;</span><span class="p">)</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">qs</span> <span class="o">=</span> <span class="n">Post</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="k">if</span> <span class="n">since</span><span class="p">:</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>        <span class="n">qs</span> <span class="o">=</span> <span class="n">qs</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">created_at__gte</span><span class="o">=</span><span class="n">since</span><span class="p">)</span>
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="k">return</span> <span class="n">qs</span><span class="o">.</span><span class="n">aggregate</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="n">Count</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">),</span> <span class="n">views</span><span class="o">=</span><span class="n">Sum</span><span class="p">(</span><span class="s2">&quot;views&quot;</span><span class="p">))</span>  <span class="c1"># not a QuerySet</span>
-</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
-</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
-</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="k">class</span><span class="w"> </span><span class="nc">PostStatsView</span><span class="p">(</span><span class="n">SelectorRetrieveView</span><span class="p">):</span>
-</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>        <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span>
-</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>        <span class="n">selector</span><span class="o">=</span><span class="n">post_stats</span><span class="p">,</span>           <span class="c1"># returns a dict, so no filter_set</span>
-</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>        <span class="n">output_serializer</span><span class="o">=</span><span class="n">PostStatsSerializer</span><span class="p">,</span>
-</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    <span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">post_stats</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">since</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">query_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;since&quot;</span><span class="p">)</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">qs</span> <span class="o">=</span> <span class="n">Post</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="k">if</span> <span class="n">since</span><span class="p">:</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>        <span class="n">qs</span> <span class="o">=</span> <span class="n">qs</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">created_at__gte</span><span class="o">=</span><span class="n">since</span><span class="p">)</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="k">return</span> <span class="n">qs</span><span class="o">.</span><span class="n">aggregate</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="n">Count</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">),</span> <span class="n">views</span><span class="o">=</span><span class="n">Sum</span><span class="p">(</span><span class="s2">&quot;views&quot;</span><span class="p">))</span>  <span class="c1"># not a QuerySet</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="k">class</span><span class="w"> </span><span class="nc">PostStatsView</span><span class="p">(</span><span class="n">SelectorRetrieveView</span><span class="p">):</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>        <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>        <span class="n">selector</span><span class="o">=</span><span class="n">post_stats</span><span class="p">,</span>           <span class="c1"># returns a dict, so no filter_set</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>        <span class="n">output_serializer</span><span class="o">=</span><span class="n">PostStatsSerializer</span><span class="p">,</span>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>    <span class="p">)</span>
 </span></code></pre></div>
 <p>Setting <code>filter_set</code> (or any shaping field) on a selector that returns a
 non-queryset raises <code>ImproperlyConfigured</code> at request time — the loud failure is
