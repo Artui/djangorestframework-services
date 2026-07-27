@@ -17,10 +17,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import pytest
+
 from rest_framework_services import (
     CreateService,
     DeleteService,
     NoInput,
+    SelectorSpec,
     ServiceSpec,
     UpdateService,
 )
@@ -52,19 +55,19 @@ def _delete(*, instance: _Author, **kwargs: Any) -> None:
 
 def test_create_service_protocol_accepts_matching_callable() -> None:
     fn: CreateService[_AuthorIn, _Author] = _create
-    spec: ServiceSpec[_AuthorIn, _Author] = ServiceSpec(service=fn)
+    spec: ServiceSpec[_AuthorIn, _Author, Any] = ServiceSpec(service=fn)
     assert spec.service is _create
 
 
 def test_update_service_protocol_accepts_matching_callable() -> None:
     fn: UpdateService[_AuthorIn, _Author, _Author] = _update
-    spec: ServiceSpec[_AuthorIn, _Author] = ServiceSpec(service=fn)
+    spec: ServiceSpec[_AuthorIn, _Author, Any] = ServiceSpec(service=fn)
     assert spec.service is _update
 
 
 def test_delete_service_protocol_accepts_matching_callable() -> None:
     fn: DeleteService[NoInput, _Author, None] = _delete
-    spec: ServiceSpec[None, None] = ServiceSpec(service=fn)
+    spec: ServiceSpec[None, None, Any] = ServiceSpec(service=fn)
     assert spec.service is _delete
 
 
@@ -73,3 +76,22 @@ def test_service_spec_unparameterized_still_works() -> None:
     spec = ServiceSpec(service=_create)
     assert spec.service is _create
     assert spec.atomic is True
+
+
+def test_spec_subscripts_are_all_or_nothing() -> None:
+    """Parameterising a spec means supplying *every* type argument.
+
+    The annotations above are strings under ``from __future__ import
+    annotations``, so they never reach the subscript machinery — which is how
+    a partial ``ServiceSpec[InputT, ResultT]`` survived in the docs unnoticed.
+    Evaluate the subscripts here so the arity is actually pinned: these are
+    plain ``TypeVar``s with no PEP 696 defaults, so dropping ``ExtraT`` is a
+    ``TypeError``, not an implicit ``Any``.
+    """
+    assert ServiceSpec[_AuthorIn, _Author, Any] is not None
+    assert SelectorSpec[_Author, Any] is not None
+
+    with pytest.raises(TypeError, match="Too few arguments"):
+        ServiceSpec[_AuthorIn, _Author]  # type: ignore[misc]
+    with pytest.raises(TypeError, match="Too few arguments"):
+        SelectorSpec[_Author]  # type: ignore[misc]

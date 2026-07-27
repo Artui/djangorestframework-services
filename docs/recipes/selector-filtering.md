@@ -171,6 +171,31 @@ class PostViewSet(SelectorViewSet):
 Retrieve has no such conflict: the selector retrieve path overrides `get_object()`
 and never calls `filter_queryset`, so `filter_set` is the only filter applied.
 
+## Invalid filter input is a 400
+
+Replacing `DjangoFilterBackend` means keeping its contract, and the part of that
+contract that bites is validation. A `FilterSet` validates its bound form via
+`is_valid()`; reading `.qs` *without* validating returns the **unfiltered**
+queryset in django-filter's default non-strict mode. So a bad `?field=` value — a
+non-numeric `min_views` above, a `ChoiceFilter` value outside its choices —
+would quietly answer `200` with every row instead of the `400` the backend gives.
+
+`filter_set` validates, and raises the FilterSet's `errors` as a DRF
+`ValidationError`:
+
+```text
+GET /posts/?min_views=lots      → 400 {"min_views": ["Enter a number."]}
+```
+
+The errors render in the usual `{field: [message]}` shape, because a Django form
+`ErrorDict` is what DRF already knows how to render — which is how the core stays
+free of any `django-filter` import.
+
+This is enforced only when the object you hand to `filter_set` actually exposes
+`is_valid`. A bare `(data, queryset) -> .qs` duck-typed stand-in that doesn't opt
+into validation keeps its pass-through behaviour — it never had a form to
+validate.
+
 ## The request inside a `filter_set`
 
 A `django-filter` `FilterSet` can reach into `self.request` — to scope by the

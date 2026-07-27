@@ -12,6 +12,10 @@
 
 ::: rest_framework_services.types.service_spec.ServiceSpec
 
+## `PolymorphicServiceSpec`
+
+::: rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec
+
 ## `ChangeResult`
 
 ::: rest_framework_services.types.change_result.ChangeResult

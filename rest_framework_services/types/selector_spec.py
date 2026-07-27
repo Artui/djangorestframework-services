@@ -130,6 +130,16 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
       :class:`~django_filters.rest_framework.DjangoFilterBackend` applies
       view-side, so on the list path it **replaces** that backend rather than
       stacking with it — wiring both for one action raises at ``as_view()``.
+      Replacing it means keeping its contract, so **invalid filter input is
+      rejected with a 400** rather than silently ignored: the ``FilterSet`` is
+      validated via ``is_valid()`` and its ``errors`` are raised as a DRF
+      :exc:`~rest_framework.exceptions.ValidationError`. (Reading ``.qs``
+      without validating would return the *unfiltered* queryset in
+      django-filter's default non-strict mode — a bad ``?field=`` value would
+      answer 200 with unfiltered rows.) Only enforced when the duck-typed
+      object actually exposes ``is_valid``; a bare
+      ``(data, queryset) -> .qs`` stand-in that doesn't opt into validation
+      keeps its pass-through behaviour.
       The dispatcher also forwards the ``request`` into the FilterSet when its
       constructor declares one (as ``django-filter``'s does), so a request-scoped
       FilterSet — ``self.request.user`` scoping, a request-aware

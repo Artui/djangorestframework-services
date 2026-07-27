@@ -17,8 +17,9 @@ signatures from the source — when in doubt, follow the source link
   decorator, and the `call_service` / `acall_service` HTTP-scope helpers.
 - **[Selectors](selectors.md)** — selector Protocols and the
   `call_selector` / `acall_selector` HTTP-scope helpers.
-- **[Types](types.md)** — `ServiceSpec`, `SelectorSpec`, `ChangeResult`,
-  `FieldChange`, `UNSET`, `UnsetType`, `NoInput`, `HttpExtras`.
+- **[Types](types.md)** — `ServiceSpec`, `SelectorSpec`,
+  `PolymorphicServiceSpec`, `ChangeResult`, `FieldChange`, `UNSET`,
+  `UnsetType`, `NoInput`, `HttpExtras`.
 - **[Exceptions](exceptions.md)** — `ServiceError`,
   `ServiceValidationError`.
 - **[OpenAPI](openapi.md)** — `enable_openapi`, `ServiceAutoSchema`,
