@@ -29,7 +29,7 @@ you a precise, well-typed seam for the bits in the middle.
 - **Sync and async** services and selectors, transparently dispatched.
 - **Atomic by default**, opt-out per spec.
 - **Framework-agnostic exceptions** — services don't import from DRF.
-- **Typed end-to-end** — generic `ServiceSpec[InputT, ResultT]` plus
+- **Typed end-to-end** — generic `ServiceSpec[InputT, ResultT, ExtraT]` plus
   lenient and strict Protocols that catch signature drift at type-check
   time, with fail-fast validation at `as_view()`.
 - **100% test coverage**, type-checked, Python 3.10–3.14, Django 4.2–6.0.

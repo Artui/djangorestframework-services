@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **`rest_framework_services.conf` — the `REST_FRAMEWORK_SERVICES` settings dict
+  and its `ATOMIC_BY_DEFAULT` key.** Nothing in the package ever imported this
+  module, so the setting did nothing: the atomic default is the `ServiceSpec.atomic`
+  field (`True`), and the supported opt-out is per-spec `atomic=False`. Setting
+  `REST_FRAMEWORK_SERVICES = {"ATOMIC_BY_DEFAULT": False}` silently had no effect,
+  which is worse than not offering it — removed rather than wired up, since the
+  per-spec knob already covers the case and is what the docs teach.
+
+### Documentation
+
+- **`ServiceSpec` parameterisation examples were missing their third type
+  argument.** `ServiceSpec` is `Generic[InputT, ResultT, ExtraT]`, but the README,
+  the docs landing page, and the Typing guide all showed the two-argument form
+  `ServiceSpec[AuthorIn, Author]` — which raises `TypeError` at runtime, since
+  these are plain `TypeVar`s with no PEP 696 defaults. Corrected, with a note that
+  it is all-or-nothing and `Any` is the right `ExtraT` for a spec with no
+  `kwargs=` provider.
+- **`filter_set`'s 400-on-invalid-filter contract is now documented.** Rejecting
+  invalid filter input (rather than silently returning unfiltered rows, which is
+  django-filter's default non-strict behaviour) is the half of "replaces
+  `DjangoFilterBackend`" that most affects callers, and it appeared in neither the
+  filtering recipe nor the `SelectorSpec.filter_set` reference. Both now cover it,
+  including that it only applies when the duck-typed object exposes `is_valid`.
+- **`PolymorphicServiceSpec` gained a reference entry.** It was the only public
+  symbol with no autodoc entry on any reference page.
+
 ## [0.26.0] — 2026-07-24
 
 ### Added

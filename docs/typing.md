@@ -35,12 +35,28 @@ Without parameterization, `ServiceSpec(service=fn)` keeps working — the
 generic params default to `Any`, exactly as before.
 
 Parameterizing them lets type checkers connect the input serializer, the
-service signature, and the output:
+service signature, and the output. **Supply every parameter or none** —
+these are plain `TypeVar`s with no PEP 696 defaults, so a partial
+subscript like `ServiceSpec[AuthorIn, Author]` is a `TypeError`. When the
+spec has no `kwargs=` provider there is no extras shape to name, so pass
+`Any` for `ExtraT`:
 
 ```python
-spec: ServiceSpec[AuthorIn, Author] = ServiceSpec(
+spec: ServiceSpec[AuthorIn, Author, Any] = ServiceSpec(
     service=create_author,
     input_serializer=AuthorIn,
+)
+```
+
+With a `kwargs=` provider, `ExtraT` is the `TypedDict` that provider
+returns — see
+[Pass extra kwargs to services](recipes/extra-kwargs.md):
+
+```python
+spec: ServiceSpec[AuthorIn, Author, PublishAuthorKwargs] = ServiceSpec(
+    service=publish_author,
+    input_serializer=AuthorIn,
+    kwargs=_publish_author_kwargs,
 )
 ```
 
