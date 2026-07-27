@@ -21,6 +21,7 @@ from rest_framework_services.jsonschema.filterset_to_json_schema import filterse
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
 from rest_framework_services.jsonschema.serializer_to_json_schema import serializer_to_json_schema
 from rest_framework_services.jsonschema.spec_to_json_schema import spec_to_json_schema
+from rest_framework_services.registry.spec_registry import SpecRegistry
 from rest_framework_services.selectors.utils import (
     apply_queryset_shaping,
     arun_selector,
@@ -29,6 +30,7 @@ from rest_framework_services.selectors.utils import (
 )
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
+from rest_framework_services.types.registered_spec import RegisteredSpec
 from rest_framework_services.views.mutation.utils import (
     build_input_serializer,
     build_input_serializer_from_data,
@@ -39,6 +41,8 @@ from rest_framework_services.views.utils import resolve_callable_kwargs
 
 # Blessed name → the leaf-module original it must alias.
 _SURFACE = {
+    "RegisteredSpec": RegisteredSpec,
+    "SpecRegistry": SpecRegistry,
     "adispatch_spec": adispatch_spec,
     "apply_queryset_shaping": apply_queryset_shaping,
     "arun_selector": arun_selector,

@@ -30,6 +30,7 @@ from rest_framework_services.mutations import (
     create_from_input,
     update_from_input,
 )
+from rest_framework_services.registry import SpecRegistry
 from rest_framework_services.selectors import (
     AsyncSelector,
     ListSelector,
@@ -74,6 +75,7 @@ from rest_framework_services.types import (
     OfflineContext,
     OfflineServiceView,
     PolymorphicServiceSpec,
+    RegisteredSpec,
     SelectorKind,
     SelectorSpec,
     ServiceSpec,
@@ -131,6 +133,7 @@ __all__ = [
     "OfflineContext",
     "OfflineServiceView",
     "PolymorphicServiceSpec",
+    "RegisteredSpec",
     "RetrieveSelector",
     "Selector",
     "SelectorKind",
@@ -151,6 +154,7 @@ __all__ = [
     "ServiceValidationError",
     "ServiceView",
     "ServiceViewSet",
+    "SpecRegistry",
     "TargetGuard",
     "UNSET",
     "UnknownArguments",

@@ -33,5 +33,8 @@ the [Quickstart](../quickstart.md) and [Concepts](../concepts.md).
 - **[Customise serializer context](serializer-context.md)** — direction-
   and action-specific hooks for `get_serializer_context()`, so the input
   and output serializers can see different keys.
+- **[Declare specs once for many transports](spec-registry.md)** — hold your
+  spec set in a `SpecRegistry` so MCP, an agent toolset, and HTTP read one
+  source; tags, filtered views, and several registries per project.
 - **[Scaffold a service app](scaffold-app.md)** — `startserviceapp` and
   the convention behind `services/`, `selectors/`, `validators/`.
