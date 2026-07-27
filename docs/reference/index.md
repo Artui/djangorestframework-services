@@ -20,6 +20,8 @@ signatures from the source — when in doubt, follow the source link
 - **[Types](types.md)** — `ServiceSpec`, `SelectorSpec`,
   `PolymorphicServiceSpec`, `ChangeResult`, `FieldChange`, `UNSET`,
   `UnsetType`, `NoInput`, `HttpExtras`.
+- **[Spec registry](registry.md)** — `SpecRegistry`, `RegisteredSpec`:
+  one declaration site for a spec set that several transports read.
 - **[Exceptions](exceptions.md)** — `ServiceError`,
   `ServiceValidationError`.
 - **[OpenAPI](openapi.md)** — `enable_openapi`, `ServiceAutoSchema`,
@@ -91,6 +93,9 @@ from rest_framework_services import (
     UnsetType,
     NoInput,
     HttpExtras,
+    # registry
+    SpecRegistry,
+    RegisteredSpec,
     # exceptions
     ServiceError,
     ServiceValidationError,

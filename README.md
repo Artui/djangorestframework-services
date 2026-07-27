@@ -819,6 +819,13 @@ builds on:
 - **Bulk and nested writes** — `many=True` on a spec mutates a whole
   collection, and the mutation helpers accept a `children=` argument for
   nested child-collection writes, both independent of any request.
+- **`SpecRegistry`** — hold your spec set in one named, taggable place so each
+  transport reads the same source instead of enumerating the specs again. It
+  carries only what is invariant across transports (which spec, its canonical
+  name, its tags); per-transport knobs stay at the binding. `registry.specs()`
+  returns the `dict[str, spec]` adapters already accept, so adoption needs no
+  support from them. See
+  [Declare specs once, project them to many transports](https://artui.github.io/djangorestframework-services/recipes/spec-registry/).
 - **JSON-schema helpers** — `serializer_to_json_schema`,
   `output_to_json_schema`, `filterset_to_json_schema` and
   `spec_to_json_schema` turn a spec (or bare serializer / dataclass) into a

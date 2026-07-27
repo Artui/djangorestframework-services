@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`SpecRegistry` — one declaration site for a project's spec set.** A spec is
+  already transport-neutral, but every transport has to be *told* which specs it
+  exposes, so a project serving two or three of them writes the same list two or
+  three times (`register_service_tool(...)`, `SpecToolset(specs={...})`, an
+  HTTP viewset's `action_specs`). Those lists drift, and the same operation can
+  end up named differently in each. `SpecRegistry` is a `name → spec` map with
+  tags, registration order, and filtered views, which each transport reads
+  instead of enumerating specs again. It holds only what is **invariant** across
+  transports — which spec, its canonical name, its tags; per-transport knobs stay
+  at the binding that already owns them, so a registry is a *source* for a
+  transport's binding table rather than a layer between a caller and
+  `dispatch_spec`.
+  - **Adoption needs no adapter support**: `registry.specs()` returns the
+    `dict[str, spec]` today's adapters already accept.
+  - **There is no global registry.** The consumer owns its instances and may hold
+    as many as it likes, with no shared state between them — either **independent
+    registries** (separate name namespaces, one per mount) or **one registry with
+    many projections** (`by_tag` / `subset` views feeding several bindings). Names
+    are unique *within* a registry; `merge()` is the only place cross-registry
+    reuse becomes a conflict.
+  - **Derivations are snapshots.** `by_tag` / `subset` / `merge` each return a
+    **new** registry holding the selected entries (spec objects shared, not
+    copied), so a view never mutates its source and a later `register()` on the
+    source does not appear in a view derived earlier. `by_tag` matches **any** of
+    the tags given, so intersection composes from it
+    (`reg.by_tag("read").by_tag("public")`) while a union would not compose from
+    an intersection.
+  - **Failures are loud, not silent.** A duplicate name raises instead of
+    overwriting; `subset()` raises on a name that isn't registered; and
+    `register()` rejects anything that is neither a `ServiceSpec` nor a
+    `SelectorSpec` — which is what lets `mutations()` / `queries()` discriminate
+    by type (never a stored flag that could drift) and still cover every entry. A
+    `PolymorphicServiceSpec` is rejected with a pointer at the supported shape:
+    register each variant under its own name, since a transport that projects one
+    operation per name wants one operation per variant, not a union.
+  - New public symbols: `SpecRegistry` (in `rest_framework_services.registry`)
+    and its entry type `RegisteredSpec` (in `rest_framework_services.types`),
+    both re-exported from the top-level package. Additive and opt-in — nothing
+    existing changes, and every adapter keeps accepting a plain dict. See the
+    recipe *Declare specs once, project them to many transports*.
+
 ### Removed
 
 - **`rest_framework_services.conf` — the `REST_FRAMEWORK_SERVICES` settings dict

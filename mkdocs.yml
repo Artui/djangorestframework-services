@@ -92,6 +92,7 @@ nav:
       - Nested / child-collection writes: recipes/nested-writes.md
       - Bulk & collection mutations: recipes/bulk-mutations.md
       - Customise serializer context: recipes/serializer-context.md
+      - Declare specs once for many transports: recipes/spec-registry.md
       - Scaffold a service app: recipes/scaffold-app.md
   - Reference:
       - reference/index.md
@@ -102,6 +103,7 @@ nav:
       - Services: reference/services.md
       - Selectors: reference/selectors.md
       - Types: reference/types.md
+      - Spec registry: reference/registry.md
       - JSON Schema: reference/jsonschema.md
       - OpenAPI: reference/openapi.md
       - Exceptions: reference/exceptions.md
