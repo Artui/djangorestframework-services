@@ -11,10 +11,20 @@ from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEED
 
 
 class _ChannelDeclaration(Protocol):
-    """The shape shared by :class:`UrlKwarg` and :class:`QueryParam`."""
+    """The shape shared by :class:`UrlKwarg` and :class:`QueryParam`.
 
-    name: str
-    default: Any
+    Members are **read-only properties**, not bare attributes. Both concrete
+    types are ``@dataclass(frozen=True)``, whose fields are read-only — a bare
+    ``name: str`` on a Protocol declares a *mutable* attribute, which a frozen
+    dataclass cannot satisfy, so every adapter passing its own tuple would fail
+    type-checking at the call site.
+    """
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def default(self) -> Any: ...
 
 
 def validate_channel_names(

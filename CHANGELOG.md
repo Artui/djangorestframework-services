@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.1] — 2026-07-28
+
+### Fixed
+
+- **`validate_channel_names` was uncallable from a type-checked adapter.** Its
+  internal declaration Protocol declared bare attributes (`name: str`), which
+  declare *mutable* members — and both `UrlKwarg` and `QueryParam` are
+  `@dataclass(frozen=True)`, whose fields are read-only. Every adapter passing
+  its own tuple failed type-checking at the call site. The Protocol members are
+  now read-only properties. Runtime behaviour is unchanged; this was visible only
+  to a type checker, and only from a consumer — `ty` is scoped to the package
+  here and skips `tests/`, so the package's own suite could not see it.
+
 ## [0.28.0] — 2026-07-28
 
 ### Added
@@ -1536,7 +1549,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.28.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.28.1...HEAD
+[0.28.1]: https://github.com/Artui/djangorestframework-services/compare/v0.28.0...v0.28.1
 [0.28.0]: https://github.com/Artui/djangorestframework-services/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/Artui/djangorestframework-services/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/Artui/djangorestframework-services/compare/v0.25.1...v0.26.0
