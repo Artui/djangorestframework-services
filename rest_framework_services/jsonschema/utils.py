@@ -22,6 +22,7 @@ from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
 )
+from rest_framework_services.types.read_schema_markers import read_schema_markers
 from rest_framework_services.types.typed_dict_input import typed_dict_input
 from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
 
@@ -128,7 +129,13 @@ def _python_type_to_schema(
     services use for ``data`` when no ``input_serializer`` is configured).
     ``registry.python_types`` rules (matched by identity) win first; unknown
     types fall back to ``{}``.
+
+    Any ``Annotated[...]`` wrapper is stripped first, so ``Annotated[int, …]``
+    maps to ``{"type": "integer"}`` like bare ``int`` rather than falling through
+    to the untyped ``{}``. The metadata itself is read by the callers that care
+    (see :func:`~rest_framework_services.types.read_schema_markers`).
     """
+    annotation, _required, _hidden = read_schema_markers(annotation)
     for rule_type, rule_schema in registry.python_types:
         if annotation is rule_type:
             return dict(rule_schema)
@@ -175,9 +182,19 @@ def callable_input_schema(
     expanded TypedDict keys (so the ``request`` / ``user`` inherited from
     ``HttpExtras`` never surface as tool inputs). ``*args`` is always skipped.
     ``required`` never contains a skipped key.
+
+    Two ``Annotated`` markers apply to ordinary parameters and expanded TypedDict
+    keys alike: :data:`~rest_framework_services.InputRequired` puts the name in
+    ``required``, :data:`~rest_framework_services.NotClientInput` omits it
+    entirely. Ordinary parameters are otherwise never marked required — a
+    callable's own defaults are invisible to the caller, and the framework may
+    legitimately supply a parameter from the kwargs pool rather than from caller
+    input, so requiredness here is a deliberate declaration, never inferred.
     """
     try:
-        hints = get_type_hints(fn)
+        # ``include_extras`` keeps ``Annotated[...]`` intact — the schema markers
+        # ride in that metadata, and the default would strip them before we look.
+        hints = get_type_hints(fn, include_extras=True)
     except Exception:  # noqa: BLE001 — unresolvable forward refs → untyped, never fatal
         hints = {}
     properties: dict[str, Any] = {}
@@ -194,7 +211,15 @@ def callable_input_schema(
             continue
         if name in skip or parameter.kind is inspect.Parameter.VAR_POSITIONAL:
             continue
-        properties[name] = _python_type_to_schema(hints[name], registry) if name in hints else {}
+        if name not in hints:
+            properties[name] = {}
+            continue
+        _underlying, marked_required, hidden = read_schema_markers(hints[name])
+        if hidden:
+            continue
+        properties[name] = _python_type_to_schema(hints[name], registry)
+        if marked_required:
+            required.append(name)
     return properties, required
 
 
@@ -210,6 +235,14 @@ def _typed_dict_to_schema(
     from :func:`typed_dict_input` (PEP 563-robust). ``skip`` keys are dropped
     from both, so a required-but-skipped key (``request`` / ``user``) is silently
     excluded rather than advertised as a required tool input.
+
+    Two ``Annotated`` markers refine that (see
+    :func:`~rest_framework_services.types.read_schema_markers`):
+    :data:`~rest_framework_services.InputRequired` promotes a key into
+    ``required`` — the only way to express requiredness here, since a genuinely
+    required ``TypedDict`` key breaks the callable's Protocol conformance under
+    PEP 692 — and :data:`~rest_framework_services.NotClientInput` drops a
+    provider-owned key from ``properties`` entirely.
     """
     field_types, required_keys = typed_dict_input(typed_dict)
     properties: dict[str, Any] = {}
@@ -217,8 +250,11 @@ def _typed_dict_to_schema(
     for name, hint in field_types.items():
         if name in skip:
             continue
+        _underlying, marked_required, hidden = read_schema_markers(hint)
+        if hidden:
+            continue
         properties[name] = _python_type_to_schema(hint, registry)
-        if name in required_keys:
+        if name in required_keys or marked_required:
             required.append(name)
     return properties, required
 
