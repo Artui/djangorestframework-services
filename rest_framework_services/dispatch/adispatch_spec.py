@@ -20,6 +20,7 @@ from rest_framework_services.dispatch.utils import (
     guard_many_argument_binding,
     merge_arguments,
     resolve_argument_binding,
+    resolve_dispatch_kwargs,
     resolve_input_context,
     resolve_provider,
     resolve_service_many_input,
@@ -38,7 +39,6 @@ from rest_framework_services.types.target_guard import TargetGuard
 from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.mutation.utils import build_input_serializer_from_data
-from rest_framework_services.views.utils import resolve_callable_kwargs
 
 
 async def adispatch_spec(
@@ -120,7 +120,7 @@ async def _adispatch_selector(
     )
     try:
         result: Any = await arun_callable(
-            spec.selector, resolve_callable_kwargs(spec.selector, pool)
+            spec.selector, resolve_dispatch_kwargs(spec.selector, pool)
         )
         result = shape_queryset(
             spec, result, view=view, request=request, params=params, source_label=SELECTOR_SOURCE
@@ -222,7 +222,7 @@ async def _adispatch_service(
         pool["data"] = data
 
     result: Any = await arun_service_callable(
-        spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic
+        spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
     )
     output_result, output_is_list = await _arun_output_selector(
         spec, result, user=user, request=request, view=view, params=params
@@ -277,7 +277,7 @@ async def _adispatch_service_many(
     if serializer is not None:
         pool["serializer"] = serializer
     result: Any = await arun_service_callable(
-        spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic
+        spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
     )
     status = (
         success_status
@@ -312,7 +312,7 @@ async def _aresolve_target(
         }
         pool.update(resolve_provider(coll_spec.kwargs, {"view": view, "request": request}))
         result: Any = await arun_callable(
-            coll_spec.selector, resolve_callable_kwargs(coll_spec.selector, pool)
+            coll_spec.selector, resolve_dispatch_kwargs(coll_spec.selector, pool)
         )
         collection = shape_queryset(
             coll_spec,
@@ -354,7 +354,7 @@ async def _arun_output_selector(
         "result": result,
     }
     selected: Any = await arun_callable(
-        out_spec.selector, resolve_callable_kwargs(out_spec.selector, pool)
+        out_spec.selector, resolve_dispatch_kwargs(out_spec.selector, pool)
     )
     selected = shape_queryset(
         out_spec, selected, view=view, request=request, params=params, source_label=OUTPUT_SOURCE
@@ -383,7 +383,7 @@ async def _aresolve_instance(
     pool.update(resolve_provider(instance_spec.kwargs, {"view": view, "request": request}))
     try:
         result: Any = await arun_callable(
-            instance_spec.selector, resolve_callable_kwargs(instance_spec.selector, pool)
+            instance_spec.selector, resolve_dispatch_kwargs(instance_spec.selector, pool)
         )
         result = shape_queryset(
             instance_spec,

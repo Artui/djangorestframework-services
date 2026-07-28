@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`InputRequired` — declare a reflected input required without breaking Protocol
+  conformance.** Since 0.26.0 a selector's `**extras: Unpack[SomeExtras]` keys are
+  reflected into the input schema, and a *required* `TypedDict` key populates the
+  schema's `required` list. In practice no consumer could use that: under
+  [PEP 692](https://peps.python.org/pep-0692/) a required key in `Unpack[...]`
+  makes the callable reject callers that omit it, so it stops being assignable to
+  `ListSelector` / `RetrieveSelector` / the service Protocols — which is exactly
+  why `HttpExtras` mandates `total=False`. Protocol conformance and an honest
+  schema were mutually exclusive. `InputRequired` carries the signal in
+  `Annotated` metadata, which has no effect on the type system:
+
+  ```python
+  class WidgetExtras(HttpExtras[MyUser], total=False):
+      project_pk: Annotated[int, InputRequired]
+  ```
+
+  The key stays `NotRequired` to the type checker and joins the schema's
+  `required` list. Applies to ordinary parameters as well as `TypedDict` keys.
+- **`NotClientInput` — hide a provider-owned input from the schema.** The
+  counterpart: a key a `spec.kwargs` provider fills in from request state (a
+  scoping `team_role`) is dropped from `properties` entirely, so a caller is never
+  told it exists. Such a key is also excluded from `declared_input_keys`, so
+  `UnknownArguments.REJECT` treats a caller that supplies it as passing an unknown
+  argument. Delivery is unchanged — the provider still resolves it, and the
+  `SPREAD_AUTHOR_WINS` precedence remains the actual security property. Marking a
+  key with both markers raises `ImproperlyConfigured`.
+- **`UrlKwarg` / `QueryParam` — the shared transport-channel declarations.**
+  Previously each adapter (`djangorestframework-mcp-server`,
+  `djangorestframework-pydantic-ai`) carried its own copy, and the copies had
+  already drifted into validating the same declaration against different
+  reserved-name sets — `UrlKwarg("order")` was legal over MCP and rejected in the
+  agent toolset, `UrlKwarg("user")` the reverse. One definition now lives here.
+  `UrlKwarg` gains **`required: bool = False`**, the registered-declaration
+  counterpart of the `InputRequired` marker. `QueryParam` deliberately has no
+  `required` — a read-shaping param is optional by construction.
+- **`validate_channel_names`** — shared fail-fast validation for a set of
+  `UrlKwarg` / `QueryParam` declarations: reserved-name collisions (always
+  including `RESERVED_POOL_SEEDS`, plus the transport's own pagination names),
+  duplicates, and the contradictory `required=True` with a `default`.
+- **`RESERVED_POOL_SEEDS` is now public** (`rest_framework_services.types`).
+  Adapters need the same list — anything letting a caller route a value into the
+  kwargs pool must refuse these names — and were keeping local copies of it.
+
+### Changed
+
+- **`dispatch_spec` / `adispatch_spec` now enforce `InputRequired`.** A marked key
+  absent from every channel (`params`, `build_offline_context(kwargs=…)`, a
+  `spec.kwargs` provider) raises `ServiceValidationError` before the callable
+  runs. Previously the callable raised a bare `KeyError` from inside dispatch,
+  which no transport maps: over MCP that surfaced as a 500 / JSON-RPC internal
+  error rather than a failed tool result, and under an agent toolset it aborted
+  the run instead of letting the model retry with the argument it omitted. A
+  provider that declines with `UNSET` does **not** satisfy the requirement —
+  declining removes the key from the pool. Enforcement is off-HTTP only: on the
+  HTTP path the route is the guarantee, and a missing capture is a URLconf bug.
+  ⚠ Behaviour change, though it can only fire on specs that opt in by using the
+  new marker.
+
+### Fixed
+
+- **`Annotated[...]` no longer erases a property's type.** `_python_type_to_schema`
+  did not strip the wrapper, so `Annotated[int, "help text"]` reflected as an
+  untyped `{}` where bare `int` gives `{"type": "integer"}`. Any consumer already
+  using `Annotated` in an extras `TypedDict` or a parameter annotation was
+  silently losing the type. Independent of the markers, which merely made the
+  idiom load-bearing.
+
 ## [0.27.0] — 2026-07-27
 
 ### Added

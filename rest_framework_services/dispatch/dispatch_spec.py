@@ -17,6 +17,7 @@ from rest_framework_services.dispatch.utils import (
     guard_many_argument_binding,
     merge_arguments,
     resolve_argument_binding,
+    resolve_dispatch_kwargs,
     resolve_input_context,
     resolve_provider,
     resolve_service_many_input,
@@ -36,7 +37,6 @@ from rest_framework_services.types.target_guard import TargetGuard
 from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.mutation.utils import build_input_serializer_from_data
-from rest_framework_services.views.utils import resolve_callable_kwargs
 
 
 def dispatch_spec(
@@ -160,7 +160,7 @@ def _dispatch_selector(
         url_kwargs=view_url_kwargs(view),
     )
     try:
-        result: Any = run_selector(spec.selector, resolve_callable_kwargs(spec.selector, pool))
+        result: Any = run_selector(spec.selector, resolve_dispatch_kwargs(spec.selector, pool))
         result = shape_queryset(
             spec, result, view=view, request=request, params=params, source_label=SELECTOR_SOURCE
         )
@@ -252,7 +252,7 @@ def _dispatch_service(
         pool["data"] = data
 
     result: Any = run_service(
-        spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic
+        spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
     )
     output_result, output_is_list = _run_output_selector(
         spec, result, user=user, request=request, view=view, params=params
@@ -306,7 +306,7 @@ def _dispatch_service_many(
     if serializer is not None:
         pool["serializer"] = serializer
     result: Any = run_service(
-        spec.service, resolve_callable_kwargs(spec.service, pool), atomic=spec.atomic
+        spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
     )
     status = (
         success_status
@@ -363,7 +363,7 @@ def _resolve_collection(
     }
     pool.update(resolve_provider(coll_spec.kwargs, {"view": view, "request": request}))
     result: Any = run_selector(
-        coll_spec.selector, resolve_callable_kwargs(coll_spec.selector, pool)
+        coll_spec.selector, resolve_dispatch_kwargs(coll_spec.selector, pool)
     )
     return shape_queryset(
         coll_spec, result, view=view, request=request, params=params, source_label=COLLECTION_SOURCE
@@ -400,7 +400,7 @@ def _run_output_selector(
         "result": result,
     }
     selected: Any = run_selector(
-        out_spec.selector, resolve_callable_kwargs(out_spec.selector, pool)
+        out_spec.selector, resolve_dispatch_kwargs(out_spec.selector, pool)
     )
     selected = shape_queryset(
         out_spec, selected, view=view, request=request, params=params, source_label=OUTPUT_SOURCE
@@ -434,7 +434,7 @@ def _resolve_instance(
     pool.update(resolve_provider(instance_spec.kwargs, {"view": view, "request": request}))
     try:
         result: Any = run_selector(
-            instance_spec.selector, resolve_callable_kwargs(instance_spec.selector, pool)
+            instance_spec.selector, resolve_dispatch_kwargs(instance_spec.selector, pool)
         )
         result = shape_queryset(
             instance_spec,

@@ -16,12 +16,17 @@ from asgiref.sync import sync_to_async
 from rest_framework.exceptions import ValidationError
 from typing_extensions import get_type_hints
 
+from rest_framework_services.exceptions.service_validation_error import (
+    ServiceValidationError,
+)
 from rest_framework_services.is_async import is_async
 from rest_framework_services.selectors.utils import apply_queryset_shaping
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.argument_binding import ArgumentBinding
+from rest_framework_services.types.marked_input_keys import marked_input_keys
 from rest_framework_services.types.offline_context import OfflineContext
+from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.target_guard import TargetGuard
@@ -37,15 +42,6 @@ SELECTOR_SOURCE = "SelectorSpec.selector"
 INSTANCE_SOURCE = "ServiceSpec.instance_selector_spec.selector"
 COLLECTION_SOURCE = "ServiceSpec.collection_selector_spec.selector"
 OUTPUT_SOURCE = "ServiceSpec.output_selector_spec.selector"
-
-# Pool keys carrying transport-controlled seeds. A client-supplied argument
-# named after one of these would override the dispatcher's authoritative value
-# (a credential-spoofing footgun), so the ``SPREAD_*`` argument-binding modes
-# strip them from the spread. The dispatched callable may still *declare* a
-# parameter of that name — it receives the seed, the documented idiom.
-RESERVED_POOL_SEEDS: frozenset[str] = frozenset(
-    {"request", "user", "data", "serializer", "instance", "collection"}
-)
 
 
 def base_pool(*, user: Any, request: Any) -> dict[str, Any]:
@@ -139,6 +135,12 @@ def _callable_param_names(fn: Callable[..., Any]) -> set[str] | None:
     accept a URL kwarg the selector reads from its extras — instead of the old
     behaviour where the same key was accepted only because the surface happened
     to be open.
+
+    Keys marked :data:`~rest_framework_services.NotClientInput` are **excluded**:
+    they are provider-owned and never advertised, so a caller supplying one is
+    supplying an argument the spec does not declare — which is what
+    ``UnknownArguments.REJECT`` exists to catch. Delivery is unaffected; this
+    function feeds the unknown-argument check only, never the kwargs pool.
     """
     parameters = inspect.signature(fn).parameters
     names: set[str] = set()
@@ -154,7 +156,7 @@ def _callable_param_names(fn: Callable[..., Any]) -> set[str] | None:
             names |= set(typed_dict_input(typed_dict)[0])
         elif p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY):
             names.add(name)
-    return names
+    return names - marked_input_keys(fn)[1]
 
 
 def _selector_consumed_keys(sel_spec: SelectorSpec[Any, Any] | None) -> set[str] | None:
@@ -231,6 +233,38 @@ def resolve_unknown_arguments(
         names = ", ".join(repr(key) for key in sorted(unknown))
         raise ValidationError({"non_field_errors": [f"Unexpected argument(s): {names}."]})
     return unknown
+
+
+def resolve_dispatch_kwargs(fn: Callable[..., Any], pool: dict[str, Any]) -> dict[str, Any]:
+    """``resolve_callable_kwargs`` plus the :data:`InputRequired` check.
+
+    Every off-HTTP invocation of a spec's callable goes through here, so a key
+    the callable marks :data:`~rest_framework_services.InputRequired` is verified
+    to be **in the assembled pool** — after the caller's params, the view's URL
+    kwargs, and the ``spec.kwargs`` provider have all had their say. Any of those
+    channels satisfies it; the marker says the value must arrive, not where from.
+
+    A missing key raises :exc:`ServiceValidationError`, which every transport
+    already maps to a caller-visible validation failure. Without this the
+    callable raises a bare ``KeyError`` from inside dispatch, which nothing maps:
+    over MCP that is a 500 / JSON-RPC internal error rather than a failed tool
+    result, and under an agent toolset it aborts the run instead of letting the
+    model retry with the argument it omitted.
+
+    **Off-HTTP only, deliberately.** The HTTP path assembles its pools elsewhere
+    (``selectors.utils`` / ``views.mutation.utils``) and there the route *is* the
+    guarantee — a capture the URLconf doesn't declare is a wiring bug, not caller
+    input. The marker exists precisely because off-HTTP there is no route to
+    provide that guarantee.
+    """
+    required, _hidden = marked_input_keys(fn)
+    missing = sorted(key for key in required if key not in pool)
+    if missing:
+        names = ", ".join(repr(key) for key in missing)
+        raise ServiceValidationError(
+            {"non_field_errors": [f"Missing required argument(s): {names}."]}
+        )
+    return resolve_callable_kwargs(fn, pool)
 
 
 def service_input(serializer: Any, extras: dict[str, Any]) -> tuple[Any, Mapping[str, Any]]:
