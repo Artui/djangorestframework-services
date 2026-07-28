@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`validate_channel_names` was uncallable from a type-checked adapter.** Its
+  internal declaration Protocol declared bare attributes (`name: str`), which
+  declare *mutable* members — and both `UrlKwarg` and `QueryParam` are
+  `@dataclass(frozen=True)`, whose fields are read-only. Every adapter passing
+  its own tuple failed type-checking at the call site. The Protocol members are
+  now read-only properties. Runtime behaviour is unchanged; this was visible only
+  to a type checker, and only from a consumer — `ty` is scoped to the package
+  here and skips `tests/`, so the package's own suite could not see it.
+
 ## [0.28.0] — 2026-07-28
 
 ### Added

@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.url_kwarg import UrlKwarg
-from rest_framework_services.types.validate_channel_names import validate_channel_names
+from rest_framework_services.types.validate_channel_names import (
+    _ChannelDeclaration,
+    validate_channel_names,
+)
 
 
 def test_accepts_a_clean_declaration_set() -> None:
@@ -75,3 +80,12 @@ def test_query_params_carry_no_required_attribute() -> None:
     validate_channel_names(
         label="tool 'x'", kind="query_params", declarations=[QueryParam("fields", default="id")]
     )
+
+
+def test_the_declaration_protocol_accepts_the_frozen_dataclasses() -> None:
+    # Regression: the Protocol first declared bare attributes, which a frozen
+    # dataclass cannot satisfy — every adapter's call site failed type-checking.
+    # `ty` is scoped to the package and skips tests, so only a consumer saw it;
+    # this asserts the assignability the checker enforces.
+    declarations: Sequence[_ChannelDeclaration] = (UrlKwarg("a"), QueryParam("b"))
+    assert [declaration.name for declaration in declarations] == ["a", "b"]
