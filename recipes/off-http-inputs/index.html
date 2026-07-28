@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/recipes/spec-registry/">
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/recipes/off-http-inputs/">
       
       
-        <link rel="prev" href="../serializer-context/">
+        <link rel="prev" href="../spec-registry/">
       
       
-        <link rel="next" href="../off-http-inputs/">
+        <link rel="next" href="../scaffold-app/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Declare specs once for many transports - djangorestframework-services</title>
+        <title>URL-derived & required inputs off-HTTP - djangorestframework-services</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#declare-specs-once-project-them-to-many-transports" class="md-skip">
+        <a href="#url-derived-and-required-inputs-off-http" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Declare specs once for many transports
+              URL-derived & required inputs off-HTTP
             
           </span>
         </div>
@@ -854,6 +854,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Declare specs once for many transports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -873,7 +901,7 @@
   <span class="md-ellipsis">
     
   
-    Declare specs once for many transports
+    URL-derived & required inputs off-HTTP
   
 
     
@@ -891,7 +919,7 @@
   <span class="md-ellipsis">
     
   
-    Declare specs once for many transports
+    URL-derived & required inputs off-HTTP
   
 
     
@@ -917,10 +945,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#one-declaration-site" class="md-nav__link">
+  <a href="#the-channel-build_offline_contextkwargs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        One declaration site
+        The channel: build_offline_context(kwargs=…)
       
     </span>
   </a>
@@ -928,10 +956,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#where-the-instance-lives" class="md-nav__link">
+  <a href="#discoverability-the-typeddict-is-the-declaration" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Where the instance lives
+        Discoverability: the TypedDict is the declaration
       
     </span>
   </a>
@@ -939,10 +967,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#many-registries-on-purpose" class="md-nav__link">
+  <a href="#requiredness-inputrequired" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Many registries, on purpose
+        Requiredness: InputRequired
       
     </span>
   </a>
@@ -950,10 +978,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tags" class="md-nav__link">
+  <a href="#hiding-provider-owned-inputs-notclientinput" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tags
+        Hiding provider-owned inputs: NotClientInput
       
     </span>
   </a>
@@ -961,10 +989,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#reading-a-registry-back" class="md-nav__link">
+  <a href="#values-the-callable-never-declares-urlkwarg" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reading a registry back
+        Values the callable never declares: UrlKwarg
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#which-one-do-i-reach-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which one do I reach for?
       
     </span>
   </a>
@@ -975,34 +1014,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../off-http-inputs/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    URL-derived & required inputs off-HTTP
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -1476,10 +1487,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#one-declaration-site" class="md-nav__link">
+  <a href="#the-channel-build_offline_contextkwargs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        One declaration site
+        The channel: build_offline_context(kwargs=…)
       
     </span>
   </a>
@@ -1487,10 +1498,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#where-the-instance-lives" class="md-nav__link">
+  <a href="#discoverability-the-typeddict-is-the-declaration" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Where the instance lives
+        Discoverability: the TypedDict is the declaration
       
     </span>
   </a>
@@ -1498,10 +1509,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#many-registries-on-purpose" class="md-nav__link">
+  <a href="#requiredness-inputrequired" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Many registries, on purpose
+        Requiredness: InputRequired
       
     </span>
   </a>
@@ -1509,10 +1520,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tags" class="md-nav__link">
+  <a href="#hiding-provider-owned-inputs-notclientinput" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tags
+        Hiding provider-owned inputs: NotClientInput
       
     </span>
   </a>
@@ -1520,10 +1531,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#reading-a-registry-back" class="md-nav__link">
+  <a href="#values-the-callable-never-declares-urlkwarg" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reading a registry back
+        Values the callable never declares: UrlKwarg
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#which-one-do-i-reach-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which one do I reach for?
       
     </span>
   </a>
@@ -1547,7 +1569,7 @@
 
 
   
-    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/recipes/spec-registry.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/recipes/off-http-inputs.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1555,132 +1577,160 @@
   
 
 
-<h1 id="declare-specs-once-project-them-to-many-transports">Declare specs once, project them to many transports<a class="headerlink" href="#declare-specs-once-project-them-to-many-transports" title="Permanent link">&para;</a></h1>
-<p>A spec is transport-neutral by design: the same <code>ServiceSpec</code> / <code>SelectorSpec</code>
-drives an HTTP view, an MCP tool, a Pydantic-AI tool, a management command. But
-each of those transports needs to be <em>told</em> which specs it exposes, so a project
-serving two or three of them ends up writing the same list two or three times:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># somewhere in the MCP wiring</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">mcp</span><span class="o">.</span><span class="n">register_selector_tool</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;list_orders&quot;</span><span class="p">,</span> <span class="n">spec</span><span class="o">=</span><span class="n">orders_spec</span><span class="p">)</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">mcp</span><span class="o">.</span><span class="n">register_service_tool</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;refund_order&quot;</span><span class="p">,</span> <span class="n">spec</span><span class="o">=</span><span class="n">refund_spec</span><span class="p">)</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># and again in the agent wiring</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;list_orders&quot;</span><span class="p">:</span> <span class="n">orders_spec</span><span class="p">,</span> <span class="s2">&quot;refund_order&quot;</span><span class="p">:</span> <span class="n">refund_spec</span><span class="p">})</span>
+<h1 id="url-derived-and-required-inputs-off-http">URL-derived and required inputs off-HTTP<a class="headerlink" href="#url-derived-and-required-inputs-off-http" title="Permanent link">&para;</a></h1>
+<p>Over HTTP a nested route supplies its captures: <code>/projects/{project_pk}/widgets/</code>
+puts <code>project_pk</code> into <code>view.kwargs</code>, and the framework spreads that into every
+selector pool. Off-HTTP — under an MCP tool, an agent toolset, a management
+command, a task runner — there is no route, so those inputs have to arrive some
+other way, and a caller has to be <em>told</em> they exist.</p>
+<p>This recipe covers the three pieces: making a URL-derived input discoverable,
+declaring it <strong>required</strong>, and hiding an input the caller has no business setting.</p>
+<h2 id="the-channel-build_offline_contextkwargs">The channel: <code>build_offline_context(kwargs=…)</code><a class="headerlink" href="#the-channel-build_offline_contextkwargs" title="Permanent link">&para;</a></h2>
+<p><code>kwargs=</code> is the off-HTTP counterpart of <code>view.kwargs</code>. Everything you pass there
+is spread into the selector and target pools exactly as a route capture would be
+— authoritative over the spec params, below a <code>spec.kwargs</code> provider.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_offline_context</span><span class="p">,</span> <span class="n">dispatch_spec</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">context</span> <span class="o">=</span> <span class="n">build_offline_context</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;active&quot;</span><span class="p">},</span> <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;project_pk&quot;</span><span class="p">:</span> <span class="mi">7</span><span class="p">})</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">result</span> <span class="o">=</span> <span class="n">dispatch_spec</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;active&quot;</span><span class="p">},</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                       <span class="n">request</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">view</span><span class="p">)</span>
 </span></code></pre></div>
-<p>The lists drift — a new spec gets wired into one transport and forgotten in the
-other — and the same operation can end up named differently in each. There is
-also no single object to answer "what operations does this project expose?".</p>
-<p><code>SpecRegistry</code> is that object.</p>
-<h2 id="one-declaration-site">One declaration site<a class="headerlink" href="#one-declaration-site" title="Permanent link">&para;</a></h2>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecRegistry</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_orders&quot;</span><span class="p">,</span> <span class="n">orders_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;read&quot;</span><span class="p">,</span> <span class="s2">&quot;public&quot;</span><span class="p">))</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;get_order&quot;</span><span class="p">,</span> <span class="n">order_detail_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;read&quot;</span><span class="p">,</span> <span class="s2">&quot;public&quot;</span><span class="p">))</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;refund_order&quot;</span><span class="p">,</span> <span class="n">refund_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;write&quot;</span><span class="p">,</span> <span class="s2">&quot;admin&quot;</span><span class="p">))</span>
+<h2 id="discoverability-the-typeddict-is-the-declaration">Discoverability: the TypedDict <em>is</em> the declaration<a class="headerlink" href="#discoverability-the-typeddict-is-the-declaration" title="Permanent link">&para;</a></h2>
+<p>A selector that reads its extras through the blessed strict-typing idiom already
+declares its input surface, and <code>spec_to_json_schema</code> reflects it — one property
+per key, no registration anywhere:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing_extensions</span><span class="w"> </span><span class="kn">import</span> <span class="n">Unpack</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">HttpExtras</span><span class="p">,</span> <span class="n">implements</span><span class="p">,</span> <span class="n">ListSelector</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">WidgetExtras</span><span class="p">(</span><span class="n">HttpExtras</span><span class="p">[</span><span class="n">MyUser</span><span class="p">],</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">project_pk</span><span class="p">:</span> <span class="nb">int</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="nd">@implements</span><span class="p">(</span><span class="n">ListSelector</span><span class="p">[</span><span class="n">Widget</span><span class="p">])</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">list_widgets</span><span class="p">(</span><span class="o">**</span><span class="n">extras</span><span class="p">:</span> <span class="n">Unpack</span><span class="p">[</span><span class="n">WidgetExtras</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Widget</span><span class="p">]:</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="k">return</span> <span class="n">Widget</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">project_id</span><span class="o">=</span><span class="n">extras</span><span class="p">[</span><span class="s2">&quot;project_pk&quot;</span><span class="p">])</span>
 </span></code></pre></div>
-<p>Each transport then reads that one source. Adoption needs no support from the
-adapter: <code>specs()</code> returns the <code>dict[str, spec]</code> they already accept.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="o">=</span><span class="n">registry</span><span class="o">.</span><span class="n">specs</span><span class="p">())</span>
+<p>The inherited <code>request</code> / <code>user</code> seeds are excluded automatically — they are
+transport-controlled, never caller input.</p>
+<h2 id="requiredness-inputrequired">Requiredness: <code>InputRequired</code><a class="headerlink" href="#requiredness-inputrequired" title="Permanent link">&para;</a></h2>
+<p><code>list_widgets</code> above cannot run without <code>project_pk</code>, but the schema says the key
+is optional, and a caller that omits it gets a <code>KeyError</code> from inside dispatch.</p>
+<p>The obvious fix — making the key required in the <code>TypedDict</code> — <strong>does not work</strong>,
+and the reason is worth knowing. Under <a href="https://peps.python.org/pep-0692/">PEP 692</a>, a required key in
+<code>Unpack[...]</code> makes the function reject callers that omit it, so it stops being
+assignable to <code>ListSelector</code> / <code>RetrieveSelector</code> / the service Protocols. That is
+also why <a class="autorefs autorefs-internal" title="HttpExtras" href="../../reference/types/#rest_framework_services.types.http_extras.HttpExtras"><code>HttpExtras</code></a> mandates <code>total=False</code>.
+Protocol conformance and an honest schema are mutually exclusive through the
+<code>TypedDict</code>'s own totality.</p>
+<p><code>InputRequired</code> carries the signal in <code>Annotated</code> metadata instead, which has no
+effect on the type system:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">WidgetExtras</span><span class="p">(</span><span class="n">HttpExtras</span><span class="p">[</span><span class="n">MyUser</span><span class="p">],</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">project_pk</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">InputRequired</span><span class="p">]</span>
 </span></code></pre></div>
-<p>A registry holds only what is <strong>invariant</strong> across transports — which spec, its
-canonical name, its tags. Everything transport-specific stays where it already
-lives, at the binding that configures it: MCP annotations and output schemas, an
-agent toolset's pagination or query-param registrations. That split is the point;
-a registry is a <em>source</em> for a transport's own binding table, not a replacement
-for one, and it introduces no layer between a caller and
-<a href="../../reference/dispatch/"><code>dispatch_spec</code></a>.</p>
-<h2 id="where-the-instance-lives">Where the instance lives<a class="headerlink" href="#where-the-instance-lives" title="Permanent link">&para;</a></h2>
-<p>There is no global registry, and none is coming. Your project owns the instance —
-most simply as a module attribute populated from an <code>AppConfig.ready()</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># orders/registry.py</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecRegistry</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># orders/apps.py</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.apps</span><span class="w"> </span><span class="kn">import</span> <span class="n">AppConfig</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="k">class</span><span class="w"> </span><span class="nc">OrdersConfig</span><span class="p">(</span><span class="n">AppConfig</span><span class="p">):</span>
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;orders&quot;</span>
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
-</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">ready</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">orders</span><span class="w"> </span><span class="kn">import</span> <span class="n">specs</span>
-</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">orders.registry</span><span class="w"> </span><span class="kn">import</span> <span class="n">registry</span>
-</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>
-</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>        <span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_orders&quot;</span><span class="p">,</span> <span class="n">specs</span><span class="o">.</span><span class="n">orders_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;read&quot;</span><span class="p">,</span> <span class="s2">&quot;public&quot;</span><span class="p">))</span>
-</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>        <span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;refund_order&quot;</span><span class="p">,</span> <span class="n">specs</span><span class="o">.</span><span class="n">refund_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;write&quot;</span><span class="p">,</span> <span class="s2">&quot;admin&quot;</span><span class="p">))</span>
+<p>Two things follow. The key joins the schema's <code>required</code> list, so a
+schema-driven caller is told up front. And <code>dispatch_spec</code> / <code>adispatch_spec</code>
+raise <a class="autorefs autorefs-internal" title="ServiceValidationError" href="../../reference/exceptions/#rest_framework_services.exceptions.service_validation_error.ServiceValidationError"><code>ServiceValidationError</code></a>
+when the key is absent — a caller-visible validation failure every transport
+already maps, instead of a bare <code>KeyError</code> that none of them do.</p>
+<p><strong>Any channel satisfies the requirement</strong>: the caller's <code>params</code>, the <code>kwargs=</code>
+channel above, or a <code>spec.kwargs</code> provider. The marker says the value must
+arrive, not where from. A provider that <em>declines</em> with <code>UNSET</code> does not satisfy
+it — declining removes the key from the pool entirely.</p>
+<div class="admonition note">
+<p class="admonition-title">Off-HTTP only, by design</p>
+<p>Enforcement lives in <code>dispatch_spec</code> / <code>adispatch_spec</code>. On the HTTP path the
+route <em>is</em> the guarantee — a capture the URLconf doesn't declare is a wiring
+bug, not caller input. The marker exists precisely because off-HTTP there is
+no route to provide that guarantee.</p>
+</div>
+<h2 id="hiding-provider-owned-inputs-notclientinput">Hiding provider-owned inputs: <code>NotClientInput</code><a class="headerlink" href="#hiding-provider-owned-inputs-notclientinput" title="Permanent link">&para;</a></h2>
+<p>Reflection advertises <em>every</em> declared key — including ones a <code>spec.kwargs</code>
+provider fills in from request state, which the caller should never set:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">WidgetExtras</span><span class="p">(</span><span class="n">HttpExtras</span><span class="p">[</span><span class="n">MyUser</span><span class="p">],</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">project_pk</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">InputRequired</span><span class="p">]</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">team_role</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NotClientInput</span><span class="p">]</span>   <span class="c1"># resolved by spec.kwargs</span>
 </span></code></pre></div>
-<p>Registering a name twice raises rather than overwriting, so a copy-pasted
-declaration fails at import time instead of silently shadowing an operation.</p>
-<h2 id="many-registries-on-purpose">Many registries, on purpose<a class="headerlink" href="#many-registries-on-purpose" title="Permanent link">&para;</a></h2>
-<p>A deployment that mounts more than one endpoint needs those endpoints to differ,
-and to not share state. Both shapes of "more than one" work.</p>
-<p><strong>Independent registries</strong> — separate name namespaces, full isolation. Names are
-unique <em>within</em> a registry, so two independent registries may reuse one:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">internal</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">internal</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;purge_tenant&quot;</span><span class="p">,</span> <span class="n">purge_spec</span><span class="p">)</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">public</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">public</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_orders&quot;</span><span class="p">,</span> <span class="n">orders_spec</span><span class="p">)</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># /internal/mcp reads `internal`; /public/mcp reads `public`.</span>
+<p><code>team_role</code> disappears from <code>properties</code>, and because it is no longer a declared
+input, <code>UnknownArguments.REJECT</code> treats a caller that supplies it as passing an
+unknown argument. Delivery is untouched: the provider still fills it in.</p>
+<div class="admonition warning">
+<p class="admonition-title">Hiding a key is not what makes it safe</p>
+<p>The security property is the <code>SPREAD_AUTHOR_WINS</code> precedence — the author's
+provider overrides caller input — not the absence of an advertisement. Two
+corollaries survive unchanged: a provider owning a <strong>scoping</strong> key must always
+resolve it and never decline via <code>UNSET</code> (declining lets the caller's value
+through, which for a scoping key is a cross-scope read), and opting into
+<code>SPREAD_CALLER_WINS</code> on a scoped spec voids the guarantee whether or not the
+key is hidden.</p>
+</div>
+<p>Marking a key both <code>InputRequired</code> and <code>NotClientInput</code> raises — the caller cannot
+be required to supply a value it is never told about.</p>
+<h2 id="values-the-callable-never-declares-urlkwarg">Values the callable never declares: <code>UrlKwarg</code><a class="headerlink" href="#values-the-callable-never-declares-urlkwarg" title="Permanent link">&para;</a></h2>
+<p>Reflection covers keys the callable's own signature declares. It cannot cover a
+value read only by a <code>spec.kwargs</code> provider off <code>view.kwargs</code>, because that value
+appears in no signature at all — nor a closed-surface spec whose route capture
+must still be caller-suppliable.</p>
+<p>For those, a transport adapter registers a
+<a class="autorefs autorefs-internal" title="UrlKwarg
+
+
+  
+      dataclass
+  " href="../../reference/types/#rest_framework_services.types.url_kwarg.UrlKwarg"><code>UrlKwarg</code></a>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">UrlKwarg</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">UrlKwarg</span><span class="p">(</span><span class="s2">&quot;project_pk&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;integer&quot;</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Owning project.&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </span></code></pre></div>
-<p><strong>One registry, many projections</strong> — one declaration site, filtered views:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_orders&quot;</span><span class="p">,</span> <span class="n">orders_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;read&quot;</span><span class="p">,</span> <span class="s2">&quot;public&quot;</span><span class="p">))</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;refund_order&quot;</span><span class="p">,</span> <span class="n">refund_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;write&quot;</span><span class="p">,</span> <span class="s2">&quot;admin&quot;</span><span class="p">))</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">public_specs</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">by_tag</span><span class="p">(</span><span class="s2">&quot;public&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">specs</span><span class="p">()</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">admin_specs</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">by_tag</span><span class="p">(</span><span class="s2">&quot;admin&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">specs</span><span class="p">()</span>
-</span></code></pre></div>
-<p><code>by_tag</code> matches <strong>any</strong> of the tags given, so intersection composes from it
-(<code>registry.by_tag("read").by_tag("public")</code>) while a union would not compose from
-an intersection. <code>subset("a", "b")</code> selects by name instead, and raises on a name
-that isn't registered — naming entries explicitly means a typo is a configuration
-error, not a quietly smaller surface.</p>
-<p>Every derivation returns a <strong>new</strong> registry holding a snapshot: the entries are
-selected at call time and the spec objects are shared, not copied. So a view
-never mutates its source, and registering on the source afterwards does not
-appear in a view derived earlier.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">public</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">by_tag</span><span class="p">(</span><span class="s2">&quot;public&quot;</span><span class="p">)</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_refunds&quot;</span><span class="p">,</span> <span class="n">refunds_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;public&quot;</span><span class="p">,))</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">assert</span> <span class="s2">&quot;list_refunds&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">public</span>   <span class="c1"># `public` was a snapshot</span>
-</span></code></pre></div>
-<p><code>merge()</code> goes the other way, combining registries into a new one. It is the only
-place cross-registry name uniqueness is enforced — reusing a name across
-independent surfaces is legal until you actually put them together:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">combined</span> <span class="o">=</span> <span class="n">internal</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">public</span><span class="p">)</span>   <span class="c1"># a shared name here raises</span>
-</span></code></pre></div>
-<h2 id="tags">Tags<a class="headerlink" href="#tags" title="Permanent link">&para;</a></h2>
-<p>Tags are free-form labels, and each transport maps them to its own vocabulary —
-an MCP binding might turn <code>"destructive"</code> into a tool annotation, an agent
-capability might use <code>"admin"</code> to decide which toolset an operation joins.</p>
-<p>Keep them boolean-ish: <code>"read"</code>, <code>"write"</code>, <code>"admin"</code>, <code>"public"</code>,
-<code>"destructive"</code>. A structured payload — a URI, a schema fragment, a config dict —
-does not belong encoded in a tag string. It is almost always transport-specific,
-which means it belongs at the binding, next to the other per-transport knobs.</p>
-<h2 id="reading-a-registry-back">Reading a registry back<a class="headerlink" href="#reading-a-registry-back" title="Permanent link">&para;</a></h2>
-<p>Beyond <code>specs()</code>, a registry introspects:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">len</span><span class="p">(</span><span class="n">registry</span><span class="p">)</span>                 <span class="c1"># how many operations</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="s2">&quot;refund_order&quot;</span> <span class="ow">in</span> <span class="n">registry</span>    <span class="c1"># is this name taken</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;refund_order&quot;</span><span class="p">)</span>  <span class="c1"># the RegisteredSpec, or None</span>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">registry</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>                <span class="c1"># every entry, in registration order</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">registry</span><span class="o">.</span><span class="n">mutations</span><span class="p">()</span>          <span class="c1"># the ServiceSpec entries</span>
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">registry</span><span class="o">.</span><span class="n">queries</span><span class="p">()</span>            <span class="c1"># the SelectorSpec entries</span>
-</span></code></pre></div>
-<p>Order is registration order everywhere, so a transport's tool listing is stable
-between processes rather than reshuffling for clients that diff it.</p>
-<p><code>mutations()</code> and <code>queries()</code> discriminate by type rather than by a stored flag,
-and together they cover every entry — which is why <code>register()</code> rejects anything
-that is neither a <code>ServiceSpec</code> nor a <code>SelectorSpec</code>. A <code>PolymorphicServiceSpec</code>
-is rejected too, with a pointer at the supported shape: register each of its
-variants under its own name, since a transport that projects one operation per
-name wants one operation per variant, not a union.</p>
-<p>Full signatures in the <a href="../../reference/registry/">spec registry reference</a>.</p>
+<p>The adapter merges its <code>json_schema()</code> into the operation's input schema, pops the
+argument out of the caller's arguments, and routes it to
+<code>build_offline_context(kwargs=…)</code>. <code>required=True</code> is the registered-declaration
+counterpart of the <code>InputRequired</code> marker: both land the name in the schema's
+<code>required</code> list, and they differ only in where the key is declared.</p>
+<p><code>QueryParam</code> is the sibling for read-shaping values that belong on
+<code>request.query_params</code> (django-restql field selection, a serializer that branches
+on the query string). It has <strong>no</strong> <code>required</code> flag on purpose — omitting a
+read-shaping param is legitimate by construction.</p>
+<p>Both types live here rather than in each adapter so the same declaration means the
+same thing on every transport. Adapters validate a registration set with
+<a class="autorefs autorefs-internal" title="validate_channel_names" href="../../reference/types/#rest_framework_services.types.validate_channel_names.validate_channel_names"><code>validate_channel_names</code></a>, which
+always includes <code>RESERVED_POOL_SEEDS</code> and takes the transport's own reserved
+pagination names on top.</p>
+<h2 id="which-one-do-i-reach-for">Which one do I reach for?<a class="headerlink" href="#which-one-do-i-reach-for" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>The value is…</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>read by the callable from its own <code>**extras</code></td>
+<td>nothing — reflection covers it</td>
+</tr>
+<tr>
+<td>…and the spec can't run without it</td>
+<td><code>Annotated[T, InputRequired]</code></td>
+</tr>
+<tr>
+<td>…and the caller must never set it</td>
+<td><code>Annotated[T, NotClientInput]</code></td>
+</tr>
+<tr>
+<td>read only by a <code>spec.kwargs</code> provider off <code>view.kwargs</code></td>
+<td><code>UrlKwarg(..., required=…)</code></td>
+</tr>
+<tr>
+<td>read off <code>request.query_params</code> to shape output</td>
+<td><code>QueryParam(...)</code></td>
+</tr>
+</tbody>
+</table>
+<p>A key can be <em>both</em> reflected and <code>UrlKwarg</code>-registered — a <code>project_pk</code> the
+selector reads <em>and</em> a scoping provider reads off <code>view.kwargs</code>. The adapter's
+schema merge dedupes to one property (the explicit registration wins), the
+registration pops the argument into <code>kwargs=</code>, and the authoritative spread still
+delivers it to the selector pool, so both readers see it.</p>
 
 
 
