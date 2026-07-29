@@ -943,6 +943,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#off-the-http-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Off the HTTP path
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1530,6 +1541,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#off-the-http-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Off the HTTP path
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1766,6 +1788,56 @@ where there is an action — i.e. inside viewset mixins and
 mutation flow's input/output split. If you want a shared "always add X to
 the context" on a selector view, override <code>get_serializer_context()</code>
 directly.</p>
+<h2 id="off-the-http-path">Off the HTTP path<a class="headerlink" href="#off-the-http-path" title="Permanent link">&para;</a></h2>
+<p>There is no view to call <code>get_serializer_context()</code> on when a spec is
+dispatched from an MCP tool, a Pydantic-AI toolset, or a management command —
+so <code>dispatch_spec</code> / <code>render_spec_output</code> synthesize DRF's baseline instead
+(<code>base_serializer_context</code>), and layer the spec's provider over it:</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>HTTP</th>
+<th>Off HTTP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. DRF default</td>
+<td><code>view.get_serializer_context()</code></td>
+<td><code>{"request", "format": None, "view"}</code> from the synthetic pair <code>build_offline_context</code> builds</td>
+</tr>
+<tr>
+<td>2. Directional hook</td>
+<td><code>get_&lt;direction&gt;_serializer_context()</code></td>
+<td>— (no view to host it)</td>
+</tr>
+<tr>
+<td>3. Per-action hook</td>
+<td><code>get_&lt;action&gt;_&lt;direction&gt;_serializer_context()</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>4. Per-spec callable</td>
+<td><code>*_serializer_context</code> on the spec</td>
+<td>same, and still has the final say</td>
+</tr>
+</tbody>
+</table>
+<p>So a serializer that reads <code>self.context["request"]</code> unguarded — for
+<code>request.user</code>, an ownership check in a <code>SerializerMethodField</code>, a
+<code>PrimaryKeyRelatedField</code> queryset scoped to the caller — renders the same over
+both transports. <code>request.user</code> is the <code>user</code> you passed to
+<code>build_offline_context</code>.</p>
+<p>The two view-hosted layers have no off-HTTP equivalent by design: they are
+view configuration, and off HTTP there is no view to configure. Context that
+must reach <em>every</em> transport belongs on the spec (layer 4), which is the layer
+both paths share.</p>
+<p>One caveat for absolute URLs: <code>build_absolute_uri()</code> (<code>HyperlinkedIdentityField</code>,
+<code>HyperlinkedRelatedField</code>) needs real request headers, and a synthetic request
+built with no <code>http_request=</code> has none. Pass the ambient Django request through
+when the transport has one — as the MCP server does — or feed the serializer a
+relative link.</p>
 
 
 

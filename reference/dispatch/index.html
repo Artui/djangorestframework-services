@@ -1223,6 +1223,62 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#arender_spec_output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arender_spec_output
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.arender_spec_output.arender_spec_output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arender_spec_output
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="arender_spec_output">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#base_serializer_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        base_serializer_context
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.base_serializer_context.base_serializer_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        base_serializer_context
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="base_serializer_context">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#dispatchresult" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2171,6 +2227,62 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#arender_spec_output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arender_spec_output
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.arender_spec_output.arender_spec_output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arender_spec_output
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="arender_spec_output">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#base_serializer_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        base_serializer_context
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.base_serializer_context.base_serializer_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        base_serializer_context
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="base_serializer_context">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#dispatchresult" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2772,6 +2884,15 @@ below — <code>dispatch_spec</code> — is documented first.</p>
 <p>The single execution path a non-HTTP transport drives: hand a spec, the
 acting <code>user</code>, and a flat <code>params</code> mapping, get back a <code>DispatchResult</code> to
 format for your wire. No view, no <code>request</code> required.</p>
+<p>Each primitive comes as a sync / async pair — <code>dispatch_spec</code> /
+<code>adispatch_spec</code>, <code>render_spec_output</code> / <code>arender_spec_output</code>. The async
+member is not a thin alias: a spec's callables (selector, service, <code>kwargs</code>
+provider, <code>extend_queryset</code>, <code>filter_set</code>, serializer-context providers) are
+written once for both transports and so are never <code>async def</code>, and rendering
+walks the ORM. The async members run all of that in Django's thread-sensitive
+executor, which is what keeps <code>SynchronousOnlyOperation</code> out of an async
+transport. Await the pair together; don't mix an <code>a</code>-prefixed call with a sync
+one on the same result.</p>
 <h3 id="dispatch_spec"><code>dispatch_spec</code><a class="headerlink" href="#dispatch_spec" title="Permanent link">&para;</a></h3>
 
 
@@ -2890,6 +3011,14 @@ services are awaited and sync ones run in Django's thread-sensitive executor
 so the ORM stays safe off the event loop. A <code>LIST</code> result is returned as
 the (lazy) shaped queryset — the async transport materializes / paginates it
 in a thread, exactly as on the sync path.</p>
+<p>That rule covers <strong>every</strong> callable a spec carries, not just the selector /
+service: <code>kwargs</code> providers, <code>extend_queryset</code>, <code>filter_set</code>,
+<code>input_serializer_context</code>, a callable <code>success_status</code>, and the
+<code>on_target_resolved</code> guard all run in the executor (see
+:func:<code>~rest_framework_services.dispatch.utils.arun_off_loop</code>). None of them
+can be <code>async def</code> — a spec is written once for both transports — so any
+that queries would otherwise raise <code>SynchronousOnlyOperation</code> here and
+nowhere else.</p>
 <p>As on :func:<code>~rest_framework_services.dispatch_spec</code>, a <code>many=True</code> bulk
 spec honours <code>unknown_arguments</code> per list element and rejects a non-default
 <code>argument_binding</code> (there is no per-item kwarg to spread into a single
@@ -2930,13 +3059,133 @@ the output serializer from <code>spec.output_serializer</code> (selector) or
 <code>spec.output_selector_spec.output_serializer</code> (service); when none is set
 the value passes through (list-coerced when <code>many=True</code> so a queryset
 evaluates).</p>
-<p>The spec's <code>output_serializer_context</code> provider, if any, is resolved with
-<code>view</code> / <code>request</code> plus the resolved-data <code>extras</code> it declares
-(<code>page</code> for a list, <code>instance</code> for a retrieve, <code>result</code> for a
-mutation) and forwarded as the serializer <code>context</code>.</p>
+<p>The serializer <code>context</code> always carries DRF's baseline — <code>request</code> /
+<code>format</code> / <code>view</code>, from
+:func:<code>~rest_framework_services.base_serializer_context</code> — so a serializer
+that reads <code>self.context["request"]</code> renders identically here and behind
+a DRF view. The spec's <code>output_serializer_context</code> provider, if any, is
+resolved with <code>view</code> / <code>request</code> plus the resolved-data <code>extras</code> it
+declares (<code>page</code> for a list, <code>instance</code> for a retrieve, <code>result</code> for
+a mutation) and merged over that baseline.</p>
 <p>Pagination is the caller's job — pass the already-sliced page as <code>value</code>
 (and the same page object under the matching <code>extras</code> key) so an
 id-keyed batched context query reuses the page's result cache.</p>
+
+
+    </div>
+
+</div><h3 id="arender_spec_output"><code>arender_spec_output</code><a class="headerlink" href="#arender_spec_output" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.arender_spec_output.arender_spec_output" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">arender_spec_output</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#rest_framework_services.dispatch.arender_spec_output.arender_spec_output" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">arender_spec_output</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">many</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">extras</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Async :func:<code>~rest_framework_services.render_spec_output</code>.</p>
+<p>Identical arguments, identical result — the whole render runs in Django's
+thread-sensitive executor instead of on the event loop, which is what an
+async transport needs. Rendering is <strong>full of</strong> sync ORM work, none of it
+optional:</p>
+<ul>
+<li><code>serializer.data</code> iterates the value. For <code>many=True</code> that evaluates
+  the queryset; per row, every relation a field traverses is another query
+  unless it was <code>select_related</code> in.</li>
+<li>The spec's <code>output_serializer_context</code> provider is user code, and is
+  documented as the place to run one batched query keyed on the page.</li>
+<li>The no-serializer path list-coerces, which evaluates a queryset too.</li>
+</ul>
+<p>So an async caller that awaited :func:<code>~rest_framework_services.adispatch_spec</code>
+— which returns a <code>LIST</code> result as a <strong>lazy</strong> queryset, deliberately —
+cannot render it inline without raising <code>SynchronousOnlyOperation</code>. Pair
+the two:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">adispatch_spec</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">payload</span> <span class="o">=</span> <span class="k">await</span> <span class="n">arender_spec_output</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="n">result</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;list&quot;</span><span class="p">)</span>
+</span></code></pre></div>
+<p>A transport that already does its own thread hop around rendering (to
+paginate or post-process in the same hop) can keep calling
+:func:<code>render_spec_output</code> inside it — this is for the ordinary case, where
+the hop shouldn't have to be the caller's problem to remember.</p>
+<p>Pagination is still the caller's job; see the sync twin for the <code>extras</code>
+contract and the rest of the semantics.</p>
+
+
+    </div>
+
+</div><h3 id="base_serializer_context"><code>base_serializer_context</code><a class="headerlink" href="#base_serializer_context" title="Permanent link">&para;</a></h3>
+<p>The DRF baseline (<code>request</code> / <code>format</code> / <code>view</code>) that every serializer gets for
+free over HTTP, synthesized for the off-HTTP path. <code>dispatch_spec</code> and
+<code>render_spec_output</code> apply it themselves — reach for it directly only when a
+transport builds a serializer outside them. See
+<a href="../../recipes/serializer-context/#off-the-http-path">Customise serializer context</a>.</p>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.base_serializer_context.base_serializer_context" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">base_serializer_context</span>
+
+
+<a href="#rest_framework_services.dispatch.base_serializer_context.base_serializer_context" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">base_serializer_context</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Build the baseline serializer <code>context</code> a spec-driven render starts from.</p>
+<p>Over HTTP every serializer DRF builds carries
+:meth:<code>~rest_framework.generics.GenericAPIView.get_serializer_context</code> —
+<code>{"request", "format", "view"}</code> — so serializers routinely read
+<code>self.context["request"]</code> unguarded (<code>build_absolute_uri</code>,
+<code>request.user</code>, a permission check in a <code>SerializerMethodField</code>). A
+spec's <code>input_serializer_context</code> / <code>output_serializer_context</code> provider
+is <em>additive</em> config layered on top of that baseline, not a replacement for
+it, so off HTTP — where there is no DRF view to ask — the baseline has to be
+synthesized rather than skipped. Without it the same serializer that renders
+over HTTP raises <code>KeyError: 'request'</code> when the spec is dispatched from an
+MCP tool call, a Pydantic-AI toolset, or a management command.</p>
+<p>Two sources, in order:</p>
+<ul>
+<li><code>view.get_serializer_context()</code> when the view has it — a real DRF view
+  (the HTTP bulk path renders through the same helper). It is the view's own
+  documented extension point and may already be overridden, so it wins.</li>
+<li>Otherwise DRF's shape, synthesized from the <code>view</code> / <code>request</code> the
+  caller passed: the synthetic pair from
+  :func:<code>~rest_framework_services.build_offline_context</code> off HTTP, or
+  <code>None</code> when the caller supplied neither. <code>format</code> is always <code>None</code>
+  — content negotiation is an HTTP-only concern.</li>
+</ul>
+<p>The keys are always present, mirroring HTTP: a serializer reading
+<code>self.context["request"]</code> off HTTP sees the synthetic request (and
+<code>None</code> only when the caller passed no request at all), never a
+<code>KeyError</code>. Absolute-URI fields additionally need real headers — pass the
+ambient <code>http_request</code> to <code>build_offline_context</code> when the transport has
+one, as the MCP server does.</p>
+<p>The spec's provider is merged <em>over</em> this by
+:func:<code>~rest_framework_services.dispatch.utils.resolve_output_context</code> /
+:func:<code>~rest_framework_services.dispatch.utils.resolve_input_context</code>, so a
+provider keeps the final say on every key — including these three.</p>
 
 
     </div>
