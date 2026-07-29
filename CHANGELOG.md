@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`adispatch_spec` ran a spec's sync callables on the event loop, so any of
+  them that touched the ORM raised `SynchronousOnlyOperation`.** A spec is
+  written once and dispatched over both transports, so none of its callables are
+  `async def` — the async path has to offload each one. It offloaded the
+  selector / service (`arun_callable`), the permission guard, and input-serializer
+  validation, but called the rest inline:
+
+  - **`shape_queryset`** — and with it `extend_queryset` and `filter_set`. A
+    `filter_<name>` method that queries, or a `ModelChoiceFilter` whose
+    `is_valid()` resolves its choice against the DB, raised. Reported from the
+    MCP transport, which awaits `adispatch_spec` directly on the loop.
+  - **`spec.kwargs` providers** — including the nested `instance_selector_spec`
+    / `collection_selector_spec` ones. The documented headline use of a provider
+    is a tenant / role lookup, which is a query.
+  - **`input_serializer_context` providers** — documented as the place to run
+    one batched query for the whole payload.
+  - **callable `success_status`** — user code that may read a relation off the
+    result.
+
+  All four now go through the executor, thread-sensitive like the calls that
+  already did, so they share one connection and see the same transaction state
+  as on the sync path. Sync dispatch is unaffected — it was never on a loop.
 - **Off-HTTP dispatch supplied no baseline serializer context, so
   `self.context["request"]` raised `KeyError`.** Over HTTP every serializer DRF
   builds carries `GenericAPIView.get_serializer_context()` — `request` /

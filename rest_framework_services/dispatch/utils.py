@@ -498,6 +498,31 @@ def resolve_input_context(
     return context
 
 
+async def arun_off_loop(fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
+    """Run a sync callable in Django's thread-sensitive executor and await it.
+
+    The async dispatch path's rule for **every user-supplied sync callable it
+    invokes**: a ``spec.kwargs`` provider doing a tenant lookup, an
+    ``extend_queryset`` narrowing against another table, a ``filter_set`` whose
+    ``filter_<name>`` method (or whose ``ModelChoiceFilter`` validation) hits the
+    DB, a serializer-context provider running its batched query, a callable
+    ``success_status`` reading a relation off the result. None of them are
+    declared async — a spec is written once and dispatched over both transports —
+    so calling them from the event loop raises ``SynchronousOnlyOperation`` the
+    moment they touch the ORM, and the failure surfaces only under the async
+    transport, only for the specs that happen to query.
+
+    ``thread_sensitive=True`` keeps them in the same executor as the selector /
+    service / permission calls around them, so they share one connection and see
+    the same transaction state as they would on the sync path.
+
+    Not for the spec's own selector / service: those may legitimately be ``async
+    def``, so they go through :func:`arun_callable` / :func:`arun_service_callable`,
+    which await a coroutine and offload only what is sync.
+    """
+    return await sync_to_async(fn, thread_sensitive=True)(*args, **kwargs)
+
+
 async def arun_callable(
     fn: Callable[..., Any] | Callable[..., Awaitable[Any]],
     kwargs: dict[str, Any],
