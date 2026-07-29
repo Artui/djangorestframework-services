@@ -9,6 +9,7 @@ for typical usage; deeper imports (``rest_framework_services.mutations``,
 
 from rest_framework_services.dispatch import (
     adispatch_spec,
+    base_serializer_context,
     build_offline_context,
     dispatch_spec,
     enforce_permissions,
@@ -186,6 +187,7 @@ __all__ = [
     "arun_service",
     "aupdate_from_input",
     "aupdate_model",
+    "base_serializer_context",
     "build_input_serializer",
     "build_input_serializer_from_data",
     "build_offline_context",

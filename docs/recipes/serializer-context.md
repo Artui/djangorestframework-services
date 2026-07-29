@@ -221,3 +221,34 @@ Standalone `SelectorListView` / `SelectorRetrieveView` honor
 mutation flow's input/output split. If you want a shared "always add X to
 the context" on a selector view, override `get_serializer_context()`
 directly.
+
+## Off the HTTP path
+
+There is no view to call `get_serializer_context()` on when a spec is
+dispatched from an MCP tool, a Pydantic-AI toolset, or a management command —
+so `dispatch_spec` / `render_spec_output` synthesize DRF's baseline instead
+(`base_serializer_context`), and layer the spec's provider over it:
+
+| Layer | HTTP | Off HTTP |
+|---|---|---|
+| 1. DRF default | `view.get_serializer_context()` | `{"request", "format": None, "view"}` from the synthetic pair `build_offline_context` builds |
+| 2. Directional hook | `get_<direction>_serializer_context()` | — (no view to host it) |
+| 3. Per-action hook | `get_<action>_<direction>_serializer_context()` | — |
+| 4. Per-spec callable | `*_serializer_context` on the spec | same, and still has the final say |
+
+So a serializer that reads `self.context["request"]` unguarded — for
+`request.user`, an ownership check in a `SerializerMethodField`, a
+`PrimaryKeyRelatedField` queryset scoped to the caller — renders the same over
+both transports. `request.user` is the `user` you passed to
+`build_offline_context`.
+
+The two view-hosted layers have no off-HTTP equivalent by design: they are
+view configuration, and off HTTP there is no view to configure. Context that
+must reach *every* transport belongs on the spec (layer 4), which is the layer
+both paths share.
+
+One caveat for absolute URLs: `build_absolute_uri()` (`HyperlinkedIdentityField`,
+`HyperlinkedRelatedField`) needs real request headers, and a synthetic request
+built with no `http_request=` has none. Pass the ambient Django request through
+when the transport has one — as the MCP server does — or feed the serializer a
+relative link.

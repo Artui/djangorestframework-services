@@ -29,10 +29,14 @@ def render_spec_output(
     the value passes through (list-coerced when ``many=True`` so a queryset
     evaluates).
 
-    The spec's ``output_serializer_context`` provider, if any, is resolved with
-    ``view`` / ``request`` plus the resolved-data ``extras`` it declares
-    (``page`` for a list, ``instance`` for a retrieve, ``result`` for a
-    mutation) and forwarded as the serializer ``context``.
+    The serializer ``context`` always carries DRF's baseline — ``request`` /
+    ``format`` / ``view``, from
+    :func:`~rest_framework_services.base_serializer_context` — so a serializer
+    that reads ``self.context["request"]`` renders identically here and behind
+    a DRF view. The spec's ``output_serializer_context`` provider, if any, is
+    resolved with ``view`` / ``request`` plus the resolved-data ``extras`` it
+    declares (``page`` for a list, ``instance`` for a retrieve, ``result`` for
+    a mutation) and merged over that baseline.
 
     Pagination is the caller's job — pass the already-sliced page as ``value``
     (and the same page object under the matching ``extras`` key) so an
@@ -44,8 +48,6 @@ def render_spec_output(
             return list(value) if hasattr(value, "__iter__") else value
         return value
     context = resolve_output_context(spec, view=view, request=request, extras=extras or {})
-    if context is None:
-        return serializer_cls(value, many=many).data
     return serializer_cls(value, many=many, context=context).data
 
 
