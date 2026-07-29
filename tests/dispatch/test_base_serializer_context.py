@@ -4,7 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from rest_framework_services import base_serializer_context, build_offline_context
+import pytest
+from rest_framework import serializers
+
+from rest_framework_services import (
+    SelectorKind,
+    SelectorSpec,
+    base_serializer_context,
+    build_offline_context,
+    render_spec_output,
+)
+from tests.testapp.models import Post
 
 
 class _ViewWithContext:
@@ -60,3 +70,50 @@ class TestBaseSerializerContext:
         assert context["request"].user == "U"
         assert context["view"] is offline.view
         assert context["format"] is None
+
+
+class _FileFieldShapedSerializer(serializers.Serializer):
+    """Mirrors DRF's ``FileField.to_representation`` branch for a URL."""
+
+    url = serializers.SerializerMethodField()
+
+    def get_url(self, _: object) -> str:
+        request = self.context.get("request", None)
+        if request is not None:
+            return request.build_absolute_uri("/media/doc.pdf")
+        return "/media/doc.pdf"
+
+
+@pytest.mark.django_db
+class TestFileFieldsOffHttp:
+    """Regression: a request in the context must not be worse than none.
+
+    0.29.0 started supplying ``request`` off HTTP, which is what makes
+    ``request.user`` work — but the synthesized request had an empty ``META``,
+    so ``build_absolute_uri`` raised ``KeyError: 'SERVER_NAME'``. Any serializer
+    with a ``FileField`` broke on a path that previously returned a relative URL.
+    """
+
+    def _render(self, host: str | None) -> Any:
+        Post.objects.create(title="a")
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=lambda: Post.objects.all(),
+            output_serializer=_FileFieldShapedSerializer,
+        )
+        offline = build_offline_context(user=None, host=host)
+        return render_spec_output(
+            spec,
+            list(Post.objects.all()),
+            many=True,
+            request=offline.request,
+            view=offline.view,
+        )
+
+    def test_without_a_host_the_url_is_relative(self) -> None:
+        assert [row["url"] for row in self._render(None)] == ["/media/doc.pdf"]
+
+    def test_with_a_host_the_url_is_absolute(self) -> None:
+        assert [row["url"] for row in self._render("https://files.example.com")] == [
+            "https://files.example.com/media/doc.pdf"
+        ]

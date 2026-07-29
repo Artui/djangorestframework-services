@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any, cast
+from urllib.parse import urlsplit
 
 from django.http import HttpRequest, QueryDict
 from rest_framework.request import Request
 
 from rest_framework_services.types.offline_context import OfflineContext
+from rest_framework_services.types.offline_http_request import OfflineHttpRequest
 from rest_framework_services.types.offline_service_view import OfflineServiceView
 
 
@@ -20,6 +22,7 @@ def build_offline_context(
     action: str | None = None,
     kwargs: Mapping[str, Any] | None = None,
     query_params: Mapping[str, Any] | None = None,
+    host: str | None = None,
 ) -> OfflineContext:
     """Build the :class:`OfflineContext` for dispatching a spec outside an HTTP request.
 
@@ -39,9 +42,24 @@ def build_offline_context(
       structured, so there is nothing to parse and a synthetic request has no
       WSGI stream to read.
     - ``http_request`` is wrapped when supplied (e.g. the MCP server passes its
-      real Django request so headers / ``META`` are available); otherwise a bare
-      :class:`~django.http.HttpRequest` is created. The method is forced to
-      ``POST`` because mutation callables often branch on it.
+      real Django request so headers / ``META`` are available); otherwise an
+      :class:`~rest_framework_services.OfflineHttpRequest` is created. The method
+      is forced to ``POST`` because mutation callables often branch on it.
+    - ``host`` gives the synthesized request an origin, so ``build_absolute_uri``
+      — which DRF's ``FileField`` / ``HyperlinkedIdentityField`` call whenever a
+      ``request`` is in the serializer context — returns real absolute URLs off
+      the HTTP path. Accepts ``"example.com"``, ``"example.com:8000"``, or a full
+      origin like ``"https://example.com"`` (the scheme sets whether links are
+      https). There is no default: only the project knows its public origin, and
+      guessing one — the first ``ALLOWED_HOSTS`` entry, say, which is an
+      *authorization* list and is routinely a wildcard or an internal load-balancer
+      name — would emit confidently-wrong links. Left unset, absolute-URI building
+      degrades to returning the relative URL rather than raising; see
+      :class:`~rest_framework_services.OfflineHttpRequest`. **Ignored when
+      ``http_request`` is supplied** — a real request's own headers are
+      authoritative (configure Django's ``USE_X_FORWARDED_HOST`` if it sits behind
+      a proxy), which lets a caller pass both unconditionally: the ambient request
+      when there is one, this host when there isn't.
     - ``query_params`` seeds the request's ``GET`` :class:`~django.http.QueryDict`
       — the source ``request.query_params`` reads. This is how read-shaping params
       that aren't spec inputs reach the serializer over the offline path:
@@ -61,7 +79,7 @@ def build_offline_context(
       scope by tenant) also sees it here. Pass every route capture a spec depends
       on; it defaults to ``{}`` (no URL context).
     """
-    base: HttpRequest = http_request if http_request is not None else HttpRequest()
+    base: HttpRequest = http_request if http_request is not None else _synthesize_request(host)
     base.method = "POST"
     if query_params is not None:
         # ``_build_query_dict`` freezes the result (``_mutable = False``), so it is
@@ -80,6 +98,46 @@ def build_offline_context(
         request=drf_request, action=action, kwargs=dict(kwargs) if kwargs is not None else {}
     )
     return OfflineContext(user=user, request=drf_request, view=view)
+
+
+def _synthesize_request(host: str | None) -> OfflineHttpRequest:
+    """Build the hostless-by-default stand-in, seeding ``META`` when a host is given.
+
+    The ``META`` keys mirror what a WSGI server would set, so anything reading
+    them directly (logging, a middleware-shaped helper) sees the familiar shape.
+    Host and scheme resolution itself is
+    :class:`~rest_framework_services.OfflineHttpRequest`'s — notably *without* the
+    ``ALLOWED_HOSTS`` check, which guards against spoofed client headers and has
+    nothing to guard here.
+    """
+    # ``HttpRequest.__new__`` in django-stubs returns ``_MutableHttpRequest``, so
+    # ty resolves the subclass to the wrong type; construct via ``Any`` and cast
+    # back (the same stub quirk this module already works around for ``Request``).
+    raw: Any = OfflineHttpRequest()
+    request: OfflineHttpRequest = cast(OfflineHttpRequest, raw)
+    if host is None:
+        return request
+    scheme, netloc = _split_host(host)
+    hostname, _, port = netloc.partition(":")
+    request.offline_host = netloc
+    request.META["HTTP_HOST"] = netloc
+    request.META["SERVER_NAME"] = hostname
+    request.META["SERVER_PORT"] = port or ("443" if scheme == "https" else "80")
+    request.META["wsgi.url_scheme"] = scheme
+    return request
+
+
+def _split_host(host: str) -> tuple[str, str]:
+    """Split ``host`` into ``(scheme, netloc)``, defaulting the scheme to ``http``.
+
+    Django's own default for a request with no TLS marker, and the safe one: a
+    wrong ``https://`` is a broken link, whereas a caller that wants https says so
+    by passing a full origin.
+    """
+    if "//" not in host:
+        return ("http", host.strip("/"))
+    split = urlsplit(host)
+    return (split.scheme or "http", split.netloc)
 
 
 def _build_query_dict(query_params: Mapping[str, Any]) -> QueryDict:

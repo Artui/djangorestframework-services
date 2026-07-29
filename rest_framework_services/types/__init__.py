@@ -20,6 +20,7 @@ from rest_framework_services.types.json_schema_registry import (
 from rest_framework_services.types.no_input import NoInput
 from rest_framework_services.types.not_client_input import NotClientInput, NotClientInputType
 from rest_framework_services.types.offline_context import OfflineContext
+from rest_framework_services.types.offline_http_request import OfflineHttpRequest
 from rest_framework_services.types.offline_service_view import OfflineServiceView
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.query_param import QueryParam
@@ -54,6 +55,7 @@ __all__ = [
     "NotClientInput",
     "NotClientInputType",
     "OfflineContext",
+    "OfflineHttpRequest",
     "OfflineServiceView",
     "PolymorphicServiceSpec",
     "QueryParam",

@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.1] — 2026-07-29
+
+### Fixed
+
+- **`KeyError: 'SERVER_NAME'` from any serializer with a `FileField`, off the
+  HTTP path.** A 0.29.0 regression. That release started putting `request` in the
+  serializer context off HTTP — which is what makes `request.user` and friends
+  work — but the synthesized request was a bare `HttpRequest` with an **empty**
+  `META`, and Django resolves the host from `HTTP_HOST` / `SERVER_NAME`. So
+  `build_absolute_uri()` raised, and DRF's `FileField.to_representation` calls it
+  for every file value whenever a request is present. Before 0.29.0 the same
+  field saw no request at all and returned a relative URL: supplying a hostless
+  request was strictly worse than supplying none.
+
+  The synthesized request is now an `OfflineHttpRequest`, which returns the
+  **relative** URL instead of raising when no host is configured — the same shape
+  DRF's own file / hyperlinked fields fall back to, so it restores the
+  pre-0.29.0 output. Transports that pass a real `http_request` (the MCP server)
+  were never affected.
+
+### Added
+
+- **`build_offline_context(host=…)` — an origin for absolute URLs off HTTP.**
+  Accepts `"example.com"`, `"example.com:8000"`, or a full origin like
+  `"https://example.com"` (the scheme decides whether links are https). With it,
+  `build_absolute_uri()` builds real absolute URLs from a toolset, a management
+  command, or a worker.
+
+  There is deliberately no default. Only the project knows its public origin, and
+  inferring one — the first `ALLOWED_HOSTS` entry, say, which is an
+  *authorization* list and is routinely a wildcard or an internal load-balancer
+  name — would emit confidently-wrong links that look valid. The value is
+  **not** validated against `ALLOWED_HOSTS` either: that check exists to reject
+  spoofed `Host` headers from untrusted clients, and there is no client here, so
+  a worker can render links for a site it doesn't itself serve. `host` is ignored
+  when `http_request` is supplied, so a caller may pass both unconditionally.
+- **`OfflineHttpRequest`** — the synthetic request type, exported so its
+  behaviour is documented rather than implied.
+
 ## [0.29.0] — 2026-07-29
 
 ### Added
@@ -1615,7 +1654,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.29.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.29.1...HEAD
+[0.29.1]: https://github.com/Artui/djangorestframework-services/compare/v0.29.0...v0.29.1
 [0.29.0]: https://github.com/Artui/djangorestframework-services/compare/v0.28.1...v0.29.0
 [0.28.1]: https://github.com/Artui/djangorestframework-services/compare/v0.28.0...v0.28.1
 [0.28.0]: https://github.com/Artui/djangorestframework-services/compare/v0.27.0...v0.28.0
