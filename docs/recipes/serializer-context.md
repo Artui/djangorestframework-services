@@ -247,8 +247,32 @@ view configuration, and off HTTP there is no view to configure. Context that
 must reach *every* transport belongs on the spec (layer 4), which is the layer
 both paths share.
 
-One caveat for absolute URLs: `build_absolute_uri()` (`HyperlinkedIdentityField`,
-`HyperlinkedRelatedField`) needs real request headers, and a synthetic request
-built with no `http_request=` has none. Pass the ambient Django request through
-when the transport has one — as the MCP server does — or feed the serializer a
-relative link.
+### Absolute URLs off the HTTP path
+
+`build_absolute_uri()` — which DRF's `FileField`, `HyperlinkedIdentityField`, and
+`HyperlinkedRelatedField` call whenever a `request` is in the context — needs an
+origin, and a process with no ambient request has none. Two ways to give it one:
+
+```python
+# The transport has a real request (the MCP server): pass it through.
+build_offline_context(user, http_request=request)
+
+# It doesn't (a toolset, a management command, a worker): name the origin.
+build_offline_context(user, host="https://app.example.com")
+```
+
+`host` accepts `"example.com"`, `"example.com:8000"`, or a full origin whose
+scheme decides whether links are `https`. It is **ignored when `http_request` is
+supplied**, so a caller can pass both unconditionally — the ambient request when
+there is one, the configured host when there isn't. It is not validated against
+`ALLOWED_HOSTS`: that setting rejects spoofed `Host` headers from untrusted
+clients, and this value is your own, so a worker can render links for a site it
+doesn't itself serve.
+
+Left unset, `build_absolute_uri()` returns the **relative** URL rather than
+raising. There is deliberately no default: only your project knows its public
+origin, and inferring one — the first `ALLOWED_HOSTS` entry, say, which is an
+authorization list and is routinely a wildcard or an internal load-balancer name
+— would emit confidently-wrong links that look valid. A relative URL is what
+those DRF fields already fall back to when there's no request in the context at
+all.

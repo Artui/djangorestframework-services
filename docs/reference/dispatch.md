@@ -144,6 +144,15 @@ selection, custom serializers). It does **not** make DRF `filter_backends`
 (`SearchFilter` / `OrderingFilter`) run — the offline path never calls
 `filter_queryset`; `filter_set` is the drf-services-native equivalent.
 
+### `OfflineHttpRequest`
+
+The synthetic request `build_offline_context` creates when there is no ambient
+one. Relevant when you're deciding what `build_absolute_uri()` should return off
+the HTTP path — see
+[Absolute URLs off the HTTP path](../recipes/serializer-context.md#absolute-urls-off-the-http-path).
+
+::: rest_framework_services.types.offline_http_request.OfflineHttpRequest
+
 ### `enforce_permissions`
 
 ::: rest_framework_services.dispatch.enforce_permissions.enforce_permissions
