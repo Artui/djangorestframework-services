@@ -9,6 +9,7 @@ for typical usage; deeper imports (``rest_framework_services.mutations``,
 
 from rest_framework_services.dispatch import (
     adispatch_spec,
+    arender_spec_output,
     base_serializer_context,
     build_offline_context,
     dispatch_spec,
@@ -183,6 +184,7 @@ __all__ = [
     "adispatch_spec",
     "apply_input",
     "apply_queryset_shaping",
+    "arender_spec_output",
     "arun_selector",
     "arun_service",
     "aupdate_from_input",

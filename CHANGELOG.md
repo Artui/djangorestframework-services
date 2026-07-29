@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`arender_spec_output` — the async sibling of `render_spec_output`.** Rendering
+  is full of sync ORM work that isn't optional: `serializer.data` iterates the
+  value (evaluating the queryset when `many=True`, plus a query per untraversed
+  relation per row), the `output_serializer_context` provider is user code
+  documented as the place to run one batched query, and the no-serializer path
+  list-coerces. An async caller that awaited `adispatch_spec` — which returns a
+  `LIST` result as a deliberately **lazy** queryset — therefore could not render
+  it inline without raising `SynchronousOnlyOperation`, and had to know to wrap
+  the call itself. The dispatch surface now offers the pair on both halves:
+  `dispatch_spec` / `adispatch_spec` and `render_spec_output` /
+  `arender_spec_output`. Same arguments, same result, executor instead of loop.
+
 ### Fixed
 
 - **`adispatch_spec` ran a spec's sync callables on the event loop, so any of
