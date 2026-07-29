@@ -34,6 +34,16 @@ format for your wire. No view, no `request` required.
 
 ::: rest_framework_services.dispatch.render_spec_output.render_spec_output
 
+### `base_serializer_context`
+
+The DRF baseline (`request` / `format` / `view`) that every serializer gets for
+free over HTTP, synthesized for the off-HTTP path. `dispatch_spec` and
+`render_spec_output` apply it themselves — reach for it directly only when a
+transport builds a serializer outside them. See
+[Customise serializer context](../recipes/serializer-context.md#off-the-http-path).
+
+::: rest_framework_services.dispatch.base_serializer_context.base_serializer_context
+
 ### `DispatchResult`
 
 ::: rest_framework_services.types.dispatch_result.DispatchResult

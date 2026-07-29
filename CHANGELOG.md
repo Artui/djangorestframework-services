@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Off-HTTP dispatch supplied no baseline serializer context, so
+  `self.context["request"]` raised `KeyError`.** Over HTTP every serializer DRF
+  builds carries `GenericAPIView.get_serializer_context()` — `request` /
+  `format` / `view` — so serializers read those keys unguarded
+  (`build_absolute_uri`, `request.user`, an ownership check in a
+  `SerializerMethodField`). `render_spec_output` and `dispatch_spec`'s input
+  validation passed the spec's `*_serializer_context` provider result *instead
+  of* that baseline, and nothing at all when no provider was declared — so the
+  same serializer that renders behind a view raised `KeyError: 'request'` when
+  the spec was dispatched from the MCP server, a Pydantic-AI toolset, or a
+  management command. Both directions now start from the DRF baseline (the new
+  `base_serializer_context`) and merge the spec's provider **over** it, so a
+  provider keeps the final say on every key. Off HTTP the values are the
+  synthetic pair `build_offline_context` builds — `request.user` is the `user`
+  you passed it — and `format` is `None`. The HTTP bulk path (which renders
+  through `render_spec_output`) gains the same baseline, from the real view's
+  `get_serializer_context()`.
+
+### Added
+
+- **`base_serializer_context`** — the DRF baseline context, exported for
+  transports that build a serializer outside `dispatch_spec` /
+  `render_spec_output` (as `djangorestframework-mcp-server` does for its
+  selector, chain, and resource renderers). Prefers `view.get_serializer_context()`
+  when the view has it, else synthesizes `{"request", "format": None, "view"}`.
+
 ## [0.28.1] — 2026-07-28
 
 ### Fixed

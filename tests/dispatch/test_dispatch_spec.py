@@ -382,3 +382,110 @@ class TestRenderSpecOutput:
         page = list(result.value)
         rendered = render_spec_output(spec, page, many=True, extras={"page": page})
         assert all(row["n"] == 2 for row in rendered)
+
+    def test_baseline_context_supplies_request_without_a_provider(self) -> None:
+        """The reported regression: a serializer reading ``context["request"]``.
+
+        Over HTTP ``get_serializer_context()`` always supplies it, so serializers
+        read it unguarded; off HTTP the render used to pass no context at all and
+        the same serializer raised ``KeyError: 'request'``.
+        """
+        Post.objects.create(title="a")
+
+        class _RequestReadingSerializer(serializers.ModelSerializer):
+            is_editable = serializers.SerializerMethodField()
+
+            class Meta:
+                model = Post
+                fields = ("id", "is_editable")
+
+            def get_is_editable(self, obj: Post) -> str:
+                return str(self.context["request"].user)
+
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST, selector=_all_posts, output_serializer=_RequestReadingSerializer
+        )
+        offline = build_offline_context(user="alice")
+        result = dispatch_spec(
+            spec, user="alice", params={}, request=offline.request, view=offline.view
+        )
+        rendered = render_spec_output(
+            spec, result.value, many=True, request=offline.request, view=offline.view
+        )
+        assert [row["is_editable"] for row in rendered] == ["alice"]
+
+    def test_baseline_context_carries_view_and_format(self) -> None:
+        Post.objects.create(title="a")
+        seen: dict[str, Any] = {}
+
+        class _ContextEchoSerializer(serializers.ModelSerializer):
+            echo = serializers.SerializerMethodField()
+
+            class Meta:
+                model = Post
+                fields = ("id", "echo")
+
+            def get_echo(self, obj: Post) -> str:
+                seen.update(self.context)
+                return obj.title
+
+        spec = SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=_post_qs_by_pk,
+            output_serializer=_ContextEchoSerializer,
+        )
+        offline = build_offline_context(user="alice", kwargs={"pk": Post.objects.first().pk})
+        result = dispatch_spec(
+            spec,
+            user="alice",
+            params={"pk": Post.objects.first().pk},
+            request=offline.request,
+            view=offline.view,
+        )
+        render_spec_output(spec, result.value, request=offline.request, view=offline.view)
+        assert seen["view"] is offline.view
+        assert seen["format"] is None
+
+    def test_output_context_provider_overrides_the_baseline(self) -> None:
+        Post.objects.create(title="a")
+
+        class _RequestReadingSerializer(serializers.ModelSerializer):
+            who = serializers.SerializerMethodField()
+
+            class Meta:
+                model = Post
+                fields = ("id", "who")
+
+            def get_who(self, obj: Post) -> str:
+                return str(self.context["request"])
+
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=_all_posts,
+            output_serializer=_RequestReadingSerializer,
+            output_serializer_context=lambda: {"request": "PROVIDER-WINS"},
+        )
+        result = dispatch_spec(spec, user=None, params={})
+        rendered = render_spec_output(spec, list(result.value), many=True)
+        assert [row["who"] for row in rendered] == ["PROVIDER-WINS"]
+
+    def test_input_serializer_reads_request_from_the_baseline_context(self) -> None:
+        class _OwnedPostIn(serializers.Serializer):
+            title = serializers.CharField()
+
+            def validate_title(self, value: str) -> str:
+                return f"{value}-by-{self.context['request'].user}"
+
+        def _create(*, data: dict[str, Any]) -> Post:
+            return Post.objects.create(title=data["title"])
+
+        spec = ServiceSpec(service=_create, input_serializer=_OwnedPostIn, atomic=False)
+        offline = build_offline_context(user="alice")
+        result = dispatch_spec(
+            spec,
+            user="alice",
+            params={"title": "p"},
+            request=offline.request,
+            view=offline.view,
+        )
+        assert result.value.title == "p-by-alice"

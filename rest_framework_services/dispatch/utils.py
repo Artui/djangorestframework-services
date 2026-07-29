@@ -16,6 +16,7 @@ from asgiref.sync import sync_to_async
 from rest_framework.exceptions import ValidationError
 from typing_extensions import get_type_hints
 
+from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
 from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
@@ -452,18 +453,27 @@ def resolve_output_context(
     view: Any,
     request: Any,
     extras: Mapping[str, Any],
-) -> dict[str, Any] | None:
-    """Resolve the output serializer context for either spec kind, or ``None``.
+) -> dict[str, Any]:
+    """Resolve the output serializer context for either spec kind.
+
+    :func:`~rest_framework_services.dispatch.base_serializer_context.base_serializer_context`
+    supplies the DRF baseline (``request`` / ``format`` / ``view``) that a
+    serializer gets for free over HTTP; the spec's ``output_serializer_context``
+    provider, when set, is merged **over** it and keeps the final say on every
+    key. There is always a context — a spec without a provider still renders
+    with the baseline, which is what keeps a serializer reading
+    ``self.context["request"]`` working off HTTP.
 
     ``extras`` carries the resolved-data keyword the provider may declare
     (``result`` for a mutation, ``instance`` for a retrieve, ``page`` for a
     list). Invoked through the keyword pool.
     """
+    context: dict[str, Any] = base_serializer_context(view=view, request=request)
     provider = _output_context_provider(spec)
-    if provider is None:
-        return None
-    pool: dict[str, Any] = {"view": view, "request": request, **extras}
-    return dict(provider(**resolve_callable_kwargs(provider, pool)))
+    if provider is not None:
+        pool: dict[str, Any] = {"view": view, "request": request, **extras}
+        context.update(provider(**resolve_callable_kwargs(provider, pool)))
+    return context
 
 
 def resolve_input_context(
@@ -471,11 +481,21 @@ def resolve_input_context(
     *,
     view: Any,
     request: Any,
-) -> dict[str, Any] | None:
-    """Resolve ``ServiceSpec.input_serializer_context``, or ``None``."""
-    return (
-        resolve_provider(spec.input_serializer_context, {"view": view, "request": request}) or None
+) -> dict[str, Any]:
+    """Resolve the input serializer context — DRF baseline + the spec's provider.
+
+    The input-phase twin of :func:`resolve_output_context`: an
+    ``input_serializer`` validator that reads ``self.context["request"]`` (an
+    ownership check, a user-scoped queryset on a ``PrimaryKeyRelatedField``)
+    behaves the same whether the spec is dispatched over HTTP or off it.
+    ``ServiceSpec.input_serializer_context``, when set, is merged over the
+    baseline.
+    """
+    context: dict[str, Any] = base_serializer_context(view=view, request=request)
+    context.update(
+        resolve_provider(spec.input_serializer_context, {"view": view, "request": request})
     )
+    return context
 
 
 async def arun_callable(
