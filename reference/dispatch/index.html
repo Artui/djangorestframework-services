@@ -1441,6 +1441,56 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#offlinehttprequest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OfflineHttpRequest
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OfflineHttpRequest
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="OfflineHttpRequest">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest.build_absolute_uri" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_absolute_uri
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest.get_host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_host
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#enforce_permissions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2443,6 +2493,56 @@
   
     <nav class="md-nav" aria-label="build_offline_context">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#offlinehttprequest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OfflineHttpRequest
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OfflineHttpRequest
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="OfflineHttpRequest">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest.build_absolute_uri" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_absolute_uri
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest.get_host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_host
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#enforce_permissions" class="md-nav__link">
@@ -3547,7 +3647,8 @@ queryset runs only the class-level check, never <code>has_object_permission</cod
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">action</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">kwargs</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">query_params</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OfflineContext</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OfflineContext</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3569,9 +3670,24 @@ a Pydantic-AI toolset, the MCP server, a management command, or a task runner.</
   structured, so there is nothing to parse and a synthetic request has no
   WSGI stream to read.</li>
 <li><code>http_request</code> is wrapped when supplied (e.g. the MCP server passes its
-  real Django request so headers / <code>META</code> are available); otherwise a bare
-  :class:<code>~django.http.HttpRequest</code> is created. The method is forced to
-  <code>POST</code> because mutation callables often branch on it.</li>
+  real Django request so headers / <code>META</code> are available); otherwise an
+  :class:<code>~rest_framework_services.OfflineHttpRequest</code> is created. The method
+  is forced to <code>POST</code> because mutation callables often branch on it.</li>
+<li><code>host</code> gives the synthesized request an origin, so <code>build_absolute_uri</code>
+  — which DRF's <code>FileField</code> / <code>HyperlinkedIdentityField</code> call whenever a
+  <code>request</code> is in the serializer context — returns real absolute URLs off
+  the HTTP path. Accepts <code>"example.com"</code>, <code>"example.com:8000"</code>, or a full
+  origin like <code>"https://example.com"</code> (the scheme sets whether links are
+  https). There is no default: only the project knows its public origin, and
+  guessing one — the first <code>ALLOWED_HOSTS</code> entry, say, which is an
+  <em>authorization</em> list and is routinely a wildcard or an internal load-balancer
+  name — would emit confidently-wrong links. Left unset, absolute-URI building
+  degrades to returning the relative URL rather than raising; see
+  :class:<code>~rest_framework_services.OfflineHttpRequest</code>. <strong>Ignored when
+  <code>http_request</code> is supplied</strong> — a real request's own headers are
+  authoritative (configure Django's <code>USE_X_FORWARDED_HOST</code> if it sits behind
+  a proxy), which lets a caller pass both unconditionally: the ambient request
+  when there is one, this host when there isn't.</li>
 <li><code>query_params</code> seeds the request's <code>GET</code> :class:<code>~django.http.QueryDict</code>
   — the source <code>request.query_params</code> reads. This is how read-shaping params
   that aren't spec inputs reach the serializer over the offline path:
@@ -3603,7 +3719,135 @@ any serializer that branches on <code>request.query_params</code> (django-restql
 selection, custom serializers). It does <strong>not</strong> make DRF <code>filter_backends</code>
 (<code>SearchFilter</code> / <code>OrderingFilter</code>) run — the offline path never calls
 <code>filter_queryset</code>; <code>filter_set</code> is the drf-services-native equivalent.</p>
-<h3 id="enforce_permissions"><code>enforce_permissions</code><a class="headerlink" href="#enforce_permissions" title="Permanent link">&para;</a></h3>
+<h3 id="offlinehttprequest"><code>OfflineHttpRequest</code><a class="headerlink" href="#offlinehttprequest" title="Permanent link">&para;</a></h3>
+<p>The synthetic request <code>build_offline_context</code> creates when there is no ambient
+one. Relevant when you're deciding what <code>build_absolute_uri()</code> should return off
+the HTTP path — see
+<a href="../../recipes/serializer-context/#absolute-urls-off-the-http-path">Absolute URLs off the HTTP path</a>.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.types.offline_http_request.OfflineHttpRequest" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">OfflineHttpRequest</span>
+
+
+<a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="django.http.HttpRequest">HttpRequest</span></code></p>
+
+
+
+        <p>An :class:<code>~django.http.HttpRequest</code> with no ambient host, made safe to use.</p>
+<p>Built by :func:<code>~rest_framework_services.build_offline_context</code> when the
+caller has no real request to wrap (a Pydantic-AI toolset, a management
+command, a task runner). A bare <code>HttpRequest</code> has an <strong>empty</strong> <code>META</code>,
+and Django resolves the host from <code>HTTP_HOST</code> / <code>SERVER_NAME</code> — so
+<code>get_host()</code> raises <code>KeyError: 'SERVER_NAME'</code> and takes
+<code>build_absolute_uri()</code> down with it. That reaches serializers through the
+most ordinary field there is: DRF's <code>FileField.to_representation</code> calls
+<code>request.build_absolute_uri(value.url)</code> whenever a <code>request</code> is in the
+context.</p>
+<p>Two behaviours, decided by whether the caller configured a host
+(<code>build_offline_context(host=…)</code>, which seeds <code>META</code> — a configured
+request is an ordinary one and none of this applies):</p>
+<ul>
+<li><strong>Host configured</strong> — nothing here intervenes. Absolute URIs are built
+  by Django exactly as on HTTP.</li>
+<li><strong>No host</strong> — <code>build_absolute_uri</code> returns the location unchanged, i.e.
+  the <em>relative</em> URL. There is no honest absolute URL to return: the process
+  has no idea what origin serves it, and a guess (the first
+  <code>ALLOWED_HOSTS</code> entry, say) would emit confidently-wrong links that look
+  valid. A relative URL is the same thing DRF's own file / hyperlinked
+  fields fall back to when there is no request in the context at all, so
+  this is the shape those serializers already handle.</li>
+</ul>
+<p><code>get_host()</code> still raises without a host — but with a message naming the
+fix, rather than a bare <code>KeyError</code> from Django's internals.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.types.offline_http_request.OfflineHttpRequest.build_absolute_uri" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">build_absolute_uri</span>
+
+
+<a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest.build_absolute_uri" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_absolute_uri</span><span class="p">(</span><span class="n">location</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Absolute URI when a host is configured; the location itself when not.</p>
+<p>Degrading beats raising: the caller is a serializer field rendering a
+link, and a relative URL is a usable answer that its consumer can
+resolve against whatever origin it reached the data through.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.types.offline_http_request.OfflineHttpRequest.get_host" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_host</span>
+
+
+<a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest.get_host" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_host</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The configured host verbatim; a pointed error when there is none.</p>
+<p>Deliberately <strong>not</strong> validated against <code>ALLOWED_HOSTS</code>. That setting
+rejects spoofed <code>Host</code> headers from untrusted clients; this value came
+from the project's own code, and there is no client. Requiring it to
+appear in <code>ALLOWED_HOSTS</code> would break the ordinary case of a worker or
+management command that renders links for a site it does not itself
+serve — and would add nothing, since a caller who can pass a host can
+equally pass one that is on the list.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="enforce_permissions"><code>enforce_permissions</code><a class="headerlink" href="#enforce_permissions" title="Permanent link">&para;</a></h3>
 
 
 <div class="doc doc-object doc-function">
