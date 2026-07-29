@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 
 from rest_framework_services.dispatch.utils import (
@@ -14,6 +13,7 @@ from rest_framework_services.dispatch.utils import (
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
     arun_callable,
+    arun_off_loop,
     arun_service_callable,
     base_pool,
     call_target_guard,
@@ -61,6 +61,15 @@ async def adispatch_spec(
     so the ORM stays safe off the event loop. A ``LIST`` result is returned as
     the (lazy) shaped queryset — the async transport materializes / paginates it
     in a thread, exactly as on the sync path.
+
+    That rule covers **every** callable a spec carries, not just the selector /
+    service: ``kwargs`` providers, ``extend_queryset``, ``filter_set``,
+    ``input_serializer_context``, a callable ``success_status``, and the
+    ``on_target_resolved`` guard all run in the executor (see
+    :func:`~rest_framework_services.dispatch.utils.arun_off_loop`). None of them
+    can be ``async def`` — a spec is written once for both transports — so any
+    that queries would otherwise raise ``SynchronousOnlyOperation`` here and
+    nowhere else.
 
     As on :func:`~rest_framework_services.dispatch_spec`, a ``many=True`` bulk
     spec honours ``unknown_arguments`` per list element and rejects a non-default
@@ -115,15 +124,25 @@ async def _adispatch_selector(
         pool,
         binding=binding,
         spread_source=params,
-        provider_kwargs=resolve_provider(spec.kwargs, {"view": view, "request": request}),
+        provider_kwargs=await arun_off_loop(
+            resolve_provider, spec.kwargs, {"view": view, "request": request}
+        ),
         url_kwargs=view_url_kwargs(view),
     )
     try:
         result: Any = await arun_callable(
             spec.selector, resolve_dispatch_kwargs(spec.selector, pool)
         )
-        result = shape_queryset(
-            spec, result, view=view, request=request, params=params, source_label=SELECTOR_SOURCE
+        # Shaping runs ``extend_queryset`` and the ``filter_set`` (whose
+        # validation / ``filter_<name>`` methods query) — all sync, all off-loop.
+        result = await arun_off_loop(
+            shape_queryset,
+            spec,
+            result,
+            view=view,
+            request=request,
+            params=params,
+            source_label=SELECTOR_SOURCE,
         )
     except ObjectDoesNotExist:
         if spec.kind is SelectorKind.RETRIEVE:
@@ -133,16 +152,22 @@ async def _adispatch_selector(
     # The guard may run ``has_object_permission`` (DB), so keep it off the loop.
     if spec.kind is not SelectorKind.RETRIEVE:
         # LIST: guard the resolved set (per-set / class-level only).
-        await sync_to_async(call_target_guard, thread_sensitive=True)(
-            on_target_resolved, spec, result, user=user, request=request, view=view
+        await arun_off_loop(
+            call_target_guard,
+            on_target_resolved,
+            spec,
+            result,
+            user=user,
+            request=request,
+            view=view,
         )
         return DispatchResult(value=result, kind="list", status=200)
     instance: Any = await result.afirst() if is_queryset(result) else result
     if instance is None:
         return _missing_or_null(spec)
     # RETRIEVE: guard the resolved row (object-level permissions run here).
-    await sync_to_async(call_target_guard, thread_sensitive=True)(
-        on_target_resolved, spec, instance, user=user, request=request, view=view
+    await arun_off_loop(
+        call_target_guard, on_target_resolved, spec, instance, user=user, request=request, view=view
     )
     return DispatchResult(value=instance, kind="instance", status=200)
 
@@ -184,14 +209,16 @@ async def _adispatch_service(
     if mode == "missing":
         return DispatchResult(value=None, kind="not_found", status=404)
     # The guard may run ``has_object_permission`` (DB), so keep it off the loop.
-    await sync_to_async(call_target_guard, thread_sensitive=True)(
-        on_target_resolved, spec, target, user=user, request=request, view=view
+    await arun_off_loop(
+        call_target_guard, on_target_resolved, spec, target, user=user, request=request, view=view
     )
     instance = target if mode == "instance" else None
 
-    input_context = resolve_input_context(spec, view=view, request=request)
+    # The context provider may run its own (batched) query — off-loop too.
+    input_context = await arun_off_loop(resolve_input_context, spec, view=view, request=request)
     # Validation can touch the DB (e.g. ``UniqueValidator``); run it off-loop.
-    serializer = await sync_to_async(build_input_serializer_from_data, thread_sensitive=True)(
+    serializer = await arun_off_loop(
+        build_input_serializer_from_data,
         dict(params),
         spec.input_serializer,
         partial=spec.partial or False,
@@ -209,7 +236,9 @@ async def _adispatch_service(
         pool,
         binding=binding,
         spread_source=spread_source,
-        provider_kwargs=resolve_provider(spec.kwargs, {"view": view, "request": request}),
+        provider_kwargs=await arun_off_loop(
+            resolve_provider, spec.kwargs, {"view": view, "request": request}
+        ),
     )
     if mode == "collection":
         pool["collection"] = target
@@ -236,7 +265,11 @@ async def _adispatch_service(
     status = (
         success_status
         if success_status is not None
-        else resolve_success_status(spec.success_status, default=200, pool=status_pool)
+        # A callable ``success_status`` is user code too: it may read a relation
+        # off the result, which is a query.
+        else await arun_off_loop(
+            resolve_success_status, spec.success_status, default=200, pool=status_pool
+        )
     )
     return DispatchResult(
         value=output_result, kind="list" if output_is_list else "instance", status=status
@@ -256,11 +289,12 @@ async def _adispatch_service_many(
     on_target_resolved: TargetGuard | None,
 ) -> DispatchResult:
     guard_many_argument_binding(argument_binding)
-    await sync_to_async(call_target_guard, thread_sensitive=True)(
-        on_target_resolved, spec, None, user=user, request=request, view=view
+    await arun_off_loop(
+        call_target_guard, on_target_resolved, spec, None, user=user, request=request, view=view
     )
-    input_context = resolve_input_context(spec, view=view, request=request)
-    serializer = await sync_to_async(build_input_serializer_from_data, thread_sensitive=True)(
+    input_context = await arun_off_loop(resolve_input_context, spec, view=view, request=request)
+    serializer = await arun_off_loop(
+        build_input_serializer_from_data,
         params,
         spec.input_serializer,
         partial=spec.partial or False,
@@ -271,7 +305,9 @@ async def _adispatch_service_many(
         spec, serializer, params, unknown_arguments=unknown_arguments
     )
     pool: dict[str, Any] = base_pool(user=user, request=request)
-    pool.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
+    pool.update(
+        await arun_off_loop(resolve_provider, spec.kwargs, {"view": view, "request": request})
+    )
     if has_data:
         pool["data"] = data
     if serializer is not None:
@@ -282,7 +318,8 @@ async def _adispatch_service_many(
     status = (
         success_status
         if success_status is not None
-        else resolve_success_status(
+        else await arun_off_loop(
+            resolve_success_status,
             spec.success_status,
             default=200,
             pool={"request": request, "view": view, "result": result},
@@ -310,11 +347,16 @@ async def _aresolve_target(
             **params,
             **view_url_kwargs(view),
         }
-        pool.update(resolve_provider(coll_spec.kwargs, {"view": view, "request": request}))
+        pool.update(
+            await arun_off_loop(
+                resolve_provider, coll_spec.kwargs, {"view": view, "request": request}
+            )
+        )
         result: Any = await arun_callable(
             coll_spec.selector, resolve_dispatch_kwargs(coll_spec.selector, pool)
         )
-        collection = shape_queryset(
+        collection = await arun_off_loop(
+            shape_queryset,
             coll_spec,
             result,
             view=view,
@@ -356,8 +398,14 @@ async def _arun_output_selector(
     selected: Any = await arun_callable(
         out_spec.selector, resolve_dispatch_kwargs(out_spec.selector, pool)
     )
-    selected = shape_queryset(
-        out_spec, selected, view=view, request=request, params=params, source_label=OUTPUT_SOURCE
+    selected = await arun_off_loop(
+        shape_queryset,
+        out_spec,
+        selected,
+        view=view,
+        request=request,
+        params=params,
+        source_label=OUTPUT_SOURCE,
     )
     if out_spec.kind is SelectorKind.LIST:
         return selected, True
@@ -380,12 +428,17 @@ async def _aresolve_instance(
         **params,
         **view_url_kwargs(view),
     }
-    pool.update(resolve_provider(instance_spec.kwargs, {"view": view, "request": request}))
+    pool.update(
+        await arun_off_loop(
+            resolve_provider, instance_spec.kwargs, {"view": view, "request": request}
+        )
+    )
     try:
         result: Any = await arun_callable(
             instance_spec.selector, resolve_dispatch_kwargs(instance_spec.selector, pool)
         )
-        result = shape_queryset(
+        result = await arun_off_loop(
+            shape_queryset,
             instance_spec,
             result,
             view=view,

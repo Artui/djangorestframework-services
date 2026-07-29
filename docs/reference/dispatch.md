@@ -22,6 +22,16 @@ The single execution path a non-HTTP transport drives: hand a spec, the
 acting `user`, and a flat `params` mapping, get back a `DispatchResult` to
 format for your wire. No view, no `request` required.
 
+Each primitive comes as a sync / async pair — `dispatch_spec` /
+`adispatch_spec`, `render_spec_output` / `arender_spec_output`. The async
+member is not a thin alias: a spec's callables (selector, service, `kwargs`
+provider, `extend_queryset`, `filter_set`, serializer-context providers) are
+written once for both transports and so are never `async def`, and rendering
+walks the ORM. The async members run all of that in Django's thread-sensitive
+executor, which is what keeps `SynchronousOnlyOperation` out of an async
+transport. Await the pair together; don't mix an `a`-prefixed call with a sync
+one on the same result.
+
 ### `dispatch_spec`
 
 ::: rest_framework_services.dispatch.dispatch_spec.dispatch_spec
@@ -33,6 +43,10 @@ format for your wire. No view, no `request` required.
 ### `render_spec_output`
 
 ::: rest_framework_services.dispatch.render_spec_output.render_spec_output
+
+### `arender_spec_output`
+
+::: rest_framework_services.dispatch.arender_spec_output.arender_spec_output
 
 ### `base_serializer_context`
 

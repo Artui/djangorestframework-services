@@ -7,8 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] — 2026-07-29
+
+### Added
+
+- **`arender_spec_output` — the async sibling of `render_spec_output`.** Rendering
+  is full of sync ORM work that isn't optional: `serializer.data` iterates the
+  value (evaluating the queryset when `many=True`, plus a query per untraversed
+  relation per row), the `output_serializer_context` provider is user code
+  documented as the place to run one batched query, and the no-serializer path
+  list-coerces. An async caller that awaited `adispatch_spec` — which returns a
+  `LIST` result as a deliberately **lazy** queryset — therefore could not render
+  it inline without raising `SynchronousOnlyOperation`, and had to know to wrap
+  the call itself. The dispatch surface now offers the pair on both halves:
+  `dispatch_spec` / `adispatch_spec` and `render_spec_output` /
+  `arender_spec_output`. Same arguments, same result, executor instead of loop.
+
 ### Fixed
 
+- **`adispatch_spec` ran a spec's sync callables on the event loop, so any of
+  them that touched the ORM raised `SynchronousOnlyOperation`.** A spec is
+  written once and dispatched over both transports, so none of its callables are
+  `async def` — the async path has to offload each one. It offloaded the
+  selector / service (`arun_callable`), the permission guard, and input-serializer
+  validation, but called the rest inline:
+
+  - **`shape_queryset`** — and with it `extend_queryset` and `filter_set`. A
+    `filter_<name>` method that queries, or a `ModelChoiceFilter` whose
+    `is_valid()` resolves its choice against the DB, raised. Reported from the
+    MCP transport, which awaits `adispatch_spec` directly on the loop.
+  - **`spec.kwargs` providers** — including the nested `instance_selector_spec`
+    / `collection_selector_spec` ones. The documented headline use of a provider
+    is a tenant / role lookup, which is a query.
+  - **`input_serializer_context` providers** — documented as the place to run
+    one batched query for the whole payload.
+  - **callable `success_status`** — user code that may read a relation off the
+    result.
+
+  All four now go through the executor, thread-sensitive like the calls that
+  already did, so they share one connection and see the same transaction state
+  as on the sync path. Sync dispatch is unaffected — it was never on a loop.
 - **Off-HTTP dispatch supplied no baseline serializer context, so
   `self.context["request"]` raised `KeyError`.** Over HTTP every serializer DRF
   builds carries `GenericAPIView.get_serializer_context()` — `request` /
@@ -1577,7 +1615,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.28.1...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.29.0...HEAD
+[0.29.0]: https://github.com/Artui/djangorestframework-services/compare/v0.28.1...v0.29.0
 [0.28.1]: https://github.com/Artui/djangorestframework-services/compare/v0.28.0...v0.28.1
 [0.28.0]: https://github.com/Artui/djangorestframework-services/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/Artui/djangorestframework-services/compare/v0.26.0...v0.27.0
