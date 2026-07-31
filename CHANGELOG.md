@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] — 2026-07-31
+
+### Added
+
+- **`metadata` — a consumer-owned mapping on `SelectorSpec` and `ServiceSpec`.**
+  Attach your own per-operation facts to the spec that describes the operation,
+  and read them back from your own code:
+
+  ```python
+  class SameTenant(BasePermission):
+      def has_permission(self, request, view):
+          spec = view.action_specs[view.action]
+          return (spec.metadata or {}).get("scope") != "tenant" or request.user.tenant_id
+
+  ServiceSpec(service=refund_order, permission_classes=[SameTenant],
+              metadata={"scope": "tenant"})
+  ```
+
+  ⚠ **The framework never reads it.** No known keys, no per-key validation, no
+  defaulting, and no effect on the generated JSON Schema or OpenAPI — pinned by
+  tests asserting both phases are identical with and without it. Validation is
+  shape-only: a non-mapping raises `ImproperlyConfigured` at construction (not
+  at `as_view()` like every other spec field, because the field's whole point is
+  to be read on paths that never mount a view — a registry consumer,
+  `dispatch_spec`, an MCP binding).
+
+  It lives on the spec rather than on `RegisteredSpec` because a DRF permission
+  class receives `(request, view)`: it holds the spec but knows no registry and
+  no name, so registry-side metadata would be unreachable from the place that
+  needs it. `RegisteredSpec.tags` keeps its job — boolean-ish labels every
+  transport interprets; `metadata` carries structured facts only your code does.
+
+  It never merges or inherits: a `ServiceSpec` and its `output_selector_spec`
+  hold independent metadata, and `PolymorphicServiceSpec` deliberately has no
+  field of its own (declare it on the variants). The mapping is stored as given
+  — neither copied nor frozen. Purely additive; omitting it changes nothing.
+
 ## [0.30.0] — 2026-07-31
 
 ### Added
@@ -1730,7 +1767,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.30.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.31.0...HEAD
+[0.31.0]: https://github.com/Artui/djangorestframework-services/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/Artui/djangorestframework-services/compare/v0.29.1...v0.30.0
 [0.29.1]: https://github.com/Artui/djangorestframework-services/compare/v0.29.0...v0.29.1
 [0.29.0]: https://github.com/Artui/djangorestframework-services/compare/v0.28.1...v0.29.0

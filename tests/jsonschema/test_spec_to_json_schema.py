@@ -236,3 +236,61 @@ def test_registry_is_forwarded_to_selector_filter() -> None:
         "type": "object",
         "properties": {"ref": {"type": "string", "format": "ref"}},
     }
+
+
+def _selector_for_schema() -> object:
+    def get_widget(user: object, pk: int) -> None: ...
+
+    return get_widget
+
+
+class TestMetadataIsInertForSchemas:
+    """``metadata`` is consumer-owned and must never reach a generated schema.
+
+    ``spec_to_json_schema`` reads named fields rather than enumerating the
+    dataclass, so this holds by construction — pinned so a future
+    field-walking implementation fails here instead of leaking a project's
+    private declarations into an OpenAPI document or an MCP tool listing.
+    """
+
+    def test_service_input_and_output_are_identical(self) -> None:
+        out = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_Out)
+        bare = ServiceSpec(service=_service, input_serializer=_Create, output_selector_spec=out)
+        declared = ServiceSpec(
+            service=_service,
+            input_serializer=_Create,
+            output_selector_spec=out,
+            metadata={"scope": "tenant", "audit": ["actor"]},
+        )
+
+        assert spec_to_json_schema(declared) == spec_to_json_schema(bare)
+        assert spec_to_json_schema(declared, phase="output") == spec_to_json_schema(
+            bare, phase="output"
+        )
+
+    def test_selector_input_and_output_are_identical(self) -> None:
+        selector = _selector_for_schema()
+        bare = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector, output_serializer=_Out)
+        declared = SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=selector,
+            output_serializer=_Out,
+            metadata={"scope": "tenant"},
+        )
+
+        assert spec_to_json_schema(declared) == spec_to_json_schema(bare)
+        assert spec_to_json_schema(declared, phase="output") == spec_to_json_schema(
+            bare, phase="output"
+        )
+
+    def test_nested_output_selector_metadata_is_inert_too(self) -> None:
+        bare_out = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_Out)
+        declared_out = SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=_Out, metadata={"scope": "tenant"}
+        )
+        bare = ServiceSpec(service=_service, output_selector_spec=bare_out)
+        declared = ServiceSpec(service=_service, output_selector_spec=declared_out)
+
+        assert spec_to_json_schema(declared, phase="output") == spec_to_json_schema(
+            bare, phase="output"
+        )

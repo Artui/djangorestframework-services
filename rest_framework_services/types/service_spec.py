@@ -10,6 +10,7 @@ from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 
 from rest_framework_services.types.selector_spec import SelectorSpec
+from rest_framework_services.types.utils import validate_metadata
 
 InputT = TypeVar("InputT")
 ResultT = TypeVar("ResultT")
@@ -166,6 +167,18 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     for the ``@service_action`` decorator, and surfaced via ``get_permissions``
     for the viewset mixins and standalone views.
 
+    ``metadata`` is a consumer-owned, framework-opaque mapping — the one field
+    here the framework carries but ⚠ **never reads**. No known keys, no
+    per-key validation, no defaulting, no effect on the generated JSON Schema
+    or OpenAPI; validation is shape-only, and a non-``Mapping`` raises
+    :exc:`~django.core.exceptions.ImproperlyConfigured` at construction. Use
+    it to attach a project's own per-operation facts — read back by its own
+    permission class, scoping helper, or audit hook — to the spec that
+    describes the operation, rather than to a name-keyed side table that
+    drifts the day a spec is renamed. It never merges with a nested spec's
+    metadata, and it is stored exactly as given (the spec is frozen, the
+    mapping is not). See :class:`SelectorSpec` for the full contract.
+
     ``response_finalizer`` is a post-serialization hook for HTTP response side
     effects (cookies, headers, a swapped response). It runs on the **2xx path
     only**, after the output serializer has produced the ``Response`` and
@@ -240,3 +253,9 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     # ``instance`` / ``data``), returns a ``Response`` to replace the built one
     # or ``None`` to keep it. HTTP-only — skipped on the transport-neutral path.
     response_finalizer: Callable[..., Response | None] | None = None
+    # Consumer-owned, framework-opaque; see the ``SelectorSpec`` field for the
+    # naming rationale and the full contract.
+    metadata: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        validate_metadata(self.metadata, label="ServiceSpec")

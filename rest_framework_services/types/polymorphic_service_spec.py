@@ -54,6 +54,20 @@ class PolymorphicServiceSpec:
       variant to declare the same ``permission_classes``; sidesteps ordering
       entirely.
 
+    **No ``metadata`` field here — by decision, not oversight.** The wrapper
+    is never dispatched: it resolves to a variant, and the variant is the
+    :class:`ServiceSpec` every downstream consumer ends up holding, so
+    ``metadata`` belongs on the variants and a wrapper-level copy would raise
+    an inheritance question (does a variant without metadata fall back to the
+    wrapper's?) that the field deliberately does not answer anywhere else.
+    One consequence worth knowing: a permission class that reads ``metadata``
+    off the spec it finds on the view finds *this* wrapper, which has none.
+    Under the default ``permission_strategy="union"`` there is no variant yet
+    to fall back to — permissions run before discrimination. So express a
+    metadata-driven rule per variant, via each variant's own
+    ``permission_classes`` (under ``"discriminate"``, only the chosen
+    variant's run), rather than reading the wrapper.
+
     The resolved concrete spec flows through the shared action→spec chain, so
     the chosen variant's serializer context, kwargs, and output pipeline all
     apply — the discriminator is resolved once per request and reused across

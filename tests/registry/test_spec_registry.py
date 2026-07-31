@@ -314,3 +314,47 @@ class TestContainerProtocol:
         registry.register("a", _selector())
         assert [e.name for e in registry] == ["b", "a"]
         assert all(isinstance(e, RegisteredSpec) for e in registry)
+
+
+class TestSpecMetadataRoundTrip:
+    """``spec.metadata`` survives every filtered view the registry hands back.
+
+    The views snapshot ``RegisteredSpec`` objects and share the spec instances
+    themselves, so this holds by construction — pinned here because a future
+    rebuild-the-spec optimization would silently drop consumer declarations.
+    """
+
+    def test_survives_register_all_by_tag_subset_and_merge(self) -> None:
+        spec = ServiceSpec(service=_noop, metadata={"scope": "tenant"})
+        other = SpecRegistry()
+        other.register("list_orders", _selector(), tags=("read",))
+        registry = SpecRegistry()
+        registry.register("refund_order", spec, tags=("write",))
+
+        for view in (
+            registry,
+            registry.by_tag("write"),
+            registry.subset("refund_order"),
+            registry.merge(other),
+        ):
+            entry = view.get("refund_order")
+            assert entry is not None
+            assert entry.spec is spec
+            assert entry.spec.metadata == {"scope": "tenant"}
+
+        assert registry.all()[0].spec.metadata == {"scope": "tenant"}
+        assert registry.specs()["refund_order"].metadata == {"scope": "tenant"}
+        assert registry.mutations()[0].spec.metadata == {"scope": "tenant"}
+
+    def test_reaches_a_registry_consumer_through_entry_spec(self) -> None:
+        registry = SpecRegistry()
+        registry.register("list_orders", SelectorSpec(kind=SelectorKind.LIST, metadata={"a": 1}))
+        assert [e.spec.metadata for e in registry.queries()] == [{"a": 1}]
+
+    def test_tags_and_metadata_are_independent(self) -> None:
+        registry = SpecRegistry()
+        registry.register("refund_order", _service(), tags=("write",))
+        entry = registry.get("refund_order")
+        assert entry is not None
+        assert entry.tags == {"write"}
+        assert entry.spec.metadata is None
