@@ -450,6 +450,37 @@ listening is the transport's business.
 rather than guessing it — a receiver renders an indeterminate bar for a missing
 total and a wrong percentage for a wrong one.
 
+#### Structured detail: `meta`
+
+`message` is prose, for a person watching. Anything a *machine* on the far end
+should read goes in `meta`:
+
+```python
+progress(
+    processed,
+    total=row_count,
+    message=f"importing {path.name}",
+    meta={"com.example/stage": "import", "com.example/file": path.name,
+          "com.example/failed": failures},
+)
+```
+
+⭐ **Without this slot the structure ends up in `message` anyway** — stringified
+by the service and parsed back out at the sink, which is a wire format invented
+by accident inside a field documented as being for humans.
+
+Each receiver decides what to do with `meta`: a websocket consumer forwards it
+into the frame its UI renders; a receiver with nowhere to put it drops it. So
+never encode anything the operation's *correctness* depends on — it is
+telemetry, not a channel.
+
+!!! warning "Namespace the keys if the far end might be MCP"
+
+    An MCP progress notification carries the structure under the protocol's
+    `_meta`, whose key-naming rules reserve unprefixed names and anything under
+    a `modelcontextprotocol` / `mcp` prefix. `{"com.example/stage": …}` is
+    portable; `{"stage": …}` is not.
+
 #### Supplying a reporter
 
 Nothing about this is tied to any one transport. There are two ways in,
@@ -463,8 +494,8 @@ command, an alternate transport — pass it directly:
 def export_task(job_id, params):
     job = ExportJob.objects.get(pk=job_id)
 
-    def report(progress, *, total=None, message=None):
-        job.update(progress=progress, total=total, note=message)   # or a websocket push
+    def report(progress, *, total=None, message=None, meta=None):
+        job.update(progress=progress, total=total, note=message, detail=dict(meta or {}))
 
     return dispatch_spec(export_spec, user=job.user, params=params, progress=report)
 ```
@@ -491,7 +522,7 @@ stripped from the spread. That asymmetry is what makes the hook safe.
     reporter rather than pushing async into the service:
 
     ```python
-    def report(progress, *, total=None, message=None):
+    def report(progress, *, total=None, message=None, meta=None):
         async_to_sync(channel_layer.group_send)(group, {...})
     ```
 

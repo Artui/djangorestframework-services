@@ -37,6 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   there would let the output selector emit progress *after* the service
   finished, which to a watching client reads as the work having restarted.
 
+  `message` is prose for a person; **`meta` carries structured detail** for a
+  machine on the far end — which stage, which file, how many rows failed. ⭐
+  Without that slot the structure ends up in `message` anyway, stringified by
+  the service and parsed back out at the sink: a wire format invented by
+  accident inside a field documented as being for humans. Each receiver decides
+  what to do with it — a websocket consumer forwards it into the frame its UI
+  renders, one with nowhere to put it drops it — so it is telemetry, never a
+  channel the operation's correctness depends on. ⚠ Namespace the keys if the
+  far end might be MCP: a progress notification carries them under the
+  protocol's `_meta`, which reserves unprefixed names.
+
   **Supply one from wherever the dispatch starts.** A Celery task, a management
   command or an alternate transport passes `progress=` to `dispatch_spec`
   directly; an HTTP view returns one from the `get_service_kwargs()` /

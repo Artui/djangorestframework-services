@@ -8,6 +8,7 @@ at all.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import pytest
@@ -30,11 +31,18 @@ class _Recorder:
 
     def __init__(self) -> None:
         self.calls: list[tuple[float, float | None, str | None]] = []
+        self.meta: list[Mapping[str, Any] | None] = []
 
     def __call__(
-        self, progress: float, *, total: float | None = None, message: str | None = None
+        self,
+        progress: float,
+        *,
+        total: float | None = None,
+        message: str | None = None,
+        meta: Mapping[str, Any] | None = None,
     ) -> None:
         self.calls.append((progress, total, message))
+        self.meta.append(meta)
 
 
 def _service(*, data: Any = None, progress: ProgressReporter) -> dict[str, Any]:
@@ -88,7 +96,7 @@ def test_the_same_service_runs_with_no_reporter_supplied() -> None:
 
 
 def test_null_progress_discards_and_returns_none() -> None:
-    assert null_progress(1, total=2, message="x") is None
+    assert null_progress(1, total=2, message="x", meta={"stage": "y"}) is None
 
 
 def test_base_pool_always_carries_a_callable_reporter() -> None:
@@ -198,3 +206,40 @@ def test_the_reporter_is_sync_even_when_the_sink_is_not() -> None:
         ServiceSpec(service=_service, atomic=False), user=None, params={}, progress=reporter
     )
     assert sent == ["1/3: starting", "3/3: None"]
+
+
+# ----- structured detail -----
+
+
+def test_structured_detail_rides_in_meta_rather_than_being_stringified() -> None:
+    """The alternative is a wire format invented by accident inside ``message``.
+
+    A service with real state to report — which stage, which file, how many
+    rows failed — would otherwise have to encode it into the one field
+    documented as being for humans, and have the far end parse it back out.
+    """
+    recorder = _Recorder()
+
+    def importer(*, progress: ProgressReporter) -> dict[str, Any]:
+        progress(
+            7,
+            total=10,
+            message="importing invoices-2024.csv",
+            meta={"com.example/stage": "import", "com.example/failed": 2},
+        )
+        return {}
+
+    dispatch_spec(
+        ServiceSpec(service=importer, atomic=False), user=None, params={}, progress=recorder
+    )
+    assert recorder.calls == [(7, 10, "importing invoices-2024.csv")]
+    assert recorder.meta == [{"com.example/stage": "import", "com.example/failed": 2}]
+
+
+def test_meta_is_optional_and_defaults_to_none() -> None:
+    """The common call stays four characters shorter than the general one."""
+    recorder = _Recorder()
+    dispatch_spec(
+        ServiceSpec(service=_service, atomic=False), user=None, params={}, progress=recorder
+    )
+    assert recorder.meta == [None, None]

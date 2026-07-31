@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any
+
 
 def null_progress(
     progress: float,
     *,
     total: float | None = None,
     message: str | None = None,
+    meta: Mapping[str, Any] | None = None,
 ) -> None:
     """The :class:`ProgressReporter` a transport with nowhere to send progress uses.
 
@@ -20,7 +24,7 @@ def null_progress(
     the report is the honest behaviour for a caller that cannot forward it;
     refusing the call is not.
     """
-    del progress, total, message
+    del progress, total, message, meta
 
 
 __all__ = ["null_progress"]
