@@ -18,7 +18,11 @@ from rest_framework_services.dispatch import (
     null_progress,
     render_spec_output,
 )
-from rest_framework_services.exceptions import ServiceError, ServiceValidationError
+from rest_framework_services.exceptions import (
+    AdditionalInputRequired,
+    ServiceError,
+    ServiceValidationError,
+)
 from rest_framework_services.implements import implements
 from rest_framework_services.is_async import is_async
 from rest_framework_services.jsonschema import (
@@ -167,6 +171,7 @@ __all__ = [
     "ServiceCreateView",
     "ServiceDeleteView",
     "ServiceDestroyMixin",
+    "AdditionalInputRequired",
     "ServiceError",
     "ServiceSpec",
     "ServiceUpdateMixin",
