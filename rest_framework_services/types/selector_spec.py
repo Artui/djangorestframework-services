@@ -14,6 +14,7 @@ from rest_framework.serializers import Serializer
 
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.service_view import ServiceView
+from rest_framework_services.types.utils import validate_metadata
 
 ResultT = TypeVar("ResultT")
 ExtraT = TypeVar("ExtraT", bound=Mapping[str, object])
@@ -153,6 +154,33 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
       values are computation inputs — use ``kwargs`` / ``get_selector_kwargs()``
       instead.
 
+    - **``metadata``** — consumer-owned, framework-opaque mapping.
+
+      ⚠ **The framework never reads it.** No known keys, no per-key
+      validation, no defaulting, no effect on the generated JSON Schema or
+      OpenAPI. Validation is shape-only: a non-``Mapping`` raises
+      :exc:`~django.core.exceptions.ImproperlyConfigured` at construction.
+
+      It is here so a project can attach its own per-operation facts — read
+      back later by its own permission class, scoping helper, or audit hook —
+      to the thing they describe, instead of a name-keyed side table that
+      drifts the day a spec is renamed. Reachable wherever the spec is:
+      ``view.action_specs[view.action].metadata`` inside a permission class
+      (which receives ``(request, view)`` and so has the spec but knows no
+      registry or name), or ``entry.spec.metadata`` from a
+      :class:`~rest_framework_services.types.registered_spec.RegisteredSpec`.
+      That two-sided reachability is why it lives on the spec rather than on
+      the registry entry, where ``tags`` handles the boolean-ish labels this
+      is *not* for.
+
+      Two things it deliberately doesn't do. It never merges or inherits: a
+      :class:`ServiceSpec` and its ``output_selector_spec`` are independent
+      objects with independent metadata. And it is stored exactly as given —
+      the spec is frozen, the mapping is not, and the library neither copies
+      nor deep-freezes it, so pass something you don't mutate. ``None`` (the
+      default) means "not declared", which stays distinguishable from a
+      declared empty mapping.
+
     All five shaping fields (``select_related`` / ``prefetch_related`` /
     ``annotations`` / ``extend_queryset`` / ``filter_set``) require
     ``selector`` to be set and the selector to return a Django
@@ -194,3 +222,14 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     # — hence the open ``...`` parameter spec.
     kwargs: Callable[..., ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
+    # Consumer-owned, framework-opaque. The name fits none of the three
+    # patterns in CLAUDE.md (it wraps no Django/DRF concept, configures no
+    # serialization phase, resolves no nested spec), so it is chosen for the
+    # convention it does match: ``dataclasses.field(metadata=...)``, whose
+    # semantics — a read-only mapping the library carries but never reads —
+    # are exactly these. Not ``extras``: that already names the keyword pool
+    # selectors and services receive (``**extras: Unpack[...]``).
+    metadata: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        validate_metadata(self.metadata, label="SelectorSpec")

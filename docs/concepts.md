@@ -67,6 +67,7 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     prefetch_related: Sequence[str | Prefetch] | None = None
     annotations: Mapping[str, Any] | None = None
     extend_queryset: Callable[[QuerySet, ServiceView, Request], QuerySet] | None = None
+    metadata: Mapping[str, Any] | None = None
 ```
 
 - **`kind`** — required `SelectorKind` discriminator (`LIST` vs
@@ -112,6 +113,9 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
   **`extend_queryset`** — declarative + dynamic queryset shaping applied
   to the selector's return value inside `dispatch_selector_for_spec`. See
   the [queryset-shaping recipe](recipes/queryset-shaping.md).
+- **`metadata`** — a mapping the framework carries but never reads. Your
+  own per-operation facts, attached to the spec that describes the
+  operation. See [Consumer-owned `metadata`](#consumer-owned-metadata).
 
 Generic parameters `ResultT` / `ExtraT` default to `Any`, so
 `SelectorSpec(kind=..., selector=fn)` keeps working unparameterized.
@@ -138,6 +142,7 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     kwargs: Callable[..., ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
     response_finalizer: Callable[..., Response | None] | None = None
+    metadata: Mapping[str, Any] | None = None
 ```
 
 - **`service`** — the callable to invoke.
@@ -248,9 +253,69 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   return domain flags on the result DTO and let the finalizer translate them
   into transport effects. **HTTP-only**: skipped on the transport-neutral
   path (`dispatch_spec` / `call_service` / MCP).
+- **`metadata`** — a mapping the framework carries but never reads. See
+  [Consumer-owned `metadata`](#consumer-owned-metadata).
 
 Generic parameters `InputT` / `ResultT` / `ExtraT` default to `Any`, so
 `ServiceSpec(service=fn)` keeps working unparameterized.
+
+### Consumer-owned `metadata`
+
+Both specs carry a `metadata: Mapping[str, Any] | None` field. It is the
+one field **the framework never reads** — no known keys, no per-key
+validation, no defaulting, no effect on the generated JSON Schema or
+OpenAPI. Validation is shape-only: a non-mapping raises
+`ImproperlyConfigured` at construction.
+
+It exists so a project can attach its own per-operation facts to the spec
+that describes the operation, and read them back from its own code:
+
+```python
+class SameTenant(BasePermission):
+    def has_permission(self, request, view):
+        spec = view.action_specs[view.action]
+        scope = (spec.metadata or {}).get("scope")
+        return scope != "tenant" or request.user.tenant_id is not None
+
+
+ServiceSpec(
+    service=refund_order,
+    input_serializer=RefundIn,
+    permission_classes=[SameTenant],
+    metadata={"scope": "tenant"},
+)
+```
+
+The alternative — a `{spec_name: declaration}` side table — works, but a
+rename then means two edits in two files, with a parity test standing in
+for what the type system could have enforced. Putting the declaration on
+the spec removes the second file.
+
+Why the spec and not the registry entry: a DRF permission class receives
+`(request, view)`, and the view resolves its spec from `action_specs`. It
+holds the spec object but knows no registry and no name, so a
+registry-side field would be unreachable from the place that needs it. On
+the spec, both sides reach it — `spec.metadata` from a view,
+`entry.spec.metadata` from a
+[registry](recipes/spec-registry.md) consumer. Note the division of
+labour with `RegisteredSpec.tags`: tags carry boolean-ish labels every
+transport interprets (`"read"`, `"admin"`); `metadata` carries structured
+facts only *your* code interprets.
+
+Three things it deliberately does not do:
+
+- **It never merges or inherits.** A `ServiceSpec` and its
+  `output_selector_spec` are independent objects with independent
+  metadata. Same for `PolymorphicServiceSpec`, which has no `metadata`
+  field of its own — declare it on the variants (a permission class on a
+  polymorphic action should therefore hang off each variant's
+  `permission_classes`, since under the default
+  `permission_strategy="union"` permissions run before a variant is
+  chosen).
+- **It is not copied or frozen.** The spec is frozen; the mapping you
+  pass is not, and it is stored as given. Pass something you don't mutate.
+- **It carries no meaning the framework will ever assign.** Keys stay
+  yours; the library will not grow an interpretation of one later.
 
 ### Polymorphic actions
 
