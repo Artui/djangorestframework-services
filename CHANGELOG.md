@@ -7,6 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] — 2026-07-31
+
+### Added
+
+- **`progress` — a reserved pool seed for long-running services.** A service or
+  selector that declares `progress` receives a `ProgressReporter` and calls it
+  as the work advances:
+
+  ```python
+  def export_invoices(*, data, progress):
+      rows = list(build_rows(data))
+      for index, row in enumerate(rows):
+          write(row)
+          progress(index + 1, total=len(rows), message="writing rows")
+  ```
+
+  ⭐ **The no-op default is the load-bearing part.** Every transport seeds a
+  reporter, and the ones with nowhere to send progress seed `null_progress` —
+  so the service above runs unchanged over HTTP, off-HTTP and in tests. Without
+  that, declaring the parameter would work over one transport and raise a
+  `TypeError` over the next, and nobody could put it in code meant to be shared,
+  which is the entire premise of writing a service once.
+
+  A transport that *can* forward progress passes its own:
+  `dispatch_spec(spec, ..., progress=reporter)` (and the async twin). Only the
+  primary callable gets it — target resolution and the output re-fetch take the
+  no-op, since there is nothing to report from a lookup, and a live reporter
+  there would let the output selector emit progress *after* the service
+  finished, which to a watching client reads as the work having restarted.
+
+  `message` is prose for a person; **`meta` carries structured detail** for a
+  machine on the far end — which stage, which file, how many rows failed. ⭐
+  Without that slot the structure ends up in `message` anyway, stringified by
+  the service and parsed back out at the sink: a wire format invented by
+  accident inside a field documented as being for humans. Each receiver decides
+  what to do with it — a websocket consumer forwards it into the frame its UI
+  renders, one with nowhere to put it drops it — so it is telemetry, never a
+  channel the operation's correctness depends on. ⚠ Namespace the keys if the
+  far end might be MCP: a progress notification carries them under the
+  protocol's `_meta`, which reserves unprefixed names.
+
+  **Supply one from wherever the dispatch starts.** A Celery task, a management
+  command or an alternate transport passes `progress=` to `dispatch_spec`
+  directly; an HTTP view returns one from the `get_service_kwargs()` /
+  `get_selector_kwargs()` hook it already uses for tenants and clocks. Extras
+  merge over the seeds, so a server-authored reporter replaces the no-op —
+  while client *input* named `progress` cannot, being a reserved seed. That
+  asymmetry is what makes the hook safe.
+
+  ⚠ **The reporter is sync**, even when the sink is not — it is called from
+  domain code that is written once for both transports and so is never
+  `async def`. Bridge an async sink (a Channels `group_send`) at the reporter
+  with `async_to_sync`, not by pushing async into the service.
+
+  Prompted by the MCP transport's `notifications/progress`, which had no way to
+  learn how far a tool had got — but nothing here is MCP-shaped: a workflow
+  model tracking a Celery job and pushing to a websocket is the same feature.
+
+- **`base_pool` is now public**, alongside `base_serializer_context` and for the
+  same reason: it is the baseline a transport composes rather than restates.
+  Build your pool from it if you assemble one.
+
+### Changed
+
+- ⚠ **`RESERVED_POOL_SEEDS` gains `"progress"`.** A caller-supplied argument of
+  that name is stripped from the `SPREAD_*` bindings, as `request` / `user` /
+  `data` already are — the value is the dispatcher's, and letting client input
+  reach a parameter the service trusts is exactly what the reserved set exists
+  to prevent. A `UrlKwarg` or `QueryParam` named `progress` is now refused at
+  registration.
+
+- **The two HTTP pools now route through `base_pool`** instead of restating
+  `request` / `user` inline. Behaviourally identical for those two seeds, and it
+  is what stops the HTTP and off-HTTP paths drifting on what a callable may
+  declare — the drift this release would otherwise have introduced.
+
 ## [0.29.1] — 2026-07-29
 
 ### Fixed
@@ -1654,7 +1730,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.29.1...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.30.0...HEAD
+[0.30.0]: https://github.com/Artui/djangorestframework-services/compare/v0.29.1...v0.30.0
 [0.29.1]: https://github.com/Artui/djangorestframework-services/compare/v0.29.0...v0.29.1
 [0.29.0]: https://github.com/Artui/djangorestframework-services/compare/v0.28.1...v0.29.0
 [0.28.1]: https://github.com/Artui/djangorestframework-services/compare/v0.28.0...v0.28.1

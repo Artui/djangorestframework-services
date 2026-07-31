@@ -7,12 +7,12 @@ from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 
+from rest_framework_services.dispatch.base_pool import base_pool
 from rest_framework_services.dispatch.utils import (
     COLLECTION_SOURCE,
     INSTANCE_SOURCE,
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
-    base_pool,
     call_target_guard,
     guard_many_argument_binding,
     merge_arguments,
@@ -30,6 +30,7 @@ from rest_framework_services.selectors.utils import is_queryset, run_selector
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.dispatch_result import DispatchResult
+from rest_framework_services.types.progress_reporter import ProgressReporter
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -50,6 +51,7 @@ def dispatch_spec(
     argument_binding: ArgumentBinding = ArgumentBinding.AUTO,
     unknown_arguments: UnknownArguments = UnknownArguments.IGNORE,
     on_target_resolved: TargetGuard | None = None,
+    progress: ProgressReporter | None = None,
 ) -> DispatchResult:
     """Execute ``spec`` without a DRF view, returning a :class:`DispatchResult`.
 
@@ -114,6 +116,7 @@ def dispatch_spec(
             argument_binding=argument_binding,
             unknown_arguments=unknown_arguments,
             on_target_resolved=on_target_resolved,
+            progress=progress,
         )
     if isinstance(spec, SelectorSpec):
         return _dispatch_selector(
@@ -125,6 +128,7 @@ def dispatch_spec(
             argument_binding=argument_binding,
             unknown_arguments=unknown_arguments,
             on_target_resolved=on_target_resolved,
+            progress=progress,
         )
     raise TypeError(
         f"dispatch_spec expects a ServiceSpec or SelectorSpec; got {type(spec).__name__}."
@@ -141,6 +145,7 @@ def _dispatch_selector(
     argument_binding: ArgumentBinding,
     unknown_arguments: UnknownArguments,
     on_target_resolved: TargetGuard | None,
+    progress: ProgressReporter | None,
 ) -> DispatchResult:
     if spec.selector is None:
         raise ImproperlyConfigured(
@@ -151,7 +156,7 @@ def _dispatch_selector(
     # spread untouched; only ``REJECT`` has anything to do here (it raises).
     resolve_unknown_arguments(spec, params, unknown_arguments=unknown_arguments, serializer=None)
     binding = resolve_argument_binding(spec, argument_binding)
-    pool: dict[str, Any] = base_pool(user=user, request=request)
+    pool: dict[str, Any] = base_pool(user=user, request=request, progress=progress)
     merge_arguments(
         pool,
         binding=binding,
@@ -200,6 +205,7 @@ def _dispatch_service(
     argument_binding: ArgumentBinding,
     unknown_arguments: UnknownArguments,
     on_target_resolved: TargetGuard | None,
+    progress: ProgressReporter | None,
 ) -> DispatchResult:
     if spec.many:
         return _dispatch_service_many(
@@ -212,6 +218,7 @@ def _dispatch_service(
             argument_binding=argument_binding,
             unknown_arguments=unknown_arguments,
             on_target_resolved=on_target_resolved,
+            progress=progress,
         )
 
     mode, target = _resolve_target(spec, user=user, params=params, request=request, view=view)
@@ -234,7 +241,7 @@ def _dispatch_service(
     data, spread_source = service_input(serializer, extras)
 
     binding = resolve_argument_binding(spec, argument_binding)
-    pool: dict[str, Any] = base_pool(user=user, request=request)
+    pool: dict[str, Any] = base_pool(user=user, request=request, progress=progress)
     merge_arguments(
         pool,
         binding=binding,
@@ -284,6 +291,7 @@ def _dispatch_service_many(
     argument_binding: ArgumentBinding,
     unknown_arguments: UnknownArguments,
     on_target_resolved: TargetGuard | None,
+    progress: ProgressReporter | None,
 ) -> DispatchResult:
     """Bulk list-payload: ``params`` is the array; the service gets the list."""
     guard_many_argument_binding(argument_binding)
@@ -299,7 +307,7 @@ def _dispatch_service_many(
     data, has_data = resolve_service_many_input(
         spec, serializer, params, unknown_arguments=unknown_arguments
     )
-    pool: dict[str, Any] = base_pool(user=user, request=request)
+    pool: dict[str, Any] = base_pool(user=user, request=request, progress=progress)
     pool.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
     if has_data:
         pool["data"] = data
@@ -357,6 +365,12 @@ def _resolve_collection(
             "collection_selector_spec requires a `selector` resolving the target set."
         )
     pool: dict[str, Any] = {
+        # ⚠ **No live reporter here, deliberately.** Target resolution and the
+        # output re-fetch resolve a row (or a filtered set) and return; there is
+        # no progress to report from a lookup. Worse, a live reporter would let
+        # the output selector emit progress *after* the service finished, which
+        # to a watching client reads as the work having restarted. They take the
+        # no-op :func:`base_pool` supplies.
         **base_pool(user=user, request=request),
         **params,
         **view_url_kwargs(view),
@@ -395,6 +409,12 @@ def _run_output_selector(
     # mutation owns them); the service return joins the pool as ``result`` /
     # ``instance``.
     pool: dict[str, Any] = {
+        # ⚠ **No live reporter here, deliberately.** Target resolution and the
+        # output re-fetch resolve a row (or a filtered set) and return; there is
+        # no progress to report from a lookup. Worse, a live reporter would let
+        # the output selector emit progress *after* the service finished, which
+        # to a watching client reads as the work having restarted. They take the
+        # no-op :func:`base_pool` supplies.
         **base_pool(user=user, request=request),
         "instance": result,
         "result": result,
@@ -427,6 +447,12 @@ def _resolve_instance(
     if instance_spec is None or instance_spec.selector is None:
         return (True, None)
     pool: dict[str, Any] = {
+        # ⚠ **No live reporter here, deliberately.** Target resolution and the
+        # output re-fetch resolve a row (or a filtered set) and return; there is
+        # no progress to report from a lookup. Worse, a live reporter would let
+        # the output selector emit progress *after* the service finished, which
+        # to a watching client reads as the work having restarted. They take the
+        # no-op :func:`base_pool` supplies.
         **base_pool(user=user, request=request),
         **params,
         **view_url_kwargs(view),

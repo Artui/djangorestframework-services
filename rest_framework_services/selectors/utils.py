@@ -13,6 +13,7 @@ from django.db.models.manager import BaseManager
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.request import Request
 
+from rest_framework_services.dispatch.base_pool import base_pool
 from rest_framework_services.is_async import is_async
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -238,9 +239,10 @@ def dispatch_selector_for_spec(
             action_hook=action_hook,
             catch_all_hook="get_selector_kwargs",
         )
+        # See the mutation path: the seeds come from ``base_pool`` so HTTP and
+        # off-HTTP dispatch cannot drift on what a callable may declare.
         pool: dict[str, Any] = {
-            "request": request,
-            "user": getattr(request, "user", None),
+            **base_pool(user=getattr(request, "user", None), request=request),
             **(extra_url_kwargs or {}),
             **extras,
         }

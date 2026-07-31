@@ -393,6 +393,7 @@ declares from a known pool:
 | `instance` | `spec.instance_selector_spec` when set, else `self.get_object()` (update / destroy only) |
 | `request` | `self.request` |
 | `user` | `self.request.user` |
+| `progress` | a `ProgressReporter` — see below |
 | URL kwargs | `self.kwargs` (list / retrieve selectors and `instance_selector_spec` lookups — `pk`, parent IDs from nested routes, etc.) |
 | extras | `self.get_service_kwargs()` / `self.get_selector_kwargs()`, plus per-action and per-spec hooks |
 
@@ -425,6 +426,111 @@ This matters because:
   `get_selector_kwargs()` to add anything else (a tenant, a feature
   flag, a clock for tests). See the
   [extra-kwargs recipe](recipes/extra-kwargs.md).
+
+### Reporting progress
+
+A long-running service declares `progress` and calls it:
+
+```python
+def export_invoices(*, data, progress):
+    rows = list(build_rows(data))
+    for index, row in enumerate(rows):
+        write(row)
+        progress(index + 1, total=len(rows), message="writing rows")
+```
+
+⚠ **Reporting is always safe and never required.** Every transport seeds a
+reporter, and the ones with nowhere to send progress seed a no-op — so the
+service above runs unchanged over HTTP, off-HTTP, and in tests. That default is
+the whole reason the reporter is a *pool seed* rather than an argument only some
+callers know how to pass: the service is written once, and whether anyone is
+listening is the transport's business.
+
+`progress` **must increase** across calls within one dispatch. Omit `total`
+rather than guessing it — a receiver renders an indeterminate bar for a missing
+total and a wrong percentage for a wrong one.
+
+#### Structured detail: `meta`
+
+`message` is prose, for a person watching. Anything a *machine* on the far end
+should read goes in `meta`:
+
+```python
+progress(
+    processed,
+    total=row_count,
+    message=f"importing {path.name}",
+    meta={"com.example/stage": "import", "com.example/file": path.name,
+          "com.example/failed": failures},
+)
+```
+
+⭐ **Without this slot the structure ends up in `message` anyway** — stringified
+by the service and parsed back out at the sink, which is a wire format invented
+by accident inside a field documented as being for humans.
+
+Each receiver decides what to do with `meta`: a websocket consumer forwards it
+into the frame its UI renders; a receiver with nowhere to put it drops it. So
+never encode anything the operation's *correctness* depends on — it is
+telemetry, not a channel.
+
+!!! warning "Namespace the keys if the far end might be MCP"
+
+    An MCP progress notification carries the structure under the protocol's
+    `_meta`, whose key-naming rules reserve unprefixed names and anything under
+    a `modelcontextprotocol` / `mcp` prefix. `{"com.example/stage": …}` is
+    portable; `{"stage": …}` is not.
+
+#### Supplying a reporter
+
+Nothing about this is tied to any one transport. There are two ways in,
+depending on where the dispatch starts:
+
+**From a caller that drives dispatch itself** — a Celery task, a management
+command, an alternate transport — pass it directly:
+
+```python
+@shared_task
+def export_task(job_id, params):
+    job = ExportJob.objects.get(pk=job_id)
+
+    def report(progress, *, total=None, message=None, meta=None):
+        job.update(progress=progress, total=total, note=message, detail=dict(meta or {}))
+
+    return dispatch_spec(export_spec, user=job.user, params=params, progress=report)
+```
+
+**From an HTTP view**, through the `get_service_kwargs()` / `get_selector_kwargs()`
+hook the view already uses for tenants and clocks:
+
+```python
+class ExportViewSet(ServiceViewSet):
+    action_specs = {"create": ServiceSpec(service=export_invoices)}
+
+    def get_service_kwargs(self):
+        return {"progress": self.push_to_websocket}
+```
+
+Extras merge over the seeds, so a server-authored `progress` replaces the no-op.
+Client *input* named `progress` cannot — it is a reserved pool seed and is
+stripped from the spread. That asymmetry is what makes the hook safe.
+
+!!! warning "The reporter is sync, even when your sink is not"
+
+    A reporter is called from inside domain code, which is written once for both
+    transports and is therefore never `async def`. Bridge an async sink at the
+    reporter rather than pushing async into the service:
+
+    ```python
+    def report(progress, *, total=None, message=None, meta=None):
+        async_to_sync(channel_layer.group_send)(group, {...})
+    ```
+
+Only the primary callable receives the reporter. Target resolution and the
+output re-fetch get the no-op, because there is nothing to report from a lookup
+— and a live reporter there would let the output selector emit progress *after*
+the service finished, which to a watching client reads as the work having
+restarted.
 
 ## Result rendering
 
