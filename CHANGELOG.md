@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- ⚠ **OPTIONS to any spec-backed viewset raised `AttributeError` and returned an
+  unhandled 500.** `_ActionSpecsMixin.get_permissions` assumed `self.action`
+  always names a bound handler, but DRF sets `self.action = "metadata"` for
+  OPTIONS — an action its own source calls implicit, with no method behind it.
+  The undefaulted `getattr` raised before any permission was evaluated, and an
+  `AttributeError` is not an `APIException`, so `handle_exception` re-raised it.
+  Affected `ServiceViewSet` and `SelectorViewSet` alike, with or without
+  `action_specs`. Present since 24bc37d.
+
+  ⚠ **Wider than explicit OPTIONS calls.** A CORS preflight *is* an OPTIONS
+  request, and `django-cors-headers` only short-circuits paths matching
+  `CORS_URLS_REGEX` that also carry `Access-Control-Request-Method` — every other
+  route reached the view. Easy to miss in development and easy to hit in
+  production on a subset of routes.
+
+  Fail-closed, so an availability defect rather than an authorization bypass:
+  the request died before permissions ran, it did not skip them.
+
+  The `getattr` now defaults, rather than special-casing `"metadata"` — the
+  branch was unsafe for *any* action with no attribute behind it, and an action
+  naming no handler has no decorator-attached spec by definition. OPTIONS falls
+  through to the view's own `permission_classes`, which is DRF's own behaviour.
+  The suite had no OPTIONS coverage at all; it does now, including a plain DRF
+  viewset as a control.
+
+  ⚠ Unrelated to 0.31's consumer-owned `metadata` mapping on specs, despite the
+  shared word — that is a field this framework never reads, and this is DRF's
+  implicit action name.
+
 ## [0.31.0] — 2026-07-31
 
 ### Added
