@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] — 2026-07-31
+
 ### Added
 
 - **`progress` — a reserved pool seed for long-running services.** A service or
@@ -1703,7 +1705,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.29.1...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.30.0...HEAD
+[0.30.0]: https://github.com/Artui/djangorestframework-services/compare/v0.29.1...v0.30.0
 [0.29.1]: https://github.com/Artui/djangorestframework-services/compare/v0.29.0...v0.29.1
 [0.29.0]: https://github.com/Artui/djangorestframework-services/compare/v0.28.1...v0.29.0
 [0.28.1]: https://github.com/Artui/djangorestframework-services/compare/v0.28.0...v0.28.1
