@@ -257,7 +257,24 @@ class _ActionSpecsMixin:
             # ``@selector_action`` on the bound handler so decorator-based
             # actions enforce their permissions without requiring the DRF
             # router (which would otherwise pass them via ``initkwargs``).
-            handler: Any = getattr(self, self.action)
+            #
+            # ⚠ **Defaulted, because not every action names a method.** DRF sets
+            # ``self.action = "metadata"`` for OPTIONS — its own comment calls
+            # the action implicit — and there is no ``metadata`` handler to find.
+            # An undefaulted ``getattr`` raised ``AttributeError``, which is not
+            # an ``APIException``, so ``handle_exception`` re-raised it and every
+            # OPTIONS request to a spec-backed viewset ended as an unhandled 500
+            # before any permission was evaluated. That is wider than it sounds:
+            # a CORS preflight is an OPTIONS request, and django-cors-headers
+            # only short-circuits paths matching ``CORS_URLS_REGEX`` that also
+            # carry ``Access-Control-Request-Method``.
+            #
+            # Defaulting to ``None`` rather than special-casing ``"metadata"``:
+            # the branch was unsafe for *any* action with no attribute behind it,
+            # and an action that names no handler has no decorator spec by
+            # definition. Falling through to the view's own
+            # ``permission_classes`` is what DRF does for OPTIONS anyway.
+            handler: Any = getattr(self, self.action, None)
             spec = getattr(handler, "_service_spec", None) or getattr(
                 handler, "_selector_spec", None
             )
