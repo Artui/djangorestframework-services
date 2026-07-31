@@ -2741,6 +2741,31 @@ default — see below.</p>
   a QuerySet; when it returns an aggregate / computed object the <code>?param</code>
   values are computation inputs — use <code>kwargs</code> / <code>get_selector_kwargs()</code>
   instead.</p>
+<ul>
+<li><strong><code>metadata</code></strong> — consumer-owned, framework-opaque mapping.</li>
+</ul>
+<p>⚠ <strong>The framework never reads it.</strong> No known keys, no per-key
+  validation, no defaulting, no effect on the generated JSON Schema or
+  OpenAPI. Validation is shape-only: a non-<code>Mapping</code> raises
+  :exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at construction.</p>
+<p>It is here so a project can attach its own per-operation facts — read
+  back later by its own permission class, scoping helper, or audit hook —
+  to the thing they describe, instead of a name-keyed side table that
+  drifts the day a spec is renamed. Reachable wherever the spec is:
+  <code>view.action_specs[view.action].metadata</code> inside a permission class
+  (which receives <code>(request, view)</code> and so has the spec but knows no
+  registry or name), or <code>entry.spec.metadata</code> from a
+  :class:<code>~rest_framework_services.types.registered_spec.RegisteredSpec</code>.
+  That two-sided reachability is why it lives on the spec rather than on
+  the registry entry, where <code>tags</code> handles the boolean-ish labels this
+  is <em>not</em> for.</p>
+<p>Two things it deliberately doesn't do. It never merges or inherits: a
+  :class:<code>ServiceSpec</code> and its <code>output_selector_spec</code> are independent
+  objects with independent metadata. And it is stored exactly as given —
+  the spec is frozen, the mapping is not, and the library neither copies
+  nor deep-freezes it, so pass something you don't mutate. <code>None</code> (the
+  default) means "not declared", which stays distinguishable from a
+  declared empty mapping.</p>
 <p>All five shaping fields (<code>select_related</code> / <code>prefetch_related</code> /
 <code>annotations</code> / <code>extend_queryset</code> / <code>filter_set</code>) require
 <code>selector</code> to be set and the selector to return a Django
@@ -2933,6 +2958,17 @@ view's class-level permissions"; an empty sequence means "no permissions"
 explicitly. Forwarded through DRF's <code>@action(permission_classes=...)</code>
 for the <code>@service_action</code> decorator, and surfaced via <code>get_permissions</code>
 for the viewset mixins and standalone views.</p>
+<p><code>metadata</code> is a consumer-owned, framework-opaque mapping — the one field
+here the framework carries but ⚠ <strong>never reads</strong>. No known keys, no
+per-key validation, no defaulting, no effect on the generated JSON Schema
+or OpenAPI; validation is shape-only, and a non-<code>Mapping</code> raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at construction. Use
+it to attach a project's own per-operation facts — read back by its own
+permission class, scoping helper, or audit hook — to the spec that
+describes the operation, rather than to a name-keyed side table that
+drifts the day a spec is renamed. It never merges with a nested spec's
+metadata, and it is stored exactly as given (the spec is frozen, the
+mapping is not). See :class:<code>SelectorSpec</code> for the full contract.</p>
 <p><code>response_finalizer</code> is a post-serialization hook for HTTP response side
 effects (cookies, headers, a swapped response). It runs on the <strong>2xx path
 only</strong>, after the output serializer has produced the <code>Response</code> and
@@ -3036,6 +3072,19 @@ runs permissions before the body is necessarily parsed:</p>
   variant to declare the same <code>permission_classes</code>; sidesteps ordering
   entirely.</li>
 </ul>
+<p><strong>No <code>metadata</code> field here — by decision, not oversight.</strong> The wrapper
+is never dispatched: it resolves to a variant, and the variant is the
+:class:<code>ServiceSpec</code> every downstream consumer ends up holding, so
+<code>metadata</code> belongs on the variants and a wrapper-level copy would raise
+an inheritance question (does a variant without metadata fall back to the
+wrapper's?) that the field deliberately does not answer anywhere else.
+One consequence worth knowing: a permission class that reads <code>metadata</code>
+off the spec it finds on the view finds <em>this</em> wrapper, which has none.
+Under the default <code>permission_strategy="union"</code> there is no variant yet
+to fall back to — permissions run before discrimination. So express a
+metadata-driven rule per variant, via each variant's own
+<code>permission_classes</code> (under <code>"discriminate"</code>, only the chosen
+variant's run), rather than reading the wrapper.</p>
 <p>The resolved concrete spec flows through the shared action→spec chain, so
 the chosen variant's serializer context, kwargs, and output pipeline all
 apply — the discriminator is resolved once per request and reused across
