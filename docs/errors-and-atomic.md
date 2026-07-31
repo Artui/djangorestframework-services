@@ -30,6 +30,7 @@ The view maps them to DRF responses:
 |---|---|---|
 | `ServiceValidationError` | `rest_framework.exceptions.ValidationError` | `400` |
 | `ServiceError` | `rest_framework.exceptions.APIException` | `422` |
+| `AdditionalInputRequired` | `rest_framework.exceptions.APIException` | `422` |
 
 ### `ServiceValidationError`
 
@@ -48,6 +49,37 @@ The translated DRF response is a normal `400` with the same body shape
 your serializers produce. From the client's point of view, a service
 violation and a serializer violation are indistinguishable — which is
 usually what you want.
+
+### `AdditionalInputRequired`
+
+For *"I got far enough to discover I need something else"* — which is not the
+same claim as `ServiceValidationError`'s *"what you sent is wrong"*. The
+difference that matters is that it is usually **conditional on what the service
+found**, so it cannot be expressed as a required field on the serializer:
+
+```python
+def delete_rows(*, data):
+    doomed = rows_matching(data)
+    if len(doomed) > 100 and not data["confirmed"]:
+        raise AdditionalInputRequired(
+            f"{len(doomed)} rows match. Confirm to proceed.",
+            schema={"confirmed": {"type": "boolean"}},
+        )
+```
+
+`schema` describes what is missing, keyed by the input name the service expects
+it back under. A transport that can put the question to a human renders it; one
+that cannot still has a message worth showing.
+
+⭐ **The answer comes back as ordinary input.** An HTTP client re-submits with
+`confirmed` in the body. A transport that asks interactively — MCP, say — merges
+the answer into the parameters before dispatch. Either way the service reads it
+as a normal argument, which is why raising is the *whole* of the service's
+involvement: there is no callback to hold and no session to resume.
+
+It subclasses `ServiceError`, so a transport that has never heard of it still
+behaves sensibly. ⚠ A transport that wants to do better must catch it **before**
+its generic `ServiceError` handler, or the subclass check will swallow it.
 
 ### `ServiceError`
 

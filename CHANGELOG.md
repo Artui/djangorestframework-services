@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] — 2026-07-31
+
+### Added
+
+- **`AdditionalInputRequired` — a service saying what it still needs.** Not
+  "what you sent is wrong" (that is `ServiceValidationError`) but "I got far
+  enough to discover I need something else", which is usually conditional on
+  what the service found and so cannot be a required field on the serializer:
+
+  ```python
+  def delete_rows(*, data):
+      doomed = rows_matching(data)
+      if len(doomed) > 100 and not data["confirmed"]:
+          raise AdditionalInputRequired(
+              f"{len(doomed)} rows match. Confirm to proceed.",
+              schema={"confirmed": {"type": "boolean"}},
+          )
+  ```
+
+  `schema` describes what is missing, keyed by the input name the service wants
+  it back under. **The answer returns as ordinary input on every transport** —
+  an HTTP client re-submits with the field, and a transport that can ask
+  interactively merges the answer into the parameters before dispatch. Either
+  way the service reads it as a normal argument, which is why raising is the
+  whole of its involvement: no callback to hold, no session to resume.
+
+  A `ServiceError` subclass, so a transport that has never heard of it still
+  does something sensible. One that can ask catches it first — ⚠ note the
+  ordering, since a handler for `ServiceError` will otherwise swallow it.
+
+  ⛔ **Scoped down deliberately.** A first draft put the whole interaction here:
+  a callable pool seed, an accept / decline / cancel result type, and a contract
+  in which the service is re-executed from the top on retry. That was one
+  protocol's interaction model (MCP's multi-round-trip requests) wearing a
+  generic name. The tell was that its pool seed had to *raise* by default, where
+  every other seed can be a no-op — a seed is safe to declare anywhere precisely
+  because a transport that cannot honour it may drop it. What ships is the part
+  that is genuinely transport-neutral; each transport owns how it asks.
+
 ### Fixed
 
 - ⚠ **OPTIONS to any spec-backed viewset raised `AttributeError` and returned an
@@ -1798,7 +1837,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.31.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.32.0...HEAD
+[0.32.0]: https://github.com/Artui/djangorestframework-services/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/Artui/djangorestframework-services/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/Artui/djangorestframework-services/compare/v0.29.1...v0.30.0
 [0.29.1]: https://github.com/Artui/djangorestframework-services/compare/v0.29.0...v0.29.1
