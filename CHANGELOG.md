@@ -37,8 +37,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   there would let the output selector emit progress *after* the service
   finished, which to a watching client reads as the work having restarted.
 
-  Added for the MCP transport's `notifications/progress`, which had no way to
-  learn how far a tool had got.
+  **Supply one from wherever the dispatch starts.** A Celery task, a management
+  command or an alternate transport passes `progress=` to `dispatch_spec`
+  directly; an HTTP view returns one from the `get_service_kwargs()` /
+  `get_selector_kwargs()` hook it already uses for tenants and clocks. Extras
+  merge over the seeds, so a server-authored reporter replaces the no-op —
+  while client *input* named `progress` cannot, being a reserved seed. That
+  asymmetry is what makes the hook safe.
+
+  ⚠ **The reporter is sync**, even when the sink is not — it is called from
+  domain code that is written once for both transports and so is never
+  `async def`. Bridge an async sink (a Channels `group_send`) at the reporter
+  with `async_to_sync`, not by pushing async into the service.
+
+  Prompted by the MCP transport's `notifications/progress`, which had no way to
+  learn how far a tool had got — but nothing here is MCP-shaped: a workflow
+  model tracking a Celery job and pushing to a websocket is the same feature.
 
 - **`base_pool` is now public**, alongside `base_serializer_context` and for the
   same reason: it is the baseline a transport composes rather than restates.

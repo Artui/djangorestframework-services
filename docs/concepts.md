@@ -450,12 +450,56 @@ listening is the transport's business.
 rather than guessing it — a receiver renders an indeterminate bar for a missing
 total and a wrong percentage for a wrong one.
 
-A transport that *can* forward progress passes its own reporter:
-`dispatch_spec(spec, ..., progress=my_reporter)`. Only the primary callable
-receives it; target resolution and the output re-fetch get the no-op, because
-there is nothing to report from a lookup — and a live reporter there would let
-the output selector emit progress *after* the service finished, which to a
-watching client reads as the work having restarted.
+#### Supplying a reporter
+
+Nothing about this is tied to any one transport. There are two ways in,
+depending on where the dispatch starts:
+
+**From a caller that drives dispatch itself** — a Celery task, a management
+command, an alternate transport — pass it directly:
+
+```python
+@shared_task
+def export_task(job_id, params):
+    job = ExportJob.objects.get(pk=job_id)
+
+    def report(progress, *, total=None, message=None):
+        job.update(progress=progress, total=total, note=message)   # or a websocket push
+
+    return dispatch_spec(export_spec, user=job.user, params=params, progress=report)
+```
+
+**From an HTTP view**, through the `get_service_kwargs()` / `get_selector_kwargs()`
+hook the view already uses for tenants and clocks:
+
+```python
+class ExportViewSet(ServiceViewSet):
+    action_specs = {"create": ServiceSpec(service=export_invoices)}
+
+    def get_service_kwargs(self):
+        return {"progress": self.push_to_websocket}
+```
+
+Extras merge over the seeds, so a server-authored `progress` replaces the no-op.
+Client *input* named `progress` cannot — it is a reserved pool seed and is
+stripped from the spread. That asymmetry is what makes the hook safe.
+
+!!! warning "The reporter is sync, even when your sink is not"
+
+    A reporter is called from inside domain code, which is written once for both
+    transports and is therefore never `async def`. Bridge an async sink at the
+    reporter rather than pushing async into the service:
+
+    ```python
+    def report(progress, *, total=None, message=None):
+        async_to_sync(channel_layer.group_send)(group, {...})
+    ```
+
+Only the primary callable receives the reporter. Target resolution and the
+output re-fetch get the no-op, because there is nothing to report from a lookup
+— and a live reporter there would let the output selector emit progress *after*
+the service finished, which to a watching client reads as the work having
+restarted.
 
 ## Result rendering
 
