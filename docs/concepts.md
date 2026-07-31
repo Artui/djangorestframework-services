@@ -393,6 +393,7 @@ declares from a known pool:
 | `instance` | `spec.instance_selector_spec` when set, else `self.get_object()` (update / destroy only) |
 | `request` | `self.request` |
 | `user` | `self.request.user` |
+| `progress` | a `ProgressReporter` — see below |
 | URL kwargs | `self.kwargs` (list / retrieve selectors and `instance_selector_spec` lookups — `pk`, parent IDs from nested routes, etc.) |
 | extras | `self.get_service_kwargs()` / `self.get_selector_kwargs()`, plus per-action and per-spec hooks |
 
@@ -425,6 +426,36 @@ This matters because:
   `get_selector_kwargs()` to add anything else (a tenant, a feature
   flag, a clock for tests). See the
   [extra-kwargs recipe](recipes/extra-kwargs.md).
+
+### Reporting progress
+
+A long-running service declares `progress` and calls it:
+
+```python
+def export_invoices(*, data, progress):
+    rows = list(build_rows(data))
+    for index, row in enumerate(rows):
+        write(row)
+        progress(index + 1, total=len(rows), message="writing rows")
+```
+
+⚠ **Reporting is always safe and never required.** Every transport seeds a
+reporter, and the ones with nowhere to send progress seed a no-op — so the
+service above runs unchanged over HTTP, off-HTTP, and in tests. That default is
+the whole reason the reporter is a *pool seed* rather than an argument only some
+callers know how to pass: the service is written once, and whether anyone is
+listening is the transport's business.
+
+`progress` **must increase** across calls within one dispatch. Omit `total`
+rather than guessing it — a receiver renders an indeterminate bar for a missing
+total and a wrong percentage for a wrong one.
+
+A transport that *can* forward progress passes its own reporter:
+`dispatch_spec(spec, ..., progress=my_reporter)`. Only the primary callable
+receives it; target resolution and the output re-fetch get the no-op, because
+there is nothing to report from a lookup — and a live reporter there would let
+the output selector emit progress *after* the service finished, which to a
+watching client reads as the work having restarted.
 
 ## Result rendering
 

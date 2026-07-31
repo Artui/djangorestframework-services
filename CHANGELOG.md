@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`progress` — a reserved pool seed for long-running services.** A service or
+  selector that declares `progress` receives a `ProgressReporter` and calls it
+  as the work advances:
+
+  ```python
+  def export_invoices(*, data, progress):
+      rows = list(build_rows(data))
+      for index, row in enumerate(rows):
+          write(row)
+          progress(index + 1, total=len(rows), message="writing rows")
+  ```
+
+  ⭐ **The no-op default is the load-bearing part.** Every transport seeds a
+  reporter, and the ones with nowhere to send progress seed `null_progress` —
+  so the service above runs unchanged over HTTP, off-HTTP and in tests. Without
+  that, declaring the parameter would work over one transport and raise a
+  `TypeError` over the next, and nobody could put it in code meant to be shared,
+  which is the entire premise of writing a service once.
+
+  A transport that *can* forward progress passes its own:
+  `dispatch_spec(spec, ..., progress=reporter)` (and the async twin). Only the
+  primary callable gets it — target resolution and the output re-fetch take the
+  no-op, since there is nothing to report from a lookup, and a live reporter
+  there would let the output selector emit progress *after* the service
+  finished, which to a watching client reads as the work having restarted.
+
+  Added for the MCP transport's `notifications/progress`, which had no way to
+  learn how far a tool had got.
+
+- **`base_pool` is now public**, alongside `base_serializer_context` and for the
+  same reason: it is the baseline a transport composes rather than restates.
+  Build your pool from it if you assemble one.
+
+### Changed
+
+- ⚠ **`RESERVED_POOL_SEEDS` gains `"progress"`.** A caller-supplied argument of
+  that name is stripped from the `SPREAD_*` bindings, as `request` / `user` /
+  `data` already are — the value is the dispatcher's, and letting client input
+  reach a parameter the service trusts is exactly what the reserved set exists
+  to prevent. A `UrlKwarg` or `QueryParam` named `progress` is now refused at
+  registration.
+
+- **The two HTTP pools now route through `base_pool`** instead of restating
+  `request` / `user` inline. Behaviourally identical for those two seeds, and it
+  is what stops the HTTP and off-HTTP paths drifting on what a callable may
+  declare — the drift this release would otherwise have introduced.
+
 ## [0.29.1] — 2026-07-29
 
 ### Fixed

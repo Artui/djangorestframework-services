@@ -45,11 +45,6 @@ COLLECTION_SOURCE = "ServiceSpec.collection_selector_spec.selector"
 OUTPUT_SOURCE = "ServiceSpec.output_selector_spec.selector"
 
 
-def base_pool(*, user: Any, request: Any) -> dict[str, Any]:
-    """The two seeds every dispatched callable's pool carries."""
-    return {"request": request, "user": user}
-
-
 def view_url_kwargs(view: Any) -> dict[str, Any]:
     """Route-capture kwargs carried by the (offline) view, reserved seeds stripped.
 

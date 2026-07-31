@@ -14,7 +14,7 @@ from __future__ import annotations
 # reason above. Adapters must import this rather than keep a copy — a local copy
 # silently stops tracking the set it is meant to mirror.
 RESERVED_POOL_SEEDS: frozenset[str] = frozenset(
-    {"request", "user", "data", "serializer", "instance", "collection"}
+    {"request", "user", "data", "serializer", "instance", "collection", "progress"}
 )
 
 __all__ = ["RESERVED_POOL_SEEDS"]

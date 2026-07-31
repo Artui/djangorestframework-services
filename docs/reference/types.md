@@ -68,6 +68,10 @@
 
 ::: rest_framework_services.types.validate_channel_names.validate_channel_names
 
+## `ProgressReporter`
+
+::: rest_framework_services.types.progress_reporter.ProgressReporter
+
 ## `RESERVED_POOL_SEEDS`
 
 ::: rest_framework_services.types.reserved_pool_seeds

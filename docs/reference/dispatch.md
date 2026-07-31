@@ -210,3 +210,15 @@ the HTTP path — see
 ### `apply_queryset_shaping`
 
 ::: rest_framework_services.selectors.utils.apply_queryset_shaping
+
+## Pool seeds
+
+Every dispatched callable's kwargs pool starts from `base_pool`, on **every**
+transport — HTTP views and off-HTTP dispatch alike. Use it rather than
+restating the seeds if you build a pool of your own: a seed present in one
+place and not the other means a service that declares it works over one
+transport and raises a `TypeError` over the next.
+
+::: rest_framework_services.dispatch.base_pool.base_pool
+
+::: rest_framework_services.dispatch.null_progress.null_progress

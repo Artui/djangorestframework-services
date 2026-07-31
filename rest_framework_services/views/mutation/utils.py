@@ -42,6 +42,7 @@ from rest_framework.response import Response
 from rest_framework.serializers import Serializer
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
+from rest_framework_services.dispatch.base_pool import base_pool
 from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.is_async import is_async
 from rest_framework_services.selectors.utils import (
@@ -312,10 +313,11 @@ def _execute_mutation(
         instance=instance,
     )
     data: Any = serializer_instance.validated_data if serializer_instance is not None else None
-    pool: dict[str, Any] = {
-        "request": request,
-        "user": getattr(request, "user", None),
-    }
+    # Through ``base_pool`` rather than restating the seeds: the set has grown
+    # past the two names this used to inline, and a seed present off-HTTP but
+    # not here would mean a service that declares it works over one transport
+    # and raises a ``TypeError`` over the other.
+    pool: dict[str, Any] = base_pool(user=getattr(request, "user", None), request=request)
     if instance is not None:
         pool["instance"] = instance
     if serializer_instance is not None:

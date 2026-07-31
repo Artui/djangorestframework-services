@@ -23,6 +23,7 @@ from rest_framework_services.types.offline_context import OfflineContext
 from rest_framework_services.types.offline_http_request import OfflineHttpRequest
 from rest_framework_services.types.offline_service_view import OfflineServiceView
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
+from rest_framework_services.types.progress_reporter import ProgressReporter
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.read_schema_markers import read_schema_markers
 from rest_framework_services.types.registered_spec import RegisteredSpec
@@ -58,6 +59,7 @@ __all__ = [
     "OfflineHttpRequest",
     "OfflineServiceView",
     "PolymorphicServiceSpec",
+    "ProgressReporter",
     "QueryParam",
     "RegisteredSpec",
     "SelectorKind",
