@@ -1886,6 +1886,39 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#pool-seeds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pool seeds
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.base_pool.base_pool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        base_pool
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.null_progress.null_progress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        null_progress
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2940,6 +2973,39 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#pool-seeds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pool seeds
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.base_pool.base_pool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        base_pool
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.null_progress.null_progress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        null_progress
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3015,7 +3081,8 @@ one on the same result.</p>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">argument_binding</span><span class="p">:</span> <span class="n">ArgumentBinding</span> <span class="o">=</span> <span class="n">ArgumentBinding</span><span class="o">.</span><span class="n">AUTO</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">unknown_arguments</span><span class="p">:</span> <span class="n">UnknownArguments</span> <span class="o">=</span> <span class="n">UnknownArguments</span><span class="o">.</span><span class="n">IGNORE</span><span class="p">,</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">on_target_resolved</span><span class="p">:</span> <span class="n">TargetGuard</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">progress</span><span class="p">:</span> <span class="n">ProgressReporter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3099,7 +3166,8 @@ being silently ignored.</p>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">argument_binding</span><span class="p">:</span> <span class="n">ArgumentBinding</span> <span class="o">=</span> <span class="n">ArgumentBinding</span><span class="o">.</span><span class="n">AUTO</span><span class="p">,</span>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">unknown_arguments</span><span class="p">:</span> <span class="n">UnknownArguments</span> <span class="o">=</span> <span class="n">UnknownArguments</span><span class="o">.</span><span class="n">IGNORE</span><span class="p">,</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">on_target_resolved</span><span class="p">:</span> <span class="n">TargetGuard</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">progress</span><span class="p">:</span> <span class="n">ProgressReporter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -4297,6 +4365,78 @@ declares it (see :func:<code>_filter_set_accepts_request</code>), so a request-s
 <code>DjangoFilterBackend</code> instead of <code>None</code> — real on the HTTP / MCP paths, a
 faithful-<code>user</code> / -<code>query_params</code> synthetic off-HTTP; a bare
 <code>(data, queryset)</code> stand-in that doesn't declare <code>request</code> is unaffected.</p>
+
+
+    </div>
+
+</div><h2 id="pool-seeds">Pool seeds<a class="headerlink" href="#pool-seeds" title="Permanent link">&para;</a></h2>
+<p>Every dispatched callable's kwargs pool starts from <code>base_pool</code>, on <strong>every</strong>
+transport — HTTP views and off-HTTP dispatch alike. Use it rather than
+restating the seeds if you build a pool of your own: a seed present in one
+place and not the other means a service that declares it works over one
+transport and raises a <code>TypeError</code> over the next.</p>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.base_pool.base_pool" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">base_pool</span>
+
+
+<a href="#rest_framework_services.dispatch.base_pool.base_pool" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">base_pool</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="o">*</span><span class="p">,</span> <span class="n">user</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">progress</span><span class="p">:</span> <span class="n">ProgressReporter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The seeds every dispatched callable's pool carries, on every transport.</p>
+<p>⚠ <strong>Every</strong> pool — HTTP and off-HTTP both route through here. The two
+view-layer pools used to restate <code>request</code> / <code>user</code> inline, which was
+harmless while the set was two names and stopped being harmless the moment
+it grew: a seed added in one place and not the other means a service that
+declares it works over one transport and raises a <code>TypeError</code> over the
+other.</p>
+<p><code>progress</code> defaults to :func:<code>null_progress</code> rather than to <code>None</code>, so
+a declared reporter is always callable. See :class:<code>ProgressReporter</code> for
+why that default is load-bearing.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.null_progress.null_progress" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">null_progress</span>
+
+
+<a href="#rest_framework_services.dispatch.null_progress.null_progress" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">null_progress</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">progress</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">total</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">meta</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The :class:<code>ProgressReporter</code> a transport with nowhere to send progress uses.</p>
+<p>Seeded by :func:<code>base_pool</code> whenever the caller supplied no reporter, which
+is every HTTP request, every test, and every off-HTTP dispatch from a
+transport that has no progress channel of its own.</p>
+<p>⭐ <strong>The default is what makes the seed usable.</strong> Without it, a service
+declaring <code>progress</code> would work over one transport and raise a
+<code>TypeError</code> over the others, so nobody could declare it in code meant to
+be shared — which is the entire premise of writing a service once. Discarding
+the report is the honest behaviour for a caller that cannot forward it;
+refusing the call is not.</p>
 
 
     </div>
