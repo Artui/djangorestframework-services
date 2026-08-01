@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Four spec behaviours that differed between HTTP and `dispatch_spec`.** The
+  view path and the transport-neutral path ran two copies of the same sequence,
+  and the copies had drifted. Each of these was a spec-carried behaviour honoured
+  on one transport and silently skipped on the other:
+
+  - **`ServiceSpec.input_data` is now resolved off HTTP.** It was wired only into
+    the view's hook chain, so a spec lifting a route capture into a serializer
+    field validated fine over HTTP and failed as a missing required field over
+    MCP or an agent toolset. Server-provided keys win over client input, as they
+    already did over HTTP; on a `many=True` payload the merge applies per item.
+  - **An `async def` service dispatched through sync `dispatch_spec` is now
+    awaited.** `run_service` returned the coroutine object itself — no exception,
+    and under `atomic=True` the transaction committed before the body would have
+    run. The bridge now lives in `run_service` alongside the one `run_selector`
+    already had, so both transports share it.
+  - **The bulk path now honours the view's hook chains.** A spec that grew
+    `many=True` (or a `collection_selector_spec`) silently stopped seeing
+    `get_service_kwargs` / `get_<action>_service_kwargs` / `get_input_data` /
+    `get_<action>_input_data` and the input serializer-context hooks that the
+    single-instance path applies.
+  - **Object-level permissions now run on a selector-resolved retrieve target.**
+    A `SelectorSpec` replaces DRF's `get_object()`, which runs
+    `check_object_permissions` itself — so `SelectorRetrieveMixin` and
+    `SelectorRetrieveView` were skipping the object half of a spec's
+    `permission_classes` entirely, while `enforce_permissions` enforced it off
+    HTTP. The check now happens once, in `dispatch_selector_for_spec`, covering
+    the retrieve mixin, the standalone retrieve view, and `instance_selector_spec`
+    (which previously ran it separately). `LIST` is unaffected — a queryset is not
+    an object, and scoping a list stays `filter_set` plus the selector.
+
+  ⚠ **The permission fix can turn a passing 200 into a 403** if a project has a
+  `has_object_permission` that was never being consulted on a retrieve selector.
+  That is the intended behaviour and matches what the same spec already did over
+  MCP, but it is worth checking before upgrading.
+
+### Added
+
+- **`ViewHooks`** — the carrier a DRF view uses to hand its resolved hook-chain
+  layers to `dispatch_spec`. It holds the *view* layers only; the spec's own
+  providers stay the dispatch core's job, so they resolve exactly once. Callers
+  without a view omit it and nothing changes.
+
 ## [0.32.0] — 2026-07-31
 
 ### Added

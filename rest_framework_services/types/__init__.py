@@ -37,6 +37,7 @@ from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.types.unset import UNSET, UnsetType
 from rest_framework_services.types.url_kwarg import UrlKwarg
 from rest_framework_services.types.validate_channel_names import validate_channel_names
+from rest_framework_services.types.view_hooks import ViewHooks
 
 __all__ = [
     "DEFAULT_JSON_SCHEMA_REGISTRY",
@@ -67,7 +68,9 @@ __all__ = [
     "ServiceSpec",
     "ServiceView",
     "TargetGuard",
+    "ViewHooks",
     "UnknownArguments",
+    "ViewHooks",
     "UnsetType",
     "UrlKwarg",
     "read_schema_markers",

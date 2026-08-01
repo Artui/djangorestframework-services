@@ -94,6 +94,18 @@ passed directly — by name, not wrapped in a `lambda`.
 
 ::: rest_framework_services.types.target_guard.TargetGuard
 
+### `ViewHooks`
+
+The calling DRF view's resolved hook-chain layers, handed to the core so one
+pipeline serves both transports. **HTTP-only** — like `view`, an off-HTTP caller
+omits it and nothing changes. It carries the *view* layers only
+(`get_service_kwargs`, `get_input_data`, the serializer-context hooks and their
+per-action twins); the spec's own `kwargs` / `input_data` /
+`input_serializer_context` providers stay the core's job, so they resolve exactly
+once no matter who dispatches.
+
+::: rest_framework_services.types.view_hooks.ViewHooks
+
 ## Authorizing an off-HTTP call
 
 `dispatch_spec` is authz-agnostic by design — it never consults a spec's

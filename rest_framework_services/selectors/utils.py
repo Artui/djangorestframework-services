@@ -266,8 +266,27 @@ def dispatch_selector_for_spec(
         raise
 
     if spec.kind is not SelectorKind.RETRIEVE:
+        # LIST resolves a *set*, not an object: DRF's object-permission contract
+        # is per-row and ``has_object_permission(request, view, <QuerySet>)`` would
+        # mis-authorize. Scoping a list is ``filter_set`` / the selector's own
+        # queryset, exactly as ``enforce_permissions`` documents off HTTP.
         return result
     instance = result.first() if is_queryset(result) else result
     if instance is None and not spec.allow_none:
         raise NotFound()
+    if instance is not None:
+        # ⚠ **The single object-permission point for spec-resolved targets.**
+        # A selector spec replaces ``GenericAPIView.get_object()`` — which runs
+        # this check itself — so every surface resolving a row through a spec has
+        # to run it here or not at all. It used to live in one and a *half*
+        # places: ``resolve_mutation_instance`` called it for
+        # ``instance_selector_spec``, while the retrieve mixin and the standalone
+        # retrieve view skipped it. That inverted the usual parity worry —
+        # ``enforce_permissions`` checks ``has_object_permission`` on the RETRIEVE
+        # branch off HTTP, so a spec was gated over MCP and **ungated over HTTP**.
+        #
+        # Called unguarded: this function already requires ``view.request`` above,
+        # so every caller is a DRF view and a ``getattr`` fallback would be an
+        # unreachable branch rather than defensiveness.
+        view.check_object_permissions(request, instance)
     return instance

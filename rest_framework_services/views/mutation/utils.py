@@ -33,7 +33,6 @@ from collections.abc import Callable, Mapping
 from dataclasses import is_dataclass
 from typing import Any
 
-from asgiref.sync import async_to_sync
 from django.http import QueryDict
 from rest_framework import exceptions as drf_exceptions
 from rest_framework import status as drf_status
@@ -44,17 +43,16 @@ from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.dispatch.base_pool import base_pool
 from rest_framework_services.exceptions.service_error import ServiceError
-from rest_framework_services.is_async import is_async
 from rest_framework_services.selectors.utils import (
     apply_queryset_shaping,
     dispatch_selector_for_spec,
     is_queryset,
     run_selector,
 )
-from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.types.view_hooks import ViewHooks
 from rest_framework_services.views.mutation.apply_response_finalizer import (
     apply_response_finalizer,
 )
@@ -63,6 +61,7 @@ from rest_framework_services.views.mutation.map_service_error import (
 )
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.utils import (
+    layer_serializer_context,
     resolve_callable_kwargs,
     resolve_extra_kwargs,
     resolve_input_extras,
@@ -232,9 +231,14 @@ def dispatch_service(
     *,
     atomic: bool,
 ) -> Any:
-    """Run a service from a sync view, transparently bridging async ones."""
-    if is_async(fn):
-        return async_to_sync(arun_service)(fn, kwargs, atomic=atomic)
+    """Run a service from a sync view, transparently bridging async ones.
+
+    Retained as the view layer's name for the call; the async bridge itself now
+    lives in :func:`~rest_framework_services.services.run_service.run_service`, so
+    the HTTP and transport-neutral paths cannot disagree about whether an
+    ``async def`` service gets awaited. This wrapper is a pure alias — do not
+    reintroduce logic here.
+    """
     return run_service(fn, kwargs, atomic=atomic)
 
 
@@ -463,6 +467,53 @@ def _execute_mutation(
     )
 
 
+def resolve_view_hooks(view: Any, request: Request, *, instance: Any = None) -> ViewHooks:
+    """Resolve the calling view's hook chains into a :class:`ViewHooks` carrier.
+
+    ⚠ **View layers only** — every ``spec_*`` argument below is deliberately
+    ``None``. The chains run ``view.get_<x>`` → ``view.get_<action>_<x>`` →
+    ``spec.<x>``, and ``dispatch_spec`` owns that last layer. Resolving the spec
+    provider here too would invoke it **twice**, which is not safe for a provider
+    that queries the database. See :class:`ViewHooks`.
+
+    ``instance`` (the resolved mutation target, ``None`` on create and on every
+    bulk path) is offered to the ``input_data`` providers that declare it.
+    """
+    action: str | None = getattr(view, "action", None)
+    return ViewHooks(
+        service_kwargs=resolve_extra_kwargs(
+            view,
+            request,
+            spec_kwargs=None,
+            action_hook=f"get_{action}_service_kwargs" if action else None,
+            catch_all_hook="get_service_kwargs",
+        ),
+        input_data=resolve_input_extras(
+            view,
+            request,
+            spec_input_data=None,
+            action_hook=f"get_{action}_input_data" if action else None,
+            catch_all_hook="get_input_data",
+            extras={"instance": instance},
+        ),
+        input_serializer_context=layer_serializer_context(
+            {},
+            view,
+            request,
+            direction_hook="get_input_serializer_context",
+            action_hook=f"get_{action}_input_serializer_context" if action else None,
+        ),
+        output_serializer_context=lambda result: layer_serializer_context(
+            {},
+            view,
+            request,
+            direction_hook="get_output_serializer_context",
+            action_hook=f"get_{action}_output_serializer_context" if action else None,
+            extras={"result": result},
+        ),
+    )
+
+
 def _dispatch_bulk_via_spec(
     view: Any,
     request: Request,
@@ -513,6 +564,7 @@ def _dispatch_bulk_via_spec(
             params=params,
             request=request,
             view=view,
+            view_hooks=resolve_view_hooks(view, request),
         )
     except ServiceError as exc:
         raise map_service_error(exc) from exc
@@ -667,9 +719,12 @@ def resolve_mutation_instance(
     ``allow_none`` flag is ignored — a mutation against a missing row is
     always a 404, so a ``None`` resolution raises
     :exc:`~rest_framework.exceptions.NotFound` regardless. Object-level
-    permissions run against the resolved instance
-    (``view.check_object_permissions``), matching DRF's own ``get_object()``
-    contract.
+    permissions run against the resolved instance, matching DRF's own
+    ``get_object()`` contract — inside
+    :func:`~rest_framework_services.selectors.utils.dispatch_selector_for_spec`,
+    which is the one place every spec-resolved target passes through, rather
+    than here (where it covered only this branch and left the retrieve mixin
+    and standalone retrieve view unchecked).
 
     Returns ``None`` for a **bulk** spec (``many=True`` or a
     ``collection_selector_spec``): there is no single instance, and the
@@ -691,5 +746,4 @@ def resolve_mutation_instance(
         # Only reachable with ``allow_none=True`` on the nested spec —
         # the flag expresses a nullable *read* contract and is ignored here.
         raise drf_exceptions.NotFound()
-    view.check_object_permissions(view.request, instance)
     return instance

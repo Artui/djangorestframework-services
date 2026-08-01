@@ -13,13 +13,16 @@ from rest_framework_services.dispatch.utils import (
     INSTANCE_SOURCE,
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
+    apply_input_data,
     call_target_guard,
     guard_many_argument_binding,
     merge_arguments,
     resolve_argument_binding,
     resolve_dispatch_kwargs,
     resolve_input_context,
+    resolve_input_data,
     resolve_provider,
+    resolve_service_kwargs,
     resolve_service_many_input,
     resolve_unknown_arguments,
     service_input,
@@ -36,6 +39,7 @@ from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.target_guard import TargetGuard
 from rest_framework_services.types.unknown_arguments import UnknownArguments
+from rest_framework_services.types.view_hooks import ViewHooks
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.mutation.utils import build_input_serializer_from_data
 
@@ -52,6 +56,7 @@ def dispatch_spec(
     unknown_arguments: UnknownArguments = UnknownArguments.IGNORE,
     on_target_resolved: TargetGuard | None = None,
     progress: ProgressReporter | None = None,
+    view_hooks: ViewHooks | None = None,
 ) -> DispatchResult:
     """Execute ``spec`` without a DRF view, returning a :class:`DispatchResult`.
 
@@ -117,6 +122,7 @@ def dispatch_spec(
             unknown_arguments=unknown_arguments,
             on_target_resolved=on_target_resolved,
             progress=progress,
+            view_hooks=view_hooks,
         )
     if isinstance(spec, SelectorSpec):
         return _dispatch_selector(
@@ -129,6 +135,7 @@ def dispatch_spec(
             unknown_arguments=unknown_arguments,
             on_target_resolved=on_target_resolved,
             progress=progress,
+            view_hooks=view_hooks,
         )
     raise TypeError(
         f"dispatch_spec expects a ServiceSpec or SelectorSpec; got {type(spec).__name__}."
@@ -146,6 +153,7 @@ def _dispatch_selector(
     unknown_arguments: UnknownArguments,
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
+    view_hooks: ViewHooks | None,
 ) -> DispatchResult:
     if spec.selector is None:
         raise ImproperlyConfigured(
@@ -161,7 +169,9 @@ def _dispatch_selector(
         pool,
         binding=binding,
         spread_source=params,
-        provider_kwargs=resolve_provider(spec.kwargs, {"view": view, "request": request}),
+        provider_kwargs=resolve_service_kwargs(
+            spec, view=view, request=request, view_hooks=view_hooks
+        ),
         url_kwargs=view_url_kwargs(view),
     )
     try:
@@ -206,6 +216,7 @@ def _dispatch_service(
     unknown_arguments: UnknownArguments,
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
+    view_hooks: ViewHooks | None,
 ) -> DispatchResult:
     if spec.many:
         return _dispatch_service_many(
@@ -219,6 +230,7 @@ def _dispatch_service(
             unknown_arguments=unknown_arguments,
             on_target_resolved=on_target_resolved,
             progress=progress,
+            view_hooks=view_hooks,
         )
 
     mode, target = _resolve_target(spec, user=user, params=params, request=request, view=view)
@@ -227,7 +239,13 @@ def _dispatch_service(
     call_target_guard(on_target_resolved, spec, target, user=user, request=request, view=view)
     instance = target if mode == "instance" else None
 
-    input_context = resolve_input_context(spec, view=view, request=request)
+    input_context = resolve_input_context(spec, view=view, request=request, view_hooks=view_hooks)
+    params = apply_input_data(
+        params,
+        resolve_input_data(
+            spec, view=view, request=request, instance=instance, view_hooks=view_hooks
+        ),
+    )
     serializer = build_input_serializer_from_data(
         dict(params),
         spec.input_serializer,
@@ -246,7 +264,9 @@ def _dispatch_service(
         pool,
         binding=binding,
         spread_source=spread_source,
-        provider_kwargs=resolve_provider(spec.kwargs, {"view": view, "request": request}),
+        provider_kwargs=resolve_service_kwargs(
+            spec, view=view, request=request, view_hooks=view_hooks
+        ),
     )
     if mode == "collection":
         pool["collection"] = target
@@ -292,11 +312,16 @@ def _dispatch_service_many(
     unknown_arguments: UnknownArguments,
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
+    view_hooks: ViewHooks | None,
 ) -> DispatchResult:
     """Bulk list-payload: ``params`` is the array; the service gets the list."""
     guard_many_argument_binding(argument_binding)
     call_target_guard(on_target_resolved, spec, None, user=user, request=request, view=view)
-    input_context = resolve_input_context(spec, view=view, request=request)
+    input_context = resolve_input_context(spec, view=view, request=request, view_hooks=view_hooks)
+    params = apply_input_data(
+        params,
+        resolve_input_data(spec, view=view, request=request, instance=None, view_hooks=view_hooks),
+    )
     serializer = build_input_serializer_from_data(
         params,
         spec.input_serializer,
@@ -308,7 +333,7 @@ def _dispatch_service_many(
         spec, serializer, params, unknown_arguments=unknown_arguments
     )
     pool: dict[str, Any] = base_pool(user=user, request=request, progress=progress)
-    pool.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
+    pool.update(resolve_service_kwargs(spec, view=view, request=request, view_hooks=view_hooks))
     if has_data:
         pool["data"] = data
     if serializer is not None:

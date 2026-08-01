@@ -99,6 +99,7 @@ from rest_framework_services.types import (
     UnknownArguments,
     UnsetType,
     UrlKwarg,
+    ViewHooks,
     validate_channel_names,
 )
 from rest_framework_services.version import __version__
@@ -183,6 +184,7 @@ __all__ = [
     "TargetGuard",
     "UNSET",
     "UnknownArguments",
+    "ViewHooks",
     "UnsetType",
     "UrlKwarg",
     "UpdateService",
