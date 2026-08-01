@@ -7,20 +7,16 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from asgiref.sync import async_to_sync
-from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
-from django.db.models import QuerySet
+from django.core.exceptions import ImproperlyConfigured
+from django.db.models import Model, QuerySet
 from django.db.models.manager import BaseManager
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.request import Request
 
-from rest_framework_services.dispatch.base_pool import base_pool
 from rest_framework_services.is_async import is_async
-from rest_framework_services.types.selector_kind import SelectorKind
+from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.selector_spec import SelectorSpec
-from rest_framework_services.views.utils import (
-    resolve_callable_kwargs,
-    resolve_extra_kwargs,
-)
+from rest_framework_services.views.utils import resolve_view_hooks
 
 
 def is_queryset(obj: Any) -> bool:
@@ -221,6 +217,31 @@ async def amaterialize_retrieve(spec: SelectorSpec[Any, Any], result: Any) -> An
     return await result.afirst() if is_queryset(result) else result
 
 
+def check_view_object_permissions(
+    spec: Any,
+    context: Any,
+    *,
+    instance: Any = None,
+) -> None:
+    """:class:`TargetGuard` running DRF's object-permission check for an HTTP view.
+
+    The HTTP counterpart of :func:`~rest_framework_services.enforce_permissions`:
+    off HTTP a transport enforces ``spec.permission_classes`` itself, while a DRF
+    view has already instantiated them and exposes
+    ``check_object_permissions``. Both plug into the same ``on_target_resolved``
+    seam, so the core stays authz-agnostic on every transport.
+
+    ⚠ Gated on ``Model`` for the same reason ``enforce_permissions`` is: the core
+    fires this hook on the LIST branch too, with the resolved **queryset**.
+    Object permissions are a per-row concept, and
+    ``has_object_permission(request, view, <QuerySet>)`` would raise or silently
+    mis-authorize. ``None`` (a create, or a bulk list payload) is skipped for the
+    same reason.
+    """
+    if isinstance(instance, Model):
+        context.view.check_object_permissions(context.request, instance)
+
+
 def dispatch_selector_for_spec(
     view: Any,
     spec: SelectorSpec[Any, Any],
@@ -228,93 +249,55 @@ def dispatch_selector_for_spec(
     extra_url_kwargs: dict[str, Any] | None = None,
     source_label: str = "SelectorSpec.selector",
 ) -> Any:
-    """End-to-end dispatch for one ``SelectorSpec`` call.
+    """End-to-end dispatch for one ``SelectorSpec`` call from a DRF view.
 
-    Runs the kwargs-resolution chain (``spec.kwargs`` →
-    ``get_<action>_selector_kwargs`` → ``get_selector_kwargs``), filters
-    the resulting pool against the selector's signature, invokes the
-    selector sync-or-async, then applies declarative + dynamic queryset
-    shaping. Used by both selector viewset mixins and the standalone
-    selector views so the call shape lives in one place.
+    Resolves the view's ``get_selector_kwargs`` / ``get_<action>_selector_kwargs``
+    chain into a :class:`ViewHooks` carrier, hands off to the one
+    :func:`~rest_framework_services.dispatch_spec` core, and translates the
+    neutral :class:`DispatchResult` into the view-layer contract: a RETRIEVE that
+    resolved nothing raises :exc:`~rest_framework.exceptions.NotFound`, unless the
+    spec sets ``allow_none=True`` (then ``None``, and the retrieve views render
+    200 + JSON ``null``). ``SelectorKind.LIST`` returns the shaped queryset.
 
-    When ``spec.kind`` is :attr:`SelectorKind.RETRIEVE`, the returned
-    QuerySet (if any) is materialized via ``.first()`` and ``None`` /
-    :exc:`~django.core.exceptions.ObjectDoesNotExist` are translated to
-    :exc:`~rest_framework.exceptions.NotFound` — unless the spec sets
-    ``allow_none=True``, in which case the missing-object case returns
-    ``None`` and the calling view decides how to render it (the retrieve
-    views render 200 + JSON ``null``). ``SelectorKind.LIST`` returns the
-    (optionally shaped) selector return as-is.
+    ⚠ **``argument_binding=BUNDLE`` is what keeps HTTP semantics.** Off HTTP the
+    flat ``params`` mapping *is* the argument channel, so a selector spreads it
+    (``SPREAD_AUTHOR_WINS``). Over HTTP it is not: a selector's kwargs come from
+    route captures plus the hook chain, and the query string belongs to
+    ``filter_set`` / the filter backends (see the filtering note in
+    ``CLAUDE.md``). ``BUNDLE`` spreads nothing, so passing ``query_params`` here
+    feeds the filter without widening the argument channel — the difference
+    between the transports is expressed as the policy it already is, rather than
+    as a second pipeline.
 
-    The caller must check ``spec.selector is not None`` before calling and
-    fall back to vanilla DRF otherwise.
+    ``extra_url_kwargs`` is accepted for call-compatibility and ignored: the core
+    reads ``view.kwargs`` itself via ``view_url_kwargs``, which **strips the
+    reserved pool seeds**. That strip is the point — the previous view-local pool
+    spread route captures *over* ``base_pool``, so a nested route like
+    ``/users/<user>/posts/`` let the captured value shadow the authenticated
+    ``user`` in the selector's pool.
 
-    ``source_label`` is forwarded to :func:`apply_queryset_shaping` for
-    error messages, so a misconfiguration on a nested
-    ``output_selector_spec`` points at the right place.
+    The caller must check ``spec.selector is not None`` before calling and fall
+    back to vanilla DRF otherwise. ``source_label`` is likewise accepted for
+    compatibility; the core labels shaping errors by spec kind.
     """
-    selector = spec.selector
-    assert selector is not None  # noqa: S101 — caller guarantees this
+    # Local import: ``dispatch_spec`` composes ``run_selector`` /
+    # ``materialize_retrieve`` from this module, so the dependency is
+    # one-directional only at runtime — the same proven cycle
+    # ``views.mutation.utils`` documents for the same import.
+    from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
+
+    assert spec.selector is not None  # noqa: S101 — caller guarantees this
     request = view.request
-    action: str | None = getattr(view, "action", None)
-    action_hook: str | None = f"get_{action}_selector_kwargs" if action else None
-
-    try:
-        extras = resolve_extra_kwargs(
-            view,
-            request,
-            spec_kwargs=spec.kwargs,
-            action_hook=action_hook,
-            catch_all_hook="get_selector_kwargs",
-        )
-        # See the mutation path: the seeds come from ``base_pool`` so HTTP and
-        # off-HTTP dispatch cannot drift on what a callable may declare.
-        pool: dict[str, Any] = {
-            **base_pool(user=getattr(request, "user", None), request=request),
-            **(extra_url_kwargs or {}),
-            **extras,
-        }
-        result = run_selector(selector, resolve_callable_kwargs(selector, pool))
-        result = apply_queryset_shaping(
-            result,
-            view,
-            request,
-            select_related=spec.select_related,
-            prefetch_related=spec.prefetch_related,
-            annotations=spec.annotations,
-            extend_queryset=spec.extend_queryset,
-            filter_set=spec.filter_set,
-            source_label=source_label,
-        )
-    except ObjectDoesNotExist as exc:
-        if spec.kind is SelectorKind.RETRIEVE:
-            if spec.allow_none:
-                return None
-            raise NotFound() from exc
-        raise
-
-    if spec.kind is not SelectorKind.RETRIEVE:
-        # LIST resolves a *set*, not an object: DRF's object-permission contract
-        # is per-row and ``has_object_permission(request, view, <QuerySet>)`` would
-        # mis-authorize. Scoping a list is ``filter_set`` / the selector's own
-        # queryset, exactly as ``enforce_permissions`` documents off HTTP.
-        return result
-    instance = materialize_retrieve(spec, result)
-    if instance is None and not spec.allow_none:
+    result = dispatch_spec(
+        spec,
+        user=getattr(request, "user", None),
+        params=request.query_params,
+        request=request,
+        view=view,
+        argument_binding=ArgumentBinding.BUNDLE,
+        on_target_resolved=check_view_object_permissions,
+        view_hooks=resolve_view_hooks(view, request, chain="selector"),
+    )
+    if result.kind == "not_found":
         raise NotFound()
-    if instance is not None:
-        # ⚠ **The single object-permission point for spec-resolved targets.**
-        # A selector spec replaces ``GenericAPIView.get_object()`` — which runs
-        # this check itself — so every surface resolving a row through a spec has
-        # to run it here or not at all. It used to live in one and a *half*
-        # places: ``resolve_mutation_instance`` called it for
-        # ``instance_selector_spec``, while the retrieve mixin and the standalone
-        # retrieve view skipped it. That inverted the usual parity worry —
-        # ``enforce_permissions`` checks ``has_object_permission`` on the RETRIEVE
-        # branch off HTTP, so a spec was gated over MCP and **ungated over HTTP**.
-        #
-        # Called unguarded: this function already requires ``view.request`` above,
-        # so every caller is a DRF view and a ``getattr`` fallback would be an
-        # unreachable branch rather than defensiveness.
-        view.check_object_permissions(request, instance)
-    return instance
+    return result.value

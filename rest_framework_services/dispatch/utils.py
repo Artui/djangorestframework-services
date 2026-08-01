@@ -520,10 +520,10 @@ def resolve_service_kwargs(
     ``spec.kwargs`` has the final say on overlapping keys — the documented
     precedence for the whole chain (``get_service_kwargs`` →
     ``get_<action>_service_kwargs`` → ``spec.kwargs``). The first two are already
-    merged into ``view_hooks.service_kwargs`` by the caller; resolving the spec
+    merged into ``view_hooks.extra_kwargs`` by the caller; resolving the spec
     provider is this core's job, and only this core's, so it runs exactly once.
     """
-    kwargs: dict[str, Any] = dict((view_hooks.service_kwargs or {}) if view_hooks else {})
+    kwargs: dict[str, Any] = dict((view_hooks.extra_kwargs or {}) if view_hooks else {})
     kwargs.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
     return kwargs
 

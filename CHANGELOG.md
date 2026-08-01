@@ -39,6 +39,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (which previously ran it separately). `LIST` is unaffected — a queryset is not
     an object, and scoping a list stays `filter_set` plus the selector.
 
+- **A route capture could shadow the authenticated user on the HTTP selector
+  path.** The view-local pool spread `view.kwargs` **over** `base_pool`, so on a
+  nested route like `/users/<user>/posts/` a capture named `user` replaced
+  `request.user` in the selector's kwarg pool — a selector written
+  `def list_posts(*, user): return Post.objects.filter(author=user)` scoped by
+  the URL value instead of the caller. `RESERVED_POOL_SEEDS` exists to prevent
+  exactly this (its docstring calls it a credential-spoofing footgun) and the
+  transport-neutral path already stripped those names; the HTTP selector path
+  never did. It requires a project to name a route capture after a dispatcher
+  seed — `user` being the realistic one — but the result is a horizontal
+  scoping bypass, so treat this as the reason to upgrade.
+
   ⚠ **The permission fix can turn a passing 200 into a 403** if a project has a
   `has_object_permission` that was never being consulted on a retrieve selector.
   That is the intended behaviour and matches what the same spec already did over
@@ -62,14 +74,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   core** — put it in the view layer and it is honoured over HTTP and silently
   skipped everywhere else.
 
-  ⚠ **The selector paths are deliberately *not* merged.** Off HTTP the flat
-  `params` mapping is both the callable's input and the `filter_set` data; over
-  HTTP the body validates and the **query string** filters, and a selector's
-  kwargs come from URL captures plus the hook chain — never from query params
-  (see the `filter_set` note in `CLAUDE.md`). Forcing one pool would have widened
-  the input channel silently. What they *do* now share is the rule for what
-  `kind=RETRIEVE` does to a selector's return (`materialize_retrieve`), so the
-  field cannot come to mean two things.
+  **The selector path is converged too.** `dispatch_selector_for_spec` now
+  resolves the view's `get_selector_kwargs` chain and hands off to the same core;
+  its view-local pool is gone, which is what closes the seed-shadowing bug above.
+
+  The one genuine difference between the transports is expressed as the policy it
+  already was rather than as a second pipeline: over HTTP the call passes
+  `argument_binding=BUNDLE`, so query params feed `filter_set` without becoming
+  selector kwargs (off HTTP the flat `params` mapping *is* the argument channel
+  and a selector spreads it). Both behaviours are pinned in
+  `tests/test_transport_parity.py`.
+
+  ⚠ `dispatch_selector_for_spec` still accepts `extra_url_kwargs` and
+  `source_label` for call-compatibility, but **ignores** both: the core reads
+  `view.kwargs` itself (stripping reserved seeds) and labels shaping errors by
+  spec kind. A misconfigured `instance_selector_spec` now reports
+  `SelectorSpec.selector` rather than naming the outer field — the one
+  deliberate DX regression in this release.
 
 ### Added
 

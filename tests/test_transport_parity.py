@@ -20,9 +20,10 @@ import inspect
 from typing import Any
 
 import pytest
+from django.contrib.auth.models import User
 from rest_framework import serializers
 from rest_framework.permissions import BasePermission
-from rest_framework.test import APIRequestFactory
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from rest_framework_services import (
     SelectorKind,
@@ -30,6 +31,7 @@ from rest_framework_services import (
     ServiceSpec,
     ServiceViewSet,
     adispatch_spec,
+    build_offline_context,
     dispatch_spec,
 )
 from rest_framework_services.viewsets.selector_viewset import SelectorViewSet
@@ -367,6 +369,117 @@ def test_retrieve_missing_is_404_on_both() -> None:
     offline = dispatch_spec(spec, user=None, params={"pk": 999})
     assert http.status_code == 404
     assert (offline.kind, offline.status) == ("not_found", 404)
+
+
+@pytest.mark.django_db
+def test_selector_kwargs_hook_applies_over_http() -> None:
+    """The selector chain survives the move onto the shared core."""
+    seen: dict[str, Any] = {}
+
+    def selector(*, pk: Any, tenant: Any = None) -> Any:
+        seen["tenant"] = tenant
+        return Post.objects.filter(pk=pk)
+
+    post = Post.objects.create(title="p")
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE, selector=selector, output_serializer=_post_serializer()
+    )
+    viewset = type(
+        "_VS",
+        (SelectorViewSet,),
+        {
+            "queryset": Post.objects.all(),
+            "action_specs": {"retrieve": spec},
+            "get_selector_kwargs": lambda self: {"tenant": "from-view-hook"},
+        },
+    )
+    viewset.as_view({"get": "retrieve"})(APIRequestFactory().get("/x/"), pk=post.pk)
+    assert seen["tenant"] == "from-view-hook"
+
+
+@pytest.mark.django_db
+def test_query_params_do_not_become_selector_kwargs_over_http() -> None:
+    """⚠ The one selector difference that is *intentional*, pinned.
+
+    Off HTTP the flat ``params`` mapping is the argument channel and a selector
+    spreads it. Over HTTP it is not — the query string belongs to ``filter_set``
+    and the filter backends, and a selector's kwargs come from route captures
+    plus the hook chain. Routing HTTP through the shared core must not quietly
+    widen that channel, which is what ``argument_binding=BUNDLE`` prevents.
+    """
+    seen: dict[str, Any] = {}
+
+    def selector(*, pk: Any, tenant: Any = "unset") -> Any:
+        seen["tenant"] = tenant
+        return Post.objects.filter(pk=pk)
+
+    post = Post.objects.create(title="p")
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE, selector=selector, output_serializer=_post_serializer()
+    )
+    _retrieve_viewset(spec)(APIRequestFactory().get("/x/?tenant=client-supplied"), pk=post.pk)
+    assert seen["tenant"] == "unset"
+
+    # ...whereas off HTTP the same key *is* an argument, by design.
+    offline = dispatch_spec(spec, user=None, params={"pk": post.pk, "tenant": "caller-supplied"})
+    assert offline.value.pk == post.pk
+    assert seen["tenant"] == "caller-supplied"
+
+
+# --- reserved pool seeds are not route-capturable -------------------------
+#
+# ``RESERVED_POOL_SEEDS`` exists because a client-routable value named after a
+# dispatcher seed would override the dispatcher's authoritative one — the
+# constant's own docstring calls it a credential-spoofing footgun. The
+# transport-neutral path strips them from URL kwargs; the HTTP selector path
+# spread ``view.kwargs`` over ``base_pool`` and did not, so on a nested route
+# like ``/users/<user>/posts/`` a capture named ``user`` shadowed the
+# authenticated one — the selector scoped by the URL value, not the caller.
+
+
+def _scoping_selector(seen: dict[str, Any]) -> Any:
+    def selector(*, user: Any, pk: Any) -> Any:
+        seen["user"] = user
+        return Post.objects.filter(pk=pk)
+
+    return selector
+
+
+@pytest.mark.django_db
+def test_url_kwarg_cannot_shadow_the_authenticated_user_over_http() -> None:
+    seen: dict[str, Any] = {}
+    real = User.objects.create(username="real")
+    post = Post.objects.create(title="p")
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=_scoping_selector(seen),
+        output_serializer=_post_serializer(),
+    )
+    request = APIRequestFactory().get("/x/")
+    force_authenticate(request, user=real)
+    _retrieve_viewset(spec)(request, pk=post.pk, user="route-supplied")
+    assert seen["user"] == real
+
+
+@pytest.mark.django_db
+def test_url_kwarg_cannot_shadow_the_authenticated_user_off_http() -> None:
+    seen: dict[str, Any] = {}
+    real = User.objects.create(username="real")
+    post = Post.objects.create(title="p")
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=_scoping_selector(seen),
+        output_serializer=_post_serializer(),
+    )
+    context = build_offline_context(user=real, kwargs={"user": "route-supplied"})
+    dispatch_spec(
+        spec,
+        user=real,
+        params={"pk": post.pk},
+        request=context.request,
+        view=context.view,
+    )
+    assert seen["user"] == real
 
 
 class _DenyObject(BasePermission):

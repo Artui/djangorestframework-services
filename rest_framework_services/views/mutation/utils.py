@@ -52,7 +52,6 @@ from rest_framework_services.selectors.utils import (
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.service_spec import ServiceSpec
-from rest_framework_services.types.view_hooks import ViewHooks
 from rest_framework_services.views.mutation.apply_response_finalizer import (
     apply_response_finalizer,
 )
@@ -61,10 +60,8 @@ from rest_framework_services.views.mutation.map_service_error import (
 )
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.utils import (
-    layer_serializer_context,
-    resolve_extra_kwargs,
-    resolve_input_extras,
     resolve_serializer_context,
+    resolve_view_hooks,
 )
 
 
@@ -322,53 +319,6 @@ def render_mutation_response(
         result=result.service_result,
         instance=instance,
         data=result.data,
-    )
-
-
-def resolve_view_hooks(view: Any, request: Request, *, instance: Any = None) -> ViewHooks:
-    """Resolve the calling view's hook chains into a :class:`ViewHooks` carrier.
-
-    ⚠ **View layers only** — every ``spec_*`` argument below is deliberately
-    ``None``. The chains run ``view.get_<x>`` → ``view.get_<action>_<x>`` →
-    ``spec.<x>``, and ``dispatch_spec`` owns that last layer. Resolving the spec
-    provider here too would invoke it **twice**, which is not safe for a provider
-    that queries the database. See :class:`ViewHooks`.
-
-    ``instance`` (the resolved mutation target, ``None`` on create and on every
-    bulk path) is offered to the ``input_data`` providers that declare it.
-    """
-    action: str | None = getattr(view, "action", None)
-    return ViewHooks(
-        service_kwargs=resolve_extra_kwargs(
-            view,
-            request,
-            spec_kwargs=None,
-            action_hook=f"get_{action}_service_kwargs" if action else None,
-            catch_all_hook="get_service_kwargs",
-        ),
-        input_data=resolve_input_extras(
-            view,
-            request,
-            spec_input_data=None,
-            action_hook=f"get_{action}_input_data" if action else None,
-            catch_all_hook="get_input_data",
-            extras={"instance": instance},
-        ),
-        input_serializer_context=layer_serializer_context(
-            {},
-            view,
-            request,
-            direction_hook="get_input_serializer_context",
-            action_hook=f"get_{action}_input_serializer_context" if action else None,
-        ),
-        output_serializer_context=lambda result: layer_serializer_context(
-            {},
-            view,
-            request,
-            direction_hook="get_output_serializer_context",
-            action_hook=f"get_{action}_output_serializer_context" if action else None,
-            extras={"result": result},
-        ),
     )
 
 
