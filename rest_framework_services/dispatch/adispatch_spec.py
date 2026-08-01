@@ -13,6 +13,7 @@ from rest_framework_services.dispatch.utils import (
     INSTANCE_SOURCE,
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
+    apply_input_data,
     arun_callable,
     arun_off_loop,
     arun_service_callable,
@@ -22,7 +23,9 @@ from rest_framework_services.dispatch.utils import (
     resolve_argument_binding,
     resolve_dispatch_kwargs,
     resolve_input_context,
+    resolve_input_data,
     resolve_provider,
+    resolve_service_kwargs,
     resolve_service_many_input,
     resolve_unknown_arguments,
     service_input,
@@ -38,6 +41,7 @@ from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.target_guard import TargetGuard
 from rest_framework_services.types.unknown_arguments import UnknownArguments
+from rest_framework_services.types.view_hooks import ViewHooks
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.mutation.utils import build_input_serializer_from_data
 
@@ -54,6 +58,7 @@ async def adispatch_spec(
     unknown_arguments: UnknownArguments = UnknownArguments.IGNORE,
     on_target_resolved: TargetGuard | None = None,
     progress: ProgressReporter | None = None,
+    view_hooks: ViewHooks | None = None,
 ) -> DispatchResult:
     """Async :func:`~rest_framework_services.dispatch_spec`.
 
@@ -90,6 +95,7 @@ async def adispatch_spec(
             unknown_arguments=unknown_arguments,
             on_target_resolved=on_target_resolved,
             progress=progress,
+            view_hooks=view_hooks,
         )
     if isinstance(spec, SelectorSpec):
         return await _adispatch_selector(
@@ -102,6 +108,7 @@ async def adispatch_spec(
             unknown_arguments=unknown_arguments,
             on_target_resolved=on_target_resolved,
             progress=progress,
+            view_hooks=view_hooks,
         )
     raise TypeError(
         f"adispatch_spec expects a ServiceSpec or SelectorSpec; got {type(spec).__name__}."
@@ -119,6 +126,7 @@ async def _adispatch_selector(
     unknown_arguments: UnknownArguments,
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
+    view_hooks: ViewHooks | None,
 ) -> DispatchResult:
     if spec.selector is None:
         raise ImproperlyConfigured("adispatch_spec requires the SelectorSpec to set a `selector`.")
@@ -130,7 +138,7 @@ async def _adispatch_selector(
         binding=binding,
         spread_source=params,
         provider_kwargs=await arun_off_loop(
-            resolve_provider, spec.kwargs, {"view": view, "request": request}
+            resolve_service_kwargs, spec, view=view, request=request, view_hooks=view_hooks
         ),
         url_kwargs=view_url_kwargs(view),
     )
@@ -195,6 +203,7 @@ async def _adispatch_service(
     unknown_arguments: UnknownArguments,
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
+    view_hooks: ViewHooks | None,
 ) -> DispatchResult:
     if spec.many:
         return await _adispatch_service_many(
@@ -208,6 +217,7 @@ async def _adispatch_service(
             unknown_arguments=unknown_arguments,
             on_target_resolved=on_target_resolved,
             progress=progress,
+            view_hooks=view_hooks,
         )
 
     mode, target = await _aresolve_target(
@@ -222,7 +232,21 @@ async def _adispatch_service(
     instance = target if mode == "instance" else None
 
     # The context provider may run its own (batched) query — off-loop too.
-    input_context = await arun_off_loop(resolve_input_context, spec, view=view, request=request)
+    input_context = await arun_off_loop(
+        resolve_input_context, spec, view=view, request=request, view_hooks=view_hooks
+    )
+    # ``input_data`` providers may query too; same rule.
+    params = apply_input_data(
+        params,
+        await arun_off_loop(
+            resolve_input_data,
+            spec,
+            view=view,
+            request=request,
+            instance=instance,
+            view_hooks=view_hooks,
+        ),
+    )
     # Validation can touch the DB (e.g. ``UniqueValidator``); run it off-loop.
     serializer = await arun_off_loop(
         build_input_serializer_from_data,
@@ -244,7 +268,7 @@ async def _adispatch_service(
         binding=binding,
         spread_source=spread_source,
         provider_kwargs=await arun_off_loop(
-            resolve_provider, spec.kwargs, {"view": view, "request": request}
+            resolve_service_kwargs, spec, view=view, request=request, view_hooks=view_hooks
         ),
     )
     if mode == "collection":
@@ -295,12 +319,26 @@ async def _adispatch_service_many(
     unknown_arguments: UnknownArguments,
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
+    view_hooks: ViewHooks | None,
 ) -> DispatchResult:
     guard_many_argument_binding(argument_binding)
     await arun_off_loop(
         call_target_guard, on_target_resolved, spec, None, user=user, request=request, view=view
     )
-    input_context = await arun_off_loop(resolve_input_context, spec, view=view, request=request)
+    input_context = await arun_off_loop(
+        resolve_input_context, spec, view=view, request=request, view_hooks=view_hooks
+    )
+    params = apply_input_data(
+        params,
+        await arun_off_loop(
+            resolve_input_data,
+            spec,
+            view=view,
+            request=request,
+            instance=None,
+            view_hooks=view_hooks,
+        ),
+    )
     serializer = await arun_off_loop(
         build_input_serializer_from_data,
         params,
@@ -314,7 +352,9 @@ async def _adispatch_service_many(
     )
     pool: dict[str, Any] = base_pool(user=user, request=request, progress=progress)
     pool.update(
-        await arun_off_loop(resolve_provider, spec.kwargs, {"view": view, "request": request})
+        await arun_off_loop(
+            resolve_service_kwargs, spec, view=view, request=request, view_hooks=view_hooks
+        )
     )
     if has_data:
         pool["data"] = data

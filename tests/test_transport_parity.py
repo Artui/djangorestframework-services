@@ -29,6 +29,7 @@ from rest_framework_services import (
     SelectorSpec,
     ServiceSpec,
     ServiceViewSet,
+    adispatch_spec,
     dispatch_spec,
 )
 from rest_framework_services.viewsets.selector_viewset import SelectorViewSet
@@ -133,6 +134,47 @@ def test_async_service_resolves_off_http() -> None:
         "sync dispatch_spec returned an un-awaited coroutine for an async service"
     )
     assert result.value == {"title": "t", "tenant": "a"}
+
+
+# --- sync/async dispatch parity ------------------------------------------
+#
+# ``adispatch_spec`` is the async twin of ``dispatch_spec``, and a fix applied to
+# one is a defect in the other until it is applied to both. These pin the twin to
+# the same spec-field behaviour rather than trusting that the pair stay in step.
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_input_data_applies_under_async_dispatch() -> None:
+    result = await adispatch_spec(_INPUT_DATA_SPEC, user=None, params={"title": "t"})
+    assert result.value == {"title": "t", "tenant": "server-supplied"}
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_input_data_applies_under_async_bulk_dispatch() -> None:
+    """A ``many=True`` payload is a list, so the merge lands on every item."""
+    spec = ServiceSpec(
+        service=lambda *, data: [dict(item) for item in data],
+        input_serializer=_TitleInput,
+        many=True,
+        input_data=lambda: {"tenant": "server-supplied"},
+    )
+    result = await adispatch_spec(spec, user=None, params=[{"title": "a"}, {"title": "b"}])
+    assert result.value == [
+        {"title": "a", "tenant": "server-supplied"},
+        {"title": "b", "tenant": "server-supplied"},
+    ]
+
+
+@pytest.mark.django_db
+def test_input_data_applies_to_bulk_off_http() -> None:
+    spec = ServiceSpec(
+        service=lambda *, data: [dict(item) for item in data],
+        input_serializer=_TitleInput,
+        many=True,
+        input_data=lambda: {"tenant": "server-supplied"},
+    )
+    result = dispatch_spec(spec, user=None, params=[{"title": "a"}])
+    assert result.value == [{"title": "a", "tenant": "server-supplied"}]
 
 
 # --- view hook chains on the bulk path -----------------------------------
