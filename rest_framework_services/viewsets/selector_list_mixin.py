@@ -48,4 +48,4 @@ class SelectorListMixin(ListModelMixin, _ActionSpecsMixin):
         spec = resolve_action_selector_spec(self.action_specs, "list")
         if spec is None:
             return super().get_queryset()  # ty: ignore[unresolved-attribute]
-        return dispatch_selector_for_spec(self, spec, extra_url_kwargs=self.kwargs)
+        return dispatch_selector_for_spec(self, spec)

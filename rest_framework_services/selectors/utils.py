@@ -242,13 +242,7 @@ def check_view_object_permissions(
         context.view.check_object_permissions(context.request, instance)
 
 
-def dispatch_selector_for_spec(
-    view: Any,
-    spec: SelectorSpec[Any, Any],
-    *,
-    extra_url_kwargs: dict[str, Any] | None = None,
-    source_label: str = "SelectorSpec.selector",
-) -> Any:
+def dispatch_selector_for_spec(view: Any, spec: SelectorSpec[Any, Any]) -> Any:
     """End-to-end dispatch for one ``SelectorSpec`` call from a DRF view.
 
     Resolves the view's ``get_selector_kwargs`` / ``get_<action>_selector_kwargs``
@@ -269,16 +263,16 @@ def dispatch_selector_for_spec(
     between the transports is expressed as the policy it already is, rather than
     as a second pipeline.
 
-    ``extra_url_kwargs`` is accepted for call-compatibility and ignored: the core
-    reads ``view.kwargs`` itself via ``view_url_kwargs``, which **strips the
-    reserved pool seeds**. That strip is the point — the previous view-local pool
-    spread route captures *over* ``base_pool``, so a nested route like
+    There is deliberately no ``extra_url_kwargs`` parameter: the core reads
+    ``view.kwargs`` itself via ``view_url_kwargs``, which **strips the reserved
+    pool seeds**. That strip is the point — the previous view-local pool spread
+    route captures *over* ``base_pool``, so a nested route like
     ``/users/<user>/posts/`` let the captured value shadow the authenticated
-    ``user`` in the selector's pool.
+    ``user``. Taking the mapping from the caller would reopen it, and every call
+    site passed ``view.kwargs`` verbatim anyway.
 
     The caller must check ``spec.selector is not None`` before calling and fall
-    back to vanilla DRF otherwise. ``source_label`` is likewise accepted for
-    compatibility; the core labels shaping errors by spec kind.
+    back to vanilla DRF otherwise.
     """
     # Local import: ``dispatch_spec`` composes ``run_selector`` /
     # ``materialize_retrieve`` from this module, so the dependency is

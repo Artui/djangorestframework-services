@@ -30,6 +30,7 @@ from rest_framework_services.dispatch.utils import (
     resolve_unknown_arguments,
     service_input,
     shape_queryset,
+    strip_reserved_seeds,
     view_url_kwargs,
 )
 from rest_framework_services.selectors.utils import amaterialize_retrieve
@@ -398,7 +399,12 @@ async def _aresolve_target(
             # to a watching client reads as the work having restarted. They take the
             # no-op :func:`base_pool` supplies.
             **base_pool(user=user, request=request),
-            **params,
+            # ⚠ Reserved seeds stripped from the client spread — the same rule
+            # ``merge_arguments`` applies to every other pool. Without it a caller
+            # sending ``{"user": …}`` outranks the dispatcher's authoritative value
+            # in the pool that decides *which row* (or which set) is mutated, and
+            # over MCP that spread is the tool call.
+            **strip_reserved_seeds(params),
             **view_url_kwargs(view),
         }
         pool.update(
@@ -491,7 +497,12 @@ async def _aresolve_instance(
         # to a watching client reads as the work having restarted. They take the
         # no-op :func:`base_pool` supplies.
         **base_pool(user=user, request=request),
-        **params,
+        # ⚠ Reserved seeds stripped from the client spread — the same rule
+        # ``merge_arguments`` applies to every other pool. Without it a caller
+        # sending ``{"user": …}`` outranks the dispatcher's authoritative value
+        # in the pool that decides *which row* (or which set) is mutated, and
+        # over MCP that spread is the tool call.
+        **strip_reserved_seeds(params),
         **view_url_kwargs(view),
     }
     pool.update(

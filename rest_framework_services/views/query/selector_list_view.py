@@ -84,7 +84,7 @@ class SelectorListView(ListModelMixin, GenericAPIView):
         s: SelectorSpec | None = get_class_attr(self, "spec")
         if s is None or s.selector is None:
             return super().get_queryset()
-        return dispatch_selector_for_spec(self, s, extra_url_kwargs=self.kwargs)
+        return dispatch_selector_for_spec(self, s)
 
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         return self.list(request, *args, **kwargs)

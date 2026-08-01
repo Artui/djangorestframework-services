@@ -36,6 +36,11 @@ class DispatchResult:
       DTO's ``created``, a domain outcome enum), which is what a callable
       ``success_status`` and a ``response_finalizer`` key on, while ``value`` is
       the thing to render. ``None`` on the read path — a selector has no service.
+    - **``instance``** — the resolved mutation target: the row an update /
+      destroy acted on, or ``None`` on a create, a read, or a bulk path. The core
+      resolves it from ``instance_selector_spec``, so a transport that needs the
+      *pre-mutation* target (to render it, or to key a decision on it) reads it
+      here rather than resolving a second time and risking a different answer.
     - **``data``** — the validated input (``serializer.validated_data``), or
       ``None`` when the spec declares no ``input_serializer``. Carried so a
       transport can key a post-dispatch decision on what was actually validated
@@ -49,6 +54,7 @@ class DispatchResult:
     kind: str
     status: int
     service_result: Any = None
+    instance: Any = None
     data: Any = None
 
 

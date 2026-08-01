@@ -46,6 +46,19 @@ COLLECTION_SOURCE = "ServiceSpec.collection_selector_spec.selector"
 OUTPUT_SOURCE = "ServiceSpec.output_selector_spec.selector"
 
 
+def strip_reserved_seeds(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Drop the dispatcher-owned names from a client-supplied mapping.
+
+    :func:`merge_arguments` applies this to every spread it performs; the nested
+    target resolutions (``instance_selector_spec`` / ``collection_selector_spec``)
+    build their pool directly and so have to apply it themselves. Skipping it
+    lets a caller-routable ``user`` / ``request`` / ``instance`` key outrank the
+    dispatcher's authoritative value — see :data:`RESERVED_POOL_SEEDS`, which
+    exists for exactly this reason.
+    """
+    return {key: value for key, value in params.items() if key not in RESERVED_POOL_SEEDS}
+
+
 def view_url_kwargs(view: Any) -> dict[str, Any]:
     """Route-capture kwargs carried by the (offline) view, reserved seeds stripped.
 

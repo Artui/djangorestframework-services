@@ -39,6 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (which previously ran it separately). `LIST` is unaffected — a queryset is not
     an object, and scoping a list stays `filter_set` plus the selector.
 
+- **Client-supplied params could shadow the authenticated user during target
+  resolution.** `instance_selector_spec` / `collection_selector_spec` built their
+  kwarg pool by hand as `{**base_pool, **params, **url_kwargs}`, bypassing the
+  reserved-seed strip that `merge_arguments` applies to every other spread. So
+  `params={"user": …}` replaced the authenticated user in the pool that decides
+  **which row gets mutated** and **which set gets bulk-deleted** — and over MCP
+  or an agent toolset those params are the tool call itself. Both nested
+  resolutions now strip the seeds, sync and async.
+
 - **A route capture could shadow the authenticated user on the HTTP selector
   path.** The view-local pool spread `view.kwargs` **over** `base_pool`, so on a
   nested route like `/users/<user>/posts/` a capture named `user` replaced
@@ -85,12 +94,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a selector spreads it). Both behaviours are pinned in
   `tests/test_transport_parity.py`.
 
-  ⚠ `dispatch_selector_for_spec` still accepts `extra_url_kwargs` and
-  `source_label` for call-compatibility, but **ignores** both: the core reads
-  `view.kwargs` itself (stripping reserved seeds) and labels shaping errors by
-  spec kind. A misconfigured `instance_selector_spec` now reports
-  `SelectorSpec.selector` rather than naming the outer field — the one
-  deliberate DX regression in this release.
+  `dispatch_selector_for_spec` **loses** its `extra_url_kwargs` and
+  `source_label` parameters. Every call site passed `view.kwargs` verbatim, and
+  the core reads it itself while stripping reserved seeds — taking the mapping
+  from the caller would reopen the bug above. ⚠ If you call this helper from
+  your own view (as `CLAUDE.md` suggests), drop both arguments.
+
+  `resolve_mutation_instance` no longer resolves `instance_selector_spec`
+  either; it returns `UNSET` and the core does it, which is why deleting
+  `source_label` costs nothing — `dispatch_spec` already labels that failure
+  `ServiceSpec.instance_selector_spec.selector`. The view's `get_object()`
+  fallback is the one branch that stays, being genuinely HTTP-only.
 
 ### Added
 

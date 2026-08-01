@@ -37,8 +37,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import is_dataclass, replace
 from typing import Any
 
-from rest_framework import exceptions as drf_exceptions
 from rest_framework import status as drf_status
+from rest_framework.exceptions import NotFound
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import Serializer
@@ -47,11 +47,12 @@ from rest_framework_dataclasses.serializers import DataclassSerializer
 from rest_framework_services.dispatch.apply_input_data import apply_input_data
 from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.selectors.utils import (
-    dispatch_selector_for_spec,
+    check_view_object_permissions,
 )
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.types.unset import UNSET
 from rest_framework_services.views.mutation.apply_response_finalizer import (
     apply_response_finalizer,
 )
@@ -452,7 +453,10 @@ def dispatch_mutation_for_spec(
     if spec.many or spec.collection_selector_spec is not None:
         return _dispatch_bulk_via_spec(view, request, spec, default_status=default_status)
 
-    view_hooks = resolve_view_hooks(view, request, instance=instance)
+    # ``instance`` may be UNSET ("the core resolves it"); the view-side
+    # providers and the renderer only ever see a real target or ``None``.
+    resolved: Any = None if instance is UNSET else instance
+    view_hooks = resolve_view_hooks(view, request, instance=resolved)
     # ``spec.partial`` is applied above and re-read by the core, so pass the
     # resolved flag through the spec-shaped seam the core already honours.
     resolved_spec = spec if spec.partial is not None else replace(spec, partial=partial)
@@ -467,9 +471,18 @@ def dispatch_mutation_for_spec(
             view=view,
             instance=instance,
             view_hooks=view_hooks,
+            on_target_resolved=check_view_object_permissions,
         )
     except ServiceError as exc:
         raise map_service_error(exc) from exc
+
+    if result.kind == "not_found":
+        # The core resolved ``instance_selector_spec`` and matched nothing. Off
+        # HTTP that is a neutral ``not_found`` for the transport to map; here it
+        # is DRF's 404. The nested spec's ``allow_none`` stays ignored — it
+        # expresses a nullable *read* contract, and a mutation against a missing
+        # row is always a 404.
+        raise NotFound()
 
     def output_context(value: Any) -> dict[str, Any]:
         # Resolved lazily with the final value so the output context provider can
@@ -497,7 +510,7 @@ def dispatch_mutation_for_spec(
         request,
         spec,
         result,
-        instance=instance,
+        instance=result.instance,
         default_status=default_status,
         render_instance_on_none=render_instance_on_none,
         output_context=output_context,
@@ -508,48 +521,29 @@ def resolve_mutation_instance(
     view: Any,
     spec: ServiceSpec[Any, Any, Any],
 ) -> Any:
-    """Resolve the instance an update / destroy / detail action targets.
+    """Resolve the mutation target, or defer to the core.
 
-    Precedence: ``spec.instance_selector_spec`` (when set with a selector)
-    → the view's ``get_object()`` chain (an ``action_specs["retrieve"]``
-    selector via :class:`SelectorRetrieveMixin`, else DRF's default
-    ``queryset`` / ``lookup_field`` lookup, else a user ``get_object()``
-    override). Used by the update / destroy viewset mixins, the standalone
-    update / delete views, and ``@service_action`` detail actions so the
-    precedence lives in one place.
+    Three outcomes:
 
-    The spec path dispatches through :func:`dispatch_selector_for_spec`
-    (the standard selector call shape: ``{request, user}`` + the view's
-    URL kwargs + the selector extras chain, queryset shaping applied,
-    RETRIEVE materialization via ``.first()``). The nested spec's
-    ``allow_none`` flag is ignored — a mutation against a missing row is
-    always a 404, so a ``None`` resolution raises
-    :exc:`~rest_framework.exceptions.NotFound` regardless. Object-level
-    permissions run against the resolved instance, matching DRF's own
-    ``get_object()`` contract — inside
-    :func:`~rest_framework_services.selectors.utils.dispatch_selector_for_spec`,
-    which is the one place every spec-resolved target passes through, rather
-    than here (where it covered only this branch and left the retrieve mixin
-    and standalone retrieve view unchecked).
-
-    Returns ``None`` for a **bulk** spec (``many=True`` or a
-    ``collection_selector_spec``): there is no single instance, and the
-    ``get_object()`` lookup would 404 a body-only bulk endpoint. The bulk path
-    resolves its target inside :func:`dispatch_mutation_for_spec` instead.
+    - ``None`` for a **bulk** spec (``many=True`` or a ``collection_selector_spec``):
+      there is no single instance, and the ``get_object()`` lookup would 404 a
+      body-only bulk endpoint.
+    - :data:`UNSET` when the spec carries an ``instance_selector_spec`` — *the
+      core resolves it*. ``dispatch_spec`` already does this for every other
+      transport, with the right kwarg pool, the right error label
+      (``ServiceSpec.instance_selector_spec.selector``), and the reserved-seed
+      strip; resolving it a second time here only created a path that could
+      drift from it. Object permissions still run — the core fires
+      ``on_target_resolved`` against the resolved target, and the HTTP caller
+      passes :func:`check_view_object_permissions`.
+    - the view's ``get_object()`` chain otherwise (an ``action_specs["retrieve"]``
+      selector via :class:`SelectorRetrieveMixin`, else DRF's default ``queryset``
+      / ``lookup_field`` lookup, else a user ``get_object()`` override). This is
+      the one branch that is genuinely HTTP-only and so cannot move.
     """
     if spec.many or spec.collection_selector_spec is not None:
         return None
     instance_spec = spec.instance_selector_spec
-    if instance_spec is None or instance_spec.selector is None:
-        return view.get_object()
-    instance = dispatch_selector_for_spec(
-        view,
-        instance_spec,
-        extra_url_kwargs=getattr(view, "kwargs", None),
-        source_label="ServiceSpec.instance_selector_spec.selector",
-    )
-    if instance is None:
-        # Only reachable with ``allow_none=True`` on the nested spec —
-        # the flag expresses a nullable *read* contract and is ignored here.
-        raise drf_exceptions.NotFound()
-    return instance
+    if instance_spec is not None and instance_spec.selector is not None:
+        return UNSET
+    return view.get_object()

@@ -482,6 +482,50 @@ def test_url_kwarg_cannot_shadow_the_authenticated_user_off_http() -> None:
     assert seen["user"] == real
 
 
+@pytest.mark.django_db
+def test_params_cannot_shadow_the_user_in_target_resolution() -> None:
+    """⚠ The nested target selectors take a *client-supplied* spread.
+
+    ``merge_arguments`` strips the reserved seeds from any spread precisely so a
+    caller-routable key can't outrank the dispatcher's authoritative value. The
+    nested target resolutions hand-built their pool instead and skipped that, so
+    ``params={"user": …}`` replaced the authenticated user in the pool that picks
+    **which row gets mutated** — and over MCP those params are the tool call.
+    """
+    seen: dict[str, Any] = {}
+    real = User.objects.create(username="real")
+    post = Post.objects.create(title="p")
+
+    def target(*, pk: Any, user: Any) -> Any:
+        seen["user"] = user
+        return Post.objects.filter(pk=pk)
+
+    spec = ServiceSpec(
+        service=lambda *, instance: None,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=target),
+    )
+    dispatch_spec(spec, user=real, params={"pk": post.pk, "user": "client-supplied"})
+    assert seen["user"] == real
+
+
+@pytest.mark.django_db
+def test_params_cannot_shadow_the_user_in_collection_resolution() -> None:
+    """The bulk twin: the pool that picks which *set* gets mutated."""
+    seen: dict[str, Any] = {}
+    real = User.objects.create(username="real")
+
+    def collection(*, user: Any) -> Any:
+        seen["user"] = user
+        return Post.objects.all()
+
+    spec = ServiceSpec(
+        service=lambda *, collection: None,
+        collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=collection),
+    )
+    dispatch_spec(spec, user=real, params={"user": "client-supplied"})
+    assert seen["user"] == real
+
+
 class _DenyObject(BasePermission):
     def has_permission(self, request: Any, view: Any) -> bool:
         return True

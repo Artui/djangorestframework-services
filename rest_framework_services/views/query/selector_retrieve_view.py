@@ -77,7 +77,7 @@ class SelectorRetrieveView(RetrieveModelMixin, GenericAPIView):
         if s is None or s.selector is None:
             obj = super().get_object()
         else:
-            obj = dispatch_selector_for_spec(self, s, extra_url_kwargs=self.kwargs)
+            obj = dispatch_selector_for_spec(self, s)
         # Stash the resolved instance so the output context provider can read
         # it via the ``instance`` extra; DRF calls get_object before
         # get_serializer_context in the retrieve flow.

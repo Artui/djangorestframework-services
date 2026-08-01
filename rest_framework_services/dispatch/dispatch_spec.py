@@ -28,6 +28,7 @@ from rest_framework_services.dispatch.utils import (
     resolve_unknown_arguments,
     service_input,
     shape_queryset,
+    strip_reserved_seeds,
     view_url_kwargs,
 )
 from rest_framework_services.selectors.utils import materialize_retrieve, run_selector
@@ -329,6 +330,7 @@ def _dispatch_service(
         kind="list" if output_is_list else "instance",
         status=status,
         service_result=result,
+        instance=instance,
         data=data,
     )
 
@@ -430,7 +432,12 @@ def _resolve_collection(
         # to a watching client reads as the work having restarted. They take the
         # no-op :func:`base_pool` supplies.
         **base_pool(user=user, request=request),
-        **params,
+        # ⚠ Reserved seeds stripped from the client spread — the same rule
+        # ``merge_arguments`` applies to every other pool. Without it a caller
+        # sending ``{"user": …}`` outranks the dispatcher's authoritative value
+        # in the pool that decides *which row* (or which set) is mutated, and
+        # over MCP that spread is the tool call.
+        **strip_reserved_seeds(params),
         **view_url_kwargs(view),
     }
     pool.update(resolve_provider(coll_spec.kwargs, {"view": view, "request": request}))
@@ -512,7 +519,12 @@ def _resolve_instance(
         # to a watching client reads as the work having restarted. They take the
         # no-op :func:`base_pool` supplies.
         **base_pool(user=user, request=request),
-        **params,
+        # ⚠ Reserved seeds stripped from the client spread — the same rule
+        # ``merge_arguments`` applies to every other pool. Without it a caller
+        # sending ``{"user": …}`` outranks the dispatcher's authoritative value
+        # in the pool that decides *which row* (or which set) is mutated, and
+        # over MCP that spread is the tool call.
+        **strip_reserved_seeds(params),
         **view_url_kwargs(view),
     }
     pool.update(resolve_provider(instance_spec.kwargs, {"view": view, "request": request}))
