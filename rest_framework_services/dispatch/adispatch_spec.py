@@ -7,13 +7,13 @@ from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 
+from rest_framework_services.dispatch.apply_input_data import apply_input_data
 from rest_framework_services.dispatch.base_pool import base_pool
 from rest_framework_services.dispatch.utils import (
     COLLECTION_SOURCE,
     INSTANCE_SOURCE,
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
-    apply_input_data,
     arun_callable,
     arun_off_loop,
     arun_service_callable,
@@ -32,7 +32,7 @@ from rest_framework_services.dispatch.utils import (
     shape_queryset,
     view_url_kwargs,
 )
-from rest_framework_services.selectors.utils import is_queryset
+from rest_framework_services.selectors.utils import amaterialize_retrieve
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.progress_reporter import ProgressReporter
@@ -175,7 +175,7 @@ async def _adispatch_selector(
             view=view,
         )
         return DispatchResult(value=result, kind="list", status=200)
-    instance: Any = await result.afirst() if is_queryset(result) else result
+    instance: Any = await amaterialize_retrieve(spec, result)
     if instance is None:
         return _missing_or_null(spec)
     # RETRIEVE: guard the resolved row (object-level permissions run here).
@@ -469,7 +469,7 @@ async def _arun_output_selector(
     )
     if out_spec.kind is SelectorKind.LIST:
         return selected, True
-    return (await selected.afirst() if is_queryset(selected) else selected), False
+    return (await amaterialize_retrieve(out_spec, selected)), False
 
 
 async def _aresolve_instance(
@@ -514,7 +514,7 @@ async def _aresolve_instance(
         )
     except ObjectDoesNotExist:
         return (False, None)
-    instance: Any = await result.afirst() if is_queryset(result) else result
+    instance: Any = await amaterialize_retrieve(instance_spec, result)
     if instance is None:
         return (False, None)
     return (True, instance)

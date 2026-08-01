@@ -36,6 +36,10 @@ from rest_framework_services.viewsets.selector_viewset import SelectorViewSet
 from tests.testapp.models import Post
 
 
+class _TitleOnlyInput(serializers.Serializer):
+    title = serializers.CharField()
+
+
 class _TitleInput(serializers.Serializer):
     title = serializers.CharField()
     tenant = serializers.CharField()
@@ -102,6 +106,23 @@ def test_input_data_client_value_loses_to_provider_off_http() -> None:
         _INPUT_DATA_SPEC, user=None, params={"title": "t", "tenant": "client-supplied"}
     )
     assert result.value["tenant"] == "server-supplied"
+
+
+@pytest.mark.django_db
+def test_input_data_over_http_survives_a_form_encoded_body() -> None:
+    """A form body is a ``QueryDict`` (``{key: [values]}`` internally).
+
+    Plain ``dict()``-ing or dict-unpacking one exposes those value *lists*, so
+    every scalar field becomes ``['x']`` and validation fails. The merge has to
+    go through the QueryDict-aware path — this pins it, because the hazard is
+    invisible to JSON-only tests and the single-instance path routes its body
+    through the shared core.
+    """
+    response = _create_view(_INPUT_DATA_SPEC)(
+        APIRequestFactory().post("/x/", {"title": "t"}, format="multipart")
+    )
+    assert response.status_code == 201
+    assert response.data == {"title": "t", "tenant": "server-supplied"}
 
 
 # --- async services ------------------------------------------------------
@@ -227,6 +248,39 @@ def test_input_data_hook_applies_to_bulk() -> None:
 
 
 @pytest.mark.django_db
+def test_output_serializer_context_hook_applies_to_bulk() -> None:
+    """The *output* context hook reaches the bulk renderer too.
+
+    The last of the four chains, and the one that survives longest unnoticed —
+    it only shows up when a spec both renders through an output serializer and
+    reads view-supplied context.
+    """
+    seen: dict[str, Any] = {}
+
+    class _Out(serializers.ModelSerializer):
+        tenant = serializers.SerializerMethodField()
+
+        class Meta:
+            model = Post
+            fields = ("id", "tenant")
+
+        def get_tenant(self, obj: Any) -> Any:
+            seen["tenant"] = self.context.get("tenant")
+            return seen["tenant"]
+
+    spec = ServiceSpec(
+        service=lambda *, data: [Post.objects.create(title=item["title"]) for item in data],
+        input_serializer=_TitleOnlyInput,
+        many=True,
+        output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_Out),
+    )
+    _create_view(spec, get_output_serializer_context=lambda self: {"tenant": "from-view-hook"})(
+        APIRequestFactory().post("/x/", [{"title": "a"}], format="json")
+    )
+    assert seen["tenant"] == "from-view-hook"
+
+
+@pytest.mark.django_db
 def test_input_serializer_context_hook_applies_to_bulk() -> None:
     """A validator reading ``self.context`` sees the view's context on bulk too."""
     seen: dict[str, Any] = {}
@@ -255,6 +309,64 @@ def test_input_serializer_context_hook_applies_to_bulk() -> None:
 # which runs ``check_object_permissions`` — with ``dispatch_selector_for_spec``,
 # which did not, so the object-level half of a spec's permissions was enforced
 # over MCP and skipped over HTTP.
+
+
+def _retrieve_viewset(spec: SelectorSpec[Any, Any]) -> Any:
+    return type(
+        "_VS",
+        (SelectorViewSet,),
+        {"queryset": Post.objects.all(), "action_specs": {"retrieve": spec}},
+    ).as_view({"get": "retrieve"})
+
+
+@pytest.mark.django_db
+def test_retrieve_materialization_agrees_across_transports() -> None:
+    """A RETRIEVE selector returning a queryset collapses the same way on both.
+
+    ⚠ The selector *pool* deliberately differs — see the module note in
+    ``selectors.utils`` — but what ``kind=RETRIEVE`` does to the selector's
+    return must not, or the field would mean two things.
+    """
+    post = Post.objects.create(title="only")
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=lambda *, pk: Post.objects.filter(pk=pk),
+        output_serializer=_post_serializer(),
+    )
+    http = _retrieve_viewset(spec)(APIRequestFactory().get(f"/x/{post.pk}/"), pk=post.pk)
+    offline = dispatch_spec(spec, user=None, params={"pk": post.pk})
+    assert http.data["id"] == post.pk
+    assert offline.value.pk == post.pk
+
+
+@pytest.mark.django_db
+def test_retrieve_allow_none_agrees_across_transports() -> None:
+    """A nullable retrieve that resolves nothing: 200 + null, and a null value."""
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=lambda *, pk: Post.objects.filter(pk=pk),
+        output_serializer=_post_serializer(),
+        allow_none=True,
+    )
+    http = _retrieve_viewset(spec)(APIRequestFactory().get("/x/999/"), pk=999)
+    offline = dispatch_spec(spec, user=None, params={"pk": 999})
+    assert http.status_code == 200
+    assert http.data is None
+    assert offline.kind == "instance"
+    assert offline.value is None
+
+
+@pytest.mark.django_db
+def test_retrieve_missing_is_404_on_both() -> None:
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=lambda *, pk: Post.objects.filter(pk=pk),
+        output_serializer=_post_serializer(),
+    )
+    http = _retrieve_viewset(spec)(APIRequestFactory().get("/x/999/"), pk=999)
+    offline = dispatch_spec(spec, user=None, params={"pk": 999})
+    assert http.status_code == 404
+    assert (offline.kind, offline.status) == ("not_found", 404)
 
 
 class _DenyObject(BasePermission):

@@ -7,14 +7,15 @@ from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 
+from rest_framework_services.dispatch.apply_input_data import apply_input_data
 from rest_framework_services.dispatch.base_pool import base_pool
 from rest_framework_services.dispatch.utils import (
     COLLECTION_SOURCE,
     INSTANCE_SOURCE,
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
-    apply_input_data,
     call_target_guard,
+    clear_prefetch_cache,
     guard_many_argument_binding,
     merge_arguments,
     resolve_argument_binding,
@@ -29,7 +30,7 @@ from rest_framework_services.dispatch.utils import (
     shape_queryset,
     view_url_kwargs,
 )
-from rest_framework_services.selectors.utils import is_queryset, run_selector
+from rest_framework_services.selectors.utils import materialize_retrieve, run_selector
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.dispatch_result import DispatchResult
@@ -39,6 +40,7 @@ from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.target_guard import TargetGuard
 from rest_framework_services.types.unknown_arguments import UnknownArguments
+from rest_framework_services.types.unset import UNSET
 from rest_framework_services.types.view_hooks import ViewHooks
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.mutation.utils import build_input_serializer_from_data
@@ -57,6 +59,15 @@ def dispatch_spec(
     on_target_resolved: TargetGuard | None = None,
     progress: ProgressReporter | None = None,
     view_hooks: ViewHooks | None = None,
+    instance: Any = UNSET,
+    # ⚠ Only meaningful when ``params`` is *not* the filter source. Off HTTP the
+    # single flat ``params`` mapping is both the callable's input and the
+    # ``filter_set`` data, so this stays ``None``. Over HTTP they are two
+    # different things — the body validates, the **query string** filters — and
+    # merging them would quietly let a query parameter satisfy a serializer
+    # field. So the HTTP caller passes its query params here and keeps ``params``
+    # as the body.
+    filter_data: Mapping[str, Any] | None = None,
 ) -> DispatchResult:
     """Execute ``spec`` without a DRF view, returning a :class:`DispatchResult`.
 
@@ -123,6 +134,8 @@ def dispatch_spec(
             on_target_resolved=on_target_resolved,
             progress=progress,
             view_hooks=view_hooks,
+            instance=instance,
+            filter_data=filter_data,
         )
     if isinstance(spec, SelectorSpec):
         return _dispatch_selector(
@@ -189,7 +202,7 @@ def _dispatch_selector(
         # is not a Model, so fix (a) skips has_object_permission).
         call_target_guard(on_target_resolved, spec, result, user=user, request=request, view=view)
         return DispatchResult(value=result, kind="list", status=200)
-    instance: Any = result.first() if is_queryset(result) else result
+    instance: Any = materialize_retrieve(spec, result)
     if instance is None:
         return _missing_or_null(spec)
     # RETRIEVE: guard the resolved row (object-level permissions run here).
@@ -217,6 +230,8 @@ def _dispatch_service(
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
     view_hooks: ViewHooks | None,
+    instance: Any,
+    filter_data: Mapping[str, Any] | None,
 ) -> DispatchResult:
     if spec.many:
         return _dispatch_service_many(
@@ -233,9 +248,17 @@ def _dispatch_service(
             view_hooks=view_hooks,
         )
 
-    mode, target = _resolve_target(spec, user=user, params=params, request=request, view=view)
-    if mode == "missing":
-        return DispatchResult(value=None, kind="not_found", status=404)
+    if instance is not UNSET:
+        # The caller resolved the target itself — the HTTP path, whose
+        # ``get_object()`` chain (view ``queryset`` / ``lookup_field`` / a user
+        # override) has no off-HTTP meaning and so cannot live in this core.
+        # ``None`` is a *supplied* value here (a create), which is why the
+        # sentinel and not ``None`` marks "resolve it yourself".
+        mode, target = "instance", instance
+    else:
+        mode, target = _resolve_target(spec, user=user, params=params, request=request, view=view)
+        if mode == "missing":
+            return DispatchResult(value=None, kind="not_found", status=404)
     call_target_guard(on_target_resolved, spec, target, user=user, request=request, view=view)
     instance = target if mode == "instance" else None
 
@@ -247,7 +270,7 @@ def _dispatch_service(
         ),
     )
     serializer = build_input_serializer_from_data(
-        dict(params),
+        params,
         spec.input_serializer,
         partial=spec.partial or False,
         context=input_context,
@@ -281,8 +304,14 @@ def _dispatch_service(
     result: Any = run_service(
         spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
     )
+    clear_prefetch_cache(instance)
     output_result, output_is_list = _run_output_selector(
-        spec, result, user=user, request=request, view=view, params=params
+        spec,
+        result,
+        user=user,
+        request=request,
+        view=view,
+        params=filter_data if filter_data is not None else params,
     )
 
     # A callable ``spec.success_status`` keys on the *service's* return value
@@ -296,7 +325,11 @@ def _dispatch_service(
         else resolve_success_status(spec.success_status, default=200, pool=status_pool)
     )
     return DispatchResult(
-        value=output_result, kind="list" if output_is_list else "instance", status=status
+        value=output_result,
+        kind="list" if output_is_list else "instance",
+        status=status,
+        service_result=result,
+        data=data,
     )
 
 
@@ -452,7 +485,7 @@ def _run_output_selector(
     )
     if out_spec.kind is SelectorKind.LIST:
         return selected, True
-    return (selected.first() if is_queryset(selected) else selected), False
+    return materialize_retrieve(out_spec, selected), False
 
 
 def _resolve_instance(
@@ -497,7 +530,7 @@ def _resolve_instance(
         )
     except ObjectDoesNotExist:
         return (False, None)
-    instance: Any = result.first() if is_queryset(result) else result
+    instance: Any = materialize_retrieve(instance_spec, result)
     if instance is None:
         return (False, None)
     return (True, instance)

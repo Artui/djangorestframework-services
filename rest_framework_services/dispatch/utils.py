@@ -449,6 +449,7 @@ def resolve_output_context(
     view: Any,
     request: Any,
     extras: Mapping[str, Any],
+    view_hooks: ViewHooks | None = None,
 ) -> dict[str, Any]:
     """Resolve the output serializer context for either spec kind.
 
@@ -463,8 +464,15 @@ def resolve_output_context(
     ``extras`` carries the resolved-data keyword the provider may declare
     (``result`` for a mutation, ``instance`` for a retrieve, ``page`` for a
     list). Invoked through the keyword pool.
+
+    ``view_hooks`` supplies the calling view's ``get_output_serializer_context``
+    / ``get_<action>_output_serializer_context`` layer, between the baseline and
+    the spec provider. It is lazy — resolved with the value being rendered — so
+    a provider can run one batched query against exactly that value.
     """
     context: dict[str, Any] = base_serializer_context(view=view, request=request)
+    if view_hooks is not None and view_hooks.output_serializer_context is not None:
+        context.update(view_hooks.output_serializer_context(extras.get("result")))
     provider = _output_context_provider(spec)
     if provider is not None:
         pool: dict[str, Any] = {"view": view, "request": request, **extras}
@@ -549,19 +557,25 @@ def resolve_input_data(
     return data
 
 
-def apply_input_data(params: Any, extra: Mapping[str, Any]) -> Any:
-    """Merge ``extra`` onto the client ``params``, server-provided keys winning.
+def clear_prefetch_cache(instance: Any) -> None:
+    """Drop a mutated instance's stale ``_prefetched_objects_cache``.
 
-    Mirrors the HTTP merge's precedence rule. A ``many=True`` payload is a *list*,
-    so the merge applies **per item** — the only coherent reading of "these keys
-    are supplied by the server" for a batch, and what makes the ``input_data``
-    chain mean the same thing on the single and bulk paths.
+    Mirrors DRF's ``UpdateModelMixin``: a mutating service may have changed a
+    related collection the target prefetched (via a prefetching
+    ``instance_selector_spec`` or the view's queryset), leaving the cache stale so
+    a re-serialization reads pre-mutation related data. Guarded two ways — a no-op
+    on create (``instance is None``) and when nothing was prefetched.
+
+    Lives here rather than in the view layer because nothing about it is
+    HTTP-shaped: an MCP tool call that updates a prefetched row and renders it
+    back had exactly the same stale read.
+
+    The final dispatched value is deliberately left untouched — an
+    ``output_selector_spec`` re-fetch carries its own intentional
+    ``prefetch_related`` that must survive.
     """
-    if not extra:
-        return params
-    if isinstance(params, list):
-        return [{**item, **extra} for item in params]
-    return {**params, **extra}
+    if instance is not None and getattr(instance, "_prefetched_objects_cache", None):
+        instance._prefetched_objects_cache = {}
 
 
 async def arun_off_loop(fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:

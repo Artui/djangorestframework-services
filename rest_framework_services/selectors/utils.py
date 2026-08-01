@@ -193,6 +193,34 @@ def _filter_set_accepts_request(filter_set: Any) -> bool:
     )
 
 
+def materialize_retrieve(spec: SelectorSpec[Any, Any], result: Any) -> Any:
+    """Collapse a RETRIEVE selector's return to the single instance, or ``None``.
+
+    The one definition of what ``kind=RETRIEVE`` means once the selector has run:
+    a QuerySet materializes through ``.first()`` (so an author can write
+    ``selector=lambda *, pk: Model.objects.filter(pk=pk)`` and still get the
+    spec's shaping applied first), anything else passes through as the resolved
+    object.
+
+    Shared by the HTTP path and ``dispatch_spec`` deliberately. What each does
+    with a ``None`` differs — HTTP raises ``NotFound`` unless ``allow_none``, the
+    neutral path returns a ``not_found`` result for the transport to map — but
+    *how the value is arrived at* must not, or ``kind`` would quietly mean two
+    things.
+    """
+    return result.first() if is_queryset(result) else result
+
+
+async def amaterialize_retrieve(spec: SelectorSpec[Any, Any], result: Any) -> Any:
+    """Async twin of :func:`materialize_retrieve` — ``.afirst()`` off the loop.
+
+    Separate because the materialization itself is the query: ``.first()`` would
+    block the event loop, so the async dispatcher must ``await .afirst()``. Same
+    rule, different await — keep the two in step.
+    """
+    return await result.afirst() if is_queryset(result) else result
+
+
 def dispatch_selector_for_spec(
     view: Any,
     spec: SelectorSpec[Any, Any],
@@ -271,7 +299,7 @@ def dispatch_selector_for_spec(
         # mis-authorize. Scoping a list is ``filter_set`` / the selector's own
         # queryset, exactly as ``enforce_permissions`` documents off HTTP.
         return result
-    instance = result.first() if is_queryset(result) else result
+    instance = materialize_retrieve(spec, result)
     if instance is None and not spec.allow_none:
         raise NotFound()
     if instance is not None:

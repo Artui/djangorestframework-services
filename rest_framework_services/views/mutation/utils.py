@@ -19,21 +19,24 @@ Public leaf helpers:
   detail action targets: ``spec.instance_selector_spec`` when set, else the
   view's ``get_object()`` chain.
 
-Internal:
+- ``resolve_view_hooks`` — collect the view's hook chains into a ``ViewHooks``
+  carrier for the dispatch core (view layers only; the spec's own providers
+  stay the core's job).
+- ``render_mutation_response`` — turn a ``DispatchResult`` into the HTTP
+  ``Response``: status against the action default, output serializer, finalizer.
 
-- ``_execute_mutation`` — the underlying flow runner. Used by
-  :class:`~rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin`
-  (composed into views / per-action mixins) and by ``@service_action``
-  (which can't inherit from a mixin because it's a decorator).
+There is deliberately **no** flow runner here any more. The mutation pipeline
+lives in ``dispatch_spec``, and this module is the HTTP half either side of it —
+hooks in, response out. A behaviour that belongs to the *spec* belongs in the
+core, or it will be honoured on one transport and not the other.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import is_dataclass
+from dataclasses import is_dataclass, replace
 from typing import Any
 
-from django.http import QueryDict
 from rest_framework import exceptions as drf_exceptions
 from rest_framework import status as drf_status
 from rest_framework.request import Request
@@ -41,16 +44,13 @@ from rest_framework.response import Response
 from rest_framework.serializers import Serializer
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
-from rest_framework_services.dispatch.base_pool import base_pool
+from rest_framework_services.dispatch.apply_input_data import apply_input_data
 from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.selectors.utils import (
-    apply_queryset_shaping,
     dispatch_selector_for_spec,
-    is_queryset,
-    run_selector,
 )
 from rest_framework_services.services.run_service import run_service
-from rest_framework_services.types.selector_spec import SelectorSpec
+from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.view_hooks import ViewHooks
 from rest_framework_services.views.mutation.apply_response_finalizer import (
@@ -62,7 +62,6 @@ from rest_framework_services.views.mutation.map_service_error import (
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.utils import (
     layer_serializer_context,
-    resolve_callable_kwargs,
     resolve_extra_kwargs,
     resolve_input_extras,
     resolve_serializer_context,
@@ -134,26 +133,12 @@ def build_input_serializer(
 def _merge_extra_data(request_data: Any, extra_data: Mapping[str, Any]) -> Any:
     """Merge server-provided ``extra_data`` on top of a request body.
 
-    A JSON body parses to a plain ``dict`` and merges by unpacking, extras
-    winning on overlap. A form-encoded / multipart body, however, is a DRF
-    ``QueryDict`` whose internal storage is ``{key: [values]}`` — dict-unpacking
-    it (``{**request_data, ...}``) would expose those value *lists*, turning
-    every scalar field into a one-element list and breaking validation (a
-    ``ChoiceField`` would see ``['X']`` → ``invalid_choice``). Copy the QueryDict
-    (``.copy()`` returns a mutable one) and set each extra through its native
-    API instead — ``setlist`` for list/tuple values, plain assignment for
-    scalars — so scalars stay scalars and multi-value fields keep their lists,
-    matching how DRF's own serializers consume a QueryDict.
+    Delegates to :func:`~rest_framework_services.dispatch.utils.apply_input_data`,
+    which owns the merge (including the QueryDict handling a form-encoded body
+    needs) for every transport. Kept as a name here because
+    :func:`build_input_serializer` is public and reads better for it.
     """
-    if not isinstance(request_data, QueryDict):
-        return {**request_data, **extra_data}
-    merged = request_data.copy()
-    for key, value in extra_data.items():
-        if isinstance(value, (list, tuple)):
-            merged.setlist(key, list(value))
-        else:
-            merged[key] = value
-    return merged
+    return apply_input_data(request_data, extra_data)
 
 
 def build_input_serializer_from_data(
@@ -242,228 +227,101 @@ def dispatch_service(
     return run_service(fn, kwargs, atomic=atomic)
 
 
-def _execute_mutation(
+def render_mutation_response(
     view: Any,
     request: Request,
+    spec: ServiceSpec[Any, Any, Any],
+    result: DispatchResult,
     *,
-    service: Callable[..., Any],
-    input_serializer: type | None,
-    output_selector_spec: SelectorSpec[Any, Any] | None,
-    atomic: bool,
-    success_status: int | Callable[..., int] | None,
-    success_default: int,
-    render_instance_on_none: bool,
     instance: Any,
-    extra_kwargs: dict[str, Any] | None = None,
-    extra_input_data: Mapping[str, Any] | None = None,
-    input_context: dict[str, Any] | None = None,
-    resolve_output_context: Callable[[Any], dict[str, Any]] | None = None,
-    response_finalizer: Callable[..., Response | None] | None = None,
-    partial: bool = False,
+    default_status: int,
+    render_instance_on_none: bool,
+    output_context: Callable[[Any], dict[str, Any]],
 ) -> Response:
-    """Internal flow runner shared by ``MutationFlowMixin`` and ``@service_action``.
+    """Turn a :class:`DispatchResult` into the HTTP ``Response`` for a mutation.
 
-    Steps:
-      1. Validate input → bound serializer + ``validated_data``. On
-         update / destroy flows the resolved ``instance`` is threaded into
-         the serializer (``serializer(instance, data=..., partial=...)``)
-         so instance-dependent validation works.
-      2. Build kwarg pool (request, user, instance?, data?, serializer?,
-         extras).
-      3. Resolve service signature against pool, dispatch.
-      4. Map ``ServiceError`` → DRF exception on raise.
-      5. If ``output_selector_spec`` carries a selector, invoke it (with the
-         service result added to the pool as ``result``) and apply the
-         spec's queryset shaping; materialize a QuerySet via ``.first()``
-         since the nested spec is always retrieve-shaped. Otherwise fall
-         back to the in-memory ``instance`` when the service returned None.
-      6. Resolve ``success_status`` (an ``int`` verbatim, a callable through
-         the status pool ``{result, instance, request, view}``, else
-         ``success_default``). A callable keys on the *service's* return value.
-      7. Render via the nested spec's ``output_serializer`` (or raw, or an
-         empty-body response). A ``None`` result with no output serializer
-         renders an empty body at the resolved status when
-         ``success_status`` was set, else 204; a selector that returned
-         ``None`` always renders 204.
-      8. Apply ``response_finalizer`` (2xx only, pre-render) to the built
-         ``Response`` — cookies / headers / a swapped response. See
-         :func:`~rest_framework_services.views.mutation.apply_response_finalizer.apply_response_finalizer`.
+    Everything downstream of the dispatch that is genuinely transport-shaped, and
+    nothing that isn't. The pipeline itself — validate → pool → service → output
+    selector → status — lives in ``dispatch_spec``; this is the half that only
+    means something over HTTP:
 
-    ``render_instance_on_none`` is the update-vs-destroy intent flag: update
-    callers pass ``True`` so a service that mutates in place and returns
-    ``None`` still renders the instance; destroy passes ``False`` so a stale
-    post-delete instance is never surfaced.
+    1. Resolve the success status against the *action's* default (201 create /
+       200 update / 204 destroy), which the core cannot know. A callable
+       ``spec.success_status`` keys on ``result.service_result`` — the service's
+       own return, the flags carrier — not on the post-selector value.
+    2. Fall back to the in-memory ``instance`` when an in-place update returned
+       ``None``. See ``render_instance_on_none`` below.
+    3. Render through the output serializer, or emit a body-less response.
+    4. Apply ``spec.response_finalizer`` (2xx, pre-render).
 
-    ``resolve_output_context`` builds the output serializer's ``context=``
-    dict. It is called with the *final* ``result`` (post-selector,
-    post-fallback) so the output context provider can see — and run a single
-    batched query against — the exact instance being serialized. Resolving
-    it lazily here, rather than eagerly in :func:`dispatch_mutation_for_spec`,
-    is what makes ``result`` available to the provider.
-
-    ``view`` is intentionally absent from the *service/selector* pool: they are
-    plain business logic and should not reach back into the calling view. When
-    a callable needs view state (URL kwargs, action name, etc.), pipe it
-    through ``ServiceSpec.kwargs`` / ``SelectorSpec.kwargs`` instead. The
-    ``response_finalizer`` pool is the one documented exception — it *does*
-    carry ``view`` (a response decision legitimately needs view/request state).
+    ``render_instance_on_none`` is the caller's update-vs-destroy intent. It is
+    deliberately **not** a spec field and deliberately **not** transport-neutral:
+    off HTTP the equivalent is ``output_selector_spec``, and the flag's only
+    load-bearing use is destroy — ``@service_action`` passes ``detail``, but a
+    non-detail action has no instance, so the ``instance is not None`` gate below
+    already decides those. What it really means is "the target still exists".
     """
-    serializer_instance: Serializer | None = build_input_serializer(
-        request,
-        input_serializer,
-        partial=partial,
-        extra_data=extra_input_data,
-        context=input_context,
-        instance=instance,
-    )
-    data: Any = serializer_instance.validated_data if serializer_instance is not None else None
-    # Through ``base_pool`` rather than restating the seeds: the set has grown
-    # past the two names this used to inline, and a seed present off-HTTP but
-    # not here would mean a service that declares it works over one transport
-    # and raises a ``TypeError`` over the other.
-    pool: dict[str, Any] = base_pool(user=getattr(request, "user", None), request=request)
-    if instance is not None:
-        pool["instance"] = instance
-    if serializer_instance is not None:
-        # ``serializer`` is a reserved framework seed (like ``request`` /
-        # ``user`` / ``data``): only services that declare it receive the
-        # bound, validated serializer — e.g. to call ``.save()`` when
-        # persistence lives on the serializer (nested-write patterns).
-        pool["data"] = data
-        pool["serializer"] = serializer_instance
-    if extra_kwargs:
-        pool.update(extra_kwargs)
-
-    try:
-        result: Any = dispatch_service(
-            service,
-            resolve_callable_kwargs(service, pool),
-            atomic=atomic,
-        )
-    except ServiceError as exc:
-        raise map_service_error(exc) from exc
-
-    # The service's raw return value, captured before an output selector can
-    # replace ``result`` below. Both a callable ``success_status`` and the
-    # ``response_finalizer`` key on this — the flags carrier (e.g. an upsert
-    # DTO's created flag), not a re-fetched output instance.
-    service_result: Any = result
-
-    # Mirror DRF's ``UpdateModelMixin``: a mutating service may have changed a
-    # related collection the target instance prefetched (via a prefetching
-    # ``instance_selector_spec`` or the ``get_object()`` queryset), leaving its
-    # ``_prefetched_objects_cache`` stale. Clear it on the resolved in-memory
-    # instance so a re-serialization reads fresh related data. Guarded: a no-op
-    # on create (``instance`` is ``None``) and when nothing was prefetched. The
-    # final ``result`` is deliberately left untouched — an ``output_selector_spec``
-    # re-fetch carries its own intentional ``prefetch_related`` that must survive.
-    if instance is not None and getattr(instance, "_prefetched_objects_cache", None):
-        instance._prefetched_objects_cache = {}
-
-    output_serializer: type[Serializer] | None = None
-    if output_selector_spec is not None:
-        output_serializer = output_selector_spec.output_serializer
-        selector = output_selector_spec.selector
-        if selector is not None:
-            selector_pool: dict[str, Any] = {**pool, "result": result}
-            result = run_selector(
-                selector,
-                resolve_callable_kwargs(selector, selector_pool),
-            )
-            result = apply_queryset_shaping(
-                result,
-                view,
-                request,
-                select_related=output_selector_spec.select_related,
-                prefetch_related=output_selector_spec.prefetch_related,
-                annotations=output_selector_spec.annotations,
-                extend_queryset=output_selector_spec.extend_queryset,
-                # Parity with dispatch_spec's output re-fetch: apply the
-                # nested spec's filter_set here too. filter_data falls back to
-                # request.query_params (the blessed filter_set source on HTTP),
-                # so the same output_selector_spec filters identically on both the
-                # HTTP and transport-neutral paths.
-                filter_set=output_selector_spec.filter_set,
-                source_label="ServiceSpec.output_selector_spec.selector",
-            )
-            if is_queryset(result):
-                # Materialize a QuerySet return to a single instance — the
-                # nested spec is retrieve-shaped, so a user can write
-                # ``selector=lambda result: Model.objects.filter(pk=result.pk)``
-                # and rely on the spec's shaping to apply.
-                result = result.first()
-
+    value: Any = result.value
     selector_ran: bool = (
-        output_selector_spec is not None and output_selector_spec.selector is not None
+        spec.output_selector_spec is not None and spec.output_selector_spec.selector is not None
+    )
+    output_serializer: type[Serializer] | None = (
+        spec.output_selector_spec.output_serializer
+        if spec.output_selector_spec is not None
+        else None
     )
 
     if (
-        result is None
+        value is None
         and instance is not None
         and render_instance_on_none
         and output_serializer is not None
         and not selector_ran
     ):
-        # Update-in-place that returned nothing — render the in-memory instance
-        # through the configured output serializer, mirroring DRF's
-        # ``UpdateAPIView`` shape. Gated three ways: it needs an output
-        # serializer (there is nothing to render a raw model instance with
-        # otherwise — see the empty-body branch below); it is keyed on the
-        # caller's ``render_instance_on_none`` intent rather than on the status
-        # code, so destroy (which passes ``False``) never surfaces a stale
-        # post-delete instance even when given a custom success status; and it
-        # is skipped when an output selector already ran (its ``None`` return
-        # is authoritative).
-        result = instance
+        # Update-in-place that returned nothing — render the in-memory instance,
+        # mirroring DRF's ``UpdateAPIView``. Gated three ways: it needs an output
+        # serializer (nothing else could render a raw model instance); it keys on
+        # the caller's intent rather than the status code, so destroy never
+        # surfaces a stale post-delete row even with a custom success status; and
+        # a selector that already ran owns its ``None``.
+        value = instance
 
-    # Resolve the success status now that the service has run. A callable
-    # ``success_status`` keys on the service's return value (``result``) and the
-    # resolved ``instance`` — e.g. an upsert returning 200 vs 201. This status
-    # pool is distinct from the service/selector ``pool`` above and, unlike it,
-    # deliberately includes ``view``: a status decision may legitimately read
-    # view/request context, whereas business logic must not (see the pool note
-    # in the docstring).
-    status_pool: dict[str, Any] = {"request": request, "view": view, "result": service_result}
+    status_pool: dict[str, Any] = {
+        "request": request,
+        "view": view,
+        "result": result.service_result,
+    }
     if instance is not None:
         status_pool["instance"] = instance
     resolved_status: int = resolve_success_status(
-        success_status, default=success_default, pool=status_pool
+        spec.success_status, default=default_status, pool=status_pool
     )
-    # Empty-body responses fall back to 204 when ``success_status`` is unset;
-    # a set int/callable applies uniformly (mirrors the pre-callable behaviour
-    # where ``empty_body_status`` was ``spec.success_status`` if set, else 204).
+    # Empty-body responses fall back to 204 when ``success_status`` is unset; a
+    # set int/callable applies uniformly.
     resolved_empty_status: int = (
-        drf_status.HTTP_204_NO_CONTENT if success_status is None else resolved_status
+        drf_status.HTTP_204_NO_CONTENT if spec.success_status is None else resolved_status
     )
 
     if output_serializer is not None:
-        output_context = resolve_output_context(result) if resolve_output_context else {}
-        serializer = output_serializer(result, context=output_context)
-        response = Response(serializer.data, status=resolved_status)
-    elif result is not None:
-        response = Response(result, status=resolved_status)
+        response = Response(
+            output_serializer(value, context=output_context(value)).data, status=resolved_status
+        )
+    elif value is not None:
+        response = Response(value, status=resolved_status)
     elif selector_ran:
-        # Empty body. A selector that returned ``None`` is an authoritative
-        # no-content result → always 204.
+        # A selector that returned ``None`` is an authoritative no-content result.
         response = Response(status=drf_status.HTTP_204_NO_CONTENT)
     else:
-        # Otherwise honor ``resolved_empty_status`` — the caller's explicitly-set
-        # ``success_status`` if any, else 204. This is what lets a destroy (or
-        # any no-output mutation) carry a custom success status while a
-        # body-less default still reads as 204.
         response = Response(status=resolved_empty_status)
 
-    # 2xx, post-serialization, pre-render: the finalizer may attach cookies /
-    # headers or swap the response wholesale. ``result`` is the service's raw
-    # return (the flags carrier); ``view`` is deliberately available here.
     return apply_response_finalizer(
-        response_finalizer,
+        spec.response_finalizer,
         response,
         request=request,
         view=view,
-        result=service_result,
+        result=result.service_result,
         instance=instance,
-        data=data,
+        data=result.data,
     )
 
 
@@ -557,6 +415,7 @@ def _dispatch_bulk_via_spec(
         url_kwargs = getattr(view, "kwargs", None) or {}
         params = {**request.query_params.dict(), **body, **url_kwargs}
 
+    view_hooks = resolve_view_hooks(view, request)
     try:
         result = dispatch_spec(
             spec,
@@ -564,7 +423,7 @@ def _dispatch_bulk_via_spec(
             params=params,
             request=request,
             view=view,
-            view_hooks=resolve_view_hooks(view, request),
+            view_hooks=view_hooks,
         )
     except ServiceError as exc:
         raise map_service_error(exc) from exc
@@ -581,6 +440,7 @@ def _dispatch_bulk_via_spec(
             view=view,
             request=request,
             extras={"result": result.value},
+            view_hooks=view_hooks,
         )
         if status == drf_status.HTTP_204_NO_CONTENT:
             # A bulk op that returns a body but inherited the destroy default.
@@ -606,95 +466,91 @@ def dispatch_mutation_for_spec(
     render_instance_on_none: bool,
     partial: bool = False,
 ) -> Response:
-    """End-to-end dispatch for one ``ServiceSpec`` call.
+    """End-to-end dispatch for one ``ServiceSpec`` call over HTTP.
 
-    Runs the kwargs-resolution chain (``spec.kwargs`` →
-    ``get_<action>_service_kwargs`` → ``get_service_kwargs``) and the
-    underlying mutation flow. Used by :class:`MutationFlowMixin`,
-    standalone mutation views, and ``@service_action`` so the call shape
-    lives in one place.
+    Used by :class:`MutationFlowMixin`, the standalone mutation views, and
+    ``@service_action`` so the call shape lives in one place.
+
+    Three steps, and the middle one is not HTTP's:
+
+    1. **Resolve the view's hook chains** (:func:`resolve_view_hooks`) — the
+       ``get_service_kwargs`` / ``get_input_data`` / serializer-context methods
+       and their per-action twins. These are methods on a DRF view, so the core
+       cannot reach them; the view resolves them and hands them down.
+    2. **Dispatch** through :func:`~rest_framework_services.dispatch_spec` — the
+       single pipeline, shared with MCP and every other transport. The target is
+       passed in rather than resolved there, because HTTP's ``get_object()``
+       chain (view ``queryset`` / ``lookup_field`` / a user override) has no
+       off-HTTP meaning.
+    3. **Render** (:func:`render_mutation_response`) — status against the
+       action's default, the output serializer, the finalizer.
 
     ``partial`` is the transport-derived flag (PATCH → ``True``);
-    ``spec.partial`` overrides it when set. Being the single call-shape
-    point, the override is honoured uniformly across every surface —
-    including create dispatch, so a create spec with ``partial=True``
-    validates partially.
+    ``spec.partial`` overrides it when set. Being the single call-shape point,
+    the override is honoured uniformly across every surface — including create
+    dispatch, so a create spec with ``partial=True`` validates partially.
 
-    A bulk spec (``many=True`` or a ``collection_selector_spec``) is routed
-    through the transport-neutral :func:`dispatch_spec` instead of the
-    single-instance flow, then rendered for the HTTP response — so the bulk
-    rules live in one place.
+    A bulk spec (``many=True`` or a ``collection_selector_spec``) takes the same
+    route with its own params assembly and renderer.
     """
+    # Local import: ``dispatch_spec`` composes ``build_input_serializer_from_data``
+    # from this module, so the dependency is one-directional only at runtime.
+    from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
+
     if spec.partial is not None:
         partial = spec.partial
     if spec.many or spec.collection_selector_spec is not None:
         return _dispatch_bulk_via_spec(view, request, spec, default_status=default_status)
-    action: str | None = getattr(view, "action", None)
-    action_kwargs_hook: str | None = f"get_{action}_service_kwargs" if action else None
-    action_input_hook: str | None = f"get_{action}_input_data" if action else None
-    action_input_context_hook: str | None = (
-        f"get_{action}_input_serializer_context" if action else None
-    )
-    action_output_context_hook: str | None = (
-        f"get_{action}_output_serializer_context" if action else None
-    )
-    extras = resolve_extra_kwargs(
-        view,
-        request,
-        spec_kwargs=spec.kwargs,
-        action_hook=action_kwargs_hook,
-        catch_all_hook="get_service_kwargs",
-    )
-    input_extras = resolve_input_extras(
-        view,
-        request,
-        spec_input_data=spec.input_data,
-        action_hook=action_input_hook,
-        catch_all_hook="get_input_data",
-        # Offered to providers that declare ``instance`` (``None`` on
-        # create) so pre-validation input mutation can read the current row.
-        extras={"instance": instance},
-    )
-    input_context = resolve_serializer_context(
-        view,
-        request,
-        direction_hook="get_input_serializer_context",
-        action_hook=action_input_context_hook,
-        spec_provider=spec.input_serializer_context,
-    )
-    output_spec = spec.output_selector_spec
-    output_provider = output_spec.output_serializer_context if output_spec is not None else None
 
-    def resolve_output_context(result: Any) -> dict[str, Any]:
-        # Resolved lazily with the final ``result`` so the output context
-        # provider can run a single batched query against the exact instance
-        # being serialized (offered as the ``result`` extra).
+    view_hooks = resolve_view_hooks(view, request, instance=instance)
+    # ``spec.partial`` is applied above and re-read by the core, so pass the
+    # resolved flag through the spec-shaped seam the core already honours.
+    resolved_spec = spec if spec.partial is not None else replace(spec, partial=partial)
+
+    try:
+        result = dispatch_spec(
+            resolved_spec,
+            user=getattr(request, "user", None),
+            params=request.data,
+            filter_data=request.query_params,
+            request=request,
+            view=view,
+            instance=instance,
+            view_hooks=view_hooks,
+        )
+    except ServiceError as exc:
+        raise map_service_error(exc) from exc
+
+    def output_context(value: Any) -> dict[str, Any]:
+        # Resolved lazily with the final value so the output context provider can
+        # run a single batched query against the exact instance being serialized.
+        # Uses the four-layer resolver directly rather than the ``ViewHooks``
+        # carrier: the carrier exists to cross the boundary *into* the dispatch
+        # core, and rendering never crosses it — it stays here.
         return resolve_serializer_context(
             view,
             request,
             direction_hook="get_output_serializer_context",
-            action_hook=action_output_context_hook,
-            spec_provider=output_provider,
-            extras={"result": result},
+            action_hook=f"get_{getattr(view, 'action', None)}_output_serializer_context"
+            if getattr(view, "action", None)
+            else None,
+            spec_provider=(
+                spec.output_selector_spec.output_serializer_context
+                if spec.output_selector_spec is not None
+                else None
+            ),
+            extras={"result": value},
         )
 
-    return _execute_mutation(
+    return render_mutation_response(
         view,
         request,
-        service=spec.service,
-        input_serializer=spec.input_serializer,
-        output_selector_spec=output_spec,
-        atomic=spec.atomic,
-        success_status=spec.success_status,
-        success_default=default_status,
-        render_instance_on_none=render_instance_on_none,
+        spec,
+        result,
         instance=instance,
-        extra_kwargs=extras,
-        extra_input_data=input_extras,
-        input_context=input_context,
-        resolve_output_context=resolve_output_context,
-        response_finalizer=spec.response_finalizer,
-        partial=partial,
+        default_status=default_status,
+        render_instance_on_none=render_instance_on_none,
+        output_context=output_context,
     )
 
 

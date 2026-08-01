@@ -44,12 +44,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   That is the intended behaviour and matches what the same spec already did over
   MCP, but it is worth checking before upgrading.
 
+- **The `get_output_serializer_context` chain now reaches the bulk renderer.**
+  The fourth and quietest of the hook chains — it only surfaces when a spec both
+  renders through an output serializer and reads view-supplied context.
+
+### Changed
+
+- **One dispatch pipeline.** The HTTP mutation path no longer runs its own copy
+  of validate → pool → service → output selector → status. It resolves the view's
+  hook chains, calls `dispatch_spec`, and renders the result; the pipeline in
+  between is the same one MCP and every other transport uses. The internal
+  `_execute_mutation` flow runner is gone.
+
+  This is why the fixes above were possible as *fixes* rather than four separate
+  ports: there is now one place for a spec behaviour to live. The rule that
+  replaces the old convention: **a behaviour belonging to the spec belongs in the
+  core** — put it in the view layer and it is honoured over HTTP and silently
+  skipped everywhere else.
+
+  ⚠ **The selector paths are deliberately *not* merged.** Off HTTP the flat
+  `params` mapping is both the callable's input and the `filter_set` data; over
+  HTTP the body validates and the **query string** filters, and a selector's
+  kwargs come from URL captures plus the hook chain — never from query params
+  (see the `filter_set` note in `CLAUDE.md`). Forcing one pool would have widened
+  the input channel silently. What they *do* now share is the rule for what
+  `kind=RETRIEVE` does to a selector's return (`materialize_retrieve`), so the
+  field cannot come to mean two things.
+
 ### Added
 
 - **`ViewHooks`** — the carrier a DRF view uses to hand its resolved hook-chain
   layers to `dispatch_spec`. It holds the *view* layers only; the spec's own
   providers stay the dispatch core's job, so they resolve exactly once. Callers
   without a view omit it and nothing changes.
+- **`DispatchResult.service_result` / `.data`** — the service's own return value
+  (captured before an `output_selector_spec` re-fetch replaced `value`) and the
+  validated input. The first is the flags carrier a callable `success_status` and
+  a `response_finalizer` key on; both are informational, so a transport that only
+  renders can ignore them.
+- **`dispatch_spec(instance=…, filter_data=…)`** — two seams the HTTP caller
+  needs and no other transport does. `instance` supplies an already-resolved
+  target (HTTP's `get_object()` chain has no off-HTTP meaning; the `UNSET`
+  default means "resolve it yourself", since `None` is a valid supplied value on
+  create). `filter_data` separates the filter source from `params` for the same
+  reason the selector paths stay separate.
 
 ## [0.32.0] — 2026-07-31
 
