@@ -1408,6 +1408,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.resolve_view_hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_view_hooks
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2155,6 +2166,17 @@
     <span class="md-ellipsis">
       
         resolve_callable_kwargs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.resolve_view_hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_view_hooks
       
     </span>
   </a>
@@ -3196,6 +3218,46 @@ Use this helper to retrieve them as the original callable.</p>
         <p>Pick the subset of <code>pool</code> matching <code>fn</code>'s declared parameters.</p>
 <p>If <code>fn</code> declares <code>**kwargs</code>, the entire pool is passed.
 Otherwise only parameters present in the signature are forwarded.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.views.utils.resolve_view_hooks" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">resolve_view_hooks</span>
+
+
+<a href="#rest_framework_services.views.utils.resolve_view_hooks" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">resolve_view_hooks</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">chain</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;service&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ViewHooks</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Resolve the calling view's hook chains into a :class:<code>ViewHooks</code> carrier.</p>
+<p>⚠ <strong>View layers only</strong> — every <code>spec_*</code> argument below is deliberately
+<code>None</code>. The chains run <code>view.get_&lt;x&gt;</code> → <code>view.get_&lt;action&gt;_&lt;x&gt;</code> →
+<code>spec.&lt;x&gt;</code>, and <code>dispatch_spec</code> owns that last layer. Resolving the spec
+provider here too would invoke it <strong>twice</strong>, which is not safe for a provider
+that queries the database. See :class:<code>ViewHooks</code>.</p>
+<p><code>chain</code> selects which kwargs chain to collect: <code>"service"</code>
+(<code>get_service_kwargs</code> / <code>get_&lt;action&gt;_service_kwargs</code>) for mutations,
+<code>"selector"</code> (<code>get_selector_kwargs</code> / <code>get_&lt;action&gt;_selector_kwargs</code>)
+for reads. Only the view-method names differ — the layering is identical,
+which is why one carrier serves both.</p>
+<p>The input-phase fields are mutation-only and stay unset for a selector: a
+read has no payload to merge into and no input serializer to give context to,
+so populating them would invite a reader to think it does.</p>
+<p><code>instance</code> (the resolved mutation target, <code>None</code> on create and on every
+bulk path) is offered to the <code>input_data</code> providers that declare it.</p>
+<p>Lives here rather than beside the mutation flow because the selector path
+needs it too, and <code>views.mutation.utils</code> imports <code>selectors.utils</code> —
+putting it there would make the dependency circular.</p>
 
 
     </div>

@@ -1428,6 +1428,39 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.materialize_retrieve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        materialize_retrieve
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.amaterialize_retrieve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        amaterialize_retrieve
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.check_view_object_permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        check_view_object_permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#rest_framework_services.selectors.utils.dispatch_selector_for_spec" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1808,6 +1841,39 @@
     <span class="md-ellipsis">
       
         apply_queryset_shaping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.materialize_retrieve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        materialize_retrieve
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.amaterialize_retrieve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        amaterialize_retrieve
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.check_view_object_permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        check_view_object_permissions
       
     </span>
   </a>
@@ -2291,42 +2357,130 @@ faithful-<code>user</code> / -<code>query_params</code> synthetic off-HTTP; a ba
 <div class="doc doc-object doc-function">
 
 
+<h3 id="rest_framework_services.selectors.utils.materialize_retrieve" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">materialize_retrieve</span>
+
+
+<a href="#rest_framework_services.selectors.utils.materialize_retrieve" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">materialize_retrieve</span><span class="p">(</span><span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Collapse a RETRIEVE selector's return to the single instance, or <code>None</code>.</p>
+<p>The one definition of what <code>kind=RETRIEVE</code> means once the selector has run:
+a QuerySet materializes through <code>.first()</code> (so an author can write
+<code>selector=lambda *, pk: Model.objects.filter(pk=pk)</code> and still get the
+spec's shaping applied first), anything else passes through as the resolved
+object.</p>
+<p>Shared by the HTTP path and <code>dispatch_spec</code> deliberately. What each does
+with a <code>None</code> differs — HTTP raises <code>NotFound</code> unless <code>allow_none</code>, the
+neutral path returns a <code>not_found</code> result for the transport to map — but
+<em>how the value is arrived at</em> must not, or <code>kind</code> would quietly mean two
+things.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.selectors.utils.amaterialize_retrieve" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">amaterialize_retrieve</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#rest_framework_services.selectors.utils.amaterialize_retrieve" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">amaterialize_retrieve</span><span class="p">(</span><span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Async twin of :func:<code>materialize_retrieve</code> — <code>.afirst()</code> off the loop.</p>
+<p>Separate because the materialization itself is the query: <code>.first()</code> would
+block the event loop, so the async dispatcher must <code>await .afirst()</code>. Same
+rule, different await — keep the two in step.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.selectors.utils.check_view_object_permissions" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">check_view_object_permissions</span>
+
+
+<a href="#rest_framework_services.selectors.utils.check_view_object_permissions" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">check_view_object_permissions</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>:class:<code>TargetGuard</code> running DRF's object-permission check for an HTTP view.</p>
+<p>The HTTP counterpart of :func:<code>~rest_framework_services.enforce_permissions</code>:
+off HTTP a transport enforces <code>spec.permission_classes</code> itself, while a DRF
+view has already instantiated them and exposes
+<code>check_object_permissions</code>. Both plug into the same <code>on_target_resolved</code>
+seam, so the core stays authz-agnostic on every transport.</p>
+<p>⚠ Gated on <code>Model</code> for the same reason <code>enforce_permissions</code> is: the core
+fires this hook on the LIST branch too, with the resolved <strong>queryset</strong>.
+Object permissions are a per-row concept, and
+<code>has_object_permission(request, view, &lt;QuerySet&gt;)</code> would raise or silently
+mis-authorize. <code>None</code> (a create, or a bulk list payload) is skipped for the
+same reason.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="rest_framework_services.selectors.utils.dispatch_selector_for_spec" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">dispatch_selector_for_spec</span>
 
 
 <a href="#rest_framework_services.selectors.utils.dispatch_selector_for_spec" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">dispatch_selector_for_spec</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">extra_url_kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">source_label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;SelectorSpec.selector&quot;</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">dispatch_selector_for_spec</span><span class="p">(</span><span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">spec</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>End-to-end dispatch for one <code>SelectorSpec</code> call.</p>
-<p>Runs the kwargs-resolution chain (<code>spec.kwargs</code> →
-<code>get_&lt;action&gt;_selector_kwargs</code> → <code>get_selector_kwargs</code>), filters
-the resulting pool against the selector's signature, invokes the
-selector sync-or-async, then applies declarative + dynamic queryset
-shaping. Used by both selector viewset mixins and the standalone
-selector views so the call shape lives in one place.</p>
-<p>When <code>spec.kind</code> is :attr:<code>SelectorKind.RETRIEVE</code>, the returned
-QuerySet (if any) is materialized via <code>.first()</code> and <code>None</code> /
-:exc:<code>~django.core.exceptions.ObjectDoesNotExist</code> are translated to
-:exc:<code>~rest_framework.exceptions.NotFound</code> — unless the spec sets
-<code>allow_none=True</code>, in which case the missing-object case returns
-<code>None</code> and the calling view decides how to render it (the retrieve
-views render 200 + JSON <code>null</code>). <code>SelectorKind.LIST</code> returns the
-(optionally shaped) selector return as-is.</p>
-<p>The caller must check <code>spec.selector is not None</code> before calling and
-fall back to vanilla DRF otherwise.</p>
-<p><code>source_label</code> is forwarded to :func:<code>apply_queryset_shaping</code> for
-error messages, so a misconfiguration on a nested
-<code>output_selector_spec</code> points at the right place.</p>
+        <p>End-to-end dispatch for one <code>SelectorSpec</code> call from a DRF view.</p>
+<p>Resolves the view's <code>get_selector_kwargs</code> / <code>get_&lt;action&gt;_selector_kwargs</code>
+chain into a :class:<code>ViewHooks</code> carrier, hands off to the one
+:func:<code>~rest_framework_services.dispatch_spec</code> core, and translates the
+neutral :class:<code>DispatchResult</code> into the view-layer contract: a RETRIEVE that
+resolved nothing raises :exc:<code>~rest_framework.exceptions.NotFound</code>, unless the
+spec sets <code>allow_none=True</code> (then <code>None</code>, and the retrieve views render
+200 + JSON <code>null</code>). <code>SelectorKind.LIST</code> returns the shaped queryset.</p>
+<p>⚠ <strong><code>argument_binding=BUNDLE</code> is what keeps HTTP semantics.</strong> Off HTTP the
+flat <code>params</code> mapping <em>is</em> the argument channel, so a selector spreads it
+(<code>SPREAD_AUTHOR_WINS</code>). Over HTTP it is not: a selector's kwargs come from
+route captures plus the hook chain, and the query string belongs to
+<code>filter_set</code> / the filter backends (see the filtering note in
+<code>CLAUDE.md</code>). <code>BUNDLE</code> spreads nothing, so passing <code>query_params</code> here
+feeds the filter without widening the argument channel — the difference
+between the transports is expressed as the policy it already is, rather than
+as a second pipeline.</p>
+<p>There is deliberately no <code>extra_url_kwargs</code> parameter: the core reads
+<code>view.kwargs</code> itself via <code>view_url_kwargs</code>, which <strong>strips the reserved
+pool seeds</strong>. That strip is the point — the previous view-local pool spread
+route captures <em>over</em> <code>base_pool</code>, so a nested route like
+<code>/users/&lt;user&gt;/posts/</code> let the captured value shadow the authenticated
+<code>user</code>. Taking the mapping from the caller would reopen it, and every call
+site passed <code>view.kwargs</code> verbatim anyway.</p>
+<p>The caller must check <code>spec.selector is not None</code> before calling and fall
+back to vanilla DRF otherwise.</p>
 
 
     </div>

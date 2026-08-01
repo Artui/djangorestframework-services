@@ -1398,6 +1398,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="TargetGuard">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#viewhooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ViewHooks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.view_hooks.ViewHooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ViewHooks
+      
+    </span>
+  </a>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2485,6 +2513,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="TargetGuard">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#viewhooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ViewHooks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.view_hooks.ViewHooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ViewHooks
+      
+    </span>
+  </a>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3082,7 +3138,10 @@ one on the same result.</p>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">unknown_arguments</span><span class="p">:</span> <span class="n">UnknownArguments</span> <span class="o">=</span> <span class="n">UnknownArguments</span><span class="o">.</span><span class="n">IGNORE</span><span class="p">,</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">on_target_resolved</span><span class="p">:</span> <span class="n">TargetGuard</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">progress</span><span class="p">:</span> <span class="n">ProgressReporter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">view_hooks</span><span class="p">:</span> <span class="n">ViewHooks</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">filter_data</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3167,7 +3226,8 @@ being silently ignored.</p>
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">unknown_arguments</span><span class="p">:</span> <span class="n">UnknownArguments</span> <span class="o">=</span> <span class="n">UnknownArguments</span><span class="o">.</span><span class="n">IGNORE</span><span class="p">,</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">on_target_resolved</span><span class="p">:</span> <span class="n">TargetGuard</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">progress</span><span class="p">:</span> <span class="n">ProgressReporter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">view_hooks</span><span class="p">:</span> <span class="n">ViewHooks</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3214,7 +3274,8 @@ list-payload service call).</p>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">extras</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">view_hooks</span><span class="p">:</span> <span class="n">ViewHooks</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3399,7 +3460,25 @@ concerns. Render the value through
 <li><strong><code>status</code></strong> — an HTTP-ish status hint the transport may map to its
   wire: the spec's success status for mutations, <code>200</code> for reads, <code>404</code>
   for <code>"not_found"</code>.</li>
+<li><strong><code>service_result</code></strong> — the service's <em>own</em> return value, captured before
+  an <code>output_selector_spec</code> re-fetch replaced it in <code>value</code>. The two
+  differ whenever an output selector runs, and the distinction is
+  load-bearing: the service's return is the <strong>flags carrier</strong> (an upsert
+  DTO's <code>created</code>, a domain outcome enum), which is what a callable
+  <code>success_status</code> and a <code>response_finalizer</code> key on, while <code>value</code> is
+  the thing to render. <code>None</code> on the read path — a selector has no service.</li>
+<li><strong><code>instance</code></strong> — the resolved mutation target: the row an update /
+  destroy acted on, or <code>None</code> on a create, a read, or a bulk path. The core
+  resolves it from <code>instance_selector_spec</code>, so a transport that needs the
+  <em>pre-mutation</em> target (to render it, or to key a decision on it) reads it
+  here rather than resolving a second time and risking a different answer.</li>
+<li><strong><code>data</code></strong> — the validated input (<code>serializer.validated_data</code>), or
+  <code>None</code> when the spec declares no <code>input_serializer</code>. Carried so a
+  transport can key a post-dispatch decision on what was actually validated
+  without re-running the serializer.</li>
 </ul>
+<p>The last two are informational: a transport that only renders reads
+<code>value</code> / <code>kind</code> / <code>status</code> and can ignore them.</p>
 
 
 
@@ -3636,6 +3715,101 @@ instance=target)</code>. <code>instance</code> is the resolved row for an update
 resolved set for a collection (bulk) mutation, and <code>None</code> for a create — so
 the guard fires uniformly on every resolved target, running the class-level
 check when there is no object.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="viewhooks"><code>ViewHooks</code><a class="headerlink" href="#viewhooks" title="Permanent link">&para;</a></h3>
+<p>The calling DRF view's resolved hook-chain layers, handed to the core so one
+pipeline serves both transports. <strong>HTTP-only</strong> — like <code>view</code>, an off-HTTP caller
+omits it and nothing changes. It carries the <em>view</em> layers only
+(<code>get_service_kwargs</code>, <code>get_input_data</code>, the serializer-context hooks and their
+per-action twins); the spec's own <code>kwargs</code> / <code>input_data</code> /
+<code>input_serializer_context</code> providers stay the core's job, so they resolve exactly
+once no matter who dispatches.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.types.view_hooks.ViewHooks" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ViewHooks</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.view_hooks.ViewHooks" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>The HTTP view's hook-chain contributions, resolved and passed down.</p>
+<p><code>dispatch_spec</code> is the single execution core, but the view layer owns a
+configuration surface the core knows nothing about: the <code>get_service_kwargs</code>
+/ <code>get_&lt;action&gt;_service_kwargs</code> / <code>get_input_data</code> /
+<code>get_&lt;action&gt;_input_data</code> / <code>get_*_serializer_context</code> chains declared on
+:class:<code>MutationFlowMixin</code> and its viewset mixins. Those are genuinely
+HTTP-shaped — they are methods on a DRF view — so the core cannot resolve
+them, and a caller that resolves them has to be able to hand them over.
+This carrier is that hand-off.</p>
+<p>⚠ <strong>These are the <em>view</em> layers only — never the spec's own providers.</strong>
+Each chain resolves <code>view.get_&lt;x&gt;</code> → <code>view.get_&lt;action&gt;_&lt;x&gt;</code> →
+<code>spec.&lt;x&gt;</code>, spec winning on overlap. <code>dispatch_spec</code> owns that last
+layer, so a caller must pass <code>spec_kwargs=None</code> / <code>spec_provider=None</code>
+when resolving these. Passing the <em>fully</em> resolved chain instead would make
+the core either skip its own spec resolution (a flag nobody would remember)
+or run the spec provider <strong>twice</strong> — and a <code>spec.kwargs</code> doing a tenant
+lookup is not idempotent. Keeping the split here is what lets precedence
+live in exactly one place.</p>
+<p>Four fields rather than one <code>Mapping[str, Any]</code> bag because they are
+consumed at four different points and one of them is not a mapping at all:</p>
+<ul>
+<li><code>extra_kwargs</code> merges into the dispatched callable's pool, beneath
+  <code>spec.kwargs</code>. Named for the chain it belongs to rather than for
+  services, because the same carrier serves the selector chain
+  (<code>get_selector_kwargs</code> / <code>get_&lt;action&gt;_selector_kwargs</code>) — only the
+  view-method names differ, not the layering.</li>
+<li><code>input_data</code> merges onto the client payload <em>before</em> validation,
+  beneath <code>spec.input_data</code>; server-provided keys win over the client's.</li>
+<li><code>input_serializer_context</code> layers onto the baseline serializer context
+  (:func:<code>base_serializer_context</code>), beneath <code>spec.input_serializer_context</code>.</li>
+<li><code>output_serializer_context</code> is <strong>lazy</strong> — a callable taking the final
+  post-selector <code>result</code> and returning the context — because the output
+  context provider is documented to see the exact instance being serialized,
+  which does not exist until after the service and output selector have run.</li>
+</ul>
+<p>Every field defaults to <code>None</code> (contributes nothing), so a transport with
+no view — MCP, an agent toolset, a management command — simply omits the
+argument and the core behaves exactly as it did before this existed.</p>
 
 
 
@@ -4034,7 +4208,18 @@ any callable whose <code>__call__</code> is a coroutine function.</p>
 
     <div class="doc doc-contents first">
 
-        <p>Call <code>fn(**kwargs)</code>, optionally inside <code>transaction.atomic()</code>.</p>
+        <p>Call <code>fn(**kwargs)</code> from sync code, optionally inside <code>transaction.atomic()</code>.</p>
+<p>An <code>async def</code> service is bridged transparently via <code>async_to_sync</code>,
+mirroring :func:<code>~rest_framework_services.selectors.utils.run_selector</code>. The
+bridge is <strong>not</strong> optional politeness: without it an async service returns its
+coroutine object to the caller un-awaited — no exception, and under
+<code>atomic=True</code> the transaction commits before the body would have run. The
+HTTP path always bridged (its own <code>dispatch_service</code> wrapper did this);
+<code>dispatch_spec</code> reached this leaf directly, so the same spec resolved over
+HTTP and returned a coroutine over MCP.</p>
+<p>Async services under <code>atomic=True</code> route through :func:<code>arun_service</code>, which
+owns the thread-sensitivity rule that keeps the ORM connection holding the
+open transaction the same one the inner async DB calls use.</p>
 
 
     </div>
@@ -4106,8 +4291,9 @@ before the serializer instantiates — server-provided keys win on
 overlap. This is the seam used by the <code>input_data</code> resolver chain
 to lift URL kwargs into serializer input. A form-encoded / multipart
 body arrives as a <code>QueryDict</code> (<code>{key: [values]}</code> internally), so the
-merge goes through :func:<code>_merge_extra_data</code> to avoid flattening scalars
-into one-element lists — see there.</p>
+merge goes through :func:<code>~rest_framework_services.dispatch.apply_input_data.apply_input_data</code>,
+which owns the QueryDict handling that keeps scalars from flattening into
+one-element lists.</p>
 <p><code>context</code> (when supplied) is forwarded to the serializer's <code>context=</code>
 kwarg so DRF-style <code>self.context["request"]</code> / <code>["view"]</code> lookups
 work inside validators and fields.</p>
@@ -4208,28 +4394,25 @@ callers that don't need the bound serializer itself.</p>
 
     <div class="doc doc-contents first">
 
-        <p>Resolve the instance an update / destroy / detail action targets.</p>
-<p>Precedence: <code>spec.instance_selector_spec</code> (when set with a selector)
-→ the view's <code>get_object()</code> chain (an <code>action_specs["retrieve"]</code>
-selector via :class:<code>SelectorRetrieveMixin</code>, else DRF's default
-<code>queryset</code> / <code>lookup_field</code> lookup, else a user <code>get_object()</code>
-override). Used by the update / destroy viewset mixins, the standalone
-update / delete views, and <code>@service_action</code> detail actions so the
-precedence lives in one place.</p>
-<p>The spec path dispatches through :func:<code>dispatch_selector_for_spec</code>
-(the standard selector call shape: <code>{request, user}</code> + the view's
-URL kwargs + the selector extras chain, queryset shaping applied,
-RETRIEVE materialization via <code>.first()</code>). The nested spec's
-<code>allow_none</code> flag is ignored — a mutation against a missing row is
-always a 404, so a <code>None</code> resolution raises
-:exc:<code>~rest_framework.exceptions.NotFound</code> regardless. Object-level
-permissions run against the resolved instance
-(<code>view.check_object_permissions</code>), matching DRF's own <code>get_object()</code>
-contract.</p>
-<p>Returns <code>None</code> for a <strong>bulk</strong> spec (<code>many=True</code> or a
-<code>collection_selector_spec</code>): there is no single instance, and the
-<code>get_object()</code> lookup would 404 a body-only bulk endpoint. The bulk path
-resolves its target inside :func:<code>dispatch_mutation_for_spec</code> instead.</p>
+        <p>Resolve the mutation target, or defer to the core.</p>
+<p>Three outcomes:</p>
+<ul>
+<li><code>None</code> for a <strong>bulk</strong> spec (<code>many=True</code> or a <code>collection_selector_spec</code>):
+  there is no single instance, and the <code>get_object()</code> lookup would 404 a
+  body-only bulk endpoint.</li>
+<li>:data:<code>UNSET</code> when the spec carries an <code>instance_selector_spec</code> — <em>the
+  core resolves it</em>. <code>dispatch_spec</code> already does this for every other
+  transport, with the right kwarg pool, the right error label
+  (<code>ServiceSpec.instance_selector_spec.selector</code>), and the reserved-seed
+  strip; resolving it a second time here only created a path that could
+  drift from it. Object permissions still run — the core fires
+  <code>on_target_resolved</code> against the resolved target, and the HTTP caller
+  passes :func:<code>check_view_object_permissions</code>.</li>
+<li>the view's <code>get_object()</code> chain otherwise (an <code>action_specs["retrieve"]</code>
+  selector via :class:<code>SelectorRetrieveMixin</code>, else DRF's default <code>queryset</code>
+  / <code>lookup_field</code> lookup, else a user <code>get_object()</code> override). This is
+  the one branch that is genuinely HTTP-only and so cannot move.</li>
+</ul>
 
 
     </div>
