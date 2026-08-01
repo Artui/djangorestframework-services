@@ -29,11 +29,33 @@ class DispatchResult:
     - **``status``** — an HTTP-ish status hint the transport may map to its
       wire: the spec's success status for mutations, ``200`` for reads, ``404``
       for ``"not_found"``.
+    - **``service_result``** — the service's *own* return value, captured before
+      an ``output_selector_spec`` re-fetch replaced it in ``value``. The two
+      differ whenever an output selector runs, and the distinction is
+      load-bearing: the service's return is the **flags carrier** (an upsert
+      DTO's ``created``, a domain outcome enum), which is what a callable
+      ``success_status`` and a ``response_finalizer`` key on, while ``value`` is
+      the thing to render. ``None`` on the read path — a selector has no service.
+    - **``instance``** — the resolved mutation target: the row an update /
+      destroy acted on, or ``None`` on a create, a read, or a bulk path. The core
+      resolves it from ``instance_selector_spec``, so a transport that needs the
+      *pre-mutation* target (to render it, or to key a decision on it) reads it
+      here rather than resolving a second time and risking a different answer.
+    - **``data``** — the validated input (``serializer.validated_data``), or
+      ``None`` when the spec declares no ``input_serializer``. Carried so a
+      transport can key a post-dispatch decision on what was actually validated
+      without re-running the serializer.
+
+    The last two are informational: a transport that only renders reads
+    ``value`` / ``kind`` / ``status`` and can ignore them.
     """
 
     value: Any
     kind: str
     status: int
+    service_result: Any = None
+    instance: Any = None
+    data: Any = None
 
 
 __all__ = ["DispatchResult"]

@@ -73,13 +73,13 @@ def selector_action(
         @functools.wraps(fn)
         def handler(self: Any, request: Request, *args: Any, **kwargs: Any) -> Response:
             if is_retrieve:
-                instance = dispatch_selector_for_spec(self, spec, extra_url_kwargs=self.kwargs)
+                instance = dispatch_selector_for_spec(self, spec)
                 serializer = _build_serializer(
                     self, spec, instance, many=False, extras={"instance": instance}
                 )
                 return Response(serializer.data)
 
-            result = dispatch_selector_for_spec(self, spec, extra_url_kwargs=self.kwargs)
+            result = dispatch_selector_for_spec(self, spec)
             page = self.paginate_queryset(result) if hasattr(self, "paginate_queryset") else None
             if page is not None:
                 serializer = _build_serializer(self, spec, page, many=True, extras={"page": page})

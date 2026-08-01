@@ -59,10 +59,11 @@ class SelectorRetrieveMixin(RetrieveModelMixin, _ActionSpecsMixin):
 
     def get_object(self) -> Any:
         spec = resolve_action_selector_spec(self.action_specs, "retrieve")
-        if spec is None:
-            obj = super().get_object()  # ty: ignore[unresolved-attribute]
-        else:
-            obj = dispatch_selector_for_spec(self, spec, extra_url_kwargs=self.kwargs)
+        obj = (
+            super().get_object()  # ty: ignore[unresolved-attribute]
+            if spec is None
+            else dispatch_selector_for_spec(self, spec)
+        )
         # Stash the resolved instance so a SelectorSpec's output context
         # provider can read it via the ``instance`` extra. See
         # ``_ActionSpecsMixin.get_serializer_context``.

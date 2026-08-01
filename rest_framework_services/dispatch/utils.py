@@ -35,6 +35,7 @@ from rest_framework_services.types.typed_dict_input import typed_dict_input
 from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
 from rest_framework_services.types.unset import UNSET
+from rest_framework_services.types.view_hooks import ViewHooks
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
 # Labels handed to ``apply_queryset_shaping`` so a misconfiguration points at
@@ -43,6 +44,19 @@ SELECTOR_SOURCE = "SelectorSpec.selector"
 INSTANCE_SOURCE = "ServiceSpec.instance_selector_spec.selector"
 COLLECTION_SOURCE = "ServiceSpec.collection_selector_spec.selector"
 OUTPUT_SOURCE = "ServiceSpec.output_selector_spec.selector"
+
+
+def strip_reserved_seeds(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Drop the dispatcher-owned names from a client-supplied mapping.
+
+    :func:`merge_arguments` applies this to every spread it performs; the nested
+    target resolutions (``instance_selector_spec`` / ``collection_selector_spec``)
+    build their pool directly and so have to apply it themselves. Skipping it
+    lets a caller-routable ``user`` / ``request`` / ``instance`` key outrank the
+    dispatcher's authoritative value — see :data:`RESERVED_POOL_SEEDS`, which
+    exists for exactly this reason.
+    """
+    return {key: value for key, value in params.items() if key not in RESERVED_POOL_SEEDS}
 
 
 def view_url_kwargs(view: Any) -> dict[str, Any]:
@@ -448,6 +462,7 @@ def resolve_output_context(
     view: Any,
     request: Any,
     extras: Mapping[str, Any],
+    view_hooks: ViewHooks | None = None,
 ) -> dict[str, Any]:
     """Resolve the output serializer context for either spec kind.
 
@@ -462,8 +477,15 @@ def resolve_output_context(
     ``extras`` carries the resolved-data keyword the provider may declare
     (``result`` for a mutation, ``instance`` for a retrieve, ``page`` for a
     list). Invoked through the keyword pool.
+
+    ``view_hooks`` supplies the calling view's ``get_output_serializer_context``
+    / ``get_<action>_output_serializer_context`` layer, between the baseline and
+    the spec provider. It is lazy — resolved with the value being rendered — so
+    a provider can run one batched query against exactly that value.
     """
     context: dict[str, Any] = base_serializer_context(view=view, request=request)
+    if view_hooks is not None and view_hooks.output_serializer_context is not None:
+        context.update(view_hooks.output_serializer_context(extras.get("result")))
     provider = _output_context_provider(spec)
     if provider is not None:
         pool: dict[str, Any] = {"view": view, "request": request, **extras}
@@ -476,21 +498,97 @@ def resolve_input_context(
     *,
     view: Any,
     request: Any,
+    view_hooks: ViewHooks | None = None,
 ) -> dict[str, Any]:
-    """Resolve the input serializer context — DRF baseline + the spec's provider.
+    """Resolve the input serializer context — DRF baseline + view layers + spec.
 
     The input-phase twin of :func:`resolve_output_context`: an
     ``input_serializer`` validator that reads ``self.context["request"]`` (an
     ownership check, a user-scoped queryset on a ``PrimaryKeyRelatedField``)
     behaves the same whether the spec is dispatched over HTTP or off it.
-    ``ServiceSpec.input_serializer_context``, when set, is merged over the
-    baseline.
+
+    Three layers, most specific last: the baseline
+    (:func:`base_serializer_context`), then the calling view's resolved
+    directional / per-action hooks (:class:`ViewHooks`, absent off HTTP), then
+    ``ServiceSpec.input_serializer_context``.
     """
     context: dict[str, Any] = base_serializer_context(view=view, request=request)
+    if view_hooks is not None and view_hooks.input_serializer_context is not None:
+        context.update(view_hooks.input_serializer_context)
     context.update(
         resolve_provider(spec.input_serializer_context, {"view": view, "request": request})
     )
     return context
+
+
+def resolve_service_kwargs(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
+    *,
+    view: Any,
+    request: Any,
+    view_hooks: ViewHooks | None,
+) -> dict[str, Any]:
+    """The author-supplied kwargs for the service pool: view layers, then spec.
+
+    ``spec.kwargs`` has the final say on overlapping keys — the documented
+    precedence for the whole chain (``get_service_kwargs`` →
+    ``get_<action>_service_kwargs`` → ``spec.kwargs``). The first two are already
+    merged into ``view_hooks.extra_kwargs`` by the caller; resolving the spec
+    provider is this core's job, and only this core's, so it runs exactly once.
+    """
+    kwargs: dict[str, Any] = dict((view_hooks.extra_kwargs or {}) if view_hooks else {})
+    kwargs.update(resolve_provider(spec.kwargs, {"view": view, "request": request}))
+    return kwargs
+
+
+def resolve_input_data(
+    spec: ServiceSpec[Any, Any, Any],
+    *,
+    view: Any,
+    request: Any,
+    instance: Any,
+    view_hooks: ViewHooks | None,
+) -> dict[str, Any]:
+    """Server-provided keys merged onto the client payload before validation.
+
+    The ``input_data`` chain (``get_input_data`` → ``get_<action>_input_data`` →
+    ``ServiceSpec.input_data``), with the view layers pre-resolved into
+    ``view_hooks`` and the spec provider resolved here.
+
+    ⚠ ``spec.input_data`` used to be resolved **only** by the HTTP hook chain, so
+    a spec that lifted a route capture into a serializer field validated fine over
+    HTTP and failed as a missing required field over MCP. It is spec-carried
+    configuration, so it belongs to the core.
+
+    The provider pool carries ``instance`` (the resolved mutation target, ``None``
+    on create) alongside ``view`` / ``request``, matching the HTTP chain — so a
+    provider can shape input against the current row.
+    """
+    pool: dict[str, Any] = {"view": view, "request": request, "instance": instance}
+    data: dict[str, Any] = dict((view_hooks.input_data or {}) if view_hooks else {})
+    data.update(resolve_provider(spec.input_data, pool))
+    return data
+
+
+def clear_prefetch_cache(instance: Any) -> None:
+    """Drop a mutated instance's stale ``_prefetched_objects_cache``.
+
+    Mirrors DRF's ``UpdateModelMixin``: a mutating service may have changed a
+    related collection the target prefetched (via a prefetching
+    ``instance_selector_spec`` or the view's queryset), leaving the cache stale so
+    a re-serialization reads pre-mutation related data. Guarded two ways — a no-op
+    on create (``instance is None``) and when nothing was prefetched.
+
+    Lives here rather than in the view layer because nothing about it is
+    HTTP-shaped: an MCP tool call that updates a prefetched row and renders it
+    back had exactly the same stale read.
+
+    The final dispatched value is deliberately left untouched — an
+    ``output_selector_spec`` re-fetch carries its own intentional
+    ``prefetch_related`` that must survive.
+    """
+    if instance is not None and getattr(instance, "_prefetched_objects_cache", None):
+        instance._prefetched_objects_cache = {}
 
 
 async def arun_off_loop(fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:

@@ -8,6 +8,7 @@ from typing import Any
 from rest_framework_services.dispatch.utils import output_serializer_for, resolve_output_context
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.types.view_hooks import ViewHooks
 
 
 def render_spec_output(
@@ -18,6 +19,7 @@ def render_spec_output(
     view: Any = None,
     request: Any = None,
     extras: Mapping[str, Any] | None = None,
+    view_hooks: ViewHooks | None = None,
 ) -> Any:
     """Render ``value`` to a JSON-shaped payload using ``spec``'s output serializer.
 
@@ -47,7 +49,9 @@ def render_spec_output(
         if many:
             return list(value) if hasattr(value, "__iter__") else value
         return value
-    context = resolve_output_context(spec, view=view, request=request, extras=extras or {})
+    context = resolve_output_context(
+        spec, view=view, request=request, extras=extras or {}, view_hooks=view_hooks
+    )
     return serializer_cls(value, many=many, context=context).data
 
 

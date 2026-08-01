@@ -7,6 +7,128 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0] — 2026-08-01
+
+### Fixed
+
+- **Client-supplied params could shadow the authenticated user during target
+  resolution.** `instance_selector_spec` / `collection_selector_spec` built their
+  kwarg pool by hand as `{**base_pool, **params, **url_kwargs}`, bypassing the
+  reserved-seed strip that `merge_arguments` applies to every other spread. So
+  `params={"user": …}` replaced the authenticated user in the pool that decides
+  **which row gets mutated** and **which set gets bulk-deleted** — and over MCP
+  or an agent toolset those params are the tool call itself. Both nested
+  resolutions now strip the seeds, sync and async.
+
+- **A route capture could shadow the authenticated user on the HTTP selector
+  path.** The view-local pool spread `view.kwargs` **over** `base_pool`, so on a
+  nested route like `/users/<user>/posts/` a capture named `user` replaced
+  `request.user` in the selector's kwarg pool — a selector written
+  `def list_posts(*, user): return Post.objects.filter(author=user)` scoped by
+  the URL value instead of the caller. `RESERVED_POOL_SEEDS` exists to prevent
+  exactly this (its docstring calls it a credential-spoofing footgun) and the
+  transport-neutral path already stripped those names; the HTTP selector path
+  never did. It requires a project to name a route capture after a dispatcher
+  seed — `user` being the realistic one — but the result is a horizontal
+  scoping bypass, so treat this as the reason to upgrade.
+
+  ⚠ **The permission fix can turn a passing 200 into a 403** if a project has a
+  `has_object_permission` that was never being consulted on a retrieve selector.
+  That is the intended behaviour and matches what the same spec already did over
+  MCP, but it is worth checking before upgrading.
+
+- **Four spec behaviours that differed between HTTP and `dispatch_spec`.** The
+  view path and the transport-neutral path ran two copies of the same sequence,
+  and the copies had drifted. Each of these was a spec-carried behaviour honoured
+  on one transport and silently skipped on the other:
+
+  - **`ServiceSpec.input_data` is now resolved off HTTP.** It was wired only into
+    the view's hook chain, so a spec lifting a route capture into a serializer
+    field validated fine over HTTP and failed as a missing required field over
+    MCP or an agent toolset. Server-provided keys win over client input, as they
+    already did over HTTP; on a `many=True` payload the merge applies per item.
+  - **An `async def` service dispatched through sync `dispatch_spec` is now
+    awaited.** `run_service` returned the coroutine object itself — no exception,
+    and under `atomic=True` the transaction committed before the body would have
+    run. The bridge now lives in `run_service` alongside the one `run_selector`
+    already had, so both transports share it.
+  - **The bulk path now honours the view's hook chains.** A spec that grew
+    `many=True` (or a `collection_selector_spec`) silently stopped seeing
+    `get_service_kwargs` / `get_<action>_service_kwargs` / `get_input_data` /
+    `get_<action>_input_data` and the input serializer-context hooks that the
+    single-instance path applies.
+  - **Object-level permissions now run on a selector-resolved retrieve target.**
+    A `SelectorSpec` replaces DRF's `get_object()`, which runs
+    `check_object_permissions` itself — so `SelectorRetrieveMixin` and
+    `SelectorRetrieveView` were skipping the object half of a spec's
+    `permission_classes` entirely, while `enforce_permissions` enforced it off
+    HTTP. The check now happens once, in `dispatch_selector_for_spec`, covering
+    the retrieve mixin, the standalone retrieve view, and `instance_selector_spec`
+    (which previously ran it separately). `LIST` is unaffected — a queryset is not
+    an object, and scoping a list stays `filter_set` plus the selector.
+
+- **The `get_output_serializer_context` chain now reaches the bulk renderer.**
+  The fourth and quietest of the hook chains — it only surfaces when a spec both
+  renders through an output serializer and reads view-supplied context.
+
+
+### Changed
+
+- **One dispatch pipeline.** The HTTP mutation path no longer runs its own copy
+  of validate → pool → service → output selector → status. It resolves the view's
+  hook chains, calls `dispatch_spec`, and renders the result; the pipeline in
+  between is the same one MCP and every other transport uses. The internal
+  `_execute_mutation` flow runner is gone.
+
+  This is why the fixes above were possible as *fixes* rather than four separate
+  ports: there is now one place for a spec behaviour to live. The rule that
+  replaces the old convention: **a behaviour belonging to the spec belongs in the
+  core** — put it in the view layer and it is honoured over HTTP and silently
+  skipped everywhere else.
+
+  **The selector path is converged too.** `dispatch_selector_for_spec` now
+  resolves the view's `get_selector_kwargs` chain and hands off to the same core;
+  its view-local pool is gone, which is what closes the seed-shadowing bug above.
+
+  The one genuine difference between the transports is expressed as the policy it
+  already was rather than as a second pipeline: over HTTP the call passes
+  `argument_binding=BUNDLE`, so query params feed `filter_set` without becoming
+  selector kwargs (off HTTP the flat `params` mapping *is* the argument channel
+  and a selector spreads it). Both behaviours are pinned in
+  `tests/test_transport_parity.py`.
+
+  `dispatch_selector_for_spec` **loses** its `extra_url_kwargs` and
+  `source_label` parameters. Every call site passed `view.kwargs` verbatim, and
+  the core reads it itself while stripping reserved seeds — taking the mapping
+  from the caller would reopen the bug above. ⚠ If you call this helper from
+  your own view (as `CLAUDE.md` suggests), drop both arguments.
+
+  `resolve_mutation_instance` no longer resolves `instance_selector_spec`
+  either; it returns `UNSET` and the core does it, which is why deleting
+  `source_label` costs nothing — `dispatch_spec` already labels that failure
+  `ServiceSpec.instance_selector_spec.selector`. The view's `get_object()`
+  fallback is the one branch that stays, being genuinely HTTP-only.
+
+### Added
+
+- **`ViewHooks`** — the carrier a DRF view uses to hand its resolved hook-chain
+  layers to `dispatch_spec`. It holds the *view* layers only; the spec's own
+  providers stay the dispatch core's job, so they resolve exactly once. Callers
+  without a view omit it and nothing changes.
+- **`DispatchResult.service_result` / `.instance` / `.data`** — the service's own return value
+  (captured before an `output_selector_spec` re-fetch replaced `value`), the
+  resolved mutation target, and the validated input. `service_result` is the
+  flags carrier a callable `success_status` and a `response_finalizer` key on;
+  `instance` lets a transport read the pre-mutation row rather than resolving it
+  a second time and risking a different answer. All three are informational — a
+  transport that only renders can ignore them.
+- **`dispatch_spec(instance=…, filter_data=…)`** — two seams the HTTP caller
+  needs and no other transport does. `instance` supplies an already-resolved
+  target (HTTP's `get_object()` chain has no off-HTTP meaning; the `UNSET`
+  default means "resolve it yourself", since `None` is a valid supplied value on
+  create). `filter_data` separates the filter source from `params` for the same
+  reason the selector paths stay separate.
+
 ## [0.32.0] — 2026-07-31
 
 ### Added
@@ -1837,7 +1959,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.32.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.33.0...HEAD
+[0.33.0]: https://github.com/Artui/djangorestframework-services/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/Artui/djangorestframework-services/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/Artui/djangorestframework-services/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/Artui/djangorestframework-services/compare/v0.29.1...v0.30.0

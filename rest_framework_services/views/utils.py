@@ -9,6 +9,7 @@ from typing import Any
 from rest_framework.request import Request
 
 from rest_framework_services.types.unset import UNSET
+from rest_framework_services.types.view_hooks import ViewHooks
 
 
 def resolve_extra_kwargs(
@@ -265,3 +266,73 @@ def resolve_callable_kwargs(
         )
     }
     return {name: pool[name] for name in declared_names if name in pool}
+
+
+def resolve_view_hooks(
+    view: Any,
+    request: Request,
+    *,
+    chain: str = "service",
+    instance: Any = None,
+) -> ViewHooks:
+    """Resolve the calling view's hook chains into a :class:`ViewHooks` carrier.
+
+    ⚠ **View layers only** — every ``spec_*`` argument below is deliberately
+    ``None``. The chains run ``view.get_<x>`` → ``view.get_<action>_<x>`` →
+    ``spec.<x>``, and ``dispatch_spec`` owns that last layer. Resolving the spec
+    provider here too would invoke it **twice**, which is not safe for a provider
+    that queries the database. See :class:`ViewHooks`.
+
+    ``chain`` selects which kwargs chain to collect: ``"service"``
+    (``get_service_kwargs`` / ``get_<action>_service_kwargs``) for mutations,
+    ``"selector"`` (``get_selector_kwargs`` / ``get_<action>_selector_kwargs``)
+    for reads. Only the view-method names differ — the layering is identical,
+    which is why one carrier serves both.
+
+    The input-phase fields are mutation-only and stay unset for a selector: a
+    read has no payload to merge into and no input serializer to give context to,
+    so populating them would invite a reader to think it does.
+
+    ``instance`` (the resolved mutation target, ``None`` on create and on every
+    bulk path) is offered to the ``input_data`` providers that declare it.
+
+    Lives here rather than beside the mutation flow because the selector path
+    needs it too, and ``views.mutation.utils`` imports ``selectors.utils`` —
+    putting it there would make the dependency circular.
+    """
+    action: str | None = getattr(view, "action", None)
+    extra_kwargs = resolve_extra_kwargs(
+        view,
+        request,
+        spec_kwargs=None,
+        action_hook=f"get_{action}_{chain}_kwargs" if action else None,
+        catch_all_hook=f"get_{chain}_kwargs",
+    )
+    if chain != "service":
+        return ViewHooks(extra_kwargs=extra_kwargs)
+    return ViewHooks(
+        extra_kwargs=extra_kwargs,
+        input_data=resolve_input_extras(
+            view,
+            request,
+            spec_input_data=None,
+            action_hook=f"get_{action}_input_data" if action else None,
+            catch_all_hook="get_input_data",
+            extras={"instance": instance},
+        ),
+        input_serializer_context=layer_serializer_context(
+            {},
+            view,
+            request,
+            direction_hook="get_input_serializer_context",
+            action_hook=f"get_{action}_input_serializer_context" if action else None,
+        ),
+        output_serializer_context=lambda result: layer_serializer_context(
+            {},
+            view,
+            request,
+            direction_hook="get_output_serializer_context",
+            action_hook=f"get_{action}_output_serializer_context" if action else None,
+            extras={"result": result},
+        ),
+    )
