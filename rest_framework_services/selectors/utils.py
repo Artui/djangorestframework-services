@@ -189,7 +189,7 @@ def _filter_set_accepts_request(filter_set: Any) -> bool:
     )
 
 
-def materialize_retrieve(spec: SelectorSpec[Any, Any], result: Any) -> Any:
+def materialize_retrieve(result: Any) -> Any:
     """Collapse a RETRIEVE selector's return to the single instance, or ``None``.
 
     The one definition of what ``kind=RETRIEVE`` means once the selector has run:
@@ -207,7 +207,7 @@ def materialize_retrieve(spec: SelectorSpec[Any, Any], result: Any) -> Any:
     return result.first() if is_queryset(result) else result
 
 
-async def amaterialize_retrieve(spec: SelectorSpec[Any, Any], result: Any) -> Any:
+async def amaterialize_retrieve(result: Any) -> Any:
     """Async twin of :func:`materialize_retrieve` — ``.afirst()`` off the loop.
 
     Separate because the materialization itself is the query: ``.first()`` would

@@ -203,7 +203,7 @@ def _dispatch_selector(
         # is not a Model, so fix (a) skips has_object_permission).
         call_target_guard(on_target_resolved, spec, result, user=user, request=request, view=view)
         return DispatchResult(value=result, kind="list", status=200)
-    instance: Any = materialize_retrieve(spec, result)
+    instance: Any = materialize_retrieve(result)
     if instance is None:
         return _missing_or_null(spec)
     # RETRIEVE: guard the resolved row (object-level permissions run here).
@@ -492,7 +492,7 @@ def _run_output_selector(
     )
     if out_spec.kind is SelectorKind.LIST:
         return selected, True
-    return materialize_retrieve(out_spec, selected), False
+    return materialize_retrieve(selected), False
 
 
 def _resolve_instance(
@@ -542,7 +542,7 @@ def _resolve_instance(
         )
     except ObjectDoesNotExist:
         return (False, None)
-    instance: Any = materialize_retrieve(instance_spec, result)
+    instance: Any = materialize_retrieve(result)
     if instance is None:
         return (False, None)
     return (True, instance)

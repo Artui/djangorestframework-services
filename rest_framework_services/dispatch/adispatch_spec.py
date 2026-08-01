@@ -176,7 +176,7 @@ async def _adispatch_selector(
             view=view,
         )
         return DispatchResult(value=result, kind="list", status=200)
-    instance: Any = await amaterialize_retrieve(spec, result)
+    instance: Any = await amaterialize_retrieve(result)
     if instance is None:
         return _missing_or_null(spec)
     # RETRIEVE: guard the resolved row (object-level permissions run here).
@@ -475,7 +475,7 @@ async def _arun_output_selector(
     )
     if out_spec.kind is SelectorKind.LIST:
         return selected, True
-    return (await amaterialize_retrieve(out_spec, selected)), False
+    return (await amaterialize_retrieve(selected)), False
 
 
 async def _aresolve_instance(
@@ -525,7 +525,7 @@ async def _aresolve_instance(
         )
     except ObjectDoesNotExist:
         return (False, None)
-    instance: Any = await amaterialize_retrieve(instance_spec, result)
+    instance: Any = await amaterialize_retrieve(result)
     if instance is None:
         return (False, None)
     return (True, instance)

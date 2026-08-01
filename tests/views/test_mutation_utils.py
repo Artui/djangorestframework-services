@@ -15,7 +15,6 @@ from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.views.mutation.utils import (
     build_input_serializer,
-    dispatch_service,
     validate_input,
 )
 
@@ -208,19 +207,3 @@ class TestValidateInput:
             extra_data={"parent_id": 7},
         )
         assert result == {"name": "Ada", "parent_id": 7}
-
-
-class TestDispatchService:
-    @pytest.mark.django_db
-    def test_sync_service_atomic(self) -> None:
-        def fn(*, x: int) -> int:
-            return x * 2
-
-        assert dispatch_service(fn, {"x": 3}, atomic=True) == 6
-
-    @pytest.mark.django_db
-    def test_async_service_bridged(self) -> None:
-        async def fn(*, x: int) -> int:
-            return x + 1
-
-        assert dispatch_service(fn, {"x": 4}, atomic=False) == 5

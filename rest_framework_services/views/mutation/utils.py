@@ -9,16 +9,14 @@ Public leaf helpers:
   ``validated_data`` (dict for ``ModelSerializer``, dataclass instance for
   dataclass-based serializers). Thin wrapper over
   ``build_input_serializer``.
-- ``dispatch_service`` — sync/async dispatch with optional atomic wrapping.
 - ``map_service_error`` — translate a framework-agnostic ``ServiceError``
   into the appropriate DRF exception. Lives in the sibling
   :mod:`~rest_framework_services.views.mutation.map_service_error` leaf module
-  (re-imported here for the flow runner's use); kept separate so
+  (re-imported here for this module's use); kept separate so
   ``call_service`` can map errors without importing this heavy module.
 - ``resolve_mutation_instance`` — resolve the instance an update / destroy /
   detail action targets: ``spec.instance_selector_spec`` when set, else the
-  view's ``get_object()`` chain.
-
+  view's ``get_object()`` chain — ``UNSET`` when the core should resolve it.
 - ``resolve_view_hooks`` — collect the view's hook chains into a ``ViewHooks``
   carrier for the dispatch core (view layers only; the spec's own providers
   stay the core's job).
@@ -49,7 +47,6 @@ from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.selectors.utils import (
     check_view_object_permissions,
 )
-from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.unset import UNSET
@@ -92,8 +89,9 @@ def build_input_serializer(
     overlap. This is the seam used by the ``input_data`` resolver chain
     to lift URL kwargs into serializer input. A form-encoded / multipart
     body arrives as a ``QueryDict`` (``{key: [values]}`` internally), so the
-    merge goes through :func:`_merge_extra_data` to avoid flattening scalars
-    into one-element lists — see there.
+    merge goes through :func:`~rest_framework_services.dispatch.apply_input_data.apply_input_data`,
+    which owns the QueryDict handling that keeps scalars from flattening into
+    one-element lists.
 
     ``context`` (when supplied) is forwarded to the serializer's ``context=``
     kwarg so DRF-style ``self.context["request"]`` / ``["view"]`` lookups
@@ -115,7 +113,7 @@ def build_input_serializer(
     if input_serializer is None:
         return None
     if extra_data:
-        data: Any = _merge_extra_data(request.data, extra_data)
+        data: Any = apply_input_data(request.data, extra_data)
     else:
         data = request.data
     return build_input_serializer_from_data(
@@ -126,17 +124,6 @@ def build_input_serializer(
         instance=instance,
         many=many,
     )
-
-
-def _merge_extra_data(request_data: Any, extra_data: Mapping[str, Any]) -> Any:
-    """Merge server-provided ``extra_data`` on top of a request body.
-
-    Delegates to :func:`~rest_framework_services.dispatch.utils.apply_input_data`,
-    which owns the merge (including the QueryDict handling a form-encoded body
-    needs) for every transport. Kept as a name here because
-    :func:`build_input_serializer` is public and reads better for it.
-    """
-    return apply_input_data(request_data, extra_data)
 
 
 def build_input_serializer_from_data(
@@ -206,23 +193,6 @@ def validate_input(
         instance=instance,
     )
     return None if serializer is None else serializer.validated_data
-
-
-def dispatch_service(
-    fn: Callable[..., Any],
-    kwargs: dict[str, Any],
-    *,
-    atomic: bool,
-) -> Any:
-    """Run a service from a sync view, transparently bridging async ones.
-
-    Retained as the view layer's name for the call; the async bridge itself now
-    lives in :func:`~rest_framework_services.services.run_service.run_service`, so
-    the HTTP and transport-neutral paths cannot disagree about whether an
-    ``async def`` service gets awaited. This wrapper is a pure alias — do not
-    reintroduce logic here.
-    """
-    return run_service(fn, kwargs, atomic=atomic)
 
 
 def render_mutation_response(
