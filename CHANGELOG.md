@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Client-supplied params could shadow the authenticated user during target
+  resolution.** `instance_selector_spec` / `collection_selector_spec` built their
+  kwarg pool by hand as `{**base_pool, **params, **url_kwargs}`, bypassing the
+  reserved-seed strip that `merge_arguments` applies to every other spread. So
+  `params={"user": …}` replaced the authenticated user in the pool that decides
+  **which row gets mutated** and **which set gets bulk-deleted** — and over MCP
+  or an agent toolset those params are the tool call itself. Both nested
+  resolutions now strip the seeds, sync and async.
+
+- **A route capture could shadow the authenticated user on the HTTP selector
+  path.** The view-local pool spread `view.kwargs` **over** `base_pool`, so on a
+  nested route like `/users/<user>/posts/` a capture named `user` replaced
+  `request.user` in the selector's kwarg pool — a selector written
+  `def list_posts(*, user): return Post.objects.filter(author=user)` scoped by
+  the URL value instead of the caller. `RESERVED_POOL_SEEDS` exists to prevent
+  exactly this (its docstring calls it a credential-spoofing footgun) and the
+  transport-neutral path already stripped those names; the HTTP selector path
+  never did. It requires a project to name a route capture after a dispatcher
+  seed — `user` being the realistic one — but the result is a horizontal
+  scoping bypass, so treat this as the reason to upgrade.
+
+  ⚠ **The permission fix can turn a passing 200 into a 403** if a project has a
+  `has_object_permission` that was never being consulted on a retrieve selector.
+  That is the intended behaviour and matches what the same spec already did over
+  MCP, but it is worth checking before upgrading.
+
 - **Four spec behaviours that differed between HTTP and `dispatch_spec`.** The
   view path and the transport-neutral path ran two copies of the same sequence,
   and the copies had drifted. Each of these was a spec-carried behaviour honoured
@@ -39,35 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (which previously ran it separately). `LIST` is unaffected — a queryset is not
     an object, and scoping a list stays `filter_set` plus the selector.
 
-- **Client-supplied params could shadow the authenticated user during target
-  resolution.** `instance_selector_spec` / `collection_selector_spec` built their
-  kwarg pool by hand as `{**base_pool, **params, **url_kwargs}`, bypassing the
-  reserved-seed strip that `merge_arguments` applies to every other spread. So
-  `params={"user": …}` replaced the authenticated user in the pool that decides
-  **which row gets mutated** and **which set gets bulk-deleted** — and over MCP
-  or an agent toolset those params are the tool call itself. Both nested
-  resolutions now strip the seeds, sync and async.
-
-- **A route capture could shadow the authenticated user on the HTTP selector
-  path.** The view-local pool spread `view.kwargs` **over** `base_pool`, so on a
-  nested route like `/users/<user>/posts/` a capture named `user` replaced
-  `request.user` in the selector's kwarg pool — a selector written
-  `def list_posts(*, user): return Post.objects.filter(author=user)` scoped by
-  the URL value instead of the caller. `RESERVED_POOL_SEEDS` exists to prevent
-  exactly this (its docstring calls it a credential-spoofing footgun) and the
-  transport-neutral path already stripped those names; the HTTP selector path
-  never did. It requires a project to name a route capture after a dispatcher
-  seed — `user` being the realistic one — but the result is a horizontal
-  scoping bypass, so treat this as the reason to upgrade.
-
-  ⚠ **The permission fix can turn a passing 200 into a 403** if a project has a
-  `has_object_permission` that was never being consulted on a retrieve selector.
-  That is the intended behaviour and matches what the same spec already did over
-  MCP, but it is worth checking before upgrading.
-
 - **The `get_output_serializer_context` chain now reaches the bulk renderer.**
   The fourth and quietest of the hook chains — it only surfaces when a spec both
   renders through an output serializer and reads view-supplied context.
+
 
 ### Changed
 
@@ -112,11 +113,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   layers to `dispatch_spec`. It holds the *view* layers only; the spec's own
   providers stay the dispatch core's job, so they resolve exactly once. Callers
   without a view omit it and nothing changes.
-- **`DispatchResult.service_result` / `.data`** — the service's own return value
-  (captured before an `output_selector_spec` re-fetch replaced `value`) and the
-  validated input. The first is the flags carrier a callable `success_status` and
-  a `response_finalizer` key on; both are informational, so a transport that only
-  renders can ignore them.
+- **`DispatchResult.service_result` / `.instance` / `.data`** — the service's own return value
+  (captured before an `output_selector_spec` re-fetch replaced `value`), the
+  resolved mutation target, and the validated input. `service_result` is the
+  flags carrier a callable `success_status` and a `response_finalizer` key on;
+  `instance` lets a transport read the pre-mutation row rather than resolving it
+  a second time and risking a different answer. All three are informational — a
+  transport that only renders can ignore them.
 - **`dispatch_spec(instance=…, filter_data=…)`** — two seams the HTTP caller
   needs and no other transport does. `instance` supplies an already-resolved
   target (HTTP's `get_object()` chain has no off-HTTP meaning; the `UNSET`
