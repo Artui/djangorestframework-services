@@ -222,6 +222,13 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     # — hence the open ``...`` parameter spec.
     kwargs: Callable[..., ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
+    # State/DB business rules; see the ``ServiceSpec`` field for the naming
+    # rationale and the raise contract. A selector has no validation step, so
+    # there is exactly one position: after the target resolves, seeded
+    # ``instance`` (RETRIEVE) or ``collection`` (LIST). Pool binding does the
+    # discrimination — a precondition declaring ``instance`` cannot be written
+    # against a LIST spec.
+    preconditions: Sequence[Callable[..., None]] | None = None
     # Consumer-owned, framework-opaque. The name fits none of the three
     # patterns in CLAUDE.md (it wraps no Django/DRF concept, configures no
     # serialization phase, resolves no nested spec), so it is chosen for the

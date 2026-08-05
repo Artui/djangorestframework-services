@@ -264,6 +264,74 @@ def _validate_permission_classes(
             )
 
 
+def _validate_preconditions(
+    preconditions: Any,
+    *,
+    label: str,
+    has_data: bool,
+    has_instance: bool,
+    spec_kwargs: Callable[..., Any] | None,
+    permissive_extras: bool,
+    extra_known_keys: tuple[str, ...] = (),
+) -> None:
+    """Fail fast on a mis-declared ``preconditions``.
+
+    Two failure modes, both of which are otherwise a **500 at request time**
+    rather than a configuration error — which is the whole reason this exists.
+    A bare callable passed instead of a sequence would be iterated character by
+    character or raise ``TypeError`` inside dispatch; and a predicate declaring
+    a parameter no seed provides is *omitted* by the pool rather than rejected
+    (``resolve_callable_kwargs`` forwards pool∩signature), so the call fails
+    with a missing-argument ``TypeError`` deep in the stack.
+
+    The signature check is the same one the service gets, so the pool a
+    precondition may declare from is exactly the pool it will be handed.
+    """
+    if preconditions is None:
+        return
+    if callable(preconditions) or isinstance(preconditions, str | bytes):
+        raise ImproperlyConfigured(
+            f"{label}: `preconditions` takes a sequence of callables, not a single "
+            f"{type(preconditions).__name__}. Wrap it in a list: preconditions=[…]."
+        )
+    if not isinstance(preconditions, Iterable):
+        raise ImproperlyConfigured(
+            f"{label}: `preconditions` must be a sequence of callables, got "
+            f"{type(preconditions).__name__}."
+        )
+    for index, precondition in enumerate(preconditions):
+        if not callable(precondition):
+            raise ImproperlyConfigured(
+                f"{label}: preconditions[{index}] is not callable ({type(precondition).__name__})."
+            )
+        validate_callable_signature(
+            precondition,
+            spec_label=f"{label}.preconditions[{index}]",
+            has_data=has_data,
+            has_instance=has_instance,
+            has_result=False,
+            spec_kwargs=spec_kwargs,
+            permissive_extras=permissive_extras,
+            extra_known_keys=extra_known_keys,
+        )
+
+
+def _reject_nested_preconditions(nested: Any, *, label: str) -> None:
+    """A nested spec's ``preconditions`` never runs — say so rather than ignore it.
+
+    ``kwargs`` / ``permission_classes`` on a nested spec are documented as
+    ignored, and adding a third silently-ignored field is the exact defect class
+    the dispatch-convergence wave existed to close: a field that looks honoured
+    and isn't. Preconditions belong on the spec that owns the dispatch.
+    """
+    if nested.preconditions is not None:
+        raise ImproperlyConfigured(
+            f"{label}: `preconditions` on a nested spec is never invoked — the "
+            "surrounding spec owns the dispatch. Move them to the spec being "
+            "dispatched."
+        )
+
+
 def _validate_output_selector_spec(
     output_spec: SelectorSpec[Any, Any],
     *,
@@ -288,6 +356,7 @@ def _validate_output_selector_spec(
     ``permission_classes`` are ignored at request time, so we don't validate
     them as a selector spec would.
     """
+    _reject_nested_preconditions(output_spec, label=label)
     if output_spec.kind is SelectorKind.LIST and not has_collection:
         raise ImproperlyConfigured(
             f"{label}: output_selector_spec.kind=LIST renders a list and is only "
@@ -325,6 +394,7 @@ def _validate_instance_selector_spec(
     always a misuse; other extras stay permissive (URL kwargs and the
     selector kwargs chain are dynamic).
     """
+    _reject_nested_preconditions(instance_spec, label=label)
     if not has_instance:
         raise ImproperlyConfigured(
             f"{label}: instance_selector_spec is set but this action does not "
@@ -363,6 +433,7 @@ def _validate_collection_selector_spec(
     selector runs against ``{request, user}`` + the dispatch params, so its
     extras stay permissive.
     """
+    _reject_nested_preconditions(collection_spec, label=label)
     if collection_spec.kind is not SelectorKind.LIST:
         raise ImproperlyConfigured(
             f"{label}: collection_selector_spec.kind must be SelectorKind.LIST; "
@@ -477,6 +548,15 @@ def validate_service_spec(
         # A collection-target service receives the resolved set as ``collection``.
         extra_known_keys=("collection",) if spec.collection_selector_spec is not None else (),
     )
+    _validate_preconditions(
+        spec.preconditions,
+        label=label,
+        has_data=spec.input_serializer is not None,
+        has_instance=has_instance,
+        spec_kwargs=spec.kwargs,
+        permissive_extras=permissive_extras,
+        extra_known_keys=("collection",) if spec.collection_selector_spec is not None else (),
+    )
     if spec.collection_selector_spec is not None:
         _validate_collection_selector_spec(
             spec.collection_selector_spec,
@@ -565,6 +645,20 @@ def validate_selector_spec(
             f"expects {expected_kind!r}. Construct the spec with "
             f"kind={expected_kind!r} or move it to the matching view."
         )
+    # Before the ``selector is None`` bail-out: a spec can carry preconditions
+    # without declaring its own selector (the view's ``get_queryset`` resolves
+    # the target), and those still run.
+    _validate_preconditions(
+        spec.preconditions,
+        label=label,
+        has_data=False,
+        # The target seeds one name or the other, never both — which is what
+        # stops an ``instance`` precondition being written against a LIST spec.
+        has_instance=spec.kind is SelectorKind.RETRIEVE,
+        spec_kwargs=spec.kwargs,
+        permissive_extras=True,
+        extra_known_keys=("collection",) if spec.kind is SelectorKind.LIST else (),
+    )
     if spec.selector is None:
         return
     validate_callable_signature(

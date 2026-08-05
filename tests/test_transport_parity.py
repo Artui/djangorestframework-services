@@ -28,6 +28,7 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 from rest_framework_services import (
     SelectorKind,
     SelectorSpec,
+    ServiceError,
     ServiceSpec,
     ServiceViewSet,
     adispatch_spec,
@@ -552,3 +553,67 @@ def test_retrieve_selector_runs_object_permissions_over_http() -> None:
         APIRequestFactory().get(f"/x/{post.pk}/"), pk=post.pk
     )
     assert response.status_code == 403
+
+
+# --- preconditions -------------------------------------------------------
+#
+# ``ServiceSpec.preconditions`` / ``SelectorSpec.preconditions`` fire after
+# validation and target resolution, before the service. The field exists on the
+# spec rather than in a view method precisely so it reaches every transport —
+# a business rule that only guards HTTP is the shape this file exists to catch.
+# The raise contract is ``ServiceError`` for the same reason: it is the one
+# exception every transport already maps.
+
+
+class _Locked(ServiceError):
+    """A precondition failure — a consumer's 409."""
+
+
+def _refuse(*, data: Any) -> None:
+    if data["title"] == "locked":
+        raise _Locked("this title is locked")
+
+
+_PRECONDITION_SPEC = ServiceSpec(
+    service=_echo,
+    input_serializer=_TitleInput,
+    preconditions=[_refuse],
+)
+
+
+@pytest.mark.django_db
+def test_preconditions_allow_a_passing_payload_over_http() -> None:
+    response = _create_view(_PRECONDITION_SPEC)(
+        APIRequestFactory().post("/x/", {"title": "ok", "tenant": "t"}, format="json")
+    )
+    assert response.status_code == 201
+
+
+@pytest.mark.django_db
+def test_preconditions_allow_a_passing_payload_off_http() -> None:
+    result = dispatch_spec(_PRECONDITION_SPEC, user=None, params={"title": "ok", "tenant": "t"})
+    assert result.value == {"title": "ok", "tenant": "t"}
+
+
+@pytest.mark.django_db
+def test_preconditions_block_over_http() -> None:
+    """A raised ``ServiceError`` is mapped, not a 500."""
+    response = _create_view(_PRECONDITION_SPEC)(
+        APIRequestFactory().post("/x/", {"title": "locked", "tenant": "t"}, format="json")
+    )
+    assert 400 <= response.status_code < 500
+
+
+@pytest.mark.django_db
+def test_preconditions_block_off_http() -> None:
+    """Off HTTP the caller catches the framework-agnostic error itself."""
+    with pytest.raises(_Locked):
+        dispatch_spec(_PRECONDITION_SPEC, user=None, params={"title": "locked", "tenant": "t"})
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_preconditions_block_on_the_async_path() -> None:
+    with pytest.raises(_Locked):
+        await adispatch_spec(
+            _PRECONDITION_SPEC, user=None, params={"title": "locked", "tenant": "t"}
+        )

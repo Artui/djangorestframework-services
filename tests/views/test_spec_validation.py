@@ -20,6 +20,7 @@ from rest_framework_services.views.spec_validation import (
     is_overridden,
     validate_callable_signature,
     validate_filter_set_no_backend_conflict,
+    validate_selector_spec,
     validate_service_spec,
 )
 
@@ -484,3 +485,139 @@ class TestValidateResponseFinalizer:
     def test_non_callable_fails(self) -> None:
         with pytest.raises(ImproperlyConfigured, match="must be a callable"):
             self._validate("nope")
+
+
+class TestValidatePreconditions:
+    def _validate(self, preconditions: Any, **kwargs: Any) -> None:
+        validate_service_spec(
+            ServiceSpec(service=lambda: None, preconditions=preconditions, **kwargs),
+            label="X",
+            has_instance=False,
+            permissive_extras=False,
+        )
+
+    def test_none_passes(self) -> None:
+        self._validate(None)
+
+    def test_empty_sequence_passes(self) -> None:
+        self._validate([])
+
+    def test_callables_with_known_params_pass(self) -> None:
+        self._validate([lambda *, user: None, lambda *, request: None])
+
+    def test_var_keyword_passes(self) -> None:
+        self._validate([lambda **_: None])
+
+    def test_bare_callable_is_rejected_with_a_wrapping_hint(self) -> None:
+        """The likeliest mistake: forgetting the list."""
+        with pytest.raises(ImproperlyConfigured, match=r"Wrap it in a list"):
+            self._validate(lambda *, user: None)
+
+    def test_string_is_rejected_rather_than_iterated_per_character(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match=r"Wrap it in a list"):
+            self._validate("check_locked")
+
+    def test_non_iterable_is_rejected(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="must be a sequence of callables"):
+            self._validate(7)
+
+    def test_non_callable_element_names_its_index(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match=r"preconditions\[1\] is not callable"):
+            self._validate([lambda *, user: None, "nope"])
+
+    def test_unseeded_parameter_is_a_config_error_not_a_runtime_typeerror(self) -> None:
+        """The plan's sharpest correction: the pool is seed-keyed, not model-keyed."""
+        with pytest.raises(ImproperlyConfigured, match="order"):
+            self._validate([lambda *, order: None])
+
+    def test_data_parameter_requires_an_input_serializer(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="`data`"):
+            self._validate([lambda *, data: None])
+
+    def test_instance_parameter_rejected_on_an_action_without_one(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="`instance`"):
+            self._validate([lambda *, instance: None])
+
+
+class TestNestedPreconditionsRejected:
+    """A nested spec never dispatches, so its preconditions never run."""
+
+    def _nested(self) -> SelectorSpec[Any, Any]:
+        return SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=lambda: None,
+            preconditions=[lambda *, user: None],
+        )
+
+    def test_instance_selector_spec(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="never invoked"):
+            validate_service_spec(
+                ServiceSpec(service=lambda: None, instance_selector_spec=self._nested()),
+                label="X",
+                has_instance=True,
+                permissive_extras=False,
+            )
+
+    def test_output_selector_spec(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="never invoked"):
+            validate_service_spec(
+                ServiceSpec(service=lambda: None, output_selector_spec=self._nested()),
+                label="X",
+                has_instance=False,
+                permissive_extras=False,
+            )
+
+    def test_collection_selector_spec(self) -> None:
+        nested = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=lambda: None,
+            preconditions=[lambda *, user: None],
+        )
+        with pytest.raises(ImproperlyConfigured, match="never invoked"):
+            validate_service_spec(
+                ServiceSpec(service=lambda: None, collection_selector_spec=nested),
+                label="X",
+                has_instance=False,
+                permissive_extras=False,
+            )
+
+
+class TestSelectorSpecPreconditions:
+    def test_retrieve_may_declare_instance(self) -> None:
+        validate_selector_spec(
+            SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                selector=lambda: None,
+                preconditions=[lambda *, instance: None],
+            ),
+            label="X",
+        )
+
+    def test_list_may_declare_collection(self) -> None:
+        validate_selector_spec(
+            SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=lambda: None,
+                preconditions=[lambda *, collection: None],
+            ),
+            label="X",
+        )
+
+    def test_list_may_not_declare_instance(self) -> None:
+        """Pool binding is what stops an instance rule on a LIST spec."""
+        with pytest.raises(ImproperlyConfigured, match="`instance`"):
+            validate_selector_spec(
+                SelectorSpec(
+                    kind=SelectorKind.LIST,
+                    selector=lambda: None,
+                    preconditions=[lambda *, instance: None],
+                ),
+                label="X",
+            )
+
+    def test_validated_even_when_the_spec_declares_no_selector(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="never invoked|not callable|sequence"):
+            validate_selector_spec(
+                SelectorSpec(kind=SelectorKind.RETRIEVE, preconditions=["nope"]),
+                label="X",
+            )
