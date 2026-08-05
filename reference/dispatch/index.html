@@ -542,6 +542,8 @@
       
         
       
+        
+      
     
     
     
@@ -697,6 +699,34 @@
     
   
     Per-action permissions on the spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/preconditions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    State rules with preconditions
   
 
     
@@ -3241,8 +3271,9 @@ the (lazy) shaped queryset — the async transport materializes / paginates it
 in a thread, exactly as on the sync path.</p>
 <p>That rule covers <strong>every</strong> callable a spec carries, not just the selector /
 service: <code>kwargs</code> providers, <code>extend_queryset</code>, <code>filter_set</code>,
-<code>input_serializer_context</code>, a callable <code>success_status</code>, and the
-<code>on_target_resolved</code> guard all run in the executor (see
+<code>input_serializer_context</code>, a callable <code>success_status</code>,
+<code>preconditions</code>, and the <code>on_target_resolved</code> guard all run in the
+executor (see
 :func:<code>~rest_framework_services.dispatch.utils.arun_off_loop</code>). None of them
 can be <code>async def</code> — a spec is written once for both transports — so any
 that queries would otherwise raise <code>SynchronousOnlyOperation</code> here and

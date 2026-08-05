@@ -10,31 +10,31 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/errors-and-atomic/">
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/recipes/preconditions/">
       
       
-        <link rel="prev" href="../default-model-services/">
+        <link rel="prev" href="../permissions/">
       
       
-        <link rel="next" href="../typing/">
+        <link rel="next" href="../queryset-shaping/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Errors & atomic - djangorestframework-services</title>
+        <title>State rules with preconditions - djangorestframework-services</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,9 +53,9 @@
       
     
     
-      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#errors-atomic" class="md-skip">
+        <a href="#state-rules-with-preconditions" class="md-skip">
           Skip to content
         </a>
       
@@ -96,7 +96,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="djangorestframework-services" class="md-header__button md-logo" aria-label="djangorestframework-services" data-md-component="logo">
+    <a href="../.." title="djangorestframework-services" class="md-header__button md-logo" aria-label="djangorestframework-services" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Errors & atomic
+              State rules with preconditions
             
           </span>
         </div>
@@ -239,7 +239,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="djangorestframework-services" class="md-nav__button md-logo" aria-label="djangorestframework-services" data-md-component="logo">
+    <a href="../.." title="djangorestframework-services" class="md-nav__button md-logo" aria-label="djangorestframework-services" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -269,7 +269,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -296,7 +296,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quickstart/" class="md-nav__link">
+      <a href="../../quickstart/" class="md-nav__link">
         
   
   
@@ -323,7 +323,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../concepts/" class="md-nav__link">
+      <a href="../../concepts/" class="md-nav__link">
         
   
   
@@ -350,7 +350,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../mutation-helpers/" class="md-nav__link">
+      <a href="../../mutation-helpers/" class="md-nav__link">
         
   
   
@@ -377,7 +377,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../default-model-services/" class="md-nav__link">
+      <a href="../../default-model-services/" class="md-nav__link">
         
   
   
@@ -401,37 +401,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Errors & atomic
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../errors-and-atomic/" class="md-nav__link">
         
   
   
@@ -447,109 +420,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#framework-agnostic-exceptions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Framework-agnostic exceptions
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Framework-agnostic exceptions">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#servicevalidationerror" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ServiceValidationError
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#additionalinputrequired" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        AdditionalInputRequired
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#serviceerror" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ServiceError
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#why-not-just-raise-drf-exceptions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why not just raise DRF exceptions?
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#atomic-transactions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Atomic transactions
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#async-atomic" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Async + atomic
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -561,7 +431,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../typing/" class="md-nav__link">
+      <a href="../../typing/" class="md-nav__link">
         
   
   
@@ -588,7 +458,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../openapi/" class="md-nav__link">
+      <a href="../../openapi/" class="md-nav__link">
         
   
   
@@ -615,7 +485,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../async/" class="md-nav__link">
+      <a href="../../async/" class="md-nav__link">
         
   
   
@@ -639,6 +509,8 @@
       
   
   
+    
+  
   
   
     
@@ -683,17 +555,15 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../recipes/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -717,7 +587,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_10">
             <span class="md-nav__icon md-icon"></span>
             
@@ -737,7 +607,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../recipes/service-action/" class="md-nav__link">
+      <a href="../service-action/" class="md-nav__link">
         
   
   
@@ -765,7 +635,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../recipes/compose-viewset/" class="md-nav__link">
+      <a href="../compose-viewset/" class="md-nav__link">
         
   
   
@@ -793,7 +663,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../recipes/extra-kwargs/" class="md-nav__link">
+      <a href="../extra-kwargs/" class="md-nav__link">
         
   
   
@@ -821,7 +691,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../recipes/permissions/" class="md-nav__link">
+      <a href="../permissions/" class="md-nav__link">
         
   
   
@@ -846,10 +716,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../recipes/preconditions/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    State rules with preconditions
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -865,6 +762,103 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#two-rules-you-have-to-know" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two rules you have to know
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-they-fire" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where they fire
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#preconditions-vs-serializer-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preconditions vs. serializer validation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selectors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selectors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bulk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#whats-checked-at-startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's checked at startup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#telling-an-agent-about-them" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Telling an agent about them
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -877,7 +871,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../recipes/queryset-shaping/" class="md-nav__link">
+      <a href="../queryset-shaping/" class="md-nav__link">
         
   
   
@@ -905,7 +899,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../recipes/selector-filtering/" class="md-nav__link">
+      <a href="../selector-filtering/" class="md-nav__link">
         
   
   
@@ -933,7 +927,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../recipes/nested-writes/" class="md-nav__link">
+      <a href="../nested-writes/" class="md-nav__link">
         
   
   
@@ -961,7 +955,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../recipes/bulk-mutations/" class="md-nav__link">
+      <a href="../bulk-mutations/" class="md-nav__link">
         
   
   
@@ -989,7 +983,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../recipes/serializer-context/" class="md-nav__link">
+      <a href="../serializer-context/" class="md-nav__link">
         
   
   
@@ -1017,7 +1011,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../recipes/spec-registry/" class="md-nav__link">
+      <a href="../spec-registry/" class="md-nav__link">
         
   
   
@@ -1045,7 +1039,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../recipes/off-http-inputs/" class="md-nav__link">
+      <a href="../off-http-inputs/" class="md-nav__link">
         
   
   
@@ -1073,7 +1067,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../recipes/scaffold-app/" class="md-nav__link">
+      <a href="../scaffold-app/" class="md-nav__link">
         
   
   
@@ -1155,7 +1149,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../reference/" class="md-nav__link ">
+            <a href="../../reference/" class="md-nav__link ">
               
   
   
@@ -1199,7 +1193,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/views/" class="md-nav__link">
+      <a href="../../reference/views/" class="md-nav__link">
         
   
   
@@ -1227,7 +1221,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/dispatch/" class="md-nav__link">
+      <a href="../../reference/dispatch/" class="md-nav__link">
         
   
   
@@ -1255,7 +1249,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/viewsets/" class="md-nav__link">
+      <a href="../../reference/viewsets/" class="md-nav__link">
         
   
   
@@ -1283,7 +1277,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/mutations/" class="md-nav__link">
+      <a href="../../reference/mutations/" class="md-nav__link">
         
   
   
@@ -1311,7 +1305,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/services/" class="md-nav__link">
+      <a href="../../reference/services/" class="md-nav__link">
         
   
   
@@ -1339,7 +1333,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/selectors/" class="md-nav__link">
+      <a href="../../reference/selectors/" class="md-nav__link">
         
   
   
@@ -1367,7 +1361,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/types/" class="md-nav__link">
+      <a href="../../reference/types/" class="md-nav__link">
         
   
   
@@ -1395,7 +1389,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/registry/" class="md-nav__link">
+      <a href="../../reference/registry/" class="md-nav__link">
         
   
   
@@ -1423,7 +1417,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/jsonschema/" class="md-nav__link">
+      <a href="../../reference/jsonschema/" class="md-nav__link">
         
   
   
@@ -1451,7 +1445,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/openapi/" class="md-nav__link">
+      <a href="../../reference/openapi/" class="md-nav__link">
         
   
   
@@ -1479,7 +1473,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../reference/exceptions/" class="md-nav__link">
+      <a href="../../reference/exceptions/" class="md-nav__link">
         
   
   
@@ -1534,71 +1528,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#framework-agnostic-exceptions" class="md-nav__link">
+  <a href="#two-rules-you-have-to-know" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Framework-agnostic exceptions
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Framework-agnostic exceptions">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#servicevalidationerror" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ServiceValidationError
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#additionalinputrequired" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        AdditionalInputRequired
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#serviceerror" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ServiceError
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#why-not-just-raise-drf-exceptions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why not just raise DRF exceptions?
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#atomic-transactions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Atomic transactions
+        Two rules you have to know
       
     </span>
   </a>
@@ -1606,10 +1539,65 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#async-atomic" class="md-nav__link">
+  <a href="#where-they-fire" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Async + atomic
+        Where they fire
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#preconditions-vs-serializer-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preconditions vs. serializer validation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selectors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selectors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bulk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#whats-checked-at-startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's checked at startup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#telling-an-agent-about-them" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Telling an agent about them
       
     </span>
   </a>
@@ -1633,7 +1621,7 @@
 
 
   
-    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/errors-and-atomic.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/recipes/preconditions.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1641,134 +1629,133 @@
   
 
 
-<h1 id="errors-atomic">Errors &amp; atomic<a class="headerlink" href="#errors-atomic" title="Permanent link">&para;</a></h1>
-<p>Two ground rules:</p>
-<ol>
-<li><strong>Services don't import from DRF.</strong> They raise framework-agnostic
-   exceptions; the view boundary translates them.</li>
-<li><strong>Every service call runs inside <code>transaction.atomic()</code> by default.</strong>
-   Opt out per <code>ServiceSpec</code> (or per view) when the service manages its
-   own transaction boundaries.</li>
-</ol>
-<h2 id="framework-agnostic-exceptions">Framework-agnostic exceptions<a class="headerlink" href="#framework-agnostic-exceptions" title="Permanent link">&para;</a></h2>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceError</span><span class="p">,</span> <span class="n">ServiceValidationError</span>
+<h1 id="state-rules-with-preconditions">State rules with <code>preconditions</code><a class="headerlink" href="#state-rules-with-preconditions" title="Permanent link">&para;</a></h1>
+<p>Some rules aren't about the shape of a payload — they're about whether the
+operation is allowed <em>right now</em>, given the row and the actor. A budget that's
+been locked. An order already shipped. A reviewer who already has a pending
+request on this object.</p>
+<p><code>preconditions</code> is a declared slot for those, on the spec, so the rule travels
+with the operation to every transport instead of living in one view method.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceError</span><span class="p">,</span> <span class="n">ServiceSpec</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">withdraw</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">amount</span> <span class="o">&gt;</span> <span class="n">instance</span><span class="o">.</span><span class="n">balance</span><span class="p">:</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        <span class="k">raise</span> <span class="n">ServiceValidationError</span><span class="p">({</span><span class="s2">&quot;amount&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;insufficient funds&quot;</span><span class="p">]})</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="k">if</span> <span class="n">instance</span><span class="o">.</span><span class="n">locked</span><span class="p">:</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;account is locked&quot;</span><span class="p">)</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">instance</span><span class="o">.</span><span class="n">balance</span> <span class="o">-=</span> <span class="n">data</span><span class="o">.</span><span class="n">amount</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">instance</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;balance&quot;</span><span class="p">])</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="k">return</span> <span class="n">instance</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">BudgetLocked</span><span class="p">(</span><span class="n">ServiceError</span><span class="p">):</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">status_code</span> <span class="o">=</span> <span class="mi">409</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">budget_not_locked</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="k">if</span> <span class="n">instance</span><span class="o">.</span><span class="n">is_locked</span><span class="p">:</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        <span class="k">raise</span> <span class="n">BudgetLocked</span><span class="p">(</span><span class="s2">&quot;This budget is locked and cannot be edited.&quot;</span><span class="p">)</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">service</span><span class="o">=</span><span class="n">update_budget</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">BudgetInput</span><span class="p">,</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">preconditions</span><span class="o">=</span><span class="p">[</span><span class="n">budget_not_locked</span><span class="p">],</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="p">)</span>
 </span></code></pre></div>
-<p>The view maps them to DRF responses:</p>
+<h2 id="two-rules-you-have-to-know">Two rules you have to know<a class="headerlink" href="#two-rules-you-have-to-know" title="Permanent link">&para;</a></h2>
+<p><strong>Raise to abort. The return value is ignored.</strong></p>
+<p>This is the one that bites. A predicate written the natural way —</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">budget_not_locked</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="k">return</span> <span class="ow">not</span> <span class="n">instance</span><span class="o">.</span><span class="n">is_locked</span>          <span class="c1"># ← does nothing at all</span>
+</span></code></pre></div>
+<p>— is silently a no-op. Returning <code>False</code> does not block the call; only raising
+does. If you are porting existing <code>-&gt; bool</code> predicates, every one of them needs
+a raise.</p>
+<p><strong>Raise <code>ServiceError</code>, not a DRF exception.</strong></p>
+<p><code>ServiceError</code> (and <code>ServiceValidationError</code>) is the framework-agnostic error
+every transport already maps: to a response over HTTP, to a failed tool result
+over MCP, to a retryable error under an agent toolset. A DRF <code>APIException</code>
+subclass works over HTTP and escapes the mapping everywhere else — the same rule
+lands as a clean 409 for a browser and an unhandled internal error for an agent.</p>
+<h2 id="where-they-fire">Where they fire<a class="headerlink" href="#where-they-fire" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>permissions → target resolution → validation → preconditions → service
+</span></code></pre></div>
+<p>That position is what lets one field cover both kinds of rule. By the time a
+precondition runs, all of these are in the pool:</p>
 <table>
 <thead>
 <tr>
-<th>Raised</th>
-<th>Becomes</th>
-<th>HTTP</th>
+<th>Key</th>
+<th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>ServiceValidationError</code></td>
-<td><code>rest_framework.exceptions.ValidationError</code></td>
-<td><code>400</code></td>
+<td><code>instance</code></td>
+<td>the resolved row (update / destroy / retrieve)</td>
 </tr>
 <tr>
-<td><code>ServiceError</code></td>
-<td><code>rest_framework.exceptions.APIException</code></td>
-<td><code>422</code></td>
+<td><code>collection</code></td>
+<td>the resolved set (collection mutations, LIST selectors)</td>
 </tr>
 <tr>
-<td><code>AdditionalInputRequired</code></td>
-<td><code>rest_framework.exceptions.APIException</code></td>
-<td><code>422</code></td>
+<td><code>data</code>, <code>serializer</code></td>
+<td>whenever the spec has an <code>input_serializer</code></td>
+</tr>
+<tr>
+<td><code>user</code>, <code>request</code></td>
+<td>always</td>
 </tr>
 </tbody>
 </table>
-<h3 id="servicevalidationerror"><code>ServiceValidationError</code><a class="headerlink" href="#servicevalidationerror" title="Permanent link">&para;</a></h3>
-<p>For business-rule violations that should look like input validation
-errors to the client. Accepts the same shapes DRF's <code>ValidationError</code>
-does:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">raise</span> <span class="n">ServiceValidationError</span><span class="p">(</span><span class="s2">&quot;bad input&quot;</span><span class="p">)</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">raise</span> <span class="n">ServiceValidationError</span><span class="p">([</span><span class="s2">&quot;error 1&quot;</span><span class="p">,</span> <span class="s2">&quot;error 2&quot;</span><span class="p">])</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">raise</span> <span class="n">ServiceValidationError</span><span class="p">({</span><span class="s2">&quot;field&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;per-field error&quot;</span><span class="p">]})</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">raise</span> <span class="n">ServiceValidationError</span><span class="p">({</span><span class="s2">&quot;non_field_errors&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;whole-form error&quot;</span><span class="p">]})</span>
+<p>So a rule about the row, a rule about the payload, and a rule that needs both
+are all the same kind of thing. Declare the keys you want and you get exactly
+those:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">price_increase_needs_approval</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">user</span><span class="p">):</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="k">if</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;price&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">instance</span><span class="o">.</span><span class="n">price</span> <span class="o">*</span> <span class="mi">2</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">user</span><span class="o">.</span><span class="n">is_staff</span><span class="p">:</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>        <span class="k">raise</span> <span class="n">NeedsApproval</span><span class="p">(</span><span class="s2">&quot;Doubling a price requires an approver.&quot;</span><span class="p">)</span>
 </span></code></pre></div>
-<p>The translated DRF response is a normal <code>400</code> with the same body shape
-your serializers produce. From the client's point of view, a service
-violation and a serializer violation are indistinguishable — which is
-usually what you want.</p>
-<h3 id="additionalinputrequired"><code>AdditionalInputRequired</code><a class="headerlink" href="#additionalinputrequired" title="Permanent link">&para;</a></h3>
-<p>For <em>"I got far enough to discover I need something else"</em> — which is not the
-same claim as <code>ServiceValidationError</code>'s <em>"what you sent is wrong"</em>. The
-difference that matters is that it is usually <strong>conditional on what the service
-found</strong>, so it cannot be expressed as a required field on the serializer:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">delete_rows</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">doomed</span> <span class="o">=</span> <span class="n">rows_matching</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">doomed</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">100</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;confirmed&quot;</span><span class="p">]:</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        <span class="k">raise</span> <span class="n">AdditionalInputRequired</span><span class="p">(</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">doomed</span><span class="p">)</span><span class="si">}</span><span class="s2"> rows match. Confirm to proceed.&quot;</span><span class="p">,</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>            <span class="n">schema</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;confirmed&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;boolean&quot;</span><span class="p">}},</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="p">)</span>
+<p>Business logic never sees an unvalidated payload — validation has already run.</p>
+<h2 id="preconditions-vs-serializer-validation">Preconditions vs. serializer validation<a class="headerlink" href="#preconditions-vs-serializer-validation" title="Permanent link">&para;</a></h2>
+<p>Keep the boundary. A serializer validates <strong>shape</strong>: types, required fields,
+field-level formats, cross-field coherence within the payload itself. A
+precondition validates <strong>state</strong>: what's in the database, who's asking, what
+already happened.</p>
+<p>The practical test is whether the rule can be answered from the payload alone.
+<code>end_date &gt; start_date</code> can — that's <code>Serializer.validate()</code>. "This budget is
+locked" can't; it needs a row. Putting state rules in the serializer means
+fetching the object twice and reimplementing the lookup the spec already did.</p>
+<h2 id="selectors">Selectors<a class="headerlink" href="#selectors" title="Permanent link">&para;</a></h2>
+<p><code>SelectorSpec</code> takes the field too, with one position: after the target
+resolves. <code>RETRIEVE</code> seeds <code>instance</code>, <code>LIST</code> seeds <code>collection</code>.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">selector</span><span class="o">=</span><span class="n">budget_by_pk</span><span class="p">,</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">preconditions</span><span class="o">=</span><span class="p">[</span><span class="n">budget_is_visible_during_freeze</span><span class="p">],</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">)</span>
 </span></code></pre></div>
-<p><code>schema</code> describes what is missing, keyed by the input name the service expects
-it back under. A transport that can put the question to a human renders it; one
-that cannot still has a message worth showing.</p>
-<p>⭐ <strong>The answer comes back as ordinary input.</strong> An HTTP client re-submits with
-<code>confirmed</code> in the body. A transport that asks interactively — MCP, say — merges
-the answer into the parameters before dispatch. Either way the service reads it
-as a normal argument, which is why raising is the <em>whole</em> of the service's
-involvement: there is no callback to hold and no session to resume.</p>
-<p>It subclasses <code>ServiceError</code>, so a transport that has never heard of it still
-behaves sensibly. ⚠ A transport that wants to do better must catch it <strong>before</strong>
-its generic <code>ServiceError</code> handler, or the subclass check will swallow it.</p>
-<h3 id="serviceerror"><code>ServiceError</code><a class="headerlink" href="#serviceerror" title="Permanent link">&para;</a></h3>
-<p>For business-rule violations that <strong>aren't</strong> input errors —
-<em>"the resource exists but is in the wrong state"</em>. The default mapping
-is <code>422 Unprocessable Entity</code>, which is exactly what HTTP says about
-this case.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;account is locked&quot;</span><span class="p">)</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;invoice already finalised&quot;</span><span class="p">)</span>
-</span></code></pre></div>
-<h3 id="why-not-just-raise-drf-exceptions">Why not just raise DRF exceptions?<a class="headerlink" href="#why-not-just-raise-drf-exceptions" title="Permanent link">&para;</a></h3>
-<p>Because the mutation can be reused outside a request — from a
-management command, a background job, a test. Coupling business rules
-to HTTP status codes makes those reuses awkward; coupling them to
-<em>what kind of error happened</em> keeps them portable.</p>
-<p>The boundary translation costs you nothing inside a view; outside a
-view, you catch <code>ServiceError</code> / <code>ServiceValidationError</code> directly.</p>
-<h2 id="atomic-transactions">Atomic transactions<a class="headerlink" href="#atomic-transactions" title="Permanent link">&para;</a></h2>
-<p>By default every service call is wrapped in <code>transaction.atomic()</code>.
-Opt out per spec — <code>atomic</code> lives on <code>ServiceSpec</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ImportView</span><span class="p">(</span><span class="n">ServiceCreateView</span><span class="p">):</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>        <span class="n">service</span><span class="o">=</span><span class="n">run_import</span><span class="p">,</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">ImportInput</span><span class="p">,</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="n">atomic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>            <span class="c1"># the import service handles its own savepoints</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="p">)</span>
-</span></code></pre></div>
-<p>When to opt out:</p>
+<p>Pool binding does the discrimination — a precondition declaring <code>instance</code>
+cannot be attached to a <code>LIST</code> spec, and you'll hear about it at <code>as_view()</code>
+rather than at request time.</p>
+<h2 id="bulk">Bulk<a class="headerlink" href="#bulk" title="Permanent link">&para;</a></h2>
+<p>A <code>many=True</code> bulk spec runs its preconditions <strong>once</strong>, with no target, before
+the service — matching where the target guard fires. Only preconditions
+declaring <code>user</code> / <code>request</code> / <code>data</code> bind. Per-item rules belong in the
+service's own loop, where you can report which item failed.</p>
+<h2 id="whats-checked-at-startup">What's checked at startup<a class="headerlink" href="#whats-checked-at-startup" title="Permanent link">&para;</a></h2>
+<p><code>as_view()</code> rejects, with a message naming the problem:</p>
 <ul>
-<li>the service drives a long-running import that needs per-row
-  savepoints,</li>
-<li>the service must commit partial work before raising,</li>
-<li>the service spans systems and the database side is intentionally
-  best-effort.</li>
+<li>a bare callable instead of a sequence (<code>preconditions=check</code> — wrap it in a list)</li>
+<li>a non-callable element, named by index</li>
+<li>a parameter nothing seeds. <strong>The pool is keyed on framework seed names, not on
+  your model names</strong> — <code>def is_editable(order)</code> will not receive your <code>Order</code>;
+  write <code>def is_editable(*, instance)</code>. Without this check that's a <code>TypeError</code>
+  deep in dispatch, which surfaces as a 500.</li>
+<li><code>preconditions</code> on a <em>nested</em> spec (<code>instance_selector_spec</code>,
+  <code>collection_selector_spec</code>, <code>output_selector_spec</code>). Those never dispatch, so
+  the field would never run; it's refused rather than ignored.</li>
 </ul>
-<p>When <strong>not</strong> to opt out: the service makes more than one related write
-and you'd want them to roll back together on failure. That's the case
-the default exists for.</p>
-<h2 id="async-atomic">Async + atomic<a class="headerlink" href="#async-atomic" title="Permanent link">&para;</a></h2>
-<p>Atomic wrapping works for <code>async def</code> services too. The dispatcher
-wraps the call in <code>sync_to_async(thread_sensitive=True)</code> so the ORM
-connection stays on a consistent thread. You don't need to do anything
-special in the service body.</p>
-<p>See <a href="../async/">Async</a>.</p>
+<h2 id="telling-an-agent-about-them">Telling an agent about them<a class="headerlink" href="#telling-an-agent-about-them" title="Permanent link">&para;</a></h2>
+<p>Preconditions are deliberately <strong>not</strong> reflected into tool schemas. There's
+nothing sound to derive the text from — a function's <code>__name__</code> and <code>__doc__</code>
+are the only machine-readable strings on it, and generating agent-facing schema
+from either makes a docstring edit a wire-format change.</p>
+<p>If you want an agent to know an operation can fail this way, say so in
+<code>spec.metadata</code>, in the words you want it to read, and surface that from your
+own adapter. The retryable-vs-fatal distinction rides on the exception: a 409
+tells an agent the call could succeed later, a 403 tells it not to bother.</p>
 
 
 
@@ -1824,10 +1811,10 @@ special in the service body.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
