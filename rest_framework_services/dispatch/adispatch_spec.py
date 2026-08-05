@@ -14,6 +14,7 @@ from rest_framework_services.dispatch.utils import (
     INSTANCE_SOURCE,
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
+    acall_preconditions,
     arun_callable,
     arun_off_loop,
     arun_service_callable,
@@ -72,8 +73,9 @@ async def adispatch_spec(
 
     That rule covers **every** callable a spec carries, not just the selector /
     service: ``kwargs`` providers, ``extend_queryset``, ``filter_set``,
-    ``input_serializer_context``, a callable ``success_status``, and the
-    ``on_target_resolved`` guard all run in the executor (see
+    ``input_serializer_context``, a callable ``success_status``,
+    ``preconditions``, and the ``on_target_resolved`` guard all run in the
+    executor (see
     :func:`~rest_framework_services.dispatch.utils.arun_off_loop`). None of them
     can be ``async def`` — a spec is written once for both transports — so any
     that queries would otherwise raise ``SynchronousOnlyOperation`` here and
@@ -175,6 +177,8 @@ async def _adispatch_selector(
             request=request,
             view=view,
         )
+        pool["collection"] = result
+        await acall_preconditions(spec, pool)
         return DispatchResult(value=result, kind="list", status=200)
     instance: Any = await amaterialize_retrieve(result)
     if instance is None:
@@ -183,6 +187,8 @@ async def _adispatch_selector(
     await arun_off_loop(
         call_target_guard, on_target_resolved, spec, instance, user=user, request=request, view=view
     )
+    pool["instance"] = instance
+    await acall_preconditions(spec, pool)
     return DispatchResult(value=instance, kind="instance", status=200)
 
 
@@ -282,6 +288,7 @@ async def _adispatch_service(
     elif extras:
         pool["data"] = data
 
+    await acall_preconditions(spec, pool)
     result: Any = await arun_service_callable(
         spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
     )
@@ -361,6 +368,8 @@ async def _adispatch_service_many(
         pool["data"] = data
     if serializer is not None:
         pool["serializer"] = serializer
+    # Bulk: once, no target — see the sync sibling.
+    await acall_preconditions(spec, pool)
     result: Any = await arun_service_callable(
         spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
     )

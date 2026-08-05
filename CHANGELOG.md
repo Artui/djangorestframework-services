@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.34.0] — 2026-08-05
+
+### Added
+
+- **`preconditions` on `ServiceSpec` and `SelectorSpec`** — a declared,
+  pool-bound slot for state and database business rules, so a rule like "this
+  budget is locked" rides the spec to every transport instead of settling in a
+  view method. Consumer-requested.
+
+  **One field, not the two that were asked for.** The request proposed `guards`
+  (state, pre-resolution) and `validators` (payload coherence, post-validation).
+  The split dissolves once the *position* is fixed: firing **after validation,
+  after target resolution, immediately before the service** puts `data`,
+  `serializer`, `instance` / `collection`, `user` and `request` in one pool, so a
+  single field covers both categories. That is also the correct security
+  ordering — permissions → resolution → validation → preconditions → service —
+  so business logic never runs against an unvalidated payload.
+
+  Named `preconditions` because `TargetGuard` / `on_target_resolved` already owns
+  "guard" here for a different contract, and `validators` collides head-on with
+  `Serializer.validators` while meaning something else.
+
+  - **Raise to abort; the return value is ignored.** A predicate written
+    `-> bool` returning `False` is silently a no-op — the most likely porting
+    mistake, and the reason the recipe leads with it.
+  - **Raise `ServiceError` / `ServiceValidationError`, not a DRF
+    `APIException`.** Only the framework-agnostic errors are mapped by every
+    transport; a DRF exception lands as a clean 409 over HTTP and an unhandled
+    internal error over MCP or an agent toolset.
+  - **Selectors** get one position (after target resolution), seeded `instance`
+    for `RETRIEVE` and `collection` for `LIST` — so pool binding is what prevents
+    an instance rule being attached to a list spec. **Bulk** (`many=True`) runs
+    them once with no target, matching where the target guard fires.
+  - **Sync-only, like every other auxiliary callable a spec carries.** Only
+    `selector` and `service` may be `async def`; a precondition runs in the
+    thread-sensitive executor on the async path, so a spec stays written once for
+    both transports.
+  - **Fail-fast at `as_view()`** on a bare callable passed instead of a sequence,
+    a non-callable element (named by index), a parameter nothing seeds, and
+    `preconditions` declared on a *nested* spec — which never dispatches, so the
+    field would never run. Each of those is otherwise a 500 at request time. ⚠
+    The pool is keyed on framework seed names, **not** model names:
+    `def is_editable(order)` does not receive your `Order`.
+  - Deliberately **not** reflected into tool schemas: a function's `__name__` /
+    `__doc__` are the only machine-readable text on it, and deriving agent-facing
+    schema from either would make a docstring edit a wire-format change. Use
+    `spec.metadata`, which already exists for consumer-owned facts.
+
+  Recipe: [State rules with `preconditions`](docs/recipes/preconditions.md).
+
 ## [0.33.0] — 2026-08-01
 
 ### Fixed
@@ -1959,7 +2009,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.33.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.34.0...HEAD
+[0.34.0]: https://github.com/Artui/djangorestframework-services/compare/v0.33.0...v0.34.0
 [0.33.0]: https://github.com/Artui/djangorestframework-services/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/Artui/djangorestframework-services/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/Artui/djangorestframework-services/compare/v0.30.0...v0.31.0

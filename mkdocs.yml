@@ -87,6 +87,7 @@ nav:
       - Compose your own viewset: recipes/compose-viewset.md
       - Pass extra kwargs to services: recipes/extra-kwargs.md
       - Per-action permissions on the spec: recipes/permissions.md
+      - State rules with preconditions: recipes/preconditions.md
       - Per-spec queryset shaping: recipes/queryset-shaping.md
       - Filter a selector with filter_set: recipes/selector-filtering.md
       - Nested / child-collection writes: recipes/nested-writes.md

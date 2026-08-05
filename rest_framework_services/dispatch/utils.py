@@ -393,6 +393,52 @@ def call_target_guard(
     on_target_resolved(spec, context, instance=target)
 
 
+def call_preconditions(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
+    pool: dict[str, Any],
+) -> None:
+    """Run a spec's ``preconditions`` through the keyword pool, in order.
+
+    Fires **after** validation and target resolution and **before** the service,
+    which is what lets one field cover both of the categories the feature was
+    asked for: a state rule over the resolved row and a coherence rule over the
+    validated payload see the same pool. It is also the correct security
+    ordering — permissions → target resolution → validation → preconditions →
+    service — so business logic never runs against an unvalidated payload.
+
+    Raise-to-abort: the return value is **ignored**. A predicate written
+    ``-> bool`` returning ``False`` is silently a no-op, which is why the recipe
+    leads with the raise contract.
+
+    Each precondition receives only the subset of ``pool`` it declares, via
+    :func:`resolve_dispatch_kwargs` — so an :data:`InputRequired` key it names is
+    checked against the assembled pool exactly as a service's would be, and a
+    parameter no seed provides is a config error caught at ``as_view()`` rather
+    than a ``TypeError`` here.
+    """
+    for precondition in spec.preconditions or ():
+        precondition(**resolve_dispatch_kwargs(precondition, pool))
+
+
+async def acall_preconditions(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
+    pool: dict[str, Any],
+) -> None:
+    """:func:`call_preconditions` for the async path.
+
+    **Sync-only, like every other auxiliary callable a spec carries** —
+    ``kwargs`` providers, ``extend_queryset``, ``filter_set``,
+    ``input_serializer_context``, a callable ``success_status``,
+    ``on_target_resolved``. Only ``selector`` and ``service`` may be
+    ``async def``; a spec is written once for both transports, so an
+    ``async def`` precondition would work here and be un-callable on the sync
+    path. A precondition reads state, so it is assumed to query and runs in the
+    thread-sensitive executor rather than on the loop.
+    """
+    for precondition in spec.preconditions or ():
+        await arun_off_loop(precondition, **resolve_dispatch_kwargs(precondition, pool))
+
+
 def resolve_provider(provider: Callable[..., Any] | None, pool: dict[str, Any]) -> dict[str, Any]:
     """Invoke a ``spec.kwargs`` / context provider through the keyword pool.
 

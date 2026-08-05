@@ -14,6 +14,7 @@ from rest_framework_services.dispatch.utils import (
     INSTANCE_SOURCE,
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
+    call_preconditions,
     call_target_guard,
     clear_prefetch_cache,
     guard_many_argument_binding,
@@ -202,12 +203,16 @@ def _dispatch_selector(
         # LIST: guard the resolved set (per-set / class-level only — the queryset
         # is not a Model, so fix (a) skips has_object_permission).
         call_target_guard(on_target_resolved, spec, result, user=user, request=request, view=view)
+        pool["collection"] = result
+        call_preconditions(spec, pool)
         return DispatchResult(value=result, kind="list", status=200)
     instance: Any = materialize_retrieve(result)
     if instance is None:
         return _missing_or_null(spec)
     # RETRIEVE: guard the resolved row (object-level permissions run here).
     call_target_guard(on_target_resolved, spec, instance, user=user, request=request, view=view)
+    pool["instance"] = instance
+    call_preconditions(spec, pool)
     return DispatchResult(value=instance, kind="instance", status=200)
 
 
@@ -302,6 +307,7 @@ def _dispatch_service(
     elif extras:
         pool["data"] = data
 
+    call_preconditions(spec, pool)
     result: Any = run_service(
         spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
     )
@@ -373,6 +379,10 @@ def _dispatch_service_many(
         pool["data"] = data
     if serializer is not None:
         pool["serializer"] = serializer
+    # Bulk runs them once with no target, matching the ``call_target_guard(…,
+    # None)`` above: only preconditions declaring ``user`` / ``request`` / the
+    # payload bind. Per-item rules belong in the service's own loop.
+    call_preconditions(spec, pool)
     result: Any = run_service(
         spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
     )

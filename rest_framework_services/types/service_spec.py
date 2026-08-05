@@ -248,6 +248,23 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     # — hence the open ``...`` parameter spec.
     kwargs: Callable[..., ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
+    # State/DB business rules, invoked through the keyword pool immediately
+    # before the service — after validation and target resolution, so a
+    # precondition sees ``data`` / ``serializer`` alongside ``instance`` or
+    # ``collection`` / ``user`` / ``request``. Raise-to-abort: the return value
+    # is ignored, so a predicate returning ``False`` does nothing. Raise
+    # ``ServiceError`` (or ``ServiceValidationError``) — every transport maps
+    # those; a DRF ``APIException`` is mapped on HTTP only and escapes the MCP
+    # and toolset error contracts.
+    #
+    # Naming (CLAUDE.md rule, third output — a genuinely new field): not
+    # ``guards``, because ``TargetGuard`` / ``on_target_resolved`` already owns
+    # "guard" here for an adjacent-but-different contract (caller-supplied
+    # authz, singular, not pool-bound); not ``validators``, which collides
+    # head-on with ``Serializer.validators`` / ``Field.validators`` carrying
+    # different semantics. ``preconditions`` also carries the 409-not-403
+    # reading without documentation.
+    preconditions: Sequence[Callable[..., None]] | None = None
     # Post-serialization HTTP hook (2xx only, pre-render): resolved through the
     # keyword pool (``response`` / ``result`` / ``request`` / ``view`` /
     # ``instance`` / ``data``), returns a ``Response`` to replace the built one
