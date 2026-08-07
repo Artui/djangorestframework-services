@@ -12,8 +12,10 @@ Use a default factory when the service body **is** the canonical glue:
 def create_author(*, data, **_):
     return create_from_input(Author, data).instance
 
+
 def update_author(*, instance, data, **_):
     return update_from_input(instance, data).instance
+
 
 def delete_author(*, instance, **_):
     instance.delete()

@@ -12,12 +12,15 @@ round-trip where the ORM allows it.
 ```python
 from rest_framework_services import ServiceSpec, SelectorKind, SelectorSpec
 
+
 @dataclass
 class BookIn:
     title: str
 
+
 def bulk_create_books(*, data: list[BookIn]) -> list[Book]:
     return Book.objects.bulk_create([Book(title=item.title) for item in data])
+
 
 class BulkCreateBooksView(ServiceCreateView):
     spec = ServiceSpec(
@@ -44,16 +47,18 @@ single `pk` in the URL.
 ```python
 from rest_framework_services import delete_collection
 
+
 def published_books(*, user) -> QuerySet[Book]:
-    return Book.objects.for_user(user)            # owner-scoped
+    return Book.objects.for_user(user)  # owner-scoped
+
 
 class BulkDeleteBooksView(ServiceDeleteView):
     spec = ServiceSpec(
-        service=delete_collection(Book),          # collection.delete()
+        service=delete_collection(Book),  # collection.delete()
         collection_selector_spec=SelectorSpec(
             kind=SelectorKind.LIST,
             selector=published_books,
-            filter_set=BookFilterSet,             # ?status=draft&… narrows the set
+            filter_set=BookFilterSet,  # ?status=draft&… narrows the set
         ),
     )
 ```
@@ -79,19 +84,23 @@ afterwards.
 def publish_drafts(*, collection: QuerySet[Post]) -> list[int]:
     ids = list(collection.values_list("id", flat=True))
     Post.objects.filter(id__in=ids).update(published=True)
-    return ids                                  # the service result → `result`
+    return ids  # the service result → `result`
+
 
 def published_by_ids(*, result: list[int]) -> QuerySet[Post]:
     return Post.objects.filter(id__in=result).order_by("id")
+
 
 class PublishDraftsView(ServiceUpdateView):
     spec = ServiceSpec(
         service=publish_drafts,
         collection_selector_spec=SelectorSpec(
-            kind=SelectorKind.LIST, selector=all_posts, filter_set=PostFilterSet,
+            kind=SelectorKind.LIST,
+            selector=all_posts,
+            filter_set=PostFilterSet,
         ),
         output_selector_spec=SelectorSpec(
-            kind=SelectorKind.LIST,                 # ← renders a list, not one row
+            kind=SelectorKind.LIST,  # ← renders a list, not one row
             selector=published_by_ids,
             output_serializer=PostSerializer,
         ),
