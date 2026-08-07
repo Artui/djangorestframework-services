@@ -120,7 +120,7 @@ appear in a view derived earlier.
 public = registry.by_tag("public")
 registry.register("list_refunds", refunds_spec, tags=("public",))
 
-assert "list_refunds" not in public   # `public` was a snapshot
+assert "list_refunds" not in public  # `public` was a snapshot
 ```
 
 `merge()` goes the other way, combining registries into a new one. It is the only
@@ -128,7 +128,7 @@ place cross-registry name uniqueness is enforced — reusing a name across
 independent surfaces is legal until you actually put them together:
 
 ```python
-combined = internal.merge(public)   # a shared name here raises
+combined = internal.merge(public)  # a shared name here raises
 ```
 
 ## Tags
@@ -147,12 +147,12 @@ which means it belongs at the binding, next to the other per-transport knobs.
 Beyond `specs()`, a registry introspects:
 
 ```python
-len(registry)                 # how many operations
-"refund_order" in registry    # is this name taken
+len(registry)  # how many operations
+"refund_order" in registry  # is this name taken
 registry.get("refund_order")  # the RegisteredSpec, or None
-registry.all()                # every entry, in registration order
-registry.mutations()          # the ServiceSpec entries
-registry.queries()            # the SelectorSpec entries
+registry.all()  # every entry, in registration order
+registry.mutations()  # the ServiceSpec entries
+registry.queries()  # the SelectorSpec entries
 ```
 
 Order is registration order everywhere, so a transport's tool listing is stable

@@ -172,6 +172,7 @@ a placeholder.
 ```python
 from django.db.models import Count
 
+
 class PostViewSet(SelectorViewSet):
     queryset = Post.objects.all()
     action_specs = {

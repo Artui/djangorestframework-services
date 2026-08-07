@@ -85,10 +85,11 @@ def build_offline_context(
         # ``_build_query_dict`` freezes the result (``_mutable = False``), so it is
         # the immutable ``GET`` the stub's type wants; the stub can't see that.
         base.GET = _build_query_dict(query_params)  # ty: ignore[invalid-assignment]
-    # The django-stubs ``HttpRequest.__new__`` bleeds into the ``Request``
-    # subclass, so ty resolves the wrong overload and rejects the call.
-    # Construct via ``Any`` and cast back to keep the static type on the result.
-    raw: Any = Request(base)  # ty: ignore[too-many-positional-arguments]
+    # Constructed via ``Any`` and cast back to keep the static type on the
+    # result. This used to carry a ``ty: ignore[too-many-positional-arguments]``
+    # for a django-stubs overload that bled into ``Request``; ty 0.0.65 resolves
+    # it correctly and now flags the directive as unused.
+    raw: Any = Request(base)
     drf_request: Request = cast(Request, raw)
     drf_request.user = user
     # ``_full_data`` is the cache DRF's ``request.data`` property returns; seeding

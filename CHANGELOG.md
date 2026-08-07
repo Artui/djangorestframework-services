@@ -263,8 +263,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
           spec = view.action_specs[view.action]
           return (spec.metadata or {}).get("scope") != "tenant" or request.user.tenant_id
 
-  ServiceSpec(service=refund_order, permission_classes=[SameTenant],
-              metadata={"scope": "tenant"})
+
+  ServiceSpec(service=refund_order, permission_classes=[SameTenant], metadata={"scope": "tenant"})
   ```
 
   ⚠ **The framework never reads it.** No known keys, no per-key validation, no

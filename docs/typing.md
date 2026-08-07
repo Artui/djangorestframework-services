@@ -28,6 +28,8 @@ and an optional `TypedDict` describing extra kwargs:
 
 ```python
 class ServiceSpec(Generic[InputT, ResultT, ExtraT]): ...
+
+
 class SelectorSpec(Generic[ResultT, ExtraT]): ...
 ```
 
@@ -71,11 +73,13 @@ services declare only the parameters they read:
 ```python
 from rest_framework_services import CreateService
 
+
 def create_author(
     *,
     data: AuthorIn,
-    **extras,                     # request, user, tenant_id, ... — not enforced
+    **extras,  # request, user, tenant_id, ... — not enforced
 ) -> Author: ...
+
 
 # Static check that the function matches the Protocol shape:
 _check: CreateService[AuthorIn, Author] = create_author
@@ -94,8 +98,10 @@ from typing_extensions import TypedDict, Unpack
 
 from rest_framework_services import CreateService, implements
 
+
 class CreateAuthorKwargs(TypedDict, total=False):
     tenant_id: int
+
 
 @implements(CreateService[AuthorIn, Author])
 def create_author(
@@ -103,7 +109,7 @@ def create_author(
     data: AuthorIn,
     **extras: Unpack[CreateAuthorKwargs],
 ) -> Author:
-    tenant_id = extras.get("tenant_id")    # typed as int | None
+    tenant_id = extras.get("tenant_id")  # typed as int | None
     ...
 ```
 
@@ -127,8 +133,10 @@ for typed access:
 from rest_framework_services import CreateService, HttpExtras, implements
 from typing_extensions import Unpack
 
+
 class CreateAuthorKwargs(HttpExtras[MyUser], total=False):
     tenant_id: int
+
 
 @implements(CreateService[AuthorIn, Author])
 def create_author(
@@ -136,8 +144,8 @@ def create_author(
     data: AuthorIn,
     **extras: Unpack[CreateAuthorKwargs],
 ) -> Author:
-    user = extras.get("user")           # typed as MyUser | None
-    request = extras.get("request")     # typed as Request | None
+    user = extras.get("user")  # typed as MyUser | None
+    request = extras.get("request")  # typed as Request | None
     ...
 ```
 
@@ -180,9 +188,11 @@ Available Protocols:
     @implements(StrictCreateService[AuthorIn, MyKw, Author])
     def create_author(*, data: AuthorIn, **extras: Unpack[MyKw]) -> Author: ...
 
+
     # After (0.11)
     class MyKw(TypedDict, total=False):
         tenant_id: int
+
 
     @implements(CreateService[AuthorIn, Author])
     def create_author(*, data: AuthorIn, **extras: Unpack[MyKw]) -> Author: ...
@@ -202,22 +212,25 @@ historically had only one hook (`get_service_kwargs`), forcing branches like
 from rest_framework_services import ServiceSpec, ServiceViewSet
 from typing import TypedDict
 
+
 class CreateAuthorKwargs(TypedDict):
     tenant_id: int
 
+
 def _create_author_kwargs(view: ServiceView, request: Request) -> CreateAuthorKwargs:
     return {"tenant_id": request.tenant.id}
+
 
 class AuthorViewSet(ServiceViewSet):
     action_specs = {
         "create": ServiceSpec(
             service=create_author,
             input_serializer=AuthorIn,
-            kwargs=_create_author_kwargs,    # per-spec, typed
+            kwargs=_create_author_kwargs,  # per-spec, typed
         ),
         "publish": ServiceSpec(
             service=publish_author,
-            kwargs=_publish_author_kwargs,   # different TypedDict
+            kwargs=_publish_author_kwargs,  # different TypedDict
         ),
     }
 ```

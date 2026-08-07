@@ -273,7 +273,12 @@ def dataclass_to_schema(
     hints: dict[str, Any] = get_type_hints(cls)
     properties: dict[str, Any] = {}
     required: list[str] = []
-    for f in dataclasses.fields(cls):
+    # ``cls`` is declared ``type`` because the precise annotation is
+    # ``type[_typeshed.DataclassInstance]``, which has no runtime import — and
+    # this signature is rendered into the docs, so a TYPE_CHECKING-only name
+    # would break the strict docs build. ty 0.0.65 started enforcing the
+    # narrower parameter; the docstring already states the precondition.
+    for f in dataclasses.fields(cls):  # ty: ignore[invalid-argument-type]
         annotation: Any = hints.get(f.name, f.type)
         properties[f.name] = _python_type_to_schema(annotation, registry)
         if f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING:

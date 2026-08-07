@@ -92,15 +92,18 @@ and the request, and returns a `TypedDict` describing the keys it adds:
 from typing import TypedDict
 from rest_framework_services import ServiceView
 
+
 class PublishAuthorKwargs(TypedDict):
     author_id: int
     actor_id: int
+
 
 def _publish_author_kwargs(view: ServiceView, request) -> PublishAuthorKwargs:
     return {
         "author_id": int(view.kwargs["pk"]),
         "actor_id": request.user.pk,
     }
+
 
 class AuthorViewSet(ServiceViewSet):
     action_specs = {

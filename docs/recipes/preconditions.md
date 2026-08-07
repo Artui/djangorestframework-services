@@ -36,7 +36,7 @@ This is the one that bites. A predicate written the natural way —
 
 ```python
 def budget_not_locked(*, instance) -> bool:
-    return not instance.is_locked          # ← does nothing at all
+    return not instance.is_locked  # ← does nothing at all
 ```
 
 — is silently a no-op. Returning `False` does not block the call; only raising

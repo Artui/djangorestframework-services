@@ -112,7 +112,7 @@ class PostViewSet(SelectorViewSet):
             selector=list_posts,
             output_serializer=PostSerializer,
             filter_set=PostFilterSet,
-            select_related=["author"],   # composes with shaping
+            select_related=["author"],  # composes with shaping
         ),
     }
 ```
@@ -158,12 +158,12 @@ wires `DjangoFilterBackend` raises `ImproperlyConfigured` at `as_view()` time:
 
 ```python
 class PostViewSet(SelectorViewSet):
-    filter_backends = [DjangoFilterBackend]   # ← conflicts with filter_set below
+    filter_backends = [DjangoFilterBackend]  # ← conflicts with filter_set below
     action_specs = {
         "list": SelectorSpec(
             kind=SelectorKind.LIST,
             selector=list_posts,
-            filter_set=PostFilterSet,         # ← raises at as_view()
+            filter_set=PostFilterSet,  # ← raises at as_view()
         ),
     }
 ```
@@ -271,7 +271,7 @@ def post_stats(*, request) -> dict[str, int]:
 class PostStatsView(SelectorRetrieveView):
     spec = SelectorSpec(
         kind=SelectorKind.RETRIEVE,
-        selector=post_stats,           # returns a dict, so no filter_set
+        selector=post_stats,  # returns a dict, so no filter_set
         output_serializer=PostStatsSerializer,
     )
 ```
