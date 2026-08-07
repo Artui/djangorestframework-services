@@ -56,7 +56,7 @@ everything a read action needs:
 ```python
 @dataclass(frozen=True, kw_only=True)
 class SelectorSpec(Generic[ResultT, ExtraT]):
-    kind: SelectorKind                              # required
+    kind: SelectorKind  # required
     selector: Callable[..., ResultT] | None = None
     allow_none: bool = False
     output_serializer: type[Serializer] | None = None
@@ -160,6 +160,7 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
       author, created = Author.objects.get_or_create(name=data.name)
       return UpsertResult(author=author, created=created)
 
+
   ServiceSpec(
       service=_upsert,
       input_serializer=AuthorIn,
@@ -245,8 +246,8 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
       response.set_cookie("session", result.token, httponly=True)
       return response
 
-  ServiceSpec(service=_login, input_serializer=LoginIn,
-              response_finalizer=_set_session_cookie)
+
+  ServiceSpec(service=_login, input_serializer=LoginIn, response_finalizer=_set_session_cookie)
   ```
 
   `result` is the *service's* return value, so services stay DRF-free —
@@ -333,9 +334,10 @@ def _pick(*, data):
         return "token"
     raise ServiceValidationError({"detail": "provide an email or token"})
 
+
 action_specs = {
     "create": PolymorphicServiceSpec(
-        discriminator=_pick,                       # pool: {request, data, user, view}
+        discriminator=_pick,  # pool: {request, data, user, view}
         specs={
             "email": ServiceSpec(service=register_by_email, input_serializer=EmailIn),
             "token": ServiceSpec(service=register_by_token, input_serializer=TokenIn),
@@ -368,7 +370,7 @@ action_specs = {
     "partial_update": ServiceSpec(
         service=set_project_status,
         input_serializer=ProjectStatusInput,  # one required field
-        partial=False,                        # required stays required under PATCH
+        partial=False,  # required stays required under PATCH
     ),
 }
 ```
@@ -416,7 +418,7 @@ itself:
 ```python
 class BulkCreateBooksView(ServiceCreateView):
     spec = ServiceSpec(
-        service=bulk_create_books,          # (*, data: list[BookIn]) -> list[Book]
+        service=bulk_create_books,  # (*, data: list[BookIn]) -> list[Book]
         input_serializer=BookIn,
         many=True,
         output_selector_spec=SelectorSpec(
@@ -433,7 +435,7 @@ update; an empty set is a harmless no-op:
 ```python
 class BulkDeleteBooksView(ServiceDeleteView):
     spec = ServiceSpec(
-        service=delete_collection(Book),    # collection.delete()
+        service=delete_collection(Book),  # collection.delete()
         collection_selector_spec=SelectorSpec(
             kind=SelectorKind.LIST, selector=published_books, filter_set=BookFilterSet
         ),
@@ -474,10 +476,11 @@ implementation lives in
 [`rest_framework_services.views.utils.resolve_callable_kwargs`](reference/views.md#kwarg-resolution).
 
 ```python
-def create_author(*, data, user):       # the view passes only data + user
+def create_author(*, data, user):  # the view passes only data + user
     return Author.objects.create(name=data.name, created_by=user)
 
-def list_authors(*, request):           # request is in the pool
+
+def list_authors(*, request):  # request is in the pool
     return Author.objects.filter(account=request.user.account)
 ```
 
@@ -525,8 +528,11 @@ progress(
     processed,
     total=row_count,
     message=f"importing {path.name}",
-    meta={"com.example/stage": "import", "com.example/file": path.name,
-          "com.example/failed": failures},
+    meta={
+        "com.example/stage": "import",
+        "com.example/file": path.name,
+        "com.example/failed": failures,
+    },
 )
 ```
 
@@ -721,8 +727,11 @@ as dispatch):
 spec = resolve_action_spec_entry(action_specs, self.action)
 if isinstance(spec, SelectorSpec) and spec.output_serializer:
     return spec.output_serializer
-if isinstance(spec, ServiceSpec) and spec.output_selector_spec and \
-        spec.output_selector_spec.output_serializer:
+if (
+    isinstance(spec, ServiceSpec)
+    and spec.output_selector_spec
+    and spec.output_selector_spec.output_serializer
+):
     return spec.output_selector_spec.output_serializer
 # falls back to serializer_class
 ```

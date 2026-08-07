@@ -123,7 +123,7 @@ class ChangeResult(Generic[ModelT]):
     @property
     def changed_fields(self) -> tuple[str, ...]: ...
     def get_field_change(self, field_name: str) -> FieldChange | None: ...
-    def __bool__(self) -> bool: ...   # True iff any change
+    def __bool__(self) -> bool: ...  # True iff any change
 ```
 
 `ChangeResult` is generic over the model type. The mutation helpers
@@ -137,7 +137,7 @@ Common patterns:
 ```python
 result = update_from_input(instance, data)
 
-if not result:                                         # nothing changed
+if not result:  # nothing changed
     return result.instance
 
 if "status" in result.changed_fields:
@@ -182,7 +182,7 @@ different things. The mutation helpers themselves treat `UNSET` as
 yourself.
 
 ```python
-update_from_input(instance, data)   # bio==UNSET is skipped automatically
+update_from_input(instance, data)  # bio==UNSET is skipped automatically
 ```
 
 ## Async siblings

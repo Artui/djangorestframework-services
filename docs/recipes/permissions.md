@@ -20,19 +20,24 @@ falls through to the view default.
 ```python
 from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework_services import (
-    SelectorKind, SelectorSpec, ServiceSpec, ServiceViewSet, service_action,
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
+    ServiceViewSet,
+    service_action,
 )
+
 
 class AuthorViewSet(ServiceViewSet):
     queryset = Author.objects.all()
-    permission_classes = [IsAuthenticated]   # view-level default
+    permission_classes = [IsAuthenticated]  # view-level default
 
     action_specs = {
         "list": SelectorSpec(
             kind=SelectorKind.LIST,
             selector=list_authors,
             output_serializer=AuthorSerializer,
-            permission_classes=[AllowAny],          # public listing
+            permission_classes=[AllowAny],  # public listing
         ),
         "create": ServiceSpec(
             service=create_author,
@@ -45,7 +50,7 @@ class AuthorViewSet(ServiceViewSet):
         ),
         "destroy": ServiceSpec(
             service=delete_author,
-            permission_classes=[IsAdminUser],       # admin only
+            permission_classes=[IsAdminUser],  # admin only
         ),
     }
 
@@ -53,7 +58,7 @@ class AuthorViewSet(ServiceViewSet):
         ServiceSpec(
             service=approve_author,
             input_serializer=ApproveInput,
-            permission_classes=[IsAdminUser],       # custom action, admin only
+            permission_classes=[IsAdminUser],  # custom action, admin only
         ),
         detail=True,
         methods=["post"],

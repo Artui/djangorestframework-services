@@ -16,10 +16,11 @@ writable-nested serializer and delegating persistence back to `serializer.save()
 ```python
 from rest_framework_services import ChildSpec, update_from_input
 
+
 def update_author(*, instance, data):
     return update_from_input(
         instance,
-        data,                       # {"name": ..., "books": [{...}, {...}]}
+        data,  # {"name": ..., "books": [{...}, {...}]}
         children={
             "books": ChildSpec(model=Book, fk="author"),
         },
@@ -44,7 +45,7 @@ the input omits entirely is left untouched; send an explicit `[]` to clear it.
 A `ChildSpec` can carry its own `children=`, so depth follows the declared tree:
 
 ```python
-children={
+children = {
     "sections": ChildSpec(
         model=Section,
         fk="catalog",
@@ -63,7 +64,7 @@ from rest_framework_services import ServiceSpec, create_model
 
 ServiceSpec(
     service=create_model(Author, children={"books": ChildSpec(model=Book, fk="author")}),
-    input_serializer=AuthorInput,   # validates name + the books list
+    input_serializer=AuthorInput,  # validates name + the books list
 )
 ```
 
@@ -104,22 +105,24 @@ delta.created, delta.updated, delta.deleted, delta.unlinked
 **Before** — persistence lives in the serializer, and the service delegates to it:
 
 ```python
-class AuthorSerializer(WritableNestedModelSerializer):   # drf-writable-nested / drf-nested
+class AuthorSerializer(WritableNestedModelSerializer):  # drf-writable-nested / drf-nested
     books = BookSerializer(many=True)
 
+
 def update_author(*, instance, serializer):
-    return serializer.save()        # the coupling we're removing
+    return serializer.save()  # the coupling we're removing
 ```
 
 **After** — the serializer only validates; the service owns persistence:
 
 ```python
 class AuthorSerializer(serializers.ModelSerializer):
-    books = BookSerializer(many=True)   # plain nested serializer, validation only
+    books = BookSerializer(many=True)  # plain nested serializer, validation only
 
     class Meta:
         model = Author
         fields = ["name", "books"]
+
 
 def update_author(*, instance, data):
     return update_from_input(

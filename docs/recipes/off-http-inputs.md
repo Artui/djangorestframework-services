@@ -19,8 +19,9 @@ is spread into the selector and target pools exactly as a route capture would be
 from rest_framework_services import build_offline_context, dispatch_spec
 
 context = build_offline_context(user, {"status": "active"}, kwargs={"project_pk": 7})
-result = dispatch_spec(spec, user=user, params={"status": "active"},
-                       request=context.request, view=context.view)
+result = dispatch_spec(
+    spec, user=user, params={"status": "active"}, request=context.request, view=context.view
+)
 ```
 
 ## Discoverability: the TypedDict *is* the declaration
@@ -34,8 +35,10 @@ from typing import Annotated
 from typing_extensions import Unpack
 from rest_framework_services import HttpExtras, implements, ListSelector
 
+
 class WidgetExtras(HttpExtras[MyUser], total=False):
     project_pk: int
+
 
 @implements(ListSelector[Widget])
 def list_widgets(**extras: Unpack[WidgetExtras]) -> list[Widget]:
@@ -91,7 +94,7 @@ provider fills in from request state, which the caller should never set:
 ```python
 class WidgetExtras(HttpExtras[MyUser], total=False):
     project_pk: Annotated[int, InputRequired]
-    team_role: Annotated[str, NotClientInput]   # resolved by spec.kwargs
+    team_role: Annotated[str, NotClientInput]  # resolved by spec.kwargs
 ```
 
 `team_role` disappears from `properties`, and because it is no longer a declared

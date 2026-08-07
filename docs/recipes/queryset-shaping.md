@@ -15,6 +15,7 @@ FilterSet — that one has its own recipe,
 ```python
 from django.db.models import Count, Prefetch
 
+
 class PostViewSet(SelectorViewSet):
     queryset = Post.objects.all()
     action_specs = {
@@ -50,6 +51,7 @@ def include_relations_from_query_param(queryset, view, request):
         queryset = queryset.prefetch_related("comments")
     return queryset
 
+
 class PostViewSet(SelectorViewSet):
     queryset = Post.objects.all()
     action_specs = {
@@ -80,7 +82,8 @@ of a single instance. The framework applies shaping then materializes via
 
 ```python
 def get_post(*, pk: int):
-    return Post.objects.filter(pk=pk)   # QuerySet, not .first()
+    return Post.objects.filter(pk=pk)  # QuerySet, not .first()
+
 
 class PostViewSet(SelectorViewSet):
     queryset = Post.objects.all()
@@ -113,8 +116,10 @@ declares the eager-loading the response serializer needs.
 def create_post(*, data, request):
     return Post.objects.create(title=data.title, author=request.user)
 
+
 def refetch_post(*, result):
-    return Post.objects.filter(pk=result.pk)   # QuerySet, not .first()
+    return Post.objects.filter(pk=result.pk)  # QuerySet, not .first()
+
 
 class CreatePostView(ServiceCreateView):
     spec = ServiceSpec(
@@ -167,6 +172,7 @@ stitched together from an external API — and it is serialized as-is:
 def recent_activity(*, user):
     # not a QuerySet — a hand-built list of dataclasses
     return [ActivityItem.from_event(e) for e in fetch_events(user)]
+
 
 class ActivityView(SelectorListView):
     spec = SelectorSpec(

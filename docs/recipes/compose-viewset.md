@@ -42,7 +42,9 @@ from rest_framework_services import (
 )
 
 
-class AuthorReadOnly(SelectorListMixin, SelectorRetrieveMixin, ActionSerializerResolver, GenericViewSet):
+class AuthorReadOnly(
+    SelectorListMixin, SelectorRetrieveMixin, ActionSerializerResolver, GenericViewSet
+):
     queryset = Author.objects.all()
     action_specs = {
         "list": SelectorSpec(

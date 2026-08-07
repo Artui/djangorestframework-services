@@ -113,7 +113,7 @@ class ImportView(ServiceCreateView):
     spec = ServiceSpec(
         service=run_import,
         input_serializer=ImportInput,
-        atomic=False,            # the import service handles its own savepoints
+        atomic=False,  # the import service handles its own savepoints
     )
 ```
 

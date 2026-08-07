@@ -40,6 +40,7 @@ class MyAppConfig(AppConfig):
 
     def ready(self) -> None:
         from rest_framework_services.openapi import enable_openapi
+
         enable_openapi()
 ```
 
@@ -117,6 +118,7 @@ where the spec doesn't capture the full contract:
 
 ```python
 from drf_spectacular.utils import extend_schema, OpenApiResponse
+
 
 class _MyViewSet(ServiceViewSet):
     action_specs = {"create": ServiceSpec(...)}

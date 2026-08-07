@@ -192,10 +192,11 @@ through `ServiceSpec.kwargs` / `SelectorSpec.kwargs` (which receive a narrow
 `ServiceView`) or `get_<action>_*_kwargs` instead.
 
 ```python
-def create_author(*, data, user):       # the view passes only data + user
+def create_author(*, data, user):  # the view passes only data + user
     return Author.objects.create(name=data.name, created_by=user)
 
-def list_authors(*, request):           # request is in the pool
+
+def list_authors(*, request):  # request is in the pool
     return Author.objects.filter(...)
 ```
 
@@ -209,6 +210,7 @@ plus a typed change record.
 
 ```python
 from rest_framework_services import update_from_input, UNSET
+
 
 def update_author(*, instance, data):
     result = update_from_input(instance, data, exclude_fields=["created_by"])
@@ -256,7 +258,7 @@ class ChangeResult:
     @property
     def changed_fields(self) -> tuple[str, ...]: ...
     def get_field_change(self, field_name: str) -> FieldChange | None: ...
-    def __bool__(self) -> bool: ...   # True iff any change
+    def __bool__(self) -> bool: ...  # True iff any change
 ```
 
 The `UNSET` sentinel distinguishes "field omitted from input" from "field
@@ -283,6 +285,7 @@ from rest_framework_services import CreateService, ListSelector
 
 
 def create_author(*, data: CreateAuthorInput, **kwargs) -> Author: ...
+
 
 def list_authors(*, request, **kwargs) -> QuerySet[Author]: ...
 
@@ -460,7 +463,7 @@ class UpdateAuthorView(ServiceUpdateView):
         input_serializer=UpdateAuthorInput,
         output_selector_spec=SelectorSpec(
             kind=SelectorKind.RETRIEVE,
-            output_serializer=AuthorOutputSerializer,   # DataclassSerializer
+            output_serializer=AuthorOutputSerializer,  # DataclassSerializer
         ),
     )
 ```
@@ -475,7 +478,7 @@ class UpdateAuthorView(ServiceUpdateView):
         input_serializer=UpdateAuthorInput,
         output_selector_spec=SelectorSpec(
             kind=SelectorKind.RETRIEVE,
-            output_serializer=AuthorSerializer,         # DRF ModelSerializer
+            output_serializer=AuthorSerializer,  # DRF ModelSerializer
         ),
     )
 ```
@@ -602,9 +605,7 @@ class AuthorReadOnly(
 ):
     queryset = Author.objects.all()
     action_specs = {
-        "list": SelectorSpec(
-            kind=SelectorKind.LIST, output_serializer=AuthorListItemSerializer
-        ),
+        "list": SelectorSpec(kind=SelectorKind.LIST, output_serializer=AuthorListItemSerializer),
         "retrieve": SelectorSpec(
             kind=SelectorKind.RETRIEVE, output_serializer=AuthorDetailSerializer
         ),
@@ -620,9 +621,7 @@ Per-action serializer dispatch driven by `action_specs`:
 ```python
 action_specs = {
     "list": SelectorSpec(kind=SelectorKind.LIST, output_serializer=ListSerializer),
-    "retrieve": SelectorSpec(
-        kind=SelectorKind.RETRIEVE, output_serializer=DetailSerializer
-    ),
+    "retrieve": SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=DetailSerializer),
     "my_custom_action": ServiceSpec(
         service=my_action,
         output_selector_spec=SelectorSpec(
@@ -699,6 +698,7 @@ them to DRF responses.
 ```python
 from rest_framework_services import ServiceError, ServiceValidationError
 
+
 def withdraw(*, instance, data):
     if data.amount > instance.balance:
         raise ServiceValidationError({"amount": ["insufficient funds"]})
@@ -726,7 +726,7 @@ class ImportView(ServiceCreateView):
     spec = ServiceSpec(
         service=run_import,
         input_serializer=ImportInput,
-        atomic=False,   # the import service handles its own savepoints
+        atomic=False,  # the import service handles its own savepoints
     )
 ```
 
@@ -743,6 +743,7 @@ both.
 async def fetch_remote(*, request):
     async with httpx.AsyncClient() as client:
         return await client.get("https://...").json()
+
 
 class FetchView(ServiceCreateView):
     spec = ServiceSpec(service=fetch_remote)
