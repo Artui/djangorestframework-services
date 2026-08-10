@@ -79,3 +79,40 @@ def test_the_compat_package_is_gone() -> None:
     import importlib.util
 
     assert importlib.util.find_spec("rest_framework_services._compat") is None
+
+
+def test_no_export_is_shadowed_by_its_own_submodule() -> None:
+    """Every re-exported name resolves to a value, never to a module object.
+
+    ⚠ **This hazard is real and has already been hit once.** ``import pkg.mod``
+    binds ``mod`` as an attribute of ``pkg``, so a package ``__init__`` that
+    does ``from pkg.mod import mod`` (function and module sharing a name — the
+    one-symbol-per-file convention makes that the *normal* case here) can have
+    its function binding overwritten by the submodule, if some *other* import
+    on a later line pulls ``pkg.mod`` in for the first time. The symptom is a
+    module where a callable was expected, at import time, far from the edit
+    that caused it.
+
+    ``dispatch/__init__.py`` carries a hand-written comment pinning one such
+    ordering. ⇒ *an invariant maintained by a comment is maintained until
+    someone sorts the imports.* This asserts it for every export in every
+    package instead, so a future reordering fails here rather than downstream.
+    """
+    import importlib
+    from types import ModuleType
+
+    packages = [
+        "rest_framework_services",
+        "rest_framework_services.dispatch",
+        "rest_framework_services.mutations",
+        "rest_framework_services.selectors",
+        "rest_framework_services.services",
+        "rest_framework_services.types",
+    ]
+    shadowed: list[str] = []
+    for name in packages:
+        module = importlib.import_module(name)
+        for export in getattr(module, "__all__", ()):
+            if isinstance(getattr(module, export), ModuleType):
+                shadowed.append(f"{name}.{export}")
+    assert shadowed == []

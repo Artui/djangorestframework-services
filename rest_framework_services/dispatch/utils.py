@@ -17,6 +17,7 @@ from rest_framework.exceptions import ValidationError
 from typing_extensions import get_type_hints
 
 from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
+from rest_framework_services.dispatch.combine_progress import combine_progress
 from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
@@ -437,6 +438,48 @@ async def acall_preconditions(
     """
     for precondition in spec.preconditions or ():
         await arun_off_loop(precondition, **resolve_dispatch_kwargs(precondition, pool))
+
+
+def resolve_progress(
+    spec: Any,
+    progress: Any,
+    *,
+    user: Any,
+    request: Any,
+    view: Any,
+    view_hooks: Any = None,
+) -> Any:
+    """Fan every progress sink this dispatch has into one reporter.
+
+    Two sinks can want the same report and neither should displace the other:
+    the **transport-native** one the caller passed (MCP notifications, a
+    websocket the view wired up) and the **transport-independent** one the spec
+    declares (a task record, an audit trail, metrics). ``combine_progress``
+    merges them, isolating each so one failing sink neither silences the other
+    nor escapes into the service.
+
+    ``spec.progress_reporter`` is a provider invoked through the keyword pool,
+    like ``spec.kwargs`` — it declares any subset of ``user`` / ``request`` /
+    ``view`` and receives only what it asked for. Returning ``None`` is a
+    provider *declining* (nothing to report to on this run), which leaves the
+    transport's reporter untouched rather than replacing it with a no-op.
+
+    ⚠ Resolved against a deliberately small pool. The full pool is not built
+    yet — this is one of its seeds — so the provider sees the dispatch inputs,
+    not the validated ``data`` or the resolved ``instance``. A sink needing
+    those observes them through the reports themselves.
+    """
+    # The view's hook is the *transport-native* sink on the HTTP path — from
+    # the core's perspective a view is simply the transport, exactly as an MCP
+    # server is, so it merges on the same footing as the caller's ``progress``.
+    transport = combine_progress(progress, getattr(view_hooks, "progress", None))
+    provider = getattr(spec, "progress_reporter", None)
+    if provider is None:
+        return transport
+    resolved = provider(
+        **resolve_callable_kwargs(provider, {"user": user, "request": request, "view": view})
+    )
+    return combine_progress(transport, resolved)
 
 
 def resolve_provider(provider: Callable[..., Any] | None, pool: dict[str, Any]) -> dict[str, Any]:

@@ -56,6 +56,16 @@ class ViewHooks:
     input_data: Mapping[str, Any] | None = None
     input_serializer_context: Mapping[str, Any] | None = None
     output_serializer_context: Callable[[Any], Mapping[str, Any]] | None = None
+    # The view's own progress sink — the *transport-native* half, since from
+    # the core's perspective an HTTP view is simply the transport. Resolved for
+    # both chains: a selector can be long too (a large export is a selector).
+    #
+    # ⛔ Reach for this only when a buffered request genuinely needs it. If a
+    # request runs long enough to want progress, a task plus polling is usually
+    # the right shape and this seam is the wrong tool — it exists for the cases
+    # where that does not apply (a streaming response, or a websocket sidecar
+    # the host already runs).
+    progress: Any | None = None
 
 
 __all__ = ["ViewHooks"]

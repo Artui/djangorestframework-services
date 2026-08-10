@@ -11,6 +11,7 @@ from rest_framework_services.dispatch.arender_spec_output import arender_spec_ou
 from rest_framework_services.dispatch.base_pool import base_pool
 from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
 from rest_framework_services.dispatch.build_offline_context import build_offline_context
+from rest_framework_services.dispatch.combine_progress import combine_progress
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.dispatch.enforce_permissions import enforce_permissions
 
@@ -21,6 +22,7 @@ from rest_framework_services.dispatch.enforce_permissions import enforce_permiss
 # correct here; if these are ever reordered, keep this one last of the two.
 from rest_framework_services.dispatch.null_progress import null_progress
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
+from rest_framework_services.dispatch.unguarded_specs import unguarded_specs
 
 __all__ = [
     "adispatch_spec",
@@ -28,8 +30,10 @@ __all__ = [
     "base_pool",
     "base_serializer_context",
     "build_offline_context",
+    "combine_progress",
     "dispatch_spec",
     "enforce_permissions",
     "null_progress",
     "render_spec_output",
+    "unguarded_specs",
 ]
