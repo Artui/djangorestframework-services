@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1439,6 +1439,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.resolve_progress_hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_progress_hook
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#rest_framework_services.views.utils.resolve_view_hooks" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2196,6 +2207,17 @@
     <span class="md-ellipsis">
       
         resolve_callable_kwargs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.resolve_progress_hook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_progress_hook
       
     </span>
   </a>
@@ -3257,6 +3279,33 @@ Otherwise only parameters present in the signature are forwarded.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="rest_framework_services.views.utils.resolve_progress_hook" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">resolve_progress_hook</span>
+
+
+<a href="#rest_framework_services.views.utils.resolve_progress_hook" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">resolve_progress_hook</span><span class="p">(</span><span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">action</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>First progress reporter the view offers: per-action hook, then catch-all.</p>
+<p>Most-specific wins and there is <strong>no merging</strong> — unlike the kwargs and
+context chains, whose layers combine into one mapping. A reporter is a
+single sink, not a set of keys, so "layering" two of them would mean
+silently fanning out; a view that wants that composes them itself with
+:func:<code>~rest_framework_services.combine_progress</code> and returns the result.</p>
+<p>Returns <code>None</code> when the view offers neither, which leaves the seed as
+:func:<code>~rest_framework_services.null_progress</code> exactly as before.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="rest_framework_services.views.utils.resolve_view_hooks" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">resolve_view_hooks</span>
 
@@ -3649,7 +3698,7 @@ match fails fast at <code>as_view()</code> time.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
