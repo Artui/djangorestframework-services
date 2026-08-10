@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.0] — 2026-08-10
+
+### Added
+
+- **`unguarded_specs(specs)`** — names every spec whose `permission_classes` is
+  `None`. On HTTP that means *inherit*, and the view's own classes plus
+  `DEFAULT_PERMISSION_CLASSES` answer it; **off HTTP neither exists**, so the
+  same spec that is properly guarded behind a view becomes an unguarded
+  operation the moment a toolset or MCP server exposes it. The ambiguity is a
+  drf-services fact, so the knowledge lives here — but the helper **raises
+  nothing and defaults nothing**: each transport keeps its own flag, default and
+  wording, exactly as `enforce_permissions` is offered while `dispatch_spec`
+  stays authorization-agnostic. An empty list counts as guarded; `[]` is an
+  answer, `None` is its absence.
+
+- **`combine_progress(*reporters)`** — fans one report out to several sinks,
+  isolating each. The `ProgressReporter` contract says implementations must not
+  raise, which a plain loop breaks twice over: one sink throwing skips every
+  sink behind it, and the exception lands in domain code that has no reason to
+  defend against a telemetry call. Returns `null_progress` when nothing is
+  configured, and the single reporter unwrapped when only one is.
+
+- **`ServiceSpec.progress_reporter` / `SelectorSpec.progress_reporter`** — a
+  transport-independent progress sink (a task record, an audit trail, metrics),
+  resolved by the dispatch core and fanned together with whatever the transport
+  supplied. A provider invoked through the keyword pool like `kwargs`; returning
+  `None` declines without displacing the transport's own reporter.
+
+  It is a provider rather than a bare reporter because the two are both plain
+  callables and cannot be told apart — every other static-or-callable field here
+  (`m2m`, `success_status`) unions two shapes a type check separates. A static
+  sink is one lambda.
+
+- **`get_progress_reporter()` / `get_<action>_progress_reporter()` view hooks** —
+  the transport-native half on the HTTP path, since from the core's perspective
+  a view *is* the transport. Most-specific wins with no merging (a reporter is
+  one sink, not a set of keys); a hook returning `None` falls through rather
+  than suppressing the view-wide sink. Resolved for selectors too — a large
+  export is a selector.
+
+  ⛔ **Reach for this only when a buffered request genuinely needs it.** If a
+  request runs long enough to want progress, a task plus polling is usually the
+  right shape; this seam exists for the cases where that does not apply, such as
+  a streaming response or a websocket sidecar the host already runs.
+
 ## [0.34.0] — 2026-08-05
 
 ### Added
@@ -2009,7 +2054,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.34.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.35.0...HEAD
+[0.35.0]: https://github.com/Artui/djangorestframework-services/compare/v0.34.0...v0.35.0
 [0.34.0]: https://github.com/Artui/djangorestframework-services/compare/v0.33.0...v0.34.0
 [0.33.0]: https://github.com/Artui/djangorestframework-services/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/Artui/djangorestframework-services/compare/v0.31.0...v0.32.0

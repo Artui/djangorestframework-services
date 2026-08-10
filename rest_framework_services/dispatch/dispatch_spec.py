@@ -23,6 +23,7 @@ from rest_framework_services.dispatch.utils import (
     resolve_dispatch_kwargs,
     resolve_input_context,
     resolve_input_data,
+    resolve_progress,
     resolve_provider,
     resolve_service_kwargs,
     resolve_service_many_input,
@@ -179,7 +180,13 @@ def _dispatch_selector(
     # spread untouched; only ``REJECT`` has anything to do here (it raises).
     resolve_unknown_arguments(spec, params, unknown_arguments=unknown_arguments, serializer=None)
     binding = resolve_argument_binding(spec, argument_binding)
-    pool: dict[str, Any] = base_pool(user=user, request=request, progress=progress)
+    pool: dict[str, Any] = base_pool(
+        user=user,
+        request=request,
+        progress=resolve_progress(
+            spec, progress, user=user, request=request, view=view, view_hooks=view_hooks
+        ),
+    )
     merge_arguments(
         pool,
         binding=binding,
@@ -288,7 +295,13 @@ def _dispatch_service(
     data, spread_source = service_input(serializer, extras)
 
     binding = resolve_argument_binding(spec, argument_binding)
-    pool: dict[str, Any] = base_pool(user=user, request=request, progress=progress)
+    pool: dict[str, Any] = base_pool(
+        user=user,
+        request=request,
+        progress=resolve_progress(
+            spec, progress, user=user, request=request, view=view, view_hooks=view_hooks
+        ),
+    )
     merge_arguments(
         pool,
         binding=binding,
@@ -373,7 +386,13 @@ def _dispatch_service_many(
     data, has_data = resolve_service_many_input(
         spec, serializer, params, unknown_arguments=unknown_arguments
     )
-    pool: dict[str, Any] = base_pool(user=user, request=request, progress=progress)
+    pool: dict[str, Any] = base_pool(
+        user=user,
+        request=request,
+        progress=resolve_progress(
+            spec, progress, user=user, request=request, view=view, view_hooks=view_hooks
+        ),
+    )
     pool.update(resolve_service_kwargs(spec, view=view, request=request, view_hooks=view_hooks))
     if has_data:
         pool["data"] = data

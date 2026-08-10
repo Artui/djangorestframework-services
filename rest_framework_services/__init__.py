@@ -13,10 +13,12 @@ from rest_framework_services.dispatch import (
     base_pool,
     base_serializer_context,
     build_offline_context,
+    combine_progress,
     dispatch_spec,
     enforce_permissions,
     null_progress,
     render_spec_output,
+    unguarded_specs,
 )
 from rest_framework_services.exceptions import (
     AdditionalInputRequired,
@@ -210,6 +212,7 @@ __all__ = [
     "build_offline_context",
     "call_selector",
     "call_service",
+    "combine_progress",
     "create_from_input",
     "create_model",
     "delete_collection",
@@ -230,6 +233,7 @@ __all__ = [
     "serializer_to_json_schema",
     "service_action",
     "spec_to_json_schema",
+    "unguarded_specs",
     "update_from_input",
     "update_model",
     "validate_input",

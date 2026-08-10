@@ -248,6 +248,27 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     # — hence the open ``...`` parameter spec.
     kwargs: Callable[..., ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
+    # Transport-independent progress sink, resolved by the dispatch core and
+    # fanned together with whatever reporter the transport supplied (see
+    # ``combine_progress``). A **provider**, invoked through the keyword pool
+    # like ``kwargs``, returning a ``ProgressReporter`` or ``None``.
+    #
+    # ⚠ **Provider, not a bare reporter, and the reason is that the two cannot
+    # be told apart.** A ``ProgressReporter`` is a plain callable and so is a
+    # factory for one, so a ``reporter | factory`` union would have to *guess*
+    # by signature. Every other static-or-callable field in this package
+    # (``m2m``, ``success_status``) unions two shapes a type check separates;
+    # this one does not, so it takes the useful shape. A static sink is one
+    # lambda: ``progress_reporter=lambda: my_sink``.
+    #
+    # ⛔ **For sinks that do not care which transport is carrying the run** — a
+    # task record, an audit trail, metrics. A sink that needs to know the
+    # transport is by definition not transport-independent and belongs on the
+    # transport instead (the ``get_progress_reporter`` view hook, or whatever
+    # the transport passes to ``dispatch_spec``). Nothing in the pool names the
+    # transport, deliberately: that is the seam that would let spec-level
+    # behaviour fork per transport.
+    progress_reporter: Callable[..., Any] | None = None
     # State/DB business rules, invoked through the keyword pool immediately
     # before the service — after validation and target resolution, so a
     # precondition sees ``data`` / ``serializer`` alongside ``instance`` or

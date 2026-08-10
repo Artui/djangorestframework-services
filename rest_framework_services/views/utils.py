@@ -268,6 +268,27 @@ def resolve_callable_kwargs(
     return {name: pool[name] for name in declared_names if name in pool}
 
 
+def resolve_progress_hook(view: Any, request: Request, *, action: str | None) -> Any:
+    """First progress reporter the view offers: per-action hook, then catch-all.
+
+    Most-specific wins and there is **no merging** — unlike the kwargs and
+    context chains, whose layers combine into one mapping. A reporter is a
+    single sink, not a set of keys, so "layering" two of them would mean
+    silently fanning out; a view that wants that composes them itself with
+    :func:`~rest_framework_services.combine_progress` and returns the result.
+
+    Returns ``None`` when the view offers neither, which leaves the seed as
+    :func:`~rest_framework_services.null_progress` exactly as before.
+    """
+    for name in (f"get_{action}_progress_reporter" if action else None, "get_progress_reporter"):
+        hook = getattr(view, name, None) if name else None
+        if hook is not None:
+            reporter = hook(**resolve_callable_kwargs(hook, {"view": view, "request": request}))
+            if reporter is not None:
+                return reporter
+    return None
+
+
 def resolve_view_hooks(
     view: Any,
     request: Request,
@@ -308,10 +329,12 @@ def resolve_view_hooks(
         action_hook=f"get_{action}_{chain}_kwargs" if action else None,
         catch_all_hook=f"get_{chain}_kwargs",
     )
+    progress = resolve_progress_hook(view, request, action=action)
     if chain != "service":
-        return ViewHooks(extra_kwargs=extra_kwargs)
+        return ViewHooks(extra_kwargs=extra_kwargs, progress=progress)
     return ViewHooks(
         extra_kwargs=extra_kwargs,
+        progress=progress,
         input_data=resolve_input_extras(
             view,
             request,
