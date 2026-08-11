@@ -625,7 +625,7 @@ def _forward_match_miss(
 ) -> ServiceValidationError:
     """The error for a match key that names no row this caller may write.
 
-    ⚠ Not a create. A forward relation's ``match_key`` *identifies* a row —
+    Not a create. A forward relation's ``match_key`` *identifies* a row —
     "point at this one" — so there is nothing sensible to create in its place,
     and creating one anyway is actively unsafe: the payload carries the key, so
     a ``pk`` that named an out-of-scope row would be written straight back onto
@@ -1190,7 +1190,7 @@ def delete_children(
     ``context`` is the opaque caller pool, forwarded down the tree and into the
     pool of any service the spec declares; this loop never reads it.
 
-    ⚠ Collections only. The cascade reports one
+    Collections only. The cascade reports one
     :class:`~rest_framework_services.ChildCollectionChange` per relation, which
     is not the shape a singular relation reports in, so a singular spec is
     refused here rather than removed and mis-reported.

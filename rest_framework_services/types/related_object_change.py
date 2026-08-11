@@ -35,7 +35,7 @@ class RelatedObjectChange:
     - ``"deleted"`` — a *reverse* row was deleted, because its foreign key is
       not nullable (mirroring ``on_delete=CASCADE``).
     - ``"removed"`` — a *reverse* row was handed to the spec's
-      ``delete_service``. ⚠ Deliberately **not** ``"deleted"``: once a service
+      ``delete_service``. Deliberately **not** ``"deleted"``: once a service
       owns the row, the loop no longer knows whether the row was deleted,
       archived, unlinked or left standing, and reporting a guess as fact is
       worse than reporting the one thing that is true — the loop removed the

@@ -21,7 +21,7 @@ class ChildCollectionChange:
     - **``unlinked``** — orphaned children detached (FK set to ``None``) because
       their FK is nullable.
     - **``removed``** — children handed to the spec's ``delete_service``.
-      ⚠ Deliberately a fifth tuple rather than a reuse of ``deleted``: once a
+      Deliberately a fifth tuple rather than a reuse of ``deleted``: once a
       service owns the row, the loop no longer knows whether it was deleted,
       archived, unlinked or left standing, and folding those into ``deleted``
       would report a guess as fact. What the loop does know is that the row

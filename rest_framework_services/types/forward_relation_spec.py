@@ -43,7 +43,7 @@ class ForwardRelationSpec(RelationSpec):
       ``match_key`` creates a row; one *with* it names a row, and is matched
       against ``scope``.
 
-    ⚠ The ``match_key`` identifies a row rather than describing one, so a key
+    The ``match_key`` identifies a row rather than describing one, so a key
     that matches nothing in scope raises
     :exc:`~rest_framework_services.ServiceValidationError` (a 400) instead of
     falling through to a create. Creating there would be unsafe as well as
@@ -68,7 +68,7 @@ class ForwardRelationSpec(RelationSpec):
     - **``scope``** — the rows this caller may update: a queryset, or a
       callable resolved from the caller's ``context`` pool by signature
       (``lambda user: Author.objects.filter(owner=user)``), the library's usual
-      idiom. ⚠ **Without it the spec is create-only**, and a payload that
+      idiom. **Without it the spec is create-only**, and a payload that
       carries a ``match_key`` raises
       :exc:`~django.core.exceptions.ImproperlyConfigured` rather than quietly
       creating a duplicate. A forward target has no owning manager to scope it
@@ -78,13 +78,13 @@ class ForwardRelationSpec(RelationSpec):
       something else, which is why it is a misconfiguration and not a
       validation error.
     - **``field_map``** / **``exclude_fields``** / **``m2m``** /
-      **``children``** / **``relations``** — forwarded to the target row's own
+     **``children``** / **``relations``** — forwarded to the target row's own
       ``create_from_input`` / ``update_from_input`` call, exactly as for the
       parent.
     - **``create_service``** / **``update_service``** — optional services
       replacing that call, for a target whose write has behaviour of its own.
       They receive ``data`` (and ``instance``, on update) plus the caller
-      context — but ⚠ **no ``parent``**: a forward target is written before
+      context — but **no ``parent``**: a forward target is written before
       the parent row exists, which is the whole point of the phase. Declaring
       either alongside the row-shaping knobs above raises at construction, for
       the reason given on :class:`~rest_framework_services.ChildSpec`.

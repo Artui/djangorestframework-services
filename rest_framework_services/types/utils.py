@@ -48,7 +48,7 @@ def validate_relation_services(
 
     The split is by ownership, not by field. Reconciliation stays with the spec
     whoever writes the row — ``fk``, ``match_key``, ``mode``, ``scope`` and the
-    orphan rule are untouched by this check. ⚠ ``delete_service`` is
+    orphan rule are untouched by this check. ``delete_service`` is
     deliberately **not** a member of ``services``: it replaces the
     unlink-or-delete rule rather than the helper call, so it composes with row
     shaping (the cascade still removes a row's grandchildren before handing the
