@@ -73,7 +73,7 @@ def dispatch_spec(
     #
     # It applies to **both** spec kinds: a selector's ``filter_set`` and a
     # service's output-selector re-fetch. It reached only the service path until
-    # 0.31 — a selector's filtering silently used ``params`` no matter what was
+    # 0.36 — a selector's filtering silently used ``params`` no matter what was
     # passed here — which made it impossible for an off-HTTP transport to give
     # the FilterSet a wider view of the arguments than the selector callable's
     # own kwarg pool. That is exactly what an agent transport needs, because a

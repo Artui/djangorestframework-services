@@ -218,7 +218,7 @@ class TestADispatchTypeError:
 
 @pytest.mark.django_db(transaction=True)
 class TestAFilterDataOnTheReadPath:
-    """The async sibling had no ``filter_data`` parameter at all until 0.31.
+    """The async sibling had no ``filter_data`` parameter at all until 0.36.
 
     Passing one was a ``TypeError``, and nothing caught it because the only
     caller that passed it was sync-only. The pair is kept in step here.

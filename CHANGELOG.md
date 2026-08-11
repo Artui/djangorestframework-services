@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`filter_data` now reaches the read path.** `dispatch_spec` has accepted the
+  argument since the mutation views needed to keep a request body and a query
+  string apart, but it only ever reached the *service* branch: a `SelectorSpec`'s
+  `filter_set` read `params` regardless, silently. A caller that passed
+  `filter_data` to a selector got no error and no effect.
+
+- **`adispatch_spec` accepts `filter_data`.** It did not declare the parameter
+  at all, so passing it raised `TypeError` — the same gap one layer further out.
+  Neither surfaced because the only caller passing it was the sync mutation path.
+
+  Together these made it impossible for an off-HTTP transport to hand the
+  `FilterSet` a **wider** view of the arguments than the selector callable's own
+  kwarg pool. Those two pools genuinely differ for an agent transport: a spec's
+  `OrderingFilter` subclasses `ChoiceFilter`, so it is reflected into the tool
+  schema and advertised to the model, while no selector declares `ordering` as a
+  keyword argument. Without two pools a transport must either withhold the value
+  from the filter (the schema then promises an ordering nothing applies) or
+  spread it into the callable's kwargs (a selector taking `**kwargs` receives an
+  argument it never declared).
+
 ## [0.35.0] — 2026-08-10
 
 ### Added
