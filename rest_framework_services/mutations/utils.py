@@ -12,19 +12,27 @@ from typing import Any
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.db.models import Model
 
-from rest_framework_services.exceptions.service_validation_error import (
-    ServiceValidationError,
-)
+from rest_framework_services.exceptions.service_validation_error import ServiceValidationError
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.child_collection_change import ChildCollectionChange
 from rest_framework_services.types.child_spec import ChildSpec
 from rest_framework_services.types.field_change import FieldChange
+from rest_framework_services.types.forward_relation_spec import ForwardRelationSpec
 from rest_framework_services.types.related_object_change import RelatedObjectChange
 from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
+from rest_framework_services.types.reverse_one_to_one_spec import ReverseOneToOneSpec
 from rest_framework_services.types.unset import UNSET
 from rest_framework_services.views.utils import resolve_callable_kwargs
+
+# The kinds whose row the parent owns through a foreign key: the loop links it
+# on the way in and disposes of it on the way out. "Child" throughout this
+# module means such a row -- a member of a collection, or the single row of a
+# reverse one-to-one.
+_OwnedRowSpec = ChildSpec | ReverseOneToOneSpec
+# Every kind whose row the mutation helpers write, owned or merely pointed at.
+_RowSpec = ChildSpec | ReverseOneToOneSpec | ForwardRelationSpec
 
 
 def coerce_to_dict(data: Any) -> dict[str, Any]:
@@ -306,7 +314,7 @@ def post_save_relations(
     )
 
 
-def _fk_nullable(spec: ChildSpec) -> bool:
+def _fk_nullable(spec: _OwnedRowSpec) -> bool:
     """Whether the related row's foreign key to the parent allows ``NULL``."""
     return bool(spec.model._meta.get_field(spec.fk).null)
 
@@ -434,7 +442,7 @@ async def _arun_child_service(fn: Callable[..., Awaitable[Any]], pool: dict[str,
 
 def _remove_one_child(
     child: Model,
-    spec: ChildSpec,
+    spec: _OwnedRowSpec,
     *,
     parent: Model,
     context: Mapping[str, Any] | None,
@@ -456,7 +464,7 @@ def _remove_one_child(
 
 async def _aremove_one_child(
     child: Model,
-    spec: ChildSpec,
+    spec: _OwnedRowSpec,
     *,
     parent: Model,
     context: Mapping[str, Any] | None,
@@ -470,6 +478,214 @@ async def _aremove_one_child(
         spec.delete_service, _child_pool(context, instance=child, parent=parent)
     )
     return ("removed", pk)
+
+
+# --- the forward phase: written before the parent exists ------------------
+
+
+def apply_forward_relations(
+    relation_data: dict[str, Any],
+    relations: Mapping[str, RelationSpec],
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, Any], tuple[RelatedObjectChange, ...]]:
+    """Resolve every forward relation and return it as plain field assignments.
+
+    The one pre-save driver, shared by create and update. It writes the target
+    rows and hands back ``{field_name: instance_or_None}`` for the caller to
+    fold into the values it was going to assign anyway — which is the whole
+    trick of the forward kind: by the time the parent is built or diffed, the
+    relation is an ordinary column value, so ``diff_attrs`` reports it and the
+    minimal ``update_fields`` save persists it with nothing added for the
+    occasion.
+    """
+    assignments: dict[str, Any] = {}
+    changes: list[RelatedObjectChange] = []
+    for relation, spec in relations_in_phase(relations, RelationPhase.FORWARD):
+        if not isinstance(spec, ForwardRelationSpec):
+            raise _unknown_relation_kind(relation, spec)
+        value = relation_data.get(relation, UNSET)
+        if value is UNSET:
+            changes.append(RelatedObjectChange(relation=relation))
+            continue
+        target, change = _write_forward_relation(value, spec, relation=relation, context=context)
+        assignments[relation] = target
+        changes.append(change)
+    return (assignments, tuple(changes))
+
+
+async def aapply_forward_relations(
+    relation_data: dict[str, Any],
+    relations: Mapping[str, RelationSpec],
+    *,
+    context: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, Any], tuple[RelatedObjectChange, ...]]:
+    """Async variant of :func:`apply_forward_relations`."""
+    assignments: dict[str, Any] = {}
+    changes: list[RelatedObjectChange] = []
+    for relation, spec in relations_in_phase(relations, RelationPhase.FORWARD):
+        if not isinstance(spec, ForwardRelationSpec):
+            raise _unknown_relation_kind(relation, spec)
+        value = relation_data.get(relation, UNSET)
+        if value is UNSET:
+            changes.append(RelatedObjectChange(relation=relation))
+            continue
+        target, change = await _awrite_forward_relation(
+            value, spec, relation=relation, context=context
+        )
+        assignments[relation] = target
+        changes.append(change)
+    return (assignments, tuple(changes))
+
+
+def _write_forward_relation(
+    value: Any,
+    spec: ForwardRelationSpec,
+    *,
+    relation: str,
+    context: Mapping[str, Any] | None,
+) -> tuple[Any, RelatedObjectChange]:
+    """Write (or clear) one forward relation and return what to assign.
+
+    ``None`` clears the parent's column and stops there: the row the column
+    pointed at is not the parent's to remove.
+    """
+    if value is None:
+        return (None, RelatedObjectChange(relation=relation, outcome="cleared"))
+    item = coerce_to_dict(value)
+    row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+    target = _match_forward_target(item, spec, relation=relation, context=context)
+    if target is None:
+        row = _create_row(item, spec, seeds={}, context=context, m2m=row_m2m)
+        return (row, RelatedObjectChange(relation=relation, outcome="created", pk=row.pk))
+    row = _update_row(target, item, spec, seeds={}, context=context, m2m=row_m2m)
+    return (row, RelatedObjectChange(relation=relation, outcome="updated", pk=row.pk))
+
+
+async def _awrite_forward_relation(
+    value: Any,
+    spec: ForwardRelationSpec,
+    *,
+    relation: str,
+    context: Mapping[str, Any] | None,
+) -> tuple[Any, RelatedObjectChange]:
+    """Async variant of :func:`_write_forward_relation`."""
+    if value is None:
+        return (None, RelatedObjectChange(relation=relation, outcome="cleared"))
+    item = coerce_to_dict(value)
+    row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+    target = await _amatch_forward_target(item, spec, relation=relation, context=context)
+    if target is None:
+        row = await _acreate_row(item, spec, seeds={}, context=context, m2m=row_m2m)
+        return (row, RelatedObjectChange(relation=relation, outcome="created", pk=row.pk))
+    row = await _aupdate_row(target, item, spec, seeds={}, context=context, m2m=row_m2m)
+    return (row, RelatedObjectChange(relation=relation, outcome="updated", pk=row.pk))
+
+
+def _forward_scope(
+    item: dict[str, Any],
+    spec: ForwardRelationSpec,
+    *,
+    relation: str,
+    context: Mapping[str, Any] | None,
+) -> tuple[Any, Any] | None:
+    """Return ``(queryset, key)`` to match on, or ``None`` for "create it".
+
+    ``None`` covers the two create cases: a payload with no match key at all,
+    and a scoped spec is never asked about one. An **unscoped** spec that is
+    handed a match key is the third case, and it raises — see the module's
+    ``ImproperlyConfigured`` message for why that is a misconfiguration rather
+    than a client error.
+    """
+    key = item.get(spec.match_key)
+    if key is None:
+        return None
+    if spec.scope is None:
+        raise ImproperlyConfigured(
+            f"relations[{relation!r}]: the incoming row carries a {spec.match_key!r} but the "
+            "spec declares no scope=, which makes it create-only. A forward target has no "
+            "owning manager to match within, so matching one by key unscoped would let any "
+            "caller write any row of that model by guessing a key. Declare scope= — a "
+            "queryset, or a callable resolved from the caller pool — naming the rows this "
+            "caller may write."
+        )
+    # ``Any`` because the two accepted shapes are a queryset and a callable
+    # returning one, and the branch that tells them apart is `callable()`.
+    scope: Any = spec.scope
+    queryset: Any = (
+        scope(**resolve_callable_kwargs(scope, dict(context or {}))) if callable(scope) else scope
+    )
+    return (queryset, key)
+
+
+def _forward_match_miss(
+    relation: str,
+    spec: ForwardRelationSpec,
+    key: Any,
+) -> ServiceValidationError:
+    """The error for a match key that names no row this caller may write.
+
+    ⚠ Not a create. A forward relation's ``match_key`` *identifies* a row —
+    "point at this one" — so there is nothing sensible to create in its place,
+    and creating one anyway is actively unsafe: the payload carries the key, so
+    a ``pk`` that named an out-of-scope row would be written straight back onto
+    that row by ``Model.save()``, reaching exactly the row the scope existed to
+    protect. Unlike the unscoped case, the remedy here is the client's — send a
+    key you own, or none — so this is a validation error and not a
+    misconfiguration.
+    """
+    return ServiceValidationError(
+        {
+            relation: [
+                f"No {spec.model.__name__} with {spec.match_key}={key!r} is available to "
+                "write: it does not exist, or it is outside the scope this relation may "
+                "write. Omit the key to create a new one."
+            ]
+        }
+    )
+
+
+def _match_forward_target(
+    item: dict[str, Any],
+    spec: ForwardRelationSpec,
+    *,
+    relation: str,
+    context: Mapping[str, Any] | None,
+) -> Any:
+    """The in-scope row this payload updates, or ``None`` to create one.
+
+    ``None`` means the payload carried no match key at all. A key that matches
+    nothing in scope raises rather than falling through to a create.
+    """
+    resolved = _forward_scope(item, spec, relation=relation, context=context)
+    if resolved is None:
+        return None
+    queryset, key = resolved
+    target = queryset.filter(**{spec.match_key: key}).first()
+    if target is None:
+        raise _forward_match_miss(relation, spec, key)
+    return target
+
+
+async def _amatch_forward_target(
+    item: dict[str, Any],
+    spec: ForwardRelationSpec,
+    *,
+    relation: str,
+    context: Mapping[str, Any] | None,
+) -> Any:
+    """Async variant of :func:`_match_forward_target`."""
+    resolved = _forward_scope(item, spec, relation=relation, context=context)
+    if resolved is None:
+        return None
+    queryset, key = resolved
+    target = await queryset.filter(**{spec.match_key: key}).afirst()
+    if target is None:
+        raise _forward_match_miss(relation, spec, key)
+    return target
+
+
+# --- the post-save phases ------------------------------------------------
 
 
 def apply_relations(
@@ -506,6 +722,12 @@ def apply_relations(
                     parent, value, spec, relation=relation, created=created, context=context
                 )
             )
+        elif isinstance(spec, ReverseOneToOneSpec):
+            singular.append(
+                _write_reverse_one_to_one(
+                    parent, value, spec, relation=relation, created=created, context=context
+                )
+            )
         else:
             raise _unknown_relation_kind(relation, spec)
     return (tuple(collections), tuple(singular))
@@ -522,6 +744,90 @@ def _unknown_relation_kind(relation: str, spec: RelationSpec) -> ImproperlyConfi
         "library knows how to write. Declare the relation with one of the shipped "
         "spec classes."
     )
+
+
+def _write_reverse_one_to_one(
+    parent: Model,
+    value: Any,
+    spec: ReverseOneToOneSpec,
+    *,
+    relation: str,
+    created: bool,
+    context: Mapping[str, Any] | None,
+) -> RelatedObjectChange:
+    """Write the parent's single reverse one-to-one row.
+
+    The children loop with the collection taken out: there is at most one row
+    and the relation itself is the match, so nothing is matched by key and
+    nothing is scoped — the row is reached through the parent's own foreign
+    key or it does not exist. ``None`` removes it by the orphan rule (unlink a
+    nullable ``fk``, delete otherwise, or hand it to ``delete_service``).
+
+    The existing row is fetched by querying the ``fk`` rather than through the
+    reverse accessor: the accessor caches, raises its own ``DoesNotExist``, and
+    has no async form, and one query answers all three the same way on both
+    paths.
+    """
+    if value is UNSET:
+        return RelatedObjectChange(relation=relation)
+    existing = None if created else spec.model.objects.filter(**{spec.fk: parent}).first()
+    if value is None:
+        if existing is None:
+            return RelatedObjectChange(relation=relation)
+        status, pk = _remove_one_child(
+            existing, spec, parent=parent, context=context, nullable=_fk_nullable(spec)
+        )
+        return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
+    item = coerce_to_dict(value)
+    row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+    if existing is None:
+        row = _create_row(
+            {**item, spec.fk: parent},
+            spec,
+            seeds={"parent": parent},
+            context=context,
+            m2m=row_m2m,
+        )
+        return RelatedObjectChange(relation=relation, outcome="created", pk=row.pk)
+    row = _update_row(existing, item, spec, seeds={"parent": parent}, context=context, m2m=row_m2m)
+    return RelatedObjectChange(relation=relation, outcome="updated", pk=row.pk)
+
+
+async def _awrite_reverse_one_to_one(
+    parent: Model,
+    value: Any,
+    spec: ReverseOneToOneSpec,
+    *,
+    relation: str,
+    created: bool,
+    context: Mapping[str, Any] | None,
+) -> RelatedObjectChange:
+    """Async variant of :func:`_write_reverse_one_to_one`."""
+    if value is UNSET:
+        return RelatedObjectChange(relation=relation)
+    existing = None if created else await spec.model.objects.filter(**{spec.fk: parent}).afirst()
+    if value is None:
+        if existing is None:
+            return RelatedObjectChange(relation=relation)
+        status, pk = await _aremove_one_child(
+            existing, spec, parent=parent, context=context, nullable=_fk_nullable(spec)
+        )
+        return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
+    item = coerce_to_dict(value)
+    row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+    if existing is None:
+        row = await _acreate_row(
+            {**item, spec.fk: parent},
+            spec,
+            seeds={"parent": parent},
+            context=context,
+            m2m=row_m2m,
+        )
+        return RelatedObjectChange(relation=relation, outcome="created", pk=row.pk)
+    row = await _aupdate_row(
+        existing, item, spec, seeds={"parent": parent}, context=context, m2m=row_m2m
+    )
+    return RelatedObjectChange(relation=relation, outcome="updated", pk=row.pk)
 
 
 def _write_child_collection(
@@ -553,11 +859,11 @@ def _write_child_collection(
         child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
         key = item.get(spec.match_key)
         if key is not None and key in existing_by_key:
-            child = _update_child(
+            child = _update_row(
                 existing_by_key[key],
                 item,
                 spec,
-                parent=parent,
+                seeds={"parent": parent},
                 context=context,
                 m2m=child_m2m,
             )
@@ -565,7 +871,13 @@ def _write_child_collection(
             matched.add(key)
         else:
             _reject_unmatched_reference(item, spec, relation)
-            child = _create_child(item, spec, parent=parent, context=context, m2m=child_m2m)
+            child = _create_row(
+                {**item, spec.fk: parent},
+                spec,
+                seeds={"parent": parent},
+                context=context,
+                m2m=child_m2m,
+            )
             created_pks.append(child.pk)
     removals = _remove_orphans(
         existing_by_key, spec, matched, created, parent=parent, context=context
@@ -578,28 +890,28 @@ def _write_child_collection(
     )
 
 
-def _create_child(
-    item: dict[str, Any],
-    spec: ChildSpec,
+def _create_row(
+    data: dict[str, Any],
+    spec: _RowSpec,
     *,
-    parent: Model,
+    seeds: dict[str, Any],
     context: Mapping[str, Any] | None,
     m2m: dict[str, Any] | None,
 ) -> Any:
-    """Persist one new child through ``create_service`` when declared, else the helper.
+    """Persist one new related row: ``create_service`` when declared, else the helper.
 
-    The ``fk`` is written into ``data`` either way: linking the row to its
-    parent is the spec's job, not the service's.
+    The one create used by every kind, which is why ``data`` and ``seeds``
+    arrive already built rather than being derived here. What differs between
+    the kinds is exactly those two: a row the parent owns gets its ``fk`` set
+    to the parent and a ``parent`` seed in the pool, and a forward target gets
+    neither — it is written before there is a parent to speak of.
     """
     # Lazy import: genuine recursion cycle — the parent helpers call this loop,
-    # and it calls them again for each child (and grandchild).
+    # and it calls them again for each row (and each of its own relations).
     from rest_framework_services.mutations.create_from_input import create_from_input
 
-    data: dict[str, Any] = {**item, spec.fk: parent}
     if spec.create_service is not None:
-        return _run_child_service(
-            spec.create_service, _child_pool(context, data=data, parent=parent)
-        )
+        return _run_child_service(spec.create_service, _child_pool(context, data=data, **seeds))
     return create_from_input(
         spec.model,
         data,
@@ -612,22 +924,21 @@ def _create_child(
     ).instance
 
 
-async def _acreate_child(
-    item: dict[str, Any],
-    spec: ChildSpec,
+async def _acreate_row(
+    data: dict[str, Any],
+    spec: _RowSpec,
     *,
-    parent: Model,
+    seeds: dict[str, Any],
     context: Mapping[str, Any] | None,
     m2m: dict[str, Any] | None,
 ) -> Any:
-    """Async variant of :func:`_create_child`."""
-    # Lazy import: genuine recursion cycle — see :func:`_create_child`.
+    """Async variant of :func:`_create_row`."""
+    # Lazy import: genuine recursion cycle — see :func:`_create_row`.
     from rest_framework_services.mutations.acreate_from_input import acreate_from_input
 
-    data: dict[str, Any] = {**item, spec.fk: parent}
     if spec.create_service is not None:
         return await _arun_child_service(
-            spec.create_service, _child_pool(context, data=data, parent=parent)
+            spec.create_service, _child_pool(context, data=data, **seeds)
         )
     result = await acreate_from_input(
         spec.model,
@@ -642,32 +953,32 @@ async def _acreate_child(
     return result.instance
 
 
-def _update_child(
-    child: Model,
-    item: dict[str, Any],
-    spec: ChildSpec,
+def _update_row(
+    instance: Model,
+    data: dict[str, Any],
+    spec: _RowSpec,
     *,
-    parent: Model,
+    seeds: dict[str, Any],
     context: Mapping[str, Any] | None,
     m2m: dict[str, Any] | None,
 ) -> Any:
-    """Persist one matched child through ``update_service`` when declared.
+    """Persist one matched row through ``update_service`` when declared.
 
     A service returning ``None`` means "use the in-memory instance" — the
     framework's existing update convention, honoured here too.
     """
-    # Lazy import: genuine recursion cycle — see :func:`_create_child`.
+    # Lazy import: genuine recursion cycle — see :func:`_create_row`.
     from rest_framework_services.mutations.update_from_input import update_from_input
 
     if spec.update_service is not None:
         returned = _run_child_service(
             spec.update_service,
-            _child_pool(context, data=item, instance=child, parent=parent),
+            _child_pool(context, data=data, instance=instance, **seeds),
         )
-        return child if returned is None else returned
+        return instance if returned is None else returned
     update_from_input(
-        child,
-        item,
+        instance,
+        data,
         field_map=spec.field_map,
         exclude_fields=spec.exclude_fields,
         m2m=m2m,
@@ -675,31 +986,31 @@ def _update_child(
         relations=spec.relations,
         context=context,
     )
-    return child
+    return instance
 
 
-async def _aupdate_child(
-    child: Model,
-    item: dict[str, Any],
-    spec: ChildSpec,
+async def _aupdate_row(
+    instance: Model,
+    data: dict[str, Any],
+    spec: _RowSpec,
     *,
-    parent: Model,
+    seeds: dict[str, Any],
     context: Mapping[str, Any] | None,
     m2m: dict[str, Any] | None,
 ) -> Any:
-    """Async variant of :func:`_update_child`."""
-    # Lazy import: genuine recursion cycle — see :func:`_create_child`.
+    """Async variant of :func:`_update_row`."""
+    # Lazy import: genuine recursion cycle — see :func:`_create_row`.
     from rest_framework_services.mutations.aupdate_from_input import aupdate_from_input
 
     if spec.update_service is not None:
         returned = await _arun_child_service(
             spec.update_service,
-            _child_pool(context, data=item, instance=child, parent=parent),
+            _child_pool(context, data=data, instance=instance, **seeds),
         )
-        return child if returned is None else returned
+        return instance if returned is None else returned
     await aupdate_from_input(
-        child,
-        item,
+        instance,
+        data,
         field_map=spec.field_map,
         exclude_fields=spec.exclude_fields,
         m2m=m2m,
@@ -707,7 +1018,7 @@ async def _aupdate_child(
         relations=spec.relations,
         context=context,
     )
-    return child
+    return instance
 
 
 def _remove_orphans(
@@ -757,6 +1068,12 @@ async def aapply_relations(
                     parent, value, spec, relation=relation, created=created, context=context
                 )
             )
+        elif isinstance(spec, ReverseOneToOneSpec):
+            singular.append(
+                await _awrite_reverse_one_to_one(
+                    parent, value, spec, relation=relation, created=created, context=context
+                )
+            )
         else:
             raise _unknown_relation_kind(relation, spec)
     return (tuple(collections), tuple(singular))
@@ -786,11 +1103,11 @@ async def _awrite_child_collection(
         child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
         key = item.get(spec.match_key)
         if key is not None and key in existing_by_key:
-            child = await _aupdate_child(
+            child = await _aupdate_row(
                 existing_by_key[key],
                 item,
                 spec,
-                parent=parent,
+                seeds={"parent": parent},
                 context=context,
                 m2m=child_m2m,
             )
@@ -798,7 +1115,13 @@ async def _awrite_child_collection(
             matched.add(key)
         else:
             _reject_unmatched_reference(item, spec, relation)
-            child = await _acreate_child(item, spec, parent=parent, context=context, m2m=child_m2m)
+            child = await _acreate_row(
+                {**item, spec.fk: parent},
+                spec,
+                seeds={"parent": parent},
+                context=context,
+                m2m=child_m2m,
+            )
             created_pks.append(child.pk)
     removals = await _aremove_orphans(
         existing_by_key, spec, matched, created, parent=parent, context=context
@@ -834,6 +1157,22 @@ async def _aremove_orphans(
     return removals
 
 
+def _uncascadable_relation_kind(relation: str, spec: RelationSpec) -> ImproperlyConfigured:
+    """The error for a relation the delete cascade cannot remove.
+
+    The cascade takes the collections a parent owns and hands back one delta
+    per collection. A singular relation neither fits that shape nor needs the
+    cascade in the same way — clearing it is an explicit ``None`` on the write
+    path — so it is refused here instead of being removed and reported as a
+    one-row "collection".
+    """
+    return ImproperlyConfigured(
+        f"children[{relation!r}]: {type(spec).__name__} is not a collection, and the "
+        "delete cascade removes collections. Remove a singular relation from the write "
+        "path instead, by sending null for it."
+    )
+
+
 def delete_children(
     parent: Model,
     children: Mapping[str, ChildSpec],
@@ -850,9 +1189,16 @@ def delete_children(
 
     ``context`` is the opaque caller pool, forwarded down the tree and into the
     pool of any service the spec declares; this loop never reads it.
+
+    ⚠ Collections only. The cascade reports one
+    :class:`~rest_framework_services.ChildCollectionChange` per relation, which
+    is not the shape a singular relation reports in, so a singular spec is
+    refused here rather than removed and mis-reported.
     """
     deltas: list[ChildCollectionChange] = []
     for relation, spec in children.items():
+        if not isinstance(spec, ChildSpec):
+            raise _uncascadable_relation_kind(relation, spec)
         nullable = _fk_nullable(spec)
         removals: list[tuple[str, Any]] = []
         for child in getattr(parent, relation).all():
@@ -874,6 +1220,8 @@ async def adelete_children(
     """Async variant of :func:`delete_children`."""
     deltas: list[ChildCollectionChange] = []
     for relation, spec in children.items():
+        if not isinstance(spec, ChildSpec):
+            raise _uncascadable_relation_kind(relation, spec)
         nullable = _fk_nullable(spec)
         removals: list[tuple[str, Any]] = []
         async for child in getattr(parent, relation).all():

@@ -7,6 +7,7 @@ from typing import Any
 
 from rest_framework_services.mutations.utils import (
     _auto_now_field_names,
+    aapply_forward_relations,
     aapply_m2m,
     aapply_relations,
     am2m_changes,
@@ -43,6 +44,10 @@ async def aupdate_from_input(
         field_map=field_map,
         exclude_fields=exclude_fields,
     )
+    forward_values, forward_changes = await aapply_forward_relations(
+        relation_data, relation_specs, context=context
+    )
+    new_values.update(forward_values)
     field_changes = diff_attrs(instance, new_values)
     for change in field_changes:
         setattr(instance, change.field, change.new)
@@ -65,5 +70,5 @@ async def aupdate_from_input(
         created=False,
         changes=field_changes + m2m_field_changes,
         children=child_changes,
-        relations=related_changes,
+        relations=forward_changes + related_changes,
     )

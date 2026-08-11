@@ -149,6 +149,10 @@ class TestTheDriverIsTheSameOnEveryPath:
         message = str(excinfo.value)
         assert "relations['tags']: _M2MKind is not a relation kind" in message
 
+    def test_an_unwritable_forward_kind_is_refused_in_its_own_phase(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match=r"relations\['owner'\]: _ForwardKind"):
+            create_from_input(Catalog, {"name": "c"}, relations={"owner": _ForwardKind()})
+
     def test_a_grandchild_map_may_be_declared_as_relations(self) -> None:
         result = create_from_input(
             Catalog,
@@ -188,3 +192,7 @@ class TestTheDriverIsTheSameOnTheAsyncPath:
     async def test_an_unwritable_kind_names_the_relation(self) -> None:
         with pytest.raises(ImproperlyConfigured, match=r"relations\['tags'\]: _M2MKind"):
             await acreate_from_input(Catalog, {"name": "c"}, relations={"tags": _M2MKind()})
+
+    async def test_an_unwritable_forward_kind_is_refused_in_its_own_phase(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match=r"relations\['owner'\]: _ForwardKind"):
+            await acreate_from_input(Catalog, {"name": "c"}, relations={"owner": _ForwardKind()})

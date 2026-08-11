@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from rest_framework_services.mutations.utils import (
+    aapply_forward_relations,
     aapply_m2m,
     aapply_relations,
     am2m_changes,
@@ -40,6 +41,10 @@ async def acreate_from_input(
         field_map=field_map,
         exclude_fields=exclude_fields,
     )
+    forward_values, forward_changes = await aapply_forward_relations(
+        relation_data, relation_specs, context=context
+    )
+    new_values.update(forward_values)
     instance: ModelT = model(**new_values)
     await instance.asave()
     field_changes = changes_for_create(new_values)
@@ -53,5 +58,5 @@ async def acreate_from_input(
         created=True,
         changes=field_changes + m2m_field_changes,
         children=child_changes,
-        relations=related_changes,
+        relations=forward_changes + related_changes,
     )

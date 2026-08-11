@@ -89,3 +89,33 @@ class Note(models.Model):
 
     class Meta:
         app_label = "testapp"
+
+
+# --- singular relation fixtures ------------------------------------------
+#
+# Post.author       forward FK,   nullable  → may be cleared
+# Profile.author    forward O2O,  nullable  → and Author.profile in reverse,
+#                                             whose nullable FK unlinks
+# Cover.catalog     non-nullable  → Catalog.cover in reverse deletes instead
+
+
+class Profile(models.Model):
+    author = models.OneToOneField(
+        Author,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="profile",
+    )
+    bio = models.CharField(max_length=200, default="")
+
+    class Meta:
+        app_label = "testapp"
+
+
+class Cover(models.Model):
+    catalog = models.OneToOneField(Catalog, on_delete=models.CASCADE, related_name="cover")
+    image = models.CharField(max_length=200, default="")
+
+    class Meta:
+        app_label = "testapp"

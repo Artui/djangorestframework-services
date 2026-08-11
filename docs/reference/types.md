@@ -40,6 +40,14 @@
 
 ::: rest_framework_services.types.relation_phase.RelationPhase
 
+## `ForwardRelationSpec`
+
+::: rest_framework_services.types.forward_relation_spec.ForwardRelationSpec
+
+## `ReverseOneToOneSpec`
+
+::: rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec
+
 ## `RelatedObjectChange`
 
 ::: rest_framework_services.types.related_object_change.RelatedObjectChange
