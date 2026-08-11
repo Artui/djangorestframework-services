@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.37.0] — 2026-08-11
+
 ### ⛔ Security
 
 **A nested write could reach a row the parent does not own.** `children=` matched
@@ -2150,7 +2152,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.36.1...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.37.0...HEAD
+[0.37.0]: https://github.com/Artui/djangorestframework-services/compare/v0.36.1...v0.37.0
 [0.36.1]: https://github.com/Artui/djangorestframework-services/compare/v0.36.0...v0.36.1
 [0.36.0]: https://github.com/Artui/djangorestframework-services/compare/v0.35.0...v0.36.0
 [0.35.0]: https://github.com/Artui/djangorestframework-services/compare/v0.34.0...v0.35.0
