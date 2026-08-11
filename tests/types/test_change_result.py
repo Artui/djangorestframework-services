@@ -6,6 +6,7 @@ import pytest
 
 from rest_framework_services.types.change_result import ChangeResult
 from rest_framework_services.types.field_change import FieldChange
+from rest_framework_services.types.related_object_change import RelatedObjectChange
 from tests.testapp.models import Author
 
 
@@ -47,3 +48,27 @@ class TestChangeResult:
         author = Author(name="x")
         result = ChangeResult(instance=author, created=False, changes=())
         assert bool(result) is False
+
+    def test_get_relation_change_hit_and_miss(self) -> None:
+        author = Author(name="x")
+        change = RelatedObjectChange(relation="profile", outcome="created", pk=1)
+        result = ChangeResult(instance=author, created=True, changes=(), relations=(change,))
+        assert result.get_relation_change("profile") is change
+        assert result.get_relation_change("editor") is None
+
+    def test_a_singular_relation_alone_makes_the_result_truthy(self) -> None:
+        author = Author(name="x")
+        untouched = ChangeResult(
+            instance=author,
+            created=False,
+            changes=(),
+            relations=(RelatedObjectChange(relation="profile"),),
+        )
+        written = ChangeResult(
+            instance=author,
+            created=False,
+            changes=(),
+            relations=(RelatedObjectChange(relation="profile", outcome="created", pk=1),),
+        )
+        assert bool(untouched) is False
+        assert bool(written) is True

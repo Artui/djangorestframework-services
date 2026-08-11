@@ -209,8 +209,10 @@ class TestDeleteService:
         assert orphan.body == "archived"
         assert orphan.catalog_id == catalog.pk  # the service, not the unlink rule, ran
         change = result.get_child_change("notes")
-        # The loop can no longer tell unlink from delete, so it reports "deleted".
-        assert change.deleted == (orphan.pk,)
+        # The loop can no longer tell an unlink from a delete, so it reports
+        # neither: "removed" is the one thing it still knows to be true.
+        assert change.removed == (orphan.pk,)
+        assert change.deleted == ()
         assert change.unlinked == ()
 
     def test_replaces_the_delete_cascade(self) -> None:
@@ -238,7 +240,8 @@ class TestDeleteService:
         assert not Item.objects.filter(pk=item.pk).exists()
         assert archived == [(section.pk, catalog, _USER)]
         assert Section.objects.filter(pk=section.pk).exists()  # the service kept it
-        assert deltas[0].deleted == (section.pk,)
+        assert deltas[0].removed == (section.pk,)
+        assert deltas[0].deleted == ()
 
 
 @pytest.mark.django_db
@@ -356,7 +359,7 @@ class TestAsyncChildServices:
             children={"notes": ChildSpec(model=Note, fk="catalog", delete_service=archive)},
         )
         assert archived == [(orphan.pk, catalog)]
-        assert result.get_child_change("notes").deleted == (orphan.pk,)
+        assert result.get_child_change("notes").removed == (orphan.pk,)
         assert result.get_child_change("notes").unlinked == ()
         await orphan.arefresh_from_db()
         assert orphan.catalog_id == catalog.pk
@@ -366,5 +369,5 @@ class TestAsyncChildServices:
             {"notes": ChildSpec(model=Note, fk="catalog", delete_service=archive)},
             context={},
         )
-        assert deltas[0].deleted == (orphan.pk,)
+        assert deltas[0].removed == (orphan.pk,)
         assert archived == [(orphan.pk, catalog), (orphan.pk, catalog)]

@@ -7,17 +7,19 @@ from typing import Any
 
 from rest_framework_services.mutations.utils import (
     _auto_now_field_names,
-    aapply_children,
     aapply_m2m,
+    aapply_relations,
     am2m_changes,
     coerce_to_dict,
     diff_attrs,
-    extract_children,
+    extract_relation_data,
     filter_input,
+    merge_relations,
     resolve_update_fields,
 )
 from rest_framework_services.types.change_result import ChangeResult, ModelT
 from rest_framework_services.types.child_spec import ChildSpec
+from rest_framework_services.types.relation_spec import RelationSpec
 
 
 async def aupdate_from_input(
@@ -29,11 +31,13 @@ async def aupdate_from_input(
     m2m: dict[str, Any] | None = None,
     update_fields: bool | list[str] = True,
     children: Mapping[str, ChildSpec] | None = None,
+    relations: Mapping[str, RelationSpec] | None = None,
     context: Mapping[str, Any] | None = None,
 ) -> ChangeResult[ModelT]:
     """Async sibling of :func:`update_from_input` using ``asave()``/``aset()``."""
+    relation_specs = merge_relations(children, relations)
     raw: dict[str, Any] = coerce_to_dict(data)
-    child_data: dict[str, Any] = extract_children(raw, children)
+    relation_data: dict[str, Any] = extract_relation_data(raw, relation_specs)
     new_values: dict[str, Any] = filter_input(
         raw,
         field_map=field_map,
@@ -53,14 +57,13 @@ async def aupdate_from_input(
         else:
             await instance.asave(update_fields=save_fields)
     await aapply_m2m(instance, to_apply)
-    child_changes = (
-        await aapply_children(instance, child_data, children, created=False, context=context)
-        if children
-        else ()
+    child_changes, related_changes = await aapply_relations(
+        instance, relation_data, relation_specs, created=False, context=context
     )
     return ChangeResult(
         instance=instance,
         created=False,
         changes=field_changes + m2m_field_changes,
         children=child_changes,
+        relations=related_changes,
     )

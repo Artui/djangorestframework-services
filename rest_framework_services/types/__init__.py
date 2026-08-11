@@ -27,6 +27,9 @@ from rest_framework_services.types.progress_reporter import ProgressReporter
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.read_schema_markers import read_schema_markers
 from rest_framework_services.types.registered_spec import RegisteredSpec
+from rest_framework_services.types.related_object_change import RelatedObjectChange
+from rest_framework_services.types.relation_phase import RelationPhase
+from rest_framework_services.types.relation_spec import RelationSpec
 from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -63,6 +66,9 @@ __all__ = [
     "ProgressReporter",
     "QueryParam",
     "RegisteredSpec",
+    "RelatedObjectChange",
+    "RelationPhase",
+    "RelationSpec",
     "SelectorKind",
     "SelectorSpec",
     "ServiceSpec",

@@ -4,23 +4,31 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from django.db.models import Model
 
+from rest_framework_services.types.relation_phase import RelationPhase
+from rest_framework_services.types.relation_spec import RelationSpec
 from rest_framework_services.types.utils import validate_relation_services
 
 _VALID_MODES = ("replace", "merge")
 
 
 @dataclass(frozen=True)
-class ChildSpec:
+class ChildSpec(RelationSpec):
     """How to persist one reverse-FK ("one-to-many") child collection.
 
-    Passed in the ``children={relation_name: ChildSpec(...)}`` map of
+    The reverse-FK member of the relation taxonomy: it writes rows whose
+    foreign key points back at the parent, so it belongs to
+    :attr:`~rest_framework_services.RelationPhase.REVERSE` and is written after
+    the parent's ``save()``.
+
+    Passed in the ``relations={relation_name: ChildSpec(...)}`` map of
     :func:`~rest_framework_services.create_from_input` /
     :func:`~rest_framework_services.update_from_input` (and their async
-    siblings), and forwarded by the default
+    siblings) — or in ``children=``, which is the same thing under the name it
+    shipped as — and forwarded by the default
     :func:`~rest_framework_services.create_model` /
     :func:`~rest_framework_services.update_model` /
     :func:`~rest_framework_services.delete_model` services. The incoming child
@@ -57,6 +65,9 @@ class ChildSpec:
     - **``children``** — a nested ``{relation_name: ChildSpec}`` map for
       grandchildren; recursion follows the declared tree, so depth is bounded
       by how deeply you nest specs.
+    - **``relations``** — the same nesting for every other relation kind: a
+      ``{relation_name: RelationSpec}`` map applied to each child row exactly
+      as the top-level ``relations=`` is applied to the parent.
     - **``create_service``** / **``update_service``** / **``delete_service``**
       — optional per-row services replacing the default mutation-helper call
       for that operation, for a child whose write has real behaviour (side
@@ -88,13 +99,15 @@ class ChildSpec:
     - ``delete_service(*, instance, parent, **extras)`` — replaces the
       unlink-or-delete rule for that row, both for orphan removal and for the
       :func:`~rest_framework_services.delete_model` cascade. The loop can no
-      longer tell an unlink from a delete, so the pk is always reported under
-      ``ChildCollectionChange.deleted``.
+      longer tell an unlink from a delete, so the pk is reported under
+      :attr:`~rest_framework_services.ChildCollectionChange.removed` rather
+      than guessed into one of the two.
 
     A declared slot owns that row **entirely**: ``field_map``,
-    ``exclude_fields``, ``m2m`` and the nested ``children`` map configure the
-    default mutation-helper call, so a ``create_service`` / ``update_service``
-    standing in for it makes them dead configuration. Declaring both raises
+    ``exclude_fields``, ``m2m`` and the nested ``children`` / ``relations``
+    maps configure the default mutation-helper call, so a ``create_service`` /
+    ``update_service`` standing in for it makes them dead configuration.
+    Declaring both raises
     :exc:`~django.core.exceptions.ImproperlyConfigured` at construction rather
     than dropping them quietly. ``delete_service`` is exempt — it replaces the
     unlink-or-delete rule, not the helper call, so the cascade still removes a
@@ -110,6 +123,8 @@ class ChildSpec:
     ``async def``: the async path is awaited end to end.
     """
 
+    write_phase: ClassVar[RelationPhase] = RelationPhase.REVERSE
+
     model: type[Model]
     fk: str
     match_key: str = "pk"
@@ -118,6 +133,7 @@ class ChildSpec:
     exclude_fields: list[str] | None = None
     m2m: Callable[[Any], Mapping[str, Any]] | None = None
     children: Mapping[str, ChildSpec] | None = None
+    relations: Mapping[str, RelationSpec] | None = None
     create_service: Callable[..., Any] | None = None
     update_service: Callable[..., Any] | None = None
     delete_service: Callable[..., Any] | None = None
@@ -136,6 +152,7 @@ class ChildSpec:
                 "exclude_fields": self.exclude_fields,
                 "m2m": self.m2m,
                 "children": self.children,
+                "relations": self.relations,
             },
         )
 

@@ -9,7 +9,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import fields, is_dataclass
 from typing import Any
 
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.db.models import Model
 
 from rest_framework_services.exceptions.service_validation_error import (
@@ -20,6 +20,9 @@ from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.child_collection_change import ChildCollectionChange
 from rest_framework_services.types.child_spec import ChildSpec
 from rest_framework_services.types.field_change import FieldChange
+from rest_framework_services.types.related_object_change import RelatedObjectChange
+from rest_framework_services.types.relation_phase import RelationPhase
+from rest_framework_services.types.relation_spec import RelationSpec
 from rest_framework_services.types.unset import UNSET
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
@@ -225,29 +228,100 @@ def resolve_update_fields(
     return list(update_fields)
 
 
-# --- reverse-FK child collections (NEST) ---------------------------------
+# --- the relation taxonomy: one map, one ordering rule -------------------
+
+# The phases written *after* the parent's save, in the order they run. The
+# ordering is the whole point of the taxonomy, so it is stated once — here —
+# and every call site (create and update, sync and async) reads it from this
+# tuple instead of restating it. Restating it four times is how the four paths
+# would drift.
+POST_SAVE_PHASES: tuple[RelationPhase, ...] = (
+    RelationPhase.REVERSE,
+    RelationPhase.GENERIC,
+    RelationPhase.M2M,
+)
 
 
-def extract_children(
-    raw: dict[str, Any],
+def merge_relations(
     children: Mapping[str, ChildSpec] | None,
-) -> dict[str, Any]:
-    """Pop each child-relation key out of ``raw`` and return ``{relation: value}``.
+    relations: Mapping[str, RelationSpec] | None,
+) -> dict[str, RelationSpec]:
+    """Fold the ``children=`` alias and ``relations=`` into one map.
 
-    Removing the keys keeps the child lists out of the scalar field set the
-    parent's ``create``/``update`` would otherwise try to assign. A relation
-    the input omitted entirely maps to ``UNSET`` (left untouched by the write);
-    an explicit empty list maps to ``[]`` (processed — in ``replace`` mode that
-    removes every existing child).
+    ``children=`` shipped first and already means "these relations are reverse
+    foreign keys", so it stays as the alias for that kind rather than becoming
+    a synonym half the callers never update. A name declared in both is
+    refused: silently picking one of two specs the author wrote deliberately is
+    the failure mode this wave exists to remove.
     """
-    if not children:
-        return {}
-    return {name: raw.pop(name, UNSET) for name in children}
+    merged: dict[str, RelationSpec] = {}
+    for keyword, declared in (("children", children), ("relations", relations)):
+        for name, spec in (declared or {}).items():
+            if name in merged:
+                raise ImproperlyConfigured(
+                    f"relations[{name!r}] is also declared in children=. A relation is "
+                    "written once, so declare it in one map or the other — children= "
+                    "is the reverse-FK alias for relations=, not a second pass."
+                )
+            if not isinstance(spec, RelationSpec):
+                raise ImproperlyConfigured(
+                    f"{keyword}[{name!r}] is a {type(spec).__name__}, which is not a "
+                    "relation spec. Declare the relation with the spec class for its "
+                    "kind, so the write order can be read off the class."
+                )
+            merged[name] = spec
+    return merged
 
 
-def _child_fk_nullable(spec: ChildSpec) -> bool:
-    """Whether the child's foreign key to the parent allows ``NULL``."""
+def extract_relation_data(
+    raw: dict[str, Any],
+    relations: Mapping[str, RelationSpec],
+) -> dict[str, Any]:
+    """Pop each relation key out of ``raw`` and return ``{relation: value}``.
+
+    Removing the keys keeps the nested payloads out of the scalar field set the
+    parent's ``create``/``update`` would otherwise try to assign — a forward
+    relation's resolved instance is put back afterwards, once there is a row to
+    assign. A relation the input omitted entirely maps to ``UNSET`` (left
+    untouched by the write); an explicit ``[]`` or ``None`` maps to itself and
+    is processed.
+    """
+    return {name: raw.pop(name, UNSET) for name in relations}
+
+
+def relations_in_phase(
+    relations: Mapping[str, RelationSpec],
+    phase: RelationPhase,
+) -> tuple[tuple[str, RelationSpec], ...]:
+    """The declared relations belonging to ``phase``, in declaration order."""
+    return tuple((name, spec) for name, spec in relations.items() if spec.write_phase is phase)
+
+
+def post_save_relations(
+    relations: Mapping[str, RelationSpec],
+) -> tuple[tuple[str, RelationSpec], ...]:
+    """Every relation written after the parent's ``save()``, in phase order."""
+    return tuple(
+        pair for phase in POST_SAVE_PHASES for pair in relations_in_phase(relations, phase)
+    )
+
+
+def _fk_nullable(spec: ChildSpec) -> bool:
+    """Whether the related row's foreign key to the parent allows ``NULL``."""
     return bool(spec.model._meta.get_field(spec.fk).null)
+
+
+def _collect_removals(removals: list[tuple[str, Any]]) -> dict[str, tuple[Any, ...]]:
+    """Bucket ``(status, pk)`` pairs into the change carrier's removal tuples.
+
+    Three buckets, not two: ``deleted`` and ``unlinked`` are what the loop's
+    own rule did, and ``removed`` is what a ``delete_service`` did, which the
+    loop cannot classify further without inventing an answer.
+    """
+    buckets: dict[str, list[Any]] = {"deleted": [], "unlinked": [], "removed": []}
+    for status, pk in removals:
+        buckets[status].append(pk)
+    return {name: tuple(pks) for name, pks in buckets.items()}
 
 
 def remove_child(child: Model, fk: str, *, nullable: bool) -> tuple[str, Any]:
@@ -369,15 +443,15 @@ def _remove_one_child(
     """Remove one child through ``delete_service`` when declared, else the rule.
 
     A declared service owns the row, so the loop can no longer distinguish an
-    unlink from a delete and reports ``"deleted"`` for every row it removes that
-    way. The pk is read *before* the call, because a service that really deletes
-    leaves ``instance.pk`` cleared behind it.
+    unlink from a delete — and rather than guess one, it reports ``"removed"``,
+    the one thing it does know. The pk is read *before* the call, because a
+    service that really deletes leaves ``instance.pk`` cleared behind it.
     """
     if spec.delete_service is None:
         return remove_child(child, spec.fk, nullable=nullable)
     pk = child.pk
     _run_child_service(spec.delete_service, _child_pool(context, instance=child, parent=parent))
-    return ("deleted", pk)
+    return ("removed", pk)
 
 
 async def _aremove_one_child(
@@ -395,75 +469,113 @@ async def _aremove_one_child(
     await _arun_child_service(
         spec.delete_service, _child_pool(context, instance=child, parent=parent)
     )
-    return ("deleted", pk)
+    return ("removed", pk)
 
 
-def apply_children(
+def apply_relations(
     parent: Model,
-    child_data: dict[str, Any],
-    children: Mapping[str, ChildSpec],
+    relation_data: dict[str, Any],
+    relations: Mapping[str, RelationSpec],
     *,
     created: bool,
     context: Mapping[str, Any] | None = None,
-) -> tuple[ChildCollectionChange, ...]:
-    """Persist each reverse-FK child collection declared in ``children``.
+) -> tuple[tuple[ChildCollectionChange, ...], tuple[RelatedObjectChange, ...]]:
+    """Write every relation that belongs after the parent's ``save()``.
 
-    For each relation: match incoming rows to existing children by the spec's
-    ``match_key`` (skipped on ``created`` — a fresh parent has none), update
-    matches, create the rest, and — in ``replace`` mode — remove orphans via
-    :func:`remove_child`. Each child runs back through ``create``/``update``
-    so scalar / m2m / nested semantics compose recursively.
+    The one post-save driver, shared by ``create_from_input`` and
+    ``update_from_input``: the ordering comes from :func:`post_save_relations`
+    and the per-kind work from the writer for that kind, so neither path can
+    grow an order of its own. Returns the collection deltas and the singular
+    ones separately, because the two shapes report differently — see
+    :class:`~rest_framework_services.ChildCollectionChange` and
+    :class:`~rest_framework_services.RelatedObjectChange`.
 
     ``context`` is the opaque caller pool; it is forwarded verbatim, both into
-    the per-child helper call (so a grandchild's service sees the same pool as
-    a child's) and into the pool of any service the spec declares. Nothing in
-    this loop reads it.
+    the per-row helper call (so a grandchild's service sees the same pool as a
+    child's) and into the pool of any service the spec declares. Nothing in
+    this driver reads it.
     """
-    deltas: list[ChildCollectionChange] = []
-    for relation, spec in children.items():
-        items = child_data.get(relation, UNSET)
-        if items is UNSET:
-            deltas.append(ChildCollectionChange(relation=relation))
-            continue
-        existing_by_key: dict[Any, Model] = (
-            {}
-            if created
-            else {getattr(e, spec.match_key): e for e in getattr(parent, relation).all()}
-        )
-        created_pks: list[Any] = []
-        updated_pks: list[Any] = []
-        matched: set[Any] = set()
-        for item in (coerce_to_dict(i) for i in (items or [])):
-            child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
-            key = item.get(spec.match_key)
-            if key is not None and key in existing_by_key:
-                child = _update_child(
-                    existing_by_key[key],
-                    item,
-                    spec,
-                    parent=parent,
-                    context=context,
-                    m2m=child_m2m,
+    collections: list[ChildCollectionChange] = []
+    # Singular post-save kinds report here, in the second slot of the result.
+    singular: list[RelatedObjectChange] = []
+    for relation, spec in post_save_relations(relations):
+        value = relation_data.get(relation, UNSET)
+        if isinstance(spec, ChildSpec):
+            collections.append(
+                _write_child_collection(
+                    parent, value, spec, relation=relation, created=created, context=context
                 )
-                updated_pks.append(child.pk)
-                matched.add(key)
-            else:
-                _reject_unmatched_reference(item, spec, relation)
-                child = _create_child(item, spec, parent=parent, context=context, m2m=child_m2m)
-                created_pks.append(child.pk)
-        deleted_pks, unlinked_pks = _remove_orphans(
-            existing_by_key, spec, matched, created, parent=parent, context=context
-        )
-        deltas.append(
-            ChildCollectionChange(
-                relation=relation,
-                created=tuple(created_pks),
-                updated=tuple(updated_pks),
-                deleted=tuple(deleted_pks),
-                unlinked=tuple(unlinked_pks),
             )
-        )
-    return tuple(deltas)
+        else:
+            raise _unknown_relation_kind(relation, spec)
+    return (tuple(collections), tuple(singular))
+
+
+def _unknown_relation_kind(relation: str, spec: RelationSpec) -> ImproperlyConfigured:
+    """The error for a relation spec the driver has no writer for.
+
+    Reachable only through a :class:`RelationSpec` subclass the library did not
+    define: the ``write_phase`` says when to write it and nothing says how.
+    """
+    return ImproperlyConfigured(
+        f"relations[{relation!r}]: {type(spec).__name__} is not a relation kind this "
+        "library knows how to write. Declare the relation with one of the shipped "
+        "spec classes."
+    )
+
+
+def _write_child_collection(
+    parent: Model,
+    items: Any,
+    spec: ChildSpec,
+    *,
+    relation: str,
+    created: bool,
+    context: Mapping[str, Any] | None,
+) -> ChildCollectionChange:
+    """Reconcile one reverse-FK child collection against ``items``.
+
+    Match incoming rows to existing children by the spec's ``match_key``
+    (skipped on ``created`` — a fresh parent has none), update matches, create
+    the rest, and — in ``replace`` mode — remove orphans via
+    :func:`remove_child`. Each child runs back through ``create``/``update`` so
+    scalar / m2m / nested semantics compose recursively.
+    """
+    if items is UNSET:
+        return ChildCollectionChange(relation=relation)
+    existing_by_key: dict[Any, Model] = (
+        {} if created else {getattr(e, spec.match_key): e for e in getattr(parent, relation).all()}
+    )
+    created_pks: list[Any] = []
+    updated_pks: list[Any] = []
+    matched: set[Any] = set()
+    for item in (coerce_to_dict(i) for i in (items or [])):
+        child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+        key = item.get(spec.match_key)
+        if key is not None and key in existing_by_key:
+            child = _update_child(
+                existing_by_key[key],
+                item,
+                spec,
+                parent=parent,
+                context=context,
+                m2m=child_m2m,
+            )
+            updated_pks.append(child.pk)
+            matched.add(key)
+        else:
+            _reject_unmatched_reference(item, spec, relation)
+            child = _create_child(item, spec, parent=parent, context=context, m2m=child_m2m)
+            created_pks.append(child.pk)
+    removals = _remove_orphans(
+        existing_by_key, spec, matched, created, parent=parent, context=context
+    )
+    return ChildCollectionChange(
+        relation=relation,
+        created=tuple(created_pks),
+        updated=tuple(updated_pks),
+        **_collect_removals(removals),
+    )
 
 
 def _create_child(
@@ -495,6 +607,7 @@ def _create_child(
         exclude_fields=spec.exclude_fields,
         m2m=m2m,
         children=spec.children,
+        relations=spec.relations,
         context=context,
     ).instance
 
@@ -523,6 +636,7 @@ async def _acreate_child(
         exclude_fields=spec.exclude_fields,
         m2m=m2m,
         children=spec.children,
+        relations=spec.relations,
         context=context,
     )
     return result.instance
@@ -558,6 +672,7 @@ def _update_child(
         exclude_fields=spec.exclude_fields,
         m2m=m2m,
         children=spec.children,
+        relations=spec.relations,
         context=context,
     )
     return child
@@ -589,6 +704,7 @@ async def _aupdate_child(
         exclude_fields=spec.exclude_fields,
         m2m=m2m,
         children=spec.children,
+        relations=spec.relations,
         context=context,
     )
     return child
@@ -602,83 +718,97 @@ def _remove_orphans(
     *,
     parent: Model,
     context: Mapping[str, Any] | None,
-) -> tuple[list[Any], list[Any]]:
+) -> list[tuple[str, Any]]:
     """Remove pre-update children not matched by the incoming set (replace mode).
 
     Iterates the *original* snapshot, never a fresh query, so children created
-    in this same call are not mistaken for orphans.
+    in this same call are not mistaken for orphans. Returns the
+    ``(status, pk)`` pairs :func:`_collect_removals` buckets.
     """
-    deleted_pks: list[Any] = []
-    unlinked_pks: list[Any] = []
+    removals: list[tuple[str, Any]] = []
     if created or spec.mode != "replace":
-        return (deleted_pks, unlinked_pks)
-    nullable = _child_fk_nullable(spec)
+        return removals
+    nullable = _fk_nullable(spec)
     for key, child in existing_by_key.items():
         if key in matched:
             continue
-        status, pk = _remove_one_child(
-            child, spec, parent=parent, context=context, nullable=nullable
+        removals.append(
+            _remove_one_child(child, spec, parent=parent, context=context, nullable=nullable)
         )
-        (unlinked_pks if status == "unlinked" else deleted_pks).append(pk)
-    return (deleted_pks, unlinked_pks)
+    return removals
 
 
-async def aapply_children(
+async def aapply_relations(
     parent: Model,
-    child_data: dict[str, Any],
-    children: Mapping[str, ChildSpec],
+    relation_data: dict[str, Any],
+    relations: Mapping[str, RelationSpec],
     *,
     created: bool,
     context: Mapping[str, Any] | None = None,
-) -> tuple[ChildCollectionChange, ...]:
-    """Async variant of :func:`apply_children`."""
-    deltas: list[ChildCollectionChange] = []
-    for relation, spec in children.items():
-        items = child_data.get(relation, UNSET)
-        if items is UNSET:
-            deltas.append(ChildCollectionChange(relation=relation))
-            continue
-        existing_by_key: dict[Any, Model] = {}
-        if not created:
-            existing_by_key = {
-                getattr(e, spec.match_key): e async for e in getattr(parent, relation).all()
-            }
-        created_pks: list[Any] = []
-        updated_pks: list[Any] = []
-        matched: set[Any] = set()
-        for item in (coerce_to_dict(i) for i in (items or [])):
-            child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
-            key = item.get(spec.match_key)
-            if key is not None and key in existing_by_key:
-                child = await _aupdate_child(
-                    existing_by_key[key],
-                    item,
-                    spec,
-                    parent=parent,
-                    context=context,
-                    m2m=child_m2m,
+) -> tuple[tuple[ChildCollectionChange, ...], tuple[RelatedObjectChange, ...]]:
+    """Async variant of :func:`apply_relations` — same ordering, awaited."""
+    collections: list[ChildCollectionChange] = []
+    singular: list[RelatedObjectChange] = []
+    for relation, spec in post_save_relations(relations):
+        value = relation_data.get(relation, UNSET)
+        if isinstance(spec, ChildSpec):
+            collections.append(
+                await _awrite_child_collection(
+                    parent, value, spec, relation=relation, created=created, context=context
                 )
-                updated_pks.append(child.pk)
-                matched.add(key)
-            else:
-                _reject_unmatched_reference(item, spec, relation)
-                child = await _acreate_child(
-                    item, spec, parent=parent, context=context, m2m=child_m2m
-                )
-                created_pks.append(child.pk)
-        deleted_pks, unlinked_pks = await _aremove_orphans(
-            existing_by_key, spec, matched, created, parent=parent, context=context
-        )
-        deltas.append(
-            ChildCollectionChange(
-                relation=relation,
-                created=tuple(created_pks),
-                updated=tuple(updated_pks),
-                deleted=tuple(deleted_pks),
-                unlinked=tuple(unlinked_pks),
             )
-        )
-    return tuple(deltas)
+        else:
+            raise _unknown_relation_kind(relation, spec)
+    return (tuple(collections), tuple(singular))
+
+
+async def _awrite_child_collection(
+    parent: Model,
+    items: Any,
+    spec: ChildSpec,
+    *,
+    relation: str,
+    created: bool,
+    context: Mapping[str, Any] | None,
+) -> ChildCollectionChange:
+    """Async variant of :func:`_write_child_collection`."""
+    if items is UNSET:
+        return ChildCollectionChange(relation=relation)
+    existing_by_key: dict[Any, Model] = {}
+    if not created:
+        existing_by_key = {
+            getattr(e, spec.match_key): e async for e in getattr(parent, relation).all()
+        }
+    created_pks: list[Any] = []
+    updated_pks: list[Any] = []
+    matched: set[Any] = set()
+    for item in (coerce_to_dict(i) for i in (items or [])):
+        child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+        key = item.get(spec.match_key)
+        if key is not None and key in existing_by_key:
+            child = await _aupdate_child(
+                existing_by_key[key],
+                item,
+                spec,
+                parent=parent,
+                context=context,
+                m2m=child_m2m,
+            )
+            updated_pks.append(child.pk)
+            matched.add(key)
+        else:
+            _reject_unmatched_reference(item, spec, relation)
+            child = await _acreate_child(item, spec, parent=parent, context=context, m2m=child_m2m)
+            created_pks.append(child.pk)
+    removals = await _aremove_orphans(
+        existing_by_key, spec, matched, created, parent=parent, context=context
+    )
+    return ChildCollectionChange(
+        relation=relation,
+        created=tuple(created_pks),
+        updated=tuple(updated_pks),
+        **_collect_removals(removals),
+    )
 
 
 async def _aremove_orphans(
@@ -689,21 +819,19 @@ async def _aremove_orphans(
     *,
     parent: Model,
     context: Mapping[str, Any] | None,
-) -> tuple[list[Any], list[Any]]:
+) -> list[tuple[str, Any]]:
     """Async variant of :func:`_remove_orphans`."""
-    deleted_pks: list[Any] = []
-    unlinked_pks: list[Any] = []
+    removals: list[tuple[str, Any]] = []
     if created or spec.mode != "replace":
-        return (deleted_pks, unlinked_pks)
-    nullable = _child_fk_nullable(spec)
+        return removals
+    nullable = _fk_nullable(spec)
     for key, child in existing_by_key.items():
         if key in matched:
             continue
-        status, pk = await _aremove_one_child(
-            child, spec, parent=parent, context=context, nullable=nullable
+        removals.append(
+            await _aremove_one_child(child, spec, parent=parent, context=context, nullable=nullable)
         )
-        (unlinked_pks if status == "unlinked" else deleted_pks).append(pk)
-    return (deleted_pks, unlinked_pks)
+    return removals
 
 
 def delete_children(
@@ -725,23 +853,15 @@ def delete_children(
     """
     deltas: list[ChildCollectionChange] = []
     for relation, spec in children.items():
-        nullable = _child_fk_nullable(spec)
-        deleted_pks: list[Any] = []
-        unlinked_pks: list[Any] = []
+        nullable = _fk_nullable(spec)
+        removals: list[tuple[str, Any]] = []
         for child in getattr(parent, relation).all():
             if spec.children:
                 delete_children(child, spec.children, context=context)
-            status, pk = _remove_one_child(
-                child, spec, parent=parent, context=context, nullable=nullable
+            removals.append(
+                _remove_one_child(child, spec, parent=parent, context=context, nullable=nullable)
             )
-            (unlinked_pks if status == "unlinked" else deleted_pks).append(pk)
-        deltas.append(
-            ChildCollectionChange(
-                relation=relation,
-                deleted=tuple(deleted_pks),
-                unlinked=tuple(unlinked_pks),
-            )
-        )
+        deltas.append(ChildCollectionChange(relation=relation, **_collect_removals(removals)))
     return tuple(deltas)
 
 
@@ -754,21 +874,15 @@ async def adelete_children(
     """Async variant of :func:`delete_children`."""
     deltas: list[ChildCollectionChange] = []
     for relation, spec in children.items():
-        nullable = _child_fk_nullable(spec)
-        deleted_pks: list[Any] = []
-        unlinked_pks: list[Any] = []
+        nullable = _fk_nullable(spec)
+        removals: list[tuple[str, Any]] = []
         async for child in getattr(parent, relation).all():
             if spec.children:
                 await adelete_children(child, spec.children, context=context)
-            status, pk = await _aremove_one_child(
-                child, spec, parent=parent, context=context, nullable=nullable
+            removals.append(
+                await _aremove_one_child(
+                    child, spec, parent=parent, context=context, nullable=nullable
+                )
             )
-            (unlinked_pks if status == "unlinked" else deleted_pks).append(pk)
-        deltas.append(
-            ChildCollectionChange(
-                relation=relation,
-                deleted=tuple(deleted_pks),
-                unlinked=tuple(unlinked_pks),
-            )
-        )
+        deltas.append(ChildCollectionChange(relation=relation, **_collect_removals(removals)))
     return tuple(deltas)

@@ -6,16 +6,18 @@ from collections.abc import Mapping
 from typing import Any
 
 from rest_framework_services.mutations.utils import (
-    aapply_children,
     aapply_m2m,
+    aapply_relations,
     am2m_changes,
     changes_for_create,
     coerce_to_dict,
-    extract_children,
+    extract_relation_data,
     filter_input,
+    merge_relations,
 )
 from rest_framework_services.types.change_result import ChangeResult, ModelT
 from rest_framework_services.types.child_spec import ChildSpec
+from rest_framework_services.types.relation_spec import RelationSpec
 
 
 async def acreate_from_input(
@@ -26,11 +28,13 @@ async def acreate_from_input(
     exclude_fields: list[str] | None = None,
     m2m: dict[str, Any] | None = None,
     children: Mapping[str, ChildSpec] | None = None,
+    relations: Mapping[str, RelationSpec] | None = None,
     context: Mapping[str, Any] | None = None,
 ) -> ChangeResult[ModelT]:
     """Async sibling of :func:`create_from_input` using ``asave()``/``aset()``."""
+    relation_specs = merge_relations(children, relations)
     raw: dict[str, Any] = coerce_to_dict(data)
-    child_data: dict[str, Any] = extract_children(raw, children)
+    relation_data: dict[str, Any] = extract_relation_data(raw, relation_specs)
     new_values: dict[str, Any] = filter_input(
         raw,
         field_map=field_map,
@@ -41,14 +45,13 @@ async def acreate_from_input(
     field_changes = changes_for_create(new_values)
     m2m_field_changes, to_apply = await am2m_changes(instance, m2m, created=True)
     await aapply_m2m(instance, to_apply)
-    child_changes = (
-        await aapply_children(instance, child_data, children, created=True, context=context)
-        if children
-        else ()
+    child_changes, related_changes = await aapply_relations(
+        instance, relation_data, relation_specs, created=True, context=context
     )
     return ChangeResult(
         instance=instance,
         created=True,
         changes=field_changes + m2m_field_changes,
         children=child_changes,
+        relations=related_changes,
     )

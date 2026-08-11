@@ -81,7 +81,8 @@ the loop has already decided about.
   same convention the top-level update services follow.
 - A delete service replaces the unlink-or-delete rule for that row (orphan
   removal *and* the `delete_model` cascade). The loop can no longer tell the
-  two apart, so the pk is reported under `deleted`.
+  two apart, so the pk is reported under `removed` — its own bucket, rather
+  than a guess folded into `deleted`.
 - A `create_service` / `update_service` **replaces** the helper call, so the
   knobs configuring that call — `field_map`, `exclude_fields`, `m2m` and the
   nested `children` map — are refused on the same spec, with
@@ -141,13 +142,18 @@ already cascades.
 
 `ChangeResult.children` carries one
 [`ChildCollectionChange`](../reference/types.md#childcollectionchange) per
-relation, with the `created` / `updated` / `deleted` / `unlinked` child pks:
+relation, with the `created` / `updated` / `deleted` / `unlinked` / `removed`
+child pks:
 
 ```python
 result = update_from_input(author, data, children={"books": ChildSpec(model=Book, fk="author")})
 delta = result.get_child_change("books")
 delta.created, delta.updated, delta.deleted, delta.unlinked
 ```
+
+`removed` is the fifth bucket, and only a `delete_service` fills it: once a
+service owns the row, "deleted" and "unlinked" are no longer things the loop
+knows.
 
 ## Migrating off a writable-nested serializer
 

@@ -32,6 +32,18 @@
 
 ::: rest_framework_services.types.child_collection_change.ChildCollectionChange
 
+## `RelationSpec`
+
+::: rest_framework_services.types.relation_spec.RelationSpec
+
+## `RelationPhase`
+
+::: rest_framework_services.types.relation_phase.RelationPhase
+
+## `RelatedObjectChange`
+
+::: rest_framework_services.types.related_object_change.RelatedObjectChange
+
 ## `UNSET`
 
 ::: rest_framework_services.types.unset
