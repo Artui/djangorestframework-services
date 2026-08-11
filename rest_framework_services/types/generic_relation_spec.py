@@ -9,6 +9,7 @@ from typing import Any, ClassVar
 from django.db.models import Model
 
 from rest_framework_services.types.child_spec import ChildSpec
+from rest_framework_services.types.relation_mode import RelationMode
 from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
 from rest_framework_services.types.utils import validate_relation_mode, validate_relation_services
@@ -78,7 +79,7 @@ class GenericRelationSpec(RelationSpec):
     content_type_field: str = "content_type"
     object_id_field: str = "object_id"
     match_key: str = "pk"
-    mode: str = "replace"
+    mode: RelationMode | str = RelationMode.REPLACE
     field_map: dict[str, str] | None = None
     exclude_fields: list[str] | None = None
     m2m: Callable[[Any], Mapping[str, Any]] | None = None

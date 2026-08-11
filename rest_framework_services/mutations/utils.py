@@ -24,6 +24,7 @@ from rest_framework_services.types.forward_relation_spec import ForwardRelationS
 from rest_framework_services.types.generic_relation_spec import GenericRelationSpec
 from rest_framework_services.types.many_to_many_spec import ManyToManySpec
 from rest_framework_services.types.related_object_change import RelatedObjectChange
+from rest_framework_services.types.relation_outcome import RelationOutcome
 from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
 from rest_framework_services.types.reverse_one_to_one_spec import ReverseOneToOneSpec
@@ -431,27 +432,35 @@ def _link_nullable(spec: _OwnedRowSpec) -> bool:
     return all(bool(spec.model._meta.get_field(name).null) for name in _link_fields(spec))
 
 
-def _collect_removals(removals: list[tuple[str, Any]]) -> dict[str, tuple[Any, ...]]:
+def _collect_removals(
+    removals: list[tuple[RelationOutcome, Any]],
+) -> dict[str, tuple[Any, ...]]:
     """Bucket ``(status, pk)`` pairs into the change carrier's removal tuples.
 
     Three buckets, not two: ``deleted`` and ``unlinked`` are what the loop's
     own rule did, and ``removed`` is what a ``delete_service`` did, which the
     loop cannot classify further without inventing an answer.
     """
-    buckets: dict[str, list[Any]] = {"deleted": [], "unlinked": [], "removed": []}
+    buckets: dict[RelationOutcome, list[Any]] = {
+        RelationOutcome.DELETED: [],
+        RelationOutcome.UNLINKED: [],
+        RelationOutcome.REMOVED: [],
+    }
     for status, pk in removals:
         buckets[status].append(pk)
-    return {name: tuple(pks) for name, pks in buckets.items()}
+    return {outcome.value: tuple(pks) for outcome, pks in buckets.items()}
 
 
-def remove_child(child: Model, link: tuple[str, ...], *, nullable: bool) -> tuple[str, Any]:
+def remove_child(
+    child: Model, link: tuple[str, ...], *, nullable: bool
+) -> tuple[RelationOutcome, Any]:
     """Detach (nullable link → ``SET_NULL``) or delete (else → ``CASCADE``) ``child``.
 
     ``link`` is the column or columns tying the row to its parent — one for a
     foreign key, two for a generic relation — and detaching blanks all of them
     together, because a link is severed or it is not.
 
-    Returns ``("unlinked" | "deleted", pk)`` with the pk captured *before* any
+    Returns ``(UNLINKED | DELETED, pk)`` with the pk captured *before* any
     delete (Django clears ``instance.pk`` afterwards).
     """
     pk = child.pk
@@ -459,21 +468,23 @@ def remove_child(child: Model, link: tuple[str, ...], *, nullable: bool) -> tupl
         for name in link:
             setattr(child, name, None)
         child.save(update_fields=list(link))
-        return ("unlinked", pk)
+        return (RelationOutcome.UNLINKED, pk)
     child.delete()
-    return ("deleted", pk)
+    return (RelationOutcome.DELETED, pk)
 
 
-async def aremove_child(child: Model, link: tuple[str, ...], *, nullable: bool) -> tuple[str, Any]:
+async def aremove_child(
+    child: Model, link: tuple[str, ...], *, nullable: bool
+) -> tuple[RelationOutcome, Any]:
     """Async variant of :func:`remove_child`."""
     pk = child.pk
     if nullable:
         for name in link:
             setattr(child, name, None)
         await child.asave(update_fields=list(link))
-        return ("unlinked", pk)
+        return (RelationOutcome.UNLINKED, pk)
     await child.adelete()
-    return ("deleted", pk)
+    return (RelationOutcome.DELETED, pk)
 
 
 def _pk_input_names(model: type[Model], field_map: dict[str, str] | None) -> frozenset[str]:
@@ -575,7 +586,7 @@ def _remove_one_child(
     parent: Model,
     context: Mapping[str, Any] | None,
     nullable: bool,
-) -> tuple[str, Any]:
+) -> tuple[RelationOutcome, Any]:
     """Remove one child through ``delete_service`` when declared, else the rule.
 
     A declared service owns the row, so the loop can no longer distinguish an
@@ -587,7 +598,7 @@ def _remove_one_child(
         return remove_child(child, _link_fields(spec), nullable=nullable)
     pk = child.pk
     _run_child_service(spec.delete_service, _child_pool(context, instance=child, parent=parent))
-    return ("removed", pk)
+    return (RelationOutcome.REMOVED, pk)
 
 
 async def _aremove_one_child(
@@ -597,7 +608,7 @@ async def _aremove_one_child(
     parent: Model,
     context: Mapping[str, Any] | None,
     nullable: bool,
-) -> tuple[str, Any]:
+) -> tuple[RelationOutcome, Any]:
     """Async variant of :func:`_remove_one_child`."""
     if spec.delete_service is None:
         return await aremove_child(child, _link_fields(spec), nullable=nullable)
@@ -605,7 +616,7 @@ async def _aremove_one_child(
     await _arun_child_service(
         spec.delete_service, _child_pool(context, instance=child, parent=parent)
     )
-    return ("removed", pk)
+    return (RelationOutcome.REMOVED, pk)
 
 
 # --- the forward phase: written before the parent exists ------------------
@@ -679,15 +690,18 @@ def _write_forward_relation(
     pointed at is not the parent's to remove.
     """
     if value is None:
-        return (None, RelatedObjectChange(relation=relation, outcome="cleared"))
+        return (None, RelatedObjectChange(relation=relation, outcome=RelationOutcome.CLEARED))
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
     target = _match_scoped_target(item, spec, relation=relation, context=context)
     if target is None:
         row = _create_row(item, spec, relation=relation, seeds={}, context=context, m2m=row_m2m)
-        return (row, RelatedObjectChange(relation=relation, outcome="created", pk=row.pk))
+        return (
+            row,
+            RelatedObjectChange(relation=relation, outcome=RelationOutcome.CREATED, pk=row.pk),
+        )
     row = _update_row(target, item, spec, seeds={}, context=context, m2m=row_m2m)
-    return (row, RelatedObjectChange(relation=relation, outcome="updated", pk=row.pk))
+    return (row, RelatedObjectChange(relation=relation, outcome=RelationOutcome.UPDATED, pk=row.pk))
 
 
 async def _awrite_forward_relation(
@@ -699,7 +713,7 @@ async def _awrite_forward_relation(
 ) -> tuple[Any, RelatedObjectChange]:
     """Async variant of :func:`_write_forward_relation`."""
     if value is None:
-        return (None, RelatedObjectChange(relation=relation, outcome="cleared"))
+        return (None, RelatedObjectChange(relation=relation, outcome=RelationOutcome.CLEARED))
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
     target = await _amatch_scoped_target(item, spec, relation=relation, context=context)
@@ -707,9 +721,12 @@ async def _awrite_forward_relation(
         row = await _acreate_row(
             item, spec, relation=relation, seeds={}, context=context, m2m=row_m2m
         )
-        return (row, RelatedObjectChange(relation=relation, outcome="created", pk=row.pk))
+        return (
+            row,
+            RelatedObjectChange(relation=relation, outcome=RelationOutcome.CREATED, pk=row.pk),
+        )
     row = await _aupdate_row(target, item, spec, seeds={}, context=context, m2m=row_m2m)
-    return (row, RelatedObjectChange(relation=relation, outcome="updated", pk=row.pk))
+    return (row, RelatedObjectChange(relation=relation, outcome=RelationOutcome.UPDATED, pk=row.pk))
 
 
 def _resolve_scope(
@@ -931,9 +948,9 @@ def _write_reverse_one_to_one(
             context=context,
             m2m=row_m2m,
         )
-        return RelatedObjectChange(relation=relation, outcome="created", pk=row.pk)
+        return RelatedObjectChange(relation=relation, outcome=RelationOutcome.CREATED, pk=row.pk)
     row = _update_row(existing, item, spec, seeds={"parent": parent}, context=context, m2m=row_m2m)
-    return RelatedObjectChange(relation=relation, outcome="updated", pk=row.pk)
+    return RelatedObjectChange(relation=relation, outcome=RelationOutcome.UPDATED, pk=row.pk)
 
 
 async def _awrite_reverse_one_to_one(
@@ -967,11 +984,11 @@ async def _awrite_reverse_one_to_one(
             context=context,
             m2m=row_m2m,
         )
-        return RelatedObjectChange(relation=relation, outcome="created", pk=row.pk)
+        return RelatedObjectChange(relation=relation, outcome=RelationOutcome.CREATED, pk=row.pk)
     row = await _aupdate_row(
         existing, item, spec, seeds={"parent": parent}, context=context, m2m=row_m2m
     )
-    return RelatedObjectChange(relation=relation, outcome="updated", pk=row.pk)
+    return RelatedObjectChange(relation=relation, outcome=RelationOutcome.UPDATED, pk=row.pk)
 
 
 def _write_owned_collection(
@@ -1266,14 +1283,14 @@ def _remove_orphans(
     *,
     parent: Model,
     context: Mapping[str, Any] | None,
-) -> list[tuple[str, Any]]:
+) -> list[tuple[RelationOutcome, Any]]:
     """Remove pre-update children not matched by the incoming set (replace mode).
 
     Iterates the *original* snapshot, never a fresh query, so children created
     in this same call are not mistaken for orphans. Returns the
     ``(status, pk)`` pairs :func:`_collect_removals` buckets.
     """
-    removals: list[tuple[str, Any]] = []
+    removals: list[tuple[RelationOutcome, Any]] = []
     if created or spec.mode != "replace":
         return removals
     nullable = _link_nullable(spec)
@@ -1433,9 +1450,9 @@ async def _aremove_orphans(
     *,
     parent: Model,
     context: Mapping[str, Any] | None,
-) -> list[tuple[str, Any]]:
+) -> list[tuple[RelationOutcome, Any]]:
     """Async variant of :func:`_remove_orphans`."""
-    removals: list[tuple[str, Any]] = []
+    removals: list[tuple[RelationOutcome, Any]] = []
     if created or spec.mode != "replace":
         return removals
     nullable = _link_nullable(spec)
@@ -1545,7 +1562,7 @@ def _delete_owned_collection(
     """Remove every row of one owned collection, its own relations first."""
     nullable = _link_nullable(spec)
     nested = merge_relations(spec.children, spec.relations)
-    removals: list[tuple[str, Any]] = []
+    removals: list[tuple[RelationOutcome, Any]] = []
     for child in getattr(parent, relation).all():
         delete_relations(child, nested, context=context)
         removals.append(
@@ -1564,7 +1581,7 @@ async def _adelete_owned_collection(
     """Async variant of :func:`_delete_owned_collection`."""
     nullable = _link_nullable(spec)
     nested = merge_relations(spec.children, spec.relations)
-    removals: list[tuple[str, Any]] = []
+    removals: list[tuple[RelationOutcome, Any]] = []
     async for child in getattr(parent, relation).all():
         await adelete_relations(child, nested, context=context)
         removals.append(

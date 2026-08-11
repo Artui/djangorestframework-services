@@ -7,6 +7,8 @@ from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
 
+from rest_framework_services.types.relation_mode import RelationMode
+
 
 def validate_metadata(metadata: Any, *, label: str) -> None:
     """Reject a non-mapping ``metadata`` declaration on a spec.
@@ -30,7 +32,7 @@ def validate_metadata(metadata: Any, *, label: str) -> None:
     )
 
 
-VALID_RELATION_MODES = ("replace", "merge")
+VALID_RELATION_MODES = tuple(mode.value for mode in RelationMode)
 
 
 def validate_relation_mode(mode: str, *, label: str) -> None:

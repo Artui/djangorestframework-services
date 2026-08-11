@@ -68,6 +68,12 @@ and let it be created. A natural `match_key` is unaffected and still upserts.
   `ChildCollectionChange` gains a matching `removed` tuple for rows a
   `delete_service` handled.
 
+- **`RelationOutcome` and `RelationMode` enums.** Both subclass `str`, matching
+  `SelectorKind`, so the values they replaced still compare equal and stay
+  JSON-serializable: `change.outcome == "created"` keeps working and
+  `mode="replace"` is still accepted. Typing them is what surfaced four places
+  in the writer that were still passing the outcome around as a bare string.
+
 - **Generic relations, with `django.contrib.contenttypes` gated.** The package is
   imported during `apps.populate()`, so the content-type model is imported
   inside the function and only after `apps.is_installed` confirms the app. A

@@ -8,6 +8,7 @@ the collection taken out.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
@@ -17,6 +18,8 @@ from django.db.models.signals import post_save
 from rest_framework_services import (
     ChildSpec,
     ForwardRelationSpec,
+    RelationMode,
+    RelationOutcome,
     ReverseOneToOneSpec,
     acreate_from_input,
     aupdate_from_input,
@@ -635,3 +638,37 @@ class TestAsyncSingularRelations:
             },
         )
         assert updated.get_relation_change("profile").pk == replacement.pk
+
+
+@pytest.mark.django_db
+class TestTheOutcomeIsAnEnumThatStillReadsAsAString:
+    """Both enums subclass ``str``, so the values they replaced keep working.
+
+    That is the whole reason for the ``str`` base: a consumer comparing against
+    the plain string it read in the docs is not broken by the field becoming an
+    enum, and the value stays JSON-serializable for anything that reports a
+    change over a wire.
+    """
+
+    def test_a_reported_outcome_compares_both_ways(self) -> None:
+        author = Author.objects.create(name="a")
+        result = update_from_input(
+            author,
+            {"name": "a", "profile": {"bio": "written"}},
+            relations={"profile": ReverseOneToOneSpec(model=Profile, fk="author")},
+        )
+        change = result.get_relation_change("profile")
+
+        assert change.outcome is RelationOutcome.CREATED
+        assert change.outcome == "created"
+        assert json.dumps({"outcome": change.outcome}) == '{"outcome": "created"}'
+
+    def test_a_plain_string_mode_is_still_accepted(self) -> None:
+        # ``mode`` predates the enum and is documented as a string, so passing
+        # one must keep working rather than becoming a construction error.
+        assert ChildSpec(model=Post, fk="author", mode="merge").mode == RelationMode.MERGE
+        assert ChildSpec(model=Post, fk="author").mode == "replace"
+
+    def test_an_unknown_mode_is_still_refused(self) -> None:
+        with pytest.raises(ValueError, match="mode must be one of"):
+            ChildSpec(model=Post, fk="author", mode="obliterate")

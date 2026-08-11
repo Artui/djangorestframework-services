@@ -31,6 +31,8 @@ from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.read_schema_markers import read_schema_markers
 from rest_framework_services.types.registered_spec import RegisteredSpec
 from rest_framework_services.types.related_object_change import RelatedObjectChange
+from rest_framework_services.types.relation_mode import RelationMode
+from rest_framework_services.types.relation_outcome import RelationOutcome
 from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
 from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
@@ -74,6 +76,8 @@ __all__ = [
     "QueryParam",
     "RegisteredSpec",
     "RelatedObjectChange",
+    "RelationMode",
+    "RelationOutcome",
     "RelationPhase",
     "RelationSpec",
     "ReverseOneToOneSpec",
