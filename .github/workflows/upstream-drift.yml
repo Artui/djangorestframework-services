@@ -1,0 +1,101 @@
+# What a fresh install would get today, run on a schedule.
+#
+# ``uv.lock`` is what every other job resolves against, so a dependency can be
+# unconstrained in ``pyproject.toml`` and still frozen everywhere it is actually
+# tested. That gap is why the Django 6.1 break was invisible while the matrix
+# was green: the cell that found it installed unpinned and resolved 6.1 by
+# accident.
+#
+# This job closes it deliberately. It ignores the lock, resolves the newest
+# versions ``pyproject.toml`` allows, and runs the suite — so an upstream
+# release that breaks us is found by a scheduled run rather than by a consumer.
+#
+# ⚠ It is also the control that makes dropping dependency ceilings safe. A
+# ceiling is a guess about which future versions will break; this is a
+# measurement of which ones do. Do not delete it to quieten a noisy week
+# without replacing what it measures.
+name: upstream drift
+
+on:
+  schedule:
+    # Mondays, 06:00 UTC. Weekly rather than nightly: the failure this guards
+    # against is an upstream release, which is measured in weeks, and six repos
+    # running nightly is six chances a day to learn nothing.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: upstream-drift-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  resolve-latest:
+    name: resolve unpinned + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
+
+      # One cell, not the matrix. The matrix answers "does this combination
+      # work"; this answers "has an upstream moved under us", and the newest
+      # supported Python is where a new release lands first.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Resolve the newest versions pyproject allows
+        run: uv lock --upgrade
+
+      - name: Report what changed against the committed lock
+        # Informational, and the most useful line in the log when this fails:
+        # it names the upgrade that broke the build.
+        run: git --no-pager diff --stat uv.lock || true
+
+      - name: Install
+        run: uv sync --all-groups --all-extras
+
+      - name: Show the resolved versions
+        run: uv pip list
+
+      - name: Test
+        run: uv run pytest
+
+      - name: Open or update an issue on failure
+        if: failure()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = "upstream drift: the unpinned resolve is failing";
+            const body = [
+              "The weekly unpinned resolve failed. A dependency released a version",
+              "that `pyproject.toml` admits and the suite does not survive.",
+              "",
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              "",
+              "The `git diff --stat uv.lock` step in that run names what moved.",
+              "",
+              "Fix forward (adopt the new version) or add a floor/ceiling that says",
+              "why, but do not silence the job — it is the control that lets this",
+              "repo declare open-ended dependency windows.",
+            ].join("\n");
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: "open", labels: "upstream-drift",
+            });
+            if (existing.data.length) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.data[0].number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels: ["upstream-drift"],
+              });
+            }
