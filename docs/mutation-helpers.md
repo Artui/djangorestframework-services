@@ -37,6 +37,11 @@ also take:
   collections written from `data[relation]` (create / update / orphan
   reconcile, recursively). See the
   [nested-writes recipe](recipes/nested-writes.md).
+- **`context: Mapping[str, Any] | None`** — an **opaque** caller pool
+  forwarded into the kwargs of any per-child service a `ChildSpec`
+  declares. The helper never reads it; it exists so per-row work
+  downstream can see who is calling. The default model services populate
+  it for you, so a hand-written service only needs `context=kwargs`.
 
 `update_from_input` (and `aupdate_from_input`) additionally take:
 

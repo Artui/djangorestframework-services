@@ -26,6 +26,7 @@ async def acreate_from_input(
     exclude_fields: list[str] | None = None,
     m2m: dict[str, Any] | None = None,
     children: Mapping[str, ChildSpec] | None = None,
+    context: Mapping[str, Any] | None = None,
 ) -> ChangeResult[ModelT]:
     """Async sibling of :func:`create_from_input` using ``asave()``/``aset()``."""
     raw: dict[str, Any] = coerce_to_dict(data)
@@ -41,7 +42,9 @@ async def acreate_from_input(
     m2m_field_changes, to_apply = await am2m_changes(instance, m2m, created=True)
     await aapply_m2m(instance, to_apply)
     child_changes = (
-        await aapply_children(instance, child_data, children, created=True) if children else ()
+        await aapply_children(instance, child_data, children, created=True, context=context)
+        if children
+        else ()
     )
     return ChangeResult(
         instance=instance,

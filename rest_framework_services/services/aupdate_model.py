@@ -32,6 +32,7 @@ def aupdate_model(
             m2m=resolve_m2m(m2m, data),
             update_fields=update_fields,
             children=children,
+            context=kwargs,
         )
         return result.instance
 

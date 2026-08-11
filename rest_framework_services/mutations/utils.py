@@ -327,6 +327,7 @@ def apply_children(
     children: Mapping[str, ChildSpec],
     *,
     created: bool,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[ChildCollectionChange, ...]:
     """Persist each reverse-FK child collection declared in ``children``.
 
@@ -335,6 +336,11 @@ def apply_children(
     matches, create the rest, and — in ``replace`` mode — remove orphans via
     :func:`remove_child`. Each child runs back through ``create``/``update``
     so scalar / m2m / nested semantics compose recursively.
+
+    ``context`` is the opaque caller pool; it is forwarded verbatim, both into
+    the per-child helper call (so a grandchild's service sees the same pool as
+    a child's) and into the pool of any service the spec declares. Nothing in
+    this loop reads it.
     """
     # Lazy import: genuine recursion cycle — the parent helpers call this, and
     # this calls them again for each child (and grandchild).
@@ -367,6 +373,7 @@ def apply_children(
                     exclude_fields=spec.exclude_fields,
                     m2m=child_m2m,
                     children=spec.children,
+                    context=context,
                 )
                 updated_pks.append(child.pk)
                 matched.add(key)
@@ -379,6 +386,7 @@ def apply_children(
                     exclude_fields=spec.exclude_fields,
                     m2m=child_m2m,
                     children=spec.children,
+                    context=context,
                 ).instance
                 created_pks.append(child.pk)
         deleted_pks, unlinked_pks = _remove_orphans(existing_by_key, spec, matched, created)
@@ -424,6 +432,7 @@ async def aapply_children(
     children: Mapping[str, ChildSpec],
     *,
     created: bool,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[ChildCollectionChange, ...]:
     """Async variant of :func:`apply_children`."""
     # Lazy import: genuine recursion cycle — the parent helpers call this, and
@@ -457,6 +466,7 @@ async def aapply_children(
                     exclude_fields=spec.exclude_fields,
                     m2m=child_m2m,
                     children=spec.children,
+                    context=context,
                 )
                 updated_pks.append(child.pk)
                 matched.add(key)
@@ -469,6 +479,7 @@ async def aapply_children(
                     exclude_fields=spec.exclude_fields,
                     m2m=child_m2m,
                     children=spec.children,
+                    context=context,
                 )
                 created_pks.append(result.instance.pk)
         deleted_pks, unlinked_pks = await _aremove_orphans(existing_by_key, spec, matched, created)
@@ -507,6 +518,8 @@ async def _aremove_orphans(
 def delete_children(
     parent: Model,
     children: Mapping[str, ChildSpec],
+    *,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[ChildCollectionChange, ...]:
     """Remove every child in each declared collection (grandchildren first).
 
@@ -515,6 +528,9 @@ def delete_children(
     grandchild is removed before its parent. Used by the default
     :func:`~rest_framework_services.delete_model` service before it deletes the
     top-level instance.
+
+    ``context`` is the opaque caller pool, forwarded down the tree and into the
+    pool of any service the spec declares; this loop never reads it.
     """
     deltas: list[ChildCollectionChange] = []
     for relation, spec in children.items():
@@ -523,7 +539,7 @@ def delete_children(
         unlinked_pks: list[Any] = []
         for child in getattr(parent, relation).all():
             if spec.children:
-                delete_children(child, spec.children)
+                delete_children(child, spec.children, context=context)
             status, pk = remove_child(child, spec.fk, nullable=nullable)
             (unlinked_pks if status == "unlinked" else deleted_pks).append(pk)
         deltas.append(
@@ -539,6 +555,8 @@ def delete_children(
 async def adelete_children(
     parent: Model,
     children: Mapping[str, ChildSpec],
+    *,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[ChildCollectionChange, ...]:
     """Async variant of :func:`delete_children`."""
     deltas: list[ChildCollectionChange] = []
@@ -548,7 +566,7 @@ async def adelete_children(
         unlinked_pks: list[Any] = []
         async for child in getattr(parent, relation).all():
             if spec.children:
-                await adelete_children(child, spec.children)
+                await adelete_children(child, spec.children, context=context)
             status, pk = await aremove_child(child, spec.fk, nullable=nullable)
             (unlinked_pks if status == "unlinked" else deleted_pks).append(pk)
         deltas.append(

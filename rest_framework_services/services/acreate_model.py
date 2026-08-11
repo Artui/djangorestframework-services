@@ -26,7 +26,8 @@ def acreate_model(
     :func:`~rest_framework_services.mutations.acreate_from_input`. The
     framework's :func:`~rest_framework_services.is_async.is_async`
     detection routes it through the async dispatch path automatically.
-    ``children`` is forwarded for declarative reverse-FK writes (see
+    ``children`` is forwarded for declarative reverse-FK writes, and the rest
+    of the kwargs pool as ``context=`` (see
     :func:`~rest_framework_services.services.create_model`).
     """
 
@@ -38,6 +39,7 @@ def acreate_model(
             exclude_fields=exclude_fields,
             m2m=resolve_m2m(m2m, data),
             children=children,
+            context=kwargs,
         )
         return result.instance
 

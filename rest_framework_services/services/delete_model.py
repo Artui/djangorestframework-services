@@ -42,11 +42,16 @@ def delete_model(
     ``soft_delete`` that Django won't cascade through). The ``ChildSpec``'s
     write-only fields (``match_key`` / ``mode`` / ``field_map`` / ``m2m``) are
     ignored here; only ``model`` / ``fk`` / ``children`` apply.
+
+    The rest of the framework's kwargs pool is handed on as
+    :func:`~rest_framework_services.mutations.utils.delete_children`'s
+    ``context=``, so a per-child service declared on a ``ChildSpec`` can see
+    who is calling (see :func:`create_model`).
     """
 
     def _service(*, instance: ModelT, **kwargs: Any) -> None:
         if children is not None:
-            delete_children(instance, children)
+            delete_children(instance, children, context=kwargs)
         if soft_delete is not None:
             soft_delete(instance)
         else:

@@ -29,6 +29,7 @@ def update_from_input(
     m2m: dict[str, Any] | None = None,
     update_fields: bool | list[str] = True,
     children: Mapping[str, ChildSpec] | None = None,
+    context: Mapping[str, Any] | None = None,
 ) -> ChangeResult[ModelT]:
     """Update ``instance`` with values from ``data``, persisting only deltas.
 
@@ -45,6 +46,11 @@ def update_from_input(
     (create / update / orphan-remove per the spec's ``mode``); a relation the
     input omits is left untouched. Keep the call inside the service's atomic
     block.
+
+    ``context`` is an **opaque** mapping forwarded verbatim into the pool of
+    any per-child service a :class:`~rest_framework_services.ChildSpec`
+    declares; this helper never reads it. See
+    :func:`~rest_framework_services.create_from_input`.
     """
     raw: dict[str, Any] = coerce_to_dict(data)
     child_data: dict[str, Any] = extract_children(raw, children)
@@ -68,7 +74,9 @@ def update_from_input(
             instance.save(update_fields=save_fields)
     apply_m2m(instance, to_apply)
     child_changes = (
-        apply_children(instance, child_data, children, created=False) if children else ()
+        apply_children(instance, child_data, children, created=False, context=context)
+        if children
+        else ()
     )
     return ChangeResult(
         instance=instance,

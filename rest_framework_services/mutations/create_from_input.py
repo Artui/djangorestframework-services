@@ -26,6 +26,7 @@ def create_from_input(
     exclude_fields: list[str] | None = None,
     m2m: dict[str, Any] | None = None,
     children: Mapping[str, ChildSpec] | None = None,
+    context: Mapping[str, Any] | None = None,
 ) -> ChangeResult[ModelT]:
     """Build, ``save()``, and return a fresh instance of ``model``.
 
@@ -37,6 +38,13 @@ def create_from_input(
     :class:`~rest_framework_services.ChildSpec`; the matching child rows are
     read from ``data[relation]`` and persisted post-save (recursively). Keep
     the whole call inside the service's atomic block.
+
+    ``context`` is an **opaque** mapping forwarded verbatim into the pool of
+    any per-child service a :class:`~rest_framework_services.ChildSpec`
+    declares. This helper never reads it — it exists so per-row work
+    downstream can see the acting caller. The default model-service factories
+    populate it from the framework's kwargs pool automatically; a hand-written
+    service opts in with ``context=kwargs``.
     """
     raw: dict[str, Any] = coerce_to_dict(data)
     child_data: dict[str, Any] = extract_children(raw, children)
@@ -50,7 +58,11 @@ def create_from_input(
     field_changes = changes_for_create(new_values)
     m2m_field_changes, to_apply = m2m_changes(instance, m2m, created=True)
     apply_m2m(instance, to_apply)
-    child_changes = apply_children(instance, child_data, children, created=True) if children else ()
+    child_changes = (
+        apply_children(instance, child_data, children, created=True, context=context)
+        if children
+        else ()
+    )
     return ChangeResult(
         instance=instance,
         created=True,

@@ -29,6 +29,7 @@ async def aupdate_from_input(
     m2m: dict[str, Any] | None = None,
     update_fields: bool | list[str] = True,
     children: Mapping[str, ChildSpec] | None = None,
+    context: Mapping[str, Any] | None = None,
 ) -> ChangeResult[ModelT]:
     """Async sibling of :func:`update_from_input` using ``asave()``/``aset()``."""
     raw: dict[str, Any] = coerce_to_dict(data)
@@ -53,7 +54,9 @@ async def aupdate_from_input(
             await instance.asave(update_fields=save_fields)
     await aapply_m2m(instance, to_apply)
     child_changes = (
-        await aapply_children(instance, child_data, children, created=False) if children else ()
+        await aapply_children(instance, child_data, children, created=False, context=context)
+        if children
+        else ()
     )
     return ChangeResult(
         instance=instance,

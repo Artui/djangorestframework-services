@@ -22,13 +22,14 @@ def adelete_model(
     Calls ``await instance.adelete()`` by default (Django 4.1+; the
     package floor is 4.2, so this is always available). ``soft_delete``
     is an optional ``async`` hook called instead of ``adelete``. ``children``
-    removes the declared reverse-FK collections first (see
+    removes the declared reverse-FK collections first, with the rest of the
+    kwargs pool handed on as ``context=`` (see
     :func:`~rest_framework_services.services.delete_model`).
     """
 
     async def _service(*, instance: ModelT, **kwargs: Any) -> None:
         if children is not None:
-            await adelete_children(instance, children)
+            await adelete_children(instance, children, context=kwargs)
         if soft_delete is not None:
             await soft_delete(instance)
         else:

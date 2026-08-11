@@ -37,6 +37,10 @@ def update_model(
     ``data`` (see :func:`create_model` for the common shape); ``children``
     reconciles reverse-FK collections from ``data[relation]`` per its
     :class:`~rest_framework_services.ChildSpec`.
+
+    The rest of the framework's kwargs pool is handed on as the helper's
+    ``context=``, so a per-child service declared on a ``ChildSpec`` can see
+    who is calling (see :func:`create_model`).
     """
 
     def _service(*, instance: ModelT, data: Any, **kwargs: Any) -> ModelT:
@@ -48,6 +52,7 @@ def update_model(
             m2m=resolve_m2m(m2m, data),
             update_fields=update_fields,
             children=children,
+            context=kwargs,
         ).instance
 
     return _service

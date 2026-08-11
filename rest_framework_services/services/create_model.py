@@ -52,7 +52,9 @@ def create_model(
     (``request``, ``user``, URL kwargs, ``ServiceSpec.kwargs`` returns) is
     absorbed without the service caring — matching the unified
     :class:`~rest_framework_services.services.CreateService` Protocol's
-    default ``ExtraT`` (open extras).
+    default ``ExtraT`` (open extras). That same pool is handed on as the
+    helper's ``context=``, so a per-child service declared on a
+    :class:`~rest_framework_services.ChildSpec` can see who is calling.
     """
 
     def _service(*, data: Any, **kwargs: Any) -> ModelT:
@@ -63,6 +65,7 @@ def create_model(
             exclude_fields=exclude_fields,
             m2m=resolve_m2m(m2m, data),
             children=children,
+            context=kwargs,
         ).instance
 
     return _service
