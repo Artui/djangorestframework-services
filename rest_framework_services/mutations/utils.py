@@ -12,6 +12,9 @@ from typing import Any
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Model
 
+from rest_framework_services.exceptions.service_validation_error import (
+    ServiceValidationError,
+)
 from rest_framework_services.types.child_collection_change import ChildCollectionChange
 from rest_framework_services.types.child_spec import ChildSpec
 from rest_framework_services.types.field_change import FieldChange
@@ -270,6 +273,54 @@ async def aremove_child(child: Model, fk: str, *, nullable: bool) -> tuple[str, 
     return ("deleted", pk)
 
 
+def _pk_input_names(model: type[Model], field_map: dict[str, str] | None) -> frozenset[str]:
+    """Input keys on a nested payload that would land on ``model``'s primary key.
+
+    Both spellings Django accepts (``pk`` and the concrete field's name /
+    ``attname``), plus any input key ``field_map`` routes onto one of them.
+    """
+    targets: set[str] = {"pk", model._meta.pk.name, model._meta.pk.attname}
+    mapped: set[str] = {src for src, dest in (field_map or {}).items() if dest in targets}
+    return frozenset(targets | mapped)
+
+
+def _reject_unmatched_reference(
+    item: dict[str, Any],
+    spec: ChildSpec,
+    relation: str,
+) -> None:
+    """Refuse a nested row that names a primary key this parent does not own.
+
+    ⛔ A create branch reached with a caller-supplied primary key is not a
+    create. ``Model(pk=7, fk=parent).save()`` is an **UPDATE** of row 7, so a
+    payload carrying a pk that did not match this parent's collection reaches,
+    reassigns and overwrites a row belonging to somebody else -- the parent
+    scoping that makes the match safe does not constrain the write that follows
+    it.
+
+    Raising rather than stripping the key is deliberate: the caller named a
+    specific row, and quietly creating a different one does the opposite of
+    what was asked. A non-primary ``match_key`` (a natural key such as an ISBN)
+    is untouched, so declaring one still upserts.
+    """
+    named: dict[str, Any] = {
+        key: item[key]
+        for key in _pk_input_names(spec.model, spec.field_map)
+        if item.get(key) is not None
+    }
+    if not named:
+        return
+    raise ServiceValidationError(
+        {
+            relation: [
+                f"references {spec.model.__name__} {sorted(named.values())!r}, which is "
+                f"not part of this collection. Send a row that belongs to this parent, "
+                f"or omit the identifier to create a new one."
+            ]
+        }
+    )
+
+
 def apply_children(
     parent: Model,
     child_data: dict[str, Any],
@@ -320,6 +371,7 @@ def apply_children(
                 updated_pks.append(child.pk)
                 matched.add(key)
             else:
+                _reject_unmatched_reference(item, spec, relation)
                 child = create_from_input(
                     spec.model,
                     {**item, spec.fk: parent},
@@ -409,6 +461,7 @@ async def aapply_children(
                 updated_pks.append(child.pk)
                 matched.add(key)
             else:
+                _reject_unmatched_reference(item, spec, relation)
                 result = await acreate_from_input(
                     spec.model,
                     {**item, spec.fk: parent},
