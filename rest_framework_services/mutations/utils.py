@@ -371,17 +371,26 @@ def _pk_input_names(model: type[Model], field_map: dict[str, str] | None) -> fro
 
 def _reject_unmatched_reference(
     item: dict[str, Any],
-    spec: ChildSpec,
+    spec: _RowSpec,
     relation: str,
 ) -> None:
-    """Refuse a nested row that names a primary key this parent does not own.
+    """Refuse a nested row that names a primary key nothing matched.
 
     A create branch reached with a caller-supplied primary key is not a
-    create. ``Model(pk=7, fk=parent).save()`` is an **UPDATE** of row 7, so a
-    payload carrying a pk that did not match this parent's collection reaches,
-    reassigns and overwrites a row belonging to somebody else -- the parent
-    scoping that makes the match safe does not constrain the write that follows
-    it.
+    create. ``Model(pk=7, ...).save()`` is an **UPDATE** of row 7, so a payload
+    carrying a pk the matching step did not resolve reaches, reassigns and
+    overwrites a row belonging to somebody else -- the scoping that makes the
+    *match* safe does not constrain the write that follows it.
+
+    Every kind creates rows through :func:`_create_row`, so the check lives
+    there rather than in one loop: the hazard is the primary key reaching a
+    create, and which relation kind carried it there changes nothing. A child
+    collection matches within the parent's manager, a forward target and a
+    many-to-many target within ``scope=``, a reverse one-to-one through the
+    parent's own foreign key and a generic relation through the content
+    type -- and a payload can slip a pk past *any* of them, by naming a row the
+    match did not cover or by declaring a natural ``match_key`` and putting the
+    pk beside it.
 
     Raising rather than stripping the key is deliberate: the caller named a
     specific row, and quietly creating a different one does the opposite of
@@ -398,9 +407,10 @@ def _reject_unmatched_reference(
     raise ServiceValidationError(
         {
             relation: [
-                f"references {spec.model.__name__} {sorted(named.values())!r}, which is "
-                f"not part of this collection. Send a row that belongs to this parent, "
-                f"or omit the identifier to create a new one."
+                f"references {spec.model.__name__} {sorted(named.values())!r}, which this "
+                f"write did not match. Saving a new row under a primary key would "
+                f"overwrite the row that holds it, so it is refused. Send a row this "
+                f"relation may match, or omit the identifier to create a new one."
             ]
         }
     )
@@ -556,7 +566,7 @@ def _write_forward_relation(
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
     target = _match_forward_target(item, spec, relation=relation, context=context)
     if target is None:
-        row = _create_row(item, spec, seeds={}, context=context, m2m=row_m2m)
+        row = _create_row(item, spec, relation=relation, seeds={}, context=context, m2m=row_m2m)
         return (row, RelatedObjectChange(relation=relation, outcome="created", pk=row.pk))
     row = _update_row(target, item, spec, seeds={}, context=context, m2m=row_m2m)
     return (row, RelatedObjectChange(relation=relation, outcome="updated", pk=row.pk))
@@ -576,7 +586,9 @@ async def _awrite_forward_relation(
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
     target = await _amatch_forward_target(item, spec, relation=relation, context=context)
     if target is None:
-        row = await _acreate_row(item, spec, seeds={}, context=context, m2m=row_m2m)
+        row = await _acreate_row(
+            item, spec, relation=relation, seeds={}, context=context, m2m=row_m2m
+        )
         return (row, RelatedObjectChange(relation=relation, outcome="created", pk=row.pk))
     row = await _aupdate_row(target, item, spec, seeds={}, context=context, m2m=row_m2m)
     return (row, RelatedObjectChange(relation=relation, outcome="updated", pk=row.pk))
@@ -784,6 +796,7 @@ def _write_reverse_one_to_one(
         row = _create_row(
             {**item, spec.fk: parent},
             spec,
+            relation=relation,
             seeds={"parent": parent},
             context=context,
             m2m=row_m2m,
@@ -819,6 +832,7 @@ async def _awrite_reverse_one_to_one(
         row = await _acreate_row(
             {**item, spec.fk: parent},
             spec,
+            relation=relation,
             seeds={"parent": parent},
             context=context,
             m2m=row_m2m,
@@ -870,10 +884,10 @@ def _write_child_collection(
             updated_pks.append(child.pk)
             matched.add(key)
         else:
-            _reject_unmatched_reference(item, spec, relation)
             child = _create_row(
                 {**item, spec.fk: parent},
                 spec,
+                relation=relation,
                 seeds={"parent": parent},
                 context=context,
                 m2m=child_m2m,
@@ -894,6 +908,7 @@ def _create_row(
     data: dict[str, Any],
     spec: _RowSpec,
     *,
+    relation: str,
     seeds: dict[str, Any],
     context: Mapping[str, Any] | None,
     m2m: dict[str, Any] | None,
@@ -902,14 +917,20 @@ def _create_row(
 
     The one create used by every kind, which is why ``data`` and ``seeds``
     arrive already built rather than being derived here. What differs between
-    the kinds is exactly those two: a row the parent owns gets its ``fk`` set
-    to the parent and a ``parent`` seed in the pool, and a forward target gets
+    the kinds is exactly those two: a row the parent owns gets its link to the
+    parent set and a ``parent`` seed in the pool, and a forward target gets
     neither — it is written before there is a parent to speak of.
+
+    Being the one create is also why the primary-key guard sits here, ahead of
+    the ``create_service`` dispatch: no kind can reach a create without passing
+    it, and a declared service is not handed the key either — otherwise the
+    same defect moves one layer out, into code the library cannot see.
     """
     # Lazy import: genuine recursion cycle — the parent helpers call this loop,
     # and it calls them again for each row (and each of its own relations).
     from rest_framework_services.mutations.create_from_input import create_from_input
 
+    _reject_unmatched_reference(data, spec, relation)
     if spec.create_service is not None:
         return _run_child_service(spec.create_service, _child_pool(context, data=data, **seeds))
     return create_from_input(
@@ -928,6 +949,7 @@ async def _acreate_row(
     data: dict[str, Any],
     spec: _RowSpec,
     *,
+    relation: str,
     seeds: dict[str, Any],
     context: Mapping[str, Any] | None,
     m2m: dict[str, Any] | None,
@@ -936,6 +958,7 @@ async def _acreate_row(
     # Lazy import: genuine recursion cycle — see :func:`_create_row`.
     from rest_framework_services.mutations.acreate_from_input import acreate_from_input
 
+    _reject_unmatched_reference(data, spec, relation)
     if spec.create_service is not None:
         return await _arun_child_service(
             spec.create_service, _child_pool(context, data=data, **seeds)
@@ -1114,10 +1137,10 @@ async def _awrite_child_collection(
             updated_pks.append(child.pk)
             matched.add(key)
         else:
-            _reject_unmatched_reference(item, spec, relation)
             child = await _acreate_row(
                 {**item, spec.fk: parent},
                 spec,
+                relation=relation,
                 seeds={"parent": parent},
                 context=context,
                 m2m=child_m2m,
