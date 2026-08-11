@@ -5,7 +5,7 @@ Nothing in this module is exported from the package's public API.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import fields, is_dataclass
 from typing import Any
 
@@ -15,10 +15,13 @@ from django.db.models import Model
 from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
+from rest_framework_services.services.arun_service import arun_service
+from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.child_collection_change import ChildCollectionChange
 from rest_framework_services.types.child_spec import ChildSpec
 from rest_framework_services.types.field_change import FieldChange
 from rest_framework_services.types.unset import UNSET
+from rest_framework_services.views.utils import resolve_callable_kwargs
 
 
 def coerce_to_dict(data: Any) -> dict[str, Any]:
@@ -321,6 +324,80 @@ def _reject_unmatched_reference(
     )
 
 
+# --- per-child service slots ---------------------------------------------
+
+
+def _child_pool(context: Mapping[str, Any] | None, **seeds: Any) -> dict[str, Any]:
+    """Merge the opaque caller ``context`` with the loop's own seeds.
+
+    The seeds are applied **last**, so a ``context`` key named ``data`` /
+    ``instance`` / ``parent`` cannot outrank the value this loop resolved. That
+    is the same guarantee ``strip_reserved_seeds`` gives the dispatcher's pools,
+    expressed as precedence rather than as a filter: there the mapping being
+    merged is client-routable input and the reserved names have to be dropped
+    outright, whereas here the context *is* the dispatcher's authoritative pool
+    and its ``user`` / ``request`` are exactly what the nested service is meant
+    to receive. Filtering it would delete the feature; ordering it keeps the
+    loop's own values authoritative, which is all that was ever at risk.
+    """
+    return {**(context or {}), **seeds}
+
+
+def _run_child_service(fn: Callable[..., Any], pool: dict[str, Any]) -> Any:
+    """Invoke a per-child service from sync code, opening no savepoint.
+
+    ``atomic=False`` deliberately: the surrounding service's atomic block
+    already wraps the whole tree, so a nested service opening its own would buy
+    no extra guarantee and cost one savepoint per row.
+    """
+    return run_service(fn, resolve_callable_kwargs(fn, pool), atomic=False)
+
+
+async def _arun_child_service(fn: Callable[..., Awaitable[Any]], pool: dict[str, Any]) -> Any:
+    """Async variant of :func:`_run_child_service` (the slot must be ``async def``)."""
+    return await arun_service(fn, resolve_callable_kwargs(fn, pool), atomic=False)
+
+
+def _remove_one_child(
+    child: Model,
+    spec: ChildSpec,
+    *,
+    parent: Model,
+    context: Mapping[str, Any] | None,
+    nullable: bool,
+) -> tuple[str, Any]:
+    """Remove one child through ``delete_service`` when declared, else the rule.
+
+    A declared service owns the row, so the loop can no longer distinguish an
+    unlink from a delete and reports ``"deleted"`` for every row it removes that
+    way. The pk is read *before* the call, because a service that really deletes
+    leaves ``instance.pk`` cleared behind it.
+    """
+    if spec.delete_service is None:
+        return remove_child(child, spec.fk, nullable=nullable)
+    pk = child.pk
+    _run_child_service(spec.delete_service, _child_pool(context, instance=child, parent=parent))
+    return ("deleted", pk)
+
+
+async def _aremove_one_child(
+    child: Model,
+    spec: ChildSpec,
+    *,
+    parent: Model,
+    context: Mapping[str, Any] | None,
+    nullable: bool,
+) -> tuple[str, Any]:
+    """Async variant of :func:`_remove_one_child`."""
+    if spec.delete_service is None:
+        return await aremove_child(child, spec.fk, nullable=nullable)
+    pk = child.pk
+    await _arun_child_service(
+        spec.delete_service, _child_pool(context, instance=child, parent=parent)
+    )
+    return ("deleted", pk)
+
+
 def apply_children(
     parent: Model,
     child_data: dict[str, Any],
@@ -342,11 +419,6 @@ def apply_children(
     a child's) and into the pool of any service the spec declares. Nothing in
     this loop reads it.
     """
-    # Lazy import: genuine recursion cycle — the parent helpers call this, and
-    # this calls them again for each child (and grandchild).
-    from rest_framework_services.mutations.create_from_input import create_from_input
-    from rest_framework_services.mutations.update_from_input import update_from_input
-
     deltas: list[ChildCollectionChange] = []
     for relation, spec in children.items():
         items = child_data.get(relation, UNSET)
@@ -365,31 +437,23 @@ def apply_children(
             child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
             key = item.get(spec.match_key)
             if key is not None and key in existing_by_key:
-                child = existing_by_key[key]
-                update_from_input(
-                    child,
+                child = _update_child(
+                    existing_by_key[key],
                     item,
-                    field_map=spec.field_map,
-                    exclude_fields=spec.exclude_fields,
-                    m2m=child_m2m,
-                    children=spec.children,
+                    spec,
+                    parent=parent,
                     context=context,
+                    m2m=child_m2m,
                 )
                 updated_pks.append(child.pk)
                 matched.add(key)
             else:
                 _reject_unmatched_reference(item, spec, relation)
-                child = create_from_input(
-                    spec.model,
-                    {**item, spec.fk: parent},
-                    field_map=spec.field_map,
-                    exclude_fields=spec.exclude_fields,
-                    m2m=child_m2m,
-                    children=spec.children,
-                    context=context,
-                ).instance
+                child = _create_child(item, spec, parent=parent, context=context, m2m=child_m2m)
                 created_pks.append(child.pk)
-        deleted_pks, unlinked_pks = _remove_orphans(existing_by_key, spec, matched, created)
+        deleted_pks, unlinked_pks = _remove_orphans(
+            existing_by_key, spec, matched, created, parent=parent, context=context
+        )
         deltas.append(
             ChildCollectionChange(
                 relation=relation,
@@ -402,11 +466,142 @@ def apply_children(
     return tuple(deltas)
 
 
+def _create_child(
+    item: dict[str, Any],
+    spec: ChildSpec,
+    *,
+    parent: Model,
+    context: Mapping[str, Any] | None,
+    m2m: dict[str, Any] | None,
+) -> Any:
+    """Persist one new child through ``create_service`` when declared, else the helper.
+
+    The ``fk`` is written into ``data`` either way: linking the row to its
+    parent is the spec's job, not the service's.
+    """
+    # Lazy import: genuine recursion cycle — the parent helpers call this loop,
+    # and it calls them again for each child (and grandchild).
+    from rest_framework_services.mutations.create_from_input import create_from_input
+
+    data: dict[str, Any] = {**item, spec.fk: parent}
+    if spec.create_service is not None:
+        return _run_child_service(
+            spec.create_service, _child_pool(context, data=data, parent=parent)
+        )
+    return create_from_input(
+        spec.model,
+        data,
+        field_map=spec.field_map,
+        exclude_fields=spec.exclude_fields,
+        m2m=m2m,
+        children=spec.children,
+        context=context,
+    ).instance
+
+
+async def _acreate_child(
+    item: dict[str, Any],
+    spec: ChildSpec,
+    *,
+    parent: Model,
+    context: Mapping[str, Any] | None,
+    m2m: dict[str, Any] | None,
+) -> Any:
+    """Async variant of :func:`_create_child`."""
+    # Lazy import: genuine recursion cycle — see :func:`_create_child`.
+    from rest_framework_services.mutations.acreate_from_input import acreate_from_input
+
+    data: dict[str, Any] = {**item, spec.fk: parent}
+    if spec.create_service is not None:
+        return await _arun_child_service(
+            spec.create_service, _child_pool(context, data=data, parent=parent)
+        )
+    result = await acreate_from_input(
+        spec.model,
+        data,
+        field_map=spec.field_map,
+        exclude_fields=spec.exclude_fields,
+        m2m=m2m,
+        children=spec.children,
+        context=context,
+    )
+    return result.instance
+
+
+def _update_child(
+    child: Model,
+    item: dict[str, Any],
+    spec: ChildSpec,
+    *,
+    parent: Model,
+    context: Mapping[str, Any] | None,
+    m2m: dict[str, Any] | None,
+) -> Any:
+    """Persist one matched child through ``update_service`` when declared.
+
+    A service returning ``None`` means "use the in-memory instance" — the
+    framework's existing update convention, honoured here too.
+    """
+    # Lazy import: genuine recursion cycle — see :func:`_create_child`.
+    from rest_framework_services.mutations.update_from_input import update_from_input
+
+    if spec.update_service is not None:
+        returned = _run_child_service(
+            spec.update_service,
+            _child_pool(context, data=item, instance=child, parent=parent),
+        )
+        return child if returned is None else returned
+    update_from_input(
+        child,
+        item,
+        field_map=spec.field_map,
+        exclude_fields=spec.exclude_fields,
+        m2m=m2m,
+        children=spec.children,
+        context=context,
+    )
+    return child
+
+
+async def _aupdate_child(
+    child: Model,
+    item: dict[str, Any],
+    spec: ChildSpec,
+    *,
+    parent: Model,
+    context: Mapping[str, Any] | None,
+    m2m: dict[str, Any] | None,
+) -> Any:
+    """Async variant of :func:`_update_child`."""
+    # Lazy import: genuine recursion cycle — see :func:`_create_child`.
+    from rest_framework_services.mutations.aupdate_from_input import aupdate_from_input
+
+    if spec.update_service is not None:
+        returned = await _arun_child_service(
+            spec.update_service,
+            _child_pool(context, data=item, instance=child, parent=parent),
+        )
+        return child if returned is None else returned
+    await aupdate_from_input(
+        child,
+        item,
+        field_map=spec.field_map,
+        exclude_fields=spec.exclude_fields,
+        m2m=m2m,
+        children=spec.children,
+        context=context,
+    )
+    return child
+
+
 def _remove_orphans(
     existing_by_key: dict[Any, Model],
     spec: ChildSpec,
     matched: set[Any],
     created: bool,
+    *,
+    parent: Model,
+    context: Mapping[str, Any] | None,
 ) -> tuple[list[Any], list[Any]]:
     """Remove pre-update children not matched by the incoming set (replace mode).
 
@@ -421,7 +616,9 @@ def _remove_orphans(
     for key, child in existing_by_key.items():
         if key in matched:
             continue
-        status, pk = remove_child(child, spec.fk, nullable=nullable)
+        status, pk = _remove_one_child(
+            child, spec, parent=parent, context=context, nullable=nullable
+        )
         (unlinked_pks if status == "unlinked" else deleted_pks).append(pk)
     return (deleted_pks, unlinked_pks)
 
@@ -435,11 +632,6 @@ async def aapply_children(
     context: Mapping[str, Any] | None = None,
 ) -> tuple[ChildCollectionChange, ...]:
     """Async variant of :func:`apply_children`."""
-    # Lazy import: genuine recursion cycle — the parent helpers call this, and
-    # this calls them again for each child (and grandchild).
-    from rest_framework_services.mutations.acreate_from_input import acreate_from_input
-    from rest_framework_services.mutations.aupdate_from_input import aupdate_from_input
-
     deltas: list[ChildCollectionChange] = []
     for relation, spec in children.items():
         items = child_data.get(relation, UNSET)
@@ -458,31 +650,25 @@ async def aapply_children(
             child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
             key = item.get(spec.match_key)
             if key is not None and key in existing_by_key:
-                child = existing_by_key[key]
-                await aupdate_from_input(
-                    child,
+                child = await _aupdate_child(
+                    existing_by_key[key],
                     item,
-                    field_map=spec.field_map,
-                    exclude_fields=spec.exclude_fields,
-                    m2m=child_m2m,
-                    children=spec.children,
+                    spec,
+                    parent=parent,
                     context=context,
+                    m2m=child_m2m,
                 )
                 updated_pks.append(child.pk)
                 matched.add(key)
             else:
                 _reject_unmatched_reference(item, spec, relation)
-                result = await acreate_from_input(
-                    spec.model,
-                    {**item, spec.fk: parent},
-                    field_map=spec.field_map,
-                    exclude_fields=spec.exclude_fields,
-                    m2m=child_m2m,
-                    children=spec.children,
-                    context=context,
+                child = await _acreate_child(
+                    item, spec, parent=parent, context=context, m2m=child_m2m
                 )
-                created_pks.append(result.instance.pk)
-        deleted_pks, unlinked_pks = await _aremove_orphans(existing_by_key, spec, matched, created)
+                created_pks.append(child.pk)
+        deleted_pks, unlinked_pks = await _aremove_orphans(
+            existing_by_key, spec, matched, created, parent=parent, context=context
+        )
         deltas.append(
             ChildCollectionChange(
                 relation=relation,
@@ -500,6 +686,9 @@ async def _aremove_orphans(
     spec: ChildSpec,
     matched: set[Any],
     created: bool,
+    *,
+    parent: Model,
+    context: Mapping[str, Any] | None,
 ) -> tuple[list[Any], list[Any]]:
     """Async variant of :func:`_remove_orphans`."""
     deleted_pks: list[Any] = []
@@ -510,7 +699,9 @@ async def _aremove_orphans(
     for key, child in existing_by_key.items():
         if key in matched:
             continue
-        status, pk = await aremove_child(child, spec.fk, nullable=nullable)
+        status, pk = await _aremove_one_child(
+            child, spec, parent=parent, context=context, nullable=nullable
+        )
         (unlinked_pks if status == "unlinked" else deleted_pks).append(pk)
     return (deleted_pks, unlinked_pks)
 
@@ -540,7 +731,9 @@ def delete_children(
         for child in getattr(parent, relation).all():
             if spec.children:
                 delete_children(child, spec.children, context=context)
-            status, pk = remove_child(child, spec.fk, nullable=nullable)
+            status, pk = _remove_one_child(
+                child, spec, parent=parent, context=context, nullable=nullable
+            )
             (unlinked_pks if status == "unlinked" else deleted_pks).append(pk)
         deltas.append(
             ChildCollectionChange(
@@ -567,7 +760,9 @@ async def adelete_children(
         async for child in getattr(parent, relation).all():
             if spec.children:
                 await adelete_children(child, spec.children, context=context)
-            status, pk = await aremove_child(child, spec.fk, nullable=nullable)
+            status, pk = await _aremove_one_child(
+                child, spec, parent=parent, context=context, nullable=nullable
+            )
             (unlinked_pks if status == "unlinked" else deleted_pks).append(pk)
         deltas.append(
             ChildCollectionChange(

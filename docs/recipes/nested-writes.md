@@ -54,6 +54,47 @@ children = {
 }
 ```
 
+## When a child's write has behaviour of its own
+
+A child row that needs side effects, derived columns, an event or an external
+call doesn't fit a plain helper call. Rather than abandon the facility and
+hand-write the reconciliation loop, put a service in the slot for that
+operation:
+
+```python
+ChildSpec(
+    model=Book,
+    fk="author",
+    create_service=publish_book,  # (*, data, parent, **extras) -> Book
+    update_service=revise_book,  # (*, instance, data, parent, **extras) -> Book | None
+    delete_service=archive_book,  # (*, instance, parent, **extras) -> None
+)
+```
+
+**The spec owns reconciliation; the service owns the row.** Matching, `mode`
+and orphan handling never move into your code — a slot is called once per row
+the loop has already decided about.
+
+- `data` reaches a create service with the `fk` already pointing at `parent`:
+  linking the row is reconciliation, not row behaviour.
+- An update service returning `None` means "use the in-memory instance", the
+  same convention the top-level update services follow.
+- A delete service replaces the unlink-or-delete rule for that row (orphan
+  removal *and* the `delete_model` cascade). The loop can no longer tell the
+  two apart, so the pk is reported under `deleted`.
+- Each service receives only the pool keys it declares. Alongside `data` /
+  `instance` / `parent` it sees whatever the calling service passed as
+  `context=` — `user` and `request` when the default model services are
+  driving, since they populate it from their own kwargs pool. Declare
+  `user` and it arrives; declare nothing but `data` and nothing else is
+  passed.
+
+Two create/update slots rather than one because the two shapes genuinely
+differ, and a single slot would have to fake `instance=None`. Nested services
+run with `atomic=False`: the calling service's atomic block already wraps the
+whole tree, and a block per row would only buy a savepoint per row. In the
+async helpers the slot must be an `async def`.
+
 ## Declarative — no service body
 
 The default model services forward `children=`, so a parent-with-children

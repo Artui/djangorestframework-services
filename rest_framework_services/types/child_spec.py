@@ -55,10 +55,53 @@ class ChildSpec:
     - **``children``** — a nested ``{relation_name: ChildSpec}`` map for
       grandchildren; recursion follows the declared tree, so depth is bounded
       by how deeply you nest specs.
+    - **``create_service``** / **``update_service``** / **``delete_service``**
+      — optional per-row services replacing the default mutation-helper call
+      for that operation, for a child whose write has real behaviour (side
+      effects, derived columns, events, an external call). See below.
 
     The whole parent + children write runs inside the service's atomic block;
     field-level validation stays in the input serializer / dataclass — the
     helper owns persistence only.
+
+    **Pluggable services — the spec owns reconciliation, the service owns the
+    row.** Matching, ``mode`` and orphan handling never move into your code;
+    a slot is called once per row the loop has already decided about. Each is
+    invoked through
+    :func:`~rest_framework_services.run_service` /
+    :func:`~rest_framework_services.arun_service` with ``atomic=False``,
+    because the surrounding service's atomic block already wraps the whole
+    tree and letting each row open its own would mean a savepoint per row.
+    Each receives only the pool keys it declares (the library's usual
+    signature-filtering idiom), drawn from the mutation helpers' opaque
+    ``context=`` plus the loop's own seeds:
+
+    - ``create_service(*, data, parent, **extras)`` — ``data`` is the incoming
+      row with the ``fk`` already pointing at ``parent``, since linking the
+      child *is* reconciliation. Must return the created row; the loop reads
+      its pk for the delta.
+    - ``update_service(*, instance, data, parent, **extras)`` — returning
+      ``None`` means "use the in-memory instance", the framework's existing
+      convention.
+    - ``delete_service(*, instance, parent, **extras)`` — replaces the
+      unlink-or-delete rule for that row, both for orphan removal and for the
+      :func:`~rest_framework_services.delete_model` cascade. The loop can no
+      longer tell an unlink from a delete, so the pk is always reported under
+      ``ChildCollectionChange.deleted``.
+
+    A declared slot owns that row **entirely**: ``field_map``,
+    ``exclude_fields``, ``m2m`` and the nested ``children`` map configure the
+    default mutation-helper call, so a service standing in for it is
+    responsible for whatever of that its rows need. The spec keeps only what it
+    never delegates — which rows exist, which incoming row matches which
+    existing one, and what happens to the ones left over.
+
+    The loop's own ``data`` / ``instance`` / ``parent`` are applied **after**
+    the context, so a context key of the same name cannot outrank them —
+    the precedence form of the rule
+    :data:`~rest_framework_services.types.reserved_pool_seeds.RESERVED_POOL_SEEDS`
+    states for the dispatcher's pools. In the async loops the slot must be an
+    ``async def``: the async path is awaited end to end.
     """
 
     model: type[Model]
@@ -69,6 +112,9 @@ class ChildSpec:
     exclude_fields: list[str] | None = None
     m2m: Callable[[Any], Mapping[str, Any]] | None = None
     children: Mapping[str, ChildSpec] | None = None
+    create_service: Callable[..., Any] | None = None
+    update_service: Callable[..., Any] | None = None
+    delete_service: Callable[..., Any] | None = None
 
     def __post_init__(self) -> None:
         if self.mode not in _VALID_MODES:
