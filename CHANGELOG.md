@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.37.0] — 2026-08-11
 
-### ⛔ Security
+### Security
 
 **A nested write could reach a row the parent does not own.** `children=` matched
 incoming rows against `getattr(parent, relation).all()`, which is correctly
@@ -32,7 +32,7 @@ under `match_key`, the same key routed through `field_map`, and a stray primary
 key sitting beside a natural `match_key` — the hazard is the primary key
 reaching the create, not which key was used to match.
 
-⚠ **Behaviour change, and deliberate.** A payload carrying an unmatched primary
+**Behaviour change, and deliberate.** A payload carrying an unmatched primary
 key previously created a row (in practice, silently overwrote one) and now
 raises. A **natural** `match_key` is untouched: an unmatched value is still a
 genuine create, so declaring one is still how a caller gets upsert semantics.
@@ -40,7 +40,7 @@ genuine create, so declaring one is still how a caller gets upsert semantics.
 **Affects `children=` since 0.18.0.** Upgrade if you accept nested collections
 from a client.
 
-⇒ *Scoping a read does not scope the write that follows it.* The parent filter
+*Scoping a read does not scope the write that follows it.* The parent filter
 made the match safe and said nothing about what the create branch was allowed to
 touch — which is why every gate stayed green: nothing had a reason to ask what an
 unmatched primary key does.

@@ -291,7 +291,7 @@ def _reject_unmatched_reference(
 ) -> None:
     """Refuse a nested row that names a primary key this parent does not own.
 
-    ⛔ A create branch reached with a caller-supplied primary key is not a
+    A create branch reached with a caller-supplied primary key is not a
     create. ``Model(pk=7, fk=parent).save()`` is an **UPDATE** of row 7, so a
     payload carrying a pk that did not match this parent's collection reaches,
     reassigns and overwrites a row belonging to somebody else -- the parent

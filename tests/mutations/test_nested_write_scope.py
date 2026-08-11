@@ -1,6 +1,6 @@
 """A nested write must not reach a row the parent does not own.
 
-⛔ The child loop matches incoming rows against ``getattr(parent, relation).all()``,
+The child loop matches incoming rows against ``getattr(parent, relation).all()``,
 which is correctly scoped to the parent -- but only the *match* is scoped. A row
 that failed to match fell through to the create branch, which builds
 ``Model(**item, fk=parent)`` and saves it. Django turns a ``save()`` carrying an
@@ -133,7 +133,7 @@ class TestTheLegitimateCasesStillWork:
         assert Post.objects.get(title="fresh").author_id == author.pk
 
     def test_a_natural_match_key_still_upserts(self) -> None:
-        # ⭐ The reason this refuses a primary key rather than any unmatched
+        # The reason this refuses a primary key rather than any unmatched
         # match key: a natural key that does not match is a genuine create, and
         # declaring one is how a caller gets upsert semantics.
         author = Author.objects.create(name="a")
