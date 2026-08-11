@@ -18,6 +18,7 @@ from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
 )
+from rest_framework_services.types.many_to_many_spec import ManyToManySpec
 from rest_framework_services.types.no_input import NoInput
 from rest_framework_services.types.not_client_input import NotClientInput, NotClientInputType
 from rest_framework_services.types.offline_context import OfflineContext
@@ -59,6 +60,7 @@ __all__ = [
     "InputRequired",
     "InputRequiredType",
     "JsonSchemaRegistry",
+    "ManyToManySpec",
     "NoInput",
     "NotClientInput",
     "NotClientInputType",

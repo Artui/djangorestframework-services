@@ -10,9 +10,7 @@ from django.db.models import Model
 
 from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
-from rest_framework_services.types.utils import validate_relation_services
-
-_VALID_MODES = ("replace", "merge")
+from rest_framework_services.types.utils import validate_relation_mode, validate_relation_services
 
 
 @dataclass(frozen=True)
@@ -139,8 +137,7 @@ class ChildSpec(RelationSpec):
     delete_service: Callable[..., Any] | None = None
 
     def __post_init__(self) -> None:
-        if self.mode not in _VALID_MODES:
-            raise ValueError(f"ChildSpec.mode must be one of {_VALID_MODES}; got {self.mode!r}.")
+        validate_relation_mode(self.mode, label="ChildSpec")
         validate_relation_services(
             label="ChildSpec",
             services={

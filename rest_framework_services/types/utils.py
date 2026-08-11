@@ -30,6 +30,23 @@ def validate_metadata(metadata: Any, *, label: str) -> None:
     )
 
 
+VALID_RELATION_MODES = ("replace", "merge")
+
+
+def validate_relation_mode(mode: str, *, label: str) -> None:
+    """Reject a ``mode`` that is neither ``"replace"`` nor ``"merge"``.
+
+    Shared by every relation kind that reconciles a collection, so the two
+    words mean the same thing on all of them: ``"replace"`` makes the incoming
+    set authoritative and disposes of what it leaves out, ``"merge"`` upserts
+    and removes nothing. What "dispose of" means is the kind's own business —
+    a child row is unlinked or deleted, a many-to-many target is only dropped
+    from the relation — but *when* it happens is this one flag.
+    """
+    if mode not in VALID_RELATION_MODES:
+        raise ValueError(f"{label}.mode must be one of {VALID_RELATION_MODES}; got {mode!r}.")
+
+
 def validate_relation_services(
     *,
     label: str,

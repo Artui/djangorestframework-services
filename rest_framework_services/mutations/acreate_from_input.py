@@ -15,6 +15,7 @@ from rest_framework_services.mutations.utils import (
     extract_relation_data,
     filter_input,
     merge_relations,
+    reject_m2m_overlap,
 )
 from rest_framework_services.types.change_result import ChangeResult, ModelT
 from rest_framework_services.types.child_spec import ChildSpec
@@ -34,6 +35,7 @@ async def acreate_from_input(
 ) -> ChangeResult[ModelT]:
     """Async sibling of :func:`create_from_input` using ``asave()``/``aset()``."""
     relation_specs = merge_relations(children, relations)
+    reject_m2m_overlap(m2m, relation_specs)
     raw: dict[str, Any] = coerce_to_dict(data)
     relation_data: dict[str, Any] = extract_relation_data(raw, relation_specs)
     new_values: dict[str, Any] = filter_input(

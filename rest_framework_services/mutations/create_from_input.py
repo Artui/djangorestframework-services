@@ -15,6 +15,7 @@ from rest_framework_services.mutations.utils import (
     filter_input,
     m2m_changes,
     merge_relations,
+    reject_m2m_overlap,
 )
 from rest_framework_services.types.change_result import ChangeResult, ModelT
 from rest_framework_services.types.child_spec import ChildSpec
@@ -36,7 +37,12 @@ def create_from_input(
 
     Regular fields come from ``data`` (a dataclass, dict, or object with
     ``__dict__``); M2M assignments are applied post-save via the ``m2m``
-    kwarg, mapping attribute name to the value to ``set()``.
+    kwarg, mapping attribute name to the value to ``set()``. That argument
+    assigns rows which already exist; writing the target rows *from the
+    payload* is a
+    :class:`~rest_framework_services.ManyToManySpec` in ``relations``. Both
+    still ship — they are different jobs — but a relation named by both is
+    refused, since it would be written twice and keep whichever ran last.
 
     ``relations`` maps a relation name to the spec for its kind; the nested
     payload is read from ``data[relation]`` and written in the order the kind
@@ -54,6 +60,7 @@ def create_from_input(
     service opts in with ``context=kwargs``.
     """
     relation_specs = merge_relations(children, relations)
+    reject_m2m_overlap(m2m, relation_specs)
     raw: dict[str, Any] = coerce_to_dict(data)
     relation_data: dict[str, Any] = extract_relation_data(raw, relation_specs)
     new_values: dict[str, Any] = filter_input(

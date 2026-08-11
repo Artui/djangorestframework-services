@@ -19,6 +19,7 @@ from rest_framework_services.types.child_collection_change import ChildCollectio
 from rest_framework_services.types.child_spec import ChildSpec
 from rest_framework_services.types.field_change import FieldChange
 from rest_framework_services.types.forward_relation_spec import ForwardRelationSpec
+from rest_framework_services.types.many_to_many_spec import ManyToManySpec
 from rest_framework_services.types.related_object_change import RelatedObjectChange
 from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
@@ -31,8 +32,12 @@ from rest_framework_services.views.utils import resolve_callable_kwargs
 # module means such a row -- a member of a collection, or the single row of a
 # reverse one-to-one.
 _OwnedRowSpec = ChildSpec | ReverseOneToOneSpec
+# The kinds pointing at a row the parent does *not* own -- shared with whoever
+# else points at it -- so there is no manager to match within and ``scope=`` is
+# what says which rows this caller may write.
+_ScopedSpec = ForwardRelationSpec | ManyToManySpec
 # Every kind whose row the mutation helpers write, owned or merely pointed at.
-_RowSpec = ChildSpec | ReverseOneToOneSpec | ForwardRelationSpec
+_RowSpec = ChildSpec | ReverseOneToOneSpec | ForwardRelationSpec | ManyToManySpec
 
 
 def coerce_to_dict(data: Any) -> dict[str, Any]:
@@ -279,6 +284,31 @@ def merge_relations(
                 )
             merged[name] = spec
     return merged
+
+
+def reject_m2m_overlap(
+    m2m: Mapping[str, Any] | None,
+    relations: Mapping[str, RelationSpec],
+) -> None:
+    """Refuse a relation written by ``m2m=`` and by a relation spec at once.
+
+    The two keyword arguments do different jobs and both stay: ``m2m=`` assigns
+    rows that already exist (pks or instances), a
+    :class:`~rest_framework_services.ManyToManySpec` writes the rows from the
+    payload and then links them. What they cannot do is share a relation — they
+    would both write it, in an order neither caller chose, and only the second
+    would survive. So the overlap is refused where the other spec
+    contradictions are, rather than resolved by a precedence rule nobody would
+    remember.
+    """
+    for name in m2m or {}:
+        if name in relations:
+            raise ImproperlyConfigured(
+                f"{name!r} is declared both in m2m= and as a relation. A relation is "
+                "written once: m2m= assigns rows that already exist, a relation spec "
+                "writes the rows from the payload and links them. Declaring both writes "
+                "it twice and keeps whichever ran last. Assign it or write it, not both."
+            )
 
 
 def extract_relation_data(
@@ -564,7 +594,7 @@ def _write_forward_relation(
         return (None, RelatedObjectChange(relation=relation, outcome="cleared"))
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
-    target = _match_forward_target(item, spec, relation=relation, context=context)
+    target = _match_scoped_target(item, spec, relation=relation, context=context)
     if target is None:
         row = _create_row(item, spec, relation=relation, seeds={}, context=context, m2m=row_m2m)
         return (row, RelatedObjectChange(relation=relation, outcome="created", pk=row.pk))
@@ -584,7 +614,7 @@ async def _awrite_forward_relation(
         return (None, RelatedObjectChange(relation=relation, outcome="cleared"))
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
-    target = await _amatch_forward_target(item, spec, relation=relation, context=context)
+    target = await _amatch_scoped_target(item, spec, relation=relation, context=context)
     if target is None:
         row = await _acreate_row(
             item, spec, relation=relation, seeds={}, context=context, m2m=row_m2m
@@ -594,9 +624,9 @@ async def _awrite_forward_relation(
     return (row, RelatedObjectChange(relation=relation, outcome="updated", pk=row.pk))
 
 
-def _forward_scope(
+def _resolve_scope(
     item: dict[str, Any],
-    spec: ForwardRelationSpec,
+    spec: _ScopedSpec,
     *,
     relation: str,
     context: Mapping[str, Any] | None,
@@ -608,6 +638,11 @@ def _forward_scope(
     handed a match key is the third case, and it raises — see the module's
     ``ImproperlyConfigured`` message for why that is a misconfiguration rather
     than a client error.
+
+    Shared by the two kinds whose target the parent does not own — a forward
+    foreign key and a many-to-many. Both point at a row that may be shared with
+    anybody, which is exactly why neither has a manager to match within and why
+    both need ``scope=`` before they may match at all.
     """
     key = item.get(spec.match_key)
     if key is None:
@@ -615,11 +650,11 @@ def _forward_scope(
     if spec.scope is None:
         raise ImproperlyConfigured(
             f"relations[{relation!r}]: the incoming row carries a {spec.match_key!r} but the "
-            "spec declares no scope=, which makes it create-only. A forward target has no "
-            "owning manager to match within, so matching one by key unscoped would let any "
-            "caller write any row of that model by guessing a key. Declare scope= — a "
-            "queryset, or a callable resolved from the caller pool — naming the rows this "
-            "caller may write."
+            f"spec declares no scope=, which makes it create-only. A {type(spec).__name__} "
+            "target is not reached through a manager the parent owns, so matching one by key "
+            "unscoped would let any caller write any row of that model by guessing a key. "
+            "Declare scope= — a queryset, or a callable resolved from the caller pool — "
+            "naming the rows this caller may write."
         )
     # ``Any`` because the two accepted shapes are a queryset and a callable
     # returning one, and the branch that tells them apart is `callable()`.
@@ -630,21 +665,21 @@ def _forward_scope(
     return (queryset, key)
 
 
-def _forward_match_miss(
+def _scoped_match_miss(
     relation: str,
-    spec: ForwardRelationSpec,
+    spec: _ScopedSpec,
     key: Any,
 ) -> ServiceValidationError:
     """The error for a match key that names no row this caller may write.
 
-    Not a create. A forward relation's ``match_key`` *identifies* a row —
-    "point at this one" — so there is nothing sensible to create in its place,
-    and creating one anyway is actively unsafe: the payload carries the key, so
-    a ``pk`` that named an out-of-scope row would be written straight back onto
-    that row by ``Model.save()``, reaching exactly the row the scope existed to
-    protect. Unlike the unscoped case, the remedy here is the client's — send a
-    key you own, or none — so this is a validation error and not a
-    misconfiguration.
+    Not a create. A ``match_key`` on an unowned target *identifies* a row —
+    "point at this one", "link this one" — so there is nothing sensible to
+    create in its place, and creating one anyway is actively unsafe: the
+    payload carries the key, so a ``pk`` that named an out-of-scope row would
+    be written straight back onto that row by ``Model.save()``, reaching
+    exactly the row the scope existed to protect. Unlike the unscoped case, the
+    remedy here is the client's — send a key you own, or none — so this is a
+    validation error and not a misconfiguration.
     """
     return ServiceValidationError(
         {
@@ -657,9 +692,9 @@ def _forward_match_miss(
     )
 
 
-def _match_forward_target(
+def _match_scoped_target(
     item: dict[str, Any],
-    spec: ForwardRelationSpec,
+    spec: _ScopedSpec,
     *,
     relation: str,
     context: Mapping[str, Any] | None,
@@ -669,31 +704,31 @@ def _match_forward_target(
     ``None`` means the payload carried no match key at all. A key that matches
     nothing in scope raises rather than falling through to a create.
     """
-    resolved = _forward_scope(item, spec, relation=relation, context=context)
+    resolved = _resolve_scope(item, spec, relation=relation, context=context)
     if resolved is None:
         return None
     queryset, key = resolved
     target = queryset.filter(**{spec.match_key: key}).first()
     if target is None:
-        raise _forward_match_miss(relation, spec, key)
+        raise _scoped_match_miss(relation, spec, key)
     return target
 
 
-async def _amatch_forward_target(
+async def _amatch_scoped_target(
     item: dict[str, Any],
-    spec: ForwardRelationSpec,
+    spec: _ScopedSpec,
     *,
     relation: str,
     context: Mapping[str, Any] | None,
 ) -> Any:
-    """Async variant of :func:`_match_forward_target`."""
-    resolved = _forward_scope(item, spec, relation=relation, context=context)
+    """Async variant of :func:`_match_scoped_target`."""
+    resolved = _resolve_scope(item, spec, relation=relation, context=context)
     if resolved is None:
         return None
     queryset, key = resolved
     target = await queryset.filter(**{spec.match_key: key}).afirst()
     if target is None:
-        raise _forward_match_miss(relation, spec, key)
+        raise _scoped_match_miss(relation, spec, key)
     return target
 
 
@@ -731,6 +766,12 @@ def apply_relations(
         if isinstance(spec, ChildSpec):
             collections.append(
                 _write_child_collection(
+                    parent, value, spec, relation=relation, created=created, context=context
+                )
+            )
+        elif isinstance(spec, ManyToManySpec):
+            collections.append(
+                _write_m2m_relation(
                     parent, value, spec, relation=relation, created=created, context=context
                 )
             )
@@ -902,6 +943,83 @@ def _write_child_collection(
         updated=tuple(updated_pks),
         **_collect_removals(removals),
     )
+
+
+def _write_m2m_relation(
+    parent: Model,
+    items: Any,
+    spec: ManyToManySpec,
+    *,
+    relation: str,
+    created: bool,
+    context: Mapping[str, Any] | None,
+) -> ChildCollectionChange:
+    """Write a many-to-many's target rows, then the membership.
+
+    Two steps in that order, and the order is the kind: every target has to
+    exist and hold a primary key before there is anything to link, so the rows
+    are written first and the manager is handed the finished list once.
+
+    Matching happens in ``scope=``, never in the parent's current membership —
+    the payload names the rows to link, which is precisely the set that is not
+    linked yet, so matching against the members would make every new link look
+    like a create. The current membership is read for one thing only: naming
+    the targets ``"replace"`` drops.
+    """
+    if items is UNSET:
+        return ChildCollectionChange(relation=relation)
+    manager: Any = getattr(parent, relation)
+    before: list[Any] = [] if created else list(manager.values_list("pk", flat=True))
+    created_pks: list[Any] = []
+    updated_pks: list[Any] = []
+    targets: list[Any] = []
+    for item in (coerce_to_dict(i) for i in (items or [])):
+        row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+        match = _match_scoped_target(item, spec, relation=relation, context=context)
+        if match is None:
+            row = _create_row(
+                item,
+                spec,
+                relation=relation,
+                seeds={"parent": parent},
+                context=context,
+                m2m=row_m2m,
+            )
+            created_pks.append(row.pk)
+        else:
+            row = _update_row(
+                match, item, spec, seeds={"parent": parent}, context=context, m2m=row_m2m
+            )
+            updated_pks.append(row.pk)
+        targets.append(row)
+    if spec.mode == "replace":
+        manager.set(targets)
+    else:
+        manager.add(*targets)
+    return ChildCollectionChange(
+        relation=relation,
+        created=tuple(created_pks),
+        updated=tuple(updated_pks),
+        unlinked=_m2m_dropped(before, targets, spec),
+    )
+
+
+def _m2m_dropped(
+    before: list[Any],
+    targets: list[Any],
+    spec: ManyToManySpec,
+) -> tuple[Any, ...]:
+    """The members ``"replace"`` dropped — an unlink, never a delete.
+
+    A many-to-many target is shared by definition, so the only thing the loop
+    can remove is the membership. That is why this fills
+    :attr:`~rest_framework_services.ChildCollectionChange.unlinked` and why
+    ``deleted`` stays empty for this kind whatever ``mode`` says.
+    """
+    if spec.mode != "replace":
+        return ()
+    kept: set[Any] = {row.pk for row in targets}
+    return tuple(pk for pk in before if pk not in kept)
 
 
 def _create_row(
@@ -1091,6 +1209,12 @@ async def aapply_relations(
                     parent, value, spec, relation=relation, created=created, context=context
                 )
             )
+        elif isinstance(spec, ManyToManySpec):
+            collections.append(
+                await _awrite_m2m_relation(
+                    parent, value, spec, relation=relation, created=created, context=context
+                )
+            )
         elif isinstance(spec, ReverseOneToOneSpec):
             singular.append(
                 await _awrite_reverse_one_to_one(
@@ -1154,6 +1278,54 @@ async def _awrite_child_collection(
         created=tuple(created_pks),
         updated=tuple(updated_pks),
         **_collect_removals(removals),
+    )
+
+
+async def _awrite_m2m_relation(
+    parent: Model,
+    items: Any,
+    spec: ManyToManySpec,
+    *,
+    relation: str,
+    created: bool,
+    context: Mapping[str, Any] | None,
+) -> ChildCollectionChange:
+    """Async variant of :func:`_write_m2m_relation`."""
+    if items is UNSET:
+        return ChildCollectionChange(relation=relation)
+    manager: Any = getattr(parent, relation)
+    before: list[Any] = [] if created else await am2m_current_pks(parent, relation)
+    created_pks: list[Any] = []
+    updated_pks: list[Any] = []
+    targets: list[Any] = []
+    for item in (coerce_to_dict(i) for i in (items or [])):
+        row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+        match = await _amatch_scoped_target(item, spec, relation=relation, context=context)
+        if match is None:
+            row = await _acreate_row(
+                item,
+                spec,
+                relation=relation,
+                seeds={"parent": parent},
+                context=context,
+                m2m=row_m2m,
+            )
+            created_pks.append(row.pk)
+        else:
+            row = await _aupdate_row(
+                match, item, spec, seeds={"parent": parent}, context=context, m2m=row_m2m
+            )
+            updated_pks.append(row.pk)
+        targets.append(row)
+    if spec.mode == "replace":
+        await manager.aset(targets)
+    else:
+        await manager.aadd(*targets)
+    return ChildCollectionChange(
+        relation=relation,
+        created=tuple(created_pks),
+        updated=tuple(updated_pks),
+        unlinked=_m2m_dropped(before, targets, spec),
     )
 
 

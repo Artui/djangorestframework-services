@@ -16,6 +16,7 @@ from rest_framework_services.mutations.utils import (
     filter_input,
     m2m_changes,
     merge_relations,
+    reject_m2m_overlap,
     resolve_update_fields,
 )
 from rest_framework_services.types.change_result import ChangeResult, ModelT
@@ -44,6 +45,11 @@ def update_from_input(
     perform a full save, or an explicit list to control exactly which columns
     are written (no auto-injection in that case).
 
+    ``m2m`` assigns many-to-many rows that already exist;
+    :class:`~rest_framework_services.ManyToManySpec` in ``relations`` writes
+    the target rows from the payload instead. A relation named by both is
+    refused rather than written twice.
+
     ``relations`` maps a relation name to the spec for its kind (``children``
     is the reverse-FK alias). The nested payload from ``data[relation]`` is
     reconciled with what is already there — create / update / orphan-remove per
@@ -59,6 +65,7 @@ def update_from_input(
     :func:`~rest_framework_services.create_from_input`.
     """
     relation_specs = merge_relations(children, relations)
+    reject_m2m_overlap(m2m, relation_specs)
     raw: dict[str, Any] = coerce_to_dict(data)
     relation_data: dict[str, Any] = extract_relation_data(raw, relation_specs)
     new_values: dict[str, Any] = filter_input(

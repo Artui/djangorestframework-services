@@ -48,6 +48,10 @@
 
 ::: rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec
 
+## `ManyToManySpec`
+
+::: rest_framework_services.types.many_to_many_spec.ManyToManySpec
+
 ## `RelatedObjectChange`
 
 ::: rest_framework_services.types.related_object_change.RelatedObjectChange
