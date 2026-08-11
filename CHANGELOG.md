@@ -7,6 +7,117 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrade notes
+
+**Nested writes cover every relation kind now, and `children=` keeps working
+unchanged.** Nothing shipped in 0.18.0 changes behaviour; the new kinds arrive
+through a `relations=` map beside it.
+
+**One behaviour change to know about before upgrading.** A nested create that
+carries a primary key is refused, on every relation kind. 0.37.0 introduced that
+rule for `children=`; it now covers the four kinds added here. If you are
+migrating from `drf-nested`, which upserts by primary key, this is the first
+thing you will hit — send a row the parent already owns, or omit the identifier
+and let it be created. A natural `match_key` is unaffected and still upserts.
+
+### Added
+
+- **`relations=` on the four mutation helpers and the model-service factories.**
+  One map, a spec class per relation kind, with write order derived from the
+  class rather than from dict insertion: forward relations, then the parent's
+  `save()`, then reverse FK and reverse one-to-one, then generic, then
+  many-to-many. `children=` is preserved as the reverse-FK alias, and a
+  grandchild declared either way cascades either way.
+
+  The five kinds: `ForwardRelationSpec` (foreign key and one-to-one, one code
+  path, written before the parent so the assignment flows through the existing
+  `diff_attrs` and `update_fields` machinery), `ReverseOneToOneSpec`,
+  `ManyToManySpec`, `GenericRelationSpec`, and `ChildSpec` for reverse FK.
+  Singular kinds are tri-state: omitted leaves the relation untouched, `None`
+  clears it, a mapping writes it.
+
+- **`create_service` / `update_service` / `delete_service` slots on a relation
+  spec**, so a child row whose write has real behaviour stays declarative
+  instead of forcing a hand-written reconciliation loop. The spec owns
+  reconciliation and the service owns the row: matching, `mode`, and orphan
+  handling never move into user code.
+
+  Services run through `run_service` / `arun_service` with `atomic=False`, since
+  the parent's atomic block already wraps the tree and a savepoint per row is
+  not what anyone wants. An update service returning `None` means "use the
+  in-memory instance", as elsewhere in the framework. An async loop needs an
+  `async def` slot.
+
+- **`context=` on the four mutation helpers**, threaded into nested pools only
+  and never read by the helpers themselves. The model-service factories populate
+  it from the dispatch pool they already receive, so a `scope=` callable and a
+  nested service can see the acting caller. Hand-written services opt in with
+  `context=kwargs`.
+
+- **`scope=` on the kinds that match by key.** A queryset or a callable resolved
+  from the context pool by signature. Unscoped means create-only; a payload that
+  arrives carrying a match key without a declared scope raises
+  `ImproperlyConfigured`, because the remedy is always to declare a scope and
+  never to send different data.
+
+- **`RelatedObjectChange` and `ChangeResult.relations`**, so a one-row relation
+  stops being reported as a collection of one. Outcomes are `untouched`,
+  `created`, `updated`, `cleared`, `unlinked`, `deleted` and `removed`;
+  `ChildCollectionChange` gains a matching `removed` tuple for rows a
+  `delete_service` handled.
+
+- **Generic relations, with `django.contrib.contenttypes` gated.** The package is
+  imported during `apps.populate()`, so the content-type model is imported
+  inside the function and only after `apps.is_installed` confirms the app. A
+  dedicated CI job runs the suite with the app absent and asserts the module is
+  never imported, so the gate is measured rather than asserted.
+
+### Changed
+
+- **The delete cascade covers every relation kind, under one rule: it removes
+  the rows the parent owns and does nothing to the rows it merely points at.**
+  Reverse FK, generic and reverse one-to-one rows are removed deepest-first by
+  the existing unlink-or-delete rule. A many-to-many target is shared, so only
+  the membership goes and it is reported as unlinked. A forward target is left
+  untouched rather than refused, because the same `relations=` map declares the
+  write path and refusing it would make a good write spec un-cascadable.
+
+  `delete_model` and `adelete_model` take `relations=` beside `children=`.
+
+- **A relation named by both `m2m=` and `relations=` raises.** Both keywords
+  stay and they do different jobs, but writing a relation twice in an order
+  nobody chose is not one of them.
+
+- **A row service declared next to the knobs it would silence raises at
+  construction.** A `create_service` or `update_service` owns the row, so
+  `field_map`, `exclude_fields`, `m2m`, `children` and `relations` on the same
+  spec would be quietly ignored. Reconciliation knobs are unaffected, and
+  `delete_service` is not restricted: it replaces the unlink-or-delete rule
+  rather than the row write.
+
+### Security
+
+- **The primary-key refusal added in 0.37.0 now covers every relation kind.**
+  It was wired into the child-collection loop, and the kinds added in this
+  release reach the same create through a different path: a forward relation
+  whose match key is absent from the payload walks past the match entirely, and
+  a reverse one-to-one has no match key at all, so every payload primary key
+  landed in the create. Both were reproduced before fixing. One blanked a
+  column on another parent's row; the other reassigned and overwrote it.
+
+  The check now sits in the single row writer every kind funnels through, ahead
+  of any declared `create_service`, so a service is never handed a key either.
+
+  No published release is affected: the four kinds are new here, and 0.37.0
+  already covers `children=`, the only kind that shipped.
+
+### Not included
+
+- **Many-to-many through a `through` model.** The most design-heavy of the six
+  kinds and a named follow-up rather than a decline. Declare a `ChildSpec` on the
+  through model in the meantime; the nested-writes recipe shows it.
+
+
 ## [0.37.0] — 2026-08-11
 
 ### Security
