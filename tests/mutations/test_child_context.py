@@ -18,7 +18,7 @@ from rest_framework_services import (
     create_from_input,
     update_from_input,
 )
-from rest_framework_services.mutations.utils import adelete_children, delete_children
+from rest_framework_services.mutations.utils import adelete_relations, delete_relations
 from tests.testapp.models import Catalog, Item, Note, Section
 
 # Every key the child loop seeds for itself, plus a few of the helpers' own
@@ -81,12 +81,12 @@ class TestSyncHelpersIgnoreContext:
         assert change.updated == (keep.pk,)
         assert change.deleted == (orphan.pk,)
 
-    def test_delete_children(self) -> None:
+    def test_delete_relations(self) -> None:
         catalog = Catalog.objects.create(name="c")
         section = Section.objects.create(catalog=catalog, title="s")
         Item.objects.create(section=section, label="i")
         note = Note.objects.create(catalog=catalog, body="n")
-        deltas = delete_children(
+        deltas, _ = delete_relations(
             catalog,
             {
                 "sections": ChildSpec(
@@ -132,11 +132,11 @@ class TestAsyncHelpersIgnoreContext:
         )
         assert not await Section.objects.filter(pk=orphan.pk).aexists()
 
-    async def test_adelete_children(self) -> None:
+    async def test_adelete_relations(self) -> None:
         catalog = await Catalog.objects.acreate(name="c")
         section = await Section.objects.acreate(catalog=catalog, title="s")
         await Item.objects.acreate(section=section, label="i")
-        deltas = await adelete_children(
+        deltas, _ = await adelete_relations(
             catalog,
             {
                 "sections": ChildSpec(

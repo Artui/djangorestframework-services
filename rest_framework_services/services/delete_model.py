@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from rest_framework_services.mutations.utils import delete_children
+from rest_framework_services.mutations.utils import delete_relations, merge_relations
 from rest_framework_services.types.change_result import ModelT
 from rest_framework_services.types.child_spec import ChildSpec
+from rest_framework_services.types.relation_spec import RelationSpec
 
 
 def delete_model(
@@ -15,6 +16,7 @@ def delete_model(
     *,
     soft_delete: Callable[[ModelT], None] | None = None,
     children: Mapping[str, ChildSpec] | None = None,
+    relations: Mapping[str, RelationSpec] | None = None,
 ) -> Callable[..., None]:
     """Return a service callable that deletes the resolved instance.
 
@@ -35,23 +37,30 @@ def delete_model(
 
         delete_model(Author, soft_delete=_archive)
 
-    ``children`` declares reverse-FK collections to remove **before** the
-    parent goes (grandchildren first), each nullable-FK child unlinked and the
-    rest deleted — mirroring ``on_delete=SET_NULL`` / ``CASCADE``. Use it to
-    cascade explicitly when the FK can't (a ``PROTECT`` relation, or a
-    ``soft_delete`` that Django won't cascade through). The ``ChildSpec``'s
-    write-only fields (``match_key`` / ``mode`` / ``field_map`` / ``m2m``) are
-    ignored here; only ``model`` / ``fk`` / ``children`` apply.
+    ``relations`` (and its reverse-FK alias ``children``) declares what to
+    remove **before** the parent goes, deepest first. Use it to cascade
+    explicitly when the database can't: a ``PROTECT`` relation, or a
+    ``soft_delete`` Django never cascades through because no row is deleted.
+
+    The same map the write path takes, and the same one rule applies to every
+    kind: **the cascade removes the rows the parent owns and leaves the rows it
+    merely points at alone.** A reverse-FK collection, a reverse one-to-one and
+    a generic relation are the parent's rows and go, nullable links unlinked
+    and the rest deleted; a many-to-many loses only its membership, since the
+    targets are shared; a forward relation is left untouched, because the
+    column holding it goes with the parent. The specs' write-only fields
+    (``match_key`` / ``mode`` / ``field_map`` / ``m2m``) are ignored here.
 
     The rest of the framework's kwargs pool is handed on as
-    :func:`~rest_framework_services.mutations.utils.delete_children`'s
-    ``context=``, so a per-child service declared on a ``ChildSpec`` can see
-    who is calling (see :func:`create_model`).
+    :func:`~rest_framework_services.mutations.utils.delete_relations`'s
+    ``context=``, so a per-row service declared on a spec can see who is
+    calling (see :func:`create_model`).
     """
+    declared = merge_relations(children, relations)
 
     def _service(*, instance: ModelT, **kwargs: Any) -> None:
-        if children is not None:
-            delete_children(instance, children, context=kwargs)
+        if declared:
+            delete_relations(instance, declared, context=kwargs)
         if soft_delete is not None:
             soft_delete(instance)
         else:

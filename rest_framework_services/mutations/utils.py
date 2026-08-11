@@ -875,15 +875,16 @@ def apply_relations(
 
 
 def _unknown_relation_kind(relation: str, spec: RelationSpec) -> ImproperlyConfigured:
-    """The error for a relation spec the driver has no writer for.
+    """The error for a relation spec neither driver knows what to do with.
 
     Reachable only through a :class:`RelationSpec` subclass the library did not
-    define: the ``write_phase`` says when to write it and nothing says how.
+    define: the ``write_phase`` says when to write it and nothing says how, and
+    the delete cascade cannot guess whether the parent owns its rows.
     """
     return ImproperlyConfigured(
         f"relations[{relation!r}]: {type(spec).__name__} is not a relation kind this "
-        "library knows how to write. Declare the relation with one of the shipped "
-        "spec classes."
+        "library knows how to write or remove. Declare the relation with one of the "
+        "shipped spec classes."
     )
 
 
@@ -1447,80 +1448,183 @@ async def _aremove_orphans(
     return removals
 
 
-def _uncascadable_relation_kind(relation: str, spec: RelationSpec) -> ImproperlyConfigured:
-    """The error for a relation the delete cascade cannot remove.
-
-    The cascade takes the collections a parent owns and hands back one delta
-    per collection. A singular relation neither fits that shape nor needs the
-    cascade in the same way — clearing it is an explicit ``None`` on the write
-    path — so it is refused here instead of being removed and reported as a
-    one-row "collection".
-    """
-    return ImproperlyConfigured(
-        f"children[{relation!r}]: {type(spec).__name__} is not a collection, and the "
-        "delete cascade removes collections. Remove a singular relation from the write "
-        "path instead, by sending null for it."
-    )
-
-
-def delete_children(
+def delete_relations(
     parent: Model,
-    children: Mapping[str, ChildSpec],
+    relations: Mapping[str, RelationSpec],
     *,
     context: Mapping[str, Any] | None = None,
-) -> tuple[ChildCollectionChange, ...]:
-    """Remove every child in each declared collection (grandchildren first).
+) -> tuple[tuple[ChildCollectionChange, ...], tuple[RelatedObjectChange, ...]]:
+    """Remove what ``parent`` owns, deepest first, before ``parent`` itself goes.
 
-    Unlinks nullable-FK children (like ``SET_NULL``) and deletes the rest (like
-    ``CASCADE``), recursing through ``spec.children`` so a non-nullable
-    grandchild is removed before its parent. Used by the default
-    :func:`~rest_framework_services.delete_model` service before it deletes the
-    top-level instance.
+    Used by the default :func:`~rest_framework_services.delete_model` service
+    to cascade explicitly where the database will not: a ``PROTECT`` relation,
+    or a ``soft_delete`` hook Django never cascades through because no row is
+    deleted.
+
+    **One rule covers every kind: the cascade removes the rows the parent owns,
+    and does nothing to the rows it merely points at.** Ownership is the whole
+    question, and each kind answers it the same way here as on the write path:
+
+    - a reverse-FK collection and a generic relation are the parent's rows —
+      every one is removed, its own declared relations first, so a non-nullable
+      grandchild goes before the row it points at. Nullable links are unlinked
+      (like ``SET_NULL``) and the rest deleted (like ``CASCADE``), or handed to
+      ``delete_service``.
+    - a reverse one-to-one is the parent's row too, singular. Same rule, one
+      row.
+    - a many-to-many target is **not** the parent's row — it is shared with
+      every other parent linked to it — so only the *membership* is removed.
+      The targets are reported under ``unlinked`` and none is deleted.
+    - a forward relation is not the parent's row either, and the link lives on
+      the parent, so the cascade has nothing to do: the column goes when the
+      parent does. It is reported ``"untouched"`` rather than refused, because
+      "leave it alone" is the correct and complete answer — and because the
+      same ``relations=`` map is what the row's *write* path is declared with,
+      so refusing it would make a perfectly good write spec un-cascadable.
+
+    Returns the collection deltas and the singular ones separately, for the
+    reason :func:`apply_relations` returns them separately: the two shapes
+    report differently, and squeezing a one-row relation into a collection's
+    pk tuples is the misreporting this split exists to end.
 
     ``context`` is the opaque caller pool, forwarded down the tree and into the
-    pool of any service the spec declares; this loop never reads it.
-
-    Collections only. The cascade reports one
-    :class:`~rest_framework_services.ChildCollectionChange` per relation, which
-    is not the shape a singular relation reports in, so a singular spec is
-    refused here rather than removed and mis-reported.
+    pool of any service a spec declares; this loop never reads it.
     """
-    deltas: list[ChildCollectionChange] = []
-    for relation, spec in children.items():
-        if not isinstance(spec, ChildSpec):
-            raise _uncascadable_relation_kind(relation, spec)
-        nullable = _link_nullable(spec)
-        removals: list[tuple[str, Any]] = []
-        for child in getattr(parent, relation).all():
-            if spec.children:
-                delete_children(child, spec.children, context=context)
-            removals.append(
-                _remove_one_child(child, spec, parent=parent, context=context, nullable=nullable)
+    collections: list[ChildCollectionChange] = []
+    singular: list[RelatedObjectChange] = []
+    for relation, spec in relations.items():
+        if isinstance(spec, ChildSpec | GenericRelationSpec):
+            collections.append(
+                _delete_owned_collection(parent, spec, relation=relation, context=context)
             )
-        deltas.append(ChildCollectionChange(relation=relation, **_collect_removals(removals)))
-    return tuple(deltas)
+        elif isinstance(spec, ManyToManySpec):
+            collections.append(_clear_m2m_membership(parent, relation=relation))
+        elif isinstance(spec, ReverseOneToOneSpec):
+            singular.append(_delete_owned_row(parent, spec, relation=relation, context=context))
+        elif isinstance(spec, ForwardRelationSpec):
+            singular.append(RelatedObjectChange(relation=relation))
+        else:
+            raise _unknown_relation_kind(relation, spec)
+    return (tuple(collections), tuple(singular))
 
 
-async def adelete_children(
+async def adelete_relations(
     parent: Model,
-    children: Mapping[str, ChildSpec],
+    relations: Mapping[str, RelationSpec],
     *,
     context: Mapping[str, Any] | None = None,
-) -> tuple[ChildCollectionChange, ...]:
-    """Async variant of :func:`delete_children`."""
-    deltas: list[ChildCollectionChange] = []
-    for relation, spec in children.items():
-        if not isinstance(spec, ChildSpec):
-            raise _uncascadable_relation_kind(relation, spec)
-        nullable = _link_nullable(spec)
-        removals: list[tuple[str, Any]] = []
-        async for child in getattr(parent, relation).all():
-            if spec.children:
-                await adelete_children(child, spec.children, context=context)
-            removals.append(
-                await _aremove_one_child(
-                    child, spec, parent=parent, context=context, nullable=nullable
-                )
+) -> tuple[tuple[ChildCollectionChange, ...], tuple[RelatedObjectChange, ...]]:
+    """Async variant of :func:`delete_relations` — same rule, awaited."""
+    collections: list[ChildCollectionChange] = []
+    singular: list[RelatedObjectChange] = []
+    for relation, spec in relations.items():
+        if isinstance(spec, ChildSpec | GenericRelationSpec):
+            collections.append(
+                await _adelete_owned_collection(parent, spec, relation=relation, context=context)
             )
-        deltas.append(ChildCollectionChange(relation=relation, **_collect_removals(removals)))
-    return tuple(deltas)
+        elif isinstance(spec, ManyToManySpec):
+            collections.append(await _aclear_m2m_membership(parent, relation=relation))
+        elif isinstance(spec, ReverseOneToOneSpec):
+            singular.append(
+                await _adelete_owned_row(parent, spec, relation=relation, context=context)
+            )
+        elif isinstance(spec, ForwardRelationSpec):
+            singular.append(RelatedObjectChange(relation=relation))
+        else:
+            raise _unknown_relation_kind(relation, spec)
+    return (tuple(collections), tuple(singular))
+
+
+def _delete_owned_collection(
+    parent: Model,
+    spec: _CollectionSpec,
+    *,
+    relation: str,
+    context: Mapping[str, Any] | None,
+) -> ChildCollectionChange:
+    """Remove every row of one owned collection, its own relations first."""
+    nullable = _link_nullable(spec)
+    nested = merge_relations(spec.children, spec.relations)
+    removals: list[tuple[str, Any]] = []
+    for child in getattr(parent, relation).all():
+        delete_relations(child, nested, context=context)
+        removals.append(
+            _remove_one_child(child, spec, parent=parent, context=context, nullable=nullable)
+        )
+    return ChildCollectionChange(relation=relation, **_collect_removals(removals))
+
+
+async def _adelete_owned_collection(
+    parent: Model,
+    spec: _CollectionSpec,
+    *,
+    relation: str,
+    context: Mapping[str, Any] | None,
+) -> ChildCollectionChange:
+    """Async variant of :func:`_delete_owned_collection`."""
+    nullable = _link_nullable(spec)
+    nested = merge_relations(spec.children, spec.relations)
+    removals: list[tuple[str, Any]] = []
+    async for child in getattr(parent, relation).all():
+        await adelete_relations(child, nested, context=context)
+        removals.append(
+            await _aremove_one_child(child, spec, parent=parent, context=context, nullable=nullable)
+        )
+    return ChildCollectionChange(relation=relation, **_collect_removals(removals))
+
+
+def _delete_owned_row(
+    parent: Model,
+    spec: ReverseOneToOneSpec,
+    *,
+    relation: str,
+    context: Mapping[str, Any] | None,
+) -> RelatedObjectChange:
+    """Remove the parent's single reverse one-to-one row, if it has one."""
+    row = spec.model.objects.filter(**{spec.fk: parent}).first()
+    if row is None:
+        return RelatedObjectChange(relation=relation)
+    delete_relations(row, merge_relations(spec.children, spec.relations), context=context)
+    status, pk = _remove_one_child(
+        row, spec, parent=parent, context=context, nullable=_link_nullable(spec)
+    )
+    return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
+
+
+async def _adelete_owned_row(
+    parent: Model,
+    spec: ReverseOneToOneSpec,
+    *,
+    relation: str,
+    context: Mapping[str, Any] | None,
+) -> RelatedObjectChange:
+    """Async variant of :func:`_delete_owned_row`."""
+    row = await spec.model.objects.filter(**{spec.fk: parent}).afirst()
+    if row is None:
+        return RelatedObjectChange(relation=relation)
+    await adelete_relations(row, merge_relations(spec.children, spec.relations), context=context)
+    status, pk = await _aremove_one_child(
+        row, spec, parent=parent, context=context, nullable=_link_nullable(spec)
+    )
+    return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
+
+
+def _clear_m2m_membership(parent: Model, *, relation: str) -> ChildCollectionChange:
+    """Drop every member of one many-to-many, deleting no target row.
+
+    No ``delete_service`` is consulted and none exists on the spec: nothing is
+    deleted here, so there is no removal for a service to own. Nor are the
+    targets' own relations followed — they belong to the targets, which survive.
+    """
+    manager: Any = getattr(parent, relation)
+    members: tuple[Any, ...] = tuple(manager.values_list("pk", flat=True))
+    manager.clear()
+    return ChildCollectionChange(relation=relation, unlinked=members)
+
+
+async def _aclear_m2m_membership(parent: Model, *, relation: str) -> ChildCollectionChange:
+    """Async variant of :func:`_clear_m2m_membership`."""
+    manager: Any = getattr(parent, relation)
+    members: tuple[Any, ...] = tuple(await am2m_current_pks(parent, relation))
+    await manager.aclear()
+    return ChildCollectionChange(relation=relation, unlinked=members)

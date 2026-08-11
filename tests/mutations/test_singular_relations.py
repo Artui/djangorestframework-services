@@ -24,7 +24,7 @@ from rest_framework_services import (
     update_from_input,
 )
 from rest_framework_services.exceptions.service_validation_error import ServiceValidationError
-from rest_framework_services.mutations.utils import adelete_children, delete_children
+from rest_framework_services.mutations.utils import adelete_relations, delete_relations
 from tests.testapp.models import Author, Catalog, Cover, Note, Post, Profile, Section, Tag
 
 
@@ -414,14 +414,24 @@ class TestReverseOneToOne:
         assert result.instance.cover.image == "i"
         assert result.instance.sections.get().tags.get() == tag
 
-    def test_the_delete_cascade_refuses_a_singular_relation(self) -> None:
+    def test_the_delete_cascade_removes_the_singular_row(self) -> None:
+        # The parent owns this row, so the cascade removes it by the same rule
+        # the write path applies to an explicit null -- and reports it as the
+        # one-row change it is, rather than as a collection of one.
         catalog = Catalog.objects.create(name="c")
-        with pytest.raises(ImproperlyConfigured) as excinfo:
-            delete_children(
-                catalog,
-                {"cover": ReverseOneToOneSpec(model=Cover, fk="catalog")},  # type: ignore[dict-item]
-            )
-        assert "is not a collection" in str(excinfo.value)
+        cover = Cover.objects.create(catalog=catalog, image="i")
+
+        collections, singular = delete_relations(
+            catalog, {"cover": ReverseOneToOneSpec(model=Cover, fk="catalog")}
+        )
+
+        assert collections == ()
+        assert (singular[0].relation, singular[0].outcome, singular[0].pk) == (
+            "cover",
+            "deleted",
+            cover.pk,
+        )
+        assert not Cover.objects.exists()
 
 
 @pytest.mark.django_db
@@ -518,13 +528,16 @@ class TestAsyncSingularRelations:
         await theirs.arefresh_from_db()
         assert theirs.name == "theirs"
 
-    async def test_the_delete_cascade_refuses_a_singular_relation(self) -> None:
+    async def test_the_delete_cascade_removes_the_singular_row(self) -> None:
         catalog = await Catalog.objects.acreate(name="c")
-        with pytest.raises(ImproperlyConfigured, match="is not a collection"):
-            await adelete_children(
-                catalog,
-                {"cover": ReverseOneToOneSpec(model=Cover, fk="catalog")},  # type: ignore[dict-item]
-            )
+        cover = await Cover.objects.acreate(catalog=catalog, image="i")
+
+        _, singular = await adelete_relations(
+            catalog, {"cover": ReverseOneToOneSpec(model=Cover, fk="catalog")}
+        )
+
+        assert (singular[0].outcome, singular[0].pk) == ("deleted", cover.pk)
+        assert not await Cover.objects.aexists()
 
     async def test_forward_create_service(self) -> None:
         async def create_author(*, data: Any) -> Author:

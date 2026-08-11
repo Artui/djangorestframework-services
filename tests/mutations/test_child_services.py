@@ -20,7 +20,7 @@ from rest_framework_services import (
     run_service,
     update_from_input,
 )
-from rest_framework_services.mutations.utils import adelete_children, delete_children
+from rest_framework_services.mutations.utils import adelete_relations, delete_relations
 from tests.testapp.models import Catalog, Item, Note, Section
 
 _USER = "acting-caller"
@@ -224,7 +224,7 @@ class TestDeleteService:
         def archive(*, instance: Section, parent: Any, user: Any) -> None:
             archived.append((instance.pk, parent, user))
 
-        deltas = delete_children(
+        deltas, _ = delete_relations(
             catalog,
             {
                 "sections": ChildSpec(
@@ -364,7 +364,7 @@ class TestAsyncChildServices:
         await orphan.arefresh_from_db()
         assert orphan.catalog_id == catalog.pk
 
-        deltas = await adelete_children(
+        deltas, _ = await adelete_relations(
             catalog,
             {"notes": ChildSpec(model=Note, fk="catalog", delete_service=archive)},
             context={},

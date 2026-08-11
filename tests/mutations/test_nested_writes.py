@@ -13,7 +13,7 @@ from rest_framework_services import (
     create_from_input,
     update_from_input,
 )
-from rest_framework_services.mutations.utils import adelete_children, delete_children
+from rest_framework_services.mutations.utils import adelete_relations, delete_relations
 from tests.testapp.models import Catalog, Item, Note, Section, Tag
 
 _SECTIONS = "sections"
@@ -186,7 +186,7 @@ class TestDeleteChildren:
         section = Section.objects.create(catalog=catalog, title="s")
         item = Item.objects.create(section=section, label="i")
         note = Note.objects.create(catalog=catalog, body="n")
-        deltas = delete_children(
+        deltas, _ = delete_relations(
             catalog,
             {
                 _SECTIONS: ChildSpec(
@@ -271,12 +271,12 @@ class TestAsyncChildren:
         await aupdate_from_input(catalog, {"name": "c2"}, children=_spec())
         assert await catalog.sections.acount() == 1
 
-    async def test_adelete_children_recursive(self) -> None:
+    async def test_adelete_relations_recursive(self) -> None:
         catalog = await Catalog.objects.acreate(name="c")
         section = await Section.objects.acreate(catalog=catalog, title="s")
         await Item.objects.acreate(section=section, label="i")
         note = await Note.objects.acreate(catalog=catalog, body="n")
-        deltas = await adelete_children(
+        deltas, _ = await adelete_relations(
             catalog,
             {
                 _SECTIONS: ChildSpec(
