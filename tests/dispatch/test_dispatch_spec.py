@@ -495,7 +495,7 @@ class TestRenderSpecOutput:
 class TestFilterDataOnTheReadPath:
     """``filter_data`` gives the FilterSet a different mapping than the callable.
 
-    It reached only the *service* path until 0.31: a selector's ``filter_set``
+    It reached only the *service* path until 0.36: a selector's ``filter_set``
     read ``params`` no matter what ``filter_data`` said, silently. That made it
     impossible for an off-HTTP transport to filter on anything the selector
     callable did not also declare as a keyword argument — which is precisely
