@@ -186,3 +186,45 @@ class TestTheAsyncPathBehavesIdentically:
         refreshed = await Post.objects.aget(pk=mine.pk)
         assert refreshed.title == "after"
         assert await sync_to_async(Post.objects.filter(author=author).count)() == 2
+
+
+@pytest.mark.django_db
+class TestAServiceOwnedRowIsGuardedToo:
+    """A declared ``create_service`` receives the payload, so the check has to
+    run before the dispatch rather than inside the default helper.
+
+    Otherwise the row writer is bypassed and the primary key reaches user code,
+    which is free to persist it -- moving the same defect one layer out and
+    into a place the library cannot see.
+    """
+
+    def test_the_service_is_never_handed_another_parents_primary_key(self) -> None:
+        victim = Author.objects.create(name="victim")
+        attacker = Author.objects.create(name="attacker")
+        theirs = Post.objects.create(title="secret", author=victim)
+        seen: list[dict] = []
+
+        def create_post(*, data, **_):
+            seen.append(dict(data))
+            return Post.objects.create(title=data["title"], author=data["author"])
+
+        spec = {
+            "posts": ChildSpec(
+                model=Post,
+                fk="author",
+                match_key="id",
+                create_service=create_post,
+            )
+        }
+
+        with pytest.raises(ServiceValidationError):
+            update_from_input(
+                attacker,
+                {"name": "attacker", "posts": [{"id": theirs.pk, "title": "pwned"}]},
+                children=spec,
+            )
+
+        assert seen == [], "the service was reached with a foreign primary key"
+        theirs.refresh_from_db()
+        assert theirs.author_id == victim.pk
+        assert theirs.title == "secret"
