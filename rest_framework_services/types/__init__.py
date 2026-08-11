@@ -12,6 +12,7 @@ from rest_framework_services.types.child_spec import ChildSpec
 from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.field_change import FieldChange
 from rest_framework_services.types.forward_relation_spec import ForwardRelationSpec
+from rest_framework_services.types.generic_relation_spec import GenericRelationSpec
 from rest_framework_services.types.http_extras import HttpExtras
 from rest_framework_services.types.input_required import InputRequired, InputRequiredType
 from rest_framework_services.types.json_schema_registry import (
@@ -56,6 +57,7 @@ __all__ = [
     "DispatchResult",
     "FieldChange",
     "ForwardRelationSpec",
+    "GenericRelationSpec",
     "HttpExtras",
     "InputRequired",
     "InputRequiredType",

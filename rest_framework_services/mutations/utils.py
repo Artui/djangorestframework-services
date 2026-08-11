@@ -9,6 +9,8 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import fields, is_dataclass
 from typing import Any
 
+from asgiref.sync import sync_to_async
+from django.apps import apps
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.db.models import Model
 
@@ -19,6 +21,7 @@ from rest_framework_services.types.child_collection_change import ChildCollectio
 from rest_framework_services.types.child_spec import ChildSpec
 from rest_framework_services.types.field_change import FieldChange
 from rest_framework_services.types.forward_relation_spec import ForwardRelationSpec
+from rest_framework_services.types.generic_relation_spec import GenericRelationSpec
 from rest_framework_services.types.many_to_many_spec import ManyToManySpec
 from rest_framework_services.types.related_object_change import RelatedObjectChange
 from rest_framework_services.types.relation_phase import RelationPhase
@@ -27,17 +30,23 @@ from rest_framework_services.types.reverse_one_to_one_spec import ReverseOneToOn
 from rest_framework_services.types.unset import UNSET
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
-# The kinds whose row the parent owns through a foreign key: the loop links it
-# on the way in and disposes of it on the way out. "Child" throughout this
-# module means such a row -- a member of a collection, or the single row of a
-# reverse one-to-one.
-_OwnedRowSpec = ChildSpec | ReverseOneToOneSpec
+# The kinds whose row the parent owns through a link stored on that row: the
+# loop writes the link on the way in and disposes of the row on the way out.
+# "Child" throughout this module means such a row -- a member of a collection,
+# the single row of a reverse one-to-one, or a generic-relation row, which
+# differs only in that its link is two columns rather than one.
+_OwnedRowSpec = ChildSpec | ReverseOneToOneSpec | GenericRelationSpec
+# The owned kinds that hold *many* rows, so they reconcile a collection and
+# have orphans; the reverse one-to-one holds one and has the ``None`` case.
+_CollectionSpec = ChildSpec | GenericRelationSpec
 # The kinds pointing at a row the parent does *not* own -- shared with whoever
 # else points at it -- so there is no manager to match within and ``scope=`` is
 # what says which rows this caller may write.
 _ScopedSpec = ForwardRelationSpec | ManyToManySpec
 # Every kind whose row the mutation helpers write, owned or merely pointed at.
-_RowSpec = ChildSpec | ReverseOneToOneSpec | ForwardRelationSpec | ManyToManySpec
+_RowSpec = (
+    ChildSpec | ReverseOneToOneSpec | ForwardRelationSpec | ManyToManySpec | GenericRelationSpec
+)
 
 
 def coerce_to_dict(data: Any) -> dict[str, Any]:
@@ -344,9 +353,82 @@ def post_save_relations(
     )
 
 
-def _fk_nullable(spec: _OwnedRowSpec) -> bool:
-    """Whether the related row's foreign key to the parent allows ``NULL``."""
-    return bool(spec.model._meta.get_field(spec.fk).null)
+def _content_type_for(instance: Model) -> Any:
+    """The ``ContentType`` row for ``instance``'s model.
+
+    The library's one contact with ``django.contrib.contenttypes``, gated on
+    two counts and reached only when a generic relation is actually written.
+
+    The import is function-local for the reason CLAUDE.md gives for every
+    Django model: ``rest_framework_services`` ships in ``INSTALLED_APPS``, so
+    this module is imported while ``apps.populate()`` is still running and an
+    eager model import raises ``AppRegistryNotReady``. The ``is_installed``
+    check in front of it covers the other half — ``contenttypes`` is an
+    optional app, and importing a model whose app is absent fails with a
+    ``RuntimeError`` about explicit app labels, which tells the author nothing
+    about what they actually did.
+    """
+    if not apps.is_installed("django.contrib.contenttypes"):
+        raise ImproperlyConfigured(
+            "A generic relation needs 'django.contrib.contenttypes' in INSTALLED_APPS: "
+            "the row is linked to its parent by a content type, and without that app "
+            "there is no content type to link it to. Add the app, or link the rows with "
+            "a plain foreign key and declare the relation as a ChildSpec."
+        )
+    from django.contrib.contenttypes.models import ContentType
+
+    return ContentType.objects.get_for_model(instance)
+
+
+def _link_fields(spec: _OwnedRowSpec) -> tuple[str, ...]:
+    """The column(s) on the related row holding its link back to the parent."""
+    if isinstance(spec, GenericRelationSpec):
+        return (spec.content_type_field, spec.object_id_field)
+    return (spec.fk,)
+
+
+def _link_values(spec: _OwnedRowSpec, parent: Model) -> dict[str, Any]:
+    """What to assign on a new related row so it points at ``parent``.
+
+    The one place the kinds differ on the way in: a foreign key takes the
+    parent instance, and a generic relation takes the parent's content type
+    plus its primary key, which is the same statement spelled in two columns
+    because the relation has no model to declare.
+    """
+    if isinstance(spec, GenericRelationSpec):
+        return {
+            spec.content_type_field: _content_type_for(parent),
+            spec.object_id_field: parent.pk,
+        }
+    return {spec.fk: parent}
+
+
+async def _alink_values(spec: _OwnedRowSpec, parent: Model) -> dict[str, Any]:
+    """Async variant of :func:`_link_values`.
+
+    Only the generic branch takes a thread hop: ``get_for_model`` is a sync ORM
+    call with no async form on any supported Django, while a foreign key needs
+    no query at all and must not pay for one.
+    """
+    if not isinstance(spec, GenericRelationSpec):
+        return {spec.fk: parent}
+    return {
+        spec.content_type_field: await sync_to_async(_content_type_for, thread_sensitive=True)(
+            parent
+        ),
+        spec.object_id_field: parent.pk,
+    }
+
+
+def _link_nullable(spec: _OwnedRowSpec) -> bool:
+    """Whether the row's link to the parent can be blanked instead of deleted.
+
+    ``all`` rather than ``any`` because a generic link is only severed when
+    *both* columns can hold ``NULL``; half a link is a row pointing at a
+    content type with no id, which is not a state the relation has a meaning
+    for.
+    """
+    return all(bool(spec.model._meta.get_field(name).null) for name in _link_fields(spec))
 
 
 def _collect_removals(removals: list[tuple[str, Any]]) -> dict[str, tuple[Any, ...]]:
@@ -362,27 +444,33 @@ def _collect_removals(removals: list[tuple[str, Any]]) -> dict[str, tuple[Any, .
     return {name: tuple(pks) for name, pks in buckets.items()}
 
 
-def remove_child(child: Model, fk: str, *, nullable: bool) -> tuple[str, Any]:
-    """Detach (nullable FK → ``SET_NULL``) or delete (else → ``CASCADE``) ``child``.
+def remove_child(child: Model, link: tuple[str, ...], *, nullable: bool) -> tuple[str, Any]:
+    """Detach (nullable link → ``SET_NULL``) or delete (else → ``CASCADE``) ``child``.
+
+    ``link`` is the column or columns tying the row to its parent — one for a
+    foreign key, two for a generic relation — and detaching blanks all of them
+    together, because a link is severed or it is not.
 
     Returns ``("unlinked" | "deleted", pk)`` with the pk captured *before* any
     delete (Django clears ``instance.pk`` afterwards).
     """
     pk = child.pk
     if nullable:
-        setattr(child, fk, None)
-        child.save(update_fields=[fk])
+        for name in link:
+            setattr(child, name, None)
+        child.save(update_fields=list(link))
         return ("unlinked", pk)
     child.delete()
     return ("deleted", pk)
 
 
-async def aremove_child(child: Model, fk: str, *, nullable: bool) -> tuple[str, Any]:
+async def aremove_child(child: Model, link: tuple[str, ...], *, nullable: bool) -> tuple[str, Any]:
     """Async variant of :func:`remove_child`."""
     pk = child.pk
     if nullable:
-        setattr(child, fk, None)
-        await child.asave(update_fields=[fk])
+        for name in link:
+            setattr(child, name, None)
+        await child.asave(update_fields=list(link))
         return ("unlinked", pk)
     await child.adelete()
     return ("deleted", pk)
@@ -496,7 +584,7 @@ def _remove_one_child(
     service that really deletes leaves ``instance.pk`` cleared behind it.
     """
     if spec.delete_service is None:
-        return remove_child(child, spec.fk, nullable=nullable)
+        return remove_child(child, _link_fields(spec), nullable=nullable)
     pk = child.pk
     _run_child_service(spec.delete_service, _child_pool(context, instance=child, parent=parent))
     return ("removed", pk)
@@ -512,7 +600,7 @@ async def _aremove_one_child(
 ) -> tuple[str, Any]:
     """Async variant of :func:`_remove_one_child`."""
     if spec.delete_service is None:
-        return await aremove_child(child, spec.fk, nullable=nullable)
+        return await aremove_child(child, _link_fields(spec), nullable=nullable)
     pk = child.pk
     await _arun_child_service(
         spec.delete_service, _child_pool(context, instance=child, parent=parent)
@@ -763,9 +851,9 @@ def apply_relations(
     singular: list[RelatedObjectChange] = []
     for relation, spec in post_save_relations(relations):
         value = relation_data.get(relation, UNSET)
-        if isinstance(spec, ChildSpec):
+        if isinstance(spec, ChildSpec | GenericRelationSpec):
             collections.append(
-                _write_child_collection(
+                _write_owned_collection(
                     parent, value, spec, relation=relation, created=created, context=context
                 )
             )
@@ -828,14 +916,14 @@ def _write_reverse_one_to_one(
         if existing is None:
             return RelatedObjectChange(relation=relation)
         status, pk = _remove_one_child(
-            existing, spec, parent=parent, context=context, nullable=_fk_nullable(spec)
+            existing, spec, parent=parent, context=context, nullable=_link_nullable(spec)
         )
         return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
     if existing is None:
         row = _create_row(
-            {**item, spec.fk: parent},
+            {**item, **_link_values(spec, parent)},
             spec,
             relation=relation,
             seeds={"parent": parent},
@@ -864,14 +952,14 @@ async def _awrite_reverse_one_to_one(
         if existing is None:
             return RelatedObjectChange(relation=relation)
         status, pk = await _aremove_one_child(
-            existing, spec, parent=parent, context=context, nullable=_fk_nullable(spec)
+            existing, spec, parent=parent, context=context, nullable=_link_nullable(spec)
         )
         return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
     if existing is None:
         row = await _acreate_row(
-            {**item, spec.fk: parent},
+            {**item, **await _alink_values(spec, parent)},
             spec,
             relation=relation,
             seeds={"parent": parent},
@@ -885,22 +973,29 @@ async def _awrite_reverse_one_to_one(
     return RelatedObjectChange(relation=relation, outcome="updated", pk=row.pk)
 
 
-def _write_child_collection(
+def _write_owned_collection(
     parent: Model,
     items: Any,
-    spec: ChildSpec,
+    spec: _CollectionSpec,
     *,
     relation: str,
     created: bool,
     context: Mapping[str, Any] | None,
 ) -> ChildCollectionChange:
-    """Reconcile one reverse-FK child collection against ``items``.
+    """Reconcile one owned collection against ``items``.
 
-    Match incoming rows to existing children by the spec's ``match_key``
-    (skipped on ``created`` — a fresh parent has none), update matches, create
-    the rest, and — in ``replace`` mode — remove orphans via
-    :func:`remove_child`. Each child runs back through ``create``/``update`` so
-    scalar / m2m / nested semantics compose recursively.
+    Match incoming rows to existing ones by the spec's ``match_key`` (skipped
+    on ``created`` — a fresh parent has none), update matches, create the rest,
+    and — in ``replace`` mode — remove orphans via :func:`remove_child`. Each
+    row runs back through ``create``/``update`` so scalar / m2m / nested
+    semantics compose recursively.
+
+    Reverse foreign keys and generic relations share this loop whole. They are
+    the same relation with a different link — one column or two — and the link
+    is the only thing either of them says about the parent, so it is the only
+    thing that varies: :func:`_link_values` on the way in, :func:`_link_fields`
+    on the way out. Both are matched inside the parent's own accessor, which is
+    why neither takes a ``scope=``.
     """
     if items is UNSET:
         return ChildCollectionChange(relation=relation)
@@ -926,7 +1021,7 @@ def _write_child_collection(
             matched.add(key)
         else:
             child = _create_row(
-                {**item, spec.fk: parent},
+                {**item, **_link_values(spec, parent)},
                 spec,
                 relation=relation,
                 seeds={"parent": parent},
@@ -1164,7 +1259,7 @@ async def _aupdate_row(
 
 def _remove_orphans(
     existing_by_key: dict[Any, Model],
-    spec: ChildSpec,
+    spec: _CollectionSpec,
     matched: set[Any],
     created: bool,
     *,
@@ -1180,7 +1275,7 @@ def _remove_orphans(
     removals: list[tuple[str, Any]] = []
     if created or spec.mode != "replace":
         return removals
-    nullable = _fk_nullable(spec)
+    nullable = _link_nullable(spec)
     for key, child in existing_by_key.items():
         if key in matched:
             continue
@@ -1203,9 +1298,9 @@ async def aapply_relations(
     singular: list[RelatedObjectChange] = []
     for relation, spec in post_save_relations(relations):
         value = relation_data.get(relation, UNSET)
-        if isinstance(spec, ChildSpec):
+        if isinstance(spec, ChildSpec | GenericRelationSpec):
             collections.append(
-                await _awrite_child_collection(
+                await _awrite_owned_collection(
                     parent, value, spec, relation=relation, created=created, context=context
                 )
             )
@@ -1226,16 +1321,16 @@ async def aapply_relations(
     return (tuple(collections), tuple(singular))
 
 
-async def _awrite_child_collection(
+async def _awrite_owned_collection(
     parent: Model,
     items: Any,
-    spec: ChildSpec,
+    spec: _CollectionSpec,
     *,
     relation: str,
     created: bool,
     context: Mapping[str, Any] | None,
 ) -> ChildCollectionChange:
-    """Async variant of :func:`_write_child_collection`."""
+    """Async variant of :func:`_write_owned_collection`."""
     if items is UNSET:
         return ChildCollectionChange(relation=relation)
     existing_by_key: dict[Any, Model] = {}
@@ -1262,7 +1357,7 @@ async def _awrite_child_collection(
             matched.add(key)
         else:
             child = await _acreate_row(
-                {**item, spec.fk: parent},
+                {**item, **await _alink_values(spec, parent)},
                 spec,
                 relation=relation,
                 seeds={"parent": parent},
@@ -1331,7 +1426,7 @@ async def _awrite_m2m_relation(
 
 async def _aremove_orphans(
     existing_by_key: dict[Any, Model],
-    spec: ChildSpec,
+    spec: _CollectionSpec,
     matched: set[Any],
     created: bool,
     *,
@@ -1342,7 +1437,7 @@ async def _aremove_orphans(
     removals: list[tuple[str, Any]] = []
     if created or spec.mode != "replace":
         return removals
-    nullable = _fk_nullable(spec)
+    nullable = _link_nullable(spec)
     for key, child in existing_by_key.items():
         if key in matched:
             continue
@@ -1394,7 +1489,7 @@ def delete_children(
     for relation, spec in children.items():
         if not isinstance(spec, ChildSpec):
             raise _uncascadable_relation_kind(relation, spec)
-        nullable = _fk_nullable(spec)
+        nullable = _link_nullable(spec)
         removals: list[tuple[str, Any]] = []
         for child in getattr(parent, relation).all():
             if spec.children:
@@ -1417,7 +1512,7 @@ async def adelete_children(
     for relation, spec in children.items():
         if not isinstance(spec, ChildSpec):
             raise _uncascadable_relation_kind(relation, spec)
-        nullable = _fk_nullable(spec)
+        nullable = _link_nullable(spec)
         removals: list[tuple[str, Any]] = []
         async for child in getattr(parent, relation).all():
             if spec.children:

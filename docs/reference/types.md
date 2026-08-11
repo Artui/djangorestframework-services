@@ -48,6 +48,10 @@
 
 ::: rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec
 
+## `GenericRelationSpec`
+
+::: rest_framework_services.types.generic_relation_spec.GenericRelationSpec
+
 ## `ManyToManySpec`
 
 ::: rest_framework_services.types.many_to_many_spec.ManyToManySpec
