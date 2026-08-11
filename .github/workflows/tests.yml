@@ -68,14 +68,25 @@ jobs:
       # floors mean what they say. A per-PR gate rather than a scheduled job,
       # because a floor stops being true the moment someone imports a newer
       # upstream symbol -- a code change, not the passage of time.
+      # Also the oldest supported interpreter: a floor claim covers Python
+      # too, and a dependency old enough to sit at its floor is the one most
+      # likely to use something a newer Python removed.
+      - name: Use the floor Python
+        run: uv python install 3.10
       - name: Resolve every declared dependency at its floor
-        run: uv lock --resolution lowest-direct
-      - name: Install
-        run: uv sync --all-groups --all-extras
+        run: uv lock --resolution lowest-direct --python 3.10
+      # ⚠ --frozen and --no-sync are load-bearing, not tidiness. uv records the
+      # resolution mode in the lockfile and silently discards a lock resolved
+      # in a different one -- a plain `uv sync` here prints "Ignoring existing
+      # lockfile due to change in resolution mode: lowest-direct vs. highest"
+      # and re-resolves at the newest versions, so the job reports the oldest
+      # end while testing the newest. It did exactly that when first written.
+      - name: Install exactly what was locked
+        run: uv sync --frozen --all-groups --all-extras --python 3.10
       - name: Name the versions that produced
         run: uv pip list
       - name: Test
-        run: uv run pytest
+        run: uv run --no-sync pytest
 
       # ⚠ The step above installs every extra, and an extra can hold a shared
       # dependency *above* the floor being claimed -- masking the lie rather
