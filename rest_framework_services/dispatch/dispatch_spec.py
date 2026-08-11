@@ -63,13 +63,22 @@ def dispatch_spec(
     progress: ProgressReporter | None = None,
     view_hooks: ViewHooks | None = None,
     instance: Any = UNSET,
-    # ⚠ Only meaningful when ``params`` is *not* the filter source. Off HTTP the
-    # single flat ``params`` mapping is both the callable's input and the
+    # ⚠ Only meaningful when ``params`` is *not* the filter source. Off HTTP a
+    # single flat ``params`` mapping is usually both the callable's input and the
     # ``filter_set`` data, so this stays ``None``. Over HTTP they are two
     # different things — the body validates, the **query string** filters — and
     # merging them would quietly let a query parameter satisfy a serializer
     # field. So the HTTP caller passes its query params here and keeps ``params``
     # as the body.
+    #
+    # It applies to **both** spec kinds: a selector's ``filter_set`` and a
+    # service's output-selector re-fetch. It reached only the service path until
+    # 0.31 — a selector's filtering silently used ``params`` no matter what was
+    # passed here — which made it impossible for an off-HTTP transport to give
+    # the FilterSet a wider view of the arguments than the selector callable's
+    # own kwarg pool. That is exactly what an agent transport needs, because a
+    # spec's ``OrderingFilter`` is advertised to the model but ``ordering`` is
+    # not a kwarg any selector declares.
     filter_data: Mapping[str, Any] | None = None,
 ) -> DispatchResult:
     """Execute ``spec`` without a DRF view, returning a :class:`DispatchResult`.
@@ -152,6 +161,7 @@ def dispatch_spec(
             on_target_resolved=on_target_resolved,
             progress=progress,
             view_hooks=view_hooks,
+            filter_data=filter_data,
         )
     raise TypeError(
         f"dispatch_spec expects a ServiceSpec or SelectorSpec; got {type(spec).__name__}."
@@ -170,6 +180,7 @@ def _dispatch_selector(
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
     view_hooks: ViewHooks | None,
+    filter_data: Mapping[str, Any] | None,
 ) -> DispatchResult:
     if spec.selector is None:
         raise ImproperlyConfigured(
@@ -199,7 +210,12 @@ def _dispatch_selector(
     try:
         result: Any = run_selector(spec.selector, resolve_dispatch_kwargs(spec.selector, pool))
         result = shape_queryset(
-            spec, result, view=view, request=request, params=params, source_label=SELECTOR_SOURCE
+            spec,
+            result,
+            view=view,
+            request=request,
+            params=filter_data if filter_data is not None else params,
+            source_label=SELECTOR_SOURCE,
         )
     except ObjectDoesNotExist:
         if spec.kind is SelectorKind.RETRIEVE:
