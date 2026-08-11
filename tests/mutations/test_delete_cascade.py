@@ -112,16 +112,9 @@ class TestWhatTheParentOwnsGoes:
                 )
             },
         )
-        delete_relations(
-            author,
-            {
-                "profile": ReverseOneToOneSpec(
-                    model=Profile,
-                    fk="author",
-                    relations={},
-                )
-            },
-        )
+        # The singular kind follows its own tree the same way, and a spec that
+        # declares none is the ordinary case rather than a separate branch.
+        delete_relations(author, {"profile": ReverseOneToOneSpec(model=Profile, fk="author")})
 
         assert not Item.objects.filter(pk=item.pk).exists()
         assert not Section.objects.filter(pk=section.pk).exists()
