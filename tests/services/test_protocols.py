@@ -91,7 +91,15 @@ def test_spec_subscripts_are_all_or_nothing() -> None:
     assert ServiceSpec[_AuthorIn, _Author, Any] is not None
     assert SelectorSpec[_Author, Any] is not None
 
-    with pytest.raises(TypeError, match="Too few arguments"):
+    # ``arguments|parameters`` because the noun is upstream's, not ours:
+    # typing_extensions said "Too few parameters" until 4.11.0 and "Too few
+    # arguments" from 4.11.0 on. Matching only the newer wording pinned the
+    # suite to >=4.11 while the package's declared floor is 4.6 -- the package
+    # itself is fine there, so this assertion, not the code, was the thing that
+    # made the floor unrunnable. What the test is about is the arity being
+    # rejected at all; the wording is incidental.
+    too_few = "Too few (arguments|parameters)"
+    with pytest.raises(TypeError, match=too_few):
         ServiceSpec[_AuthorIn, _Author]  # type: ignore[misc]
-    with pytest.raises(TypeError, match="Too few arguments"):
+    with pytest.raises(TypeError, match=too_few):
         SelectorSpec[_Author]  # type: ignore[misc]
