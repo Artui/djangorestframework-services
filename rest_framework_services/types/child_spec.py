@@ -8,6 +8,8 @@ from typing import Any
 
 from django.db.models import Model
 
+from rest_framework_services.types.utils import validate_relation_services
+
 _VALID_MODES = ("replace", "merge")
 
 
@@ -91,9 +93,13 @@ class ChildSpec:
 
     A declared slot owns that row **entirely**: ``field_map``,
     ``exclude_fields``, ``m2m`` and the nested ``children`` map configure the
-    default mutation-helper call, so a service standing in for it is
-    responsible for whatever of that its rows need. The spec keeps only what it
-    never delegates — which rows exist, which incoming row matches which
+    default mutation-helper call, so a ``create_service`` / ``update_service``
+    standing in for it makes them dead configuration. Declaring both raises
+    :exc:`~django.core.exceptions.ImproperlyConfigured` at construction rather
+    than dropping them quietly. ``delete_service`` is exempt — it replaces the
+    unlink-or-delete rule, not the helper call, so the cascade still removes a
+    row's grandchildren before handing the row over. The spec keeps only what
+    it never delegates — which rows exist, which incoming row matches which
     existing one, and what happens to the ones left over.
 
     The loop's own ``data`` / ``instance`` / ``parent`` are applied **after**
@@ -119,6 +125,19 @@ class ChildSpec:
     def __post_init__(self) -> None:
         if self.mode not in _VALID_MODES:
             raise ValueError(f"ChildSpec.mode must be one of {_VALID_MODES}; got {self.mode!r}.")
+        validate_relation_services(
+            label="ChildSpec",
+            services={
+                "create_service": self.create_service,
+                "update_service": self.update_service,
+            },
+            shaping={
+                "field_map": self.field_map,
+                "exclude_fields": self.exclude_fields,
+                "m2m": self.m2m,
+                "children": self.children,
+            },
+        )
 
 
 __all__ = ["ChildSpec"]

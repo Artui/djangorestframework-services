@@ -82,6 +82,14 @@ the loop has already decided about.
 - A delete service replaces the unlink-or-delete rule for that row (orphan
   removal *and* the `delete_model` cascade). The loop can no longer tell the
   two apart, so the pk is reported under `deleted`.
+- A `create_service` / `update_service` **replaces** the helper call, so the
+  knobs configuring that call — `field_map`, `exclude_fields`, `m2m` and the
+  nested `children` map — are refused on the same spec, with
+  `ImproperlyConfigured` at construction. They would otherwise be dead
+  configuration, and a spec declaring both a `create_service` and `children=`
+  would write no grandchildren while saying nothing. `delete_service` is exempt:
+  it replaces the removal rule rather than the helper call, so the cascade still
+  removes a row's grandchildren before handing the row over.
 - Each service receives only the pool keys it declares. Alongside `data` /
   `instance` / `parent` it sees whatever the calling service passed as
   `context=` — `user` and `request` when the default model services are
