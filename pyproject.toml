@@ -49,7 +49,7 @@ spectacular = ["drf-spectacular>=0.27,<1.0"]
 # imports django-filter (``SelectorSpec.filter_set`` is applied by duck typing);
 # only the JSON Schema introspection of a ``FilterSet`` needs the real classes,
 # so it lives behind this extra and imports lazily.
-filter = ["django-filter>=23.0"]
+filter = ["django-filter>=23.1"]
 
 [project.urls]
 Homepage = "https://github.com/Artui/djangorestframework-services"
@@ -68,8 +68,16 @@ dev = [
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=6.0.4",
     "djangorestframework-stubs>=3.17.0",
-    "drf-spectacular>=0.29.0",
-    "django-filter>=23.0",
+    # ⚠ Keep these two at the same floor as the ``spectacular`` / ``filter``
+    # extras above. Both are declared twice — the extra is the consumer-facing
+    # claim, the dev group is what the no-extras jobs (lint, the test matrix)
+    # install. Under ``--resolution lowest-direct`` the *higher* of the two
+    # wins, so a dev floor above the extra's silently substitutes itself for
+    # the claim being checked and the floor job reports a version the extra
+    # never promised. This entry read ``>=0.29.0`` while the extra said
+    # ``>=0.27``, which is exactly that: 0.27 was never once resolved.
+    "drf-spectacular>=0.27",
+    "django-filter>=23.1",
 ]
 docs = [
     "mkdocs>=1.6.1",

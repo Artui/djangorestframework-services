@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The `filter` extra named a django-filter version that was never released.**
+  The floor read `django-filter>=23.0`, and there is no 23.0 on PyPI — the
+  series opens at 23.1. A constraint naming a nonexistent version is not a
+  narrower claim, it is an unverifiable one: nothing can ever resolve to it, so
+  the bound that was actually being exercised (23.1) was never the bound being
+  promised. Corrected to `>=23.1`, the oldest release that exists and passes
+  the suite. No consumer can have been resolving 23.0, so this tightens the
+  text, not the behaviour.
+
+- **The `spectacular` extra's floor was never once resolved.** The extra claims
+  `drf-spectacular>=0.27`, but `drf-spectacular` is declared a second time in
+  the `dev` group — which read `>=0.29.0` — and under
+  `--resolution lowest-direct` the higher of two declarations of the same
+  package wins. The floor job installs `--all-groups --all-extras`, so it
+  resolved 0.29.0 every time and reported it as the floor: the 0.27 claim was
+  checked by nothing. The dev floor is now aligned to the extra's, and 0.27.0
+  has been run against the full suite, so the number in the extra is a number
+  that has actually been tested. This is the masking the floor job's own
+  comment warns about, found in its own configuration.
+
+- **A test pinned the suite to a typing-extensions newer than the declared
+  floor.** `test_spec_subscripts_are_all_or_nothing` matched the arity error on
+  the literal string `"Too few arguments"`. That is upstream's wording, and
+  upstream changed it: typing_extensions said `"Too few parameters"` through
+  4.10.0 and `"Too few arguments"` from 4.11.0 on. So the suite could only run
+  at >=4.11 while the package declares `typing-extensions>=4.6` — and the
+  package is genuinely fine at 4.6, which the full suite now confirms. The
+  assertion, not the code, was what made the declared floor unrunnable; it now
+  accepts either noun, since what the test is about is the arity being rejected
+  at all.
+
 ## [0.36.0] — 2026-08-11
 
 ### Fixed
