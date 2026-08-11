@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.37.0] — 2026-08-11
+
+### Security
+
+**A nested write could reach a row the parent does not own.** `children=` matched
+incoming rows against `getattr(parent, relation).all()`, which is correctly
+scoped to the parent — but **only the match was scoped**. A row that failed to
+match fell through to the create branch, which builds `Model(**item, fk=parent)`
+and saves it, and Django turns a `save()` carrying an explicit primary key into
+an **UPDATE**.
+
+So a caller updating their own parent could name somebody else's child row by
+primary key and have it **reassigned to them and its fields overwritten**. No
+unusual payload was required — just a pk the caller does not own.
+
+Reproduced end to end before fixing: two authors, one post; the attacker updates
+their own author sending the victim's post pk, and the post comes back with
+`author='attacker'` and the attacker's title, with no new row created.
+
+**The fix.** A nested create that carries a primary key is refused with
+`ServiceValidationError` (HTTP 400) naming the relation. That covers the key
+under `match_key`, the same key routed through `field_map`, and a stray primary
+key sitting beside a natural `match_key` — the hazard is the primary key
+reaching the create, not which key was used to match.
+
+**Behaviour change, and deliberate.** A payload carrying an unmatched primary
+key previously created a row (in practice, silently overwrote one) and now
+raises. A **natural** `match_key` is untouched: an unmatched value is still a
+genuine create, so declaring one is still how a caller gets upsert semantics.
+
+**Affects `children=` since 0.18.0.** Upgrade if you accept nested collections
+from a client.
+
+*Scoping a read does not scope the write that follows it.* The parent filter
+made the match safe and said nothing about what the create branch was allowed to
+touch — which is why every gate stayed green: nothing had a reason to ask what an
+unmatched primary key does.
+
+
 ## [0.36.1] — 2026-08-11
 
 ### Fixed
@@ -2113,7 +2152,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.36.1...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.37.0...HEAD
+[0.37.0]: https://github.com/Artui/djangorestframework-services/compare/v0.36.1...v0.37.0
 [0.36.1]: https://github.com/Artui/djangorestframework-services/compare/v0.36.0...v0.36.1
 [0.36.0]: https://github.com/Artui/djangorestframework-services/compare/v0.35.0...v0.36.0
 [0.35.0]: https://github.com/Artui/djangorestframework-services/compare/v0.34.0...v0.35.0
