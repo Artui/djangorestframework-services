@@ -62,6 +62,12 @@ async def adispatch_spec(
     on_target_resolved: TargetGuard | None = None,
     progress: ProgressReporter | None = None,
     view_hooks: ViewHooks | None = None,
+    # See the sync sibling for the full contract. Kept in step with it
+    # deliberately: this parameter was missing here for as long as it existed
+    # there, so an async caller that needed to filter on something other than
+    # the callable's own kwarg pool got a ``TypeError`` — and nothing noticed,
+    # because the one caller that passed it was sync-only.
+    filter_data: Mapping[str, Any] | None = None,
 ) -> DispatchResult:
     """Async :func:`~rest_framework_services.dispatch_spec`.
 
@@ -100,6 +106,7 @@ async def adispatch_spec(
             on_target_resolved=on_target_resolved,
             progress=progress,
             view_hooks=view_hooks,
+            filter_data=filter_data,
         )
     if isinstance(spec, SelectorSpec):
         return await _adispatch_selector(
@@ -113,6 +120,7 @@ async def adispatch_spec(
             on_target_resolved=on_target_resolved,
             progress=progress,
             view_hooks=view_hooks,
+            filter_data=filter_data,
         )
     raise TypeError(
         f"adispatch_spec expects a ServiceSpec or SelectorSpec; got {type(spec).__name__}."
@@ -131,6 +139,7 @@ async def _adispatch_selector(
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
     view_hooks: ViewHooks | None,
+    filter_data: Mapping[str, Any] | None,
 ) -> DispatchResult:
     if spec.selector is None:
         raise ImproperlyConfigured("adispatch_spec requires the SelectorSpec to set a `selector`.")
@@ -164,7 +173,7 @@ async def _adispatch_selector(
             result,
             view=view,
             request=request,
-            params=params,
+            params=filter_data if filter_data is not None else params,
             source_label=SELECTOR_SOURCE,
         )
     except ObjectDoesNotExist:
@@ -218,6 +227,7 @@ async def _adispatch_service(
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
     view_hooks: ViewHooks | None,
+    filter_data: Mapping[str, Any] | None,
 ) -> DispatchResult:
     if spec.many:
         return await _adispatch_service_many(
@@ -306,7 +316,12 @@ async def _adispatch_service(
         spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
     )
     output_result, output_is_list = await _arun_output_selector(
-        spec, result, user=user, request=request, view=view, params=params
+        spec,
+        result,
+        user=user,
+        request=request,
+        view=view,
+        params=filter_data if filter_data is not None else params,
     )
 
     # A callable ``spec.success_status`` keys on the *service's* return value

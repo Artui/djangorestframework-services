@@ -29,6 +29,21 @@ def _post_qs_by_pk(*, pk: int) -> QuerySet[Post]:
     return Post.objects.filter(pk=pk)
 
 
+class _PublishedFilterSet:
+    """Duck-typed FilterSet: narrows by ``?published=``."""
+
+    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
+        self._data = data
+        self._queryset = queryset
+
+    @property
+    def qs(self) -> QuerySet[Post]:
+        raw = self._data.get("published")
+        if raw is None:
+            return self._queryset
+        return self._queryset.filter(published=str(raw).lower() in ("1", "true", "yes"))
+
+
 @pytest.mark.django_db(transaction=True)
 class TestADispatchSelector:
     async def test_list_with_async_selector(self) -> None:
@@ -199,3 +214,42 @@ class TestADispatchTypeError:
     async def test_rejects_non_spec(self) -> None:
         with pytest.raises(TypeError, match="ServiceSpec or SelectorSpec"):
             await adispatch_spec("nope", user=None, params={})  # type: ignore[arg-type]
+
+
+@pytest.mark.django_db(transaction=True)
+class TestAFilterDataOnTheReadPath:
+    """The async sibling had no ``filter_data`` parameter at all until 0.31.
+
+    Passing one was a ``TypeError``, and nothing caught it because the only
+    caller that passed it was sync-only. The pair is kept in step here.
+    """
+
+    async def test_filter_data_is_the_filter_source_when_given(self) -> None:
+        await Post.objects.acreate(title="shipped", published=True)
+        await Post.objects.acreate(title="draft", published=False)
+
+        def all_posts() -> QuerySet[Post]:
+            return Post.objects.all().order_by("id")
+
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST, selector=all_posts, filter_set=_PublishedFilterSet
+        )
+        result = await adispatch_spec(spec, user=None, params={}, filter_data={"published": "true"})
+
+        titles = await sync_to_async(lambda: [p.title for p in result.value])()
+        assert titles == ["shipped"]
+
+    async def test_omitting_filter_data_keeps_params_as_the_filter_source(self) -> None:
+        await Post.objects.acreate(title="shipped", published=True)
+        await Post.objects.acreate(title="draft", published=False)
+
+        def all_posts() -> QuerySet[Post]:
+            return Post.objects.all().order_by("id")
+
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST, selector=all_posts, filter_set=_PublishedFilterSet
+        )
+        result = await adispatch_spec(spec, user=None, params={"published": "false"})
+
+        titles = await sync_to_async(lambda: [p.title for p in result.value])()
+        assert titles == ["draft"]

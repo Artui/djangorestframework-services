@@ -489,3 +489,74 @@ class TestRenderSpecOutput:
             view=offline.view,
         )
         assert result.value.title == "p-by-alice"
+
+
+@pytest.mark.django_db
+class TestFilterDataOnTheReadPath:
+    """``filter_data`` gives the FilterSet a different mapping than the callable.
+
+    It reached only the *service* path until 0.31: a selector's ``filter_set``
+    read ``params`` no matter what ``filter_data`` said, silently. That made it
+    impossible for an off-HTTP transport to filter on anything the selector
+    callable did not also declare as a keyword argument — which is precisely
+    what an agent transport needs, since a spec's ``OrderingFilter`` is
+    advertised to the model while no selector declares ``ordering``.
+    """
+
+    def test_filter_data_is_the_filter_source_when_given(self) -> None:
+        author = Author.objects.create(name="A")
+        Post.objects.create(title="shipped", author=author, published=True)
+        Post.objects.create(title="draft", author=author, published=False)
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=_all_posts,
+            output_serializer=_PostSerializer,
+            filter_set=_PublishedFilterSet,
+        )
+
+        result = dispatch_spec(
+            spec,
+            user=None,
+            # The selector's pool says nothing about ``published``; only the
+            # filter's own view of the arguments carries it.
+            params={},
+            filter_data={"published": "true"},
+        )
+
+        rendered = render_spec_output(spec, result.value, many=True)
+        assert [row["title"] for row in rendered] == ["shipped"]
+
+    def test_filter_data_replaces_params_rather_than_merging(self) -> None:
+        """A value in ``params`` alone must not reach the FilterSet once
+        ``filter_data`` is supplied — otherwise the two pools are one again and
+        a caller cannot withhold an argument from the filter."""
+        author = Author.objects.create(name="A")
+        Post.objects.create(title="shipped", author=author, published=True)
+        Post.objects.create(title="draft", author=author, published=False)
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=_all_posts,
+            output_serializer=_PostSerializer,
+            filter_set=_PublishedFilterSet,
+        )
+
+        result = dispatch_spec(spec, user=None, params={"published": "true"}, filter_data={})
+
+        rendered = render_spec_output(spec, result.value, many=True)
+        assert [row["title"] for row in rendered] == ["shipped", "draft"]
+
+    def test_omitting_filter_data_keeps_params_as_the_filter_source(self) -> None:
+        author = Author.objects.create(name="A")
+        Post.objects.create(title="shipped", author=author, published=True)
+        Post.objects.create(title="draft", author=author, published=False)
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=_all_posts,
+            output_serializer=_PostSerializer,
+            filter_set=_PublishedFilterSet,
+        )
+
+        result = dispatch_spec(spec, user=None, params={"published": "false"})
+
+        rendered = render_spec_output(spec, result.value, many=True)
+        assert [row["title"] for row in rendered] == ["draft"]
