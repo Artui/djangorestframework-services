@@ -45,6 +45,81 @@ jobs:
         # the test settings module to keep the build hermetic.
         run: DJANGO_SETTINGS_MODULE=tests.conftest_settings uv run mkdocs build --strict
 
+  floor:
+    name: lowest declared versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      # A floor is a claim about the *oldest* version that works, and a lockfile
+      # can only ever check the newest. Development and CI both resolve the
+      # newest in-range dependency, so every gate passes while a consumer whose
+      # own constraints pull an older one gets a package that does not import.
+      #
+      # That has already happened in this ecosystem: a sibling declared
+      # pydantic-ai >=2 while importing a symbol that first exists in 2.16, and
+      # the only thing that found it was a downstream consumer resolving from
+      # scratch.
+      #
+      # `lowest-direct` pins every *declared* dependency to the bottom of its
+      # window while letting transitives resolve normally, so this asserts the
+      # floors mean what they say. A per-PR gate rather than a scheduled job,
+      # because a floor stops being true the moment someone imports a newer
+      # upstream symbol -- a code change, not the passage of time.
+      - name: Resolve every declared dependency at its floor
+        run: uv lock --resolution lowest-direct
+      - name: Install
+        run: uv sync --all-groups --all-extras
+      - name: Name the versions that produced
+        run: uv pip list
+      - name: Test
+        run: uv run pytest
+
+      # ⚠ The step above installs every extra, and an extra can hold a shared
+      # dependency *above* the floor being claimed -- masking the lie rather
+      # than exposing it. That is not hypothetical: reverting a sibling's
+      # pydantic-ai floor to its old value and resolving with all extras kept
+      # that dependency at 2.18 because another extra required it, and the
+      # suite passed. The same revert on a plain base install resolved 2.0 and
+      # failed at import, which is exactly how the original defect reached a
+      # consumer.
+      #
+      # So the floor claim has to be checked on the install shape that has the
+      # fewest constraints: the package alone, no extras, no dev group.
+      - name: Import the package installed alone, at its floors
+        run: |
+          uv venv --python 3.10 .venv-floor
+          uv pip install --python .venv-floor/bin/python --resolution lowest-direct -e .
+          uv pip list --python .venv-floor/bin/python
+          .venv-floor/bin/python - <<'PY'
+          import django
+          from django.conf import settings
+
+          # DRF reads settings.REST_FRAMEWORK at import, so a bare import of
+          # this package cannot run unconfigured.
+          settings.configure(
+              SECRET_KEY="x",
+              INSTALLED_APPS=[
+                  "django.contrib.contenttypes",
+                  "django.contrib.auth",
+                  "rest_framework",
+              ],
+              DATABASES={"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}},
+          )
+          django.setup()
+
+          import rest_framework_services
+          from rest_framework_services import dispatch_spec, SelectorSpec, ServiceSpec
+
+          # Touch the public surface rather than only the package root: an
+          # upstream symbol that moved would be imported by a leaf module, and
+          # importing the root alone can miss it.
+          assert callable(dispatch_spec)
+          print("BASE IMPORT OK", django.get_version())
+          PY
+
   test:
     name: ${{ matrix.python-version }} / Django ${{ matrix.django-version }}
     runs-on: ubuntu-latest
@@ -250,7 +325,7 @@ jobs:
   tests-passed:
     name: tests
     if: always()
-    needs: [lint, docs, test]
+    needs: [lint, docs, floor, test]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required jobs succeeded
