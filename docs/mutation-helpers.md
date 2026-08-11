@@ -32,11 +32,16 @@ Every helper takes:
 also take:
 
 - **`m2m: dict[str, Any] | None`** — many-to-many assignments applied
-  *post-save*. Each value is passed to the manager's `set()`.
-- **`children: Mapping[str, ChildSpec] | None`** — reverse-FK child
-  collections written from `data[relation]` (create / update / orphan
-  reconcile, recursively). See the
+  *post-save*. Each value is passed to the manager's `set()`. This
+  **assigns rows that already exist**; to write the target rows from the
+  payload, declare a `ManyToManySpec` in `relations` instead. A relation
+  named by both is refused.
+- **`relations: Mapping[str, RelationSpec] | None`** — nested relations
+  written from `data[relation]`, one spec class per kind, in the order the
+  kind dictates rather than the order the map is spelled in. See the
   [nested-writes recipe](recipes/nested-writes.md).
+- **`children: Mapping[str, ChildSpec] | None`** — the reverse-FK alias for
+  `relations`, under the name it shipped as. A name declared in both raises.
 - **`context: Mapping[str, Any] | None`** — an **opaque** caller pool
   forwarded into the kwargs of any per-child service a `ChildSpec`
   declares. The helper never reads it; it exists so per-row work

@@ -1,30 +1,65 @@
-# Nested writes — parent + child collections
+# Nested writes — every relation kind
 
-The mutation helpers persist a model's scalar columns and its many-to-many
-relations. Reverse-FK **child collections** ("one-to-many" — an `Author` with
-`books`, an `Order` with `lines`) are written through the `children=` argument,
-so you can save a parent and its children from one request **without** binding a
-writable-nested serializer and delegating persistence back to `serializer.save()`.
+The mutation helpers persist a model's scalar columns. They also persist its
+**relations**, from the same payload and in one call, so you can save a parent
+and everything hanging off it from one request **without** binding a
+writable-nested serializer and delegating persistence back to
+`serializer.save()`.
+
+Every relation kind Django has is covered — forward FK and one-to-one, reverse
+FK collections, reverse one-to-one, many-to-many, and generic relations — with
+one exception named in [What is not covered](#what-is-not-covered).
 
 ## The shape
 
-`children` maps a relation name to a
-[`ChildSpec`](../reference/types.md#childspec). The child rows are read from
-`data[relation]`; each child runs back through `create_from_input` /
+`relations` maps a relation name to the spec for its kind. The nested payload is
+read from `data[relation]`; each row runs back through `create_from_input` /
 `update_from_input`, so scalar / m2m / nested semantics compose recursively.
 
 ```python
-from rest_framework_services import ChildSpec, update_from_input
+from rest_framework_services import ChildSpec, ForwardRelationSpec, update_from_input
 
 
-def update_author(*, instance, data):
+def update_post(*, instance, data):
     return update_from_input(
         instance,
-        data,  # {"name": ..., "books": [{...}, {...}]}
-        children={
-            "books": ChildSpec(model=Book, fk="author"),
+        data,  # {"title": ..., "author": {...}, "comments": [{...}]}
+        relations={
+            "author": ForwardRelationSpec(model=Author, scope=Author.objects.all()),
+            "comments": ChildSpec(model=Comment, fk="post"),
         },
     ).instance
+```
+
+| Relation | Spec | Written |
+|---|---|---|
+| Forward FK / one-to-one (`Post.author`) | [`ForwardRelationSpec`](../reference/types.md#forwardrelationspec) | before the parent's `save()` |
+| Reverse FK collection (`Author.posts`) | [`ChildSpec`](../reference/types.md#childspec) | after |
+| Reverse one-to-one (`Author.profile`) | [`ReverseOneToOneSpec`](../reference/types.md#reverseonetoonespec) | after |
+| Generic relation (`Catalog.attachments`) | [`GenericRelationSpec`](../reference/types.md#genericrelationspec) | after |
+| Many-to-many (`Post.tags`, either side) | [`ManyToManySpec`](../reference/types.md#manytomanyspec) | last |
+
+**The order comes off the spec class, never off the map.** A forward foreign key
+has to exist before the parent is saved and a many-to-many has to be linked
+after; that is a property of the kind, not of how you happened to spell the
+dict. Each class declares its
+[`RelationPhase`](../reference/types.md#relationphase) and the driver walks the
+phases in order. Declaration order still decides everything the phases leave
+open: two relations in the same phase are written in the order you declared
+them.
+
+Writing the forward pair first is not only correctness. By the time the parent
+is built or diffed, the relation is an ordinary column value, so it flows
+through the same `diff_attrs` reporting and the same minimal `update_fields`
+save as any other field, with nothing added for the occasion.
+
+`children=` is the reverse-FK alias — the same map under the name it shipped as
+— so nothing written against it needs changing. A name declared in both raises.
+
+## Reverse-FK child collections
+
+```python
+children = {"books": ChildSpec(model=Book, fk="author")}
 ```
 
 - **`fk`** is the child's forward FK field pointing at the parent — set
@@ -40,9 +75,13 @@ An orphan is **unlinked** (its FK set to `None`) when the FK is nullable, and
 **deleted** otherwise — mirroring `on_delete=SET_NULL` vs `CASCADE`. A relation
 the input omits entirely is left untouched; send an explicit `[]` to clear it.
 
-## Grandchildren
+Matching happens inside the parent's own manager, so a child collection needs no
+`scope=`: a row the parent doesn't own is not reachable to begin with.
 
-A `ChildSpec` can carry its own `children=`, so depth follows the declared tree:
+### Grandchildren
+
+A spec can carry its own `children=` / `relations=`, so depth follows the
+declared tree:
 
 ```python
 children = {
@@ -54,12 +93,186 @@ children = {
 }
 ```
 
-## When a child's write has behaviour of its own
+## Forward FK and one-to-one
 
-A child row that needs side effects, derived columns, an event or an external
-call doesn't fit a plain helper call. Rather than abandon the facility and
-hand-write the reconciliation loop, put a service in the slot for that
-operation:
+One spec covers both, because Django does: `OneToOneField` subclasses
+`ForeignKey`, and the column being unique changes nothing about how it is
+written.
+
+```python
+relations = {"author": ForwardRelationSpec(model=Author, scope=Author.objects.all())}
+```
+
+The value at `data["author"]` reads three ways:
+
+- **omitted** — untouched.
+- **`None`** — the parent's foreign key is set to `None`. The row it pointed at
+  is *not* removed: a forward target is not owned by the parent and may be
+  shared with other rows. Removing rows is the reverse kinds' job.
+- **a mapping** — the target row is written. Without a `match_key` it is
+  created; with one it names a row, matched against [`scope`](#scope).
+
+A `match_key` that matches nothing in scope raises a 400 rather than falling
+through to a create — see [scope](#scope) for why. To merely point the column at
+a row that already exists, don't declare a relation at all: pass the pk or the
+instance as the plain field it is.
+
+## Reverse one-to-one
+
+The other side of a `OneToOneField` — the column lives on the related row and
+the parent reaches at most one of them:
+
+```python
+relations = {"profile": ReverseOneToOneSpec(model=Profile, fk="author")}
+```
+
+- **omitted** — untouched.
+- **`None`** — the existing row, if any, is removed by the orphan rule:
+  **unlinked** when `fk` is nullable, **deleted** when it is not. Unlike a
+  forward relation, this row *is* the parent's, so clearing the relation has to
+  do something about it.
+- **a mapping** — updated when the parent already has a row, created and linked
+  when it does not.
+
+No `match_key` and no `scope`: the parent owns at most one row here, so the
+relation itself is the match.
+
+## Many-to-many written from the payload
+
+```python
+relations = {"tags": ManyToManySpec(model=Tag, scope=Tag.objects.all())}
+```
+
+Each row in `data["tags"]` is a **payload**, not a key: the target row is
+created or updated first, and only then is the membership written. Forward and
+reverse are one code path — Django hands back the same related manager whether
+you name the field (`Post.tags`) or the reverse accessor (`Tag.posts`).
+
+- **`mode`** — `"replace"` (default) makes the incoming set authoritative and
+  drops the members it leaves out; `"merge"` adds and never drops.
+- A dropped target is **unlinked, never deleted**. The row is shared with every
+  other parent linked to it, so the only thing the loop removes is the
+  membership.
+
+Matching is done in `scope`, never in the parent's current membership: the
+payload names the rows to link, which is exactly the set that is not linked yet.
+
+### `m2m=` still exists, and is a different job
+
+The helpers' `m2m=` keyword **assigns rows that already exist** (pks or
+instances) and creates nothing:
+
+```python
+create_from_input(Post, data, m2m={"tags": [tag_a, tag_b]})
+```
+
+Both ship. What they cannot do is share a relation — they would both write it,
+in an order you did not choose, and only the second would survive. **A relation
+named by `m2m=` and by a `ManyToManySpec` raises `ImproperlyConfigured`**;
+assign it or write it, not both. Different relations on the same call are fine.
+
+## Generic relations
+
+A reverse-FK collection with the foreign key replaced by two columns — a
+`ForeignKey` to `ContentType` saying which model the row belongs to, and an id
+column saying which row:
+
+```python
+relations = {"attachments": GenericRelationSpec(model=Attachment)}
+```
+
+Both are injected from the saved parent. Everything else is the child-collection
+loop: matched inside the parent's own accessor (so no `scope=`), `mode`,
+grandchildren, services. An orphan is **unlinked** when *both* link columns are
+nullable, and **deleted** otherwise — the same rule applied to a pair, because
+half a severed link is a row pointing at a content type with no row id.
+
+Set `content_type_field` / `object_id_field` when the model spells the columns
+differently; they mirror the arguments of the same name on Django's
+`GenericRelation`.
+
+!!! note "This kind needs `django.contrib.contenttypes` in `INSTALLED_APPS`"
+
+    It is the library's only contact with that app, and the app is not
+    guaranteed to be installed, so the content-type lookup is resolved on first
+    use rather than imported with the package — `rest_framework_services` itself
+    ships in `INSTALLED_APPS` and is imported while Django is still populating
+    the app registry, where importing a model raises `AppRegistryNotReady`.
+
+    Declaring a `GenericRelationSpec` is always safe. *Writing* one without the
+    app installed raises `ImproperlyConfigured` naming the app and the remedy.
+    There is nothing extra to `pip install`: contenttypes ships inside Django,
+    so the opt-in is the `INSTALLED_APPS` entry.
+
+## `scope`
+
+`scope` names the rows this caller is allowed to write. It is a queryset, or a
+callable resolved from the caller pool by signature — the library's usual idiom:
+
+```python
+ForwardRelationSpec(model=Author, scope=lambda user: Author.objects.filter(owner=user))
+```
+
+**Only the two unowned kinds take it** — forward relations and many-to-many —
+and the reason is the interesting part, not the syntax.
+
+A child collection, a reverse one-to-one and a generic relation are all reached
+*through the parent*: matching happens inside a manager the parent owns, so a
+row belonging to somebody else is not reachable at all. A forward target and a
+many-to-many target have no such manager. They are shared by definition — every
+row pointing at them reaches the same row — so matching one by key with nothing
+to constrain it means **"any caller may write any row of that model by guessing
+a key"**. That is not a hypothetical: a payload of `{"pk": 7, "name": "..."}`
+against an unscoped spec would fetch row 7 and write the caller's values onto
+it.
+
+So:
+
+- **No `scope`** ⇒ the spec is **create-only**. A payload carrying a `match_key`
+  raises `ImproperlyConfigured` rather than quietly creating a duplicate. It is
+  a misconfiguration and not a 400 because the remedy is always "declare a
+  scope" and never "send different data" — a 4xx would give the client advice it
+  cannot act on.
+- **With `scope`**, a `match_key` that matches nothing in it raises
+  `ServiceValidationError` (a 400) rather than falling through to a create. A
+  `match_key` on an unowned target *identifies* a row — "point at this one" — so
+  there is nothing sensible to create in its place. Creating one anyway would be
+  unsafe as well as surprising: the key travels in the payload, so a `pk` naming
+  an out-of-scope row would be written straight back onto that row by
+  `Model.save()`, reaching the very row the scope exists to protect.
+
+That last sentence is also why a *child collection* behaves differently: an
+unmatched natural key there really does mean "a new child", because the match
+ran inside the parent's own manager.
+
+## A nested create may not carry a primary key
+
+**`Model(pk=7, ...).save()` is an UPDATE.** So a nested payload that reaches the
+create branch while still carrying a primary key does not create anything — it
+reassigns and overwrites row 7, whoever owns it. Scoping the *match* does not
+constrain the *write* that follows it.
+
+Every kind funnels through one create, and that create refuses a payload naming
+a primary key the match did not resolve, with `ServiceValidationError`:
+
+```python
+# Refused: pk 42 is not in this author's collection.
+update_from_input(author, {"books": [{"pk": 42, "title": "..."}]}, children=BOOKS)
+```
+
+The guard runs **before** a declared `create_service` is dispatched, so your own
+code is never handed the key either. Raising rather than stripping it is
+deliberate: the caller named a specific row, and quietly creating a different one
+does the opposite of what was asked and hands back a pk they never chose.
+
+A **non-primary** `match_key` — a natural key like an ISBN or a slug — is
+untouched by this, so declaring one is how you get upsert semantics.
+
+## When a row's write has behaviour of its own
+
+A row that needs side effects, derived columns, an event or an external call
+doesn't fit a plain helper call. Rather than abandon the facility and hand-write
+the reconciliation loop, put a service in the slot for that operation:
 
 ```python
 ChildSpec(
@@ -75,17 +288,21 @@ ChildSpec(
 and orphan handling never move into your code — a slot is called once per row
 the loop has already decided about.
 
-- `data` reaches a create service with the `fk` already pointing at `parent`:
-  linking the row is reconciliation, not row behaviour.
+- `data` reaches a create service with the link to the parent already set (the
+  `fk`, or both generic columns): linking the row is reconciliation, not row
+  behaviour. A `ForwardRelationSpec` create service gets no `parent` at all,
+  since the parent does not exist yet, and a `ManyToManySpec` one gets `parent`
+  but no link in `data` — the link is a through row the loop writes afterwards.
 - An update service returning `None` means "use the in-memory instance", the
   same convention the top-level update services follow.
 - A delete service replaces the unlink-or-delete rule for that row (orphan
   removal *and* the `delete_model` cascade). The loop can no longer tell the
   two apart, so the pk is reported under `removed` — its own bucket, rather
-  than a guess folded into `deleted`.
+  than a guess folded into `deleted`. `ManyToManySpec` has no delete slot: it
+  never deletes a target, only the membership.
 - A `create_service` / `update_service` **replaces** the helper call, so the
   knobs configuring that call — `field_map`, `exclude_fields`, `m2m` and the
-  nested `children` map — are refused on the same spec, with
+  nested `children` / `relations` maps — are refused on the same spec, with
   `ImproperlyConfigured` at construction. They would otherwise be dead
   configuration, and a spec declaring both a `create_service` and `children=`
   would write no grandchildren while saying nothing. `delete_service` is exempt:
@@ -102,58 +319,89 @@ Two create/update slots rather than one because the two shapes genuinely
 differ, and a single slot would have to fake `instance=None`. Nested services
 run with `atomic=False`: the calling service's atomic block already wraps the
 whole tree, and a block per row would only buy a savepoint per row. In the
-async helpers the slot must be an `async def`.
+async helpers the slot must be an `async def` — the async path is awaited end to
+end, and a sync callable there fails on an un-awaitable return.
 
 ## Declarative — no service body
 
-The default model services forward `children=`, so a parent-with-children
-resource needs no hand-written service:
+The default model services forward `relations=` / `children=`, so a
+parent-with-relations resource needs no hand-written service:
 
 ```python
 from rest_framework_services import ServiceSpec, create_model
 
 ServiceSpec(
-    service=create_model(Author, children={"books": ChildSpec(model=Book, fk="author")}),
+    service=create_model(Author, relations={"books": ChildSpec(model=Book, fk="author")}),
     input_serializer=AuthorInput,  # validates name + the books list
 )
 ```
 
-`children` lives on the **helper**, never on `ServiceSpec` — the dispatch
+`relations` lives on the **helper**, never on `ServiceSpec` — the dispatch
 surface stays about transport, not persistence shape.
 
-## Deleting children
+## Deleting
 
-`delete_model` accepts `children=` to remove collections **before** the parent
-(grandchildren first) — useful when the FK can't cascade for you (a `PROTECT`
-relation, or a `soft_delete` Django won't cascade through). Nullable-FK children
-are unlinked, the rest deleted, exactly like the orphan rule above:
+`delete_model` accepts the same map, to cascade explicitly where the database
+will not: a `PROTECT` relation, or a `soft_delete` Django never cascades through
+because no row is deleted.
 
 ```python
 delete_model(
     Catalog,
-    children={"sections": ChildSpec(model=Section, fk="catalog")},
+    relations={
+        "sections": ChildSpec(model=Section, fk="catalog"),
+        "attachments": GenericRelationSpec(model=Attachment),
+        "tags": ManyToManySpec(model=Tag),
+    },
 )
 ```
 
-For a plain hard delete, you usually don't need this — the FK's `on_delete`
-already cascades.
+**One rule covers every kind: the cascade removes the rows the parent owns and
+leaves alone the rows it merely points at.**
+
+- Reverse-FK collections, reverse one-to-ones and generic relations are the
+  parent's rows, so they go — deepest first, nullable links unlinked and the
+  rest deleted, or handed to `delete_service`.
+- A many-to-many loses only its **membership**. The targets are shared, so none
+  is deleted; they are reported under `unlinked`.
+- A forward relation is left **untouched**. The link lives on the parent, so the
+  column goes when the parent does, and the target is not the parent's to
+  remove. It is reported rather than refused, because the same `relations=` map
+  is what the row's write path is declared with.
+
+The specs' write-only fields (`match_key` / `mode` / `field_map` / `m2m`) are
+ignored here. For a plain hard delete you usually don't need this at all — the
+FK's `on_delete` already cascades.
 
 ## What changed in the response
 
-`ChangeResult.children` carries one
-[`ChildCollectionChange`](../reference/types.md#childcollectionchange) per
-relation, with the `created` / `updated` / `deleted` / `unlinked` / `removed`
-child pks:
+`ChangeResult` reports relations in two carriers, split by **shape** rather than
+by keyword:
+
+- `ChangeResult.children` — one
+  [`ChildCollectionChange`](../reference/types.md#childcollectionchange) per
+  relation that holds *many* rows (reverse FK, generic, many-to-many), with the
+  `created` / `updated` / `deleted` / `unlinked` / `removed` pks.
+- `ChangeResult.relations` — one
+  [`RelatedObjectChange`](../reference/types.md#relatedobjectchange) per
+  relation that holds *one* (forward, reverse one-to-one), with a single
+  `outcome` and `pk`. Four pk tuples cannot report a one-row relation honestly:
+  every one of them would be empty or a one-tuple, and "which of the four is
+  non-empty" is a worse way to say what happened than saying it.
 
 ```python
-result = update_from_input(author, data, children={"books": ChildSpec(model=Book, fk="author")})
-delta = result.get_child_change("books")
-delta.created, delta.updated, delta.deleted, delta.unlinked
+result = update_from_input(author, data, relations=RELATIONS)
+result.get_child_change("books").created
+result.get_relation_change("profile").outcome  # "created" | "updated" | "unlinked" | ...
 ```
 
-`removed` is the fifth bucket, and only a `delete_service` fills it: once a
-service owns the row, "deleted" and "unlinked" are no longer things the loop
-knows.
+A forward relation shows up **twice** and means two different things: in
+`relations` as the row that was created or matched, and in `changes` as the
+parent's foreign-key column — which only appears if it actually changed.
+
+`removed` is the fifth collection bucket, and only a `delete_service` fills it:
+once a service owns the row, "deleted" and "unlinked" are no longer things the
+loop knows.
 
 ## Migrating off a writable-nested serializer
 
@@ -181,11 +429,57 @@ class AuthorSerializer(serializers.ModelSerializer):
 
 def update_author(*, instance, data):
     return update_from_input(
-        instance, data, children={"books": ChildSpec(model=Book, fk="author")}
+        instance, data, relations={"books": ChildSpec(model=Book, fk="author")}
     ).instance
 ```
 
 Field-level validation stays in the serializer / dataclass; the helper owns the
 writes, inside the service's atomic block. The nested serializer no longer needs
-a `create()` / `update()` override, and the `drf-writable-nested`-style base
-class can go.
+a `create()` / `update()` override, and the writable-nested base class can go.
+
+### What is covered
+
+Forward FK, forward one-to-one, reverse FK collections, reverse one-to-one,
+many-to-many (both sides), and generic relations — declared with the spec for
+the kind, in one `relations=` map.
+
+### What is not covered
+
+**Many-to-many through an explicit `through` model.** The loop writes target
+rows and lets Django write the through row, which cannot carry the extra columns
+a custom through model exists for. Declare that relation as a `ChildSpec` on the
+through model itself (its two foreign keys are ordinary forward relations), or
+write it in a service.
+
+### Three differences to meet here rather than in production
+
+**1. Matching by key is scoped, and unscoped specs are create-only.**
+`drf-writable-nested` and `drf-nested` match every by-pk lookup against
+`Model.objects.get(pk=pk)` — global, on every kind. This library scopes it: to
+the parent's own manager where there is one, and to a declared
+[`scope=`](#scope) where there isn't. A spec with neither cannot update an
+existing row at all, and a payload that asks it to raises. If you are porting a
+declaration, the pk-matching relations are the ones that need a `scope=`.
+
+**2. Orphan removal is `mode=`, and unlinks where it can.** `drf-nested` hard
+`delete()`s every unmatched row, triggered by the request not being a PATCH.
+Here the trigger is an explicit `mode="replace"` (the default) versus
+`"merge"`, and an unmatched row is **unlinked** when its link is nullable and
+deleted only when it is not — mirroring `SET_NULL` versus `CASCADE`. A
+many-to-many target is never deleted at all.
+
+**3. A nested create carrying a primary key raises.** This is the one a
+migrating reader hits first, because `drf-nested` upserts by pk on every kind
+and payloads written for it carry `id` everywhere. Here a pk that the match did
+not resolve is refused rather than saved — see [A nested create may not carry a
+primary key](#a-nested-create-may-not-carry-a-primary-key) for why
+`Model(pk=7).save()` makes that a security question rather than a style one.
+Rows the parent already owns still update by pk exactly as before; what changes
+is that a pk naming somebody else's row, or no row at all, now gets a 400
+instead of writing.
+
+Also deliberately absent: `drf-nested`'s per-relation `allow_create` /
+`allow_update` / `preserve_provided` / `forbidden_on_create` knobs. They exist
+because that facility is serializer-declarative and needs override points. Here
+you control what reaches a spec, and a row that needs real behaviour gets a
+service in the slot.

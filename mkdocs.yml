@@ -90,7 +90,7 @@ nav:
       - State rules with preconditions: recipes/preconditions.md
       - Per-spec queryset shaping: recipes/queryset-shaping.md
       - Filter a selector with filter_set: recipes/selector-filtering.md
-      - Nested / child-collection writes: recipes/nested-writes.md
+      - Nested writes for every relation kind: recipes/nested-writes.md
       - Bulk & collection mutations: recipes/bulk-mutations.md
       - Customise serializer context: recipes/serializer-context.md
       - Declare specs once for many transports: recipes/spec-registry.md

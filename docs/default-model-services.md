@@ -190,6 +190,24 @@ delete_model(Post, soft_delete=_archive)
 
 The async variant takes an `async def` hook.
 
+### `relations` / `children`
+
+Every factory forwards them. On `create_model` / `update_model` they declare
+the nested relations to write; on `delete_model` they declare what to remove
+before the parent goes, by the one rule the
+[nested-writes recipe](recipes/nested-writes.md#deleting) states — the rows the
+parent owns go, the rows it merely points at are left alone.
+
+```python
+delete_model(
+    Catalog,
+    relations={"sections": ChildSpec(model=Section, fk="catalog")},
+)
+```
+
+Useful when the database will not cascade for you: a `PROTECT` relation, or a
+`soft_delete` hook Django never cascades through because no row is deleted.
+
 ## When not to use
 
 If you need `request.user` to stamp `created_by` on the instance, or the
