@@ -32,6 +32,7 @@ from rest_framework_services.dispatch.utils import (
     shape_queryset,
     strip_reserved_seeds,
     view_url_kwargs,
+    wire_named_errors,
 )
 from rest_framework_services.selectors.utils import materialize_retrieve, run_selector
 from rest_framework_services.services.run_service import run_service
@@ -334,10 +335,11 @@ def _dispatch_service(
     elif extras:
         pool["data"] = data
 
-    call_preconditions(spec, pool)
-    result: Any = run_service(
-        spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
-    )
+    with wire_named_errors(serializer):
+        call_preconditions(spec, pool)
+        result: Any = run_service(
+            spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
+        )
     clear_prefetch_cache(instance)
     output_result, output_is_list = _run_output_selector(
         spec,
@@ -415,10 +417,11 @@ def _dispatch_service_many(
     # Once, with no target, matching the ``call_target_guard(…, None)`` above:
     # only preconditions declaring ``user`` / ``request`` / the payload bind.
     # Per-item rules belong in the service's own loop.
-    call_preconditions(spec, pool)
-    result: Any = run_service(
-        spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
-    )
+    with wire_named_errors(serializer):
+        call_preconditions(spec, pool)
+        result: Any = run_service(
+            spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
+        )
     status = (
         success_status
         if success_status is not None

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Iterator, Mapping
+from contextlib import contextmanager
 from typing import Any
 
 from asgiref.sync import sync_to_async
@@ -610,3 +611,94 @@ async def arun_service_callable(
     if is_async(fn):
         return await arun_service(fn, kwargs, atomic=atomic)
     return await sync_to_async(run_service, thread_sensitive=True)(fn, kwargs, atomic=atomic)
+
+
+# --- naming a refusal what the request called it -------------------------
+#
+# A service raises about the model: ``{"title": [...]}``, because the model is
+# what it was handed. The request may have said something else -- a serializer
+# field declares ``source=`` precisely to let the two diverge -- and by the time
+# the service runs, that name is gone. DRF resolves ``source=`` while building
+# ``validated_data``, at every depth, so the wire name reaches neither the
+# service nor the mutation helpers nor a relation spec. The serializer is the
+# one thing still holding both vocabularies, and it holds them for free.
+
+
+def _wire_names(serializer: Any) -> dict[str, tuple[str, Any]]:
+    """``{source: (wire_name, nested)}`` for one serializer's writable fields.
+
+    ``nested`` is the same mapping for a field that is itself a serializer, so
+    the result describes the whole input tree rather than its top level.
+    ``many=True`` is that same tree one indirection away, on ``child``.
+
+    Read-only fields are skipped: their ``source`` cannot appear in an error
+    about input, and including them would let one shadow the writable field
+    that can. Two writable fields sharing a ``source`` is not a shape DRF can
+    save, so the first is taken rather than guessed between. A dotted
+    ``source="author.name"`` and ``source="*"`` are skipped -- neither is a key
+    of ``validated_data``, so neither can be a key of an error about it.
+    """
+    child: Any = getattr(serializer, "child", None)
+    fields: Any = getattr(child if child is not None else serializer, "fields", None)
+    if fields is None:
+        return {}
+    names: dict[str, tuple[str, Any]] = {}
+    for wire_name, field in fields.items():
+        source: str = field.source
+        if field.read_only or "." in source or source == "*" or source in names:
+            continue
+        names[source] = (wire_name, _wire_names(field) or None)
+    return names
+
+
+def _wire_named_detail(detail: Any, names: dict[str, tuple[str, Any]]) -> Any:
+    """``detail`` with every key the serializer knows a wire name for renamed.
+
+    A key with no entry passes through untouched, which is what keeps
+    ``non_field_errors`` and anything else a service invented intact -- the
+    walk renames what it can name and never guesses. A list is walked without
+    descending a level, because that is the shape a collection's error already
+    has: one entry per incoming row, each keyed like the row.
+    """
+    if isinstance(detail, dict):
+        renamed: dict[str, Any] = {}
+        for key, value in detail.items():
+            wire_name, nested = names.get(key, (key, None))
+            renamed[wire_name] = _wire_named_detail(value, nested) if nested else value
+        return renamed
+    if isinstance(detail, list):
+        return [_wire_named_detail(item, names) for item in detail]
+    return detail
+
+
+def wire_named_error(
+    exc: ServiceValidationError | ValidationError,
+    serializer: Any,
+) -> ServiceValidationError | ValidationError:
+    """The same refusal, keyed by the names the request actually used.
+
+    The class is preserved for the reason the row writers preserve it: a
+    service that reached for DRF's error chose its status mapping with it.
+    """
+    detail: Any = _wire_named_detail(exc.detail, _wire_names(serializer))
+    if isinstance(exc, ServiceValidationError):
+        return ServiceValidationError(detail)
+    return ValidationError(detail)
+
+
+@contextmanager
+def wire_named_errors(serializer: Any) -> Iterator[None]:
+    """Rename the keys of any validation error raised inside the block.
+
+    Wraps the preconditions and the service call together: both speak about the
+    input, so both owe the caller names the caller can act on. Without an
+    ``input_serializer`` there is no second vocabulary and the block is a
+    pass-through.
+    """
+    if serializer is None:
+        yield
+        return
+    try:
+        yield
+    except (ServiceValidationError, ValidationError) as exc:
+        raise wire_named_error(exc, serializer) from exc

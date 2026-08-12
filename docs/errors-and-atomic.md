@@ -50,6 +50,50 @@ your serializers produce. From the client's point of view, a service
 violation and a serializer violation are indistinguishable — which is
 usually what you want.
 
+#### Field names come back as the request spelled them
+
+A service raises about the model, because the model is what it was handed.
+Where the two names differ, the dispatcher translates:
+
+```python
+class PostSerializer(serializers.ModelSerializer):
+    headline = serializers.CharField(source="title")
+    writer = AuthorSerializer(source="author")  # some_name = CharField(source="name")
+
+
+# The service says:
+raise ServiceValidationError({"title": ["Too long."], "author": {"name": ["Too short."]}})
+
+# The client is told:
+{"headline": ["Too long."], "writer": {"some_name": ["Too short."]}}
+```
+
+This is not cosmetic. DRF resolves `source=` while building `validated_data`, at
+every depth, so a service — and everything it calls, including the [nested-write
+helpers](recipes/nested-writes.md) — only ever sees column names. Reporting
+those back names fields the request does not have, and an error renderer keyed
+on field name drops them.
+
+The rule is narrow, and worth knowing exactly:
+
+- **It renames what the serializer can name, and nothing else.** A key with no
+  matching field passes through untouched, so `non_field_errors`, `__all__` and
+  anything else a service invents survive as written.
+- **Only writable fields are consulted.** A read-only field's `source` cannot
+  appear in an error about input, so it never shadows the writable field that
+  can.
+- **`source="*"` and dotted `source="author.name"` are skipped** — neither is a
+  key of `validated_data`, so neither can be a key of an error about it.
+- **The detail's shape is untouched.** A string stays a string, a list stays a
+  list of the same length, and a collection keeps its row alignment.
+- **No serializer, no rename.** A spec with no `input_serializer` has only one
+  vocabulary, and calling the mutation helpers directly is unaffected entirely.
+
+It applies wherever a spec is dispatched — HTTP, off-HTTP, sync and async —
+because the translation happens in the shared dispatch core rather than in the
+view. A `ModelSerializer` whose fields are named after their columns is
+unaffected, which is most of them.
+
 ### `AdditionalInputRequired`
 
 For *"I got far enough to discover I need something else"* — which is not the
