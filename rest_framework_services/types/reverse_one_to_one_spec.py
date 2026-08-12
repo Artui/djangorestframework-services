@@ -23,58 +23,55 @@ class ReverseOneToOneSpec(RelationSpec):
     """How to persist a **reverse** one-to-one — the row that points *back*.
 
     The other side of a ``OneToOneField``: the column lives on the related row
-    (``Profile.author``) and the parent (``Author``) reaches at most one of
-    them through the reverse accessor. So the write belongs to
-    :attr:`~rest_framework_services.RelationPhase.REVERSE`, after the parent
-    has a primary key to point at — the same phase as
-    :class:`~rest_framework_services.ChildSpec`, and the same loop, minus the
-    collection.
+    (``Profile.author``) and the parent (``Author``) reaches at most one of them
+    through the reverse accessor. So it is the
+    :class:`~rest_framework_services.ChildSpec` loop minus the collection,
+    written in :attr:`~rest_framework_services.RelationPhase.REVERSE` once the
+    parent has a primary key to point at.
 
     Declared in ``relations={accessor_name: ReverseOneToOneSpec(...)}``, where
     the name is the parent's reverse accessor (``relations={"profile": ...}``
     for ``Author.profile``). The value at ``data[accessor_name]`` reads three
-    ways:
+    ways. **Omitted** leaves the relation untouched. **``None``** removes the
+    existing row, if any, by the ``orphan`` rule below — unlike a forward
+    relation, this row *is* the parent's, so clearing the relation has to do
+    something about it. **A mapping** updates the row when the parent already
+    has one, and creates and links one when it does not.
 
-    - **omitted** — the relation is untouched.
-    - **``None``** — the existing row, if any, is removed by the same rule the
-      children loop uses for orphans: **unlinked** when ``fk`` is nullable
-      (like ``on_delete=SET_NULL``), **deleted** when it is not (like
-      ``CASCADE``). Unlike a forward relation, this row *is* the parent's —
-      clearing the relation has to do something about it.
-    - **a mapping** — the row is updated when the parent already has one, and
-      created and linked when it does not.
+    There is no ``match_key`` and no ``scope`` — the parent owns at most one row
+    here, so the relation itself is the match — and no ``mode``: a one-row
+    relation has no orphans beyond the ``None`` case, which is explicit.
 
-    Fields:
-
-    - **``model``** — the related model class.
-    - **``fk``** — the name of that model's field pointing at the parent
-      (``"author"`` for ``Profile.author``). Set automatically on creation, and
-      the field whose nullability decides unlink-versus-delete by default.
-    - **``orphan``** — what removing the row *does*: ``"auto"`` (the default)
-      derives it from that field, and ``"unlink"`` / ``"delete"`` state it, for
-      a spec that means one of them rather than whichever the column happens to
-      allow. ``"unlink"`` against a non-nullable ``fk`` raises
-      :exc:`~django.core.exceptions.ImproperlyConfigured` when the relation is
-      written. The rule covers both removals there are — the ``None`` case here
-      and the :func:`~rest_framework_services.delete_model` cascade.
-    - **``field_map``** / **``exclude_fields``** / **``m2m``** /
-      **``children``** / **``relations``** — forwarded to the row's own
-      ``create_from_input`` / ``update_from_input`` call.
-    - **``create_service``** / **``update_service``** / **``delete_service``**
-      — optional services replacing that call for the row, with the same
-      contract as :class:`~rest_framework_services.ChildSpec`'s: they receive
-      ``parent``, a create service's ``data`` already carries the ``fk``, an
-      update service returning ``None`` means "use the in-memory instance",
-      and a delete service replaces the unlink-or-delete rule (so the outcome
-      is reported as ``"removed"``, the only thing still known, and an explicit
-      ``orphan`` beside it raises). Declaring ``create_service`` /
-      ``update_service`` alongside the row-shaping knobs raises at
-      construction.
-
-    There is no ``match_key`` and no ``scope``: the parent owns at most one
-    row here, so there is nothing to match and nothing to scope — the relation
-    itself is the match. There is no ``mode`` either: a one-row relation has no
-    orphans beyond the ``None`` case, which is explicit.
+    Attributes:
+        model: The related model class.
+        fk: The name of that model's field pointing at the parent (``"author"``
+            for ``Profile.author``). Set automatically on creation, and the
+            field whose nullability decides unlink-versus-delete by default.
+        field_map: Forwarded to the row's own ``create_from_input`` /
+            ``update_from_input`` call.
+        exclude_fields: Forwarded likewise.
+        m2m: Forwarded likewise.
+        children: Forwarded likewise.
+        relations: Forwarded likewise.
+        create_service: Optional service replacing that call for the row, with
+            the contract :class:`~rest_framework_services.ChildSpec` states: it
+            receives ``parent``, and its ``data`` already carries the ``fk``.
+            Declaring it alongside the row-shaping fields above raises at
+            construction.
+        update_service: The same; returning ``None`` means "use the in-memory
+            instance".
+        delete_service: Replaces the unlink-or-delete rule below, so the outcome
+            is reported as ``"removed"`` — the only thing still known — and an
+            explicit ``orphan`` beside it raises.
+        orphan: What removing the row *does*, by
+            :class:`~rest_framework_services.ChildSpec`'s rule: ``"auto"`` (the
+            default) derives it from ``fk`` — **unlinked** when that field is
+            nullable (like ``on_delete=SET_NULL``), **deleted** when it is not
+            (like ``CASCADE``) — while ``"unlink"`` / ``"delete"`` state it
+            instead, and ``"unlink"`` against a non-nullable ``fk`` raises
+            :exc:`~django.core.exceptions.ImproperlyConfigured` at write time.
+            It covers both removals there are: the ``None`` case above and the
+            :func:`~rest_framework_services.delete_model` cascade.
     """
 
     write_phase: ClassVar[RelationPhase] = RelationPhase.REVERSE

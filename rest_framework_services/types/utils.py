@@ -14,15 +14,10 @@ from rest_framework_services.types.relation_orphan import RelationOrphan
 def validate_metadata(metadata: Any, *, label: str) -> None:
     """Reject a non-mapping ``metadata`` declaration on a spec.
 
-    Called from ``__post_init__``, unlike every other spec field — those are
-    checked at ``as_view()`` time by
-    :mod:`rest_framework_services.views.spec_validation`. That is deliberate:
-    ``metadata`` exists to be read by consumer code that may never mount the
-    spec on a view at all (a registry consumer, :func:`dispatch_spec`, an MCP
-    or Pydantic-AI binding), so a view-time check would skip exactly the paths
-    the field is for.
-
-    Shape-only by design. The framework never looks inside the mapping.
+    Called from ``__post_init__``, not from ``as_view()`` like every other spec
+    field: ``metadata`` is read by consumers that may never mount the spec on a
+    view, so a view-time check would skip the paths the field exists for.
+    Shape-only — the framework never reads the mapping's contents.
     """
     if metadata is None or isinstance(metadata, Mapping):
         return
@@ -39,12 +34,8 @@ VALID_RELATION_MODES = tuple(mode.value for mode in RelationMode)
 def validate_relation_mode(mode: str, *, label: str) -> None:
     """Reject a ``mode`` that is neither ``"replace"`` nor ``"merge"``.
 
-    Shared by every relation kind that reconciles a collection, so the two
-    words mean the same thing on all of them: ``"replace"`` makes the incoming
-    set authoritative and disposes of what it leaves out, ``"merge"`` upserts
-    and removes nothing. What "dispose of" means is the kind's own business —
-    a child row is unlinked or deleted, a many-to-many target is only dropped
-    from the relation — but *when* it happens is this one flag.
+    Shared by every relation kind that reconciles a collection so the two words
+    mean the same thing on all of them.
     """
     if mode not in VALID_RELATION_MODES:
         raise ValueError(f"{label}.mode must be one of {VALID_RELATION_MODES}; got {mode!r}.")
@@ -56,17 +47,10 @@ VALID_RELATION_ORPHANS = tuple(orphan.value for orphan in RelationOrphan)
 def validate_relation_orphan(orphan: str, *, delete_service: Any, label: str) -> None:
     """Check ``orphan``, and refuse it beside the service that would silence it.
 
-    Shared by the kinds that own their rows, so "unlink" and "delete" mean the
-    same thing on all of them.
-
-    A ``delete_service`` *is* the disposal: it replaces the unlink-or-delete
-    rule outright, for orphan removal and for the ``delete_model`` cascade
-    alike. So a spec declaring both states two answers to one question and the
-    library would silently keep the service's — which is the failure mode
-    :func:`validate_relation_services` exists to end, arrived at from the other
-    direction. Refused at construction for the same reason. The default is not a
-    statement, so ``AUTO`` beside a ``delete_service`` is untouched: it is what
-    every spec written before the field existed says.
+    A ``delete_service`` replaces the unlink-or-delete rule outright, so an
+    explicit ``orphan`` beside one would decide nothing and be silently ignored.
+    ``AUTO`` is exempt because it states nothing — it is what every spec written
+    before the field existed carries.
     """
     if orphan not in VALID_RELATION_ORPHANS:
         raise ValueError(f"{label}.orphan must be one of {VALID_RELATION_ORPHANS}; got {orphan!r}.")
@@ -89,21 +73,13 @@ def validate_relation_services(
     """Refuse a relation spec that declares a row service *and* row shaping.
 
     A ``create_service`` / ``update_service`` stands in for the mutation-helper
-    call the spec would otherwise make, so every knob configuring that call —
-    ``field_map``, ``exclude_fields``, ``m2m``, and the nested ``children`` /
-    ``relations`` maps — is bypassed for that row. Left alone that is a *silent*
-    failure: a spec declaring both a ``create_service`` and ``children`` writes
-    no grandchildren at all and says nothing about it. So the combination is
-    refused where every other spec contradiction is, at construction.
+    call, so every knob configuring that call is bypassed for the row — silently,
+    unless caught here.
 
-    The split is by ownership, not by field. Reconciliation stays with the spec
-    whoever writes the row — ``fk``, ``match_key``, ``mode``, ``scope`` and the
-    orphan rule are untouched by this check. ``delete_service`` is
-    deliberately **not** a member of ``services``: it replaces the
-    unlink-or-delete rule rather than the helper call, so it composes with row
-    shaping (the cascade still removes a row's grandchildren before handing the
-    row to the service). Refusing that pairing too would outlaw a combination
-    that works.
+    Callers must keep reconciliation fields (``fk`` / ``match_key`` / ``mode`` /
+    ``scope`` / orphan handling) out of both mappings, and must not pass
+    ``delete_service`` in ``services``: it replaces the unlink-or-delete rule
+    rather than the helper call, so it composes with row shaping.
     """
     declared_services: list[str] = sorted(name for name, value in services.items() if value)
     if not declared_services:

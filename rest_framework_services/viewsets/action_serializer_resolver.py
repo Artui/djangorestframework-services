@@ -15,15 +15,11 @@ from rest_framework_services.viewsets.utils import (
 class ActionSerializerResolver(_ActionSpecsMixin):
     """Resolve ``get_serializer_class()`` from ``action_specs``.
 
-    Consults the ``action_specs`` map for the active action's entry:
-
-    - :class:`SelectorSpec` — uses ``spec.output_serializer`` directly.
-    - :class:`ServiceSpec` — uses
-      ``spec.output_selector_spec.output_serializer`` (the output pipeline
-      is collapsed into the nested selector spec).
-
-    Falls back to DRF's standard ``serializer_class`` attribute (and raises
-    the usual DRF ``AssertionError`` if neither is set).
+    Reads the active action's entry: a :class:`SelectorSpec` supplies
+    ``output_serializer``, a :class:`ServiceSpec` supplies
+    ``output_selector_spec.output_serializer``. Falls back to DRF's
+    ``serializer_class``, raising the usual ``AssertionError`` when neither is
+    set.
 
     Example::
 
@@ -42,8 +38,8 @@ class ActionSerializerResolver(_ActionSpecsMixin):
     action: str | None
 
     def get_serializer_class(self) -> type[Serializer]:
-        # Same fallback chain as dispatch and ``get_permissions``
-        # (``"partial_update"`` → ``"update"``) so the three sites agree.
+        # Same ``"partial_update"`` → ``"update"`` fallback as dispatch and
+        # ``get_permissions``, so the three sites agree.
         spec = resolve_action_spec_entry(self.action_specs, self.action)
         if isinstance(spec, SelectorSpec) and spec.output_serializer is not None:
             return spec.output_serializer

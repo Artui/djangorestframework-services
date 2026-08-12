@@ -14,16 +14,12 @@ from rest_framework_services.types.service_spec import ServiceSpec
 class SpecRegistry:
     """A ``name → spec`` map with tags, stable ordering, and filtered views.
 
-    A project that exposes the same operations over more than one transport
-    otherwise writes the list once per transport, and the lists drift. A
-    registry gives that set one declaration site: each transport reads the same
-    source instead of enumerating specs again.
-
-    It holds only the **invariant** part of an operation — which spec, its
-    canonical name, its tags. Per-transport configuration stays at the binding
-    that already owns it, so this is a source *for* a transport's own registry,
-    never a replacement for one. Nothing consults a registry per request:
-    adapters read it at configuration time to build their binding tables.
+    One declaration site for the operations a project exposes over more than one
+    transport, so the transports read one source instead of each enumerating
+    specs and drifting. It holds only the **invariant** part of an operation —
+    which spec, its canonical name, its tags; per-transport configuration stays
+    at the binding that owns it. Adapters read a registry at configuration time
+    to build their binding tables; nothing consults one per request.
 
     ```python
     registry = SpecRegistry()
@@ -33,33 +29,21 @@ class SpecRegistry:
     public = registry.by_tag("public")   # a new registry — a snapshot
     ```
 
-    Adoption needs no adapter support: :meth:`specs` returns the
-    ``dict[str, spec]`` today's adapters already accept.
-
-    **There is no global registry.** A consumer holds its own instances — a
-    module attribute in its app, or built in a server's constructor — and may
-    hold as many as it likes, with no shared state between them. Two shapes
-    both work: **independent registries** (separate name namespaces, full
-    isolation, one per mount) and **one registry with many projections**
-    (:meth:`by_tag` / :meth:`subset` views feeding several toolsets). Both are
-    what a multi-instance deployment needs; a blessed global would nudge every
-    project toward a single surface instead.
-
-    Registries are **mutable containers** (:meth:`register` adds), but every
-    derivation — :meth:`by_tag`, :meth:`subset`, :meth:`merge` — returns a
-    **new** registry holding a snapshot of the selected entries. The spec
-    objects themselves are shared, not copied. So a derived view never mutates
-    its source, and a later ``register()`` on the source does **not** appear in
-    a view derived earlier.
+    **There is no global registry**: a consumer holds as many of its own
+    instances as it likes, with no shared state between them. Registries are
+    mutable — :meth:`register` adds — but every derivation (:meth:`by_tag`,
+    :meth:`subset`, :meth:`merge`) returns a **new** registry holding a snapshot
+    of the selected entries, sharing the spec objects rather than copying them.
+    A derived view never mutates its source, and a later ``register()`` on the
+    source does **not** appear in a view derived earlier.
     """
 
     def __init__(self, entries: Iterable[RegisteredSpec] = ()) -> None:
         """Build a registry, optionally seeded with existing entries.
 
         Args:
-            entries: Entries to seed, in order. Validated exactly as
-                :meth:`register` validates — a duplicate name or a spec of the
-                wrong type raises here too.
+            entries: Entries to seed, in order, validated exactly as
+                :meth:`register` validates.
         """
         self._entries: dict[str, RegisteredSpec] = {}
         for entry in entries:
@@ -75,20 +59,19 @@ class SpecRegistry:
         """Add a spec under ``name``.
 
         Args:
-            name: The canonical name. Must be unused **in this registry** —
-                a duplicate raises rather than overwriting, so a
-                copy-paste declaration fails at import time instead of
-                silently shadowing an operation.
+            name: The canonical name. Must be unused **in this registry** — a
+                duplicate raises rather than overwriting, so a copy-pasted
+                declaration fails at import time instead of silently shadowing
+                an operation.
             spec: A ``ServiceSpec`` (mutation) or ``SelectorSpec`` (read).
             tags: Free-form labels, deduplicated into a frozen set.
 
         Raises:
             ValueError: ``name`` is already registered here.
             TypeError: ``spec`` is neither a ``ServiceSpec`` nor a
-                ``SelectorSpec``. A ``PolymorphicServiceSpec`` is rejected
-                with a pointer at the supported shape: register each of its
-                variants under its own name, since transports project one
-                operation per variant rather than a union.
+                ``SelectorSpec``. A ``PolymorphicServiceSpec`` is rejected —
+                register each of its variants under its own name, since
+                transports project one operation per variant, not a union.
         """
         self._add(RegisteredSpec(name=name, spec=spec, tags=frozenset(tags)))
 
@@ -97,11 +80,7 @@ class SpecRegistry:
         return self._entries.get(name)
 
     def all(self) -> tuple[RegisteredSpec, ...]:
-        """Every entry, in registration order.
-
-        Order is stable so a transport's tool listing is stable — a listing
-        that reshuffles between processes is noise for clients that diff it.
-        """
+        """Every entry, in registration order, so a transport's listing is stable."""
         return tuple(self._entries.values())
 
     def mutations(self) -> tuple[RegisteredSpec, ...]:
@@ -115,10 +94,8 @@ class SpecRegistry:
     def by_tag(self, *tags: str) -> SpecRegistry:
         """A new registry holding the entries carrying **any** of ``tags``.
 
-        Union rather than intersection, because intersection composes from
-        this (``reg.by_tag("read").by_tag("public")``) while union cannot be
-        composed from an intersection. Passing no tags matches nothing and
-        returns an empty registry.
+        Union, not intersection — chain calls for an intersection
+        (``reg.by_tag("read").by_tag("public")``). No tags matches nothing.
         """
         wanted = frozenset(tags)
         return SpecRegistry(e for e in self._entries.values() if e.tags & wanted)
@@ -127,9 +104,8 @@ class SpecRegistry:
         """A new registry holding the named entries, in the order given.
 
         Raises:
-            KeyError: A name is not registered here. Naming entries
-                explicitly means a typo is a configuration error, not a
-                quietly smaller surface.
+            KeyError: A name is not registered here — a typo is a
+                configuration error, not a quietly smaller surface.
         """
         return SpecRegistry(self._require(name) for name in names)
 
@@ -149,10 +125,8 @@ class SpecRegistry:
     def specs(self) -> dict[str, ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]]:
         """A fresh ``name → spec`` dict — the shape adapters already accept.
 
-        This is what makes a registry usable before any adapter grows
-        registry-aware sugar: pass ``registry.specs()`` wherever a
-        ``dict[str, spec]`` goes today. Mutating the returned dict does not
-        affect the registry.
+        Pass ``registry.specs()`` wherever a ``dict[str, spec]`` goes today.
+        Mutating the returned dict does not affect the registry.
         """
         return {name: entry.spec for name, entry in self._entries.items()}
 

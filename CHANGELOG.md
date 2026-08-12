@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The API reference now documents attributes and arguments as typed entries
+  rather than prose.** Spec classes such as `ServiceSpec`, `SelectorSpec` and the
+  relation specs described each field in free-form paragraphs, and the fields
+  themselves carried comments restating the same contracts further down the
+  file — two hand-maintained copies of one fact, of which only one was
+  published. They are now Google-style `Attributes:` / `Args:` blocks, so
+  mkdocstrings renders each entry alongside its real annotation and default.
+  Several fields that had been documented only in source comments, and so were
+  absent from the reference entirely, are now published: `SelectorSpec`'s
+  `progress_reporter` and `preconditions`, `ViewHooks.progress`, and
+  `dispatch_spec`'s `filter_data`, `instance`, `progress` and `view_hooks`.
+
+  No behaviour change, no signature change, and no public symbol moved.
+
+### Removed
+
+- **Emoji and marker glyphs, everywhere in the repository.** Comments,
+  docstrings, `docs/` and this changelog. A `forbid-marker-glyphs` pre-commit
+  hook now enforces it. Typography is untouched: dashes, arrows, the
+  multiplication sign, math comparisons, box-drawing characters and the plain
+  check mark used as table data all stay.
+
 ## [0.38.0] — 2026-08-11
 
 ### Upgrade notes

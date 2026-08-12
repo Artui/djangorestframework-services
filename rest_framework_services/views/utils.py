@@ -22,24 +22,19 @@ def resolve_extra_kwargs(
 ) -> dict[str, Any]:
     """Collect the extras that should be merged into a service/selector pool.
 
-    Three layers, applied in order so that the more specific override the
-    more general:
+    Three layers, merged with ``dict.update`` in increasing specificity so the
+    spec-level provider has the final say on overlapping keys. Each is invoked
+    through the framework's provider convention, receiving only the subset of
+    ``{view, request}`` it declares (or the whole pool via ``**kwargs``).
 
-    1. ``view.<catch_all_hook>()`` — global fallback declared on the view
-       (``get_service_kwargs`` / ``get_selector_kwargs``). No-op when the
-       method is not present.
-    2. ``view.<action_hook>()`` — per-action method on the view, e.g.
-       ``get_create_service_kwargs`` / ``get_list_selector_kwargs``. Skipped
-       when ``action_hook`` is ``None`` (e.g. on standalone single-purpose
-       views) or the method is absent.
-    3. ``spec_kwargs`` — per-spec callable from :attr:`ServiceSpec.kwargs` /
-       :attr:`SelectorSpec.kwargs`.
-
-    Every layer is invoked through :func:`_invoke_provider`, so each callable
-    receives only the subset of ``{view, request}`` it declares (or the whole
-    pool via ``**kwargs``) — declare just ``view``, just ``request``, both, or
-    neither. Each layer's result is merged with ``dict.update``, so the
-    spec-level provider has the final say on any overlapping keys.
+    Args:
+        spec_kwargs: The spec's own :attr:`ServiceSpec.kwargs` /
+            :attr:`SelectorSpec.kwargs` provider — the most specific layer.
+        action_hook: Per-action view method, e.g. ``get_create_service_kwargs``
+            / ``get_list_selector_kwargs``. ``None`` (standalone single-purpose
+            views) or an absent method skips the layer.
+        catch_all_hook: View-wide fallback, e.g. ``get_service_kwargs`` /
+            ``get_selector_kwargs``. An absent method skips the layer.
     """
     extras: dict[str, Any] = {}
     catch_all = getattr(view, catch_all_hook, None)
@@ -65,26 +60,15 @@ def resolve_input_extras(
 ) -> dict[str, Any]:
     """Collect the extras to merge into the serializer input dict.
 
-    Mirrors :func:`resolve_extra_kwargs` but for the
-    ``input_serializer``-bound data, not the service-call pool. Layers,
-    applied in order of increasing specificity (later wins on overlap):
+    :func:`resolve_extra_kwargs`'s layering — ``catch_all_hook`` view method,
+    then ``action_hook``, then the spec's :attr:`ServiceSpec.input_data`
+    provider — applied to the ``input_serializer``-bound data rather than the
+    service-call pool.
 
-    1. ``view.<catch_all_hook>`` — global fallback (``get_input_data``);
-       typically returns ``{}``.
-    2. ``view.<action_hook>`` — per-action method on the view
-       (``get_<action>_input_data``). Skipped when ``action_hook`` is
-       ``None`` (standalone single-purpose views) or the method is absent.
-    3. ``spec_input_data`` — per-spec callable from
-       :attr:`ServiceSpec.input_data`.
-
-    Each layer's result is merged with ``dict.update`` so the spec-level
-    provider has the final say on overlapping keys.
-
-    Every layer is invoked through :func:`_invoke_provider`, so a provider
-    declares only what it needs from ``{view, request}`` plus ``extras`` (or
-    ``**kwargs``). ``extras`` carries the resolved data available before
-    validation — currently the mutation target ``instance`` (``None`` on
-    create) — offered by keyword only when declared.
+    Args:
+        extras: The resolved data available before validation — currently the
+            mutation target ``instance``, ``None`` on create — offered to each
+            provider by keyword only when it declares the name.
     """
     payload: Mapping[str, Any] = extras if extras is not None else {}
     collected: dict[str, Any] = {}
@@ -111,24 +95,17 @@ def _invoke_provider(
 ) -> Any:
     """Call ``fn`` with the subset of ``{view, request, **extras}`` it declares.
 
-    The single provider-invocation convention for the framework. Every
-    provider — the spec-level ``kwargs`` / ``input_data`` /
-    ``*_serializer_context`` callables **and** the view's ``get_*`` hooks — is
-    dispatched through :func:`resolve_callable_kwargs` against a pool of
-    ``view`` / ``request`` plus the resolved-data ``extras`` (``result`` /
-    ``instance`` / ``page``). A provider declares only what it needs — just
-    ``view``, just ``request``, any subset of the extras, both, neither, or
-    ``**kwargs`` — exactly as services and selectors are dispatched. Bound
-    view-method hooks simply don't declare ``view`` (it is their ``self``), so
-    it is filtered out for them.
+    The single provider-invocation convention: the spec-level ``kwargs`` /
+    ``input_data`` / ``*_serializer_context`` callables and the view's ``get_*``
+    hooks all come through here, dispatched by :func:`resolve_callable_kwargs`
+    exactly as services and selectors are. Bound view-method hooks simply don't
+    declare ``view`` (it is their ``self``), so it is filtered out for them.
 
     A returned key whose value is :data:`~rest_framework_services.UNSET` is
-    **dropped** — the provider is declining to set it, not setting it to
+    **dropped** — the provider is declining to set it rather than setting it to
     ``UNSET``. This mirrors the off-HTTP
     :func:`~rest_framework_services.dispatch.utils.resolve_provider` so the
-    sentinel means the same thing on every transport: a provider that can't (or
-    shouldn't) resolve a key steps aside rather than overriding a value supplied
-    elsewhere.
+    sentinel means the same thing on every transport.
     """
     pool: dict[str, Any] = {"view": view, "request": request, **extras}
     result: Any = fn(**resolve_callable_kwargs(fn, pool))
@@ -147,23 +124,18 @@ def layer_serializer_context(
 ) -> dict[str, Any]:
     """Layer the directional, action, and spec context hooks onto ``base``.
 
-    Same precedence rules as :func:`resolve_serializer_context`, but takes
-    the layer-1 dict explicitly instead of calling ``view.get_serializer_context()``.
-    Used by ``get_serializer_context()`` overrides that need to extend
-    ``super().get_serializer_context()`` without recursing.
+    :func:`resolve_serializer_context`'s precedence rules with layer 1 handed in
+    rather than read from ``view.get_serializer_context()`` — for overrides of
+    that method which need to extend ``super()``'s result without recursing. See
+    there for ``action_hook`` / ``spec_provider`` / ``extras``.
 
-    ``direction_hook=None`` skips the directional layer entirely. The
-    canonical use of this is ``_ActionSpecsMixin.get_serializer_context``,
-    which can't safely call ``get_output_serializer_context`` because the
-    default implementation on :class:`MutationFlowMixin` would recurse
-    back into ``get_serializer_context``.
-
-    ``extras`` carries the resolved data about to be serialized (the
-    ``result`` of a mutation, the retrieved ``instance``, or the list
-    ``page``). Every layer is invoked through :func:`_invoke_provider`, so a
-    provider receives only the subset of ``{view, request, **extras}`` it
-    declares (or the whole pool via ``**kwargs``). ``None`` is treated as an
-    empty mapping.
+    Args:
+        base: The layer-1 context to build on.
+        direction_hook: Directional view hook name; ``None`` skips the layer.
+            That is what ``_ActionSpecsMixin.get_serializer_context`` needs:
+            :class:`MutationFlowMixin`'s default
+            ``get_output_serializer_context`` would recurse back into
+            ``get_serializer_context``.
     """
     payload: Mapping[str, Any] = extras if extras is not None else {}
     context: dict[str, Any] = dict(base)
@@ -191,31 +163,22 @@ def resolve_serializer_context(
 ) -> dict[str, Any]:
     """Build the serializer context dict for one direction (input or output).
 
-    Four layers, applied in order so that the more specific override the
-    more general:
+    Four layers, merged with ``dict.update`` in increasing specificity so the
+    spec-level provider has the final say on overlapping keys:
+    ``view.get_serializer_context()`` (DRF's own) → ``view.<direction_hook>()``
+    → ``view.<action_hook>()`` → ``spec_provider``. An absent view method skips
+    its layer, so plain DRF viewsets work unchanged.
 
-    1. ``view.get_serializer_context()`` — DRF's default, available on every
-       :class:`~rest_framework.generics.GenericAPIView` (returns ``request``,
-       ``view``, ``format``).
-    2. ``view.<direction_hook>()`` — library directional fallback
-       (``get_input_serializer_context`` / ``get_output_serializer_context``).
-       Skipped when the method is absent, so plain DRF viewsets work unchanged.
-    3. ``view.<action_hook>()`` — per-action override on the view, e.g.
-       ``get_create_input_serializer_context`` /
-       ``get_list_output_serializer_context``. Skipped when ``action_hook``
-       is ``None`` (standalone single-purpose views) or the method is absent.
-    4. ``spec_provider(view, request)`` — per-spec callable from
-       :attr:`ServiceSpec.input_serializer_context` /
-       :attr:`ServiceSpec.output_serializer_context` /
-       :attr:`SelectorSpec.output_serializer_context`. Skipped when ``None``.
-
-    Each layer's result is merged with ``dict.update``, so the spec-level
-    provider has the final say on overlapping keys.
-
-    ``extras`` (the resolved data — ``result`` / ``instance`` / ``page``)
-    is offered to the directional, action, and spec providers by keyword,
-    each receiving only the names it declares. See
-    :func:`layer_serializer_context`.
+    Args:
+        direction_hook: ``get_input_serializer_context`` /
+            ``get_output_serializer_context``.
+        action_hook: Per-action override, e.g.
+            ``get_create_input_serializer_context``. ``None`` on standalone
+            single-purpose views.
+        spec_provider: The spec's own ``*_serializer_context`` provider.
+        extras: The resolved data about to be serialized (a mutation's
+            ``result``, the retrieved ``instance``, or the list ``page``),
+            offered to the last three layers by keyword only when declared.
     """
     return layer_serializer_context(
         view.get_serializer_context(),
@@ -231,9 +194,8 @@ def resolve_serializer_context(
 def get_class_attr(view: Any, name: str) -> Any:
     """Return the named class attribute without instance binding.
 
-    Functions stored as plain class attributes (e.g. ``service = my_fn``)
-    would otherwise be wrapped in a bound method when accessed via ``self``.
-    Use this helper to retrieve them as the original callable.
+    A function stored as a plain class attribute (``service = my_fn``) would
+    otherwise be wrapped in a bound method when read via ``self``.
     """
     return getattr(type(view), name, None)
 
@@ -271,14 +233,12 @@ def resolve_callable_kwargs(
 def resolve_progress_hook(view: Any, request: Request, *, action: str | None) -> Any:
     """First progress reporter the view offers: per-action hook, then catch-all.
 
-    Most-specific wins and there is **no merging** — unlike the kwargs and
-    context chains, whose layers combine into one mapping. A reporter is a
-    single sink, not a set of keys, so "layering" two of them would mean
-    silently fanning out; a view that wants that composes them itself with
-    :func:`~rest_framework_services.combine_progress` and returns the result.
-
-    Returns ``None`` when the view offers neither, which leaves the seed as
-    :func:`~rest_framework_services.null_progress` exactly as before.
+    Most-specific wins and there is **no merging** — a reporter is a single sink,
+    not a set of keys, so layering two of them would mean silently fanning out;
+    a view that wants that composes them itself with
+    :func:`~rest_framework_services.combine_progress`. ``None`` when the view
+    offers neither, which leaves the seed as
+    :func:`~rest_framework_services.null_progress`.
     """
     for name in (f"get_{action}_progress_reporter" if action else None, "get_progress_reporter"):
         hook = getattr(view, name, None) if name else None
@@ -289,6 +249,9 @@ def resolve_progress_hook(view: Any, request: Request, *, action: str | None) ->
     return None
 
 
+# Lives here rather than beside the mutation flow because the selector path
+# needs it too, and ``views.mutation.utils`` imports ``selectors.utils`` —
+# putting it there would make the dependency circular.
 def resolve_view_hooks(
     view: Any,
     request: Request,
@@ -300,26 +263,18 @@ def resolve_view_hooks(
 
     **View layers only** — every ``spec_*`` argument below is deliberately
     ``None``. The chains run ``view.get_<x>`` → ``view.get_<action>_<x>`` →
-    ``spec.<x>``, and ``dispatch_spec`` owns that last layer. Resolving the spec
+    ``spec.<x>``, and ``dispatch_spec`` owns that last layer; resolving the spec
     provider here too would invoke it **twice**, which is not safe for a provider
     that queries the database. See :class:`ViewHooks`.
 
-    ``chain`` selects which kwargs chain to collect: ``"service"``
-    (``get_service_kwargs`` / ``get_<action>_service_kwargs``) for mutations,
-    ``"selector"`` (``get_selector_kwargs`` / ``get_<action>_selector_kwargs``)
-    for reads. Only the view-method names differ — the layering is identical,
-    which is why one carrier serves both.
-
-    The input-phase fields are mutation-only and stay unset for a selector: a
-    read has no payload to merge into and no input serializer to give context to,
-    so populating them would invite a reader to think it does.
-
-    ``instance`` (the resolved mutation target, ``None`` on create and on every
-    bulk path) is offered to the ``input_data`` providers that declare it.
-
-    Lives here rather than beside the mutation flow because the selector path
-    needs it too, and ``views.mutation.utils`` imports ``selectors.utils`` —
-    putting it there would make the dependency circular.
+    Args:
+        chain: Which kwargs chain to collect — ``"service"`` for mutations,
+            ``"selector"`` for reads. Only the view-method names differ, which is
+            why one carrier serves both. The input-phase fields are mutation-only
+            and stay unset for a selector: a read has no payload to merge into
+            and no input serializer to give context to.
+        instance: The resolved mutation target (``None`` on create and on every
+            bulk path), offered to the ``input_data`` providers that declare it.
     """
     action: str | None = getattr(view, "action", None)
     extra_kwargs = resolve_extra_kwargs(

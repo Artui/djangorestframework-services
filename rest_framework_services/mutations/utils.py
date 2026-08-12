@@ -33,18 +33,15 @@ from rest_framework_services.types.reverse_one_to_one_spec import ReverseOneToOn
 from rest_framework_services.types.unset import UNSET
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
-# The kinds whose row the parent owns through a link stored on that row: the
-# loop writes the link on the way in and disposes of the row on the way out.
-# "Child" throughout this module means such a row -- a member of a collection,
-# the single row of a reverse one-to-one, or a generic-relation row, which
-# differs only in that its link is two columns rather than one.
+# The kinds whose row the parent owns through a link stored on that row. "Child"
+# throughout this module means such a row; a generic-relation row differs only in
+# that its link is two columns rather than one.
 _OwnedRowSpec = ChildSpec | ReverseOneToOneSpec | GenericRelationSpec
-# The owned kinds that hold *many* rows, so they reconcile a collection and
-# have orphans; the reverse one-to-one holds one and has the ``None`` case.
+# The owned kinds holding *many* rows, so they reconcile a collection and have
+# orphans; the reverse one-to-one holds one and has the ``None`` case instead.
 _CollectionSpec = ChildSpec | GenericRelationSpec
-# The kinds pointing at a row the parent does *not* own -- shared with whoever
-# else points at it -- so there is no manager to match within and ``scope=`` is
-# what says which rows this caller may write.
+# The kinds pointing at a row the parent does *not* own, so there is no manager
+# to match within and ``scope=`` says which rows this caller may write.
 _ScopedSpec = ForwardRelationSpec | ManyToManySpec
 # Every kind whose row the mutation helpers write, owned or merely pointed at.
 _RowSpec = (
@@ -53,11 +50,7 @@ _RowSpec = (
 
 
 def coerce_to_dict(data: Any) -> dict[str, Any]:
-    """Normalize input ``data`` to a dict mapping field name to value.
-
-    Accepts ``None``, a plain dict, a dataclass instance, or any object with
-    a ``__dict__``. Raises ``TypeError`` for anything else.
-    """
+    """Normalize input ``data`` to a dict mapping field name to value."""
     if data is None:
         return {}
     if isinstance(data, dict):
@@ -80,8 +73,7 @@ def filter_input(
 ) -> dict[str, Any]:
     """Apply ``field_map`` and ``exclude_fields``, dropping ``UNSET`` values.
 
-    ``exclude_fields`` is matched against **input** field names (pre-mapping)
-    so callers can exclude in the vocabulary they passed in.
+    ``exclude_fields`` matches input field names, before mapping.
     """
     excluded: set[str] = set(exclude_fields or ())
     result: dict[str, Any] = {}
@@ -146,12 +138,7 @@ def m2m_changes(
     *,
     created: bool,
 ) -> tuple[tuple[FieldChange, ...], dict[str, Any]]:
-    """Compute :class:`FieldChange` entries and the to-apply m2m dict.
-
-    Returns ``(changes, to_apply)`` where ``to_apply`` is the subset of m2m
-    assignments that should actually be persisted (everything for creates,
-    only differing relations for updates).
-    """
+    """``(changes, to_apply)`` — everything on create, only differences on update."""
     if not m2m:
         return ((), {})
     changes: list[FieldChange] = []
@@ -235,11 +222,9 @@ def resolve_update_fields(
 ) -> list[str] | None:
     """Map the public ``update_fields`` argument to a ``save()``-compatible list.
 
-    - ``True`` (default) → ``list(changed)`` extended with any ``auto_now=True``
-      fields so timestamp columns are refreshed alongside the mutation. Returns
-      ``None`` if nothing changed (save skipped entirely).
-    - ``False`` → ``None`` (full save; Django handles ``auto_now`` automatically).
-    - explicit list → returned as-is (caller controls which columns are written).
+    ``True`` narrows the save to the changed columns, so the ``auto_now`` ones
+    have to be added back by hand: Django only refreshes them when they are in
+    ``update_fields``.
     """
     if update_fields is True:
         fields = list(changed)
@@ -255,11 +240,9 @@ def resolve_update_fields(
 
 # --- the relation taxonomy: one map, one ordering rule -------------------
 
-# The phases written *after* the parent's save, in the order they run. The
-# ordering is the whole point of the taxonomy, so it is stated once — here —
-# and every call site (create and update, sync and async) reads it from this
-# tuple instead of restating it. Restating it four times is how the four paths
-# would drift.
+# The phases written *after* the parent's save, in the order they run. Stated
+# once, here: every call site (create and update, sync and async) reads it from
+# this tuple, so the four paths cannot drift.
 POST_SAVE_PHASES: tuple[RelationPhase, ...] = (
     RelationPhase.REVERSE,
     RelationPhase.GENERIC,
@@ -271,14 +254,7 @@ def merge_relations(
     children: Mapping[str, ChildSpec] | None,
     relations: Mapping[str, RelationSpec] | None,
 ) -> dict[str, RelationSpec]:
-    """Fold the ``children=`` alias and ``relations=`` into one map.
-
-    ``children=`` shipped first and already means "these relations are reverse
-    foreign keys", so it stays as the alias for that kind rather than becoming
-    a synonym half the callers never update. A name declared in both is
-    refused: silently picking one of two specs the author wrote deliberately is
-    the failure mode this wave exists to remove.
-    """
+    """Fold the ``children=`` reverse-FK alias and ``relations=`` into one map."""
     merged: dict[str, RelationSpec] = {}
     for keyword, declared in (("children", children), ("relations", relations)):
         for name, spec in (declared or {}).items():
@@ -302,17 +278,7 @@ def reject_m2m_overlap(
     m2m: Mapping[str, Any] | None,
     relations: Mapping[str, RelationSpec],
 ) -> None:
-    """Refuse a relation written by ``m2m=`` and by a relation spec at once.
-
-    The two keyword arguments do different jobs and both stay: ``m2m=`` assigns
-    rows that already exist (pks or instances), a
-    :class:`~rest_framework_services.ManyToManySpec` writes the rows from the
-    payload and then links them. What they cannot do is share a relation — they
-    would both write it, in an order neither caller chose, and only the second
-    would survive. So the overlap is refused where the other spec
-    contradictions are, rather than resolved by a precedence rule nobody would
-    remember.
-    """
+    """Refuse a relation written by ``m2m=`` and by a relation spec at once."""
     for name in m2m or {}:
         if name in relations:
             raise ImproperlyConfigured(
@@ -329,12 +295,9 @@ def extract_relation_data(
 ) -> dict[str, Any]:
     """Pop each relation key out of ``raw`` and return ``{relation: value}``.
 
-    Removing the keys keeps the nested payloads out of the scalar field set the
-    parent's ``create``/``update`` would otherwise try to assign — a forward
-    relation's resolved instance is put back afterwards, once there is a row to
-    assign. A relation the input omitted entirely maps to ``UNSET`` (left
-    untouched by the write); an explicit ``[]`` or ``None`` maps to itself and
-    is processed.
+    Popping keeps nested payloads out of the scalar field set the parent's
+    write would otherwise assign. An omitted relation maps to ``UNSET`` and is
+    left untouched; an explicit ``[]`` or ``None`` maps to itself.
     """
     return {name: raw.pop(name, UNSET) for name in relations}
 
@@ -359,17 +322,10 @@ def post_save_relations(
 def _content_type_for(instance: Model) -> Any:
     """The ``ContentType`` row for ``instance``'s model.
 
-    The library's one contact with ``django.contrib.contenttypes``, gated on
-    two counts and reached only when a generic relation is actually written.
-
-    The import is function-local for the reason CLAUDE.md gives for every
-    Django model: ``rest_framework_services`` ships in ``INSTALLED_APPS``, so
-    this module is imported while ``apps.populate()`` is still running and an
-    eager model import raises ``AppRegistryNotReady``. The ``is_installed``
-    check in front of it covers the other half — ``contenttypes`` is an
-    optional app, and importing a model whose app is absent fails with a
-    ``RuntimeError`` about explicit app labels, which tells the author nothing
-    about what they actually did.
+    The import is function-local because this module is imported while
+    ``apps.populate()`` runs, where an eager model import raises
+    ``AppRegistryNotReady``; the ``is_installed`` guard turns the absent-app
+    case into a message about ``contenttypes``.
     """
     if not apps.is_installed("django.contrib.contenttypes"):
         raise ImproperlyConfigured(
@@ -391,13 +347,7 @@ def _link_fields(spec: _OwnedRowSpec) -> tuple[str, ...]:
 
 
 def _link_values(spec: _OwnedRowSpec, parent: Model) -> dict[str, Any]:
-    """What to assign on a new related row so it points at ``parent``.
-
-    The one place the kinds differ on the way in: a foreign key takes the
-    parent instance, and a generic relation takes the parent's content type
-    plus its primary key, which is the same statement spelled in two columns
-    because the relation has no model to declare.
-    """
+    """What to assign on a new related row so it points at ``parent``."""
     if isinstance(spec, GenericRelationSpec):
         return {
             spec.content_type_field: _content_type_for(parent),
@@ -409,9 +359,8 @@ def _link_values(spec: _OwnedRowSpec, parent: Model) -> dict[str, Any]:
 async def _alink_values(spec: _OwnedRowSpec, parent: Model) -> dict[str, Any]:
     """Async variant of :func:`_link_values`.
 
-    Only the generic branch takes a thread hop: ``get_for_model`` is a sync ORM
-    call with no async form on any supported Django, while a foreign key needs
-    no query at all and must not pay for one.
+    Only the generic branch takes a thread hop: ``get_for_model`` has no async
+    form on any supported Django, while a foreign key needs no query at all.
     """
     if not isinstance(spec, GenericRelationSpec):
         return {spec.fk: parent}
@@ -433,9 +382,8 @@ def _fixed_link_fields(spec: _OwnedRowSpec) -> tuple[str, ...]:
 def _link_nullable(spec: _OwnedRowSpec) -> bool:
     """Whether the row's link to the parent can be blanked instead of deleted.
 
-    Every column or none, because a generic link is only severed when *both*
-    columns can hold ``NULL``; half a link is a row pointing at a content type
-    with no id, which is not a state the relation has a meaning for.
+    Every column or none: a generic link is severed only when *both* columns
+    can hold ``NULL``, since half a link is a meaningless row state.
     """
     return not _fixed_link_fields(spec)
 
@@ -443,25 +391,11 @@ def _link_nullable(spec: _OwnedRowSpec) -> bool:
 def _unlinks_orphans(spec: _OwnedRowSpec, *, relation: str) -> bool:
     """Whether a row this relation lets go is unlinked rather than deleted.
 
-    The one place ``orphan`` is read, so a relation disposes of a row the same
-    way on the update path and in the ``delete_model`` cascade. A flag meaning
-    one thing on update and another on delete would be worse than no flag.
-
-    ``AUTO`` derives the answer from the link, mirroring ``SET_NULL`` versus
-    ``CASCADE``, which is what every spec said before this field existed. The
-    other two state it, and that is the point: nullability is a fact about a
-    column rather than a statement of intent, so a later migration adding
-    ``null=True`` would otherwise turn a ``replace`` that deleted into one that
-    unlinks — no change to the spec, none to its tests, and the rows it stops
-    disposing of pile up quietly.
-
-    ``UNLINK`` against a link that cannot hold ``NULL`` asks for something the
-    database will not do, and deleting the row instead would be the opposite of
-    what was asked, so it raises. **Here** rather than at construction: a spec
-    is routinely built at import time, while ``apps.populate()`` is still
-    running and ``_meta`` cannot be read at all. This is the first moment the
-    answer is knowable, and it is the same moment ``AUTO`` reads the schema, so
-    both rules resolve in one place.
+    The one place ``orphan`` is read, so the update path and the delete cascade
+    dispose of a row the same way. ``UNLINK`` against a link that cannot hold
+    ``NULL`` raises here rather than at spec construction: specs are routinely
+    built at import time, while ``apps.populate()`` runs and ``_meta`` cannot
+    be read at all.
     """
     if spec.orphan == RelationOrphan.DELETE:
         return False
@@ -485,9 +419,8 @@ def _collect_removals(
 ) -> dict[str, tuple[Any, ...]]:
     """Bucket ``(status, pk)`` pairs into the change carrier's removal tuples.
 
-    Three buckets, not two: ``deleted`` and ``unlinked`` are what the loop's
-    own rule did, and ``removed`` is what a ``delete_service`` did, which the
-    loop cannot classify further without inventing an answer.
+    ``removed`` is the bucket for a ``delete_service``, whose disposal the loop
+    cannot classify further.
     """
     buckets: dict[RelationOutcome, list[Any]] = {
         RelationOutcome.DELETED: [],
@@ -504,16 +437,9 @@ def remove_child(
 ) -> tuple[RelationOutcome, Any]:
     """Detach (``SET_NULL``) or delete (``CASCADE``) ``child``, as ``unlink`` says.
 
-    Which one is the relation's ``orphan`` rule, resolved once by
-    :func:`_unlinks_orphans` — this helper is handed the answer rather than
-    deriving one, so the update path and the delete cascade cannot drift apart.
-
-    ``link`` is the column or columns tying the row to its parent — one for a
-    foreign key, two for a generic relation — and detaching blanks all of them
-    together, because a link is severed or it is not.
-
-    Returns ``(UNLINKED | DELETED, pk)`` with the pk captured *before* any
-    delete (Django clears ``instance.pk`` afterwards).
+    Handed the answer by :func:`_unlinks_orphans` rather than deriving one.
+    Every column of ``link`` is blanked together, and the pk is captured
+    *before* the delete because Django clears ``instance.pk``.
     """
     pk = child.pk
     if unlink:
@@ -540,11 +466,7 @@ async def aremove_child(
 
 
 def _pk_input_names(model: type[Model], field_map: dict[str, str] | None) -> frozenset[str]:
-    """Input keys on a nested payload that would land on ``model``'s primary key.
-
-    Both spellings Django accepts (``pk`` and the concrete field's name /
-    ``attname``), plus any input key ``field_map`` routes onto one of them.
-    """
+    """Input keys landing on ``model``'s pk — every spelling, plus ``field_map``."""
     targets: set[str] = {"pk", model._meta.pk.name, model._meta.pk.attname}
     mapped: set[str] = {src for src, dest in (field_map or {}).items() if dest in targets}
     return frozenset(targets | mapped)
@@ -557,26 +479,16 @@ def _reject_unmatched_reference(
 ) -> None:
     """Refuse a nested row that names a primary key nothing matched.
 
-    A create branch reached with a caller-supplied primary key is not a
-    create. ``Model(pk=7, ...).save()`` is an **UPDATE** of row 7, so a payload
-    carrying a pk the matching step did not resolve reaches, reassigns and
-    overwrites a row belonging to somebody else -- the scoping that makes the
-    *match* safe does not constrain the write that follows it.
+    ``Model(pk=7, ...).save()`` is an **UPDATE** of row 7, so a payload
+    carrying a pk the matching step did not resolve would reach and overwrite a
+    row belonging to somebody else: the scoping that makes the *match* safe
+    does not constrain the write that follows it. A payload can slip a pk past
+    any kind's matching step, which is why the check sits in
+    :func:`_create_row`, the one create every kind goes through.
 
-    Every kind creates rows through :func:`_create_row`, so the check lives
-    there rather than in one loop: the hazard is the primary key reaching a
-    create, and which relation kind carried it there changes nothing. A child
-    collection matches within the parent's manager, a forward target and a
-    many-to-many target within ``scope=``, a reverse one-to-one through the
-    parent's own foreign key and a generic relation through the content
-    type -- and a payload can slip a pk past *any* of them, by naming a row the
-    match did not cover or by declaring a natural ``match_key`` and putting the
-    pk beside it.
-
-    Raising rather than stripping the key is deliberate: the caller named a
-    specific row, and quietly creating a different one does the opposite of
-    what was asked. A non-primary ``match_key`` (a natural key such as an ISBN)
-    is untouched, so declaring one still upserts.
+    Refused rather than stripped, because quietly creating a different row does
+    the opposite of what was asked. A non-primary ``match_key`` is untouched,
+    so declaring one still upserts.
     """
     named: dict[str, Any] = {
         key: item[key]
@@ -602,12 +514,9 @@ def _reject_unmatched_reference(
 
 @dataclass(frozen=True)
 class _RowPath:
-    """Where one row sits in the incoming payload.
+    """Where one row sits in the incoming payload, so its error can name it.
 
-    Carried into the row writers so an error raised while writing that row can
-    say which relation — and, in a collection, which row of it — the caller
-    should look at. ``index`` is the row's position and ``length`` the number of
-    rows sent with it; a relation holding a single row has neither.
+    A relation holding a single row has no ``index`` and no ``length``.
     """
 
     relation: str
@@ -617,16 +526,10 @@ class _RowPath:
     def namespace(self, detail: Any) -> dict[str, Any]:
         """Put ``detail`` under the relation name, at this row's position.
 
-        The shape is DRF's ``ListSerializer``: a collection reports a list as
-        long as the incoming one, with an empty dict against every other row,
-        and a relation holding one row reports the payload under the name
-        alone. Following that convention rather than inventing one is the point
-        — a reader migrating off a writable-nested serializer keeps the error
-        handling they already have.
-
-        ``detail`` passes through untouched. A service may raise a string or a
-        list rather than a field map, and reshaping either into a field map
-        would invent a field name it never named.
+        The shape is DRF's ``ListSerializer`` — a list as long as the incoming
+        one, empty dicts against the other rows. ``detail`` passes through
+        untouched: a service may raise a string or a list rather than a field
+        map, and reshaping either would invent a field name it never named.
         """
         if self.index is None:
             return {self.relation: detail}
@@ -636,8 +539,8 @@ class _RowPath:
 
 
 # The two errors a row's write can fail with. A service reaches for whichever
-# one it knows — the library's own or DRF's — and both say the same thing to a
-# caller, so both are re-raised namespaced rather than one being blessed.
+# one it knows, the library's own or DRF's, so both are namespaced on the way
+# out rather than one being blessed.
 _ROW_WRITE_ERRORS = (ServiceValidationError, ValidationError)
 
 
@@ -647,11 +550,8 @@ def _namespaced_row_error(
 ) -> ServiceValidationError | ValidationError:
     """The same error, with the relation (and row) that carried it named.
 
-    Without this a service's ``{"title": [...]}`` arrives at the caller
-    indistinguishable from the *parent's* own ``title``, and a collection never
-    says which row failed. The class is preserved on the way out: a service that
-    reached for DRF's error chose its status mapping with it, and this is not
-    the place to overrule that.
+    The exception class is preserved: a service that reached for DRF's error
+    chose its status mapping with it.
     """
     detail: dict[str, Any] = path.namespace(exc.detail)
     if isinstance(exc, ServiceValidationError):
@@ -666,14 +566,10 @@ def _child_pool(context: Mapping[str, Any] | None, **seeds: Any) -> dict[str, An
     """Merge the opaque caller ``context`` with the loop's own seeds.
 
     The seeds are applied **last**, so a ``context`` key named ``data`` /
-    ``instance`` / ``parent`` cannot outrank the value this loop resolved. That
-    is the same guarantee ``strip_reserved_seeds`` gives the dispatcher's pools,
-    expressed as precedence rather than as a filter: there the mapping being
-    merged is client-routable input and the reserved names have to be dropped
-    outright, whereas here the context *is* the dispatcher's authoritative pool
-    and its ``user`` / ``request`` are exactly what the nested service is meant
-    to receive. Filtering it would delete the feature; ordering it keeps the
-    loop's own values authoritative, which is all that was ever at risk.
+    ``instance`` / ``parent`` cannot outrank the value this loop resolved. This
+    is the ``strip_reserved_seeds`` guarantee as precedence rather than as a
+    filter: the context is the dispatcher's authoritative pool here, so
+    filtering its ``user`` / ``request`` out would delete the feature.
     """
     return {**(context or {}), **seeds}
 
@@ -681,9 +577,9 @@ def _child_pool(context: Mapping[str, Any] | None, **seeds: Any) -> dict[str, An
 def _run_child_service(fn: Callable[..., Any], pool: dict[str, Any]) -> Any:
     """Invoke a per-child service from sync code, opening no savepoint.
 
-    ``atomic=False`` deliberately: the surrounding service's atomic block
-    already wraps the whole tree, so a nested service opening its own would buy
-    no extra guarantee and cost one savepoint per row.
+    ``atomic=False`` deliberately: the surrounding service's block already
+    wraps the whole tree, so a nested one would cost a savepoint per row and
+    guarantee nothing extra.
     """
     return run_service(fn, resolve_callable_kwargs(fn, pool), atomic=False)
 
@@ -703,10 +599,9 @@ def _remove_one_child(
 ) -> tuple[RelationOutcome, Any]:
     """Remove one child through ``delete_service`` when declared, else the rule.
 
-    A declared service owns the row, so the loop can no longer distinguish an
-    unlink from a delete — and rather than guess one, it reports ``"removed"``,
-    the one thing it does know. The pk is read *before* the call, because a
-    service that really deletes leaves ``instance.pk`` cleared behind it.
+    A declared service owns the row, so the loop reports ``"removed"`` rather
+    than guessing. The pk is read *before* the call: a service that really
+    deletes leaves ``instance.pk`` cleared behind it.
     """
     if spec.delete_service is None:
         return remove_child(child, _link_fields(spec), unlink=unlink)
@@ -744,13 +639,10 @@ def apply_forward_relations(
 ) -> tuple[dict[str, Any], tuple[RelatedObjectChange, ...]]:
     """Resolve every forward relation and return it as plain field assignments.
 
-    The one pre-save driver, shared by create and update. It writes the target
-    rows and hands back ``{field_name: instance_or_None}`` for the caller to
-    fold into the values it was going to assign anyway — which is the whole
-    trick of the forward kind: by the time the parent is built or diffed, the
-    relation is an ordinary column value, so ``diff_attrs`` reports it and the
-    minimal ``update_fields`` save persists it with nothing added for the
-    occasion.
+    The one pre-save driver, shared by create and update. Handing back
+    ``{field_name: instance_or_None}`` is what lets ``diff_attrs`` report the
+    relation and the minimal ``update_fields`` save persist it, with nothing
+    added for the occasion.
     """
     assignments: dict[str, Any] = {}
     changes: list[RelatedObjectChange] = []
@@ -800,8 +692,8 @@ def _write_forward_relation(
 ) -> tuple[Any, RelatedObjectChange]:
     """Write (or clear) one forward relation and return what to assign.
 
-    ``None`` clears the parent's column and stops there: the row the column
-    pointed at is not the parent's to remove.
+    ``None`` clears the column and stops: the row it pointed at is not the
+    parent's to remove.
     """
     if value is None:
         return (None, RelatedObjectChange(relation=relation, outcome=RelationOutcome.CLEARED))
@@ -852,16 +744,9 @@ def _resolve_scope(
 ) -> tuple[Any, Any] | None:
     """Return ``(queryset, key)`` to match on, or ``None`` for "create it".
 
-    ``None`` covers the two create cases: a payload with no match key at all,
-    and a scoped spec is never asked about one. An **unscoped** spec that is
-    handed a match key is the third case, and it raises — see the module's
-    ``ImproperlyConfigured`` message for why that is a misconfiguration rather
-    than a client error.
-
-    Shared by the two kinds whose target the parent does not own — a forward
-    foreign key and a many-to-many. Both point at a row that may be shared with
-    anybody, which is exactly why neither has a manager to match within and why
-    both need ``scope=`` before they may match at all.
+    An unscoped spec handed a match key raises: neither of these kinds has a
+    manager to match within, so matching by key unscoped would let any caller
+    write any row of that model by guessing a key.
     """
     key = item.get(spec.match_key)
     if key is None:
@@ -875,8 +760,8 @@ def _resolve_scope(
             "Declare scope= — a queryset, or a callable resolved from the caller pool — "
             "naming the rows this caller may write."
         )
-    # ``Any`` because the two accepted shapes are a queryset and a callable
-    # returning one, and the branch that tells them apart is `callable()`.
+    # ``Any``: the two accepted shapes are a queryset and a callable returning
+    # one, told apart by ``callable()``.
     scope: Any = spec.scope
     queryset: Any = (
         scope(**resolve_callable_kwargs(scope, dict(context or {}))) if callable(scope) else scope
@@ -891,14 +776,9 @@ def _scoped_match_miss(
 ) -> ServiceValidationError:
     """The error for a match key that names no row this caller may write.
 
-    Not a create. A ``match_key`` on an unowned target *identifies* a row —
-    "point at this one", "link this one" — so there is nothing sensible to
-    create in its place, and creating one anyway is actively unsafe: the
-    payload carries the key, so a ``pk`` that named an out-of-scope row would
-    be written straight back onto that row by ``Model.save()``, reaching
-    exactly the row the scope existed to protect. Unlike the unscoped case, the
-    remedy here is the client's — send a key you own, or none — so this is a
-    validation error and not a misconfiguration.
+    Never a create: the payload still carries the key, so a ``pk`` naming an
+    out-of-scope row would be written straight back onto that row by
+    ``Model.save()`` — exactly the row the scope protects.
     """
     return ServiceValidationError(
         {
@@ -920,8 +800,8 @@ def _match_scoped_target(
 ) -> Any:
     """The in-scope row this payload updates, or ``None`` to create one.
 
-    ``None`` means the payload carried no match key at all. A key that matches
-    nothing in scope raises rather than falling through to a create.
+    ``None`` means no match key was sent at all; a key matching nothing in
+    scope raises rather than falling through to a create.
     """
     resolved = _resolve_scope(item, spec, relation=relation, context=context)
     if resolved is None:
@@ -964,21 +844,12 @@ def apply_relations(
 ) -> tuple[tuple[ChildCollectionChange, ...], tuple[RelatedObjectChange, ...]]:
     """Write every relation that belongs after the parent's ``save()``.
 
-    The one post-save driver, shared by ``create_from_input`` and
-    ``update_from_input``: the ordering comes from :func:`post_save_relations`
-    and the per-kind work from the writer for that kind, so neither path can
-    grow an order of its own. Returns the collection deltas and the singular
-    ones separately, because the two shapes report differently — see
-    :class:`~rest_framework_services.ChildCollectionChange` and
-    :class:`~rest_framework_services.RelatedObjectChange`.
-
-    ``context`` is the opaque caller pool; it is forwarded verbatim, both into
-    the per-row helper call (so a grandchild's service sees the same pool as a
-    child's) and into the pool of any service the spec declares. Nothing in
-    this driver reads it.
+    The one post-save driver, shared by create and update: the ordering comes
+    from :func:`post_save_relations`, so neither path can grow an order of its
+    own. ``context`` is the opaque caller pool, forwarded verbatim down the
+    tree and into any service a spec declares; this driver never reads it.
     """
     collections: list[ChildCollectionChange] = []
-    # Singular post-save kinds report here, in the second slot of the result.
     singular: list[RelatedObjectChange] = []
     for relation, spec in post_save_relations(relations):
         value = relation_data.get(relation, UNSET)
@@ -1006,12 +877,7 @@ def apply_relations(
 
 
 def _unknown_relation_kind(relation: str, spec: RelationSpec) -> ImproperlyConfigured:
-    """The error for a relation spec neither driver knows what to do with.
-
-    Reachable only through a :class:`RelationSpec` subclass the library did not
-    define: the ``write_phase`` says when to write it and nothing says how, and
-    the delete cascade cannot guess whether the parent owns its rows.
-    """
+    """The error for a ``RelationSpec`` subclass the library did not define."""
     return ImproperlyConfigured(
         f"relations[{relation!r}]: {type(spec).__name__} is not a relation kind this "
         "library knows how to write or remove. Declare the relation with one of the "
@@ -1030,16 +896,10 @@ def _write_reverse_one_to_one(
 ) -> RelatedObjectChange:
     """Write the parent's single reverse one-to-one row.
 
-    The children loop with the collection taken out: there is at most one row
-    and the relation itself is the match, so nothing is matched by key and
-    nothing is scoped — the row is reached through the parent's own foreign
-    key or it does not exist. ``None`` removes it by the spec's ``orphan``
-    rule (see :func:`_unlinks_orphans`), or hands it to ``delete_service``.
-
-    The existing row is fetched by querying the ``fk`` rather than through the
-    reverse accessor: the accessor caches, raises its own ``DoesNotExist``, and
-    has no async form, and one query answers all three the same way on both
-    paths.
+    The relation itself is the match, so nothing is matched by key and nothing
+    is scoped. The existing row is fetched by querying the ``fk`` rather than
+    through the reverse accessor, which caches, raises its own
+    ``DoesNotExist``, and has no async form.
     """
     if value is UNSET:
         return RelatedObjectChange(relation=relation)
@@ -1128,18 +988,11 @@ def _write_owned_collection(
 ) -> ChildCollectionChange:
     """Reconcile one owned collection against ``items``.
 
-    Match incoming rows to existing ones by the spec's ``match_key`` (skipped
-    on ``created`` — a fresh parent has none), update matches, create the rest,
-    and — in ``replace`` mode — remove orphans via :func:`remove_child`. Each
-    row runs back through ``create``/``update`` so scalar / m2m / nested
-    semantics compose recursively.
-
-    Reverse foreign keys and generic relations share this loop whole. They are
-    the same relation with a different link — one column or two — and the link
-    is the only thing either of them says about the parent, so it is the only
-    thing that varies: :func:`_link_values` on the way in, :func:`_link_fields`
-    on the way out. Both are matched inside the parent's own accessor, which is
-    why neither takes a ``scope=``.
+    Reverse foreign keys and generic relations share this loop whole: the link
+    is the only thing that differs, one column or two, via
+    :func:`_link_values` on the way in and :func:`_link_fields` on the way out.
+    Both match inside the parent's own accessor, which is why neither takes a
+    ``scope=``.
     """
     if items is UNSET:
         return ChildCollectionChange(relation=relation)
@@ -1149,8 +1002,8 @@ def _write_owned_collection(
     created_pks: list[Any] = []
     updated_pks: list[Any] = []
     matched: set[Any] = set()
-    # Materialized rather than streamed: a row's error names its position in
-    # the incoming set, so the set has to have a length before the first write.
+    # Materialized, not streamed: a row's error names its position in the
+    # incoming set, so the set needs a length before the first write.
     rows: list[dict[str, Any]] = [coerce_to_dict(i) for i in (items or [])]
     for index, item in enumerate(rows):
         child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
@@ -1200,15 +1053,11 @@ def _write_m2m_relation(
 ) -> ChildCollectionChange:
     """Write a many-to-many's target rows, then the membership.
 
-    Two steps in that order, and the order is the kind: every target has to
-    exist and hold a primary key before there is anything to link, so the rows
-    are written first and the manager is handed the finished list once.
-
-    Matching happens in ``scope=``, never in the parent's current membership —
-    the payload names the rows to link, which is precisely the set that is not
-    linked yet, so matching against the members would make every new link look
-    like a create. The current membership is read for one thing only: naming
-    the targets ``"replace"`` drops.
+    That order is required: every target must hold a primary key before there
+    is anything to link. Matching happens in ``scope=``, never in the current
+    membership — the payload names the rows to link, which is precisely the set
+    not linked yet, so matching against the members would make every new link
+    look like a create.
     """
     if items is UNSET:
         return ChildCollectionChange(relation=relation)
@@ -1258,10 +1107,8 @@ def _m2m_dropped(
 ) -> tuple[Any, ...]:
     """The members ``"replace"`` dropped — an unlink, never a delete.
 
-    A many-to-many target is shared by definition, so the only thing the loop
-    can remove is the membership. That is why this fills
-    :attr:`~rest_framework_services.ChildCollectionChange.unlinked` and why
-    ``deleted`` stays empty for this kind whatever ``mode`` says.
+    A many-to-many target is shared, so ``deleted`` stays empty for this kind
+    whatever ``mode`` says.
     """
     if spec.mode != "replace":
         return ()
@@ -1281,25 +1128,14 @@ def _create_row(
     """Persist one new related row: ``create_service`` when declared, else the helper.
 
     The one create used by every kind, which is why ``data`` and ``seeds``
-    arrive already built rather than being derived here. What differs between
-    the kinds is exactly those two: a row the parent owns gets its link to the
-    parent set and a ``parent`` seed in the pool, and a forward target gets
-    neither — it is written before there is a parent to speak of.
-
-    Being the one create is also why the primary-key guard sits here, ahead of
-    the ``create_service`` dispatch: no kind can reach a create without passing
-    it, and a declared service is not handed the key either — otherwise the
-    same defect moves one layer out, into code the library cannot see.
-
-    It is why the row's errors are named here too, in the same one place: what
-    a service raises is about *this* row, and only the loop knows which relation
-    and which position that is. The guard stays outside the block on purpose —
-    it names the relation itself, and naming it twice would be worse than not
-    naming it at all. A nested helper call inside the block has already named
-    its own relation, so the names nest as a reader walks them.
+    arrive already built and why the primary-key guard sits here, ahead of the
+    ``create_service`` dispatch: no kind can reach a create without passing it,
+    and a declared service is not handed the key either. Keep the guard outside
+    the ``try`` — it names the relation itself, which the block would then name
+    a second time.
     """
     # Lazy import: genuine recursion cycle — the parent helpers call this loop,
-    # and it calls them again for each row (and each of its own relations).
+    # and it calls them again for each row.
     from rest_framework_services.mutations.create_from_input import create_from_input
 
     _reject_unmatched_reference(data, spec, path.relation)
@@ -1366,9 +1202,7 @@ def _update_row(
 ) -> Any:
     """Persist one matched row through ``update_service`` when declared.
 
-    A service returning ``None`` means "use the in-memory instance" — the
-    framework's existing update convention, honoured here too. The row's errors
-    are named after its relation for the reason :func:`_create_row` gives.
+    A service returning ``None`` means "use the in-memory instance".
     """
     # Lazy import: genuine recursion cycle — see :func:`_create_row`.
     from rest_framework_services.mutations.update_from_input import update_from_input
@@ -1444,8 +1278,7 @@ def _remove_orphans(
     """Remove pre-update children not matched by the incoming set (replace mode).
 
     Iterates the *original* snapshot, never a fresh query, so children created
-    in this same call are not mistaken for orphans. Returns the
-    ``(status, pk)`` pairs :func:`_collect_removals` buckets.
+    in this same call are not taken for orphans.
     """
     removals: list[tuple[RelationOutcome, Any]] = []
     if created or spec.mode != "replace":
@@ -1638,39 +1471,17 @@ def delete_relations(
 ) -> tuple[tuple[ChildCollectionChange, ...], tuple[RelatedObjectChange, ...]]:
     """Remove what ``parent`` owns, deepest first, before ``parent`` itself goes.
 
-    Used by the default :func:`~rest_framework_services.delete_model` service
-    to cascade explicitly where the database will not: a ``PROTECT`` relation,
-    or a ``soft_delete`` hook Django never cascades through because no row is
-    deleted.
+    Used by the default ``delete_model`` service to cascade explicitly where
+    the database will not: a ``PROTECT`` relation, or a ``soft_delete`` hook
+    Django never cascades through because no row is deleted.
 
     **One rule covers every kind: the cascade removes the rows the parent owns,
-    and does nothing to the rows it merely points at.** Ownership is the whole
-    question, and each kind answers it the same way here as on the write path:
-
-    - a reverse-FK collection and a generic relation are the parent's rows —
-      every one is removed, its own declared relations first, so a non-nullable
-      grandchild goes before the row it points at. Nullable links are unlinked
-      (like ``SET_NULL``) and the rest deleted (like ``CASCADE``), or handed to
-      ``delete_service``.
-    - a reverse one-to-one is the parent's row too, singular. Same rule, one
-      row.
-    - a many-to-many target is **not** the parent's row — it is shared with
-      every other parent linked to it — so only the *membership* is removed.
-      The targets are reported under ``unlinked`` and none is deleted.
-    - a forward relation is not the parent's row either, and the link lives on
-      the parent, so the cascade has nothing to do: the column goes when the
-      parent does. It is reported ``"untouched"`` rather than refused, because
-      "leave it alone" is the correct and complete answer — and because the
-      same ``relations=`` map is what the row's *write* path is declared with,
-      so refusing it would make a perfectly good write spec un-cascadable.
-
-    Returns the collection deltas and the singular ones separately, for the
-    reason :func:`apply_relations` returns them separately: the two shapes
-    report differently, and squeezing a one-row relation into a collection's
-    pk tuples is the misreporting this split exists to end.
-
-    ``context`` is the opaque caller pool, forwarded down the tree and into the
-    pool of any service a spec declares; this loop never reads it.
+    and does nothing to the rows it merely points at.** So the owned kinds are
+    removed, each after its own declared relations so a non-nullable grandchild
+    goes first; a many-to-many loses only its membership; and a forward
+    relation is reported untouched rather than refused, since the same map
+    declares the write path and refusing it would make a good spec
+    un-cascadable.
     """
     collections: list[ChildCollectionChange] = []
     singular: list[RelatedObjectChange] = []
@@ -1794,9 +1605,7 @@ async def _adelete_owned_row(
 def _clear_m2m_membership(parent: Model, *, relation: str) -> ChildCollectionChange:
     """Drop every member of one many-to-many, deleting no target row.
 
-    No ``delete_service`` is consulted and none exists on the spec: nothing is
-    deleted here, so there is no removal for a service to own. Nor are the
-    targets' own relations followed — they belong to the targets, which survive.
+    The targets survive, so their own relations are not followed either.
     """
     manager: Any = getattr(parent, relation)
     members: tuple[Any, ...] = tuple(manager.values_list("pk", flat=True))

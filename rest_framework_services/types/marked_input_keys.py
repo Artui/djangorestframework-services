@@ -19,16 +19,16 @@ def marked_input_keys(fn: Callable[..., Any]) -> tuple[frozenset[str], frozenset
     ``**kwargs: Unpack[SomeExtras]`` ``TypedDict``. ``required`` is the set marked
     :data:`~rest_framework_services.InputRequired`, ``hidden`` the set marked
     :data:`~rest_framework_services.NotClientInput`. A callable with no markers
-    returns two empty sets, which is the overwhelmingly common case — callers
-    should treat that as "nothing to enforce, nothing to hide".
+    returns two empty sets — nothing to enforce, nothing to hide — which is the
+    overwhelmingly common case.
 
-    Unresolvable annotations (forward refs that don't resolve) yield empty sets
-    rather than raising: a marker that cannot be read is a marker that cannot be
-    honoured, and schema generation is best-effort throughout this package.
+    Unresolvable annotations yield empty sets rather than raising: a marker that
+    cannot be read is a marker that cannot be honoured, and schema generation is
+    best-effort throughout this package.
     """
     try:
         hints = get_type_hints(fn, include_extras=True)
-    except Exception:  # noqa: BLE001 — unresolvable forward refs → unmarked, never fatal
+    except Exception:  # noqa: BLE001 — never fatal, see the docstring
         return frozenset(), frozenset()
     required: set[str] = set()
     hidden: set[str] = set()

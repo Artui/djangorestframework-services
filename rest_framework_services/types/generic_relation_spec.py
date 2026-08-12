@@ -26,13 +26,11 @@ class GenericRelationSpec(RelationSpec):
 
     The reverse-FK collection with the foreign key replaced by a pair of
     columns: a ``ForeignKey`` to ``ContentType`` saying *which model* the row
-    belongs to, and an id column saying *which row*. Everything else is the
-    same, which is why it reconciles exactly as
+    belongs to, and an id column saying *which row*. It reconciles exactly as
     :class:`~rest_framework_services.ChildSpec` does — matched inside the
-    parent's own accessor, so no ``scope=`` is needed or accepted — and why it
-    is written after the parent's ``save()``
-    (:attr:`~rest_framework_services.RelationPhase.GENERIC`, once the parent
-    has both a content type and a primary key).
+    parent's own accessor, so no ``scope=`` is needed or accepted — and is
+    written in :attr:`~rest_framework_services.RelationPhase.GENERIC`, once the
+    parent's ``save()`` has given it both a content type and a primary key.
 
     Declared in ``relations={accessor_name: GenericRelationSpec(...)}``, where
     the name is the ``GenericRelation`` declared on the parent
@@ -40,48 +38,47 @@ class GenericRelationSpec(RelationSpec):
     relation the input omits is untouched; an explicit ``[]`` in ``"replace"``
     mode empties it.
 
-    **This kind needs ``django.contrib.contenttypes`` in ``INSTALLED_APPS``**
-    and nothing else in the library does, so the content-type lookup is
-    resolved on first use rather than imported with the package: this package
-    ships in ``INSTALLED_APPS`` itself and is imported while Django is still
-    populating the app registry, where importing a model raises
-    ``AppRegistryNotReady``. Declaring the spec is always safe; *writing* one
-    without the app installed raises
+    **This kind needs ``django.contrib.contenttypes`` in ``INSTALLED_APPS``**,
+    and nothing else in the library does. Declaring the spec is always safe;
+    *writing* one without the app installed raises
     :exc:`~django.core.exceptions.ImproperlyConfigured` naming the remedy.
 
-    Fields:
-
-    - **``model``** — the related model class (the one carrying the content
-      type and id columns, e.g. ``Attachment``).
-    - **``content_type_field``** / **``object_id_field``** — the names of those
-      two columns, defaulting to Django's own ``"content_type"`` /
-      ``"object_id"``. They mirror the arguments of the same name on
-      ``GenericRelation``; set them when the model spells them differently.
-    - **``match_key``** — the field pairing an incoming row with an existing
-      one (default ``"pk"``), read inside the parent's own accessor.
-    - **``mode``** — ``"replace"`` (the default) removes the rows the incoming
-      set leaves out, ``"merge"`` upserts only.
-    - **``orphan``** — what removing one *does*. ``"auto"`` (the default)
-      **unlinks** (both link columns set to ``None``) when both are nullable and
-      **deletes** otherwise — the same rule
-      :class:`~rest_framework_services.ChildSpec` applies to one column, applied
-      to the pair, since half a link is not a state the relation has a meaning
-      for. ``"unlink"`` and ``"delete"`` state it instead of deriving it, with
-      the same wording and the same effect on the
-      :func:`~rest_framework_services.delete_model` cascade; ``"unlink"`` raises
-      at write time unless both columns can hold ``NULL``.
-    - **``field_map``** / **``exclude_fields``** / **``m2m``** /
-      **``children``** / **``relations``** — forwarded to the row's own
-      ``create_from_input`` / ``update_from_input`` call.
-    - **``create_service``** / **``update_service``** / **``delete_service``**
-      — optional services replacing that call, with the same contract as
-      :class:`~rest_framework_services.ChildSpec`'s: a create service's
-      ``data`` already carries both link columns, an update service returning
-      ``None`` means "use the in-memory instance", and a delete service
-      replaces the unlink-or-delete rule (so the outcome is reported as
-      ``"removed"``, and an explicit ``orphan`` beside it raises). Declaring
-      ``create_service`` / ``update_service`` alongside the row-shaping knobs
-      raises at construction.
+    Attributes:
+        model: The related model class — the one carrying the content-type and
+            id columns, e.g. ``Attachment``.
+        content_type_field: Name of the content-type column, defaulting to
+            Django's own ``"content_type"``.
+        object_id_field: Name of the id column, defaulting to ``"object_id"``.
+            Both mirror the ``GenericRelation`` arguments of the same name; set
+            them when the model spells the columns differently.
+        match_key: The field pairing an incoming row with an existing one
+            (default ``"pk"``), read inside the parent's own accessor.
+        mode: ``"replace"`` (the default) removes the rows the incoming set
+            leaves out, ``"merge"`` upserts only.
+        field_map: Forwarded to the row's own ``create_from_input`` /
+            ``update_from_input`` call.
+        exclude_fields: Forwarded likewise.
+        m2m: Forwarded likewise.
+        children: Forwarded likewise.
+        relations: Forwarded likewise.
+        create_service: Optional service replacing that call, with the contract
+            :class:`~rest_framework_services.ChildSpec` states; its ``data``
+            already carries both link columns. Declaring it alongside the
+            row-shaping fields above raises at construction.
+        update_service: The same; returning ``None`` means "use the in-memory
+            instance".
+        delete_service: Replaces the unlink-or-delete rule below, so the outcome
+            is reported as ``"removed"`` and an explicit ``orphan`` beside it
+            raises.
+        orphan: What removing a row *does* —
+            :class:`~rest_framework_services.ChildSpec`'s rule applied to the
+            pair of link columns rather than to one, since half a link is not a
+            state the relation has a meaning for. ``"auto"`` (the default)
+            **unlinks** (both columns set to ``None``) when both are nullable
+            and **deletes** otherwise; ``"unlink"`` and ``"delete"`` state it
+            instead of deriving it, and ``"unlink"`` raises at write time unless
+            both columns can hold ``NULL``. The rule also governs the
+            :func:`~rest_framework_services.delete_model` cascade.
     """
 
     write_phase: ClassVar[RelationPhase] = RelationPhase.GENERIC

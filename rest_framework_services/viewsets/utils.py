@@ -25,11 +25,10 @@ from rest_framework_services.viewsets.resolve_polymorphic_service_spec import (
     resolve_polymorphic_service_spec,
 )
 
-# The three shapes an ``action_specs`` value may take.
 ActionSpec = SelectorSpec | ServiceSpec | PolymorphicServiceSpec
 
-# Per-action context: ``has_instance`` controls signature validation +
-# whether the mutation flow expects a fetched instance from ``get_object()``.
+# ``has_instance`` drives signature validation and whether the mutation flow
+# expects a fetched instance from ``get_object()``.
 _MUTATION_ACTIONS: dict[str, dict[str, Any]] = {
     "create": {"has_instance": False},
     "update": {"has_instance": True},
@@ -41,11 +40,9 @@ _SELECTOR_ACTION_KIND: dict[str, SelectorKind] = {
     "retrieve": SelectorKind.RETRIEVE,
 }
 
-# Action-key fallbacks applied identically at every resolution site
-# (dispatch, ``get_permissions``, ``ActionSerializerResolver``, and
-# schema-time ``resolve_service_spec``): ``"partial_update"`` resolves first and
-# falls back to ``"update"``, so PATCH and PUT share one spec unless a
-# dedicated PATCH entry is defined.
+# PATCH and PUT share one spec unless a dedicated ``"partial_update"`` entry
+# exists. Must be applied at every resolution site (see
+# ``resolve_action_spec_entry``).
 _ACTION_SPEC_FALLBACKS: dict[str, str] = {
     "partial_update": "update",
 }
@@ -57,12 +54,10 @@ def resolve_action_spec_entry(
 ) -> ActionSpec | None:
     """Return the ``action_specs`` entry for ``action``, following fallbacks.
 
-    The single source of truth for the action→spec-key chain. Every site
-    that keys behaviour on the active action's spec entry must resolve it
-    through here — dispatch, permission resolution, and serializer
-    resolution disagreeing on the key is exactly the bug class this
-    prevents (a ``"update"``-keyed spec whose ``permission_classes``
-    silently didn't apply under PATCH).
+    Single source of truth for the action→spec-key chain: dispatch, permission
+    resolution and serializer resolution must all route through here, or they
+    disagree on the key (an ``"update"``-keyed spec's ``permission_classes``
+    silently not applying under PATCH).
     """
     if action is None:
         return None
@@ -84,13 +79,9 @@ def resolve_action_service_spec(
 ) -> ServiceSpec[Any, Any, Any]:
     """Pick a :class:`ServiceSpec` from ``action_specs`` for a mutation action.
 
-    Follows the :func:`resolve_action_spec_entry` fallback chain
-    (``"partial_update"`` → ``"update"``). A :class:`PolymorphicServiceSpec`
-    entry is resolved to its chosen variant via the discriminator (memoized on
-    ``view`` for the request). Raises :exc:`MethodNotAllowed` when the action is
-    not configured and :exc:`ImproperlyConfigured` when the entry is the wrong
-    spec type. Centralised so all three mutation viewset mixins share one error
-    path.
+    A :class:`PolymorphicServiceSpec` entry is resolved to its chosen variant via
+    the discriminator (memoized on ``view`` for the request). Centralised so all
+    three mutation viewset mixins share one error path.
     """
     entry = resolve_action_spec_entry(action_specs, action)
     if entry is None:
@@ -112,11 +103,9 @@ def resolve_action_selector_spec(
 ) -> SelectorSpec[Any, Any] | None:
     """Pick a :class:`SelectorSpec` from ``action_specs`` for a read action.
 
-    Returns ``None`` when the action is unconfigured or the spec opts out
-    of selector dispatch (``selector=None``); the caller is expected to
-    fall back to vanilla DRF (``super().get_queryset()`` /
-    ``super().get_object()``). Raises :exc:`ImproperlyConfigured` when the
-    entry is the wrong spec type.
+    ``None`` means the caller must fall back to vanilla DRF
+    (``super().get_queryset()`` / ``super().get_object()``) — either the action is
+    unconfigured or the spec opts out of selector dispatch (``selector=None``).
     """
     entry = action_specs.get(action)
     if entry is None:
@@ -165,15 +154,12 @@ def _validate_action_spec(view_cls: type, action: str, spec: object) -> None:
 class _ActionSpecsMixin:
     """Declares the ``action_specs`` class attribute shared by all viewset mixins.
 
-    All per-action mixins and :class:`ActionSerializerResolver` inherit from
-    this so the attribute is defined in exactly one place. The
-    :meth:`as_view` override below runs fail-fast signature validation on
-    every entry in ``action_specs`` once per view at URL-wiring time.
+    All per-action mixins and :class:`ActionSerializerResolver` inherit from this
+    so the attribute is defined in exactly one place. :meth:`as_view` runs
+    fail-fast spec validation once per view at URL-wiring time.
 
-    :meth:`get_permissions` honors ``spec.permission_classes`` on the entry
-    for the current action when set. ``None`` (the default) inherits the
-    view's class-level ``permission_classes``; an empty sequence means
-    "no permissions" explicitly.
+    In :meth:`get_permissions`, a spec's ``permission_classes`` of ``None`` means
+    inherit the view's; an empty sequence means "no permissions" explicitly.
     """
 
     action_specs: ClassVar[Mapping[str, ActionSpec]] = {}
@@ -193,46 +179,26 @@ class _ActionSpecsMixin:
     def get_serializer_context(self) -> dict[str, Any]:
         """Merge a SelectorSpec's output context provider into DRF's context.
 
-        DRF's ``ListModelMixin`` / ``RetrieveModelMixin`` instantiate the
-        response serializer via ``self.get_serializer(...)`` which calls
-        ``self.get_serializer_context()``. Selector specs need their
-        ``output_serializer_context`` surfaced through this path.
+        DRF's ``ListModelMixin`` / ``RetrieveModelMixin`` reach the response
+        serializer's context only through here, so a selector spec's
+        ``output_serializer_context`` has to be layered on this path.
 
-        Only applies when the current action's entry is a
-        :class:`SelectorSpec`. Mutation actions handle context separately
-        in :func:`dispatch_mutation_for_spec` (which passes ``context=``
-        directly to the input and output serializers), so layering here
-        would otherwise double-apply for mutations and bleed output
-        context into the input direction.
+        Restricted to :class:`SelectorSpec` entries: mutations already apply
+        their context inside ``dispatch_mutation_for_spec``, so layering here
+        would double-apply it and bleed output context into the input direction.
 
-        Layers (most specific last):
-
-        1. ``super().get_serializer_context()`` — DRF default.
-        2. ``self.get_<action>_output_serializer_context()`` — per-action
-           override on the view, if defined.
-        3. ``action_specs[self.action].output_serializer_context`` — per-spec
-           callable, if set.
-
-        The ``get_output_serializer_context`` *directional* hook is
-        deliberately not consulted here: its default implementation on
-        :class:`MutationFlowMixin` calls ``self.get_serializer_context()``,
-        which would recurse into this override. Users who want a shared
-        output-only context for selector list / retrieve should override
-        ``get_serializer_context`` directly or use the per-action hook.
+        The ``get_output_serializer_context`` *directional* hook is deliberately
+        not consulted — :class:`MutationFlowMixin`'s default implementation calls
+        ``self.get_serializer_context()`` and would recurse into this override.
         """
         base: dict[str, Any] = dict(super().get_serializer_context())  # ty: ignore[unresolved-attribute]
         action: str | None = self.action
         entry: ActionSpec | None = resolve_action_spec_entry(self.action_specs, action)
-        # Only SelectorSpec entries layer context here; mutations (plain or
-        # polymorphic) apply their chosen variant's context inside
-        # ``dispatch_mutation_for_spec``.
         if not isinstance(entry, SelectorSpec):
             return base
-        # Offer the resolved data stashed by the selector list / retrieve
-        # mixin under the action-appropriate name (``page`` for list,
-        # ``instance`` for retrieve). Providers receive only what they declare.
-        # A SelectorSpec entry is only ever the ``list`` or ``retrieve``
-        # action, so the two arms are exhaustive.
+        # Names the data stashed by the selector list / retrieve mixin the way
+        # the action's providers expect it. A SelectorSpec entry is only ever the
+        # ``list`` or ``retrieve`` action, so the two arms are exhaustive.
         if _SELECTOR_ACTION_KIND.get(action) is SelectorKind.LIST:
             extras: dict[str, Any] = {"page": getattr(self, "_resolved_page", None)}
         else:
@@ -248,32 +214,19 @@ class _ActionSpecsMixin:
         )
 
     def get_permissions(self) -> list[Any]:
-        # Resolved through the fallback chain so PATCH (action
-        # ``"partial_update"``) enforces an ``"update"``-keyed spec's
-        # ``permission_classes`` — the same chain dispatch uses.
+        # Same fallback chain as dispatch, so PATCH enforces an
+        # ``"update"``-keyed spec's ``permission_classes``.
         spec: ActionSpec | None = resolve_action_spec_entry(self.action_specs, self.action)
         if spec is None and self.action is not None:
-            # Fall back to a spec attached by ``@service_action`` /
-            # ``@selector_action`` on the bound handler so decorator-based
-            # actions enforce their permissions without requiring the DRF
-            # router (which would otherwise pass them via ``initkwargs``).
+            # Falls back to a spec stamped on the bound handler by
+            # ``@service_action`` / ``@selector_action``, so decorator-based
+            # actions enforce permissions without the DRF router's ``initkwargs``.
             #
-            # **Defaulted, because not every action names a method.** DRF sets
-            # ``self.action = "metadata"`` for OPTIONS — its own comment calls
-            # the action implicit — and there is no ``metadata`` handler to find.
-            # An undefaulted ``getattr`` raised ``AttributeError``, which is not
-            # an ``APIException``, so ``handle_exception`` re-raised it and every
-            # OPTIONS request to a spec-backed viewset ended as an unhandled 500
-            # before any permission was evaluated. That is wider than it sounds:
-            # a CORS preflight is an OPTIONS request, and django-cors-headers
-            # only short-circuits paths matching ``CORS_URLS_REGEX`` that also
-            # carry ``Access-Control-Request-Method``.
-            #
-            # Defaulting to ``None`` rather than special-casing ``"metadata"``:
-            # the branch was unsafe for *any* action with no attribute behind it,
-            # and an action that names no handler has no decorator spec by
-            # definition. Falling through to the view's own
-            # ``permission_classes`` is what DRF does for OPTIONS anyway.
+            # The ``getattr`` default is load-bearing: DRF sets
+            # ``self.action = "metadata"`` for OPTIONS and no such handler
+            # exists. An ``AttributeError`` here is not an ``APIException``, so
+            # ``handle_exception`` re-raises it and every OPTIONS request (CORS
+            # preflights included) 500s before permissions are evaluated.
             handler: Any = getattr(self, self.action, None)
             spec = getattr(handler, "_service_spec", None) or getattr(
                 handler, "_selector_spec", None
@@ -289,16 +242,15 @@ class _ActionSpecsMixin:
 
         ``discriminate`` resolves the chosen variant (reading the raw body) and
         applies only its permissions; ``union`` / ``require_identical`` apply the
-        deduplicated union of every variant's classes (a variant declaring
-        ``None`` contributes the view's class-level ``permission_classes``).
+        deduplicated union of every variant's classes.
         """
         if poly.permission_strategy == "discriminate":
             chosen = resolve_polymorphic_service_spec(poly, view=self, request=self.request)
             if chosen.permission_classes is not None:
                 return [permission() for permission in chosen.permission_classes]
             return super().get_permissions()  # ty: ignore[unresolved-attribute]
-        # union / require_identical: dedup the classes across variants, preserving
-        # first-seen order. A ``None`` variant inherits the view default classes.
+        # union / require_identical. A dict is the dedup: it preserves first-seen
+        # order, which a set would not.
         classes: dict[type, None] = {}
         for variant in poly.specs.values():
             variant_classes = (

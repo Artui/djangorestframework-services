@@ -22,14 +22,10 @@ from rest_framework_services.views.utils import resolve_view_hooks
 def is_queryset(obj: Any) -> bool:
     """True for Django ``QuerySet`` objects and ``Manager`` instances.
 
-    These are the queryset-shaping targets: the things the four shaping
-    fields can be applied to, and the things a RETRIEVE selector / output
-    selector should be materialized from via ``.first()``. Centralizes the
-    "is this a queryset?" decision so the selector and mutation dispatch
-    paths agree on one definition instead of duck-typing on a method name
-    (``hasattr(..., "first")``), which would also match an unrelated domain
-    object that happens to expose ``first``. ``QuerySet`` subclasses
-    (``.values()``, ``.values_list()``, polymorphic querysets, …) all pass.
+    The one definition of a queryset-shaping target: what the shaping fields may
+    be applied to, and what a RETRIEVE selector materializes from. Tested by type
+    rather than by ``hasattr(…, "first")``, which would also match a domain
+    object that happens to expose ``first``. ``QuerySet`` subclasses all pass.
     """
     return isinstance(obj, (QuerySet, BaseManager))
 
@@ -66,32 +62,36 @@ def apply_queryset_shaping(
 ) -> Any:
     """Apply the five shaping fields to ``qs``.
 
-    Declarative fields apply first (in declaration order), then
-    ``extend_queryset`` runs so the user callable always sees the fully
-    statically-shaped queryset, and finally ``filter_set`` narrows it via the
-    transport-neutral ``filter_set(data=filter_data, queryset=qs).qs`` contract
-    — validated first (see :func:`_raise_on_invalid_filter`, mirroring
-    ``DjangoFilterBackend``'s 400-on-invalid-filter) — so filtering composes with
-    shaping and runs before the retrieve ``.first()`` materialization the caller
-    does next. Returns ``qs`` unchanged when no shaping is configured.
+    The order is fixed: the declarative fields first (in declaration order),
+    then ``extend_queryset``, so the user callable always sees the fully
+    statically-shaped queryset, and finally ``filter_set``, so filtering
+    composes with shaping and runs before the retrieve ``.first()``
+    materialization the caller does next.
 
-    Raises :exc:`ImproperlyConfigured` when shaping is configured but
-    ``qs`` is not a Django QuerySet (no ``annotate`` method) — loud
-    failure beats a stale ``AttributeError`` deep in DRF rendering.
-    ``source_label`` is included in the error to point at the misuse
-    (``"SelectorSpec.selector"`` vs ``"ServiceSpec.output_selector_spec.selector"``).
+    Args:
+        request: Passed to ``extend_queryset``, and into the ``filter_set``
+            constructor when it declares a ``request`` parameter — so a
+            request-scoped ``FilterSet`` sees the same ``self.request`` it would
+            behind ``DjangoFilterBackend``. A bare ``(data, queryset)`` stand-in
+            is called exactly as before.
+        filter_set: Applied by duck typing as
+            ``filter_set(data=filter_data, queryset=qs).qs``, after validation
+            (mirroring ``DjangoFilterBackend``'s 400 on invalid filter input).
+        filter_data: The flat ``{field: value}`` mapping the FilterSet reads.
+            ``None`` falls back to ``request.query_params`` — the HTTP view
+            path; a transport-neutral caller passes its own params.
+        source_label: Named in the misconfiguration error to point at the
+            offending callable (``"SelectorSpec.selector"`` vs
+            ``"ServiceSpec.output_selector_spec.selector"``).
 
-    ``filter_set`` defaults to ``None`` so existing callers of this blessed
-    surface keep working unchanged. ``filter_data`` is the data the FilterSet
-    reads (a flat ``{field: value}`` mapping); it defaults to ``None``, in
-    which case the value falls back to ``request.query_params`` — the HTTP view
-    path. A transport-neutral caller (``dispatch_spec``) passes its own params
-    here. ``request`` is forwarded into the FilterSet when its constructor
-    declares it (see :func:`_filter_set_accepts_request`), so a request-scoped
-    ``FilterSet`` sees the same ``self.request`` it would behind
-    ``DjangoFilterBackend`` instead of ``None`` — real on the HTTP / MCP paths, a
-    faithful-``user`` / -``query_params`` synthetic off-HTTP; a bare
-    ``(data, queryset)`` stand-in that doesn't declare ``request`` is unaffected.
+    Returns:
+        The shaped queryset, or ``qs`` unchanged when nothing is configured.
+
+    Raises:
+        ImproperlyConfigured: Shaping is configured but ``qs`` is not a Django
+            queryset — loud failure beats a stray ``AttributeError`` deep in DRF
+            rendering.
+        ValidationError: ``filter_set`` rejected ``filter_data``.
     """
     if (
         select_related is None
@@ -130,21 +130,14 @@ def apply_queryset_shaping(
 def _raise_on_invalid_filter(filterset: Any) -> None:
     """Reject invalid filter input the way DRF's ``DjangoFilterBackend`` does.
 
-    A django-filter ``FilterSet`` validates its bound form via ``is_valid()``
-    and exposes the failures on ``.errors``. Reading ``.qs`` *without* validating
-    silently returns the **unfiltered** queryset in django-filter's default
-    non-strict mode — so a bad ``?field=`` value (e.g. a ``ChoiceFilter`` value
-    outside its choices) would answer 200 with unfiltered rows instead of the
-    400 ``DjangoFilterBackend`` gives by default. ``filter_set`` replaces that
-    backend on the list path, so it must keep the same contract.
-
-    Only enforced when the duck-typed ``filter_set`` actually exposes
-    ``is_valid`` — a bare ``(data, queryset) -> .qs`` stand-in that doesn't opt
-    into validation keeps its pass-through behaviour. The DRF ``ValidationError``
-    is built straight from ``filterset.errors`` (a Django form ``ErrorDict``,
-    which DRF renders into the same ``{field: [msg]}`` 400 shape) so the core
-    never has to import django-filter — the reason ``filter_set`` is duck-typed
-    in the first place.
+    Reading ``.qs`` without ``is_valid()`` first silently returns the
+    **unfiltered** queryset in django-filter's default non-strict mode, so a bad
+    ``?field=`` value would answer 200 with unfiltered rows; ``filter_set``
+    replaces that backend on the list path and must keep its 400. Only enforced
+    when the duck-typed ``filter_set`` exposes ``is_valid``, so a bare
+    ``(data, queryset) -> .qs`` stand-in keeps its pass-through behaviour, and
+    built straight from ``filterset.errors`` so the core never imports
+    django-filter.
     """
     is_valid = getattr(filterset, "is_valid", None)
     if is_valid is not None and not is_valid():
@@ -154,30 +147,16 @@ def _raise_on_invalid_filter(filterset: Any) -> None:
 def _filter_set_accepts_request(filter_set: Any) -> bool:
     """True when ``filter_set``'s constructor declares a ``request`` parameter.
 
-    ``filter_set`` is applied by duck typing — the blessed contract is only
-    ``(data, queryset) -> .qs`` (so ``types/`` and the package import nothing). A
-    ``django-filter`` ``FilterSet`` *also* takes ``request`` on its constructor
-    (``def __init__(self, data=None, queryset=None, *, request=None, prefix=None)``)
-    and exposes it as ``self.request`` — the seam ``DjangoFilterBackend`` fills
-    view-side, and the one that request-scoped filters read: ``self.request.user``
-    scoping, a ``ModelChoiceFilter(queryset=lambda request: …)``, an ``__init__`` /
-    ``qs`` override. We forward the request into that seam **only when the
-    constructor declares it**, so those FilterSets behave the same on a spec as
-    behind ``DjangoFilterBackend`` instead of hitting ``self.request is None`` (an
-    ``AttributeError`` → 500); a bare ``(data, queryset)`` stand-in that never
-    declares ``request`` is called exactly as before.
+    ``filter_set`` is duck-typed on ``(data, queryset) -> .qs`` alone, so the
+    package imports no django-filter. A real ``FilterSet`` *also* takes
+    ``request`` and exposes it as ``self.request`` — the seam
+    ``DjangoFilterBackend`` fills view-side and request-scoped filters read.
+    Forwarding it only when the constructor declares it keeps those working
+    while a bare stand-in is called exactly as before.
 
-    Forwarding is sound on every transport, and is *not* a coupling this hook
-    invents: ``request`` is always present at the shaping call site — the same
-    object ``extend_queryset`` receives one branch above — real on the HTTP / MCP
-    paths, and a synthetic ``build_offline_context`` request off-HTTP where
-    ``.user`` and ``.query_params`` are faithful (deeper HTTP attributes — headers,
-    ``META``, session — are best-effort there, exactly as they already are for
-    ``extend_queryset`` and every context provider that reads the offline request).
-
-    Detected via :func:`inspect.signature`, which resolves a class to its
-    ``__init__``: a declared ``request`` (positional-or-keyword or keyword-only)
-    parameter counts, as does a ``**kwargs`` catch-all.
+    :func:`inspect.signature` resolves a class to its ``__init__``: a declared
+    ``request`` (positional-or-keyword or keyword-only) counts, as does a
+    ``**kwargs`` catch-all.
     """
     parameters = inspect.signature(filter_set).parameters.values()
     if any(param.kind is inspect.Parameter.VAR_KEYWORD for param in parameters):
@@ -193,26 +172,20 @@ def materialize_retrieve(result: Any) -> Any:
     """Collapse a RETRIEVE selector's return to the single instance, or ``None``.
 
     The one definition of what ``kind=RETRIEVE`` means once the selector has run:
-    a QuerySet materializes through ``.first()`` (so an author can write
+    a queryset materializes through ``.first()`` — so an author can write
     ``selector=lambda *, pk: Model.objects.filter(pk=pk)`` and still get the
-    spec's shaping applied first), anything else passes through as the resolved
-    object.
-
-    Shared by the HTTP path and ``dispatch_spec`` deliberately. What each does
-    with a ``None`` differs — HTTP raises ``NotFound`` unless ``allow_none``, the
-    neutral path returns a ``not_found`` result for the transport to map — but
-    *how the value is arrived at* must not, or ``kind`` would quietly mean two
-    things.
+    spec's shaping applied first — and anything else passes through as the
+    resolved object. What each caller does with a ``None`` differs; how the value
+    is arrived at does not.
     """
     return result.first() if is_queryset(result) else result
 
 
 async def amaterialize_retrieve(result: Any) -> Any:
-    """Async twin of :func:`materialize_retrieve` — ``.afirst()`` off the loop.
+    """Async twin of :func:`materialize_retrieve`, awaiting ``.afirst()``.
 
-    Separate because the materialization itself is the query: ``.first()`` would
-    block the event loop, so the async dispatcher must ``await .afirst()``. Same
-    rule, different await — keep the two in step.
+    Separate because the materialization *is* the query — ``.first()`` would
+    block the event loop. Same rule otherwise; keep the two in step.
     """
     return await result.afirst() if is_queryset(result) else result
 
@@ -227,16 +200,13 @@ def check_view_object_permissions(
 
     The HTTP counterpart of :func:`~rest_framework_services.enforce_permissions`:
     off HTTP a transport enforces ``spec.permission_classes`` itself, while a DRF
-    view has already instantiated them and exposes
-    ``check_object_permissions``. Both plug into the same ``on_target_resolved``
-    seam, so the core stays authz-agnostic on every transport.
+    view has already instantiated them and exposes ``check_object_permissions``.
+    Both plug into the same ``on_target_resolved`` seam, so the core stays
+    authz-agnostic on every transport.
 
-    Gated on ``Model`` for the same reason ``enforce_permissions`` is: the core
-    fires this hook on the LIST branch too, with the resolved **queryset**.
-    Object permissions are a per-row concept, and
-    ``has_object_permission(request, view, <QuerySet>)`` would raise or silently
-    mis-authorize. ``None`` (a create, or a bulk list payload) is skipped for the
-    same reason.
+    Gated on ``Model``, like ``enforce_permissions``: the core fires this hook on
+    the LIST branch too, with the resolved **queryset**, and object permissions
+    are per-row. ``None`` — a create, or a bulk list payload — is skipped too.
     """
     if isinstance(instance, Model):
         context.view.check_object_permissions(context.request, instance)
@@ -254,30 +224,24 @@ def dispatch_selector_for_spec(view: Any, spec: SelectorSpec[Any, Any]) -> Any:
     200 + JSON ``null``). ``SelectorKind.LIST`` returns the shaped queryset.
 
     **``argument_binding=BUNDLE`` is what keeps HTTP semantics.** Off HTTP the
-    flat ``params`` mapping *is* the argument channel, so a selector spreads it
-    (``SPREAD_AUTHOR_WINS``). Over HTTP it is not: a selector's kwargs come from
-    route captures plus the hook chain, and the query string belongs to
-    ``filter_set`` / the filter backends (see the filtering note in
-    ``CLAUDE.md``). ``BUNDLE`` spreads nothing, so passing ``query_params`` here
-    feeds the filter without widening the argument channel — the difference
-    between the transports is expressed as the policy it already is, rather than
-    as a second pipeline.
+    flat ``params`` mapping *is* the argument channel; over HTTP a selector's
+    kwargs come from route captures plus the hook chain, and the query string
+    belongs to ``filter_set`` / the filter backends. ``BUNDLE`` spreads nothing,
+    so passing ``query_params`` feeds the filter without widening the argument
+    channel.
 
     There is deliberately no ``extra_url_kwargs`` parameter: the core reads
     ``view.kwargs`` itself via ``view_url_kwargs``, which **strips the reserved
-    pool seeds**. That strip is the point — the previous view-local pool spread
-    route captures *over* ``base_pool``, so a nested route like
-    ``/users/<user>/posts/`` let the captured value shadow the authenticated
-    ``user``. Taking the mapping from the caller would reopen it, and every call
-    site passed ``view.kwargs`` verbatim anyway.
+    pool seeds**, so a nested route like ``/users/<user>/posts/`` cannot let the
+    captured value shadow the authenticated ``user``. Taking the mapping from a
+    caller would reopen that.
 
-    The caller must check ``spec.selector is not None`` before calling and fall
-    back to vanilla DRF otherwise.
+    The caller must check ``spec.selector is not None`` first and fall back to
+    vanilla DRF otherwise.
     """
     # Local import: ``dispatch_spec`` composes ``run_selector`` /
-    # ``materialize_retrieve`` from this module, so the dependency is
-    # one-directional only at runtime — the same proven cycle
-    # ``views.mutation.utils`` documents for the same import.
+    # ``materialize_retrieve`` from this module, so the cycle is real and the
+    # dependency one-directional only at runtime.
     from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 
     assert spec.selector is not None  # noqa: S101 — caller guarantees this

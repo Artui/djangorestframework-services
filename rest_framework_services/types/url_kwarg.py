@@ -19,44 +19,38 @@ class UrlKwarg:
     from where :func:`~rest_framework_services.dispatch_spec` spreads it into the
     selector / target pools — authoritative over the spec params, below a
     ``spec.kwargs`` provider. It never reaches the spec as an ordinary input, so
-    the unknown-argument policy never flags it.
+    the unknown-argument policy never flags it. Adapters import this declaration
+    and pair it with :func:`~rest_framework_services.validate_channel_names`.
 
-    **This type is declared here, not in each adapter, on purpose.** It is the
-    same declaration whichever transport carries it, and two independent copies
-    had already drifted into validating the same declaration against different
-    reserved-name sets. Adapters import it and pair it with
-    :func:`~rest_framework_services.validate_channel_names`.
+    Reach for one when the value is a URL-derived input a spec depends on that is
+    **not** already an ordinary argument — most commonly a scoping ``spec.kwargs``
+    provider reading ``view.kwargs`` (off-HTTP that mapping is otherwise empty, so
+    the provider mis-scopes for every caller), or a closed-surface spec whose route
+    capture must be caller-suppliable. A selector reading the value from its own
+    ``**extras: Unpack[TypedDict]`` needs **no** ``UrlKwarg``: drf-services reflects
+    the key into the schema and ``params`` delivers it. A key can be *both*
+    reflected and registered — the explicit ``UrlKwarg`` wins the adapter's schema
+    merge, registration pops the argument into ``kwargs=``, and the authoritative
+    spread still delivers it to the selector pool, so both readers see it.
 
-    Reach for a ``UrlKwarg`` when the value is a URL-derived input a spec depends
-    on that is **not** already an ordinary argument — most commonly a scoping
-    ``spec.kwargs`` provider reading ``view.kwargs`` (off-HTTP that mapping is
-    otherwise empty, so the provider mis-scopes for every caller), or a
-    closed-surface spec whose route capture must be caller-suppliable.
-
-    A selector that reads the value from its own ``**extras: Unpack[TypedDict]``
-    needs **no** ``UrlKwarg``: drf-services reflects the key into the schema and
-    ``params`` delivers it. A key can be *both* reflected and registered — the
-    explicit ``UrlKwarg`` wins the adapter's schema merge, registration pops the
-    argument into ``kwargs=``, and the authoritative spread still delivers it to
-    the selector pool, so both readers see it.
-
-    - ``name`` — the argument / view-kwarg key. Must not collide with a reserved
-      transport key; see :func:`~rest_framework_services.validate_channel_names`.
-    - ``type`` — the JSON-Schema type advertised to the caller (``"string"`` by
-      default; ``"integer"`` / ``"number"`` / ``"boolean"`` …).
-    - ``description`` — optional help text shown to the caller.
-    - ``default`` — optional value seeded when the caller omits the argument;
-      also surfaced as the schema ``default``.
-    - ``required`` — advertise the key in the schema's ``required`` list. Use it
-      for a route capture the spec genuinely cannot run without, so a caller is
-      told up front instead of failing mid-dispatch. Setting both ``required``
-      and a ``default`` is contradictory and raises in
-      :func:`~rest_framework_services.validate_channel_names`.
-
-    ``required`` here is the registered-declaration counterpart of the
-    :data:`~rest_framework_services.InputRequired` marker, which does the same
-    job for a key the callable's own ``TypedDict`` declares. Both end up in the
-    schema's ``required``; they differ only in where the key is declared.
+    Attributes:
+        name: The argument / view-kwarg key. Must not collide with a reserved
+            transport key; see
+            :func:`~rest_framework_services.validate_channel_names`.
+        type: The JSON-Schema type advertised to the caller — ``"string"`` by
+            default, or ``"integer"`` / ``"number"`` / ``"boolean"`` …
+        description: Optional help text shown to the caller.
+        default: Optional value seeded when the caller omits the argument; also
+            surfaced as the schema ``default``.
+        required: Advertise the key in the schema's ``required`` list. Use it for
+            a route capture the spec genuinely cannot run without, so a caller is
+            told up front instead of failing mid-dispatch. Setting both
+            ``required`` and a ``default`` is contradictory and raises in
+            :func:`~rest_framework_services.validate_channel_names`. It is the
+            registered-declaration counterpart of
+            :data:`~rest_framework_services.InputRequired`, which does the same job
+            for a key the callable's own ``TypedDict`` declares; both end up in the
+            schema's ``required``.
     """
 
     name: str

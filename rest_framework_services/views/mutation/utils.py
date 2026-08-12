@@ -1,32 +1,12 @@
 """Helpers used by the mutation views, viewset mixins, and ``@service_action``.
 
-Public leaf helpers:
-
-- ``build_input_serializer`` — construct and validate the bound input
-  serializer (instance-aware on update/destroy flows); ``None`` when the
-  spec has no ``input_serializer``.
-- ``validate_input`` — turn ``request.data`` into the serializer's
-  ``validated_data`` (dict for ``ModelSerializer``, dataclass instance for
-  dataclass-based serializers). Thin wrapper over
-  ``build_input_serializer``.
-- ``map_service_error`` — translate a framework-agnostic ``ServiceError``
-  into the appropriate DRF exception. Lives in the sibling
-  :mod:`~rest_framework_services.views.mutation.map_service_error` leaf module
-  (re-imported here for this module's use); kept separate so
-  ``call_service`` can map errors without importing this heavy module.
-- ``resolve_mutation_instance`` — resolve the instance an update / destroy /
-  detail action targets: ``spec.instance_selector_spec`` when set, else the
-  view's ``get_object()`` chain — ``UNSET`` when the core should resolve it.
-- ``resolve_view_hooks`` — collect the view's hook chains into a ``ViewHooks``
-  carrier for the dispatch core (view layers only; the spec's own providers
-  stay the core's job).
-- ``render_mutation_response`` — turn a ``DispatchResult`` into the HTTP
-  ``Response``: status against the action default, output serializer, finalizer.
-
-There is deliberately **no** flow runner here any more. The mutation pipeline
-lives in ``dispatch_spec``, and this module is the HTTP half either side of it —
-hooks in, response out. A behaviour that belongs to the *spec* belongs in the
+The HTTP half either side of ``dispatch_spec`` — view hooks in, response out.
+There is deliberately **no** flow runner here: the mutation pipeline lives in
+``dispatch_spec``, and a behaviour that belongs to the *spec* belongs in the
 core, or it will be honoured on one transport and not the other.
+
+``map_service_error`` is re-imported from its own leaf module rather than
+defined here, so ``call_service`` can map errors without importing this one.
 """
 
 from __future__ import annotations
@@ -75,40 +55,34 @@ def build_input_serializer(
 ) -> Serializer | None:
     """Construct + validate the bound input serializer; ``None`` if absent.
 
-    ``input_serializer`` may be:
+    The serializer is returned validated (``is_valid(raise_exception=True)`` has
+    run) but never saved; the service owns persistence.
 
-    - a bare dataclass type — wrapped in a ``DataclassSerializer`` on the fly;
-      ``validated_data`` is a dataclass instance;
-    - a ``DataclassSerializer`` subclass — instantiated directly;
-      ``validated_data`` is a dataclass instance;
-    - any other ``Serializer`` subclass (e.g. ``ModelSerializer``) —
-      instantiated directly; ``validated_data`` is a ``dict``.
-
-    ``extra_data`` (when supplied) is merged on top of ``request.data``
-    before the serializer instantiates — server-provided keys win on
-    overlap. This is the seam used by the ``input_data`` resolver chain
-    to lift URL kwargs into serializer input. A form-encoded / multipart
-    body arrives as a ``QueryDict`` (``{key: [values]}`` internally), so the
-    merge goes through :func:`~rest_framework_services.dispatch.apply_input_data.apply_input_data`,
-    which owns the QueryDict handling that keeps scalars from flattening into
-    one-element lists.
-
-    ``context`` (when supplied) is forwarded to the serializer's ``context=``
-    kwarg so DRF-style ``self.context["request"]`` / ``["view"]`` lookups
-    work inside validators and fields.
-
-    ``instance`` (when supplied) is the resolved mutation target on
-    update / destroy flows. The serializer is constructed DRF-style —
-    ``serializer(instance, data=data, partial=partial)`` — so
-    ``self.instance`` is populated inside ``validate()`` / field validators
-    and instance-aware validators (e.g. ``UniqueValidator`` excluding the
-    current row) behave as they do under DRF's own update flow.
-
-    ``many`` (when ``True``) validates ``data`` as a list — the bulk
-    list-payload path; ``validated_data`` is then a list of items.
-
-    The serializer is returned validated (``is_valid(raise_exception=True)``
-    has run) but never saved; the service owns persistence.
+    Args:
+        request: The request whose ``data`` is validated.
+        input_serializer: A bare dataclass type (wrapped in a
+            ``DataclassSerializer`` on the fly), a ``DataclassSerializer``
+            subclass, or any other ``Serializer`` subclass such as
+            ``ModelSerializer``. The first two produce a dataclass instance as
+            ``validated_data``, the third a ``dict``.
+        partial: Validate partially, as DRF's ``serializer(partial=…)``.
+        extra_data: Merged on top of ``request.data`` before the serializer is
+            constructed, server-provided keys winning on overlap — the seam the
+            ``input_data`` resolver chain uses to lift URL kwargs into serializer
+            input. The merge goes through
+            :func:`~rest_framework_services.dispatch.apply_input_data.apply_input_data`,
+            which keeps a form-encoded / multipart ``QueryDict``'s scalars from
+            flattening into one-element lists.
+        context: Forwarded to the serializer's ``context=`` so DRF-style
+            ``self.context["request"]`` / ``["view"]`` lookups work inside
+            validators and fields.
+        instance: The resolved mutation target on update / destroy flows. The
+            serializer is constructed DRF-style, so ``self.instance`` is
+            populated inside ``validate()`` / field validators and
+            instance-aware validators (``UniqueValidator`` excluding the current
+            row) behave as under DRF's own update flow.
+        many: Validate ``data`` as a list — the bulk list-payload path;
+            ``validated_data`` is then a list of items.
     """
     if input_serializer is None:
         return None
@@ -138,11 +112,10 @@ def build_input_serializer_from_data(
     """Construct + validate the bound input serializer from a raw ``data`` dict.
 
     The transport-neutral core of :func:`build_input_serializer`: it takes the
-    input ``data`` directly instead of reaching into a DRF ``request.data``, so
-    a non-HTTP caller (``dispatch_spec``) and the HTTP view path share one
+    input ``data`` directly instead of reaching into a DRF ``request.data``, so a
+    non-HTTP caller (``dispatch_spec``) and the HTTP view path share one
     validation implementation. See :func:`build_input_serializer` for the
-    ``input_serializer`` / ``partial`` / ``context`` / ``instance`` / ``many``
-    semantics.
+    remaining parameter semantics.
     """
     if input_serializer is None:
         return None
@@ -180,9 +153,9 @@ def validate_input(
 ) -> Any:
     """Validate ``request.data`` against ``input_serializer``; ``None`` if absent.
 
-    Thin wrapper over :func:`build_input_serializer` (see there for the
-    parameter semantics) returning only ``validated_data`` — kept for
-    callers that don't need the bound serializer itself.
+    Thin wrapper over :func:`build_input_serializer` (see there for the parameter
+    semantics) returning only ``validated_data``, for callers that don't need the
+    bound serializer itself.
     """
     serializer = build_input_serializer(
         request,
@@ -209,25 +182,15 @@ def render_mutation_response(
     """Turn a :class:`DispatchResult` into the HTTP ``Response`` for a mutation.
 
     Everything downstream of the dispatch that is genuinely transport-shaped, and
-    nothing that isn't. The pipeline itself — validate → pool → service → output
-    selector → status — lives in ``dispatch_spec``; this is the half that only
-    means something over HTTP:
+    nothing that isn't: resolve the success status against the *action's* default
+    (201 create / 200 update / 204 destroy), which the core cannot know; fall
+    back to the in-memory ``instance`` when an in-place update returned ``None``;
+    render through the output serializer or emit a body-less response; apply
+    ``spec.response_finalizer`` (2xx, pre-render).
 
-    1. Resolve the success status against the *action's* default (201 create /
-       200 update / 204 destroy), which the core cannot know. A callable
-       ``spec.success_status`` keys on ``result.service_result`` — the service's
-       own return, the flags carrier — not on the post-selector value.
-    2. Fall back to the in-memory ``instance`` when an in-place update returned
-       ``None``. See ``render_instance_on_none`` below.
-    3. Render through the output serializer, or emit a body-less response.
-    4. Apply ``spec.response_finalizer`` (2xx, pre-render).
-
-    ``render_instance_on_none`` is the caller's update-vs-destroy intent. It is
-    deliberately **not** a spec field and deliberately **not** transport-neutral:
-    off HTTP the equivalent is ``output_selector_spec``, and the flag's only
-    load-bearing use is destroy — ``@service_action`` passes ``detail``, but a
-    non-detail action has no instance, so the ``instance is not None`` gate below
-    already decides those. What it really means is "the target still exists".
+    ``render_instance_on_none`` is the caller's update-vs-destroy intent — read
+    it as "the target still exists". Deliberately **not** a spec field and **not**
+    transport-neutral: off HTTP the equivalent is ``output_selector_spec``.
     """
     value: Any = result.value
     selector_ran: bool = (
@@ -247,11 +210,10 @@ def render_mutation_response(
         and not selector_ran
     ):
         # Update-in-place that returned nothing — render the in-memory instance,
-        # mirroring DRF's ``UpdateAPIView``. Gated three ways: it needs an output
-        # serializer (nothing else could render a raw model instance); it keys on
-        # the caller's intent rather than the status code, so destroy never
-        # surfaces a stale post-delete row even with a custom success status; and
-        # a selector that already ran owns its ``None``.
+        # mirroring DRF's ``UpdateAPIView``. Gated on the caller's intent rather
+        # than the status code, so destroy never surfaces a stale post-delete row
+        # even under a custom success status; and a selector that already ran
+        # owns its ``None``.
         value = instance
 
     status_pool: dict[str, Any] = {
@@ -305,13 +267,8 @@ def _dispatch_bulk_via_spec(
     The list body / collection target, validation, and per-set scoping all live
     in the transport-neutral path; here we only map its
     :class:`~rest_framework_services.DispatchResult` to a DRF ``Response`` and
-    translate a ``ServiceError`` the same way the single-instance flow does.
-
-    ``success_status`` resolves through the same rule as the single flow: an
-    ``int`` verbatim, a callable through the status pool (``result`` is the
-    bulk return value; ``instance`` is absent on a bulk path), else
-    ``default_status``. ``spec.response_finalizer`` applies here too (2xx,
-    pre-render); the bulk finalizer pool has no ``instance`` / ``data``.
+    translate a ``ServiceError`` the same way the single-instance flow does. The
+    status and finalizer pools carry no ``instance`` / ``data`` on a bulk path.
     """
     # Local import: ``dispatch_spec`` composes ``build_input_serializer_from_data``
     # from this module, so the dependency is one-directional only at runtime.
@@ -322,16 +279,10 @@ def _dispatch_bulk_via_spec(
         # ``many`` is a list body straight through.
         params: Any = request.data
     else:
-        # Collection target: the filter lives in the query string (a DELETE
-        # carries no body), merged over any body payload for the service, plus
-        # the view's URL kwargs. ``params`` is dispatch_spec's flat mapping —
-        # documented as the union of ``request.data`` / ``query_params`` / URL
-        # kwargs — so a ``collection_selector_spec`` on a nested route
-        # (``/parents/{parent_pk}/children/``) can scope by ``parent_pk``, just
-        # as the single-instance path passes ``extra_url_kwargs=view.kwargs`` to
-        # its instance selector. Route captures are authoritative: they win over
-        # client-supplied query / body on a key conflict, so a filter value
-        # can't override the route scope.
+        # Collection target: a DELETE carries no body, so the filter lives in the
+        # query string, merged under any body payload and then under the view's
+        # URL kwargs. Route captures go last because they are authoritative — a
+        # client-supplied filter value must not override the route scope.
         body = request.data if isinstance(request.data, dict) else {}
         url_kwargs = getattr(view, "kwargs", None) or {}
         params = {**request.query_params.dict(), **body, **url_kwargs}
@@ -390,29 +341,18 @@ def dispatch_mutation_for_spec(
     """End-to-end dispatch for one ``ServiceSpec`` call over HTTP.
 
     Used by :class:`MutationFlowMixin`, the standalone mutation views, and
-    ``@service_action`` so the call shape lives in one place.
+    ``@service_action`` so the call shape lives in one place: resolve the view's
+    hook chains (:func:`resolve_view_hooks`), dispatch through
+    :func:`~rest_framework_services.dispatch_spec`, render
+    (:func:`render_mutation_response`). Only the first and last steps are HTTP's.
+    The target is passed in rather than resolved in the core, because HTTP's
+    ``get_object()`` chain has no off-HTTP meaning; a bulk spec takes the same
+    route with its own params assembly and renderer.
 
-    Three steps, and the middle one is not HTTP's:
-
-    1. **Resolve the view's hook chains** (:func:`resolve_view_hooks`) — the
-       ``get_service_kwargs`` / ``get_input_data`` / serializer-context methods
-       and their per-action twins. These are methods on a DRF view, so the core
-       cannot reach them; the view resolves them and hands them down.
-    2. **Dispatch** through :func:`~rest_framework_services.dispatch_spec` — the
-       single pipeline, shared with MCP and every other transport. The target is
-       passed in rather than resolved there, because HTTP's ``get_object()``
-       chain (view ``queryset`` / ``lookup_field`` / a user override) has no
-       off-HTTP meaning.
-    3. **Render** (:func:`render_mutation_response`) — status against the
-       action's default, the output serializer, the finalizer.
-
-    ``partial`` is the transport-derived flag (PATCH → ``True``);
+    ``partial`` is the transport-derived flag (PATCH → ``True``) and
     ``spec.partial`` overrides it when set. Being the single call-shape point,
     the override is honoured uniformly across every surface — including create
     dispatch, so a create spec with ``partial=True`` validates partially.
-
-    A bulk spec (``many=True`` or a ``collection_selector_spec``) takes the same
-    route with its own params assembly and renderer.
     """
     # Local import: ``dispatch_spec`` composes ``build_input_serializer_from_data``
     # from this module, so the dependency is one-directional only at runtime.
@@ -447,19 +387,18 @@ def dispatch_mutation_for_spec(
         raise map_service_error(exc) from exc
 
     if result.kind == "not_found":
-        # The core resolved ``instance_selector_spec`` and matched nothing. Off
-        # HTTP that is a neutral ``not_found`` for the transport to map; here it
-        # is DRF's 404. The nested spec's ``allow_none`` stays ignored — it
-        # expresses a nullable *read* contract, and a mutation against a missing
-        # row is always a 404.
+        # Off HTTP a matchless ``instance_selector_spec`` is a neutral
+        # ``not_found`` for the transport to map; here it is DRF's 404. The
+        # nested spec's ``allow_none`` stays ignored — it expresses a nullable
+        # *read* contract, and a mutation against a missing row is always a 404.
         raise NotFound()
 
     def output_context(value: Any) -> dict[str, Any]:
         # Resolved lazily with the final value so the output context provider can
         # run a single batched query against the exact instance being serialized.
-        # Uses the four-layer resolver directly rather than the ``ViewHooks``
-        # carrier: the carrier exists to cross the boundary *into* the dispatch
-        # core, and rendering never crosses it — it stays here.
+        # Uses the four-layer resolver rather than the ``ViewHooks`` carrier: the
+        # carrier exists to cross the boundary *into* the dispatch core, and
+        # rendering never crosses it.
         return resolve_serializer_context(
             view,
             request,
@@ -493,23 +432,19 @@ def resolve_mutation_instance(
 ) -> Any:
     """Resolve the mutation target, or defer to the core.
 
-    Three outcomes:
-
-    - ``None`` for a **bulk** spec (``many=True`` or a ``collection_selector_spec``):
-      there is no single instance, and the ``get_object()`` lookup would 404 a
-      body-only bulk endpoint.
-    - :data:`UNSET` when the spec carries an ``instance_selector_spec`` — *the
-      core resolves it*. ``dispatch_spec`` already does this for every other
-      transport, with the right kwarg pool, the right error label
-      (``ServiceSpec.instance_selector_spec.selector``), and the reserved-seed
-      strip; resolving it a second time here only created a path that could
-      drift from it. Object permissions still run — the core fires
-      ``on_target_resolved`` against the resolved target, and the HTTP caller
-      passes :func:`check_view_object_permissions`.
-    - the view's ``get_object()`` chain otherwise (an ``action_specs["retrieve"]``
-      selector via :class:`SelectorRetrieveMixin`, else DRF's default ``queryset``
-      / ``lookup_field`` lookup, else a user ``get_object()`` override). This is
-      the one branch that is genuinely HTTP-only and so cannot move.
+    Returns:
+        ``None`` for a **bulk** spec (``many=True`` or a
+        ``collection_selector_spec``): there is no single instance, and the
+        ``get_object()`` lookup would 404 a body-only bulk endpoint.
+        :data:`UNSET` when the spec carries an ``instance_selector_spec`` — *the
+        core resolves it*, with the right kwarg pool, error label, and
+        reserved-seed strip. Object permissions still run: the core fires
+        ``on_target_resolved`` against the resolved target and the HTTP caller
+        passes :func:`check_view_object_permissions`. Otherwise the view's
+        ``get_object()`` chain (an ``action_specs["retrieve"]`` selector via
+        :class:`SelectorRetrieveMixin`, else DRF's ``queryset`` /
+        ``lookup_field`` lookup, else a user override) — the one branch that is
+        genuinely HTTP-only and so cannot move.
     """
     if spec.many or spec.collection_selector_spec is not None:
         return None
