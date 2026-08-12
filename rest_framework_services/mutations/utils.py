@@ -472,6 +472,20 @@ def _pk_input_names(model: type[Model], field_map: dict[str, str] | None) -> fro
     return frozenset(targets | mapped)
 
 
+def _omitted(value: Any) -> bool:
+    """Whether a nested row supplied this key at all.
+
+    Two spellings mean "not supplied" and the row writers have to read both:
+    ``None``, which a mapping uses, and ``UNSET``, which is what a partial-input
+    dataclass carries for a field its caller left alone. The sentinel is not a
+    third state to reason about -- :func:`filter_input` already drops it before
+    anything is assigned, so the only places it can be mistaken for a value are
+    the reads that happen *before* that, on the way to deciding whether there is
+    a row to match.
+    """
+    return value is None or value is UNSET
+
+
 def _reject_unmatched_reference(
     item: dict[str, Any],
     spec: _RowSpec,
@@ -493,7 +507,7 @@ def _reject_unmatched_reference(
     named: dict[str, Any] = {
         key: item[key]
         for key in _pk_input_names(spec.model, spec.field_map)
-        if item.get(key) is not None
+        if not _omitted(item.get(key))
     }
     if not named:
         return
@@ -749,7 +763,7 @@ def _resolve_scope(
     write any row of that model by guessing a key.
     """
     key = item.get(spec.match_key)
-    if key is None:
+    if _omitted(key):
         return None
     if spec.scope is None:
         raise ImproperlyConfigured(
@@ -1009,7 +1023,7 @@ def _write_owned_collection(
         child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
         path = _RowPath(relation, index, len(rows))
         key = item.get(spec.match_key)
-        if key is not None and key in existing_by_key:
+        if not _omitted(key) and key in existing_by_key:
             child = _update_row(
                 existing_by_key[key],
                 item,
@@ -1355,7 +1369,7 @@ async def _awrite_owned_collection(
         child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
         path = _RowPath(relation, index, len(rows))
         key = item.get(spec.match_key)
-        if key is not None and key in existing_by_key:
+        if not _omitted(key) and key in existing_by_key:
             child = await _aupdate_row(
                 existing_by_key[key],
                 item,
