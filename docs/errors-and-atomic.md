@@ -71,14 +71,14 @@ def delete_rows(*, data):
 it back under. A transport that can put the question to a human renders it; one
 that cannot still has a message worth showing.
 
-⭐ **The answer comes back as ordinary input.** An HTTP client re-submits with
+**The answer comes back as ordinary input.** An HTTP client re-submits with
 `confirmed` in the body. A transport that asks interactively — MCP, say — merges
 the answer into the parameters before dispatch. Either way the service reads it
 as a normal argument, which is why raising is the *whole* of the service's
 involvement: there is no callback to hold and no session to resume.
 
 It subclasses `ServiceError`, so a transport that has never heard of it still
-behaves sensibly. ⚠ A transport that wants to do better must catch it **before**
+behaves sensibly. A transport that wants to do better must catch it **before**
 its generic `ServiceError` handler, or the subclass check will swallow it.
 
 ### `ServiceError`

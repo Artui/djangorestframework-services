@@ -11,7 +11,7 @@ def base_pool(
 ) -> dict[str, Any]:
     """The seeds every dispatched callable's pool carries, on every transport.
 
-    ⚠ **Every** pool — HTTP and off-HTTP both route through here. The two
+    **Every** pool — HTTP and off-HTTP both route through here. The two
     view-layer pools used to restate ``request`` / ``user`` inline, which was
     harmless while the set was two names and stopped being harmless the moment
     it grew: a seed added in one place and not the other means a service that

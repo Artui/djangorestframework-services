@@ -326,7 +326,7 @@ def _retrieve_viewset(spec: SelectorSpec[Any, Any]) -> Any:
 def test_retrieve_materialization_agrees_across_transports() -> None:
     """A RETRIEVE selector returning a queryset collapses the same way on both.
 
-    ⚠ The selector *pool* deliberately differs — see the module note in
+    The selector *pool* deliberately differs — see the module note in
     ``selectors.utils`` — but what ``kind=RETRIEVE`` does to the selector's
     return must not, or the field would mean two things.
     """
@@ -400,7 +400,7 @@ def test_selector_kwargs_hook_applies_over_http() -> None:
 
 @pytest.mark.django_db
 def test_query_params_do_not_become_selector_kwargs_over_http() -> None:
-    """⚠ The one selector difference that is *intentional*, pinned.
+    """The one selector difference that is *intentional*, pinned.
 
     Off HTTP the flat ``params`` mapping is the argument channel and a selector
     spreads it. Over HTTP it is not — the query string belongs to ``filter_set``
@@ -485,7 +485,7 @@ def test_url_kwarg_cannot_shadow_the_authenticated_user_off_http() -> None:
 
 @pytest.mark.django_db
 def test_params_cannot_shadow_the_user_in_target_resolution() -> None:
-    """⚠ The nested target selectors take a *client-supplied* spread.
+    """The nested target selectors take a *client-supplied* spread.
 
     ``merge_arguments`` strips the reserved seeds from any spread precisely so a
     caller-routable key can't outrank the dispatcher's authoritative value. The

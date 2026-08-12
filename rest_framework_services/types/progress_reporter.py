@@ -17,7 +17,7 @@ class ProgressReporter(Protocol):
                 write(row)
                 progress(index + 1, total=len(rows), message="writing rows")
 
-    ⚠ **Reporting is always safe and never required.** Every transport seeds a
+    **Reporting is always safe and never required.** Every transport seeds a
     reporter — the ones with nowhere to send progress seed a no-op — so a
     service that declares the parameter runs unchanged over HTTP, off-HTTP, and
     in tests. That is the whole point of putting it in the pool rather than
@@ -38,7 +38,7 @@ class ProgressReporter(Protocol):
     - ``meta`` — structured detail *about this update*, for a receiver that
       knows what to do with it.
 
-    ⭐ **``meta`` is what keeps the first three honest.** Without it, a service
+    **``meta`` is what keeps the first three honest.** Without it, a service
     with structured state to report — which stage it is in, which file it is
     on, how many rows failed so far — has to stringify it into ``message`` and
     have the far end parse it back out. That is a wire format invented by
@@ -52,12 +52,12 @@ class ProgressReporter(Protocol):
             meta={"stage": "import", "file": path.name, "failed": failures},
         )
 
-    ⚠ **``meta`` is the part a receiver may not understand**, and each decides
+    **``meta`` is the part a receiver may not understand**, and each decides
     for itself: a websocket consumer forwards it into the frame the UI renders;
     a receiver with nowhere to put it drops it. Never encode something the
     operation's *correctness* depends on — it is telemetry, not a channel.
 
-    ⚠ **Namespace the keys if the far end might be MCP.** A progress
+    **Namespace the keys if the far end might be MCP.** A progress
     notification carries the structure under the protocol's ``_meta``, whose
     key-naming rules reserve unprefixed names and anything under a
     ``modelcontextprotocol`` / ``mcp`` prefix. ``{"com.example/stage": …}`` is

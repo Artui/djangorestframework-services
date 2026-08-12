@@ -258,7 +258,7 @@ class _ActionSpecsMixin:
             # actions enforce their permissions without requiring the DRF
             # router (which would otherwise pass them via ``initkwargs``).
             #
-            # ⚠ **Defaulted, because not every action names a method.** DRF sets
+            # **Defaulted, because not every action names a method.** DRF sets
             # ``self.action = "metadata"`` for OPTIONS — its own comment calls
             # the action implicit — and there is no ``metadata`` handler to find.
             # An undefaulted ``getattr`` raised ``AttributeError``, which is not

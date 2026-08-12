@@ -17,7 +17,7 @@ def null_progress(
     is every HTTP request, every test, and every off-HTTP dispatch from a
     transport that has no progress channel of its own.
 
-    ⭐ **The default is what makes the seed usable.** Without it, a service
+    **The default is what makes the seed usable.** Without it, a service
     declaring ``progress`` would work over one transport and raise a
     ``TypeError`` over the others, so nobody could declare it in code meant to
     be shared — which is the entire premise of writing a service once. Discarding

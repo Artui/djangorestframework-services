@@ -10,7 +10,7 @@
 # versions ``pyproject.toml`` allows, and runs the suite — so an upstream
 # release that breaks us is found by a scheduled run rather than by a consumer.
 #
-# ⚠ It is also the control that makes dropping dependency ceilings safe. A
+# It is also the control that makes dropping dependency ceilings safe. A
 # ceiling is a guess about which future versions will break; this is a
 # measurement of which ones do. Do not delete it to quieten a noisy week
 # without replacing what it measures.

@@ -28,19 +28,19 @@ class AdditionalInputRequired(ServiceError):
     expects it back under. A transport that can ask renders it; one that cannot
     still has a message worth showing.
 
-    ⚠ **The answer comes back as ordinary input**, on every transport. An HTTP
+    **The answer comes back as ordinary input**, on every transport. An HTTP
     client re-submits with ``confirmed`` in the body; an MCP client is asked and
     its answer is merged into the tool arguments before dispatch. Either way the
     service reads it as a normal parameter, which is why raising is the whole of
     the service's involvement — there is no callback to hold and no session to
     resume.
 
-    ⚠ **A ``ServiceError`` subclass deliberately.** A transport that has never
+    **A ``ServiceError`` subclass deliberately.** A transport that has never
     heard of this still does something sensible with it: the operation could not
     be completed, and here is why. Transports that *can* ask catch it before the
     generic handler and do better.
 
-    ⛔ **What is deliberately not here.** An earlier draft put the whole
+    **What is deliberately not here.** An earlier draft put the whole
     interaction in this package — a callable pool seed, an accept / decline /
     cancel result type, and a contract in which the service is re-executed from
     the top on retry. That was one protocol's interaction model (MCP's

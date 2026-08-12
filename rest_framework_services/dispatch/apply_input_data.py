@@ -17,7 +17,7 @@ def apply_input_data(params: Any, extra: Mapping[str, Any]) -> Any:
       of "the server supplies these keys" for a batch, and what makes the
       ``input_data`` chain mean the same thing on the single and bulk paths.
     - A **QueryDict** (a form-encoded / multipart HTTP body) is copied and written
-      through its own API. ⚠ Its internal storage is ``{key: [values]}``, so
+      through its own API. Its internal storage is ``{key: [values]}``, so
       dict-unpacking it would expose those value *lists* and turn every scalar
       into a one-element list — a ``ChoiceField`` seeing ``['X']`` →
       ``invalid_choice``. ``setlist`` for list/tuple values, plain assignment for

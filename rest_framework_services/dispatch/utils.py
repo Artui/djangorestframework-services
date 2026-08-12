@@ -464,7 +464,7 @@ def resolve_progress(
     provider *declining* (nothing to report to on this run), which leaves the
     transport's reporter untouched rather than replacing it with a no-op.
 
-    ⚠ Resolved against a deliberately small pool. The full pool is not built
+    Resolved against a deliberately small pool. The full pool is not built
     yet — this is one of its seeds — so the provider sees the dispatch inputs,
     not the validated ``data`` or the resolved ``instance``. A sink needing
     those observes them through the reports themselves.
@@ -644,7 +644,7 @@ def resolve_input_data(
     ``ServiceSpec.input_data``), with the view layers pre-resolved into
     ``view_hooks`` and the spec provider resolved here.
 
-    ⚠ ``spec.input_data`` used to be resolved **only** by the HTTP hook chain, so
+    ``spec.input_data`` used to be resolved **only** by the HTTP hook chain, so
     a spec that lifted a route capture into a serializer field validated fine over
     HTTP and failed as a missing required field over MCP. It is spec-carried
     configuration, so it belongs to the core.

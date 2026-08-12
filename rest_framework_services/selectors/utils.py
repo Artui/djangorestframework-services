@@ -231,7 +231,7 @@ def check_view_object_permissions(
     ``check_object_permissions``. Both plug into the same ``on_target_resolved``
     seam, so the core stays authz-agnostic on every transport.
 
-    ⚠ Gated on ``Model`` for the same reason ``enforce_permissions`` is: the core
+    Gated on ``Model`` for the same reason ``enforce_permissions`` is: the core
     fires this hook on the LIST branch too, with the resolved **queryset**.
     Object permissions are a per-row concept, and
     ``has_object_permission(request, view, <QuerySet>)`` would raise or silently
@@ -253,7 +253,7 @@ def dispatch_selector_for_spec(view: Any, spec: SelectorSpec[Any, Any]) -> Any:
     spec sets ``allow_none=True`` (then ``None``, and the retrieve views render
     200 + JSON ``null``). ``SelectorKind.LIST`` returns the shaped queryset.
 
-    ⚠ **``argument_binding=BUNDLE`` is what keeps HTTP semantics.** Off HTTP the
+    **``argument_binding=BUNDLE`` is what keeps HTTP semantics.** Off HTTP the
     flat ``params`` mapping *is* the argument channel, so a selector spreads it
     (``SPREAD_AUTHOR_WINS``). Over HTTP it is not: a selector's kwargs come from
     route captures plus the hook chain, and the query string belongs to

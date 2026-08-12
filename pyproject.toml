@@ -68,7 +68,7 @@ dev = [
     "flake8-tidy-imports>=4.12.0",
     "django-stubs>=6.0.4",
     "djangorestframework-stubs>=3.17.0",
-    # ⚠ Keep these two at the same floor as the ``spectacular`` / ``filter``
+    # Keep these two at the same floor as the ``spectacular`` / ``filter``
     # extras above. Both are declared twice — the extra is the consumer-facing
     # claim, the dev group is what the no-extras jobs (lint, the test matrix)
     # install. Under ``--resolution lowest-direct`` the *higher* of the two
