@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A refusal now comes back under the names the request used, not the model's.**
+  A service raises about the model, because the model is what it was handed —
+  and where a serializer field declares `source=`, the request called that field
+  something else. DRF resolves `source=` while building `validated_data`, at
+  every depth, so the wire name reaches neither the service nor the mutation
+  helpers nor a relation spec; every refusal was then reported under a key the
+  request did not have, which an error renderer keyed on field name drops. The
+  serializer is the one thing still holding both vocabularies, so the dispatcher
+  now translates a `ServiceValidationError` / `ValidationError` back through it
+  on the way out:
+
+  ```python
+  # headline = CharField(source="title"); writer = AuthorSerializer(source="author")
+  raise ServiceValidationError({"title": [...], "author": {"name": [...]}})
+  # the client is told: {"headline": [...], "writer": {"some_name": [...]}}
+  ```
+
+  It renames only what the serializer can name — an unmatched key such as
+  `non_field_errors` passes through untouched — and only from writable fields,
+  skipping `source="*"` and dotted sources, neither of which is a key of
+  `validated_data`. The detail's shape is preserved: a string stays a string, a
+  collection keeps its row alignment. It covers the service call and its
+  preconditions, and lives in the shared dispatch core, so HTTP, off-HTTP, sync
+  and async all agree.
+
+  **This changes error payloads for specs whose input serializer uses
+  `source=`**, which is the point — but it is a visible change if you had
+  adapted to the column names. A `ModelSerializer` whose fields are named after
+  their columns is unaffected, as is any spec with no `input_serializer` and any
+  direct call to the mutation helpers.
+
 - **The API reference now documents attributes and arguments as typed entries
   rather than prose.** Spec classes such as `ServiceSpec`, `SelectorSpec` and the
   relation specs described each field in free-form paragraphs, and the fields

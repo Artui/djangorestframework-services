@@ -34,6 +34,7 @@ from rest_framework_services.dispatch.utils import (
     shape_queryset,
     strip_reserved_seeds,
     view_url_kwargs,
+    wire_named_errors,
 )
 from rest_framework_services.selectors.utils import amaterialize_retrieve
 from rest_framework_services.types.argument_binding import ArgumentBinding
@@ -302,10 +303,11 @@ async def _adispatch_service(
     elif extras:
         pool["data"] = data
 
-    await acall_preconditions(spec, pool)
-    result: Any = await arun_service_callable(
-        spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
-    )
+    with wire_named_errors(serializer):
+        await acall_preconditions(spec, pool)
+        result: Any = await arun_service_callable(
+            spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
+        )
     output_result, output_is_list = await _arun_output_selector(
         spec,
         result,
@@ -394,10 +396,11 @@ async def _adispatch_service_many(
     if serializer is not None:
         pool["serializer"] = serializer
     # Bulk: once, no target — see the sync sibling.
-    await acall_preconditions(spec, pool)
-    result: Any = await arun_service_callable(
-        spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
-    )
+    with wire_named_errors(serializer):
+        await acall_preconditions(spec, pool)
+        result: Any = await arun_service_callable(
+            spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
+        )
     status = (
         success_status
         if success_status is not None

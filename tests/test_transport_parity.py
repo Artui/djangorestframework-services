@@ -30,6 +30,7 @@ from rest_framework_services import (
     SelectorSpec,
     ServiceError,
     ServiceSpec,
+    ServiceValidationError,
     ServiceViewSet,
     adispatch_spec,
     build_offline_context,
@@ -617,3 +618,46 @@ async def test_preconditions_block_on_the_async_path() -> None:
         await adispatch_spec(
             _PRECONDITION_SPEC, user=None, params={"title": "locked", "tenant": "t"}
         )
+
+
+# --- wire-named refusals -------------------------------------------------
+#
+# A service raises about the model; ``source=`` means the request may have
+# called that field something else. The rename belongs to the shared core
+# because the serializer that knows both names is built there -- put it in the
+# view and an aliased field would report its wire name over HTTP and its column
+# name everywhere else, which is the drift this file exists to catch.
+
+
+class _AliasedInput(serializers.Serializer):
+    headline = serializers.CharField(source="title")
+
+
+def _refuse_by_column(**_: Any) -> None:
+    raise ServiceValidationError({"title": ["Too long."]})
+
+
+_ALIAS_SPEC = ServiceSpec(service=_refuse_by_column, input_serializer=_AliasedInput)
+
+
+@pytest.mark.django_db
+def test_a_refusal_takes_the_wire_name_over_http() -> None:
+    response = _create_view(_ALIAS_SPEC)(
+        APIRequestFactory().post("/x/", {"headline": "t"}, format="json")
+    )
+    assert response.status_code == 400
+    assert response.data == {"headline": ["Too long."]}
+
+
+@pytest.mark.django_db
+def test_a_refusal_takes_the_wire_name_off_http() -> None:
+    with pytest.raises(ServiceValidationError) as excinfo:
+        dispatch_spec(_ALIAS_SPEC, user=None, params={"headline": "t"})
+    assert excinfo.value.detail == {"headline": ["Too long."]}
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_refusal_takes_the_wire_name_on_the_async_path() -> None:
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await adispatch_spec(_ALIAS_SPEC, user=None, params={"headline": "t"})
+    assert excinfo.value.detail == {"headline": ["Too long."]}

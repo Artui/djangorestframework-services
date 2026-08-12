@@ -392,6 +392,15 @@ matched nothing — already name their relation and are unchanged; they report t
 message under the relation name rather than against a row, because they are
 about the payload rather than about a row's write.
 
+The relation name here is the map key, which is also the key the payload is read
+from. Where a serializer aliased the nested field — `writer =
+AuthorSerializer(source="author")`, so the helper is handed `{"author": {...}}`
+and the relation has to be declared as `"author"` — the dispatcher translates
+the whole error back to the names the request used, at every depth, before the
+caller sees it. See [Field names come back as the request spelled
+them](../errors-and-atomic.md#field-names-come-back-as-the-request-spelled-them).
+Nothing is needed on the spec.
+
 ## Declarative — no service body
 
 The default model services forward `relations=` / `children=`, so a
