@@ -20,6 +20,12 @@ class ChildCollectionChange:
       non-nullable.
     - **``unlinked``** — orphaned children detached (FK set to ``None``) because
       their FK is nullable.
+    - **``removed``** — children handed to the spec's ``delete_service``.
+      Deliberately a fifth tuple rather than a reuse of ``deleted``: once a
+      service owns the row, the loop no longer knows whether it was deleted,
+      archived, unlinked or left standing, and folding those into ``deleted``
+      would report a guess as fact. What the loop does know is that the row
+      left the relation and a service decided the rest.
 
     ``updated`` records every matched child the helper ran through
     ``update_from_input``, regardless of whether that child's own columns
@@ -31,9 +37,10 @@ class ChildCollectionChange:
     updated: tuple[Any, ...] = field(default_factory=tuple)
     deleted: tuple[Any, ...] = field(default_factory=tuple)
     unlinked: tuple[Any, ...] = field(default_factory=tuple)
+    removed: tuple[Any, ...] = field(default_factory=tuple)
 
     def __bool__(self) -> bool:
-        return bool(self.created or self.updated or self.deleted or self.unlinked)
+        return bool(self.created or self.updated or self.deleted or self.unlinked or self.removed)
 
 
 __all__ = ["ChildCollectionChange"]

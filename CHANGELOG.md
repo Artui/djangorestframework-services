@@ -7,6 +7,170 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.38.0] — 2026-08-11
+
+### Upgrade notes
+
+**Nested writes cover every relation kind now, and `children=` keeps working
+unchanged.** Nothing shipped in 0.18.0 changes behaviour; the new kinds arrive
+through a `relations=` map beside it.
+
+**One behaviour change to know about before upgrading.** A nested create that
+carries a primary key is refused, on every relation kind. 0.37.0 introduced that
+rule for `children=`; it now covers the four kinds added here. If you are
+migrating from `drf-nested`, which upserts by primary key, this is the first
+thing you will hit — send a row the parent already owns, or omit the identifier
+and let it be created. A natural `match_key` is unaffected and still upserts.
+
+### Added
+
+- **`relations=` on the four mutation helpers and the model-service factories.**
+  One map, a spec class per relation kind, with write order derived from the
+  class rather than from dict insertion: forward relations, then the parent's
+  `save()`, then reverse FK and reverse one-to-one, then generic, then
+  many-to-many. `children=` is preserved as the reverse-FK alias, and a
+  grandchild declared either way cascades either way.
+
+  The five kinds: `ForwardRelationSpec` (foreign key and one-to-one, one code
+  path, written before the parent so the assignment flows through the existing
+  `diff_attrs` and `update_fields` machinery), `ReverseOneToOneSpec`,
+  `ManyToManySpec`, `GenericRelationSpec`, and `ChildSpec` for reverse FK.
+  Singular kinds are tri-state: omitted leaves the relation untouched, `None`
+  clears it, a mapping writes it.
+
+- **`create_service` / `update_service` / `delete_service` slots on a relation
+  spec**, so a child row whose write has real behaviour stays declarative
+  instead of forcing a hand-written reconciliation loop. The spec owns
+  reconciliation and the service owns the row: matching, `mode`, and orphan
+  handling never move into user code.
+
+  Services run through `run_service` / `arun_service` with `atomic=False`, since
+  the parent's atomic block already wraps the tree and a savepoint per row is
+  not what anyone wants. An update service returning `None` means "use the
+  in-memory instance", as elsewhere in the framework. An async loop needs an
+  `async def` slot.
+
+- **`context=` on the four mutation helpers**, threaded into nested pools only
+  and never read by the helpers themselves. The model-service factories populate
+  it from the dispatch pool they already receive, so a `scope=` callable and a
+  nested service can see the acting caller. Hand-written services opt in with
+  `context=kwargs`.
+
+- **`scope=` on the kinds that match by key.** A queryset or a callable resolved
+  from the context pool by signature. Unscoped means create-only; a payload that
+  arrives carrying a match key without a declared scope raises
+  `ImproperlyConfigured`, because the remedy is always to declare a scope and
+  never to send different data.
+
+- **`RelatedObjectChange` and `ChangeResult.relations`**, so a one-row relation
+  stops being reported as a collection of one. Outcomes are `untouched`,
+  `created`, `updated`, `cleared`, `unlinked`, `deleted` and `removed`;
+  `ChildCollectionChange` gains a matching `removed` tuple for rows a
+  `delete_service` handled.
+
+- **`orphan=` on the specs whose rows the parent owns** — `ChildSpec`,
+  `GenericRelationSpec`, `ReverseOneToOneSpec` — saying what happens to a row
+  the relation lets go, where `mode=` says whether one is let go at all.
+  `"auto"` (the default) keeps today's derived rule: unlink when the link is
+  nullable, else delete. `"unlink"` and `"delete"` state it instead.
+
+  The derived rule is still the better default, because it honours what the
+  model declares. What it cannot do is stand in for intent: nullability is a
+  fact about a column, so one `mode="replace"` means destructive or
+  non-destructive depending on something the spec author is not looking at, and
+  someone adding `null=True` in a later migration flips disposal from delete to
+  unlink with no change to the spec and none to its tests.
+
+  `"unlink"` against a link that cannot hold `NULL` raises
+  `ImproperlyConfigured` when the relation is written — the same moment `"auto"`
+  reads the schema, since a spec is routinely built before Django can be asked
+  about a column. An explicit `orphan` beside a `delete_service` raises at
+  construction: the service *is* the disposal, so the flag would decide nothing.
+  Not on `ManyToManySpec` (a target is shared and never deleted) and not on
+  `ForwardRelationSpec` (it removes nothing). The `delete_model` cascade honours
+  it too, since it disposes of the same rows.
+
+- **`RelationOutcome` and `RelationMode` enums.** Both subclass `str`, matching
+  `SelectorKind`, so the values they replaced still compare equal and stay
+  JSON-serializable: `change.outcome == "created"` keeps working and
+  `mode="replace"` is still accepted. Typing them is what surfaced four places
+  in the writer that were still passing the outcome around as a bare string.
+
+- **Generic relations, with `django.contrib.contenttypes` gated.** The package is
+  imported during `apps.populate()`, so the content-type model is imported
+  inside the function and only after `apps.is_installed` confirms the app. A
+  dedicated CI job runs the suite with the app absent and asserts the module is
+  never imported, so the gate is measured rather than asserted.
+
+### Changed
+
+- **The delete cascade covers every relation kind, under one rule: it removes
+  the rows the parent owns and does nothing to the rows it merely points at.**
+  Reverse FK, generic and reverse one-to-one rows are removed deepest-first by
+  the existing unlink-or-delete rule. A many-to-many target is shared, so only
+  the membership goes and it is reported as unlinked. A forward target is left
+  untouched rather than refused, because the same `relations=` map declares the
+  write path and refusing it would make a good write spec un-cascadable.
+
+  `delete_model` and `adelete_model` take `relations=` beside `children=`.
+
+- **A relation named by both `m2m=` and `relations=` raises.** Both keywords
+  stay and they do different jobs, but writing a relation twice in an order
+  nobody chose is not one of them.
+
+- **A row service declared next to the knobs it would silence raises at
+  construction.** A `create_service` or `update_service` owns the row, so
+  `field_map`, `exclude_fields`, `m2m`, `children` and `relations` on the same
+  spec would be quietly ignored. Reconciliation knobs are unaffected, and
+  `delete_service` is not restricted: it replaces the unlink-or-delete rule
+  rather than the row write.
+
+- **An error raised while writing a related row is reported under that
+  relation.** A `create_service` / `update_service` raising
+  `ServiceValidationError` — or DRF's `ValidationError`, since a service may
+  reach for either — propagated bare, so a row's `{"title": [...]}` was
+  indistinguishable from the parent's own `title`, and a collection never said
+  which row was refused.
+
+  The shape is DRF's `ListSerializer` rather than one of ours, so a reader
+  migrating off a writable-nested serializer keeps the error handling they have:
+  a collection reports a list as long as the incoming one with an empty dict
+  against the rows that passed (`{"posts": [{}, {"title": ["Too rude."]}]}`) and
+  a relation holding one row reports the payload under the name
+  (`{"profile": {"bio": ["Too long."]}}`). The detail itself is passed through
+  untouched — a string stays a string, a list stays a list — and the class you
+  raise is the class the caller gets. Relation names nest, so a grandchild's
+  error carries both.
+
+  The library's own refusals — the primary-key guard, a `scope` that matched
+  nothing — already named their relation and are unchanged. One consequence for
+  a 0.37.0 `children=` tree: a *grandchild* primary-key refusal now arrives
+  under the child's relation as well as its own, which is that nesting rule
+  applied to an error that was already namespaced once.
+
+### Security
+
+- **The primary-key refusal added in 0.37.0 now covers every relation kind.**
+  It was wired into the child-collection loop, and the kinds added in this
+  release reach the same create through a different path: a forward relation
+  whose match key is absent from the payload walks past the match entirely, and
+  a reverse one-to-one has no match key at all, so every payload primary key
+  landed in the create. Both were reproduced before fixing. One blanked a
+  column on another parent's row; the other reassigned and overwrote it.
+
+  The check now sits in the single row writer every kind funnels through, ahead
+  of any declared `create_service`, so a service is never handed a key either.
+
+  No published release is affected: the four kinds are new here, and 0.37.0
+  already covers `children=`, the only kind that shipped.
+
+### Not included
+
+- **Many-to-many through a `through` model.** The most design-heavy of the six
+  kinds and a named follow-up rather than a decline. Declare a `ChildSpec` on the
+  through model in the meantime; the nested-writes recipe shows it.
+
+
 ## [0.37.0] — 2026-08-11
 
 ### Security
@@ -2152,7 +2316,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.37.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.38.0...HEAD
+[0.38.0]: https://github.com/Artui/djangorestframework-services/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/Artui/djangorestframework-services/compare/v0.36.1...v0.37.0
 [0.36.1]: https://github.com/Artui/djangorestframework-services/compare/v0.36.0...v0.36.1
 [0.36.0]: https://github.com/Artui/djangorestframework-services/compare/v0.35.0...v0.36.0

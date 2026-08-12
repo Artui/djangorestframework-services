@@ -9,6 +9,7 @@ from rest_framework_services.mutations.aupdate_from_input import aupdate_from_in
 from rest_framework_services.services._resolve_m2m import resolve_m2m
 from rest_framework_services.types.change_result import ModelT
 from rest_framework_services.types.child_spec import ChildSpec
+from rest_framework_services.types.relation_spec import RelationSpec
 
 
 def aupdate_model(
@@ -19,6 +20,7 @@ def aupdate_model(
     m2m: Mapping[str, Any] | Callable[[Any], Mapping[str, Any]] | None = None,
     update_fields: bool | list[str] = True,
     children: Mapping[str, ChildSpec] | None = None,
+    relations: Mapping[str, RelationSpec] | None = None,
 ) -> Callable[..., Awaitable[ModelT]]:
     """Async sibling of
     :func:`~rest_framework_services.services.update_model`."""
@@ -32,6 +34,8 @@ def aupdate_model(
             m2m=resolve_m2m(m2m, data),
             update_fields=update_fields,
             children=children,
+            relations=relations,
+            context=kwargs,
         )
         return result.instance
 

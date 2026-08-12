@@ -131,6 +131,76 @@ jobs:
           print("BASE IMPORT OK", django.get_version())
           PY
 
+  no-contenttypes:
+    name: without django.contrib.contenttypes
+    runs-on: ubuntu-latest
+    # The generic-relation kind is the package's only contact with
+    # ``django.contrib.contenttypes``, and that app is not guaranteed to be in
+    # a consumer's INSTALLED_APPS. Two things have to hold and neither is
+    # visible to the matrix, because the test settings install the app:
+    #
+    #   1. importing the package without it must work. ``ContentType`` is a
+    #      Django *model* and ``rest_framework_services`` ships in
+    #      INSTALLED_APPS, so it is imported while ``apps.populate()`` runs --
+    #      an eager import raises AppRegistryNotReady even when the app *is*
+    #      installed, and a plain ImportError when it is not.
+    #   2. writing a generic relation without it must say so. Without the
+    #      gate, importing the model fails with a RuntimeError about explicit
+    #      app labels, which names neither the app nor the remedy.
+    #
+    # There is no extra to install for this: contenttypes ships inside Django,
+    # so the opt-in is the INSTALLED_APPS entry and the only way to check the
+    # claim is to run without it.
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --all-groups
+      - name: Import and drive the gate with the app absent
+        run: |
+          uv run --no-sync python - <<'PY'
+          import django
+          from django.conf import settings
+
+          # No django.contrib.contenttypes, and no django.contrib.auth either
+          # -- auth depends on it, so leaving auth in would install the very
+          # thing this job removes.
+          settings.configure(
+              SECRET_KEY="x",
+              INSTALLED_APPS=["rest_framework", "rest_framework_services"],
+              DATABASES={"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}},
+          )
+          django.setup()
+
+          import sys
+
+          import rest_framework_services
+          from rest_framework_services import GenericRelationSpec
+
+          assert "django.contrib.contenttypes.models" not in sys.modules, (
+              "the package imported the contenttypes models eagerly"
+          )
+          assert GenericRelationSpec.write_phase.name == "GENERIC"
+
+          from django.core.exceptions import ImproperlyConfigured
+
+          from rest_framework_services.mutations.utils import _content_type_for
+
+          try:
+              # ``None`` on purpose: the gate refuses before it ever looks at
+              # the instance, which is exactly the claim being checked.
+              _content_type_for(None)
+          except ImproperlyConfigured as exc:
+              assert "django.contrib.contenttypes" in str(exc), exc
+              assert "INSTALLED_APPS" in str(exc), exc
+          else:
+              raise SystemExit("the generic-relation gate did not fire")
+
+          print("NO-CONTENTTYPES OK", django.get_version())
+          PY
+
   test:
     name: ${{ matrix.python-version }} / Django ${{ matrix.django-version }}
     runs-on: ubuntu-latest
@@ -336,7 +406,7 @@ jobs:
   tests-passed:
     name: tests
     if: always()
-    needs: [lint, docs, floor, test]
+    needs: [lint, docs, floor, no-contenttypes, test]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required jobs succeeded

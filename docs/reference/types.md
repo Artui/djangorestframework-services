@@ -32,6 +32,38 @@
 
 ::: rest_framework_services.types.child_collection_change.ChildCollectionChange
 
+## `RelationSpec`
+
+::: rest_framework_services.types.relation_spec.RelationSpec
+
+## `RelationPhase`
+
+::: rest_framework_services.types.relation_phase.RelationPhase
+
+## `RelationOrphan`
+
+::: rest_framework_services.types.relation_orphan.RelationOrphan
+
+## `ForwardRelationSpec`
+
+::: rest_framework_services.types.forward_relation_spec.ForwardRelationSpec
+
+## `ReverseOneToOneSpec`
+
+::: rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec
+
+## `GenericRelationSpec`
+
+::: rest_framework_services.types.generic_relation_spec.GenericRelationSpec
+
+## `ManyToManySpec`
+
+::: rest_framework_services.types.many_to_many_spec.ManyToManySpec
+
+## `RelatedObjectChange`
+
+::: rest_framework_services.types.related_object_change.RelatedObjectChange
+
 ## `UNSET`
 
 ::: rest_framework_services.types.unset

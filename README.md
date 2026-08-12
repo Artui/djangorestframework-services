@@ -818,8 +818,10 @@ builds on:
 - **`filter_set` on selectors** — declare filtering on a `SelectorSpec`
   once and it applies transport-neutrally, off the HTTP query-string path.
 - **Bulk and nested writes** — `many=True` on a spec mutates a whole
-  collection, and the mutation helpers accept a `children=` argument for
-  nested child-collection writes, both independent of any request.
+  collection, and the mutation helpers accept a `relations=` argument that
+  writes every relation kind Django has from one payload (forward FK and
+  one-to-one, reverse collections, reverse one-to-one, many-to-many and
+  generic relations), both independent of any request.
 - **`SpecRegistry`** — hold your spec set in one named, taggable place so each
   transport reads the same source instead of enumerating the specs again. It
   carries only what is invariant across transports (which spec, its canonical

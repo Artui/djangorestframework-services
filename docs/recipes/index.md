@@ -23,10 +23,12 @@ the [Quickstart](../quickstart.md) and [Concepts](../concepts.md).
   a `django-filter` FilterSet at a list or retrieve selector's queryset,
   the "replaces `DjangoFilterBackend`" rule, and the boundary with
   `kwargs` for computed (non-queryset) results.
-- **[Nested / child-collection writes](nested-writes.md)** — write a parent
-  plus its reverse-FK children from one request with `children=` /
-  `ChildSpec` (replace vs merge, orphan delete/unlink, recursion), and
-  migrate off a writable-nested serializer.
+- **[Nested writes for every relation kind](nested-writes.md)** — write a
+  parent plus everything hanging off it from one request with `relations=`:
+  forward FK / one-to-one, reverse collections, reverse one-to-one,
+  many-to-many and generic relations, why key matching needs a `scope=`,
+  why a nested create may not carry a primary key, and how to migrate off a
+  writable-nested serializer.
 - **[Bulk & collection mutations](bulk-mutations.md)** — `many=True` list
   in/out and a `collection_selector_spec` target for instance-less bulk
   delete / update over a filtered set.

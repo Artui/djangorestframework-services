@@ -11,12 +11,15 @@ from rest_framework_services.types.child_collection_change import ChildCollectio
 from rest_framework_services.types.child_spec import ChildSpec
 from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.field_change import FieldChange
+from rest_framework_services.types.forward_relation_spec import ForwardRelationSpec
+from rest_framework_services.types.generic_relation_spec import GenericRelationSpec
 from rest_framework_services.types.http_extras import HttpExtras
 from rest_framework_services.types.input_required import InputRequired, InputRequiredType
 from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
 )
+from rest_framework_services.types.many_to_many_spec import ManyToManySpec
 from rest_framework_services.types.no_input import NoInput
 from rest_framework_services.types.not_client_input import NotClientInput, NotClientInputType
 from rest_framework_services.types.offline_context import OfflineContext
@@ -27,7 +30,14 @@ from rest_framework_services.types.progress_reporter import ProgressReporter
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.read_schema_markers import read_schema_markers
 from rest_framework_services.types.registered_spec import RegisteredSpec
+from rest_framework_services.types.related_object_change import RelatedObjectChange
+from rest_framework_services.types.relation_mode import RelationMode
+from rest_framework_services.types.relation_orphan import RelationOrphan
+from rest_framework_services.types.relation_outcome import RelationOutcome
+from rest_framework_services.types.relation_phase import RelationPhase
+from rest_framework_services.types.relation_spec import RelationSpec
 from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
+from rest_framework_services.types.reverse_one_to_one_spec import ReverseOneToOneSpec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -49,10 +59,13 @@ __all__ = [
     "ChildSpec",
     "DispatchResult",
     "FieldChange",
+    "ForwardRelationSpec",
+    "GenericRelationSpec",
     "HttpExtras",
     "InputRequired",
     "InputRequiredType",
     "JsonSchemaRegistry",
+    "ManyToManySpec",
     "NoInput",
     "NotClientInput",
     "NotClientInputType",
@@ -63,6 +76,13 @@ __all__ = [
     "ProgressReporter",
     "QueryParam",
     "RegisteredSpec",
+    "RelatedObjectChange",
+    "RelationMode",
+    "RelationOrphan",
+    "RelationOutcome",
+    "RelationPhase",
+    "RelationSpec",
+    "ReverseOneToOneSpec",
     "SelectorKind",
     "SelectorSpec",
     "ServiceSpec",

@@ -9,6 +9,7 @@ from rest_framework_services.mutations.update_from_input import update_from_inpu
 from rest_framework_services.services._resolve_m2m import resolve_m2m
 from rest_framework_services.types.change_result import ModelT
 from rest_framework_services.types.child_spec import ChildSpec
+from rest_framework_services.types.relation_spec import RelationSpec
 
 
 def update_model(
@@ -19,6 +20,7 @@ def update_model(
     m2m: Mapping[str, Any] | Callable[[Any], Mapping[str, Any]] | None = None,
     update_fields: bool | list[str] = True,
     children: Mapping[str, ChildSpec] | None = None,
+    relations: Mapping[str, RelationSpec] | None = None,
 ) -> Callable[..., ModelT]:
     """Return a service callable that updates the resolved instance in place.
 
@@ -37,6 +39,10 @@ def update_model(
     ``data`` (see :func:`create_model` for the common shape); ``children``
     reconciles reverse-FK collections from ``data[relation]`` per its
     :class:`~rest_framework_services.ChildSpec`.
+
+    The rest of the framework's kwargs pool is handed on as the helper's
+    ``context=``, so a per-child service declared on a ``ChildSpec`` can see
+    who is calling (see :func:`create_model`).
     """
 
     def _service(*, instance: ModelT, data: Any, **kwargs: Any) -> ModelT:
@@ -48,6 +54,8 @@ def update_model(
             m2m=resolve_m2m(m2m, data),
             update_fields=update_fields,
             children=children,
+            relations=relations,
+            context=kwargs,
         ).instance
 
     return _service

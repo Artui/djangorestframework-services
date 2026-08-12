@@ -9,6 +9,7 @@ from django.db.models import Model
 
 from rest_framework_services.types.child_collection_change import ChildCollectionChange
 from rest_framework_services.types.field_change import FieldChange
+from rest_framework_services.types.related_object_change import RelatedObjectChange
 
 ModelT = TypeVar("ModelT", bound=Model)
 
@@ -24,6 +25,17 @@ class ChangeResult(Generic[ModelT]):
     :class:`ChildCollectionChange` per reverse-FK collection written via the
     ``children=`` argument — empty for the common no-nested-write case.
 
+    ``relations`` carries one :class:`RelatedObjectChange` per **singular**
+    relation written via ``relations=`` (forward FK / one-to-one, reverse
+    one-to-one). The split is by shape, not by keyword: a collection reports
+    tuples of pks and a one-row relation reports an outcome, so they are
+    different carriers, and a reverse-FK collection declared through
+    ``relations=`` still reports under ``children`` exactly as it does through
+    ``children=``. A forward relation shows up **twice** and means two
+    different things — here as the row that was created or matched, and in
+    ``changes`` as the parent's foreign-key column, which only appears if it
+    actually changed.
+
     The class is generic over the concrete model type: callers that pass
     ``Author`` into a mutation helper get back a ``ChangeResult[Author]``
     whose ``.instance`` is typed as ``Author``. The bare name
@@ -35,6 +47,7 @@ class ChangeResult(Generic[ModelT]):
     created: bool
     changes: tuple[FieldChange, ...]
     children: tuple[ChildCollectionChange, ...] = field(default_factory=tuple)
+    relations: tuple[RelatedObjectChange, ...] = field(default_factory=tuple)
 
     @property
     def changed_fields(self) -> tuple[str, ...]:
@@ -55,5 +68,12 @@ class ChangeResult(Generic[ModelT]):
                 return change
         return None
 
+    def get_relation_change(self, relation: str) -> RelatedObjectChange | None:
+        """Return the :class:`RelatedObjectChange` for ``relation``, or ``None``."""
+        for change in self.relations:
+            if change.relation == relation:
+                return change
+        return None
+
     def __bool__(self) -> bool:
-        return bool(self.changes or any(self.children))
+        return bool(self.changes or any(self.children) or any(self.relations))
