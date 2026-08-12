@@ -20,7 +20,7 @@ class ViewHooks:
     them, and a caller that resolves them has to be able to hand them over.
     This carrier is that hand-off.
 
-    ⚠ **These are the *view* layers only — never the spec's own providers.**
+    **These are the *view* layers only — never the spec's own providers.**
     Each chain resolves ``view.get_<x>`` → ``view.get_<action>_<x>`` →
     ``spec.<x>``, spec winning on overlap. ``dispatch_spec`` owns that last
     layer, so a caller must pass ``spec_kwargs=None`` / ``spec_provider=None``
@@ -60,7 +60,7 @@ class ViewHooks:
     # the core's perspective an HTTP view is simply the transport. Resolved for
     # both chains: a selector can be long too (a large export is a selector).
     #
-    # ⛔ Reach for this only when a buffered request genuinely needs it. If a
+    # Reach for this only when a buffered request genuinely needs it. If a
     # request runs long enough to want progress, a task plus polling is usually
     # the right shape and this seam is the wrong tool — it exists for the cases
     # where that does not apply (a streaming response, or a websocket sidecar

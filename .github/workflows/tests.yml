@@ -75,7 +75,7 @@ jobs:
         run: uv python install 3.10
       - name: Resolve every declared dependency at its floor
         run: uv lock --resolution lowest-direct --python 3.10
-      # ⚠ --frozen and --no-sync are load-bearing, not tidiness. uv records the
+      # --frozen and --no-sync are load-bearing, not tidiness. uv records the
       # resolution mode in the lockfile and silently discards a lock resolved
       # in a different one -- a plain `uv sync` here prints "Ignoring existing
       # lockfile due to change in resolution mode: lowest-direct vs. highest"
@@ -88,7 +88,7 @@ jobs:
       - name: Test
         run: uv run --no-sync pytest
 
-      # ⚠ The step above installs every extra, and an extra can hold a shared
+      # The step above installs every extra, and an extra can hold a shared
       # dependency *above* the floor being claimed -- masking the lie rather
       # than exposing it. That is not hypothetical: reverting a sibling's
       # pydantic-ai floor to its old value and resolving with all extras kept

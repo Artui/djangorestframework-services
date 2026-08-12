@@ -63,7 +63,7 @@ def dispatch_spec(
     progress: ProgressReporter | None = None,
     view_hooks: ViewHooks | None = None,
     instance: Any = UNSET,
-    # ⚠ Only meaningful when ``params`` is *not* the filter source. Off HTTP a
+    # Only meaningful when ``params`` is *not* the filter source. Off HTTP a
     # single flat ``params`` mapping is usually both the callable's input and the
     # ``filter_set`` data, so this stays ``None``. Over HTTP they are two
     # different things — the body validates, the **query string** filters — and
@@ -470,14 +470,14 @@ def _resolve_collection(
             "collection_selector_spec requires a `selector` resolving the target set."
         )
     pool: dict[str, Any] = {
-        # ⚠ **No live reporter here, deliberately.** Target resolution and the
+        # **No live reporter here, deliberately.** Target resolution and the
         # output re-fetch resolve a row (or a filtered set) and return; there is
         # no progress to report from a lookup. Worse, a live reporter would let
         # the output selector emit progress *after* the service finished, which
         # to a watching client reads as the work having restarted. They take the
         # no-op :func:`base_pool` supplies.
         **base_pool(user=user, request=request),
-        # ⚠ Reserved seeds stripped from the client spread — the same rule
+        # Reserved seeds stripped from the client spread — the same rule
         # ``merge_arguments`` applies to every other pool. Without it a caller
         # sending ``{"user": …}`` outranks the dispatcher's authoritative value
         # in the pool that decides *which row* (or which set) is mutated, and
@@ -519,7 +519,7 @@ def _run_output_selector(
     # mutation owns them); the service return joins the pool as ``result`` /
     # ``instance``.
     pool: dict[str, Any] = {
-        # ⚠ **No live reporter here, deliberately.** Target resolution and the
+        # **No live reporter here, deliberately.** Target resolution and the
         # output re-fetch resolve a row (or a filtered set) and return; there is
         # no progress to report from a lookup. Worse, a live reporter would let
         # the output selector emit progress *after* the service finished, which
@@ -557,14 +557,14 @@ def _resolve_instance(
     if instance_spec is None or instance_spec.selector is None:
         return (True, None)
     pool: dict[str, Any] = {
-        # ⚠ **No live reporter here, deliberately.** Target resolution and the
+        # **No live reporter here, deliberately.** Target resolution and the
         # output re-fetch resolve a row (or a filtered set) and return; there is
         # no progress to report from a lookup. Worse, a live reporter would let
         # the output selector emit progress *after* the service finished, which
         # to a watching client reads as the work having restarted. They take the
         # no-op :func:`base_pool` supplies.
         **base_pool(user=user, request=request),
-        # ⚠ Reserved seeds stripped from the client spread — the same rule
+        # Reserved seeds stripped from the client spread — the same rule
         # ``merge_arguments`` applies to every other pool. Without it a caller
         # sending ``{"user": …}`` outranks the dispatcher's authoritative value
         # in the pool that decides *which row* (or which set) is mutated, and

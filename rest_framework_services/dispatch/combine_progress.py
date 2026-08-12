@@ -23,7 +23,7 @@ def combine_progress(*reporters: ProgressReporter | None) -> ProgressReporter:
     straight through. With nothing left, :func:`null_progress` comes back —
     the seed stays callable, which is the invariant every service relies on.
 
-    ⚠ **Per-sink isolation is the whole reason this is a helper.** The obvious
+    **Per-sink isolation is the whole reason this is a helper.** The obvious
     loop::
 
         for reporter in reporters:
@@ -38,7 +38,7 @@ def combine_progress(*reporters: ProgressReporter | None) -> ProgressReporter:
     nothing. Each sink is therefore isolated: it gets its report, and its
     failure is its own.
 
-    ⚠ **Failures are swallowed, not logged, and that is a real trade.** This
+    **Failures are swallowed, not logged, and that is a real trade.** This
     module cannot know which logger a consumer would want, and reaching for one
     from inside a fan-out that runs per progress tick invites a second failure
     mode on the path meant to be inert. A sink that cares about its own errors

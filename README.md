@@ -34,7 +34,7 @@ you a precise, well-typed seam for the bits in the middle.
   time, with fail-fast validation at `as_view()`.
 - **100% test coverage**, type-checked, Python 3.10–3.14, Django 4.2–6.0.
 
-📖 **Full documentation:** <https://artui.github.io/djangorestframework-services/>
+**Full documentation:** <https://artui.github.io/djangorestframework-services/>
 
 ```bash
 pip install djangorestframework-services

@@ -435,14 +435,14 @@ async def _aresolve_target(
                 "collection_selector_spec requires a `selector` resolving the target set."
             )
         pool: dict[str, Any] = {
-            # ⚠ **No live reporter here, deliberately.** Target resolution and the
+            # **No live reporter here, deliberately.** Target resolution and the
             # output re-fetch resolve a row (or a filtered set) and return; there is
             # no progress to report from a lookup. Worse, a live reporter would let
             # the output selector emit progress *after* the service finished, which
             # to a watching client reads as the work having restarted. They take the
             # no-op :func:`base_pool` supplies.
             **base_pool(user=user, request=request),
-            # ⚠ Reserved seeds stripped from the client spread — the same rule
+            # Reserved seeds stripped from the client spread — the same rule
             # ``merge_arguments`` applies to every other pool. Without it a caller
             # sending ``{"user": …}`` outranks the dispatcher's authoritative value
             # in the pool that decides *which row* (or which set) is mutated, and
@@ -494,7 +494,7 @@ async def _arun_output_selector(
     if out_spec is None or out_spec.selector is None:
         return result, False
     pool: dict[str, Any] = {
-        # ⚠ **No live reporter here, deliberately.** Target resolution and the
+        # **No live reporter here, deliberately.** Target resolution and the
         # output re-fetch resolve a row (or a filtered set) and return; there is
         # no progress to report from a lookup. Worse, a live reporter would let
         # the output selector emit progress *after* the service finished, which
@@ -533,14 +533,14 @@ async def _aresolve_instance(
     if instance_spec is None or instance_spec.selector is None:
         return (True, None)
     pool: dict[str, Any] = {
-        # ⚠ **No live reporter here, deliberately.** Target resolution and the
+        # **No live reporter here, deliberately.** Target resolution and the
         # output re-fetch resolve a row (or a filtered set) and return; there is
         # no progress to report from a lookup. Worse, a live reporter would let
         # the output selector emit progress *after* the service finished, which
         # to a watching client reads as the work having restarted. They take the
         # no-op :func:`base_pool` supplies.
         **base_pool(user=user, request=request),
-        # ⚠ Reserved seeds stripped from the client spread — the same rule
+        # Reserved seeds stripped from the client spread — the same rule
         # ``merge_arguments`` applies to every other pool. Without it a caller
         # sending ``{"user": …}`` outranks the dispatcher's authoritative value
         # in the pool that decides *which row* (or which set) is mutated, and

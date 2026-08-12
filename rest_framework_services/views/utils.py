@@ -298,7 +298,7 @@ def resolve_view_hooks(
 ) -> ViewHooks:
     """Resolve the calling view's hook chains into a :class:`ViewHooks` carrier.
 
-    ⚠ **View layers only** — every ``spec_*`` argument below is deliberately
+    **View layers only** — every ``spec_*`` argument below is deliberately
     ``None``. The chains run ``view.get_<x>`` → ``view.get_<action>_<x>`` →
     ``spec.<x>``, and ``dispatch_spec`` owns that last layer. Resolving the spec
     provider here too would invoke it **twice**, which is not safe for a provider

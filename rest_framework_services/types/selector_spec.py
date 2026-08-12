@@ -156,7 +156,7 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
 
     - **``metadata``** — consumer-owned, framework-opaque mapping.
 
-      ⚠ **The framework never reads it.** No known keys, no per-key
+      **The framework never reads it.** No known keys, no per-key
       validation, no defaulting, no effect on the generated JSON Schema or
       OpenAPI. Validation is shape-only: a non-``Mapping`` raises
       :exc:`~django.core.exceptions.ImproperlyConfigured` at construction.
@@ -227,7 +227,7 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     # ``combine_progress``). A **provider**, invoked through the keyword pool
     # like ``kwargs``, returning a ``ProgressReporter`` or ``None``.
     #
-    # ⚠ **Provider, not a bare reporter, and the reason is that the two cannot
+    # **Provider, not a bare reporter, and the reason is that the two cannot
     # be told apart.** A ``ProgressReporter`` is a plain callable and so is a
     # factory for one, so a ``reporter | factory`` union would have to *guess*
     # by signature. Every other static-or-callable field in this package
@@ -235,7 +235,7 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     # this one does not, so it takes the useful shape. A static sink is one
     # lambda: ``progress_reporter=lambda: my_sink``.
     #
-    # ⛔ **For sinks that do not care which transport is carrying the run** — a
+    # **For sinks that do not care which transport is carrying the run** — a
     # task record, an audit trail, metrics. A sink that needs to know the
     # transport is by definition not transport-independent and belongs on the
     # transport instead (the ``get_progress_reporter`` view hook, or whatever

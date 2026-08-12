@@ -15,7 +15,7 @@ from rest_framework_services.dispatch.combine_progress import combine_progress
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.dispatch.enforce_permissions import enforce_permissions
 
-# ⚠ Must stay *after* ``base_pool``. Importing that module imports this one as
+# Must stay *after* ``base_pool``. Importing that module imports this one as
 # a side effect, and Python then binds the **submodule** onto the package —
 # overwriting a from-import placed earlier, so ``null_progress`` would resolve
 # to a module object rather than the function. Alphabetical order happens to be

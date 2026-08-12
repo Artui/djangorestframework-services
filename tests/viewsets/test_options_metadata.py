@@ -5,7 +5,7 @@ handler method behind it. Anything that assumes ``self.action`` names a bound
 method breaks there, and nothing in the suite exercised it, so the whole path
 went unnoticed.
 
-⚠ **Wider than explicit OPTIONS calls.** A CORS preflight is an OPTIONS request,
+**Wider than explicit OPTIONS calls.** A CORS preflight is an OPTIONS request,
 and ``django-cors-headers`` only short-circuits paths matching
 ``CORS_URLS_REGEX`` that also carry ``Access-Control-Request-Method`` — every
 other route reaches the view. Easy to miss locally, easy to hit in production on
@@ -62,7 +62,7 @@ def _options(view: Any) -> Any:
 
 @pytest.mark.django_db
 def test_options_on_a_service_viewset_does_not_raise() -> None:
-    """⚠ The reported bug: ``AttributeError: … has no attribute 'metadata'``.
+    """The reported bug: ``AttributeError: … has no attribute 'metadata'``.
 
     ``get_permissions`` fell through to a ``getattr(self, self.action)`` with no
     default, looking for a handler that DRF documents as implicit. The
@@ -129,7 +129,7 @@ def test_options_works_with_a_selector_spec_declared() -> None:
 
 @pytest.mark.django_db
 def test_options_is_gated_by_the_views_own_permission_classes() -> None:
-    """⚠ Fail-closed, and it must stay that way. A spec's
+    """Fail-closed, and it must stay that way. A spec's
     ``permission_classes`` describe *that action*; ``metadata`` is not one, so
     the view's own classes are what OPTIONS answers to — which is exactly DRF's
     behaviour and not a hole opened by the fix."""

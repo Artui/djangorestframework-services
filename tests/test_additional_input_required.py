@@ -56,7 +56,7 @@ def test_the_schema_is_optional() -> None:
 
 
 def test_it_is_a_service_error() -> None:
-    """⚠ Deliberate: a transport that has never heard of this still does
+    """Deliberate: a transport that has never heard of this still does
     something sensible — the operation could not be completed, and here is why.
     Transports that *can* ask catch it first and do better."""
     assert issubclass(AdditionalInputRequired, ServiceError)
@@ -78,7 +78,7 @@ def test_a_service_can_raise_it_mid_dispatch() -> None:
 
 
 def test_the_answer_arrives_as_ordinary_input() -> None:
-    """⭐ The reason the service's involvement ends at the raise: there is no
+    """The reason the service's involvement ends at the raise: there is no
     callback to hold and no session to resume. Whatever the transport does to
     ask, the answer comes back through the parameters the service already
     declares."""

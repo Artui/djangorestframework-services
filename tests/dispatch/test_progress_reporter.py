@@ -183,7 +183,7 @@ def test_an_http_view_can_supply_a_reporter_through_its_kwargs_hook() -> None:
 
 
 def test_the_reporter_is_sync_even_when_the_sink_is_not() -> None:
-    """⚠ The first wall a websocket consumer hits.
+    """The first wall a websocket consumer hits.
 
     A reporter is called from inside domain code that is written once for both
     transports and is therefore never ``async def`` — so an async sink is

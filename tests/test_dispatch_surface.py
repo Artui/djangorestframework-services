@@ -84,7 +84,7 @@ def test_the_compat_package_is_gone() -> None:
 def test_no_export_is_shadowed_by_its_own_submodule() -> None:
     """Every re-exported name resolves to a value, never to a module object.
 
-    ⚠ **This hazard is real and has already been hit once.** ``import pkg.mod``
+    **This hazard is real and has already been hit once.** ``import pkg.mod``
     binds ``mod`` as an attribute of ``pkg``, so a package ``__init__`` that
     does ``from pkg.mod import mod`` (function and module sharing a name — the
     one-symbol-per-file convention makes that the *normal* case here) can have

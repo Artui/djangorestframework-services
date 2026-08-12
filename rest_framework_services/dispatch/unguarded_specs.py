@@ -23,13 +23,13 @@ def unguarded_specs(specs: Mapping[str, Spec]) -> list[str]:
     :func:`~rest_framework_services.enforce_permissions` returns early on
     ``None`` for exactly that reason — it has nothing to enforce.
 
-    ⭐ **Why this lives here and not in each transport.** The ambiguity is a
+    **Why this lives here and not in each transport.** The ambiguity is a
     *drf-services* fact: this package owns the off-HTTP dispatch semantics that
     create it, so the knowledge of what "unguarded" means belongs with them
     rather than being re-derived per transport. ⇒ *a check belongs wherever the
     fact it checks is defined, not wherever the failure is felt.*
 
-    ⚠ **This raises nothing and defaults nothing, deliberately.** It answers a
+    **This raises nothing and defaults nothing, deliberately.** It answers a
     question; it does not set policy. Whether an unguarded spec is a hard error,
     a warning, or acceptable — and what the message says — is the transport's
     call, exactly as ``dispatch_spec`` stays authorization-agnostic while
@@ -51,7 +51,7 @@ def unguarded_specs(specs: Mapping[str, Spec]) -> list[str]:
     message a transport builds lists specs in the order they were declared,
     which is easier to act on than alphabetical.
 
-    ⚠ Deliberately **not** a ``Mapping | Iterable[tuple[...]]`` union: a mapping
+    Deliberately **not** a ``Mapping | Iterable[tuple[...]]`` union: a mapping
     *is* an iterable, so the two arms overlap and a mapping keyed by tuples
     satisfies both. Narrowing that union is guesswork, and the one shape every
     caller already has is the mapping.

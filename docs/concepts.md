@@ -507,7 +507,7 @@ def export_invoices(*, data, progress):
         progress(index + 1, total=len(rows), message="writing rows")
 ```
 
-⚠ **Reporting is always safe and never required.** Every transport seeds a
+**Reporting is always safe and never required.** Every transport seeds a
 reporter, and the ones with nowhere to send progress seed a no-op — so the
 service above runs unchanged over HTTP, off-HTTP, and in tests. That default is
 the whole reason the reporter is a *pool seed* rather than an argument only some
@@ -536,7 +536,7 @@ progress(
 )
 ```
 
-⭐ **Without this slot the structure ends up in `message` anyway** — stringified
+**Without this slot the structure ends up in `message` anyway** — stringified
 by the service and parsed back out at the sink, which is a wire format invented
 by accident inside a field documented as being for humans.
 

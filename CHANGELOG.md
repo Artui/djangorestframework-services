@@ -309,7 +309,7 @@ unmatched primary key does.
   than suppressing the view-wide sink. Resolved for selectors too — a large
   export is a selector.
 
-  ⛔ **Reach for this only when a buffered request genuinely needs it.** If a
+  **Reach for this only when a buffered request genuinely needs it.** If a
   request runs long enough to want progress, a task plus polling is usually the
   right shape; this seam exists for the cases where that does not apply, such as
   a streaming response or a websocket sidecar the host already runs.
@@ -354,7 +354,7 @@ unmatched primary key does.
   - **Fail-fast at `as_view()`** on a bare callable passed instead of a sequence,
     a non-callable element (named by index), a parameter nothing seeds, and
     `preconditions` declared on a *nested* spec — which never dispatches, so the
-    field would never run. Each of those is otherwise a 500 at request time. ⚠
+    field would never run. Each of those is otherwise a 500 at request time.
     The pool is keyed on framework seed names, **not** model names:
     `def is_editable(order)` does not receive your `Order`.
   - Deliberately **not** reflected into tool schemas: a function's `__name__` /
@@ -389,7 +389,7 @@ unmatched primary key does.
   seed — `user` being the realistic one — but the result is a horizontal
   scoping bypass, so treat this as the reason to upgrade.
 
-  ⚠ **The permission fix can turn a passing 200 into a 403** if a project has a
+  **The permission fix can turn a passing 200 into a 403** if a project has a
   `has_object_permission` that was never being consulted on a retrieve selector.
   That is the intended behaviour and matches what the same spec already did over
   MCP, but it is worth checking before upgrading.
@@ -457,7 +457,7 @@ unmatched primary key does.
   `dispatch_selector_for_spec` **loses** its `extra_url_kwargs` and
   `source_label` parameters. Every call site passed `view.kwargs` verbatim, and
   the core reads it itself while stripping reserved seeds — taking the mapping
-  from the caller would reopen the bug above. ⚠ If you call this helper from
+  from the caller would reopen the bug above. If you call this helper from
   your own view (as `CLAUDE.md` suggests), drop both arguments.
 
   `resolve_mutation_instance` no longer resolves `instance_selector_spec`
@@ -513,10 +513,10 @@ unmatched primary key does.
   whole of its involvement: no callback to hold, no session to resume.
 
   A `ServiceError` subclass, so a transport that has never heard of it still
-  does something sensible. One that can ask catches it first — ⚠ note the
+  does something sensible. One that can ask catches it first — note the
   ordering, since a handler for `ServiceError` will otherwise swallow it.
 
-  ⛔ **Scoped down deliberately.** A first draft put the whole interaction here:
+  **Scoped down deliberately.** A first draft put the whole interaction here:
   a callable pool seed, an accept / decline / cancel result type, and a contract
   in which the service is re-executed from the top on retry. That was one
   protocol's interaction model (MCP's multi-round-trip requests) wearing a
@@ -527,7 +527,7 @@ unmatched primary key does.
 
 ### Fixed
 
-- ⚠ **OPTIONS to any spec-backed viewset raised `AttributeError` and returned an
+- **OPTIONS to any spec-backed viewset raised `AttributeError` and returned an
   unhandled 500.** `_ActionSpecsMixin.get_permissions` assumed `self.action`
   always names a bound handler, but DRF sets `self.action = "metadata"` for
   OPTIONS — an action its own source calls implicit, with no method behind it.
@@ -536,7 +536,7 @@ unmatched primary key does.
   Affected `ServiceViewSet` and `SelectorViewSet` alike, with or without
   `action_specs`. Present since 24bc37d.
 
-  ⚠ **Wider than explicit OPTIONS calls.** A CORS preflight *is* an OPTIONS
+  **Wider than explicit OPTIONS calls.** A CORS preflight *is* an OPTIONS
   request, and `django-cors-headers` only short-circuits paths matching
   `CORS_URLS_REGEX` that also carry `Access-Control-Request-Method` — every other
   route reached the view. Easy to miss in development and easy to hit in
@@ -552,7 +552,7 @@ unmatched primary key does.
   The suite had no OPTIONS coverage at all; it does now, including a plain DRF
   viewset as a control.
 
-  ⚠ Unrelated to 0.31's consumer-owned `metadata` mapping on specs, despite the
+  Unrelated to 0.31's consumer-owned `metadata` mapping on specs, despite the
   shared word — that is a field this framework never reads, and this is DRF's
   implicit action name.
 
@@ -574,7 +574,7 @@ unmatched primary key does.
   ServiceSpec(service=refund_order, permission_classes=[SameTenant], metadata={"scope": "tenant"})
   ```
 
-  ⚠ **The framework never reads it.** No known keys, no per-key validation, no
+  **The framework never reads it.** No known keys, no per-key validation, no
   defaulting, and no effect on the generated JSON Schema or OpenAPI — pinned by
   tests asserting both phases are identical with and without it. Validation is
   shape-only: a non-mapping raises `ImproperlyConfigured` at construction (not
@@ -609,7 +609,7 @@ unmatched primary key does.
           progress(index + 1, total=len(rows), message="writing rows")
   ```
 
-  ⭐ **The no-op default is the load-bearing part.** Every transport seeds a
+  **The no-op default is the load-bearing part.** Every transport seeds a
   reporter, and the ones with nowhere to send progress seed `null_progress` —
   so the service above runs unchanged over HTTP, off-HTTP and in tests. Without
   that, declaring the parameter would work over one transport and raise a
@@ -624,13 +624,13 @@ unmatched primary key does.
   finished, which to a watching client reads as the work having restarted.
 
   `message` is prose for a person; **`meta` carries structured detail** for a
-  machine on the far end — which stage, which file, how many rows failed. ⭐
+  machine on the far end — which stage, which file, how many rows failed.
   Without that slot the structure ends up in `message` anyway, stringified by
   the service and parsed back out at the sink: a wire format invented by
   accident inside a field documented as being for humans. Each receiver decides
   what to do with it — a websocket consumer forwards it into the frame its UI
   renders, one with nowhere to put it drops it — so it is telemetry, never a
-  channel the operation's correctness depends on. ⚠ Namespace the keys if the
+  channel the operation's correctness depends on. Namespace the keys if the
   far end might be MCP: a progress notification carries them under the
   protocol's `_meta`, which reserves unprefixed names.
 
@@ -642,7 +642,7 @@ unmatched primary key does.
   while client *input* named `progress` cannot, being a reserved seed. That
   asymmetry is what makes the hook safe.
 
-  ⚠ **The reporter is sync**, even when the sink is not — it is called from
+  **The reporter is sync**, even when the sink is not — it is called from
   domain code that is written once for both transports and so is never
   `async def`. Bridge an async sink (a Channels `group_send`) at the reporter
   with `async_to_sync`, not by pushing async into the service.
@@ -657,7 +657,7 @@ unmatched primary key does.
 
 ### Changed
 
-- ⚠ **`RESERVED_POOL_SEEDS` gains `"progress"`.** A caller-supplied argument of
+- **`RESERVED_POOL_SEEDS` gains `"progress"`.** A caller-supplied argument of
   that name is stripped from the `SPREAD_*` bindings, as `request` / `user` /
   `data` already are — the value is the dispatcher's, and letting client input
   reach a parameter the service trusts is exactly what the reserved set exists
@@ -846,7 +846,7 @@ unmatched primary key does.
   provider that declines with `UNSET` does **not** satisfy the requirement —
   declining removes the key from the pool. Enforcement is off-HTTP only: on the
   HTTP path the route is the guarantee, and a missing capture is a URLconf bug.
-  ⚠ Behaviour change, though it can only fire on specs that opt in by using the
+  Behaviour change, though it can only fire on specs that opt in by using the
   new marker.
 
 ### Fixed
@@ -1134,7 +1134,7 @@ unmatched primary key does.
   `request.query_params` (django-restql field selection, custom serializers).
   Scalars are stringified as on HTTP; a list/tuple value becomes a multi-valued
   param (`getlist`); the seeded `GET` is immutable like a real request's. Defaults
-  to empty → no behaviour change for existing callers. (QP-1; the seam
+  to empty → no behaviour change for existing callers. (The seam
   `djangorestframework-pydantic-ai`'s `SpecToolset` builds request-level param
   registration on.) It does **not** make DRF `filter_backends`
   (`SearchFilter`/`OrderingFilter`) run off-HTTP — the offline path never calls
