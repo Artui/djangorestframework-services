@@ -934,7 +934,7 @@
   <span class="md-ellipsis">
     
   
-    Nested / child-collection writes
+    Nested writes for every relation kind
   
 
     
@@ -1681,11 +1681,21 @@ return shape are otherwise identical to their sync siblings.</p>
 also take:</p>
 <ul>
 <li><strong><code>m2m: dict[str, Any] | None</code></strong> — many-to-many assignments applied
-  <em>post-save</em>. Each value is passed to the manager's <code>set()</code>.</li>
-<li><strong><code>children: Mapping[str, ChildSpec] | None</code></strong> — reverse-FK child
-  collections written from <code>data[relation]</code> (create / update / orphan
-  reconcile, recursively). See the
+  <em>post-save</em>. Each value is passed to the manager's <code>set()</code>. This
+  <strong>assigns rows that already exist</strong>; to write the target rows from the
+  payload, declare a <code>ManyToManySpec</code> in <code>relations</code> instead. A relation
+  named by both is refused.</li>
+<li><strong><code>relations: Mapping[str, RelationSpec] | None</code></strong> — nested relations
+  written from <code>data[relation]</code>, one spec class per kind, in the order the
+  kind dictates rather than the order the map is spelled in. See the
   <a href="../recipes/nested-writes/">nested-writes recipe</a>.</li>
+<li><strong><code>children: Mapping[str, ChildSpec] | None</code></strong> — the reverse-FK alias for
+  <code>relations</code>, under the name it shipped as. A name declared in both raises.</li>
+<li><strong><code>context: Mapping[str, Any] | None</code></strong> — an <strong>opaque</strong> caller pool
+  forwarded into the kwargs of any per-child service a <code>ChildSpec</code>
+  declares. The helper never reads it; it exists so per-row work
+  downstream can see who is calling. The default model services populate
+  it for you, so a hand-written service only needs <code>context=kwargs</code>.</li>
 </ul>
 <p><code>update_from_input</code> (and <code>aupdate_from_input</code>) additionally take:</p>
 <ul>

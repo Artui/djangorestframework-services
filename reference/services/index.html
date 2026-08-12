@@ -810,7 +810,7 @@
   <span class="md-ellipsis">
     
   
-    Nested / child-collection writes
+    Nested writes for every relation kind
   
 
     
@@ -2407,7 +2407,8 @@ so services that don't read a body can still match the shape by binding
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">exclude_fields</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">m2m</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">children</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ChildSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ModelT</span><span class="p">]</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ModelT</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2428,19 +2429,21 @@ itself::</p>
     m2m=lambda data: {&quot;tags&quot;: data.tags},
 )
 </code></pre></div>
-<p><code>children</code> is forwarded to
+<p><code>relations</code> (and its reverse-FK alias <code>children</code>) is forwarded to
 :func:<code>~rest_framework_services.mutations.create_from_input</code> to write
-reverse-FK child collections declaratively (no hand-written service)::</p>
+nested relations declaratively (no hand-written service)::</p>
 <div class="language-text highlight"><pre><span></span><code>create_model(
     Author,
-    children={&quot;books&quot;: ChildSpec(model=Book, fk=&quot;author&quot;)},
+    relations={&quot;books&quot;: ChildSpec(model=Book, fk=&quot;author&quot;)},
 )
 </code></pre></div>
 <p>The returned closure accepts <code>**kwargs</code> so the framework's kwargs pool
 (<code>request</code>, <code>user</code>, URL kwargs, <code>ServiceSpec.kwargs</code> returns) is
 absorbed without the service caring — matching the unified
 :class:<code>~rest_framework_services.services.CreateService</code> Protocol's
-default <code>ExtraT</code> (open extras).</p>
+default <code>ExtraT</code> (open extras). That same pool is handed on as the
+helper's <code>context=</code>, so a per-child service declared on a
+:class:<code>~rest_framework_services.ChildSpec</code> can see who is calling.</p>
 
 
     </div>
@@ -2464,7 +2467,8 @@ default <code>ExtraT</code> (open extras).</p>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">m2m</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">update_fields</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">children</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ChildSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ModelT</span><span class="p">]</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">ModelT</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2484,6 +2488,9 @@ accepts either a static mapping or a callable receiving the validated
 <code>data</code> (see :func:<code>create_model</code> for the common shape); <code>children</code>
 reconciles reverse-FK collections from <code>data[relation]</code> per its
 :class:<code>~rest_framework_services.ChildSpec</code>.</p>
+<p>The rest of the framework's kwargs pool is handed on as the helper's
+<code>context=</code>, so a per-child service declared on a <code>ChildSpec</code> can see
+who is calling (see :func:<code>create_model</code>).</p>
 
 
     </div>
@@ -2504,7 +2511,8 @@ reconciles reverse-FK collections from <code>data[relation]</code> per its
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">soft_delete</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ModelT</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">children</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ChildSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2524,13 +2532,22 @@ from the view's <code>get_object()</code>.</p>
 
 delete_model(Author, soft_delete=_archive)
 </code></pre></div>
-<p><code>children</code> declares reverse-FK collections to remove <strong>before</strong> the
-parent goes (grandchildren first), each nullable-FK child unlinked and the
-rest deleted — mirroring <code>on_delete=SET_NULL</code> / <code>CASCADE</code>. Use it to
-cascade explicitly when the FK can't (a <code>PROTECT</code> relation, or a
-<code>soft_delete</code> that Django won't cascade through). The <code>ChildSpec</code>'s
-write-only fields (<code>match_key</code> / <code>mode</code> / <code>field_map</code> / <code>m2m</code>) are
-ignored here; only <code>model</code> / <code>fk</code> / <code>children</code> apply.</p>
+<p><code>relations</code> (and its reverse-FK alias <code>children</code>) declares what to
+remove <strong>before</strong> the parent goes, deepest first. Use it to cascade
+explicitly when the database can't: a <code>PROTECT</code> relation, or a
+<code>soft_delete</code> Django never cascades through because no row is deleted.</p>
+<p>The same map the write path takes, and the same one rule applies to every
+kind: <strong>the cascade removes the rows the parent owns and leaves the rows it
+merely points at alone.</strong> A reverse-FK collection, a reverse one-to-one and
+a generic relation are the parent's rows and go, nullable links unlinked
+and the rest deleted; a many-to-many loses only its membership, since the
+targets are shared; a forward relation is left untouched, because the
+column holding it goes with the parent. The specs' write-only fields
+(<code>match_key</code> / <code>mode</code> / <code>field_map</code> / <code>m2m</code>) are ignored here.</p>
+<p>The rest of the framework's kwargs pool is handed on as
+:func:<code>~rest_framework_services.mutations.utils.delete_relations</code>'s
+<code>context=</code>, so a per-row service declared on a spec can see who is
+calling (see :func:<code>create_model</code>).</p>
 
 
     </div>
@@ -2553,7 +2570,8 @@ ignored here; only <code>model</code> / <code>fk</code> / <code>children</code> 
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">exclude_fields</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">m2m</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">children</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ChildSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">ModelT</span><span class="p">]]</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">ModelT</span><span class="p">]]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2564,7 +2582,8 @@ ignored here; only <code>model</code> / <code>fk</code> / <code>children</code> 
 :func:<code>~rest_framework_services.mutations.acreate_from_input</code>. The
 framework's :func:<code>~rest_framework_services.is_async.is_async</code>
 detection routes it through the async dispatch path automatically.
-<code>children</code> is forwarded for declarative reverse-FK writes (see
+<code>children</code> is forwarded for declarative reverse-FK writes, and the rest
+of the kwargs pool as <code>context=</code> (see
 :func:<code>~rest_framework_services.services.create_model</code>).</p>
 
 
@@ -2589,7 +2608,8 @@ detection routes it through the async dispatch path automatically.
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">m2m</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">update_fields</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">children</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ChildSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">ModelT</span><span class="p">]]</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">ModelT</span><span class="p">]]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2616,7 +2636,8 @@ detection routes it through the async dispatch path automatically.
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">soft_delete</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ModelT</span><span class="p">],</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">children</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ChildSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]]</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="kc">None</span><span class="p">]]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2625,9 +2646,11 @@ detection routes it through the async dispatch path automatically.
 :func:<code>~rest_framework_services.services.delete_model</code>.</p>
 <p>Calls <code>await instance.adelete()</code> by default (Django 4.1+; the
 package floor is 4.2, so this is always available). <code>soft_delete</code>
-is an optional <code>async</code> hook called instead of <code>adelete</code>. <code>children</code>
-removes the declared reverse-FK collections first (see
-:func:<code>~rest_framework_services.services.delete_model</code>).</p>
+is an optional <code>async</code> hook called instead of <code>adelete</code>.
+<code>relations</code> (and its reverse-FK alias <code>children</code>) removes what the
+parent owns first, by the one rule
+:func:<code>~rest_framework_services.services.delete_model</code> states, with the
+rest of the kwargs pool handed on as <code>context=</code>.</p>
 
 
     </div>

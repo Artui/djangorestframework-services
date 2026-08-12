@@ -810,7 +810,7 @@
   <span class="md-ellipsis">
     
   
-    Nested / child-collection writes
+    Nested writes for every relation kind
   
 
     
@@ -1444,10 +1444,12 @@ the <a href="../quickstart/">Quickstart</a> and <a href="../concepts/">Concepts<
   a <code>django-filter</code> FilterSet at a list or retrieve selector's queryset,
   the "replaces <code>DjangoFilterBackend</code>" rule, and the boundary with
   <code>kwargs</code> for computed (non-queryset) results.</li>
-<li><strong><a href="nested-writes/">Nested / child-collection writes</a></strong> — write a parent
-  plus its reverse-FK children from one request with <code>children=</code> /
-  <code>ChildSpec</code> (replace vs merge, orphan delete/unlink, recursion), and
-  migrate off a writable-nested serializer.</li>
+<li><strong><a href="nested-writes/">Nested writes for every relation kind</a></strong> — write a
+  parent plus everything hanging off it from one request with <code>relations=</code>:
+  forward FK / one-to-one, reverse collections, reverse one-to-one,
+  many-to-many and generic relations, why key matching needs a <code>scope=</code>,
+  why a nested create may not carry a primary key, and how to migrate off a
+  writable-nested serializer.</li>
 <li><strong><a href="bulk-mutations/">Bulk &amp; collection mutations</a></strong> — <code>many=True</code> list
   in/out and a <code>collection_selector_spec</code> target for instance-less bulk
   delete / update over a filtered set.</li>

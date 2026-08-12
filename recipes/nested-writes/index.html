@@ -27,7 +27,7 @@
     
     
       
-        <title>Nested / child-collection writes - djangorestframework-services</title>
+        <title>Nested writes for every relation kind - djangorestframework-services</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#nested-writes-parent-child-collections" class="md-skip">
+        <a href="#nested-writes-every-relation-kind" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Nested / child-collection writes
+              Nested writes for every relation kind
             
           </span>
         </div>
@@ -819,7 +819,7 @@
   <span class="md-ellipsis">
     
   
-    Nested / child-collection writes
+    Nested writes for every relation kind
   
 
     
@@ -837,7 +837,7 @@
   <span class="md-ellipsis">
     
   
-    Nested / child-collection writes
+    Nested writes for every relation kind
   
 
     
@@ -874,10 +874,143 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reverse-fk-child-collections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reverse-FK child collections
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reverse-FK child collections">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happens-to-an-orphan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What happens to an orphan
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#grandchildren" class="md-nav__link">
     <span class="md-ellipsis">
       
         Grandchildren
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#forward-fk-and-one-to-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forward FK and one-to-one
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reverse-one-to-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reverse one-to-one
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#many-to-many-written-from-the-payload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Many-to-many written from the payload
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Many-to-many written from the payload">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#m2m-still-exists-and-is-a-different-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        m2m= still exists, and is a different job
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#generic-relations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generic relations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-nested-create-may-not-carry-a-primary-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A nested create may not carry a primary key
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-a-rows-write-has-behaviour-of-its-own" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When a row's write has behaviour of its own
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-a-rows-write-is-refused" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When a row's write is refused
       
     </span>
   </a>
@@ -896,10 +1029,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#deleting-children" class="md-nav__link">
+  <a href="#deleting" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Deleting children
+        Deleting
       
     </span>
   </a>
@@ -925,6 +1058,45 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Migrating off a writable-nested serializer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-covered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is covered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-not-covered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is not covered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#three-differences-to-meet-here-rather-than-in-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three differences to meet here rather than in production
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1528,10 +1700,143 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reverse-fk-child-collections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reverse-FK child collections
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reverse-FK child collections">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happens-to-an-orphan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What happens to an orphan
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#grandchildren" class="md-nav__link">
     <span class="md-ellipsis">
       
         Grandchildren
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#forward-fk-and-one-to-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forward FK and one-to-one
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reverse-one-to-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reverse one-to-one
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#many-to-many-written-from-the-payload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Many-to-many written from the payload
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Many-to-many written from the payload">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#m2m-still-exists-and-is-a-different-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        m2m= still exists, and is a different job
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#generic-relations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generic relations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-nested-create-may-not-carry-a-primary-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A nested create may not carry a primary key
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-a-rows-write-has-behaviour-of-its-own" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When a row's write has behaviour of its own
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-a-rows-write-is-refused" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When a row's write is refused
       
     </span>
   </a>
@@ -1550,10 +1855,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#deleting-children" class="md-nav__link">
+  <a href="#deleting" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Deleting children
+        Deleting
       
     </span>
   </a>
@@ -1579,6 +1884,45 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Migrating off a writable-nested serializer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-covered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is covered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-not-covered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is not covered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#three-differences-to-meet-here-rather-than-in-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three differences to meet here rather than in production
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1607,28 +1951,84 @@
   
 
 
-<h1 id="nested-writes-parent-child-collections">Nested writes — parent + child collections<a class="headerlink" href="#nested-writes-parent-child-collections" title="Permanent link">&para;</a></h1>
-<p>The mutation helpers persist a model's scalar columns and its many-to-many
-relations. Reverse-FK <strong>child collections</strong> ("one-to-many" — an <code>Author</code> with
-<code>books</code>, an <code>Order</code> with <code>lines</code>) are written through the <code>children=</code> argument,
-so you can save a parent and its children from one request <strong>without</strong> binding a
-writable-nested serializer and delegating persistence back to <code>serializer.save()</code>.</p>
+<h1 id="nested-writes-every-relation-kind">Nested writes — every relation kind<a class="headerlink" href="#nested-writes-every-relation-kind" title="Permanent link">&para;</a></h1>
+<p>The mutation helpers persist a model's scalar columns. They also persist its
+<strong>relations</strong>, from the same payload and in one call, so you can save a parent
+and everything hanging off it from one request <strong>without</strong> binding a
+writable-nested serializer and delegating persistence back to
+<code>serializer.save()</code>.</p>
+<p>Every relation kind Django has is covered — forward FK and one-to-one, reverse
+FK collections, reverse one-to-one, many-to-many, and generic relations — with
+one exception named in <a href="#what-is-not-covered">What is not covered</a>.</p>
 <h2 id="the-shape">The shape<a class="headerlink" href="#the-shape" title="Permanent link">&para;</a></h2>
-<p><code>children</code> maps a relation name to a
-<a href="../../reference/types/#childspec"><code>ChildSpec</code></a>. The child rows are read from
-<code>data[relation]</code>; each child runs back through <code>create_from_input</code> /
+<p><code>relations</code> maps a relation name to the spec for its kind. The nested payload is
+read from <code>data[relation]</code>; each row runs back through <code>create_from_input</code> /
 <code>update_from_input</code>, so scalar / m2m / nested semantics compose recursively.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChildSpec</span><span class="p">,</span> <span class="n">update_from_input</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChildSpec</span><span class="p">,</span> <span class="n">ForwardRelationSpec</span><span class="p">,</span> <span class="n">update_from_input</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_post</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="k">return</span> <span class="n">update_from_input</span><span class="p">(</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        <span class="n">instance</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="n">data</span><span class="p">,</span>  <span class="c1"># {&quot;name&quot;: ..., &quot;books&quot;: [{...}, {...}]}</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="n">children</span><span class="o">=</span><span class="p">{</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>            <span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">),</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        <span class="p">},</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="p">)</span><span class="o">.</span><span class="n">instance</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="n">data</span><span class="p">,</span>  <span class="c1"># {&quot;title&quot;: ..., &quot;author&quot;: {...}, &quot;comments&quot;: [{...}]}</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="n">relations</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>            <span class="s2">&quot;author&quot;</span><span class="p">:</span> <span class="n">ForwardRelationSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Author</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()),</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>            <span class="s2">&quot;comments&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Comment</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;post&quot;</span><span class="p">),</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>        <span class="p">},</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="p">)</span><span class="o">.</span><span class="n">instance</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Relation</th>
+<th>Spec</th>
+<th>Written</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Forward FK / one-to-one (<code>Post.author</code>)</td>
+<td><a href="../../reference/types/#forwardrelationspec"><code>ForwardRelationSpec</code></a></td>
+<td>before the parent's <code>save()</code></td>
+</tr>
+<tr>
+<td>Reverse FK collection (<code>Author.posts</code>)</td>
+<td><a href="../../reference/types/#childspec"><code>ChildSpec</code></a></td>
+<td>after</td>
+</tr>
+<tr>
+<td>Reverse one-to-one (<code>Author.profile</code>)</td>
+<td><a href="../../reference/types/#reverseonetoonespec"><code>ReverseOneToOneSpec</code></a></td>
+<td>after</td>
+</tr>
+<tr>
+<td>Generic relation (<code>Catalog.attachments</code>)</td>
+<td><a href="../../reference/types/#genericrelationspec"><code>GenericRelationSpec</code></a></td>
+<td>after</td>
+</tr>
+<tr>
+<td>Many-to-many (<code>Post.tags</code>, either side)</td>
+<td><a href="../../reference/types/#manytomanyspec"><code>ManyToManySpec</code></a></td>
+<td>last</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The order comes off the spec class, never off the map.</strong> A forward foreign key
+has to exist before the parent is saved and a many-to-many has to be linked
+after; that is a property of the kind, not of how you happened to spell the
+dict. Each class declares its
+<a href="../../reference/types/#relationphase"><code>RelationPhase</code></a> and the driver walks the
+phases in order. Declaration order still decides everything the phases leave
+open: two relations in the same phase are written in the order you declared
+them.</p>
+<p>Writing the forward pair first is not only correctness. By the time the parent
+is built or diffed, the relation is an ordinary column value, so it flows
+through the same <code>diff_attrs</code> reporting and the same minimal <code>update_fields</code>
+save as any other field, with nothing added for the occasion.</p>
+<p><code>children=</code> is the reverse-FK alias — the same map under the name it shipped as
+— so nothing written against it needs changing. A name declared in both raises.</p>
+<h2 id="reverse-fk-child-collections">Reverse-FK child collections<a class="headerlink" href="#reverse-fk-child-collections" title="Permanent link">&para;</a></h2>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">children</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}</span>
 </span></code></pre></div>
 <ul>
 <li><strong><code>fk</code></strong> is the child's forward FK field pointing at the parent — set
@@ -1639,79 +2039,408 @@ writable-nested serializer and delegating persistence back to <code>serializer.s
 <li><strong><code>mode</code></strong> — <code>"replace"</code> (default) reconciles the collection: create new,
   update matched, and <strong>remove orphans</strong> (existing children absent from the
   incoming list). <code>"merge"</code> upserts only and never removes.</li>
+<li><strong><code>orphan</code></strong> — what removing one <em>does</em>, where <code>mode</code> says whether one is
+  removed at all. See below.</li>
 </ul>
-<p>An orphan is <strong>unlinked</strong> (its FK set to <code>None</code>) when the FK is nullable, and
-<strong>deleted</strong> otherwise — mirroring <code>on_delete=SET_NULL</code> vs <code>CASCADE</code>. A relation
-the input omits entirely is left untouched; send an explicit <code>[]</code> to clear it.</p>
-<h2 id="grandchildren">Grandchildren<a class="headerlink" href="#grandchildren" title="Permanent link">&para;</a></h2>
-<p>A <code>ChildSpec</code> can carry its own <code>children=</code>, so depth follows the declared tree:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">children</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="s2">&quot;sections&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>        <span class="n">model</span><span class="o">=</span><span class="n">Section</span><span class="p">,</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;catalog&quot;</span><span class="p">,</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        <span class="n">children</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;items&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Item</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;section&quot;</span><span class="p">)},</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="p">),</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="p">}</span>
+<p>A relation the input omits entirely is left untouched; send an explicit <code>[]</code> to
+clear it.</p>
+<h3 id="what-happens-to-an-orphan">What happens to an orphan<a class="headerlink" href="#what-happens-to-an-orphan" title="Permanent link">&para;</a></h3>
+<p>By default (<code>orphan="auto"</code>) it is <strong>unlinked</strong> — its FK set to <code>None</code> — when
+the FK is nullable, and <strong>deleted</strong> otherwise, mirroring <code>on_delete=SET_NULL</code>
+versus <code>CASCADE</code>. That honours what the model already declares, which is why it
+is the default rather than <code>drf-nested</code>'s unconditional delete.</p>
+<p><code>orphan="unlink"</code> and <code>orphan="delete"</code> say it outright instead:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">,</span> <span class="n">orphan</span><span class="o">=</span><span class="s2">&quot;delete&quot;</span><span class="p">)</span>  <span class="c1"># gone, nullable FK or not</span>
 </span></code></pre></div>
+<p>Reach for one when the spec <em>means</em> a particular disposal. Nullability is a fact
+about a column, not a statement of intent: someone adding <code>null=True</code> in a later
+migration flips a <code>"replace"</code> from destructive to non-destructive, with no change
+to the spec and none to its tests, and the rows it quietly stops removing pile up
+where nobody is looking.</p>
+<p><code>orphan="unlink"</code> against a link that cannot hold <code>NULL</code> raises
+<code>ImproperlyConfigured</code> when the relation is written, naming the relation and the
+column — there is nothing to blank, and deleting the row instead would be the
+opposite of what was asked. The check is at write time because a spec is
+routinely built at import time, before Django can be asked about a column at all.</p>
+<p>The flag is on the kinds that own their rows —
+<a href="../../reference/types/#childspec"><code>ChildSpec</code></a>,
+<a href="../../reference/types/#genericrelationspec"><code>GenericRelationSpec</code></a>,
+<a href="../../reference/types/#reverseonetoonespec"><code>ReverseOneToOneSpec</code></a> — and on no
+others: a many-to-many target is shared and never deleted, and a forward
+relation removes nothing. It governs the <a href="#deleting"><code>delete_model</code> cascade</a>
+too, which disposes of the same rows. <code>delete_service</code> <em>is</em> the disposal, so
+declaring an explicit <code>orphan</code> beside one raises at construction.</p>
+<p>Matching happens inside the parent's own manager, so a child collection needs no
+<code>scope=</code>: a row the parent doesn't own is not reachable to begin with.</p>
+<h3 id="grandchildren">Grandchildren<a class="headerlink" href="#grandchildren" title="Permanent link">&para;</a></h3>
+<p>A spec can carry its own <code>children=</code> / <code>relations=</code>, so depth follows the
+declared tree:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">children</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="s2">&quot;sections&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>        <span class="n">model</span><span class="o">=</span><span class="n">Section</span><span class="p">,</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>        <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;catalog&quot;</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>        <span class="n">children</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;items&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Item</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;section&quot;</span><span class="p">)},</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="p">),</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">}</span>
+</span></code></pre></div>
+<h2 id="forward-fk-and-one-to-one">Forward FK and one-to-one<a class="headerlink" href="#forward-fk-and-one-to-one" title="Permanent link">&para;</a></h2>
+<p>One spec covers both, because Django does: <code>OneToOneField</code> subclasses
+<code>ForeignKey</code>, and the column being unique changes nothing about how it is
+written.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">relations</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;author&quot;</span><span class="p">:</span> <span class="n">ForwardRelationSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Author</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">())}</span>
+</span></code></pre></div>
+<p>The value at <code>data["author"]</code> reads three ways:</p>
+<ul>
+<li><strong>omitted</strong> — untouched.</li>
+<li><strong><code>None</code></strong> — the parent's foreign key is set to <code>None</code>. The row it pointed at
+  is <em>not</em> removed: a forward target is not owned by the parent and may be
+  shared with other rows. Removing rows is the reverse kinds' job.</li>
+<li><strong>a mapping</strong> — the target row is written. Without a <code>match_key</code> it is
+  created; with one it names a row, matched against <a href="#scope"><code>scope</code></a>.</li>
+</ul>
+<p>A <code>match_key</code> that matches nothing in scope raises a 400 rather than falling
+through to a create — see <a href="#scope">scope</a> for why. To merely point the column at
+a row that already exists, don't declare a relation at all: pass the pk or the
+instance as the plain field it is.</p>
+<h2 id="reverse-one-to-one">Reverse one-to-one<a class="headerlink" href="#reverse-one-to-one" title="Permanent link">&para;</a></h2>
+<p>The other side of a <code>OneToOneField</code> — the column lives on the related row and
+the parent reaches at most one of them:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">relations</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;profile&quot;</span><span class="p">:</span> <span class="n">ReverseOneToOneSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Profile</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}</span>
+</span></code></pre></div>
+<ul>
+<li><strong>omitted</strong> — untouched.</li>
+<li><strong><code>None</code></strong> — the existing row, if any, is removed by the <a href="#what-happens-to-an-orphan">orphan
+  rule</a>: by default <strong>unlinked</strong> when <code>fk</code> is
+  nullable and <strong>deleted</strong> when it is not, or whichever <code>orphan=</code> states. Unlike
+  a forward relation, this row <em>is</em> the parent's, so clearing the relation has
+  to do something about it.</li>
+<li><strong>a mapping</strong> — updated when the parent already has a row, created and linked
+  when it does not.</li>
+</ul>
+<p>No <code>match_key</code> and no <code>scope</code>: the parent owns at most one row here, so the
+relation itself is the match.</p>
+<h2 id="many-to-many-written-from-the-payload">Many-to-many written from the payload<a class="headerlink" href="#many-to-many-written-from-the-payload" title="Permanent link">&para;</a></h2>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">relations</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;tags&quot;</span><span class="p">:</span> <span class="n">ManyToManySpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Tag</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="n">Tag</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">())}</span>
+</span></code></pre></div>
+<p>Each row in <code>data["tags"]</code> is a <strong>payload</strong>, not a key: the target row is
+created or updated first, and only then is the membership written. Forward and
+reverse are one code path — Django hands back the same related manager whether
+you name the field (<code>Post.tags</code>) or the reverse accessor (<code>Tag.posts</code>).</p>
+<ul>
+<li><strong><code>mode</code></strong> — <code>"replace"</code> (default) makes the incoming set authoritative and
+  drops the members it leaves out; <code>"merge"</code> adds and never drops.</li>
+<li>A dropped target is <strong>unlinked, never deleted</strong>. The row is shared with every
+  other parent linked to it, so the only thing the loop removes is the
+  membership.</li>
+</ul>
+<p>Matching is done in <code>scope</code>, never in the parent's current membership: the
+payload names the rows to link, which is exactly the set that is not linked yet.</p>
+<h3 id="m2m-still-exists-and-is-a-different-job"><code>m2m=</code> still exists, and is a different job<a class="headerlink" href="#m2m-still-exists-and-is-a-different-job" title="Permanent link">&para;</a></h3>
+<p>The helpers' <code>m2m=</code> keyword <strong>assigns rows that already exist</strong> (pks or
+instances) and creates nothing:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">create_from_input</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">m2m</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;tags&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">tag_a</span><span class="p">,</span> <span class="n">tag_b</span><span class="p">]})</span>
+</span></code></pre></div>
+<p>Both ship. What they cannot do is share a relation — they would both write it,
+in an order you did not choose, and only the second would survive. <strong>A relation
+named by <code>m2m=</code> and by a <code>ManyToManySpec</code> raises <code>ImproperlyConfigured</code></strong>;
+assign it or write it, not both. Different relations on the same call are fine.</p>
+<h2 id="generic-relations">Generic relations<a class="headerlink" href="#generic-relations" title="Permanent link">&para;</a></h2>
+<p>A reverse-FK collection with the foreign key replaced by two columns — a
+<code>ForeignKey</code> to <code>ContentType</code> saying which model the row belongs to, and an id
+column saying which row:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">relations</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;attachments&quot;</span><span class="p">:</span> <span class="n">GenericRelationSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Attachment</span><span class="p">)}</span>
+</span></code></pre></div>
+<p>Both are injected from the saved parent. Everything else is the child-collection
+loop: matched inside the parent's own accessor (so no <code>scope=</code>), <code>mode</code>,
+<code>orphan</code>, grandchildren, services. By default an orphan is <strong>unlinked</strong> when
+<em>both</em> link columns are nullable and <strong>deleted</strong> otherwise — the same rule
+applied to a pair, because half a severed link is a row pointing at a content
+type with no row id — and <code>orphan=</code> overrides it exactly as <a href="#what-happens-to-an-orphan">it does for a child
+collection</a>.</p>
+<p>Set <code>content_type_field</code> / <code>object_id_field</code> when the model spells the columns
+differently; they mirror the arguments of the same name on Django's
+<code>GenericRelation</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">This kind needs <code>django.contrib.contenttypes</code> in <code>INSTALLED_APPS</code></p>
+<p>It is the library's only contact with that app, and the app is not
+guaranteed to be installed, so the content-type lookup is resolved on first
+use rather than imported with the package — <code>rest_framework_services</code> itself
+ships in <code>INSTALLED_APPS</code> and is imported while Django is still populating
+the app registry, where importing a model raises <code>AppRegistryNotReady</code>.</p>
+<p>Declaring a <code>GenericRelationSpec</code> is always safe. <em>Writing</em> one without the
+app installed raises <code>ImproperlyConfigured</code> naming the app and the remedy.
+There is nothing extra to <code>pip install</code>: contenttypes ships inside Django,
+so the opt-in is the <code>INSTALLED_APPS</code> entry.</p>
+</div>
+<h2 id="scope"><code>scope</code><a class="headerlink" href="#scope" title="Permanent link">&para;</a></h2>
+<p><code>scope</code> names the rows this caller is allowed to write. It is a queryset, or a
+callable resolved from the caller pool by signature — the library's usual idiom:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">ForwardRelationSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Author</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="k">lambda</span> <span class="n">user</span><span class="p">:</span> <span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">owner</span><span class="o">=</span><span class="n">user</span><span class="p">))</span>
+</span></code></pre></div>
+<p><strong>Only the two unowned kinds take it</strong> — forward relations and many-to-many —
+and the reason is the interesting part, not the syntax.</p>
+<p>A child collection, a reverse one-to-one and a generic relation are all reached
+<em>through the parent</em>: matching happens inside a manager the parent owns, so a
+row belonging to somebody else is not reachable at all. A forward target and a
+many-to-many target have no such manager. They are shared by definition — every
+row pointing at them reaches the same row — so matching one by key with nothing
+to constrain it means <strong>"any caller may write any row of that model by guessing
+a key"</strong>. That is not a hypothetical: a payload of <code>{"pk": 7, "name": "..."}</code>
+against an unscoped spec would fetch row 7 and write the caller's values onto
+it.</p>
+<p>So:</p>
+<ul>
+<li><strong>No <code>scope</code></strong> ⇒ the spec is <strong>create-only</strong>. A payload carrying a <code>match_key</code>
+  raises <code>ImproperlyConfigured</code> rather than quietly creating a duplicate. It is
+  a misconfiguration and not a 400 because the remedy is always "declare a
+  scope" and never "send different data" — a 4xx would give the client advice it
+  cannot act on.</li>
+<li><strong>With <code>scope</code></strong>, a <code>match_key</code> that matches nothing in it raises
+  <code>ServiceValidationError</code> (a 400) rather than falling through to a create. A
+  <code>match_key</code> on an unowned target <em>identifies</em> a row — "point at this one" — so
+  there is nothing sensible to create in its place. Creating one anyway would be
+  unsafe as well as surprising: the key travels in the payload, so a <code>pk</code> naming
+  an out-of-scope row would be written straight back onto that row by
+  <code>Model.save()</code>, reaching the very row the scope exists to protect.</li>
+</ul>
+<p>That last sentence is also why a <em>child collection</em> behaves differently: an
+unmatched natural key there really does mean "a new child", because the match
+ran inside the parent's own manager.</p>
+<h2 id="a-nested-create-may-not-carry-a-primary-key">A nested create may not carry a primary key<a class="headerlink" href="#a-nested-create-may-not-carry-a-primary-key" title="Permanent link">&para;</a></h2>
+<p><strong><code>Model(pk=7, ...).save()</code> is an UPDATE.</strong> So a nested payload that reaches the
+create branch while still carrying a primary key does not create anything — it
+reassigns and overwrites row 7, whoever owns it. Scoping the <em>match</em> does not
+constrain the <em>write</em> that follows it.</p>
+<p>Every kind funnels through one create, and that create refuses a payload naming
+a primary key the match did not resolve, with <code>ServiceValidationError</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Refused: pk 42 is not in this author&#39;s collection.</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">update_from_input</span><span class="p">(</span><span class="n">author</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;pk&quot;</span><span class="p">:</span> <span class="mi">42</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">}]},</span> <span class="n">children</span><span class="o">=</span><span class="n">BOOKS</span><span class="p">)</span>
+</span></code></pre></div>
+<p>The guard runs <strong>before</strong> a declared <code>create_service</code> is dispatched, so your own
+code is never handed the key either. Raising rather than stripping it is
+deliberate: the caller named a specific row, and quietly creating a different one
+does the opposite of what was asked and hands back a pk they never chose.</p>
+<p>A <strong>non-primary</strong> <code>match_key</code> — a natural key like an ISBN or a slug — is
+untouched by this, so declaring one is how you get upsert semantics.</p>
+<h2 id="when-a-rows-write-has-behaviour-of-its-own">When a row's write has behaviour of its own<a class="headerlink" href="#when-a-rows-write-has-behaviour-of-its-own" title="Permanent link">&para;</a></h2>
+<p>A row that needs side effects, derived columns, an event or an external call
+doesn't fit a plain helper call. Rather than abandon the facility and hand-write
+the reconciliation loop, put a service in the slot for that operation:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">ChildSpec</span><span class="p">(</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">,</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    <span class="n">create_service</span><span class="o">=</span><span class="n">publish_book</span><span class="p">,</span>  <span class="c1"># (*, data, parent, **extras) -&gt; Book</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    <span class="n">update_service</span><span class="o">=</span><span class="n">revise_book</span><span class="p">,</span>  <span class="c1"># (*, instance, data, parent, **extras) -&gt; Book | None</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    <span class="n">delete_service</span><span class="o">=</span><span class="n">archive_book</span><span class="p">,</span>  <span class="c1"># (*, instance, parent, **extras) -&gt; None</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><strong>The spec owns reconciliation; the service owns the row.</strong> Matching, <code>mode</code>
+and orphan handling never move into your code — a slot is called once per row
+the loop has already decided about.</p>
+<ul>
+<li><code>data</code> reaches a create service with the link to the parent already set (the
+  <code>fk</code>, or both generic columns): linking the row is reconciliation, not row
+  behaviour. A <code>ForwardRelationSpec</code> create service gets no <code>parent</code> at all,
+  since the parent does not exist yet, and a <code>ManyToManySpec</code> one gets <code>parent</code>
+  but no link in <code>data</code> — the link is a through row the loop writes afterwards.</li>
+<li>An update service returning <code>None</code> means "use the in-memory instance", the
+  same convention the top-level update services follow.</li>
+<li>A delete service replaces the unlink-or-delete rule for that row (orphan
+  removal <em>and</em> the <code>delete_model</code> cascade). The loop can no longer tell the
+  two apart, so the pk is reported under <code>removed</code> — its own bucket, rather
+  than a guess folded into <code>deleted</code>. <code>ManyToManySpec</code> has no delete slot: it
+  never deletes a target, only the membership.</li>
+<li>A <code>create_service</code> / <code>update_service</code> <strong>replaces</strong> the helper call, so the
+  knobs configuring that call — <code>field_map</code>, <code>exclude_fields</code>, <code>m2m</code> and the
+  nested <code>children</code> / <code>relations</code> maps — are refused on the same spec, with
+  <code>ImproperlyConfigured</code> at construction. They would otherwise be dead
+  configuration, and a spec declaring both a <code>create_service</code> and <code>children=</code>
+  would write no grandchildren while saying nothing. <code>delete_service</code> is exempt:
+  it replaces the removal rule rather than the helper call, so the cascade still
+  removes a row's grandchildren before handing the row over.</li>
+<li>Each service receives only the pool keys it declares. Alongside <code>data</code> /
+  <code>instance</code> / <code>parent</code> it sees whatever the calling service passed as
+  <code>context=</code> — <code>user</code> and <code>request</code> when the default model services are
+  driving, since they populate it from their own kwargs pool. Declare
+  <code>user</code> and it arrives; declare nothing but <code>data</code> and nothing else is
+  passed.</li>
+</ul>
+<p>Two create/update slots rather than one because the two shapes genuinely
+differ, and a single slot would have to fake <code>instance=None</code>. Nested services
+run with <code>atomic=False</code>: the calling service's atomic block already wraps the
+whole tree, and a block per row would only buy a savepoint per row. In the
+async helpers the slot must be an <code>async def</code> — the async path is awaited end to
+end, and a sync callable there fails on an un-awaitable return.</p>
+<h2 id="when-a-rows-write-is-refused">When a row's write is refused<a class="headerlink" href="#when-a-rows-write-is-refused" title="Permanent link">&para;</a></h2>
+<p>An error a row's write raises arrives under the relation that carried it, in the
+shape DRF's <code>ListSerializer</code> uses:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># a collection: a list as long as the one you sent, {} against the rows that passed</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="p">{</span><span class="s2">&quot;posts&quot;</span><span class="p">:</span> <span class="p">[{},</span> <span class="p">{</span><span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Too rude.&quot;</span><span class="p">]}]}</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># a relation holding one row: the payload under the name</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="p">{</span><span class="s2">&quot;profile&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;bio&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Too long.&quot;</span><span class="p">]}}</span>
+</span></code></pre></div>
+<p>Namespacing it is not decoration. A row shares field names with its parent — an
+<code>Author</code> with a <code>title</code> of its own is indistinguishable from its post's — and a
+collection otherwise never says <em>which</em> row was refused.</p>
+<ul>
+<li>Both error types are covered: a <code>create_service</code> / <code>update_service</code> may raise
+  <code>ServiceValidationError</code> or DRF's <code>ValidationError</code>, and the one you raise is
+  the one the caller gets, status mapping and all.</li>
+<li>The detail is passed through untouched. A service that raises a string or a
+  list gets a string or a list back, at the relation (and position) it came
+  from; the library never reshapes it into a field map it did not name.</li>
+<li>Names nest as you walk them, so a grandchild reads
+  <code>{"posts": [{"comments": [{"body": ["Too long."]}]}]}</code>.</li>
+</ul>
+<p>The library's own refusals — the <a href="#a-nested-create-may-not-carry-a-primary-key">primary-key
+guard</a>, a <a href="#scope"><code>scope</code></a> that
+matched nothing — already name their relation and are unchanged; they report the
+message under the relation name rather than against a row, because they are
+about the payload rather than about a row's write.</p>
 <h2 id="declarative-no-service-body">Declarative — no service body<a class="headerlink" href="#declarative-no-service-body" title="Permanent link">&para;</a></h2>
-<p>The default model services forward <code>children=</code>, so a parent-with-children
-resource needs no hand-written service:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceSpec</span><span class="p">,</span> <span class="n">create_model</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">service</span><span class="o">=</span><span class="n">create_model</span><span class="p">(</span><span class="n">Author</span><span class="p">,</span> <span class="n">children</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}),</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">AuthorInput</span><span class="p">,</span>  <span class="c1"># validates name + the books list</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">)</span>
+<p>The default model services forward <code>relations=</code> / <code>children=</code>, so a
+parent-with-relations resource needs no hand-written service:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceSpec</span><span class="p">,</span> <span class="n">create_model</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    <span class="n">service</span><span class="o">=</span><span class="n">create_model</span><span class="p">(</span><span class="n">Author</span><span class="p">,</span> <span class="n">relations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}),</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">AuthorInput</span><span class="p">,</span>  <span class="c1"># validates name + the books list</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="p">)</span>
 </span></code></pre></div>
-<p><code>children</code> lives on the <strong>helper</strong>, never on <code>ServiceSpec</code> — the dispatch
+<p><code>relations</code> lives on the <strong>helper</strong>, never on <code>ServiceSpec</code> — the dispatch
 surface stays about transport, not persistence shape.</p>
-<h2 id="deleting-children">Deleting children<a class="headerlink" href="#deleting-children" title="Permanent link">&para;</a></h2>
-<p><code>delete_model</code> accepts <code>children=</code> to remove collections <strong>before</strong> the parent
-(grandchildren first) — useful when the FK can't cascade for you (a <code>PROTECT</code>
-relation, or a <code>soft_delete</code> Django won't cascade through). Nullable-FK children
-are unlinked, the rest deleted, exactly like the orphan rule above:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">delete_model</span><span class="p">(</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">Catalog</span><span class="p">,</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">children</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;sections&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Section</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;catalog&quot;</span><span class="p">)},</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="p">)</span>
+<h2 id="deleting">Deleting<a class="headerlink" href="#deleting" title="Permanent link">&para;</a></h2>
+<p><code>delete_model</code> accepts the same map, to cascade explicitly where the database
+will not: a <code>PROTECT</code> relation, or a <code>soft_delete</code> Django never cascades through
+because no row is deleted.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">delete_model</span><span class="p">(</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    <span class="n">Catalog</span><span class="p">,</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    <span class="n">relations</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>        <span class="s2">&quot;sections&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Section</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;catalog&quot;</span><span class="p">),</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>        <span class="s2">&quot;attachments&quot;</span><span class="p">:</span> <span class="n">GenericRelationSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Attachment</span><span class="p">),</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>        <span class="s2">&quot;tags&quot;</span><span class="p">:</span> <span class="n">ManyToManySpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Tag</span><span class="p">),</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>    <span class="p">},</span>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="p">)</span>
 </span></code></pre></div>
-<p>For a plain hard delete, you usually don't need this — the FK's <code>on_delete</code>
-already cascades.</p>
+<p><strong>One rule covers every kind: the cascade removes the rows the parent owns and
+leaves alone the rows it merely points at.</strong></p>
+<ul>
+<li>Reverse-FK collections, reverse one-to-ones and generic relations are the
+  parent's rows, so they go — deepest first, by the same <a href="#what-happens-to-an-orphan">orphan
+  rule</a> the update path uses (nullable links
+  unlinked and the rest deleted, unless <code>orphan=</code> says otherwise), or handed to
+  <code>delete_service</code>. A flag that meant one thing on update and another on delete
+  would be worse than no flag.</li>
+<li>A many-to-many loses only its <strong>membership</strong>. The targets are shared, so none
+  is deleted; they are reported under <code>unlinked</code>.</li>
+<li>A forward relation is left <strong>untouched</strong>. The link lives on the parent, so the
+  column goes when the parent does, and the target is not the parent's to
+  remove. It is reported rather than refused, because the same <code>relations=</code> map
+  is what the row's write path is declared with.</li>
+</ul>
+<p>The specs' write-only fields (<code>match_key</code> / <code>mode</code> / <code>field_map</code> / <code>m2m</code>) are
+ignored here; <code>orphan</code> is not one of them — it is about disposal, which is all
+this does. For a plain hard delete you usually don't need this at all — the FK's
+<code>on_delete</code> already cascades.</p>
 <h2 id="what-changed-in-the-response">What changed in the response<a class="headerlink" href="#what-changed-in-the-response" title="Permanent link">&para;</a></h2>
-<p><code>ChangeResult.children</code> carries one
-<a href="../../reference/types/#childcollectionchange"><code>ChildCollectionChange</code></a> per
-relation, with the <code>created</code> / <code>updated</code> / <code>deleted</code> / <code>unlinked</code> child pks:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">update_from_input</span><span class="p">(</span><span class="n">author</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">children</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)})</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">delta</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get_child_change</span><span class="p">(</span><span class="s2">&quot;books&quot;</span><span class="p">)</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">delta</span><span class="o">.</span><span class="n">created</span><span class="p">,</span> <span class="n">delta</span><span class="o">.</span><span class="n">updated</span><span class="p">,</span> <span class="n">delta</span><span class="o">.</span><span class="n">deleted</span><span class="p">,</span> <span class="n">delta</span><span class="o">.</span><span class="n">unlinked</span>
+<p><code>ChangeResult</code> reports relations in two carriers, split by <strong>shape</strong> rather than
+by keyword:</p>
+<ul>
+<li><code>ChangeResult.children</code> — one
+  <a href="../../reference/types/#childcollectionchange"><code>ChildCollectionChange</code></a> per
+  relation that holds <em>many</em> rows (reverse FK, generic, many-to-many), with the
+  <code>created</code> / <code>updated</code> / <code>deleted</code> / <code>unlinked</code> / <code>removed</code> pks.</li>
+<li><code>ChangeResult.relations</code> — one
+  <a href="../../reference/types/#relatedobjectchange"><code>RelatedObjectChange</code></a> per
+  relation that holds <em>one</em> (forward, reverse one-to-one), with a single
+  <code>outcome</code> and <code>pk</code>. Four pk tuples cannot report a one-row relation honestly:
+  every one of them would be empty or a one-tuple, and "which of the four is
+  non-empty" is a worse way to say what happened than saying it.</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">update_from_input</span><span class="p">(</span><span class="n">author</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">relations</span><span class="o">=</span><span class="n">RELATIONS</span><span class="p">)</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">result</span><span class="o">.</span><span class="n">get_child_change</span><span class="p">(</span><span class="s2">&quot;books&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">created</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="n">result</span><span class="o">.</span><span class="n">get_relation_change</span><span class="p">(</span><span class="s2">&quot;profile&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">outcome</span>  <span class="c1"># &quot;created&quot; | &quot;updated&quot; | &quot;unlinked&quot; | ...</span>
 </span></code></pre></div>
+<p>A forward relation shows up <strong>twice</strong> and means two different things: in
+<code>relations</code> as the row that was created or matched, and in <code>changes</code> as the
+parent's foreign-key column — which only appears if it actually changed.</p>
+<p><code>removed</code> is the fifth collection bucket, and only a <code>delete_service</code> fills it:
+once a service owns the row, "deleted" and "unlinked" are no longer things the
+loop knows.</p>
 <h2 id="migrating-off-a-writable-nested-serializer">Migrating off a writable-nested serializer<a class="headerlink" href="#migrating-off-a-writable-nested-serializer" title="Permanent link">&para;</a></h2>
 <p><strong>Before</strong> — persistence lives in the serializer, and the service delegates to it:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">WritableNestedModelSerializer</span><span class="p">):</span>  <span class="c1"># drf-writable-nested / drf-nested</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">serializer</span><span class="p">):</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="k">return</span> <span class="n">serializer</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>  <span class="c1"># the coupling we&#39;re removing</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">WritableNestedModelSerializer</span><span class="p">):</span>  <span class="c1"># drf-writable-nested / drf-nested</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">serializer</span><span class="p">):</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>    <span class="k">return</span> <span class="n">serializer</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>  <span class="c1"># the coupling we&#39;re removing</span>
 </span></code></pre></div>
 <p><strong>After</strong> — the serializer only validates; the service owns persistence:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># plain nested serializer, validation only</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">Author</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;books&quot;</span><span class="p">]</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
-</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="k">return</span> <span class="n">update_from_input</span><span class="p">(</span>
-</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>        <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">children</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}</span>
-</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>    <span class="p">)</span><span class="o">.</span><span class="n">instance</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># plain nested serializer, validation only</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">Author</span>
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;books&quot;</span><span class="p">]</span>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>
+</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+</span><span id="__span-17-10"><a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>    <span class="k">return</span> <span class="n">update_from_input</span><span class="p">(</span>
+</span><span id="__span-17-11"><a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>        <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">relations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}</span>
+</span><span id="__span-17-12"><a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>    <span class="p">)</span><span class="o">.</span><span class="n">instance</span>
 </span></code></pre></div>
 <p>Field-level validation stays in the serializer / dataclass; the helper owns the
 writes, inside the service's atomic block. The nested serializer no longer needs
-a <code>create()</code> / <code>update()</code> override, and the <code>drf-writable-nested</code>-style base
-class can go.</p>
+a <code>create()</code> / <code>update()</code> override, and the writable-nested base class can go.</p>
+<h3 id="what-is-covered">What is covered<a class="headerlink" href="#what-is-covered" title="Permanent link">&para;</a></h3>
+<p>Forward FK, forward one-to-one, reverse FK collections, reverse one-to-one,
+many-to-many (both sides), and generic relations — declared with the spec for
+the kind, in one <code>relations=</code> map.</p>
+<h3 id="what-is-not-covered">What is not covered<a class="headerlink" href="#what-is-not-covered" title="Permanent link">&para;</a></h3>
+<p><strong>Many-to-many through an explicit <code>through</code> model.</strong> The loop writes target
+rows and lets Django write the through row, which cannot carry the extra columns
+a custom through model exists for. Declare that relation as a <code>ChildSpec</code> on the
+through model itself (its two foreign keys are ordinary forward relations), or
+write it in a service.</p>
+<h3 id="three-differences-to-meet-here-rather-than-in-production">Three differences to meet here rather than in production<a class="headerlink" href="#three-differences-to-meet-here-rather-than-in-production" title="Permanent link">&para;</a></h3>
+<p><strong>1. Matching by key is scoped, and unscoped specs are create-only.</strong>
+<code>drf-writable-nested</code> and <code>drf-nested</code> match every by-pk lookup against
+<code>Model.objects.get(pk=pk)</code> — global, on every kind. This library scopes it: to
+the parent's own manager where there is one, and to a declared
+<a href="#scope"><code>scope=</code></a> where there isn't. A spec with neither cannot update an
+existing row at all, and a payload that asks it to raises. If you are porting a
+declaration, the pk-matching relations are the ones that need a <code>scope=</code>.</p>
+<p><strong>2. Orphan removal is <code>mode=</code>, and unlinks where it can.</strong> <code>drf-nested</code> hard
+<code>delete()</code>s every unmatched row, triggered by the request not being a PATCH.
+Here the trigger is an explicit <code>mode="replace"</code> (the default) versus
+<code>"merge"</code>, and an unmatched row is <strong>unlinked</strong> when its link is nullable and
+deleted only when it is not — mirroring <code>SET_NULL</code> versus <code>CASCADE</code>. A
+many-to-many target is never deleted at all.</p>
+<p>If you are porting a declaration that relied on the unconditional delete,
+<code>orphan="delete"</code> is the mechanical answer: it reproduces it on the relations
+whose link is nullable, and says so in the spec rather than leaving it to the
+column. See <a href="#what-happens-to-an-orphan">What happens to an orphan</a>.</p>
+<p><strong>3. A nested create carrying a primary key raises.</strong> This is the one a
+migrating reader hits first, because <code>drf-nested</code> upserts by pk on every kind
+and payloads written for it carry <code>id</code> everywhere. Here a pk that the match did
+not resolve is refused rather than saved — see <a href="#a-nested-create-may-not-carry-a-primary-key">A nested create may not carry a
+primary key</a> for why
+<code>Model(pk=7).save()</code> makes that a security question rather than a style one.
+Rows the parent already owns still update by pk exactly as before; what changes
+is that a pk naming somebody else's row, or no row at all, now gets a 400
+instead of writing.</p>
+<p><strong>What does not change is the error shape.</strong> A refused row reports under its
+relation name, aligned against the incoming list for a collection — the same
+shape a writable-nested serializer produced, so a client (and any error handling
+written against it) needs no change. See <a href="#when-a-rows-write-is-refused">When a row's write is
+refused</a>.</p>
+<p>Also deliberately absent: <code>drf-nested</code>'s per-relation <code>allow_create</code> /
+<code>allow_update</code> / <code>preserve_provided</code> / <code>forbidden_on_create</code> knobs. They exist
+because that facility is serializer-declarative and needs override points. Here
+you control what reaches a spec, and a row that needs real behaviour gets a
+service in the slot.</p>
 
 
 

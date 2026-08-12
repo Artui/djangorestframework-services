@@ -525,6 +525,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#relations-children" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        relations / children
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -962,7 +973,7 @@
   <span class="md-ellipsis">
     
   
-    Nested / child-collection writes
+    Nested writes for every relation kind
   
 
     
@@ -1644,6 +1655,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#relations-children" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        relations / children
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1842,6 +1864,19 @@ write:</p>
 </span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">delete_model</span><span class="p">(</span><span class="n">Post</span><span class="p">,</span> <span class="n">soft_delete</span><span class="o">=</span><span class="n">_archive</span><span class="p">)</span>
 </span></code></pre></div>
 <p>The async variant takes an <code>async def</code> hook.</p>
+<h3 id="relations-children"><code>relations</code> / <code>children</code><a class="headerlink" href="#relations-children" title="Permanent link">&para;</a></h3>
+<p>Every factory forwards them. On <code>create_model</code> / <code>update_model</code> they declare
+the nested relations to write; on <code>delete_model</code> they declare what to remove
+before the parent goes, by the one rule the
+<a href="../recipes/nested-writes/#deleting">nested-writes recipe</a> states — the rows the
+parent owns go, the rows it merely points at are left alone.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">delete_model</span><span class="p">(</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">Catalog</span><span class="p">,</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">relations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;sections&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Section</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;catalog&quot;</span><span class="p">)},</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>Useful when the database will not cascade for you: a <code>PROTECT</code> relation, or a
+<code>soft_delete</code> hook Django never cascades through because no row is deleted.</p>
 <h2 id="when-not-to-use">When not to use<a class="headerlink" href="#when-not-to-use" title="Permanent link">&para;</a></h2>
 <p>If you need <code>request.user</code> to stamp <code>created_by</code> on the instance, or the
 service has to coordinate with another service, write the function out by
