@@ -408,36 +408,6 @@ matched nothing — already name their relation and are unchanged; they report t
 message under the relation name rather than against a row, because they are
 about the payload rather than about a row's write.
 
-### When the client calls the relation something else
-
-The name in all of the above is the map key, which is also the key the payload
-is read from. Those are usually the same word the client used — but not when a
-serializer aliases the nested field:
-
-```python
-class PostSerializer(serializers.ModelSerializer):
-    writer = AuthorSerializer(source="author")  # wire: "writer", model: "author"
-```
-
-DRF keys `validated_data` by `source`, so the helper is handed
-`{"author": {...}}` and the relation has to be declared as `"author"`. Every
-refusal about it then names `author` — a field the request never had, which a
-renderer keyed on field name drops on the floor. `error_name=` is the seam:
-
-```python
-relations = {
-    "author": ForwardRelationSpec(model=Author, error_name="writer"),
-}
-# {"writer": {"name": ["Too short."]}}
-```
-
-It renames one thing: the key the caller is handed, in all three refusals — a
-row's service error, the primary-key guard, and a `scope` miss. The payload is
-still read from the map key, the [change
-carriers](#what-changed-in-the-response) still label the map key, and a
-misconfiguration still quotes the map key, since that is the name whoever wrote
-the spec can act on. Leave it off and everything reports the map key, as before.
-
 ## Declarative — no service body
 
 The default model services forward `relations=` / `children=`, so a

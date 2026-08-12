@@ -79,15 +79,6 @@ class GenericRelationSpec(RelationSpec):
             instead of deriving it, and ``"unlink"`` raises at write time unless
             both columns can hold ``NULL``. The rule also governs the
             :func:`~rest_framework_services.delete_model` cascade.
-        error_name: The name this relation reports under when a nested write is
-            refused, defaulting to the map key. Set it when the client calls the
-            relation something else: a serializer aliasing a nested field
-            (``writer = AuthorSerializer(source="author")``) hands the helpers a
-            ``validated_data`` keyed by ``source``, so the relation has to be
-            declared as ``"author"`` and an error under that name names a field
-            the request never had. It renames nothing else -- the payload is
-            still read from the map key, and the change carriers still label it
-            with the map key, which is the name the spec's author knows it by.
     """
 
     write_phase: ClassVar[RelationPhase] = RelationPhase.GENERIC
@@ -107,9 +98,6 @@ class GenericRelationSpec(RelationSpec):
     delete_service: Callable[..., Any] | None = None
     # Declared last, for the reason given on ``ChildSpec``.
     orphan: RelationOrphan | str = RelationOrphan.AUTO
-
-    # Declared last, for the reason given above ``orphan``.
-    error_name: str | None = None
 
     def __post_init__(self) -> None:
         validate_relation_mode(self.mode, label="GenericRelationSpec")

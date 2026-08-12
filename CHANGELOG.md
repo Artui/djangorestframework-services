@@ -7,25 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **`error_name=` on every relation spec, for a relation the client calls
-  something else.** The map key does two jobs: it is the key the nested payload
-  is read from, and the name every refusal about that relation reports under.
-  Those coincide until a serializer aliases the nested field — `writer =
-  AuthorSerializer(source="author")` makes DRF hand the helpers a
-  `validated_data` keyed by `source`, so the relation has to be declared as
-  `"author"` and the caller is then handed errors naming a field their request
-  never had. `error_name="writer"` splits the two, and reaches all three
-  refusals the library can raise about a relation: a row service's error, the
-  primary-key guard, and a `scope` miss.
-
-  It renames nothing else. The payload is still read from the map key,
-  `ChildCollectionChange.relation` / `RelatedObjectChange.relation` still label
-  the map key, and an `ImproperlyConfigured` still quotes it — those speak to
-  whoever wrote the spec, and `error_name` is what the client calls it. Omitted,
-  every name is what it was.
-
 ### Fixed
 
 - **A relation row whose `match_key` was left `UNSET` is now a create, not a
