@@ -472,6 +472,34 @@ def _pk_input_names(model: type[Model], field_map: dict[str, str] | None) -> fro
     return frozenset(targets | mapped)
 
 
+def _omitted(value: Any) -> bool:
+    """Whether a nested row supplied this key at all.
+
+    Two spellings mean "not supplied" and the row writers have to read both:
+    ``None``, which a mapping uses, and ``UNSET``, which is what a partial-input
+    dataclass carries for a field its caller left alone. The sentinel is not a
+    third state to reason about -- :func:`filter_input` already drops it before
+    anything is assigned, so the only places it can be mistaken for a value are
+    the reads that happen *before* that, on the way to deciding whether there is
+    a row to match.
+    """
+    return value is None or value is UNSET
+
+
+def _error_name(relation: str, spec: _RowSpec) -> str:
+    """The name a refusal about ``relation`` reports to the client.
+
+    The map key names the relation to whoever wrote the spec -- it is what the
+    change carriers label and what a misconfiguration message quotes. It is not
+    always what the client called it: a serializer aliasing a nested field
+    (``writer = AuthorSerializer(source="author")``) hands the helpers a
+    ``validated_data`` keyed by ``source``, so the relation must be declared
+    under the model's own name and an error naming that key names a field the
+    request never had. ``error_name`` is where the two part company.
+    """
+    return spec.error_name or relation
+
+
 def _reject_unmatched_reference(
     item: dict[str, Any],
     spec: _RowSpec,
@@ -489,11 +517,14 @@ def _reject_unmatched_reference(
     Refused rather than stripped, because quietly creating a different row does
     the opposite of what was asked. A non-primary ``match_key`` is untouched,
     so declaring one still upserts.
+
+    ``relation`` is the client-facing name (see :func:`_error_name`): this is a
+    refusal the caller has to act on, not a note to whoever wrote the spec.
     """
     named: dict[str, Any] = {
         key: item[key]
         for key in _pk_input_names(spec.model, spec.field_map)
-        if item.get(key) is not None
+        if not _omitted(item.get(key))
     }
     if not named:
         return
@@ -517,6 +548,8 @@ class _RowPath:
     """Where one row sits in the incoming payload, so its error can name it.
 
     A relation holding a single row has no ``index`` and no ``length``.
+    ``relation`` is the client-facing name resolved by :func:`_error_name`, not
+    the map key -- everything reachable from here is on its way to the caller.
     """
 
     relation: str
@@ -699,7 +732,7 @@ def _write_forward_relation(
         return (None, RelatedObjectChange(relation=relation, outcome=RelationOutcome.CLEARED))
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
-    path = _RowPath(relation)
+    path = _RowPath(_error_name(relation, spec))
     target = _match_scoped_target(item, spec, relation=relation, context=context)
     if target is None:
         row = _create_row(item, spec, path=path, seeds={}, context=context, m2m=row_m2m)
@@ -723,7 +756,7 @@ async def _awrite_forward_relation(
         return (None, RelatedObjectChange(relation=relation, outcome=RelationOutcome.CLEARED))
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
-    path = _RowPath(relation)
+    path = _RowPath(_error_name(relation, spec))
     target = await _amatch_scoped_target(item, spec, relation=relation, context=context)
     if target is None:
         row = await _acreate_row(item, spec, path=path, seeds={}, context=context, m2m=row_m2m)
@@ -749,7 +782,7 @@ def _resolve_scope(
     write any row of that model by guessing a key.
     """
     key = item.get(spec.match_key)
-    if key is None:
+    if _omitted(key):
         return None
     if spec.scope is None:
         raise ImproperlyConfigured(
@@ -779,6 +812,10 @@ def _scoped_match_miss(
     Never a create: the payload still carries the key, so a ``pk`` naming an
     out-of-scope row would be written straight back onto that row by
     ``Model.save()`` — exactly the row the scope protects.
+
+    The remedy is the client's, so ``relation`` is the client-facing name (see
+    :func:`_error_name`). The unscoped case one function up is the opposite —
+    only whoever wrote the spec can fix it — and quotes the map key.
     """
     return ServiceValidationError(
         {
@@ -809,7 +846,7 @@ def _match_scoped_target(
     queryset, key = resolved
     target = queryset.filter(**{spec.match_key: key}).first()
     if target is None:
-        raise _scoped_match_miss(relation, spec, key)
+        raise _scoped_match_miss(_error_name(relation, spec), spec, key)
     return target
 
 
@@ -827,7 +864,7 @@ async def _amatch_scoped_target(
     queryset, key = resolved
     target = await queryset.filter(**{spec.match_key: key}).afirst()
     if target is None:
-        raise _scoped_match_miss(relation, spec, key)
+        raise _scoped_match_miss(_error_name(relation, spec), spec, key)
     return target
 
 
@@ -917,7 +954,7 @@ def _write_reverse_one_to_one(
         return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
-    path = _RowPath(relation)
+    path = _RowPath(_error_name(relation, spec))
     if existing is None:
         row = _create_row(
             {**item, **_link_values(spec, parent)},
@@ -960,7 +997,7 @@ async def _awrite_reverse_one_to_one(
         return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
-    path = _RowPath(relation)
+    path = _RowPath(_error_name(relation, spec))
     if existing is None:
         row = await _acreate_row(
             {**item, **await _alink_values(spec, parent)},
@@ -1007,9 +1044,9 @@ def _write_owned_collection(
     rows: list[dict[str, Any]] = [coerce_to_dict(i) for i in (items or [])]
     for index, item in enumerate(rows):
         child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
-        path = _RowPath(relation, index, len(rows))
+        path = _RowPath(_error_name(relation, spec), index, len(rows))
         key = item.get(spec.match_key)
-        if key is not None and key in existing_by_key:
+        if not _omitted(key) and key in existing_by_key:
             child = _update_row(
                 existing_by_key[key],
                 item,
@@ -1070,7 +1107,7 @@ def _write_m2m_relation(
     rows: list[dict[str, Any]] = [coerce_to_dict(i) for i in (items or [])]
     for index, item in enumerate(rows):
         row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
-        path = _RowPath(relation, index, len(rows))
+        path = _RowPath(_error_name(relation, spec), index, len(rows))
         match = _match_scoped_target(item, spec, relation=relation, context=context)
         if match is None:
             row = _create_row(
@@ -1353,9 +1390,9 @@ async def _awrite_owned_collection(
     rows: list[dict[str, Any]] = [coerce_to_dict(i) for i in (items or [])]
     for index, item in enumerate(rows):
         child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
-        path = _RowPath(relation, index, len(rows))
+        path = _RowPath(_error_name(relation, spec), index, len(rows))
         key = item.get(spec.match_key)
-        if key is not None and key in existing_by_key:
+        if not _omitted(key) and key in existing_by_key:
             child = await _aupdate_row(
                 existing_by_key[key],
                 item,
@@ -1409,7 +1446,7 @@ async def _awrite_m2m_relation(
     rows: list[dict[str, Any]] = [coerce_to_dict(i) for i in (items or [])]
     for index, item in enumerate(rows):
         row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
-        path = _RowPath(relation, index, len(rows))
+        path = _RowPath(_error_name(relation, spec), index, len(rows))
         match = await _amatch_scoped_target(item, spec, relation=relation, context=context)
         if match is None:
             row = await _acreate_row(
