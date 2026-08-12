@@ -120,7 +120,11 @@ Common patches you'll still need inside the package:
 - `ruff check` enforces `E`, `F`, `UP`, `B`, `SIM`, `I`, `TID` (see `[tool.ruff.lint]` in `pyproject.toml`).
 - `ruff format` is the source of truth for layout. Don't fight it.
 - The pre-commit hook runs `make lint-fix` (auto-applies safe fixes) and `make format` (rewrites). Commits should be clean before push; CI will reject otherwise.
-- **Use `...` (Ellipsis) instead of `pass` for empty function and class bodies.** Includes Protocol stubs, test fixtures, no-op viewset action methods stubbed out for `@service_action`, and bare placeholder classes. `pass` is reserved for intentionally-empty *statement* contexts (e.g. `try: ... except FooError: pass`) where Ellipsis would read as a literal expression rather than a no-op.
+- **Use `...` (Ellipsis) instead of `pass` for empty function and class bodies.** Includes Protocol stubs, test fixtures, no-op viewset action methods stubbed out for `@service_action`, and bare placeholder classes. `pass` is reserved for intentionally-empty *statement* contexts (e.g. `try: ... except FooError: pass`) where Ellipsis would read as a literal expression rather than a no-op. This one stays prose: no ruff rule prefers `...` over `pass`, and a pygrep on a bare `pass` would fire on the allowed `try`/`except` form.
+
+**Four of the rules above are now enforced, not remembered.** `ruff` carries the future-annotations import (`isort.required-imports`, with `__init__.py` and `migrations/` exempt) and the ban on every relative form including single-dot (`ban-relative-imports = "all"` — `TID` alone defaults to `parents`, so `from .foo import x` slipped through). Two pygrep pre-commit hooks carry the rest: no mypy-style `# type: ignore` inside the package, and no `rest_framework` import inside `exceptions/`. Change the rule here and change the config with it, or they drift apart again.
+
+  The mypy-pragma hook is scoped to `rest_framework_services/` on purpose, because that is exactly what `ty` checks. Under `tests/` and `examples/` no checker reads either pragma, while an editor running mypy or pyright does honour `# type: ignore` — rewriting those would turn something that still works into a no-op everywhere.
 
 ---
 

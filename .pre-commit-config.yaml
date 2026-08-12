@@ -48,6 +48,24 @@ repos:
         types: [text]
         exclude: '^\.pre-commit-config\.yaml$'
 
+      # Scoped to the package, because that is exactly what ty checks. Under
+      # tests/ and examples/ no checker reads either pragma, while an editor
+      # running mypy or pyright does honour "# type: ignore" -- rewriting those
+      # would turn something that still works into a no-op everywhere.
+      # The lookbehind spares prose that names the mypy pragma inside backticks,
+      # which the implements() docstring does deliberately, for mypy users.
+      - id: forbid-mypy-type-ignore
+        name: "forbid mypy-style '# type: ignore' (the package type-checks with ty)"
+        entry: '(?<!`)# type:\s*ignore'
+        language: pygrep
+        files: '^rest_framework_services/.*\.py$'
+
+      - id: forbid-drf-import-in-exceptions
+        name: "no 'rest_framework' import inside exceptions/ (framework-agnostic boundary)"
+        entry: '(?:from|import) rest_framework\b'
+        language: pygrep
+        files: '^rest_framework_services/exceptions/.*\.py$'
+
       - id: forbid-marker-glyphs
         name: "forbid emoji / marker glyphs in code, docs and changelogs"
         entry: '⚠|⭐|⛔|✅|❌|❗|❓|⭕|⚡|☑|✔|✖|✨|❤|⏸|⏰|⌛|⁉|‼|️|\xf0\x9f[\x80-\xbf][\x80-\xbf]'
