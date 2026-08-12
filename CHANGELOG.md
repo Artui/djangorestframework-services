@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A relation row whose `match_key` was left `UNSET` is now a create, not a
+  match against the sentinel.** `UNSET` means "field omitted from input"
+  throughout the library and `filter_input` drops it before anything is
+  assigned — but the match-key reads happen before that, so a row supplied as a
+  partial-input dataclass with its `pk` unset had the sentinel read as if it
+  were a key. The outcome varied by kind and column type: a `TypeError` from a
+  numeric primary key, an `ImproperlyConfigured` telling the author to declare a
+  `scope=` their create-only spec does not need, a `scope`-miss refusal on a
+  `CharField` key coerced to the string `"UNSET"`, or the primary-key guard
+  refusing a payload that carried no primary key — its message asking the caller
+  to "omit the identifier to create a new one", which is what they had done.
+  A non-pk `match_key` on an owned collection was accidentally correct, missing
+  the lookup and falling through to the create branch, so the same defect passed
+  or failed depending on which kind a test happened to cover first.
+
+  All four sentinel-blind reads now treat `UNSET` exactly as they treat an
+  absent key: the shared scoped-match resolver behind `ForwardRelationSpec` and
+  `ManyToManySpec`, both owned-collection loops, and the primary-key guard. What
+  a declared `create_service` / `update_service` receives in `data` is
+  unchanged — still the coerced payload verbatim, sentinels included, which is
+  how a nested service tells "omitted" from `None`.
+
 ### Changed
 
 - **The API reference now documents attributes and arguments as typed entries

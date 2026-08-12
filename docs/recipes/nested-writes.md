@@ -306,6 +306,22 @@ does the opposite of what was asked and hands back a pk they never chose.
 A **non-primary** `match_key` — a natural key like an ISBN or a slug — is
 untouched by this, so declaring one is how you get upsert semantics.
 
+A key the row never supplied is not one it named. Both spellings of "omitted"
+read the same way here and at every match: leaving the key out of the mapping,
+and the `UNSET` sentinel a partial-input dataclass carries for a field its
+caller left alone.
+
+```python
+@dataclass
+class BookIn:
+    pk: int | UnsetType = UNSET
+    title: str | UnsetType = UNSET
+
+
+# Creates. The row named no primary key, so there is none to guard against.
+update_from_input(author, {"books": [BookIn(title="...")]}, children=BOOKS)
+```
+
 ## When a row's write has behaviour of its own
 
 A row that needs side effects, derived columns, an event or an external call
