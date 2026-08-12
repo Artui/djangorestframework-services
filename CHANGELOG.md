@@ -7,29 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+## [0.39.0] — 2026-08-12
 
-- **A relation row whose `match_key` was left `UNSET` is now a create, not a
-  match against the sentinel.** `UNSET` means "field omitted from input"
-  throughout the library and `filter_input` drops it before anything is
-  assigned — but the match-key reads happen before that, so a row supplied as a
-  partial-input dataclass with its `pk` unset had the sentinel read as if it
-  were a key. The outcome varied by kind and column type: a `TypeError` from a
-  numeric primary key, an `ImproperlyConfigured` telling the author to declare a
-  `scope=` their create-only spec does not need, a `scope`-miss refusal on a
-  `CharField` key coerced to the string `"UNSET"`, or the primary-key guard
-  refusing a payload that carried no primary key — its message asking the caller
-  to "omit the identifier to create a new one", which is what they had done.
-  A non-pk `match_key` on an owned collection was accidentally correct, missing
-  the lookup and falling through to the create branch, so the same defect passed
-  or failed depending on which kind a test happened to cover first.
+### Upgrade notes
 
-  All four sentinel-blind reads now treat `UNSET` exactly as they treat an
-  absent key: the shared scoped-match resolver behind `ForwardRelationSpec` and
-  `ManyToManySpec`, both owned-collection loops, and the primary-key guard. What
-  a declared `create_service` / `update_service` receives in `data` is
-  unchanged — still the coerced payload verbatim, sentinels included, which is
-  how a nested service tells "omitted" from `None`.
+**One behaviour change to know about before upgrading.** Error payloads now use
+the names the request used. Where an input serializer field declares `source=`,
+a refusal that the service raised about the column is reported under the
+serializer's field name instead — at every depth, including the fields inside a
+nested row. If your clients read errors keyed on field name, this is the change
+that reaches them: it makes those keys match what they sent, which for an
+aliased field they previously did not. Serializers whose fields are named after
+their columns are unaffected, as is any spec with no `input_serializer` and any
+direct call to the mutation helpers.
 
 ### Changed
 
@@ -85,6 +75,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hook now enforces it. Typography is untouched: dashes, arrows, the
   multiplication sign, math comparisons, box-drawing characters and the plain
   check mark used as table data all stay.
+
+### Fixed
+
+- **A relation row whose `match_key` was left `UNSET` is now a create, not a
+  match against the sentinel.** `UNSET` means "field omitted from input"
+  throughout the library and `filter_input` drops it before anything is
+  assigned — but the match-key reads happen before that, so a row supplied as a
+  partial-input dataclass with its `pk` unset had the sentinel read as if it
+  were a key. The outcome varied by kind and column type: a `TypeError` from a
+  numeric primary key, an `ImproperlyConfigured` telling the author to declare a
+  `scope=` their create-only spec does not need, a `scope`-miss refusal on a
+  `CharField` key coerced to the string `"UNSET"`, or the primary-key guard
+  refusing a payload that carried no primary key — its message asking the caller
+  to "omit the identifier to create a new one", which is what they had done.
+  A non-pk `match_key` on an owned collection was accidentally correct, missing
+  the lookup and falling through to the create branch, so the same defect passed
+  or failed depending on which kind a test happened to cover first.
+
+  All four sentinel-blind reads now treat `UNSET` exactly as they treat an
+  absent key: the shared scoped-match resolver behind `ForwardRelationSpec` and
+  `ManyToManySpec`, both owned-collection loops, and the primary-key guard. What
+  a declared `create_service` / `update_service` receives in `data` is
+  unchanged — still the coerced payload verbatim, sentinels included, which is
+  how a nested service tells "omitted" from `None`.
 
 ## [0.38.0] — 2026-08-11
 
@@ -2395,7 +2409,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.38.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.39.0...HEAD
+[0.39.0]: https://github.com/Artui/djangorestframework-services/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/Artui/djangorestframework-services/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/Artui/djangorestframework-services/compare/v0.36.1...v0.37.0
 [0.36.1]: https://github.com/Artui/djangorestframework-services/compare/v0.36.0...v0.36.1
