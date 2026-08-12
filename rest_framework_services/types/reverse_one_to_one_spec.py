@@ -9,9 +9,13 @@ from typing import Any, ClassVar
 from django.db.models import Model
 
 from rest_framework_services.types.child_spec import ChildSpec
+from rest_framework_services.types.relation_orphan import RelationOrphan
 from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
-from rest_framework_services.types.utils import validate_relation_services
+from rest_framework_services.types.utils import (
+    validate_relation_orphan,
+    validate_relation_services,
+)
 
 
 @dataclass(frozen=True)
@@ -45,7 +49,14 @@ class ReverseOneToOneSpec(RelationSpec):
     - **``model``** — the related model class.
     - **``fk``** — the name of that model's field pointing at the parent
       (``"author"`` for ``Profile.author``). Set automatically on creation, and
-      the field whose nullability decides unlink-versus-delete.
+      the field whose nullability decides unlink-versus-delete by default.
+    - **``orphan``** — what removing the row *does*: ``"auto"`` (the default)
+      derives it from that field, and ``"unlink"`` / ``"delete"`` state it, for
+      a spec that means one of them rather than whichever the column happens to
+      allow. ``"unlink"`` against a non-nullable ``fk`` raises
+      :exc:`~django.core.exceptions.ImproperlyConfigured` when the relation is
+      written. The rule covers both removals there are — the ``None`` case here
+      and the :func:`~rest_framework_services.delete_model` cascade.
     - **``field_map``** / **``exclude_fields``** / **``m2m``** /
       **``children``** / **``relations``** — forwarded to the row's own
       ``create_from_input`` / ``update_from_input`` call.
@@ -55,9 +66,10 @@ class ReverseOneToOneSpec(RelationSpec):
       ``parent``, a create service's ``data`` already carries the ``fk``, an
       update service returning ``None`` means "use the in-memory instance",
       and a delete service replaces the unlink-or-delete rule (so the outcome
-      is reported as ``"removed"``, the only thing still known). Declaring
-      ``create_service`` / ``update_service`` alongside the row-shaping knobs
-      raises at construction.
+      is reported as ``"removed"``, the only thing still known, and an explicit
+      ``orphan`` beside it raises). Declaring ``create_service`` /
+      ``update_service`` alongside the row-shaping knobs raises at
+      construction.
 
     There is no ``match_key`` and no ``scope``: the parent owns at most one
     row here, so there is nothing to match and nothing to scope — the relation
@@ -77,8 +89,13 @@ class ReverseOneToOneSpec(RelationSpec):
     create_service: Callable[..., Any] | None = None
     update_service: Callable[..., Any] | None = None
     delete_service: Callable[..., Any] | None = None
+    # Declared last, for the reason given on ``ChildSpec``.
+    orphan: RelationOrphan | str = RelationOrphan.AUTO
 
     def __post_init__(self) -> None:
+        validate_relation_orphan(
+            self.orphan, delete_service=self.delete_service, label="ReverseOneToOneSpec"
+        )
         validate_relation_services(
             label="ReverseOneToOneSpec",
             services={

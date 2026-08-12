@@ -32,6 +32,7 @@ from rest_framework_services.types.read_schema_markers import read_schema_marker
 from rest_framework_services.types.registered_spec import RegisteredSpec
 from rest_framework_services.types.related_object_change import RelatedObjectChange
 from rest_framework_services.types.relation_mode import RelationMode
+from rest_framework_services.types.relation_orphan import RelationOrphan
 from rest_framework_services.types.relation_outcome import RelationOutcome
 from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
@@ -77,6 +78,7 @@ __all__ = [
     "RegisteredSpec",
     "RelatedObjectChange",
     "RelationMode",
+    "RelationOrphan",
     "RelationOutcome",
     "RelationPhase",
     "RelationSpec",

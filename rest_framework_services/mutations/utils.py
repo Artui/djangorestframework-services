@@ -25,6 +25,7 @@ from rest_framework_services.types.forward_relation_spec import ForwardRelationS
 from rest_framework_services.types.generic_relation_spec import GenericRelationSpec
 from rest_framework_services.types.many_to_many_spec import ManyToManySpec
 from rest_framework_services.types.related_object_change import RelatedObjectChange
+from rest_framework_services.types.relation_orphan import RelationOrphan
 from rest_framework_services.types.relation_outcome import RelationOutcome
 from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
@@ -422,15 +423,61 @@ async def _alink_values(spec: _OwnedRowSpec, parent: Model) -> dict[str, Any]:
     }
 
 
+def _fixed_link_fields(spec: _OwnedRowSpec) -> tuple[str, ...]:
+    """The link column(s) that cannot hold ``NULL``, so cannot be blanked."""
+    return tuple(
+        name for name in _link_fields(spec) if not bool(spec.model._meta.get_field(name).null)
+    )
+
+
 def _link_nullable(spec: _OwnedRowSpec) -> bool:
     """Whether the row's link to the parent can be blanked instead of deleted.
 
-    ``all`` rather than ``any`` because a generic link is only severed when
-    *both* columns can hold ``NULL``; half a link is a row pointing at a
-    content type with no id, which is not a state the relation has a meaning
-    for.
+    Every column or none, because a generic link is only severed when *both*
+    columns can hold ``NULL``; half a link is a row pointing at a content type
+    with no id, which is not a state the relation has a meaning for.
     """
-    return all(bool(spec.model._meta.get_field(name).null) for name in _link_fields(spec))
+    return not _fixed_link_fields(spec)
+
+
+def _unlinks_orphans(spec: _OwnedRowSpec, *, relation: str) -> bool:
+    """Whether a row this relation lets go is unlinked rather than deleted.
+
+    The one place ``orphan`` is read, so a relation disposes of a row the same
+    way on the update path and in the ``delete_model`` cascade. A flag meaning
+    one thing on update and another on delete would be worse than no flag.
+
+    ``AUTO`` derives the answer from the link, mirroring ``SET_NULL`` versus
+    ``CASCADE``, which is what every spec said before this field existed. The
+    other two state it, and that is the point: nullability is a fact about a
+    column rather than a statement of intent, so a later migration adding
+    ``null=True`` would otherwise turn a ``replace`` that deleted into one that
+    unlinks — no change to the spec, none to its tests, and the rows it stops
+    disposing of pile up quietly.
+
+    ``UNLINK`` against a link that cannot hold ``NULL`` asks for something the
+    database will not do, and deleting the row instead would be the opposite of
+    what was asked, so it raises. **Here** rather than at construction: a spec
+    is routinely built at import time, while ``apps.populate()`` is still
+    running and ``_meta`` cannot be read at all. This is the first moment the
+    answer is knowable, and it is the same moment ``AUTO`` reads the schema, so
+    both rules resolve in one place.
+    """
+    if spec.orphan == RelationOrphan.DELETE:
+        return False
+    if spec.orphan == RelationOrphan.AUTO:
+        return _link_nullable(spec)
+    fixed: tuple[str, ...] = _fixed_link_fields(spec)
+    if fixed:
+        columns = ", ".join(f"{spec.model.__name__}.{name}" for name in fixed)
+        raise ImproperlyConfigured(
+            f"relations[{relation!r}]: orphan={RelationOrphan.UNLINK.value!r} asks for the row "
+            f"to be kept and its link blanked, but {columns} cannot hold NULL, so there is no "
+            "link to blank. Make the column nullable (null=True, and the migration for it), or "
+            f"declare orphan={RelationOrphan.DELETE.value!r} to remove the row — dropping "
+            "orphan= altogether deletes it too, by deriving the rule from the column."
+        )
+    return True
 
 
 def _collect_removals(
@@ -453,9 +500,13 @@ def _collect_removals(
 
 
 def remove_child(
-    child: Model, link: tuple[str, ...], *, nullable: bool
+    child: Model, link: tuple[str, ...], *, unlink: bool
 ) -> tuple[RelationOutcome, Any]:
-    """Detach (nullable link → ``SET_NULL``) or delete (else → ``CASCADE``) ``child``.
+    """Detach (``SET_NULL``) or delete (``CASCADE``) ``child``, as ``unlink`` says.
+
+    Which one is the relation's ``orphan`` rule, resolved once by
+    :func:`_unlinks_orphans` — this helper is handed the answer rather than
+    deriving one, so the update path and the delete cascade cannot drift apart.
 
     ``link`` is the column or columns tying the row to its parent — one for a
     foreign key, two for a generic relation — and detaching blanks all of them
@@ -465,7 +516,7 @@ def remove_child(
     delete (Django clears ``instance.pk`` afterwards).
     """
     pk = child.pk
-    if nullable:
+    if unlink:
         for name in link:
             setattr(child, name, None)
         child.save(update_fields=list(link))
@@ -475,11 +526,11 @@ def remove_child(
 
 
 async def aremove_child(
-    child: Model, link: tuple[str, ...], *, nullable: bool
+    child: Model, link: tuple[str, ...], *, unlink: bool
 ) -> tuple[RelationOutcome, Any]:
     """Async variant of :func:`remove_child`."""
     pk = child.pk
-    if nullable:
+    if unlink:
         for name in link:
             setattr(child, name, None)
         await child.asave(update_fields=list(link))
@@ -648,7 +699,7 @@ def _remove_one_child(
     *,
     parent: Model,
     context: Mapping[str, Any] | None,
-    nullable: bool,
+    unlink: bool,
 ) -> tuple[RelationOutcome, Any]:
     """Remove one child through ``delete_service`` when declared, else the rule.
 
@@ -658,7 +709,7 @@ def _remove_one_child(
     service that really deletes leaves ``instance.pk`` cleared behind it.
     """
     if spec.delete_service is None:
-        return remove_child(child, _link_fields(spec), nullable=nullable)
+        return remove_child(child, _link_fields(spec), unlink=unlink)
     pk = child.pk
     _run_child_service(spec.delete_service, _child_pool(context, instance=child, parent=parent))
     return (RelationOutcome.REMOVED, pk)
@@ -670,11 +721,11 @@ async def _aremove_one_child(
     *,
     parent: Model,
     context: Mapping[str, Any] | None,
-    nullable: bool,
+    unlink: bool,
 ) -> tuple[RelationOutcome, Any]:
     """Async variant of :func:`_remove_one_child`."""
     if spec.delete_service is None:
-        return await aremove_child(child, _link_fields(spec), nullable=nullable)
+        return await aremove_child(child, _link_fields(spec), unlink=unlink)
     pk = child.pk
     await _arun_child_service(
         spec.delete_service, _child_pool(context, instance=child, parent=parent)
@@ -982,8 +1033,8 @@ def _write_reverse_one_to_one(
     The children loop with the collection taken out: there is at most one row
     and the relation itself is the match, so nothing is matched by key and
     nothing is scoped — the row is reached through the parent's own foreign
-    key or it does not exist. ``None`` removes it by the orphan rule (unlink a
-    nullable ``fk``, delete otherwise, or hand it to ``delete_service``).
+    key or it does not exist. ``None`` removes it by the spec's ``orphan``
+    rule (see :func:`_unlinks_orphans`), or hands it to ``delete_service``.
 
     The existing row is fetched by querying the ``fk`` rather than through the
     reverse accessor: the accessor caches, raises its own ``DoesNotExist``, and
@@ -997,7 +1048,11 @@ def _write_reverse_one_to_one(
         if existing is None:
             return RelatedObjectChange(relation=relation)
         status, pk = _remove_one_child(
-            existing, spec, parent=parent, context=context, nullable=_link_nullable(spec)
+            existing,
+            spec,
+            parent=parent,
+            context=context,
+            unlink=_unlinks_orphans(spec, relation=relation),
         )
         return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
     item = coerce_to_dict(value)
@@ -1036,7 +1091,11 @@ async def _awrite_reverse_one_to_one(
         if existing is None:
             return RelatedObjectChange(relation=relation)
         status, pk = await _aremove_one_child(
-            existing, spec, parent=parent, context=context, nullable=_link_nullable(spec)
+            existing,
+            spec,
+            parent=parent,
+            context=context,
+            unlink=_unlinks_orphans(spec, relation=relation),
         )
         return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
     item = coerce_to_dict(value)
@@ -1120,7 +1179,7 @@ def _write_owned_collection(
             )
             created_pks.append(child.pk)
     removals = _remove_orphans(
-        existing_by_key, spec, matched, created, parent=parent, context=context
+        existing_by_key, spec, matched, created, relation=relation, parent=parent, context=context
     )
     return ChildCollectionChange(
         relation=relation,
@@ -1378,6 +1437,7 @@ def _remove_orphans(
     matched: set[Any],
     created: bool,
     *,
+    relation: str,
     parent: Model,
     context: Mapping[str, Any] | None,
 ) -> list[tuple[RelationOutcome, Any]]:
@@ -1390,12 +1450,12 @@ def _remove_orphans(
     removals: list[tuple[RelationOutcome, Any]] = []
     if created or spec.mode != "replace":
         return removals
-    nullable = _link_nullable(spec)
+    unlink = _unlinks_orphans(spec, relation=relation)
     for key, child in existing_by_key.items():
         if key in matched:
             continue
         removals.append(
-            _remove_one_child(child, spec, parent=parent, context=context, nullable=nullable)
+            _remove_one_child(child, spec, parent=parent, context=context, unlink=unlink)
         )
     return removals
 
@@ -1485,7 +1545,7 @@ async def _awrite_owned_collection(
             )
             created_pks.append(child.pk)
     removals = await _aremove_orphans(
-        existing_by_key, spec, matched, created, parent=parent, context=context
+        existing_by_key, spec, matched, created, relation=relation, parent=parent, context=context
     )
     return ChildCollectionChange(
         relation=relation,
@@ -1552,6 +1612,7 @@ async def _aremove_orphans(
     matched: set[Any],
     created: bool,
     *,
+    relation: str,
     parent: Model,
     context: Mapping[str, Any] | None,
 ) -> list[tuple[RelationOutcome, Any]]:
@@ -1559,12 +1620,12 @@ async def _aremove_orphans(
     removals: list[tuple[RelationOutcome, Any]] = []
     if created or spec.mode != "replace":
         return removals
-    nullable = _link_nullable(spec)
+    unlink = _unlinks_orphans(spec, relation=relation)
     for key, child in existing_by_key.items():
         if key in matched:
             continue
         removals.append(
-            await _aremove_one_child(child, spec, parent=parent, context=context, nullable=nullable)
+            await _aremove_one_child(child, spec, parent=parent, context=context, unlink=unlink)
         )
     return removals
 
@@ -1664,13 +1725,13 @@ def _delete_owned_collection(
     context: Mapping[str, Any] | None,
 ) -> ChildCollectionChange:
     """Remove every row of one owned collection, its own relations first."""
-    nullable = _link_nullable(spec)
+    unlink = _unlinks_orphans(spec, relation=relation)
     nested = merge_relations(spec.children, spec.relations)
     removals: list[tuple[RelationOutcome, Any]] = []
     for child in getattr(parent, relation).all():
         delete_relations(child, nested, context=context)
         removals.append(
-            _remove_one_child(child, spec, parent=parent, context=context, nullable=nullable)
+            _remove_one_child(child, spec, parent=parent, context=context, unlink=unlink)
         )
     return ChildCollectionChange(relation=relation, **_collect_removals(removals))
 
@@ -1683,13 +1744,13 @@ async def _adelete_owned_collection(
     context: Mapping[str, Any] | None,
 ) -> ChildCollectionChange:
     """Async variant of :func:`_delete_owned_collection`."""
-    nullable = _link_nullable(spec)
+    unlink = _unlinks_orphans(spec, relation=relation)
     nested = merge_relations(spec.children, spec.relations)
     removals: list[tuple[RelationOutcome, Any]] = []
     async for child in getattr(parent, relation).all():
         await adelete_relations(child, nested, context=context)
         removals.append(
-            await _aremove_one_child(child, spec, parent=parent, context=context, nullable=nullable)
+            await _aremove_one_child(child, spec, parent=parent, context=context, unlink=unlink)
         )
     return ChildCollectionChange(relation=relation, **_collect_removals(removals))
 
@@ -1707,7 +1768,7 @@ def _delete_owned_row(
         return RelatedObjectChange(relation=relation)
     delete_relations(row, merge_relations(spec.children, spec.relations), context=context)
     status, pk = _remove_one_child(
-        row, spec, parent=parent, context=context, nullable=_link_nullable(spec)
+        row, spec, parent=parent, context=context, unlink=_unlinks_orphans(spec, relation=relation)
     )
     return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
 
@@ -1725,7 +1786,7 @@ async def _adelete_owned_row(
         return RelatedObjectChange(relation=relation)
     await adelete_relations(row, merge_relations(spec.children, spec.relations), context=context)
     status, pk = await _aremove_one_child(
-        row, spec, parent=parent, context=context, nullable=_link_nullable(spec)
+        row, spec, parent=parent, context=context, unlink=_unlinks_orphans(spec, relation=relation)
     )
     return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
 

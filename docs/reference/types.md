@@ -40,6 +40,10 @@
 
 ::: rest_framework_services.types.relation_phase.RelationPhase
 
+## `RelationOrphan`
+
+::: rest_framework_services.types.relation_orphan.RelationOrphan
+
 ## `ForwardRelationSpec`
 
 ::: rest_framework_services.types.forward_relation_spec.ForwardRelationSpec

@@ -70,10 +70,45 @@ children = {"books": ChildSpec(model=Book, fk="author")}
 - **`mode`** — `"replace"` (default) reconciles the collection: create new,
   update matched, and **remove orphans** (existing children absent from the
   incoming list). `"merge"` upserts only and never removes.
+- **`orphan`** — what removing one *does*, where `mode` says whether one is
+  removed at all. See below.
 
-An orphan is **unlinked** (its FK set to `None`) when the FK is nullable, and
-**deleted** otherwise — mirroring `on_delete=SET_NULL` vs `CASCADE`. A relation
-the input omits entirely is left untouched; send an explicit `[]` to clear it.
+A relation the input omits entirely is left untouched; send an explicit `[]` to
+clear it.
+
+### What happens to an orphan
+
+By default (`orphan="auto"`) it is **unlinked** — its FK set to `None` — when
+the FK is nullable, and **deleted** otherwise, mirroring `on_delete=SET_NULL`
+versus `CASCADE`. That honours what the model already declares, which is why it
+is the default rather than `drf-nested`'s unconditional delete.
+
+`orphan="unlink"` and `orphan="delete"` say it outright instead:
+
+```python
+ChildSpec(model=Book, fk="author", orphan="delete")  # gone, nullable FK or not
+```
+
+Reach for one when the spec *means* a particular disposal. Nullability is a fact
+about a column, not a statement of intent: someone adding `null=True` in a later
+migration flips a `"replace"` from destructive to non-destructive, with no change
+to the spec and none to its tests, and the rows it quietly stops removing pile up
+where nobody is looking.
+
+`orphan="unlink"` against a link that cannot hold `NULL` raises
+`ImproperlyConfigured` when the relation is written, naming the relation and the
+column — there is nothing to blank, and deleting the row instead would be the
+opposite of what was asked. The check is at write time because a spec is
+routinely built at import time, before Django can be asked about a column at all.
+
+The flag is on the kinds that own their rows —
+[`ChildSpec`](../reference/types.md#childspec),
+[`GenericRelationSpec`](../reference/types.md#genericrelationspec),
+[`ReverseOneToOneSpec`](../reference/types.md#reverseonetoonespec) — and on no
+others: a many-to-many target is shared and never deleted, and a forward
+relation removes nothing. It governs the [`delete_model` cascade](#deleting)
+too, which disposes of the same rows. `delete_service` *is* the disposal, so
+declaring an explicit `orphan` beside one raises at construction.
 
 Matching happens inside the parent's own manager, so a child collection needs no
 `scope=`: a row the parent doesn't own is not reachable to begin with.
@@ -127,10 +162,11 @@ relations = {"profile": ReverseOneToOneSpec(model=Profile, fk="author")}
 ```
 
 - **omitted** — untouched.
-- **`None`** — the existing row, if any, is removed by the orphan rule:
-  **unlinked** when `fk` is nullable, **deleted** when it is not. Unlike a
-  forward relation, this row *is* the parent's, so clearing the relation has to
-  do something about it.
+- **`None`** — the existing row, if any, is removed by the [orphan
+  rule](#what-happens-to-an-orphan): by default **unlinked** when `fk` is
+  nullable and **deleted** when it is not, or whichever `orphan=` states. Unlike
+  a forward relation, this row *is* the parent's, so clearing the relation has
+  to do something about it.
 - **a mapping** — updated when the parent already has a row, created and linked
   when it does not.
 
@@ -183,9 +219,11 @@ relations = {"attachments": GenericRelationSpec(model=Attachment)}
 
 Both are injected from the saved parent. Everything else is the child-collection
 loop: matched inside the parent's own accessor (so no `scope=`), `mode`,
-grandchildren, services. An orphan is **unlinked** when *both* link columns are
-nullable, and **deleted** otherwise — the same rule applied to a pair, because
-half a severed link is a row pointing at a content type with no row id.
+`orphan`, grandchildren, services. By default an orphan is **unlinked** when
+*both* link columns are nullable and **deleted** otherwise — the same rule
+applied to a pair, because half a severed link is a row pointing at a content
+type with no row id — and `orphan=` overrides it exactly as [it does for a child
+collection](#what-happens-to-an-orphan).
 
 Set `content_type_field` / `object_id_field` when the model spells the columns
 differently; they mirror the arguments of the same name on Django's
@@ -392,8 +430,11 @@ delete_model(
 leaves alone the rows it merely points at.**
 
 - Reverse-FK collections, reverse one-to-ones and generic relations are the
-  parent's rows, so they go — deepest first, nullable links unlinked and the
-  rest deleted, or handed to `delete_service`.
+  parent's rows, so they go — deepest first, by the same [orphan
+  rule](#what-happens-to-an-orphan) the update path uses (nullable links
+  unlinked and the rest deleted, unless `orphan=` says otherwise), or handed to
+  `delete_service`. A flag that meant one thing on update and another on delete
+  would be worse than no flag.
 - A many-to-many loses only its **membership**. The targets are shared, so none
   is deleted; they are reported under `unlinked`.
 - A forward relation is left **untouched**. The link lives on the parent, so the
@@ -402,8 +443,9 @@ leaves alone the rows it merely points at.**
   is what the row's write path is declared with.
 
 The specs' write-only fields (`match_key` / `mode` / `field_map` / `m2m`) are
-ignored here. For a plain hard delete you usually don't need this at all — the
-FK's `on_delete` already cascades.
+ignored here; `orphan` is not one of them — it is about disposal, which is all
+this does. For a plain hard delete you usually don't need this at all — the FK's
+`on_delete` already cascades.
 
 ## What changed in the response
 
@@ -499,6 +541,11 @@ Here the trigger is an explicit `mode="replace"` (the default) versus
 `"merge"`, and an unmatched row is **unlinked** when its link is nullable and
 deleted only when it is not — mirroring `SET_NULL` versus `CASCADE`. A
 many-to-many target is never deleted at all.
+
+If you are porting a declaration that relied on the unconditional delete,
+`orphan="delete"` is the mechanical answer: it reproduces it on the relations
+whose link is nullable, and says so in the spec rather than leaving it to the
+column. See [What happens to an orphan](#what-happens-to-an-orphan).
 
 **3. A nested create carrying a primary key raises.** This is the one a
 migrating reader hits first, because `drf-nested` upserts by pk on every kind

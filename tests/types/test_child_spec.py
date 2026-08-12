@@ -19,6 +19,7 @@ class TestChildSpec:
         spec = ChildSpec(model=Section, fk="catalog")
         assert spec.match_key == "pk"
         assert spec.mode == "replace"
+        assert spec.orphan == "auto"
         assert spec.m2m is None
         assert spec.children is None
 
@@ -28,6 +29,17 @@ class TestChildSpec:
     def test_invalid_mode_raises(self) -> None:
         with pytest.raises(ValueError, match="ChildSpec.mode must be one of"):
             ChildSpec(model=Section, fk="catalog", mode="upsert")
+
+    def test_stated_orphan_disposal_is_kept(self) -> None:
+        assert ChildSpec(model=Section, fk="catalog", orphan="delete").orphan == "delete"
+
+    def test_invalid_orphan_raises(self) -> None:
+        with pytest.raises(ValueError, match="ChildSpec.orphan must be one of"):
+            ChildSpec(model=Section, fk="catalog", orphan="archive")
+
+    def test_orphan_beside_a_delete_service_is_refused(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="alongside delete_service"):
+            ChildSpec(model=Section, fk="catalog", orphan="delete", delete_service=_service)
 
 
 class TestServiceReplacesTheHelper:

@@ -8,6 +8,7 @@ from typing import Any
 from django.core.exceptions import ImproperlyConfigured
 
 from rest_framework_services.types.relation_mode import RelationMode
+from rest_framework_services.types.relation_orphan import RelationOrphan
 
 
 def validate_metadata(metadata: Any, *, label: str) -> None:
@@ -47,6 +48,36 @@ def validate_relation_mode(mode: str, *, label: str) -> None:
     """
     if mode not in VALID_RELATION_MODES:
         raise ValueError(f"{label}.mode must be one of {VALID_RELATION_MODES}; got {mode!r}.")
+
+
+VALID_RELATION_ORPHANS = tuple(orphan.value for orphan in RelationOrphan)
+
+
+def validate_relation_orphan(orphan: str, *, delete_service: Any, label: str) -> None:
+    """Check ``orphan``, and refuse it beside the service that would silence it.
+
+    Shared by the kinds that own their rows, so "unlink" and "delete" mean the
+    same thing on all of them.
+
+    A ``delete_service`` *is* the disposal: it replaces the unlink-or-delete
+    rule outright, for orphan removal and for the ``delete_model`` cascade
+    alike. So a spec declaring both states two answers to one question and the
+    library would silently keep the service's — which is the failure mode
+    :func:`validate_relation_services` exists to end, arrived at from the other
+    direction. Refused at construction for the same reason. The default is not a
+    statement, so ``AUTO`` beside a ``delete_service`` is untouched: it is what
+    every spec written before the field existed says.
+    """
+    if orphan not in VALID_RELATION_ORPHANS:
+        raise ValueError(f"{label}.orphan must be one of {VALID_RELATION_ORPHANS}; got {orphan!r}.")
+    if delete_service is None or orphan == RelationOrphan.AUTO:
+        return
+    raise ImproperlyConfigured(
+        f"{label}: orphan={RelationOrphan(orphan).value!r} declared alongside delete_service. "
+        "The service replaces the unlink-or-delete rule entirely, so the flag would decide "
+        "nothing. Dispose of the row in the service, or drop the service and let orphan= say "
+        "what happens to it."
+    )
 
 
 def validate_relation_services(

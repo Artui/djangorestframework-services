@@ -68,6 +68,28 @@ and let it be created. A natural `match_key` is unaffected and still upserts.
   `ChildCollectionChange` gains a matching `removed` tuple for rows a
   `delete_service` handled.
 
+- **`orphan=` on the specs whose rows the parent owns** — `ChildSpec`,
+  `GenericRelationSpec`, `ReverseOneToOneSpec` — saying what happens to a row
+  the relation lets go, where `mode=` says whether one is let go at all.
+  `"auto"` (the default) keeps today's derived rule: unlink when the link is
+  nullable, else delete. `"unlink"` and `"delete"` state it instead.
+
+  The derived rule is still the better default, because it honours what the
+  model declares. What it cannot do is stand in for intent: nullability is a
+  fact about a column, so one `mode="replace"` means destructive or
+  non-destructive depending on something the spec author is not looking at, and
+  someone adding `null=True` in a later migration flips disposal from delete to
+  unlink with no change to the spec and none to its tests.
+
+  `"unlink"` against a link that cannot hold `NULL` raises
+  `ImproperlyConfigured` when the relation is written — the same moment `"auto"`
+  reads the schema, since a spec is routinely built before Django can be asked
+  about a column. An explicit `orphan` beside a `delete_service` raises at
+  construction: the service *is* the disposal, so the flag would decide nothing.
+  Not on `ManyToManySpec` (a target is shared and never deleted) and not on
+  `ForwardRelationSpec` (it removes nothing). The `delete_model` cascade honours
+  it too, since it disposes of the same rows.
+
 - **`RelationOutcome` and `RelationMode` enums.** Both subclass `str`, matching
   `SelectorKind`, so the values they replaced still compare equal and stay
   JSON-serializable: `change.outcome == "created"` keeps working and

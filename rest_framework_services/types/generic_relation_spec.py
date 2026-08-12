@@ -10,9 +10,14 @@ from django.db.models import Model
 
 from rest_framework_services.types.child_spec import ChildSpec
 from rest_framework_services.types.relation_mode import RelationMode
+from rest_framework_services.types.relation_orphan import RelationOrphan
 from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
-from rest_framework_services.types.utils import validate_relation_mode, validate_relation_services
+from rest_framework_services.types.utils import (
+    validate_relation_mode,
+    validate_relation_orphan,
+    validate_relation_services,
+)
 
 
 @dataclass(frozen=True)
@@ -55,11 +60,16 @@ class GenericRelationSpec(RelationSpec):
     - **``match_key``** — the field pairing an incoming row with an existing
       one (default ``"pk"``), read inside the parent's own accessor.
     - **``mode``** — ``"replace"`` (the default) removes the rows the incoming
-      set leaves out, ``"merge"`` upserts only. An orphan is **unlinked** (both
-      link columns set to ``None``) when both are nullable, and **deleted**
-      otherwise — the same rule
-      :class:`~rest_framework_services.ChildSpec` applies to one column,
-      applied to the pair.
+      set leaves out, ``"merge"`` upserts only.
+    - **``orphan``** — what removing one *does*. ``"auto"`` (the default)
+      **unlinks** (both link columns set to ``None``) when both are nullable and
+      **deletes** otherwise — the same rule
+      :class:`~rest_framework_services.ChildSpec` applies to one column, applied
+      to the pair, since half a link is not a state the relation has a meaning
+      for. ``"unlink"`` and ``"delete"`` state it instead of deriving it, with
+      the same wording and the same effect on the
+      :func:`~rest_framework_services.delete_model` cascade; ``"unlink"`` raises
+      at write time unless both columns can hold ``NULL``.
     - **``field_map``** / **``exclude_fields``** / **``m2m``** /
       **``children``** / **``relations``** — forwarded to the row's own
       ``create_from_input`` / ``update_from_input`` call.
@@ -69,8 +79,9 @@ class GenericRelationSpec(RelationSpec):
       ``data`` already carries both link columns, an update service returning
       ``None`` means "use the in-memory instance", and a delete service
       replaces the unlink-or-delete rule (so the outcome is reported as
-      ``"removed"``). Declaring ``create_service`` / ``update_service``
-      alongside the row-shaping knobs raises at construction.
+      ``"removed"``, and an explicit ``orphan`` beside it raises). Declaring
+      ``create_service`` / ``update_service`` alongside the row-shaping knobs
+      raises at construction.
     """
 
     write_phase: ClassVar[RelationPhase] = RelationPhase.GENERIC
@@ -88,9 +99,14 @@ class GenericRelationSpec(RelationSpec):
     create_service: Callable[..., Any] | None = None
     update_service: Callable[..., Any] | None = None
     delete_service: Callable[..., Any] | None = None
+    # Declared last, for the reason given on ``ChildSpec``.
+    orphan: RelationOrphan | str = RelationOrphan.AUTO
 
     def __post_init__(self) -> None:
         validate_relation_mode(self.mode, label="GenericRelationSpec")
+        validate_relation_orphan(
+            self.orphan, delete_service=self.delete_service, label="GenericRelationSpec"
+        )
         validate_relation_services(
             label="GenericRelationSpec",
             services={

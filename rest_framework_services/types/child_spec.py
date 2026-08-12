@@ -9,9 +9,14 @@ from typing import Any, ClassVar
 from django.db.models import Model
 
 from rest_framework_services.types.relation_mode import RelationMode
+from rest_framework_services.types.relation_orphan import RelationOrphan
 from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
-from rest_framework_services.types.utils import validate_relation_mode, validate_relation_services
+from rest_framework_services.types.utils import (
+    validate_relation_mode,
+    validate_relation_orphan,
+    validate_relation_services,
+)
 
 
 @dataclass(frozen=True)
@@ -52,9 +57,19 @@ class ChildSpec(RelationSpec):
     - **``mode``** — ``"replace"`` (the default) matches incoming to existing,
       creates new, updates matched, and removes orphans (existing children
       absent from the incoming set); ``"merge"`` upserts only and never removes.
-      An orphan is **unlinked** (its ``fk`` set to ``None``) when the FK is
+    - **``orphan``** — what removing an orphan *does*, where ``mode`` says
+      whether one is removed at all. ``"auto"`` (the default) derives it from
+      the schema: **unlinked** (its ``fk`` set to ``None``) when the FK is
       nullable, else **deleted** — mirroring ``on_delete=SET_NULL`` vs
-      ``CASCADE``.
+      ``CASCADE``. ``"unlink"`` and ``"delete"`` say it outright, for a spec
+      that means one of them rather than whichever the column happens to allow;
+      a later migration adding ``null=True`` would otherwise turn a destructive
+      ``"replace"`` into a non-destructive one with nothing in the spec
+      changing. ``"unlink"`` against a non-nullable FK raises
+      :exc:`~django.core.exceptions.ImproperlyConfigured` when the relation is
+      written, since there is no link to blank. The same rule governs the
+      :func:`~rest_framework_services.delete_model` cascade, which disposes of
+      the same rows.
     - **``field_map``** / **``exclude_fields``** — forwarded to the per-child
       ``create_from_input`` / ``update_from_input`` call, exactly as for the
       parent.
@@ -100,7 +115,9 @@ class ChildSpec(RelationSpec):
       :func:`~rest_framework_services.delete_model` cascade. The loop can no
       longer tell an unlink from a delete, so the pk is reported under
       :attr:`~rest_framework_services.ChildCollectionChange.removed` rather
-      than guessed into one of the two.
+      than guessed into one of the two. It *is* the disposal, so declaring it
+      beside an explicit ``orphan`` raises at construction: the flag would
+      decide nothing.
 
     A declared slot owns that row **entirely**: ``field_map``,
     ``exclude_fields``, ``m2m`` and the nested ``children`` / ``relations``
@@ -136,9 +153,13 @@ class ChildSpec(RelationSpec):
     create_service: Callable[..., Any] | None = None
     update_service: Callable[..., Any] | None = None
     delete_service: Callable[..., Any] | None = None
+    # Declared last, beneath the services it is checked against, so adding it
+    # does not renumber the positional arguments of a spec class that shipped.
+    orphan: RelationOrphan | str = RelationOrphan.AUTO
 
     def __post_init__(self) -> None:
         validate_relation_mode(self.mode, label="ChildSpec")
+        validate_relation_orphan(self.orphan, delete_service=self.delete_service, label="ChildSpec")
         validate_relation_services(
             label="ChildSpec",
             services={
