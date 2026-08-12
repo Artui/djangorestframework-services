@@ -322,6 +322,38 @@ whole tree, and a block per row would only buy a savepoint per row. In the
 async helpers the slot must be an `async def` — the async path is awaited end to
 end, and a sync callable there fails on an un-awaitable return.
 
+## When a row's write is refused
+
+An error a row's write raises arrives under the relation that carried it, in the
+shape DRF's `ListSerializer` uses:
+
+```python
+# a collection: a list as long as the one you sent, {} against the rows that passed
+{"posts": [{}, {"title": ["Too rude."]}]}
+
+# a relation holding one row: the payload under the name
+{"profile": {"bio": ["Too long."]}}
+```
+
+Namespacing it is not decoration. A row shares field names with its parent — an
+`Author` with a `title` of its own is indistinguishable from its post's — and a
+collection otherwise never says *which* row was refused.
+
+- Both error types are covered: a `create_service` / `update_service` may raise
+  `ServiceValidationError` or DRF's `ValidationError`, and the one you raise is
+  the one the caller gets, status mapping and all.
+- The detail is passed through untouched. A service that raises a string or a
+  list gets a string or a list back, at the relation (and position) it came
+  from; the library never reshapes it into a field map it did not name.
+- Names nest as you walk them, so a grandchild reads
+  `{"posts": [{"comments": [{"body": ["Too long."]}]}]}`.
+
+The library's own refusals — the [primary-key
+guard](#a-nested-create-may-not-carry-a-primary-key), a [`scope`](#scope) that
+matched nothing — already name their relation and are unchanged; they report the
+message under the relation name rather than against a row, because they are
+about the payload rather than about a row's write.
+
 ## Declarative — no service body
 
 The default model services forward `relations=` / `children=`, so a
@@ -477,6 +509,12 @@ primary key](#a-nested-create-may-not-carry-a-primary-key) for why
 Rows the parent already owns still update by pk exactly as before; what changes
 is that a pk naming somebody else's row, or no row at all, now gets a 400
 instead of writing.
+
+**What does not change is the error shape.** A refused row reports under its
+relation name, aligned against the incoming list for a collection — the same
+shape a writable-nested serializer produced, so a client (and any error handling
+written against it) needs no change. See [When a row's write is
+refused](#when-a-rows-write-is-refused).
 
 Also deliberately absent: `drf-nested`'s per-relation `allow_create` /
 `allow_update` / `preserve_provided` / `forbidden_on_create` knobs. They exist

@@ -103,6 +103,29 @@ and let it be created. A natural `match_key` is unaffected and still upserts.
   `delete_service` is not restricted: it replaces the unlink-or-delete rule
   rather than the row write.
 
+- **An error raised while writing a related row is reported under that
+  relation.** A `create_service` / `update_service` raising
+  `ServiceValidationError` — or DRF's `ValidationError`, since a service may
+  reach for either — propagated bare, so a row's `{"title": [...]}` was
+  indistinguishable from the parent's own `title`, and a collection never said
+  which row was refused.
+
+  The shape is DRF's `ListSerializer` rather than one of ours, so a reader
+  migrating off a writable-nested serializer keeps the error handling they have:
+  a collection reports a list as long as the incoming one with an empty dict
+  against the rows that passed (`{"posts": [{}, {"title": ["Too rude."]}]}`) and
+  a relation holding one row reports the payload under the name
+  (`{"profile": {"bio": ["Too long."]}}`). The detail itself is passed through
+  untouched — a string stays a string, a list stays a list — and the class you
+  raise is the class the caller gets. Relation names nest, so a grandchild's
+  error carries both.
+
+  The library's own refusals — the primary-key guard, a `scope` that matched
+  nothing — already named their relation and are unchanged. One consequence for
+  a 0.37.0 `children=` tree: a *grandchild* primary-key refusal now arrives
+  under the child's relation as well as its own, which is that nesting rule
+  applied to an error that was already namespaced once.
+
 ### Security
 
 - **The primary-key refusal added in 0.37.0 now covers every relation kind.**
