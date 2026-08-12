@@ -2782,27 +2782,135 @@ decorator line by <code>ty</code>. mypy refuses <code>type[Protocol]</code> argu
     <div class="doc doc-contents first">
 
         <p>Invoke <code>service</code> with the framework's kwargs pool.</p>
-<p><code>request</code> is required — the helper is HTTP-scoped by design. <code>user</code>
-is derived from <code>request.user</code> (<code>None</code> if the request bypassed
+<p>For a view, middleware, or custom action delegating to a service wired to a
+different action: the helper builds the pool the framework would build,
+filters it against the service's signature, and dispatches sync-or-async so
+the caller need not know which — async services are bridged through
+<code>async_to_sync</code>, sync services called inline. Outside HTTP scope (Celery
+tasks, management commands) call the service directly with whatever kwargs
+you have; this helper is not the right tool there.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>service</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="rest_framework_services.services.call_service.ResultT">ResultT</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The service callable, sync or async.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>request</code>
+            </td>
+            <td>
+                  <code><span title="rest_framework.request.Request">Request</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Required — the helper is HTTP-scoped by design. <code>user</code> is
+derived from <code>request.user</code> (<code>None</code> if the request bypassed
 authentication middleware), matching the framework's own pool
 construction.</p>
-<p><code>data</code> and <code>instance</code> are passed through when not <code>UNSET</code>;
-omitting them mirrors the create / list call shape. Anything else
-goes into <code>**extras</code> and merges into the pool — the framework's
-standard signature filter (:func:<code>resolve_callable_kwargs</code>) decides
-which keys actually reach the service.</p>
-<p><code>map_errors</code> mirrors what the mutation view layer does with a
-:class:<code>~rest_framework_services.exceptions.service_error.ServiceError</code>.
-By default (<code>False</code>) a raised <code>ServiceError</code> propagates unchanged, so a
-caller that forgets to handle it lets the error surface as a <code>500</code>. Set
-<code>True</code> and a <code>ServiceError</code> is translated to the same DRF exception the
-framework raises on the normal view path — <code>ServiceValidationError</code> →
-<code>ValidationError</code> (400), any other <code>ServiceError</code> → 422 — so DRF's
-exception handler renders it as a proper response. Only meaningful because
-<code>call_service</code> is HTTP-scoped; a non-HTTP caller wants the raw
-<code>ServiceError</code> (hence the <code>False</code> default).</p>
-<p>Async services are bridged transparently via <code>async_to_sync</code>;
-sync services are called inline.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>data</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Passed into the pool when not <code>UNSET</code>; omitting it along with
+<code>instance</code> mirrors the create / list call shape.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="rest_framework_services.types.unset.UNSET">UNSET</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Passed into the pool when not <code>UNSET</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="rest_framework_services.types.unset.UNSET">UNSET</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>map_errors</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Translate a raised
+:class:<code>~rest_framework_services.exceptions.service_error.ServiceError</code>
+into the DRF exception the normal view path raises for it
+(<code>ServiceValidationError</code> → 400, any other → 422) so DRF's
+handler renders it as a proper response. Left <code>False</code> it
+propagates unchanged and an unhandled one surfaces as a <code>500</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>**extras</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Merged into the pool; the signature filter
+(:func:<code>resolve_callable_kwargs</code>) decides which keys reach the
+service.</p>
+              </div>
+            </td>
+            <td>
+                  <code>{}</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -2836,11 +2944,9 @@ sync services are called inline.</p>
     <div class="doc doc-contents first">
 
         <p>Invoke <code>service</code> from async code with the framework's kwargs pool.</p>
-<p>Same contract as :func:<code>call_service</code>, including <code>map_errors</code>: when
-<code>True</code> a raised <code>ServiceError</code> is translated to the matching DRF
-exception (validation → 400, else 422); <code>False</code> (the default) propagates
-it raw. Async services are awaited directly; sync services are called inline
-(no thread hop) — caller is responsible for any sync-side I/O safety.</p>
+<p>Same contract as :func:<code>call_service</code>, <code>map_errors</code> included. Async
+services are awaited directly; a sync service is called inline with no
+thread hop, so the caller owns any sync-side I/O safety.</p>
 
 
     </div>

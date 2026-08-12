@@ -2423,7 +2423,7 @@ implementation lives in
 </span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>        <span class="n">write</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
 </span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>        <span class="n">progress</span><span class="p">(</span><span class="n">index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">),</span> <span class="n">message</span><span class="o">=</span><span class="s2">&quot;writing rows&quot;</span><span class="p">)</span>
 </span></code></pre></div>
-<p>⚠ <strong>Reporting is always safe and never required.</strong> Every transport seeds a
+<p><strong>Reporting is always safe and never required.</strong> Every transport seeds a
 reporter, and the ones with nowhere to send progress seed a no-op — so the
 service above runs unchanged over HTTP, off-HTTP, and in tests. That default is
 the whole reason the reporter is a <em>pool seed</em> rather than an argument only some
@@ -2446,7 +2446,7 @@ should read goes in <code>meta</code>:</p>
 </span><span id="__span-15-9"><a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>    <span class="p">},</span>
 </span><span id="__span-15-10"><a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="p">)</span>
 </span></code></pre></div>
-<p>⭐ <strong>Without this slot the structure ends up in <code>message</code> anyway</strong> — stringified
+<p><strong>Without this slot the structure ends up in <code>message</code> anyway</strong> — stringified
 by the service and parsed back out at the sink, which is a wire format invented
 by accident inside a field documented as being for humans.</p>
 <p>Each receiver decides what to do with <code>meta</code>: a websocket consumer forwards it

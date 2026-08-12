@@ -2268,14 +2268,10 @@ Async selectors are bridged via <code>async_to_sync</code>.</p>
     <div class="doc doc-contents ">
 
         <p>True for Django <code>QuerySet</code> objects and <code>Manager</code> instances.</p>
-<p>These are the queryset-shaping targets: the things the four shaping
-fields can be applied to, and the things a RETRIEVE selector / output
-selector should be materialized from via <code>.first()</code>. Centralizes the
-"is this a queryset?" decision so the selector and mutation dispatch
-paths agree on one definition instead of duck-typing on a method name
-(<code>hasattr(..., "first")</code>), which would also match an unrelated domain
-object that happens to expose <code>first</code>. <code>QuerySet</code> subclasses
-(<code>.values()</code>, <code>.values_list()</code>, polymorphic querysets, …) all pass.</p>
+<p>The one definition of a queryset-shaping target: what the shaping fields may
+be applied to, and what a RETRIEVE selector materializes from. Tested by type
+rather than by <code>hasattr(…, "first")</code>, which would also match a domain
+object that happens to expose <code>first</code>. <code>QuerySet</code> subclasses all pass.</p>
 
 
     </div>
@@ -2354,30 +2350,158 @@ object that happens to expose <code>first</code>. <code>QuerySet</code> subclass
     <div class="doc doc-contents ">
 
         <p>Apply the five shaping fields to <code>qs</code>.</p>
-<p>Declarative fields apply first (in declaration order), then
-<code>extend_queryset</code> runs so the user callable always sees the fully
-statically-shaped queryset, and finally <code>filter_set</code> narrows it via the
-transport-neutral <code>filter_set(data=filter_data, queryset=qs).qs</code> contract
-— validated first (see :func:<code>_raise_on_invalid_filter</code>, mirroring
-<code>DjangoFilterBackend</code>'s 400-on-invalid-filter) — so filtering composes with
-shaping and runs before the retrieve <code>.first()</code> materialization the caller
-does next. Returns <code>qs</code> unchanged when no shaping is configured.</p>
-<p>Raises :exc:<code>ImproperlyConfigured</code> when shaping is configured but
-<code>qs</code> is not a Django QuerySet (no <code>annotate</code> method) — loud
-failure beats a stale <code>AttributeError</code> deep in DRF rendering.
-<code>source_label</code> is included in the error to point at the misuse
-(<code>"SelectorSpec.selector"</code> vs <code>"ServiceSpec.output_selector_spec.selector"</code>).</p>
-<p><code>filter_set</code> defaults to <code>None</code> so existing callers of this blessed
-surface keep working unchanged. <code>filter_data</code> is the data the FilterSet
-reads (a flat <code>{field: value}</code> mapping); it defaults to <code>None</code>, in
-which case the value falls back to <code>request.query_params</code> — the HTTP view
-path. A transport-neutral caller (<code>dispatch_spec</code>) passes its own params
-here. <code>request</code> is forwarded into the FilterSet when its constructor
-declares it (see :func:<code>_filter_set_accepts_request</code>), so a request-scoped
-<code>FilterSet</code> sees the same <code>self.request</code> it would behind
-<code>DjangoFilterBackend</code> instead of <code>None</code> — real on the HTTP / MCP paths, a
-faithful-<code>user</code> / -<code>query_params</code> synthetic off-HTTP; a bare
-<code>(data, queryset)</code> stand-in that doesn't declare <code>request</code> is unaffected.</p>
+<p>The order is fixed: the declarative fields first (in declaration order),
+then <code>extend_queryset</code>, so the user callable always sees the fully
+statically-shaped queryset, and finally <code>filter_set</code>, so filtering
+composes with shaping and runs before the retrieve <code>.first()</code>
+materialization the caller does next.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>request</code>
+            </td>
+            <td>
+                  <code><span title="rest_framework.request.Request">Request</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Passed to <code>extend_queryset</code>, and into the <code>filter_set</code>
+constructor when it declares a <code>request</code> parameter — so a
+request-scoped <code>FilterSet</code> sees the same <code>self.request</code> it would
+behind <code>DjangoFilterBackend</code>. A bare <code>(data, queryset)</code> stand-in
+is called exactly as before.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>filter_set</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Applied by duck typing as
+<code>filter_set(data=filter_data, queryset=qs).qs</code>, after validation
+(mirroring <code>DjangoFilterBackend</code>'s 400 on invalid filter input).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>filter_data</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The flat <code>{field: value}</code> mapping the FilterSet reads.
+<code>None</code> falls back to <code>request.query_params</code> — the HTTP view
+path; a transport-neutral caller passes its own params.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>source_label</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Named in the misconfiguration error to point at the
+offending callable (<code>"SelectorSpec.selector"</code> vs
+<code>"ServiceSpec.output_selector_spec.selector"</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The shaped queryset, or <code>qs</code> unchanged when nothing is configured.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="django.core.exceptions.ImproperlyConfigured">ImproperlyConfigured</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Shaping is configured but <code>qs</code> is not a Django
+queryset — loud failure beats a stray <code>AttributeError</code> deep in DRF
+rendering.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="rest_framework.exceptions.ValidationError">ValidationError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>filter_set</code> rejected <code>filter_data</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -2399,15 +2523,11 @@ faithful-<code>user</code> / -<code>query_params</code> synthetic off-HTTP; a ba
 
         <p>Collapse a RETRIEVE selector's return to the single instance, or <code>None</code>.</p>
 <p>The one definition of what <code>kind=RETRIEVE</code> means once the selector has run:
-a QuerySet materializes through <code>.first()</code> (so an author can write
+a queryset materializes through <code>.first()</code> — so an author can write
 <code>selector=lambda *, pk: Model.objects.filter(pk=pk)</code> and still get the
-spec's shaping applied first), anything else passes through as the resolved
-object.</p>
-<p>Shared by the HTTP path and <code>dispatch_spec</code> deliberately. What each does
-with a <code>None</code> differs — HTTP raises <code>NotFound</code> unless <code>allow_none</code>, the
-neutral path returns a <code>not_found</code> result for the transport to map — but
-<em>how the value is arrived at</em> must not, or <code>kind</code> would quietly mean two
-things.</p>
+spec's shaping applied first — and anything else passes through as the
+resolved object. What each caller does with a <code>None</code> differs; how the value
+is arrived at does not.</p>
 
 
     </div>
@@ -2431,10 +2551,9 @@ things.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Async twin of :func:<code>materialize_retrieve</code> — <code>.afirst()</code> off the loop.</p>
-<p>Separate because the materialization itself is the query: <code>.first()</code> would
-block the event loop, so the async dispatcher must <code>await .afirst()</code>. Same
-rule, different await — keep the two in step.</p>
+        <p>Async twin of :func:<code>materialize_retrieve</code>, awaiting <code>.afirst()</code>.</p>
+<p>Separate because the materialization <em>is</em> the query — <code>.first()</code> would
+block the event loop. Same rule otherwise; keep the two in step.</p>
 
 
     </div>
@@ -2457,15 +2576,12 @@ rule, different await — keep the two in step.</p>
         <p>:class:<code>TargetGuard</code> running DRF's object-permission check for an HTTP view.</p>
 <p>The HTTP counterpart of :func:<code>~rest_framework_services.enforce_permissions</code>:
 off HTTP a transport enforces <code>spec.permission_classes</code> itself, while a DRF
-view has already instantiated them and exposes
-<code>check_object_permissions</code>. Both plug into the same <code>on_target_resolved</code>
-seam, so the core stays authz-agnostic on every transport.</p>
-<p>⚠ Gated on <code>Model</code> for the same reason <code>enforce_permissions</code> is: the core
-fires this hook on the LIST branch too, with the resolved <strong>queryset</strong>.
-Object permissions are a per-row concept, and
-<code>has_object_permission(request, view, &lt;QuerySet&gt;)</code> would raise or silently
-mis-authorize. <code>None</code> (a create, or a bulk list payload) is skipped for the
-same reason.</p>
+view has already instantiated them and exposes <code>check_object_permissions</code>.
+Both plug into the same <code>on_target_resolved</code> seam, so the core stays
+authz-agnostic on every transport.</p>
+<p>Gated on <code>Model</code>, like <code>enforce_permissions</code>: the core fires this hook on
+the LIST branch too, with the resolved <strong>queryset</strong>, and object permissions
+are per-row. <code>None</code> — a create, or a bulk list payload — is skipped too.</p>
 
 
     </div>
@@ -2493,24 +2609,19 @@ neutral :class:<code>DispatchResult</code> into the view-layer contract: a RETRI
 resolved nothing raises :exc:<code>~rest_framework.exceptions.NotFound</code>, unless the
 spec sets <code>allow_none=True</code> (then <code>None</code>, and the retrieve views render
 200 + JSON <code>null</code>). <code>SelectorKind.LIST</code> returns the shaped queryset.</p>
-<p>⚠ <strong><code>argument_binding=BUNDLE</code> is what keeps HTTP semantics.</strong> Off HTTP the
-flat <code>params</code> mapping <em>is</em> the argument channel, so a selector spreads it
-(<code>SPREAD_AUTHOR_WINS</code>). Over HTTP it is not: a selector's kwargs come from
-route captures plus the hook chain, and the query string belongs to
-<code>filter_set</code> / the filter backends (see the filtering note in
-<code>CLAUDE.md</code>). <code>BUNDLE</code> spreads nothing, so passing <code>query_params</code> here
-feeds the filter without widening the argument channel — the difference
-between the transports is expressed as the policy it already is, rather than
-as a second pipeline.</p>
+<p><strong><code>argument_binding=BUNDLE</code> is what keeps HTTP semantics.</strong> Off HTTP the
+flat <code>params</code> mapping <em>is</em> the argument channel; over HTTP a selector's
+kwargs come from route captures plus the hook chain, and the query string
+belongs to <code>filter_set</code> / the filter backends. <code>BUNDLE</code> spreads nothing,
+so passing <code>query_params</code> feeds the filter without widening the argument
+channel.</p>
 <p>There is deliberately no <code>extra_url_kwargs</code> parameter: the core reads
 <code>view.kwargs</code> itself via <code>view_url_kwargs</code>, which <strong>strips the reserved
-pool seeds</strong>. That strip is the point — the previous view-local pool spread
-route captures <em>over</em> <code>base_pool</code>, so a nested route like
-<code>/users/&lt;user&gt;/posts/</code> let the captured value shadow the authenticated
-<code>user</code>. Taking the mapping from the caller would reopen it, and every call
-site passed <code>view.kwargs</code> verbatim anyway.</p>
-<p>The caller must check <code>spec.selector is not None</code> before calling and fall
-back to vanilla DRF otherwise.</p>
+pool seeds</strong>, so a nested route like <code>/users/&lt;user&gt;/posts/</code> cannot let the
+captured value shadow the authenticated <code>user</code>. Taking the mapping from a
+caller would reopen that.</p>
+<p>The caller must check <code>spec.selector is not None</code> first and fall back to
+vanilla DRF otherwise.</p>
 
 
     </div>

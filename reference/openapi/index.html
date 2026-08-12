@@ -1596,40 +1596,30 @@ classes that set <code>schema = ...</code> explicitly keep their own choice.</p>
 
 
         <p><code>AutoSchema</code> that derives its request / response from a <code>ServiceSpec</code>.</p>
-<p>For mutation surfaces (standalone <code>Service*View</code> classes, the
+<p>On mutation surfaces (standalone <code>Service*View</code> classes, the
 <code>ServiceViewSet</code> action mixins, and <code>@service_action</code>):</p>
 <ul>
-<li>Request body is derived from <code>spec.input_serializer</code> (a bare
-  dataclass is auto-wrapped in :class:<code>DataclassSerializer</code>).</li>
-<li>Response body for the success status is derived from
-  <code>spec.output_selector_spec.output_serializer</code> (or rendered as a
-  no-content response when unset and the action's default status is 204).</li>
-<li>A <code>422</code> response documenting :class:<code>ServiceErrorSerializer</code> is
-  attached when the operation can surface a <code>ServiceError</code>. By default
-  that is gated on whether the operation validates input
-  (<code>spec.input_serializer is not None</code>), so a no-input mutation (e.g. a
-  plain delete) carries no spurious 422; <code>spec.document_service_error</code>
-  forces the decision either way.</li>
-<li>Partial-update actions instantiate the request serializer with
-  <code>partial=True</code> so optional-on-PATCH semantics show up correctly.
-  <code>spec.partial</code> overrides the action-derived flag with the same
-  precedence the runtime dispatch applies: <code>partial=True</code> documents a
-  partial body on any verb, <code>partial=False</code> keeps the full-update
-  schema (required fields intact) even under PATCH.</li>
+<li>Request body from <code>spec.input_serializer</code>, a bare dataclass being
+  auto-wrapped in :class:<code>DataclassSerializer</code>, built with whatever partial
+  flag <code>spec.partial</code> resolves to so the documented body matches what
+  actually validates.</li>
+<li>Success response from <code>spec.output_selector_spec.output_serializer</code>, or
+  a no-content response when that is unset and the action's default status
+  is 204.</li>
+<li>A <code>422</code> documenting :class:<code>ServiceErrorSerializer</code>, as
+  <code>spec.document_service_error</code> gates it.</li>
 </ul>
 <p>Read surfaces (<code>Selector*View</code> and the read-side action mixins) lean on
-the base <code>AutoSchema</code> for their body: the <code>output_serializer</code> is
-already wired through <code>get_serializer_class()</code> and that's what
-drf-spectacular reads natively. The one addition is
-:meth:<code>_get_filter_parameters</code>, which contributes the query parameters for
-a <code>SelectorSpec.filter_set</code> — the FilterSet the selector carries on the
-spec instead of on the view — so moving a FilterSet from a view-level
-<code>filterset_class</code> + <code>DjangoFilterBackend</code> onto <code>spec.filter_set</code>
-leaves the generated OpenAPI unchanged.</p>
-<p>User-supplied <code>@extend_schema</code> annotations always win — they're
-consulted upstream of <code>get_request_serializer</code> / <code>get_response_serializers</code>,
-and <code>@extend_schema(parameters=...)</code> overrides merge over the filter
-parameters exactly as they do for a view-level FilterSet.</p>
+the base <code>AutoSchema</code> for their body: <code>output_serializer</code> is already
+wired through <code>get_serializer_class()</code>, which is what drf-spectacular
+reads natively. The one addition is :meth:<code>_get_filter_parameters</code>,
+contributing the query parameters for a <code>SelectorSpec.filter_set</code>, so
+moving a FilterSet from a view-level <code>filterset_class</code> +
+<code>DjangoFilterBackend</code> onto <code>spec.filter_set</code> leaves the generated
+OpenAPI unchanged.</p>
+<p>User-supplied <code>@extend_schema</code> annotations always win, and
+<code>@extend_schema(parameters=...)</code> merges over the filter parameters exactly
+as it does for a view-level FilterSet.</p>
 
 
 

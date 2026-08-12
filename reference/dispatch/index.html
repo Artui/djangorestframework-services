@@ -3177,54 +3177,354 @@ one on the same result.</p>
     <div class="doc doc-contents first">
 
         <p>Execute <code>spec</code> without a DRF view, returning a :class:<code>DispatchResult</code>.</p>
-<p>The single transport-neutral execution path: an HTTP view, the MCP server,
-or any other caller hands the <strong>flat</strong> <code>params</code> mapping (the role
-<code>request.data</code> / <code>query_params</code> / URL kwargs play on HTTP) plus the
-acting <code>user</code>, and gets back the resolved domain value to format for its
-wire. Composes the blessed dispatch leaves; no pagination, ordering, or
-output rendering happens here (those are transport concerns — render the
-result with :func:<code>~rest_framework_services.render_spec_output</code>).</p>
+<p>The single transport-neutral execution path: a caller hands the <strong>flat</strong>
+<code>params</code> mapping (the role <code>request.data</code> / <code>query_params</code> / URL
+kwargs play on HTTP) plus the acting <code>user</code>, and gets back the resolved
+domain value to format for its wire. No pagination, ordering, or output
+rendering happens here — those are transport concerns; render the result
+with :func:<code>~rest_framework_services.render_spec_output</code>.</p>
 <ul>
 <li>A :class:<code>ServiceSpec</code> runs the mutation flow: resolve the target via
   <code>instance_selector_spec</code> (from <code>params</code>) → validate <code>input_serializer</code>
   → run the service → re-fetch through <code>output_selector_spec</code> → result.
   A missing instance yields <code>kind="not_found"</code>.</li>
 <li>A :class:<code>SelectorSpec</code> runs the read flow: invoke the selector → apply
-  queryset shaping (<code>select_related</code> … <code>filter_set</code>, with <code>params</code> as
-  the filter data) → for <code>RETRIEVE</code> materialize via <code>.first()</code> and honour
-  <code>allow_none</code> / not-found; <code>LIST</code> returns the shaped + filtered queryset.</li>
+  queryset shaping (<code>select_related</code> … <code>filter_set</code>) → for <code>RETRIEVE</code>
+  materialize via <code>.first()</code> and honour <code>allow_none</code> / not-found;
+  <code>LIST</code> returns the shaped + filtered queryset.</li>
 </ul>
-<p><code>request</code> / <code>view</code> are optional and only forwarded to user callables
-that declare them (<code>extend_queryset</code>, the context providers, <code>kwargs</code>);
-a pure non-HTTP caller passes neither. The <code>view</code>'s <code>kwargs</code> (a route's
-captures, seeded by <code>build_offline_context(kwargs=…)</code>) are additionally
-<strong>spread into the selector / target pools</strong> — the off-HTTP counterpart of the
-HTTP <code>extra_url_kwargs=view.kwargs</code>, authoritative over <code>params</code> on a
-conflict, below the <code>spec.kwargs</code> provider — so a selector reading a URL
-kwarg from its extras works off-HTTP. <code>success_status</code> overrides the
-mutation status hint (else <code>spec.success_status</code> or <code>200</code>).</p>
-<p>Three caller-side policies tune how the wire maps onto the spec; the
-defaults reproduce the pre-policy behaviour exactly:</p>
-<ul>
-<li><code>argument_binding</code> (:class:<code>ArgumentBinding</code>) — whether client input
-  lands as a single <code>data</code> bundle or is spread as individual kwargs, and
-  how it ranks against the author's <code>kwargs</code>. <code>AUTO</code> resolves per spec
-  type (service → bundle, selector → spread).</li>
-<li><code>unknown_arguments</code> (:class:<code>UnknownArguments</code>) — strictness about
-  <code>params</code> keys outside the spec's declared set: <code>IGNORE</code> (drop),
-  <code>REJECT</code> (raise), <code>PASSTHROUGH</code> (forward to the callable).</li>
-<li><code>on_target_resolved</code> (:class:<code>TargetGuard</code>) — a hook invoked with the
-  resolved mutation target before the service runs. Pass
-  :func:<code>~rest_framework_services.enforce_permissions</code> directly to enforce
-  object-level permissions; <code>dispatch_spec</code> itself stays authz-agnostic.</li>
-</ul>
-<p>On a <code>many=True</code> bulk spec <code>unknown_arguments</code> is honoured <strong>per list
-element</strong> (<code>REJECT</code> raises on the first item with an undeclared key,
-<code>PASSTHROUGH</code> folds each item's extras into its data, <code>IGNORE</code> drops
-them). <code>argument_binding</code> has no meaning there — the service receives the
-whole list as one <code>data</code> argument, so there is nothing to spread — and a
-non-default binding with <code>many=True</code> raises <code>ValueError</code> rather than
-being silently ignored.</p>
+<p>Every argument below the acting user is optional, and the defaults reproduce
+the pre-policy behaviour exactly.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>spec</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.service_spec.ServiceSpec)" href="../types/#rest_framework_services.types.service_spec.ServiceSpec">ServiceSpec</a>[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>] | <a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.selector_spec.SelectorSpec)" href="../types/#rest_framework_services.types.selector_spec.SelectorSpec">SelectorSpec</a>[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The :class:<code>ServiceSpec</code> or :class:<code>SelectorSpec</code> to execute.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>user</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The acting user, seeded into every callable's pool.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>params</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | <span title="list">list</span>[<span title="typing.Any">Any</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The flat client input — a list on a <code>many=True</code> spec.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>request</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded only to user callables that declare it
+(<code>extend_queryset</code>, the context providers, <code>kwargs</code>); a pure
+non-HTTP caller passes neither this nor <code>view</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>view</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>As <code>request</code>, plus its <code>kwargs</code> (a route's captures, seeded by
+<code>build_offline_context(kwargs=…)</code>) are <strong>spread into the selector /
+target pools</strong> — the off-HTTP counterpart of the HTTP
+<code>extra_url_kwargs=view.kwargs</code>, authoritative over <code>params</code> on a
+conflict, below the <code>spec.kwargs</code> provider.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>success_status</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Overrides the mutation status hint (else
+<code>spec.success_status</code>, else <code>200</code>).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>argument_binding</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="ArgumentBinding (rest_framework_services.types.argument_binding.ArgumentBinding)" href="#rest_framework_services.types.argument_binding.ArgumentBinding">ArgumentBinding</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether client input lands as a single <code>data</code> bundle
+or is spread as individual kwargs, and how it ranks against the
+author's <code>kwargs</code>. <code>AUTO</code> resolves per spec type (service →
+bundle, selector → spread). Meaningless on a <code>many=True</code> spec —
+the service receives the whole list as one <code>data</code> argument — where
+a non-default value raises <code>ValueError</code> rather than being ignored.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="rest_framework_services.types.argument_binding.ArgumentBinding.AUTO">AUTO</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>unknown_arguments</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="UnknownArguments (rest_framework_services.types.unknown_arguments.UnknownArguments)" href="#rest_framework_services.types.unknown_arguments.UnknownArguments">UnknownArguments</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Strictness about <code>params</code> keys outside the spec's
+declared set: <code>IGNORE</code> (drop), <code>REJECT</code> (raise), <code>PASSTHROUGH</code>
+(forward to the callable). Honoured <strong>per list element</strong> on a
+<code>many=True</code> spec.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="rest_framework_services.types.unknown_arguments.UnknownArguments.IGNORE">IGNORE</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>on_target_resolved</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="TargetGuard (rest_framework_services.types.target_guard.TargetGuard)" href="#rest_framework_services.types.target_guard.TargetGuard">TargetGuard</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Hook invoked with the resolved mutation target before
+the service runs. Pass
+:func:<code>~rest_framework_services.enforce_permissions</code> directly for
+object-level permissions; the core itself stays authz-agnostic.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>progress</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="ProgressReporter (rest_framework_services.types.progress_reporter.ProgressReporter)" href="../types/#rest_framework_services.types.progress_reporter.ProgressReporter">ProgressReporter</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The transport's own progress sink, fanned together with the one
+<code>spec.progress_reporter</code> declares.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>view_hooks</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="ViewHooks
+
+
+  
+      dataclass
+   (rest_framework_services.types.view_hooks.ViewHooks)" href="#rest_framework_services.types.view_hooks.ViewHooks">ViewHooks</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The calling DRF view's resolved hook-chain layers. HTTP-only.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A target the caller resolved itself, skipping
+<code>instance_selector_spec</code>. <code>None</code> is a <em>supplied</em> value (a
+create), which is why the default is a sentinel.</p>
+              </div>
+            </td>
+            <td>
+                  <code><span title="rest_framework_services.types.unset.UNSET">UNSET</span></code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>filter_data</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The data the <code>filter_set</code> reads, on both spec kinds — a
+selector's own filtering and a service's output-selector re-fetch.
+Only meaningful when <code>params</code> is not the filter source: off HTTP
+one flat mapping is usually both, so this stays <code>None</code>, whereas
+over HTTP the body validates and the <strong>query string</strong> filters, and
+merging them would let a query parameter satisfy a serializer field.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>The</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="DispatchResult
+
+
+  
+      dataclass
+   (rest_framework_services.types.dispatch_result.DispatchResult)" href="#rest_framework_services.types.dispatch_result.DispatchResult">DispatchResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>class:<code>DispatchResult</code> — value, <code>kind</code>, status, and on the</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="DispatchResult
+
+
+  
+      dataclass
+   (rest_framework_services.types.dispatch_result.DispatchResult)" href="#rest_framework_services.types.dispatch_result.DispatchResult">DispatchResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>mutation path the service's own return, resolved instance and data.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>spec</code> is neither a <code>ServiceSpec</code> nor a <code>SelectorSpec</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -3264,12 +3564,10 @@ being silently ignored.</p>
     <div class="doc doc-contents first">
 
         <p>Async :func:<code>~rest_framework_services.dispatch_spec</code>.</p>
-<p>Same contract, :class:<code>DispatchResult</code> shape, and <code>argument_binding</code> /
-<code>unknown_arguments</code> / <code>on_target_resolved</code> policies; async selectors /
-services are awaited and sync ones run in Django's thread-sensitive executor
-so the ORM stays safe off the event loop. A <code>LIST</code> result is returned as
-the (lazy) shaped queryset — the async transport materializes / paginates it
-in a thread, exactly as on the sync path.</p>
+<p>Identical contract, arguments, policies and :class:<code>DispatchResult</code> shape —
+see the sync twin. What differs is only the execution model: async selectors
+and services are awaited, and sync ones run in Django's thread-sensitive
+executor so the ORM stays safe off the event loop.</p>
 <p>That rule covers <strong>every</strong> callable a spec carries, not just the selector /
 service: <code>kwargs</code> providers, <code>extend_queryset</code>, <code>filter_set</code>,
 <code>input_serializer_context</code>, a callable <code>success_status</code>,
@@ -3279,10 +3577,8 @@ executor (see
 can be <code>async def</code> — a spec is written once for both transports — so any
 that queries would otherwise raise <code>SynchronousOnlyOperation</code> here and
 nowhere else.</p>
-<p>As on :func:<code>~rest_framework_services.dispatch_spec</code>, a <code>many=True</code> bulk
-spec honours <code>unknown_arguments</code> per list element and rejects a non-default
-<code>argument_binding</code> (there is no per-item kwarg to spread into a single
-list-payload service call).</p>
+<p>A <code>LIST</code> result comes back as the lazy shaped queryset, for the async
+transport to materialize / paginate in a thread.</p>
 
 
     </div>
@@ -3480,37 +3776,107 @@ domain value — never a paginated page or rendered serializer output —
 because ordering, pagination, and the response envelope are transport
 concerns. Render the value through
 :func:<code>~rest_framework_services.render_spec_output</code>.</p>
-<p>Fields:</p>
-<ul>
-<li><strong><code>value</code></strong> — the resolved value: a single instance (<code>RETRIEVE</code> /
-  mutation result), a queryset / iterable (<code>LIST</code>), or <code>None</code> (a
-  nullable retrieve under <code>allow_none</code>, a missing instance, or a
-  side-effect-only mutation).</li>
-<li><strong><code>kind</code></strong> — one of <code>"instance"</code> (a single value, possibly <code>None</code>),
-  <code>"list"</code> (a collection to order / paginate / render <code>many=True</code>), or
-  <code>"not_found"</code> (a required instance could not be resolved).</li>
-<li><strong><code>status</code></strong> — an HTTP-ish status hint the transport may map to its
-  wire: the spec's success status for mutations, <code>200</code> for reads, <code>404</code>
-  for <code>"not_found"</code>.</li>
-<li><strong><code>service_result</code></strong> — the service's <em>own</em> return value, captured before
-  an <code>output_selector_spec</code> re-fetch replaced it in <code>value</code>. The two
-  differ whenever an output selector runs, and the distinction is
-  load-bearing: the service's return is the <strong>flags carrier</strong> (an upsert
-  DTO's <code>created</code>, a domain outcome enum), which is what a callable
-  <code>success_status</code> and a <code>response_finalizer</code> key on, while <code>value</code> is
-  the thing to render. <code>None</code> on the read path — a selector has no service.</li>
-<li><strong><code>instance</code></strong> — the resolved mutation target: the row an update /
-  destroy acted on, or <code>None</code> on a create, a read, or a bulk path. The core
-  resolves it from <code>instance_selector_spec</code>, so a transport that needs the
-  <em>pre-mutation</em> target (to render it, or to key a decision on it) reads it
-  here rather than resolving a second time and risking a different answer.</li>
-<li><strong><code>data</code></strong> — the validated input (<code>serializer.validated_data</code>), or
-  <code>None</code> when the spec declares no <code>input_serializer</code>. Carried so a
-  transport can key a post-dispatch decision on what was actually validated
-  without re-running the serializer.</li>
-</ul>
-<p>The last two are informational: a transport that only renders reads
-<code>value</code> / <code>kind</code> / <code>status</code> and can ignore them.</p>
+<p><code>instance</code> and <code>data</code> are informational: a transport that only renders
+reads <code>value</code> / <code>kind</code> / <code>status</code> and can ignore them.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.dispatch_result.DispatchResult.value">value</span></code></td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The resolved value — a single instance (<code>RETRIEVE</code> / mutation
+result), a queryset / iterable (<code>LIST</code>), or <code>None</code> (a nullable
+retrieve under <code>allow_none</code>, a missing instance, or a
+side-effect-only mutation).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.dispatch_result.DispatchResult.kind">kind</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>One of <code>"instance"</code> (a single value, possibly <code>None</code>),
+<code>"list"</code> (a collection to order / paginate / render <code>many=True</code>),
+or <code>"not_found"</code> (a required instance could not be resolved).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.dispatch_result.DispatchResult.status">status</span></code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An HTTP-ish status hint the transport may map to its wire: the
+spec's success status for mutations, <code>200</code> for reads, <code>404</code> for
+<code>"not_found"</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.dispatch_result.DispatchResult.service_result">service_result</span></code></td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The service's <em>own</em> return value, captured before an
+<code>output_selector_spec</code> re-fetch replaced it in <code>value</code>. It is the
+<strong>flags carrier</strong> (an upsert DTO's <code>created</code>, a domain outcome
+enum) that a callable <code>success_status</code> and a <code>response_finalizer</code>
+key on, while <code>value</code> is the thing to render. <code>None</code> on the read
+path — a selector has no service.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.dispatch_result.DispatchResult.instance">instance</span></code></td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The resolved mutation target — the row an update / destroy
+acted on, or <code>None</code> on a create, a read, or a bulk path. Resolved
+from <code>instance_selector_spec</code>, so a transport needing the
+<em>pre-mutation</em> target reads it here rather than resolving a second
+time and risking a different answer.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.dispatch_result.DispatchResult.data">data</span></code></td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The validated input (<code>serializer.validated_data</code>), or <code>None</code>
+when the spec declares no <code>input_serializer</code> — so a transport can
+key a post-dispatch decision on what was validated without re-running
+the serializer.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -3576,30 +3942,73 @@ ranks against the spec author's <code>kwargs</code>.</p>
 answers about its wire: <strong>can client-supplied input land as individual
 keyword arguments, and do those override the spec author's <code>kwargs(...)</code>
 invariants?</strong> It is a trust-boundary decision, not plumbing — which is why it
-belongs to the caller rather than the spec.</p>
-<p>Members (the value never appears on a wire — pass the member directly):</p>
-<ul>
-<li><code>AUTO</code> — resolve per spec type to reproduce the pre-policy behaviour:
-  :class:<code>ServiceSpec</code> → <code>BUNDLE</code> (a mutation takes its validated payload
-  as one <code>data</code> bundle), :class:<code>SelectorSpec</code> → <code>SPREAD_AUTHOR_WINS</code> (a
-  read spreads its params so the selector can declare them as parameters).
-  The default.</li>
-<li><code>BUNDLE</code> — only the validated payload reaches the callable, as <code>data=</code>;
-  individual client fields are <strong>not</strong> spread as kwargs. The safe default for
-  a mutation whose <code>kwargs</code> scopes the write — the client cannot inject
-  arbitrary keyword arguments.</li>
-<li><code>SPREAD_AUTHOR_WINS</code> — client fields are spread into the pool as
-  individual kwargs, but <code>spec.kwargs(...)</code> <strong>overrides on conflict</strong>. An
-  author-scoped <code>tenant_id</code> cannot be reset by the client. (drf-mcp's
-  former <code>MERGE</code>.)</li>
-<li><code>SPREAD_CALLER_WINS</code> — like <code>SPREAD_AUTHOR_WINS</code> but the client wins on
-  conflict: <code>spec.kwargs(...)</code> supplies <em>defaults</em> the client may override.
-  (drf-mcp's former <code>REPLACE</code>.)</li>
-</ul>
-<p>Reserved pool seeds (<code>request</code> / <code>user</code> / <code>data</code> / <code>serializer</code> /
-<code>instance</code> / <code>collection</code>) are always stripped from the spread in the
-<code>SPREAD_*</code> modes, so a client cannot poison transport-controlled state by
-naming an argument after one of them.</p>
+belongs to the caller rather than the spec. Pass the member directly; the
+value never appears on a wire. Those reserved seeds are always stripped from
+the spread in the <code>SPREAD_*</code> modes, so a client cannot poison
+transport-controlled state by naming an argument after one of them.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.argument_binding.ArgumentBinding.AUTO">AUTO</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The default — resolve per spec type: :class:<code>ServiceSpec</code> →
+<code>BUNDLE</code> (a mutation takes its validated payload as one <code>data</code>
+bundle), :class:<code>SelectorSpec</code> → <code>SPREAD_AUTHOR_WINS</code> (a read
+spreads its params so the selector can declare them as parameters).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.argument_binding.ArgumentBinding.BUNDLE">BUNDLE</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Only the validated payload reaches the callable, as <code>data=</code>;
+individual client fields are <strong>not</strong> spread as kwargs. The safe
+choice for a mutation whose <code>kwargs</code> scopes the write — the client
+cannot inject arbitrary keyword arguments.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.argument_binding.ArgumentBinding.SPREAD_AUTHOR_WINS">SPREAD_AUTHOR_WINS</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Client fields are spread into the pool as individual
+kwargs, but <code>spec.kwargs(...)</code> <strong>overrides on conflict</strong> — an
+author-scoped <code>tenant_id</code> cannot be reset by the client.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.argument_binding.ArgumentBinding.SPREAD_CALLER_WINS">SPREAD_CALLER_WINS</span></code></td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Like <code>SPREAD_AUTHOR_WINS</code>, but the client wins on
+conflict: <code>spec.kwargs(...)</code> supplies <em>defaults</em> it may override.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -3809,39 +4218,103 @@ once no matter who dispatches.</p>
 configuration surface the core knows nothing about: the <code>get_service_kwargs</code>
 / <code>get_&lt;action&gt;_service_kwargs</code> / <code>get_input_data</code> /
 <code>get_&lt;action&gt;_input_data</code> / <code>get_*_serializer_context</code> chains declared on
-:class:<code>MutationFlowMixin</code> and its viewset mixins. Those are genuinely
-HTTP-shaped — they are methods on a DRF view — so the core cannot resolve
-them, and a caller that resolves them has to be able to hand them over.
-This carrier is that hand-off.</p>
-<p>⚠ <strong>These are the <em>view</em> layers only — never the spec's own providers.</strong>
+:class:<code>MutationFlowMixin</code> and its viewset mixins. Those are methods on a DRF
+view, so the core cannot resolve them; this carrier is how a caller that has
+resolved them hands them over.</p>
+<p><strong>These are the <em>view</em> layers only — never the spec's own providers.</strong>
 Each chain resolves <code>view.get_&lt;x&gt;</code> → <code>view.get_&lt;action&gt;_&lt;x&gt;</code> →
 <code>spec.&lt;x&gt;</code>, spec winning on overlap. <code>dispatch_spec</code> owns that last
 layer, so a caller must pass <code>spec_kwargs=None</code> / <code>spec_provider=None</code>
-when resolving these. Passing the <em>fully</em> resolved chain instead would make
-the core either skip its own spec resolution (a flag nobody would remember)
-or run the spec provider <strong>twice</strong> — and a <code>spec.kwargs</code> doing a tenant
-lookup is not idempotent. Keeping the split here is what lets precedence
-live in exactly one place.</p>
-<p>Four fields rather than one <code>Mapping[str, Any]</code> bag because they are
-consumed at four different points and one of them is not a mapping at all:</p>
-<ul>
-<li><code>extra_kwargs</code> merges into the dispatched callable's pool, beneath
-  <code>spec.kwargs</code>. Named for the chain it belongs to rather than for
-  services, because the same carrier serves the selector chain
-  (<code>get_selector_kwargs</code> / <code>get_&lt;action&gt;_selector_kwargs</code>) — only the
-  view-method names differ, not the layering.</li>
-<li><code>input_data</code> merges onto the client payload <em>before</em> validation,
-  beneath <code>spec.input_data</code>; server-provided keys win over the client's.</li>
-<li><code>input_serializer_context</code> layers onto the baseline serializer context
-  (:func:<code>base_serializer_context</code>), beneath <code>spec.input_serializer_context</code>.</li>
-<li><code>output_serializer_context</code> is <strong>lazy</strong> — a callable taking the final
-  post-selector <code>result</code> and returning the context — because the output
-  context provider is documented to see the exact instance being serialized,
-  which does not exist until after the service and output selector have run.</li>
-</ul>
+when resolving these; hand over the <em>fully</em> resolved chain instead and the
+core runs the spec provider <strong>twice</strong>, which a <code>spec.kwargs</code> doing a
+tenant lookup will not survive.</p>
 <p>Every field defaults to <code>None</code> (contributes nothing), so a transport with
 no view — MCP, an agent toolset, a management command — simply omits the
 argument and the core behaves exactly as it did before this existed.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.view_hooks.ViewHooks.extra_kwargs">extra_kwargs</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Merges into the dispatched callable's pool, beneath
+<code>spec.kwargs</code>. The same carrier serves the selector chain
+(<code>get_selector_kwargs</code> / <code>get_&lt;action&gt;_selector_kwargs</code>) — only
+the view-method names differ, not the layering.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.view_hooks.ViewHooks.input_data">input_data</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Merges onto the client payload <em>before</em> validation, beneath
+<code>spec.input_data</code>; server-provided keys win over the client's.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.view_hooks.ViewHooks.input_serializer_context">input_serializer_context</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Layers onto the baseline serializer context
+(:func:<code>base_serializer_context</code>), beneath
+<code>spec.input_serializer_context</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.view_hooks.ViewHooks.output_serializer_context">output_serializer_context</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><strong>Lazy</strong> — a callable taking the final
+post-selector <code>result</code> and returning the context — because the
+output context provider is documented to see the exact instance
+being serialized, which does not exist until after the service and
+output selector have run.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.view_hooks.ViewHooks.progress">progress</span></code></td>
+            <td>
+                  <code><span title="typing.Any">Any</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The view's own progress sink, resolved for both chains — a
+selector can be long too (a large export is a selector). Reach for it
+only when a buffered request genuinely needs it: if a request runs
+long enough to want progress, a task plus polling is usually the right
+shape, and this seam is for the cases where that does not apply (a
+streaming response, or a websocket sidecar the host already runs).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -3934,53 +4407,191 @@ providers) that declare them, and :func:<code>~rest_framework_services.enforce_p
 needs a request + view to evaluate <code>permission_classes</code>. This synthesizes
 both so a spec written for the HTTP transport keeps working when driven from
 a Pydantic-AI toolset, the MCP server, a management command, or a task runner.</p>
-<ul>
-<li><code>user</code> is set on the synthetic request (<code>request.user</code>) so callables
-  and permissions that read it behave as on HTTP.</li>
-<li><code>params</code> seeds <code>request.data</code> for callables that read it. It is <em>not</em>
-  validated here — that is :func:<code>dispatch_spec</code>'s job, which takes <code>params</code>
-  directly and never touches <code>request.data</code>. Pass the same value to both.
-  Seeded into DRF's parsed-data cache directly: <code>params</code> is already
-  structured, so there is nothing to parse and a synthetic request has no
-  WSGI stream to read.</li>
-<li><code>http_request</code> is wrapped when supplied (e.g. the MCP server passes its
-  real Django request so headers / <code>META</code> are available); otherwise an
-  :class:<code>~rest_framework_services.OfflineHttpRequest</code> is created. The method
-  is forced to <code>POST</code> because mutation callables often branch on it.</li>
-<li><code>host</code> gives the synthesized request an origin, so <code>build_absolute_uri</code>
-  — which DRF's <code>FileField</code> / <code>HyperlinkedIdentityField</code> call whenever a
-  <code>request</code> is in the serializer context — returns real absolute URLs off
-  the HTTP path. Accepts <code>"example.com"</code>, <code>"example.com:8000"</code>, or a full
-  origin like <code>"https://example.com"</code> (the scheme sets whether links are
-  https). There is no default: only the project knows its public origin, and
-  guessing one — the first <code>ALLOWED_HOSTS</code> entry, say, which is an
-  <em>authorization</em> list and is routinely a wildcard or an internal load-balancer
-  name — would emit confidently-wrong links. Left unset, absolute-URI building
-  degrades to returning the relative URL rather than raising; see
-  :class:<code>~rest_framework_services.OfflineHttpRequest</code>. <strong>Ignored when
-  <code>http_request</code> is supplied</strong> — a real request's own headers are
-  authoritative (configure Django's <code>USE_X_FORWARDED_HOST</code> if it sits behind
-  a proxy), which lets a caller pass both unconditionally: the ambient request
-  when there is one, this host when there isn't.</li>
-<li><code>query_params</code> seeds the request's <code>GET</code> :class:<code>~django.http.QueryDict</code>
-  — the source <code>request.query_params</code> reads. This is how read-shaping params
-  that aren't spec inputs reach the serializer over the offline path:
-  drf-services' own <code>SelectorSpec.filter_set</code> (otherwise dead off-HTTP), and
-  any serializer that branches on <code>request.query_params</code> (django-restql field
-  selection, custom serializers). Values are stringified as on HTTP; a list /
-  tuple value becomes a multi-valued param (<code>getlist</code>). Defaults to empty →
-  no behaviour change. When both <code>query_params</code> and <code>http_request</code> are
-  given, this <strong>replaces</strong> the wrapped request's <code>GET</code>.</li>
-<li><code>action</code> / <code>kwargs</code> populate the :class:<code>OfflineServiceView</code>.
-  <code>kwargs</code> is the off-HTTP counterpart of a view's URL captures (the
-  <code>parent_pk</code> of a nested route): it is <strong>the</strong> channel for route-derived
-  values, and :func:<code>dispatch_spec</code> spreads it into the selector / target
-  pools exactly where the HTTP path spreads <code>extra_url_kwargs=view.kwargs</code>
-  — authoritative over <code>params</code> on a key conflict, below a <code>spec.kwargs</code>
-  provider. A <code>spec.kwargs</code> provider that reads <code>view.kwargs</code> (e.g. to
-  scope by tenant) also sees it here. Pass every route capture a spec depends
-  on; it defaults to <code>{}</code> (no URL context).</li>
-</ul>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>user</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Set as <code>request.user</code>, so callables and permissions that read it
+behave as on HTTP.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>params</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | <span title="list">list</span>[<span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Seeds <code>request.data</code>, straight into DRF's parsed-data cache (a
+synthetic request has no stream to parse). It is <em>not</em> validated
+here — that is :func:<code>dispatch_spec</code>'s job, which takes <code>params</code>
+directly and never touches <code>request.data</code>. Pass both the same value.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>http_request</code>
+            </td>
+            <td>
+                  <code><span title="django.http.HttpRequest">HttpRequest</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An ambient Django request to wrap, so its headers /
+<code>META</code> are available (the MCP server passes its real one);
+otherwise an :class:<code>~rest_framework_services.OfflineHttpRequest</code> is
+created. Either way the method is forced to <code>POST</code>, because
+mutation callables often branch on it.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>action</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The view action name, exposed on the :class:<code>OfflineServiceView</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>kwargs</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><strong>The</strong> channel for route-derived values — the off-HTTP
+counterpart of a view's URL captures. :func:<code>dispatch_spec</code> spreads
+it into the selector / target pools exactly where the HTTP path
+spreads <code>extra_url_kwargs=view.kwargs</code>: authoritative over
+<code>params</code> on a key conflict, below a <code>spec.kwargs</code> provider, which
+also sees it as <code>view.kwargs</code>. Pass every route capture a spec
+depends on.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>query_params</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Seeds the request's <code>GET</code>
+:class:<code>~django.http.QueryDict</code>, the source <code>request.query_params</code>
+reads — how read-shaping params that are not spec inputs reach the
+serializer offline (<code>SelectorSpec.filter_set</code>, a serializer
+branching on <code>query_params</code>). Values are stringified as on HTTP; a
+list / tuple becomes a multi-valued param. <strong>Replaces</strong> a wrapped
+<code>http_request</code>'s <code>GET</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>host</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The origin the synthesized request reports, so
+<code>build_absolute_uri</code> — which DRF's <code>FileField</code> /
+<code>HyperlinkedIdentityField</code> call whenever a <code>request</code> is in the
+serializer context — returns real absolute URLs off HTTP. Accepts
+<code>"example.com"</code>, <code>"example.com:8000"</code>, or a full origin whose
+scheme decides whether links are https. There is no default: unset,
+absolute-URI building degrades to the relative URL rather than
+raising (see
+:class:<code>~rest_framework_services.OfflineHttpRequest</code>). <strong>Ignored when
+<code>http_request</code> is supplied</strong>, whose own headers are authoritative,
+so a caller can pass both unconditionally.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>The</code></td>            <td>
+                  <code><a class="autorefs autorefs-internal" title="OfflineContext
+
+
+  
+      dataclass
+   (rest_framework_services.types.offline_context.OfflineContext)" href="../types/#rest_framework_services.types.offline_context.OfflineContext">OfflineContext</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>class:<code>OfflineContext</code> to hand to <code>dispatch_spec</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -4309,36 +4920,152 @@ open transaction the same one the inner async DB calls use.</p>
     <div class="doc doc-contents first">
 
         <p>Construct + validate the bound input serializer; <code>None</code> if absent.</p>
-<p><code>input_serializer</code> may be:</p>
-<ul>
-<li>a bare dataclass type — wrapped in a <code>DataclassSerializer</code> on the fly;
-  <code>validated_data</code> is a dataclass instance;</li>
-<li>a <code>DataclassSerializer</code> subclass — instantiated directly;
-  <code>validated_data</code> is a dataclass instance;</li>
-<li>any other <code>Serializer</code> subclass (e.g. <code>ModelSerializer</code>) —
-  instantiated directly; <code>validated_data</code> is a <code>dict</code>.</li>
-</ul>
-<p><code>extra_data</code> (when supplied) is merged on top of <code>request.data</code>
-before the serializer instantiates — server-provided keys win on
-overlap. This is the seam used by the <code>input_data</code> resolver chain
-to lift URL kwargs into serializer input. A form-encoded / multipart
-body arrives as a <code>QueryDict</code> (<code>{key: [values]}</code> internally), so the
-merge goes through :func:<code>~rest_framework_services.dispatch.apply_input_data.apply_input_data</code>,
-which owns the QueryDict handling that keeps scalars from flattening into
-one-element lists.</p>
-<p><code>context</code> (when supplied) is forwarded to the serializer's <code>context=</code>
-kwarg so DRF-style <code>self.context["request"]</code> / <code>["view"]</code> lookups
-work inside validators and fields.</p>
-<p><code>instance</code> (when supplied) is the resolved mutation target on
-update / destroy flows. The serializer is constructed DRF-style —
-<code>serializer(instance, data=data, partial=partial)</code> — so
-<code>self.instance</code> is populated inside <code>validate()</code> / field validators
-and instance-aware validators (e.g. <code>UniqueValidator</code> excluding the
-current row) behave as they do under DRF's own update flow.</p>
-<p><code>many</code> (when <code>True</code>) validates <code>data</code> as a list — the bulk
-list-payload path; <code>validated_data</code> is then a list of items.</p>
-<p>The serializer is returned validated (<code>is_valid(raise_exception=True)</code>
-has run) but never saved; the service owns persistence.</p>
+<p>The serializer is returned validated (<code>is_valid(raise_exception=True)</code> has
+run) but never saved; the service owns persistence.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>request</code>
+            </td>
+            <td>
+                  <code><span title="rest_framework.request.Request">Request</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The request whose <code>data</code> is validated.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>input_serializer</code>
+            </td>
+            <td>
+                  <code><span title="type">type</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A bare dataclass type (wrapped in a
+<code>DataclassSerializer</code> on the fly), a <code>DataclassSerializer</code>
+subclass, or any other <code>Serializer</code> subclass such as
+<code>ModelSerializer</code>. The first two produce a dataclass instance as
+<code>validated_data</code>, the third a <code>dict</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>partial</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Validate partially, as DRF's <code>serializer(partial=…)</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>extra_data</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Merged on top of <code>request.data</code> before the serializer is
+constructed, server-provided keys winning on overlap — the seam the
+<code>input_data</code> resolver chain uses to lift URL kwargs into serializer
+input. The merge goes through
+:func:<code>~rest_framework_services.dispatch.apply_input_data.apply_input_data</code>,
+which keeps a form-encoded / multipart <code>QueryDict</code>'s scalars from
+flattening into one-element lists.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>context</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded to the serializer's <code>context=</code> so DRF-style
+<code>self.context["request"]</code> / <code>["view"]</code> lookups work inside
+validators and fields.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The resolved mutation target on update / destroy flows. The
+serializer is constructed DRF-style, so <code>self.instance</code> is
+populated inside <code>validate()</code> / field validators and
+instance-aware validators (<code>UniqueValidator</code> excluding the current
+row) behave as under DRF's own update flow.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>many</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Validate <code>data</code> as a list — the bulk list-payload path;
+<code>validated_data</code> is then a list of items.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -4369,11 +5096,10 @@ has run) but never saved; the service owns persistence.</p>
 
         <p>Construct + validate the bound input serializer from a raw <code>data</code> dict.</p>
 <p>The transport-neutral core of :func:<code>build_input_serializer</code>: it takes the
-input <code>data</code> directly instead of reaching into a DRF <code>request.data</code>, so
-a non-HTTP caller (<code>dispatch_spec</code>) and the HTTP view path share one
+input <code>data</code> directly instead of reaching into a DRF <code>request.data</code>, so a
+non-HTTP caller (<code>dispatch_spec</code>) and the HTTP view path share one
 validation implementation. See :func:<code>build_input_serializer</code> for the
-<code>input_serializer</code> / <code>partial</code> / <code>context</code> / <code>instance</code> / <code>many</code>
-semantics.</p>
+remaining parameter semantics.</p>
 
 
     </div>
@@ -4403,9 +5129,9 @@ semantics.</p>
     <div class="doc doc-contents first">
 
         <p>Validate <code>request.data</code> against <code>input_serializer</code>; <code>None</code> if absent.</p>
-<p>Thin wrapper over :func:<code>build_input_serializer</code> (see there for the
-parameter semantics) returning only <code>validated_data</code> — kept for
-callers that don't need the bound serializer itself.</p>
+<p>Thin wrapper over :func:<code>build_input_serializer</code> (see there for the parameter
+semantics) returning only <code>validated_data</code>, for callers that don't need the
+bound serializer itself.</p>
 
 
     </div>
@@ -4427,24 +5153,139 @@ callers that don't need the bound serializer itself.</p>
     <div class="doc doc-contents first">
 
         <p>Resolve the mutation target, or defer to the core.</p>
-<p>Three outcomes:</p>
-<ul>
-<li><code>None</code> for a <strong>bulk</strong> spec (<code>many=True</code> or a <code>collection_selector_spec</code>):
-  there is no single instance, and the <code>get_object()</code> lookup would 404 a
-  body-only bulk endpoint.</li>
-<li>:data:<code>UNSET</code> when the spec carries an <code>instance_selector_spec</code> — <em>the
-  core resolves it</em>. <code>dispatch_spec</code> already does this for every other
-  transport, with the right kwarg pool, the right error label
-  (<code>ServiceSpec.instance_selector_spec.selector</code>), and the reserved-seed
-  strip; resolving it a second time here only created a path that could
-  drift from it. Object permissions still run — the core fires
-  <code>on_target_resolved</code> against the resolved target, and the HTTP caller
-  passes :func:<code>check_view_object_permissions</code>.</li>
-<li>the view's <code>get_object()</code> chain otherwise (an <code>action_specs["retrieve"]</code>
-  selector via :class:<code>SelectorRetrieveMixin</code>, else DRF's default <code>queryset</code>
-  / <code>lookup_field</code> lookup, else a user <code>get_object()</code> override). This is
-  the one branch that is genuinely HTTP-only and so cannot move.</li>
-</ul>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>None</code> for a <strong>bulk</strong> spec (<code>many=True</code> or a</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>collection_selector_spec</code>): there is no single instance, and the</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>get_object()</code> lookup would 404 a body-only bulk endpoint.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>data:<code>UNSET</code> when the spec carries an <code>instance_selector_spec</code> — *the</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>core resolves it*, with the right kwarg pool, error label, and</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>reserved-seed strip. Object permissions still run: the core fires</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>on_target_resolved</code> against the resolved target and the HTTP caller</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td><code>passes</code></td>            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>func:<code>check_view_object_permissions</code>. Otherwise the view's</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>get_object()</code> chain (an <code>action_specs["retrieve"]</code> selector via</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>class:<code>SelectorRetrieveMixin</code>, else DRF's <code>queryset</code> /</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>lookup_field</code> lookup, else a user override) — the one branch that is</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td></td>            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>genuinely HTTP-only and so cannot move.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -4515,14 +5356,10 @@ callers that don't need the bound serializer itself.</p>
     <div class="doc doc-contents first">
 
         <p>True for Django <code>QuerySet</code> objects and <code>Manager</code> instances.</p>
-<p>These are the queryset-shaping targets: the things the four shaping
-fields can be applied to, and the things a RETRIEVE selector / output
-selector should be materialized from via <code>.first()</code>. Centralizes the
-"is this a queryset?" decision so the selector and mutation dispatch
-paths agree on one definition instead of duck-typing on a method name
-(<code>hasattr(..., "first")</code>), which would also match an unrelated domain
-object that happens to expose <code>first</code>. <code>QuerySet</code> subclasses
-(<code>.values()</code>, <code>.values_list()</code>, polymorphic querysets, …) all pass.</p>
+<p>The one definition of a queryset-shaping target: what the shaping fields may
+be applied to, and what a RETRIEVE selector materializes from. Tested by type
+rather than by <code>hasattr(…, "first")</code>, which would also match a domain
+object that happens to expose <code>first</code>. <code>QuerySet</code> subclasses all pass.</p>
 
 
     </div>
@@ -4556,30 +5393,158 @@ object that happens to expose <code>first</code>. <code>QuerySet</code> subclass
     <div class="doc doc-contents first">
 
         <p>Apply the five shaping fields to <code>qs</code>.</p>
-<p>Declarative fields apply first (in declaration order), then
-<code>extend_queryset</code> runs so the user callable always sees the fully
-statically-shaped queryset, and finally <code>filter_set</code> narrows it via the
-transport-neutral <code>filter_set(data=filter_data, queryset=qs).qs</code> contract
-— validated first (see :func:<code>_raise_on_invalid_filter</code>, mirroring
-<code>DjangoFilterBackend</code>'s 400-on-invalid-filter) — so filtering composes with
-shaping and runs before the retrieve <code>.first()</code> materialization the caller
-does next. Returns <code>qs</code> unchanged when no shaping is configured.</p>
-<p>Raises :exc:<code>ImproperlyConfigured</code> when shaping is configured but
-<code>qs</code> is not a Django QuerySet (no <code>annotate</code> method) — loud
-failure beats a stale <code>AttributeError</code> deep in DRF rendering.
-<code>source_label</code> is included in the error to point at the misuse
-(<code>"SelectorSpec.selector"</code> vs <code>"ServiceSpec.output_selector_spec.selector"</code>).</p>
-<p><code>filter_set</code> defaults to <code>None</code> so existing callers of this blessed
-surface keep working unchanged. <code>filter_data</code> is the data the FilterSet
-reads (a flat <code>{field: value}</code> mapping); it defaults to <code>None</code>, in
-which case the value falls back to <code>request.query_params</code> — the HTTP view
-path. A transport-neutral caller (<code>dispatch_spec</code>) passes its own params
-here. <code>request</code> is forwarded into the FilterSet when its constructor
-declares it (see :func:<code>_filter_set_accepts_request</code>), so a request-scoped
-<code>FilterSet</code> sees the same <code>self.request</code> it would behind
-<code>DjangoFilterBackend</code> instead of <code>None</code> — real on the HTTP / MCP paths, a
-faithful-<code>user</code> / -<code>query_params</code> synthetic off-HTTP; a bare
-<code>(data, queryset)</code> stand-in that doesn't declare <code>request</code> is unaffected.</p>
+<p>The order is fixed: the declarative fields first (in declaration order),
+then <code>extend_queryset</code>, so the user callable always sees the fully
+statically-shaped queryset, and finally <code>filter_set</code>, so filtering
+composes with shaping and runs before the retrieve <code>.first()</code>
+materialization the caller does next.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>request</code>
+            </td>
+            <td>
+                  <code><span title="rest_framework.request.Request">Request</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Passed to <code>extend_queryset</code>, and into the <code>filter_set</code>
+constructor when it declares a <code>request</code> parameter — so a
+request-scoped <code>FilterSet</code> sees the same <code>self.request</code> it would
+behind <code>DjangoFilterBackend</code>. A bare <code>(data, queryset)</code> stand-in
+is called exactly as before.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>filter_set</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Applied by duck typing as
+<code>filter_set(data=filter_data, queryset=qs).qs</code>, after validation
+(mirroring <code>DjangoFilterBackend</code>'s 400 on invalid filter input).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>filter_data</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The flat <code>{field: value}</code> mapping the FilterSet reads.
+<code>None</code> falls back to <code>request.query_params</code> — the HTTP view
+path; a transport-neutral caller passes its own params.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>source_label</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Named in the misconfiguration error to point at the
+offending callable (<code>"SelectorSpec.selector"</code> vs
+<code>"ServiceSpec.output_selector_spec.selector"</code>).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The shaped queryset, or <code>qs</code> unchanged when nothing is configured.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="django.core.exceptions.ImproperlyConfigured">ImproperlyConfigured</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Shaping is configured but <code>qs</code> is not a Django
+queryset — loud failure beats a stray <code>AttributeError</code> deep in DRF
+rendering.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="rest_framework.exceptions.ValidationError">ValidationError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>filter_set</code> rejected <code>filter_data</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -4608,15 +5573,11 @@ transport and raises a <code>TypeError</code> over the next.</p>
     <div class="doc doc-contents first">
 
         <p>The seeds every dispatched callable's pool carries, on every transport.</p>
-<p>⚠ <strong>Every</strong> pool — HTTP and off-HTTP both route through here. The two
-view-layer pools used to restate <code>request</code> / <code>user</code> inline, which was
-harmless while the set was two names and stopped being harmless the moment
-it grew: a seed added in one place and not the other means a service that
-declares it works over one transport and raises a <code>TypeError</code> over the
-other.</p>
+<p><strong>Every</strong> pool routes through here, HTTP and off-HTTP alike, so a service
+that declares a seed behaves the same whoever dispatched it. Build a pool
+of your own from this rather than restating the seeds.</p>
 <p><code>progress</code> defaults to :func:<code>null_progress</code> rather than to <code>None</code>, so
-a declared reporter is always callable. See :class:<code>ProgressReporter</code> for
-why that default is load-bearing.</p>
+a declared reporter is always callable — see :class:<code>ProgressReporter</code>.</p>
 
 
     </div>
@@ -4646,7 +5607,7 @@ why that default is load-bearing.</p>
 <p>Seeded by :func:<code>base_pool</code> whenever the caller supplied no reporter, which
 is every HTTP request, every test, and every off-HTTP dispatch from a
 transport that has no progress channel of its own.</p>
-<p>⭐ <strong>The default is what makes the seed usable.</strong> Without it, a service
+<p><strong>The default is what makes the seed usable.</strong> Without it, a service
 declaring <code>progress</code> would work over one transport and raise a
 <code>TypeError</code> over the others, so nobody could declare it in code meant to
 be shared — which is the entire premise of writing a service once. Discarding

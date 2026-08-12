@@ -2705,43 +2705,28 @@ the output serializer. Both fields are optional:</p>
 
 
         <p>Provides <code>_run_mutation</code> for service-backed views and viewset mixins.</p>
-<p>The actual flow lives in :func:<code>dispatch_mutation_for_spec</code> (so
-<code>@service_action</code> can reach it without being a class). This mixin
-is the OO entry point: the per-action mixins (<code>ServiceCreateMixin</code>
-etc.) and the standalone single-purpose views compose it and call
+<p>The flow itself lives in :func:<code>dispatch_mutation_for_spec</code>, so
+<code>@service_action</code> can reach it without being a class; this mixin is the OO
+entry point that the per-action mixins (<code>ServiceCreateMixin</code> and friends)
+and the standalone single-purpose views compose, calling
 <code>self._run_mutation(...)</code> after resolving their per-action spec.</p>
-<p>Three layers contribute extra kwargs to every service call (most specific
-wins):</p>
-<ol>
-<li><code>get_service_kwargs(self)</code> — global fallback on the view.</li>
-<li><code>get_&lt;action&gt;_service_kwargs(self)</code> — per-action override
-   (viewsets only; <code>self.action</code> must be set).</li>
-<li><code>ServiceSpec.kwargs</code> — per-spec callable, co-located with the
-   service it feeds.</li>
-</ol>
-<p>A symmetrical three-layer chain feeds the <em>serializer's</em> input dict
-(merged on top of <code>request.data</code> before validation):</p>
-<ol>
-<li><code>get_input_data(self, request)</code> — global fallback on the view.</li>
-<li><code>get_&lt;action&gt;_input_data(self, request)</code> — per-action override.</li>
-<li><code>ServiceSpec.input_data</code> — per-spec callable.</li>
-</ol>
-<p>Two further three-layer chains feed the <code>context=</code> argument passed to
-the input serializer (during validation) and the output serializer
-(during response rendering):</p>
-<ol>
-<li><code>get_serializer_context(self)</code> — DRF's default
-   (request, view, format).</li>
-<li><code>get_input_serializer_context(self)</code> /
-   <code>get_output_serializer_context(self)</code> — directional fallback;
-   defaults to <code>self.get_serializer_context()</code> so a single
-   <code>get_serializer_context</code> override flows into both directions.</li>
-<li><code>get_&lt;action&gt;_input_serializer_context(self)</code> /
-   <code>get_&lt;action&gt;_output_serializer_context(self)</code> — per-action
-   override (viewsets only; <code>self.action</code> must be set).</li>
-</ol>
-<p>Each layer's result is merged with <code>dict.update</code> so the more specific
-hook wins on overlapping keys.</p>
+<p>Four hook chains feed a mutation, each layered view-wide → per-action →
+per-spec and merged with <code>dict.update</code> so the more specific hook wins on
+overlapping keys:</p>
+<ul>
+<li>extra service kwargs: <code>get_service_kwargs</code> →
+  <code>get_&lt;action&gt;_service_kwargs</code> → :attr:<code>ServiceSpec.kwargs</code>.</li>
+<li>the <em>serializer's</em> input dict, merged on top of <code>request.data</code> before
+  validation: <code>get_input_data</code> → <code>get_&lt;action&gt;_input_data</code> →
+  :attr:<code>ServiceSpec.input_data</code>.</li>
+<li>the input serializer's <code>context=</code>: <code>get_serializer_context</code> (DRF's
+  own) → <code>get_input_serializer_context</code> →
+  <code>get_&lt;action&gt;_input_serializer_context</code> →
+  :attr:<code>ServiceSpec.input_serializer_context</code>.</li>
+<li>the output serializer's <code>context=</code>: the same chain with <code>output</code> in
+  place of <code>input</code>, applied during response rendering.</li>
+</ul>
+<p>The per-action layer reads <code>self.action</code>, so it applies to viewsets only.</p>
 
 
 
@@ -2818,9 +2803,9 @@ hook wins on overlapping keys.</p>
     <div class="doc doc-contents ">
 
         <p>Hook for the <code>context=</code> dict passed to the <em>input</em> serializer.</p>
-<p>Defaults to :meth:<code>get_serializer_context</code> so overriding the
-DRF-standard hook flows into the input-validation path automatically.
-Override here to inject keys visible only during input validation.</p>
+<p>Defaults to :meth:<code>get_serializer_context</code>, so overriding the
+DRF-standard hook flows into input validation automatically; override
+here for keys visible only during input validation.</p>
 
 
     </div>
@@ -2841,10 +2826,9 @@ Override here to inject keys visible only during input validation.</p>
     <div class="doc doc-contents ">
 
         <p>Hook for the <code>context=</code> dict passed to the <em>output</em> serializer.</p>
-<p>Defaults to :meth:<code>get_serializer_context</code> so overriding the
-DRF-standard hook flows into the response-rendering path
-automatically. Override here to inject keys visible only during
-response rendering.</p>
+<p>Defaults to :meth:<code>get_serializer_context</code>, so overriding the
+DRF-standard hook flows into response rendering automatically; override
+here for keys visible only during response rendering.</p>
 
 
     </div>
@@ -2866,9 +2850,8 @@ response rendering.</p>
 
         <p>Honor <code>spec.permission_classes</code> on standalone mutation views.</p>
 <p>Standalone <code>Service*View</code> subclasses carry <code>spec</code> as a class
-attribute. When the spec sets <code>permission_classes</code> it wins over
-the view's class-level <code>permission_classes</code>; <code>None</code> (the default)
-falls through.</p>
+attribute; when it sets <code>permission_classes</code> those win over the view's
+class-level ones, and <code>None</code> falls through.</p>
 
 
     </div>
@@ -3064,24 +3047,77 @@ management command) there is no DRF view, so this frozen value stands in:</p>
     <div class="doc doc-contents ">
 
         <p>Collect the extras that should be merged into a service/selector pool.</p>
-<p>Three layers, applied in order so that the more specific override the
-more general:</p>
-<ol>
-<li><code>view.&lt;catch_all_hook&gt;()</code> — global fallback declared on the view
-   (<code>get_service_kwargs</code> / <code>get_selector_kwargs</code>). No-op when the
-   method is not present.</li>
-<li><code>view.&lt;action_hook&gt;()</code> — per-action method on the view, e.g.
-   <code>get_create_service_kwargs</code> / <code>get_list_selector_kwargs</code>. Skipped
-   when <code>action_hook</code> is <code>None</code> (e.g. on standalone single-purpose
-   views) or the method is absent.</li>
-<li><code>spec_kwargs</code> — per-spec callable from :attr:<code>ServiceSpec.kwargs</code> /
-   :attr:<code>SelectorSpec.kwargs</code>.</li>
-</ol>
-<p>Every layer is invoked through :func:<code>_invoke_provider</code>, so each callable
-receives only the subset of <code>{view, request}</code> it declares (or the whole
-pool via <code>**kwargs</code>) — declare just <code>view</code>, just <code>request</code>, both, or
-neither. Each layer's result is merged with <code>dict.update</code>, so the
-spec-level provider has the final say on any overlapping keys.</p>
+<p>Three layers, merged with <code>dict.update</code> in increasing specificity so the
+spec-level provider has the final say on overlapping keys. Each is invoked
+through the framework's provider convention, receiving only the subset of
+<code>{view, request}</code> it declares (or the whole pool via <code>**kwargs</code>).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>spec_kwargs</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The spec's own :attr:<code>ServiceSpec.kwargs</code> /
+:attr:<code>SelectorSpec.kwargs</code> provider — the most specific layer.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>action_hook</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Per-action view method, e.g. <code>get_create_service_kwargs</code>
+/ <code>get_list_selector_kwargs</code>. <code>None</code> (standalone single-purpose
+views) or an absent method skips the layer.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>catch_all_hook</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>View-wide fallback, e.g. <code>get_service_kwargs</code> /
+<code>get_selector_kwargs</code>. An absent method skips the layer.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -3110,25 +3146,43 @@ spec-level provider has the final say on any overlapping keys.</p>
     <div class="doc doc-contents ">
 
         <p>Collect the extras to merge into the serializer input dict.</p>
-<p>Mirrors :func:<code>resolve_extra_kwargs</code> but for the
-<code>input_serializer</code>-bound data, not the service-call pool. Layers,
-applied in order of increasing specificity (later wins on overlap):</p>
-<ol>
-<li><code>view.&lt;catch_all_hook&gt;</code> — global fallback (<code>get_input_data</code>);
-   typically returns <code>{}</code>.</li>
-<li><code>view.&lt;action_hook&gt;</code> — per-action method on the view
-   (<code>get_&lt;action&gt;_input_data</code>). Skipped when <code>action_hook</code> is
-   <code>None</code> (standalone single-purpose views) or the method is absent.</li>
-<li><code>spec_input_data</code> — per-spec callable from
-   :attr:<code>ServiceSpec.input_data</code>.</li>
-</ol>
-<p>Each layer's result is merged with <code>dict.update</code> so the spec-level
-provider has the final say on overlapping keys.</p>
-<p>Every layer is invoked through :func:<code>_invoke_provider</code>, so a provider
-declares only what it needs from <code>{view, request}</code> plus <code>extras</code> (or
-<code>**kwargs</code>). <code>extras</code> carries the resolved data available before
-validation — currently the mutation target <code>instance</code> (<code>None</code> on
-create) — offered by keyword only when declared.</p>
+<p>:func:<code>resolve_extra_kwargs</code>'s layering — <code>catch_all_hook</code> view method,
+then <code>action_hook</code>, then the spec's :attr:<code>ServiceSpec.input_data</code>
+provider — applied to the <code>input_serializer</code>-bound data rather than the
+service-call pool.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>extras</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The resolved data available before validation — currently the
+mutation target <code>instance</code>, <code>None</code> on create — offered to each
+provider by keyword only when it declares the name.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -3158,21 +3212,61 @@ create) — offered by keyword only when declared.</p>
     <div class="doc doc-contents ">
 
         <p>Layer the directional, action, and spec context hooks onto <code>base</code>.</p>
-<p>Same precedence rules as :func:<code>resolve_serializer_context</code>, but takes
-the layer-1 dict explicitly instead of calling <code>view.get_serializer_context()</code>.
-Used by <code>get_serializer_context()</code> overrides that need to extend
-<code>super().get_serializer_context()</code> without recursing.</p>
-<p><code>direction_hook=None</code> skips the directional layer entirely. The
-canonical use of this is <code>_ActionSpecsMixin.get_serializer_context</code>,
-which can't safely call <code>get_output_serializer_context</code> because the
-default implementation on :class:<code>MutationFlowMixin</code> would recurse
-back into <code>get_serializer_context</code>.</p>
-<p><code>extras</code> carries the resolved data about to be serialized (the
-<code>result</code> of a mutation, the retrieved <code>instance</code>, or the list
-<code>page</code>). Every layer is invoked through :func:<code>_invoke_provider</code>, so a
-provider receives only the subset of <code>{view, request, **extras}</code> it
-declares (or the whole pool via <code>**kwargs</code>). <code>None</code> is treated as an
-empty mapping.</p>
+<p>:func:<code>resolve_serializer_context</code>'s precedence rules with layer 1 handed in
+rather than read from <code>view.get_serializer_context()</code> — for overrides of
+that method which need to extend <code>super()</code>'s result without recursing. See
+there for <code>action_hook</code> / <code>spec_provider</code> / <code>extras</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>base</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The layer-1 context to build on.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>direction_hook</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Directional view hook name; <code>None</code> skips the layer.
+That is what <code>_ActionSpecsMixin.get_serializer_context</code> needs:
+:class:<code>MutationFlowMixin</code>'s default
+<code>get_output_serializer_context</code> would recurse back into
+<code>get_serializer_context</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -3201,30 +3295,95 @@ empty mapping.</p>
     <div class="doc doc-contents ">
 
         <p>Build the serializer context dict for one direction (input or output).</p>
-<p>Four layers, applied in order so that the more specific override the
-more general:</p>
-<ol>
-<li><code>view.get_serializer_context()</code> — DRF's default, available on every
-   :class:<code>~rest_framework.generics.GenericAPIView</code> (returns <code>request</code>,
-   <code>view</code>, <code>format</code>).</li>
-<li><code>view.&lt;direction_hook&gt;()</code> — library directional fallback
-   (<code>get_input_serializer_context</code> / <code>get_output_serializer_context</code>).
-   Skipped when the method is absent, so plain DRF viewsets work unchanged.</li>
-<li><code>view.&lt;action_hook&gt;()</code> — per-action override on the view, e.g.
-   <code>get_create_input_serializer_context</code> /
-   <code>get_list_output_serializer_context</code>. Skipped when <code>action_hook</code>
-   is <code>None</code> (standalone single-purpose views) or the method is absent.</li>
-<li><code>spec_provider(view, request)</code> — per-spec callable from
-   :attr:<code>ServiceSpec.input_serializer_context</code> /
-   :attr:<code>ServiceSpec.output_serializer_context</code> /
-   :attr:<code>SelectorSpec.output_serializer_context</code>. Skipped when <code>None</code>.</li>
-</ol>
-<p>Each layer's result is merged with <code>dict.update</code>, so the spec-level
-provider has the final say on overlapping keys.</p>
-<p><code>extras</code> (the resolved data — <code>result</code> / <code>instance</code> / <code>page</code>)
-is offered to the directional, action, and spec providers by keyword,
-each receiving only the names it declares. See
-:func:<code>layer_serializer_context</code>.</p>
+<p>Four layers, merged with <code>dict.update</code> in increasing specificity so the
+spec-level provider has the final say on overlapping keys:
+<code>view.get_serializer_context()</code> (DRF's own) → <code>view.&lt;direction_hook&gt;()</code>
+→ <code>view.&lt;action_hook&gt;()</code> → <code>spec_provider</code>. An absent view method skips
+its layer, so plain DRF viewsets work unchanged.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>direction_hook</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>get_input_serializer_context</code> /
+<code>get_output_serializer_context</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>action_hook</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Per-action override, e.g.
+<code>get_create_input_serializer_context</code>. <code>None</code> on standalone
+single-purpose views.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>spec_provider</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The spec's own <code>*_serializer_context</code> provider.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>extras</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The resolved data about to be serialized (a mutation's
+<code>result</code>, the retrieved <code>instance</code>, or the list <code>page</code>),
+offered to the last three layers by keyword only when declared.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -3245,9 +3404,8 @@ each receiving only the names it declares. See
     <div class="doc doc-contents ">
 
         <p>Return the named class attribute without instance binding.</p>
-<p>Functions stored as plain class attributes (e.g. <code>service = my_fn</code>)
-would otherwise be wrapped in a bound method when accessed via <code>self</code>.
-Use this helper to retrieve them as the original callable.</p>
+<p>A function stored as a plain class attribute (<code>service = my_fn</code>) would
+otherwise be wrapped in a bound method when read via <code>self</code>.</p>
 
 
     </div>
@@ -3290,13 +3448,12 @@ Otherwise only parameters present in the signature are forwarded.</p>
     <div class="doc doc-contents ">
 
         <p>First progress reporter the view offers: per-action hook, then catch-all.</p>
-<p>Most-specific wins and there is <strong>no merging</strong> — unlike the kwargs and
-context chains, whose layers combine into one mapping. A reporter is a
-single sink, not a set of keys, so "layering" two of them would mean
-silently fanning out; a view that wants that composes them itself with
-:func:<code>~rest_framework_services.combine_progress</code> and returns the result.</p>
-<p>Returns <code>None</code> when the view offers neither, which leaves the seed as
-:func:<code>~rest_framework_services.null_progress</code> exactly as before.</p>
+<p>Most-specific wins and there is <strong>no merging</strong> — a reporter is a single sink,
+not a set of keys, so layering two of them would mean silently fanning out;
+a view that wants that composes them itself with
+:func:<code>~rest_framework_services.combine_progress</code>. <code>None</code> when the view
+offers neither, which leaves the seed as
+:func:<code>~rest_framework_services.null_progress</code>.</p>
 
 
     </div>
@@ -3319,24 +3476,63 @@ silently fanning out; a view that wants that composes them itself with
     <div class="doc doc-contents ">
 
         <p>Resolve the calling view's hook chains into a :class:<code>ViewHooks</code> carrier.</p>
-<p>⚠ <strong>View layers only</strong> — every <code>spec_*</code> argument below is deliberately
+<p><strong>View layers only</strong> — every <code>spec_*</code> argument below is deliberately
 <code>None</code>. The chains run <code>view.get_&lt;x&gt;</code> → <code>view.get_&lt;action&gt;_&lt;x&gt;</code> →
-<code>spec.&lt;x&gt;</code>, and <code>dispatch_spec</code> owns that last layer. Resolving the spec
+<code>spec.&lt;x&gt;</code>, and <code>dispatch_spec</code> owns that last layer; resolving the spec
 provider here too would invoke it <strong>twice</strong>, which is not safe for a provider
 that queries the database. See :class:<code>ViewHooks</code>.</p>
-<p><code>chain</code> selects which kwargs chain to collect: <code>"service"</code>
-(<code>get_service_kwargs</code> / <code>get_&lt;action&gt;_service_kwargs</code>) for mutations,
-<code>"selector"</code> (<code>get_selector_kwargs</code> / <code>get_&lt;action&gt;_selector_kwargs</code>)
-for reads. Only the view-method names differ — the layering is identical,
-which is why one carrier serves both.</p>
-<p>The input-phase fields are mutation-only and stay unset for a selector: a
-read has no payload to merge into and no input serializer to give context to,
-so populating them would invite a reader to think it does.</p>
-<p><code>instance</code> (the resolved mutation target, <code>None</code> on create and on every
-bulk path) is offered to the <code>input_data</code> providers that declare it.</p>
-<p>Lives here rather than beside the mutation flow because the selector path
-needs it too, and <code>views.mutation.utils</code> imports <code>selectors.utils</code> —
-putting it there would make the dependency circular.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>chain</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Which kwargs chain to collect — <code>"service"</code> for mutations,
+<code>"selector"</code> for reads. Only the view-method names differ, which is
+why one carrier serves both. The input-phase fields are mutation-only
+and stay unset for a selector: a read has no payload to merge into
+and no input serializer to give context to.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;service&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>instance</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The resolved mutation target (<code>None</code> on create and on every
+bulk path), offered to the <code>input_data</code> providers that declare it.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -3365,18 +3561,12 @@ putting it there would make the dependency circular.</p>
     <div class="doc doc-contents first">
 
         <p>Fail-fast validation of service / selector signatures at view setup time.</p>
-<p>The framework already filters its kwargs pool through
-:func:<code>resolve_callable_kwargs</code> at request time, which means a service that
-declares a required kw-only parameter the framework cannot provide fails
-late, deep in the dispatch path with a generic
-<code>TypeError: missing required keyword-only argument</code> message. The helpers
-here surface those errors at <code>as_view()</code> time with a precise diagnostic so
-misconfigurations turn up at module import / URL wiring instead of at the
-first request.</p>
-<p>The validator is intentionally lenient on extras: when a callable could be
-fed by <code>ServiceSpec.kwargs</code> / <code>SelectorSpec.kwargs</code> or by an overridden
-<code>get_*_kwargs</code> method, the validator assumes those overrides supply
-whatever the signature needs and only fails on the unambiguous misuses.</p>
+<p>:func:<code>resolve_callable_kwargs</code> forwards pool∩signature, so a required parameter
+the framework cannot supply is <em>omitted</em> rather than rejected and the call dies
+as a bare <code>TypeError</code> deep in dispatch, at the first request. These helpers
+surface the same misconfiguration at <code>as_view()</code> time with a precise message.</p>
+<p>Deliberately lenient on extras: a <code>kwargs</code> provider or an overridden
+<code>get_*_kwargs</code> may be feeding the callable keys the validator cannot see.</p>
 
 
 
@@ -3422,17 +3612,12 @@ whatever the signature needs and only fails on the unambiguous misuses.</p>
     <div class="doc doc-contents ">
 
         <p>Raise :exc:<code>ImproperlyConfigured</code> on a misconfigured service / selector.</p>
-<p><code>has_data</code> / <code>has_instance</code> / <code>has_result</code> describe whether those
-framework-injected keys will be present for <em>this</em> call site. Mismatches
-on those (e.g. a service requiring <code>data</code> when <code>input_serializer</code> is
-unset) always fail — they cannot be papered over by the user.</p>
-<p>For other required kw-only parameters the validator is lenient: if
-<code>permissive_extras</code> is <code>True</code> (because the view overrides
-<code>get_*_kwargs</code> or <code>spec_kwargs</code> is supplied) it assumes those
-overrides contribute the missing keys and skips the check. Otherwise it
-raises with a clear hint.</p>
-<p><code>extra_known_keys</code> lets callers extend the always-allowed set
-(e.g. selectors include the URL kwargs they expect to see).</p>
+<p><code>has_data</code> / <code>has_instance</code> / <code>has_result</code> say whether those
+framework-injected keys exist at <em>this</em> call site; requiring one that does
+not always fails, since no user override can supply it. Every other required
+parameter is checked only when nothing could be feeding it
+(<code>permissive_extras</code> false and no <code>spec_kwargs</code>). <code>extra_known_keys</code>
+extends the allowed set for call sites that seed additional names.</p>
 
 
     </div>
@@ -3453,9 +3638,8 @@ raises with a clear hint.</p>
     <div class="doc doc-contents ">
 
         <p>Return <code>True</code> if <code>view_cls</code> overrides <code>base_cls</code>'s <code>method_name</code>.</p>
-<p>Used to decide whether the framework should assume an <code>get_*_kwargs</code>
-override is contributing extras (and therefore relax signature
-validation for that callable).</p>
+<p>Drives <code>permissive_extras</code>: an overridden <code>get_*_kwargs</code> is assumed to
+contribute keys the validator cannot see.</p>
 
 
     </div>
@@ -3478,16 +3662,11 @@ validation for that callable).</p>
     <div class="doc doc-contents ">
 
         <p>Reject a list selector that sets <code>filter_set</code> <em>and</em> wires <code>DjangoFilterBackend</code>.</p>
-<p>On the list path DRF's <code>list()</code> runs <code>filter_queryset()</code> over
-<code>filter_backends</code> while the dispatcher <em>also</em> applies
-<code>spec.filter_set</code> — so a queryset is filtered twice. The two are
-equivalent (<code>DjangoFilterBackend</code> does
-<code>filterset_class(query_params, qs, request).qs</code>), so <code>filter_set</code>
-<strong>replaces</strong> the backend; configuring both for one action is the
-misconfiguration this catches at <code>as_view()</code> time.</p>
-<p>Callers gate this on the <strong>list</strong> path only. Retrieve has no such
-conflict: the selector retrieve path overrides <code>get_object()</code> and never
-calls <code>filter_queryset</code>, so <code>filter_set</code> is the only filter applied.</p>
+<p>On the list path DRF's <code>list()</code> runs <code>filter_queryset()</code> while the
+dispatcher also applies <code>spec.filter_set</code> — equivalent operations, so the
+queryset would be filtered twice. Callers must gate this on the <strong>list</strong> path
+only: the selector retrieve path overrides <code>get_object()</code> and never calls
+<code>filter_queryset</code>, so there is no conflict there.</p>
 
 
     </div>
@@ -3543,10 +3722,8 @@ calls <code>filter_queryset</code>, so <code>filter_set</code> is the only filte
     <div class="doc doc-contents ">
 
         <p>Validate every variant of a :class:<code>PolymorphicServiceSpec</code> + its strategy.</p>
-<p>Each <code>specs</code> value must be a :class:<code>ServiceSpec</code> (validated with the same
-<code>has_instance</code> / <code>permissive_extras</code> as a plain entry), <code>specs</code> must be
-non-empty, and <code>permission_strategy='require_identical'</code> requires every
-variant to declare the same <code>permission_classes</code>.</p>
+<p>Each variant is validated with the same <code>has_instance</code> /
+<code>permissive_extras</code> as a plain entry would be.</p>
 
 
     </div>
@@ -3574,12 +3751,9 @@ variant to declare the same <code>permission_classes</code>.</p>
         <p>Validate a :class:<code>SelectorSpec</code>'s <code>selector</code>.</p>
 <p>Selectors are always permissive on extras (URL kwargs and
 <code>get_selector_kwargs</code> are dynamic), so the only fatal misuses are
-requesting framework-only keys that don't exist in the selector pool
-(<code>data</code>, <code>instance</code>, <code>result</code>).</p>
-<p><code>expected_kind</code> (when supplied) fails fast if <code>spec.kind</code> does not
-match — e.g. a <code>LIST</code> spec mounted on :class:<code>SelectorRetrieveView</code>
-raises at <code>as_view()</code> time rather than producing surprising
-runtime behaviour.</p>
+framework-only keys absent from the selector pool. <code>expected_kind</code> catches
+a spec mounted on the wrong view — a <code>LIST</code> spec on
+:class:<code>SelectorRetrieveView</code> would otherwise misbehave only at runtime.</p>
 
 
     </div>
@@ -3600,8 +3774,8 @@ runtime behaviour.</p>
     <div class="doc doc-contents ">
 
         <p>Validate <code>view_cls.spec</code> on a standalone mutation view.</p>
-<p>No-op when <code>spec</code> is unset (the base classes inherit a <code>None</code>
-placeholder so <code>as_view()</code> itself doesn't trip).</p>
+<p>No-op when <code>spec</code> is unset — the base classes inherit a <code>None</code>
+placeholder so <code>as_view()</code> itself doesn't trip.</p>
 
 
     </div>
@@ -3622,11 +3796,9 @@ placeholder so <code>as_view()</code> itself doesn't trip).</p>
     <div class="doc doc-contents ">
 
         <p>Validate <code>view_cls.spec</code> on a standalone selector view.</p>
-<p>No-op when <code>spec</code> is unset (the spec then means "use vanilla DRF" and
-there is nothing to validate). <code>expected_kind</code> is the kind the view
-is shaped for (<code>LIST</code> for :class:<code>SelectorListView</code>, <code>RETRIEVE</code>
-for :class:<code>SelectorRetrieveView</code>); a spec whose <code>kind</code> does not
-match fails fast at <code>as_view()</code> time.</p>
+<p>No-op when <code>spec</code> is unset — that means "use vanilla DRF". <code>expected_kind</code>
+is the kind the view is shaped for (<code>LIST</code> for :class:<code>SelectorListView</code>,
+<code>RETRIEVE</code> for :class:<code>SelectorRetrieveView</code>).</p>
 
 
     </div>

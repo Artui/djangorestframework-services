@@ -484,6 +484,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="ServiceValidationError">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#field-names-come-back-as-the-request-spelled-them" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Field names come back as the request spelled them
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1554,6 +1571,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="ServiceValidationError">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#field-names-come-back-as-the-request-spelled-them" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Field names come back as the request spelled them
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -1703,37 +1737,75 @@ does:</p>
 your serializers produce. From the client's point of view, a service
 violation and a serializer violation are indistinguishable — which is
 usually what you want.</p>
+<h4 id="field-names-come-back-as-the-request-spelled-them">Field names come back as the request spelled them<a class="headerlink" href="#field-names-come-back-as-the-request-spelled-them" title="Permanent link">&para;</a></h4>
+<p>A service raises about the model, because the model is what it was handed.
+Where the two names differ, the dispatcher translates:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">PostSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">headline</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">&quot;title&quot;</span><span class="p">)</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">writer</span> <span class="o">=</span> <span class="n">AuthorSerializer</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)</span>  <span class="c1"># some_name = CharField(source=&quot;name&quot;)</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1"># The service says:</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="k">raise</span> <span class="n">ServiceValidationError</span><span class="p">({</span><span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Too long.&quot;</span><span class="p">],</span> <span class="s2">&quot;author&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Too short.&quot;</span><span class="p">]}})</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="c1"># The client is told:</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">{</span><span class="s2">&quot;headline&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Too long.&quot;</span><span class="p">],</span> <span class="s2">&quot;writer&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;some_name&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Too short.&quot;</span><span class="p">]}}</span>
+</span></code></pre></div>
+<p>This is not cosmetic. DRF resolves <code>source=</code> while building <code>validated_data</code>, at
+every depth, so a service — and everything it calls, including the <a href="../recipes/nested-writes/">nested-write
+helpers</a> — only ever sees column names. Reporting
+those back names fields the request does not have, and an error renderer keyed
+on field name drops them.</p>
+<p>The rule is narrow, and worth knowing exactly:</p>
+<ul>
+<li><strong>It renames what the serializer can name, and nothing else.</strong> A key with no
+  matching field passes through untouched, so <code>non_field_errors</code>, <code>__all__</code> and
+  anything else a service invents survive as written.</li>
+<li><strong>Only writable fields are consulted.</strong> A read-only field's <code>source</code> cannot
+  appear in an error about input, so it never shadows the writable field that
+  can.</li>
+<li><strong><code>source="*"</code> and dotted <code>source="author.name"</code> are skipped</strong> — neither is a
+  key of <code>validated_data</code>, so neither can be a key of an error about it.</li>
+<li><strong>The detail's shape is untouched.</strong> A string stays a string, a list stays a
+  list of the same length, and a collection keeps its row alignment.</li>
+<li><strong>No serializer, no rename.</strong> A spec with no <code>input_serializer</code> has only one
+  vocabulary, and calling the mutation helpers directly is unaffected entirely.</li>
+</ul>
+<p>It applies wherever a spec is dispatched — HTTP, off-HTTP, sync and async —
+because the translation happens in the shared dispatch core rather than in the
+view. A <code>ModelSerializer</code> whose fields are named after their columns is
+unaffected, which is most of them.</p>
 <h3 id="additionalinputrequired"><code>AdditionalInputRequired</code><a class="headerlink" href="#additionalinputrequired" title="Permanent link">&para;</a></h3>
 <p>For <em>"I got far enough to discover I need something else"</em> — which is not the
 same claim as <code>ServiceValidationError</code>'s <em>"what you sent is wrong"</em>. The
 difference that matters is that it is usually <strong>conditional on what the service
 found</strong>, so it cannot be expressed as a required field on the serializer:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">delete_rows</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">doomed</span> <span class="o">=</span> <span class="n">rows_matching</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">doomed</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">100</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;confirmed&quot;</span><span class="p">]:</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        <span class="k">raise</span> <span class="n">AdditionalInputRequired</span><span class="p">(</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">doomed</span><span class="p">)</span><span class="si">}</span><span class="s2"> rows match. Confirm to proceed.&quot;</span><span class="p">,</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>            <span class="n">schema</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;confirmed&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;boolean&quot;</span><span class="p">}},</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">delete_rows</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">doomed</span> <span class="o">=</span> <span class="n">rows_matching</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">doomed</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">100</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;confirmed&quot;</span><span class="p">]:</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>        <span class="k">raise</span> <span class="n">AdditionalInputRequired</span><span class="p">(</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">doomed</span><span class="p">)</span><span class="si">}</span><span class="s2"> rows match. Confirm to proceed.&quot;</span><span class="p">,</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>            <span class="n">schema</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;confirmed&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;boolean&quot;</span><span class="p">}},</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>        <span class="p">)</span>
 </span></code></pre></div>
 <p><code>schema</code> describes what is missing, keyed by the input name the service expects
 it back under. A transport that can put the question to a human renders it; one
 that cannot still has a message worth showing.</p>
-<p>⭐ <strong>The answer comes back as ordinary input.</strong> An HTTP client re-submits with
+<p><strong>The answer comes back as ordinary input.</strong> An HTTP client re-submits with
 <code>confirmed</code> in the body. A transport that asks interactively — MCP, say — merges
 the answer into the parameters before dispatch. Either way the service reads it
 as a normal argument, which is why raising is the <em>whole</em> of the service's
 involvement: there is no callback to hold and no session to resume.</p>
 <p>It subclasses <code>ServiceError</code>, so a transport that has never heard of it still
-behaves sensibly. ⚠ A transport that wants to do better must catch it <strong>before</strong>
+behaves sensibly. A transport that wants to do better must catch it <strong>before</strong>
 its generic <code>ServiceError</code> handler, or the subclass check will swallow it.</p>
 <h3 id="serviceerror"><code>ServiceError</code><a class="headerlink" href="#serviceerror" title="Permanent link">&para;</a></h3>
 <p>For business-rule violations that <strong>aren't</strong> input errors —
 <em>"the resource exists but is in the wrong state"</em>. The default mapping
 is <code>422 Unprocessable Entity</code>, which is exactly what HTTP says about
 this case.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;account is locked&quot;</span><span class="p">)</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;invoice already finalised&quot;</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;account is locked&quot;</span><span class="p">)</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;invoice already finalised&quot;</span><span class="p">)</span>
 </span></code></pre></div>
 <h3 id="why-not-just-raise-drf-exceptions">Why not just raise DRF exceptions?<a class="headerlink" href="#why-not-just-raise-drf-exceptions" title="Permanent link">&para;</a></h3>
 <p>Because the mutation can be reused outside a request — from a
@@ -1745,12 +1817,12 @@ view, you catch <code>ServiceError</code> / <code>ServiceValidationError</code> 
 <h2 id="atomic-transactions">Atomic transactions<a class="headerlink" href="#atomic-transactions" title="Permanent link">&para;</a></h2>
 <p>By default every service call is wrapped in <code>transaction.atomic()</code>.
 Opt out per spec — <code>atomic</code> lives on <code>ServiceSpec</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ImportView</span><span class="p">(</span><span class="n">ServiceCreateView</span><span class="p">):</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>        <span class="n">service</span><span class="o">=</span><span class="n">run_import</span><span class="p">,</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">ImportInput</span><span class="p">,</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="n">atomic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># the import service handles its own savepoints</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ImportView</span><span class="p">(</span><span class="n">ServiceCreateView</span><span class="p">):</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>        <span class="n">service</span><span class="o">=</span><span class="n">run_import</span><span class="p">,</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">ImportInput</span><span class="p">,</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="n">atomic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># the import service handles its own savepoints</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="p">)</span>
 </span></code></pre></div>
 <p>When to opt out:</p>
 <ul>

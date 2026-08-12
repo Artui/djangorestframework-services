@@ -1875,23 +1875,18 @@ what dispatch actually returns:</p>
     <div class="doc doc-contents first">
 
         <p>Map a django-filter <code>FilterSet</code> class to JSON Schema properties.</p>
-<p>Returns a dict shaped like the <code>"properties"</code> key of a JSON Schema object
-— ready to merge into a spec's input schema (see
-:func:<code>~rest_framework_services.spec_to_json_schema</code>, which does this for a
-<code>SelectorSpec</code> carrying a <code>filter_set</code>). Every filter is optional: a
+<p>Returns a dict shaped like the <code>"properties"</code> key of a JSON Schema object,
+ready to merge into a spec's input schema — which is what
+:func:<code>~rest_framework_services.spec_to_json_schema</code> does for a
+<code>SelectorSpec</code> carrying a <code>filter_set</code>. Every filter is optional: a
 filter narrows the queryset but is never required to call the operation, so
 no name is added to a <code>required</code> array.</p>
-<p><code>registry.filters</code> rules are tried first (so a consumer can map a custom
-filter type or override a built-in); otherwise common filter classes get
-accurate mappings and anything unrecognised falls back to <code>{}</code> (JSON Schema
-"any value") so a custom filter never breaks generation. Reads
-<code>FilterSet.base_filters</code> directly (populated by the metaclass at
-class-creation time) so the FilterSet isn't instantiated.</p>
-<p>Requires the <code>[filter]</code> extra (<code>django-filter</code>). The core never imports
-it — <code>SelectorSpec.filter_set</code> is applied by duck typing — so the import is
-function-local here and raises a clear error when the extra is absent. This
-only fires when a <code>filter_set</code> is actually introspected, so projects that
-don't use one are unaffected.</p>
+<p><code>registry.filters</code> rules are tried first, so a consumer can map a custom
+filter type or override a built-in; common filter classes get accurate
+mappings otherwise, and anything unrecognised falls back to <code>{}</code> (JSON
+Schema "any value") rather than breaking generation. Requires the
+<code>[filter]</code> extra (<code>django-filter</code>), raising a clear <code>ImportError</code> when
+it is absent — only ever when a <code>filter_set</code> is actually introspected.</p>
 
 
     </div>
@@ -1919,31 +1914,26 @@ don't use one are unaffected.</p>
 
         <p>Derive a JSON Schema from a spec, reading the right serializer off it.</p>
 <p>The convenience an alternate transport (a Pydantic-AI toolset, the MCP
-server) calls instead of reaching into spec internals itself.</p>
+server) calls instead of reaching into spec internals itself. <code>registry</code>
+supplies consumer rules for custom field / filter / Python types — see
+:class:<code>~rest_framework_services.JsonSchemaRegistry</code>.</p>
 <p><code>phase="input"</code> (default) returns the input-argument schema:</p>
 <ul>
 <li>:class:<code>ServiceSpec</code> → its <code>input_serializer</code> (<code>spec.partial</code> honoured).</li>
-<li>:class:<code>SelectorSpec</code> → an object whose <code>properties</code> combine the selector
-  callable's own parameters (names → type from their annotations, skipping the
-  <code>request</code> / <code>user</code> / <code>view</code> transport seeds) with its <code>filter_set</code>
-  fields (via <code>filterset_to_json_schema</code>); a bare <code>{"type": "object"}</code> when
-  it exposes neither. So a retrieve selector like <code>get_widget(user, pk)</code> now
-  advertises <code>pk</code> instead of leaning entirely on its docstring. A <code>**kwargs:
-  Unpack[SomeExtras]</code> parameter is <strong>expanded</strong> into one property per
-  <code>TypedDict</code> key, with the TypedDict's required keys populating
-  <code>required</code> — so a URL kwarg a selector reads from <code>extras</code> (a nested
-  route's <code>parent_pk</code>) is discoverable off-HTTP rather than a hidden
-  <code>KeyError</code>. (Introspecting a <code>filter_set</code> needs the <code>[filter]</code> extra;
-  a selector without one stays dependency-free.)</li>
+<li>:class:<code>SelectorSpec</code> → an object whose <code>properties</code> combine the
+  selector callable's own annotated parameters (skipping the <code>request</code> /
+  <code>user</code> / <code>view</code> transport seeds) with its <code>filter_set</code> fields, so
+  <code>get_widget(user, pk)</code> advertises <code>pk</code> instead of leaning on its
+  docstring; a bare <code>{"type": "object"}</code> when it exposes neither. A
+  <code>**kwargs: Unpack[SomeExtras]</code> parameter is <strong>expanded</strong> into one
+  property per <code>TypedDict</code> key, its required keys populating <code>required</code>,
+  so a URL kwarg read from <code>extras</code> is discoverable off-HTTP rather than a
+  hidden <code>KeyError</code>. Introspecting a <code>filter_set</code> needs the <code>[filter]</code>
+  extra.</li>
 </ul>
-<p><code>phase="output"</code> returns the output schema, or <code>None</code> when undeclared:</p>
-<ul>
-<li>:class:<code>ServiceSpec</code> → its <code>output_selector_spec</code>'s <code>output_serializer</code>
-  and <code>kind</code>.</li>
-<li>:class:<code>SelectorSpec</code> → its own <code>output_serializer</code> and <code>kind</code>.</li>
-</ul>
-<p><code>registry</code> supplies consumer rules for custom field / filter / Python types
-— see :class:<code>~rest_framework_services.JsonSchemaRegistry</code>.</p>
+<p><code>phase="output"</code> returns the output schema, or <code>None</code> when undeclared:
+a :class:<code>ServiceSpec</code> supplies its <code>output_selector_spec</code>'s
+<code>output_serializer</code> and <code>kind</code>, a :class:<code>SelectorSpec</code> its own.</p>
 
 
     </div>
@@ -1978,32 +1968,72 @@ same name.</p>
 
 
         <p>Consumer-extensible <code>type → JSON Schema fragment</code> rules for the helpers.</p>
-<p>Three ordered rule lists, each a sequence of <code>(type, schema_fragment)</code>:</p>
-<ul>
-<li><code>fields</code> — DRF <code>Field</code> subclasses, matched by <code>isinstance</code> when
-  walking a serializer (<code>serializer_to_json_schema</code> / the input side of
-  <code>spec_to_json_schema</code>).</li>
-<li><code>filters</code> — <code>django-filter</code> <code>Filter</code> subclasses, matched by
-  <code>isinstance</code> when walking a <code>FilterSet</code> (<code>filterset_to_json_schema</code>).</li>
-<li><code>python_types</code> — bare Python types, matched by <em>identity</em> when walking a
-  dataclass's field annotations.</li>
-</ul>
 <p>Rules are tried in order and the first match wins, <strong>before</strong> the built-in
 mappings — so a rule both adds support for a custom type and can override a
 built-in. The matched fragment is copied per use, so callers may freely
 mutate the returned schema.</p>
 <p>Immutable: :meth:<code>extend</code> returns a <em>new</em> registry rather than mutating, so
 there is no shared global state to leak across callers or tests. Start from
-:data:<code>DEFAULT_JSON_SCHEMA_REGISTRY</code> (empty) and layer rules on::</p>
+:data:<code>DEFAULT_JSON_SCHEMA_REGISTRY</code>, the empty base every
+<code>*_to_json_schema</code> helper falls back to, layer rules on, and pass the
+result via the helpers' <code>registry=</code> argument::</p>
 <div class="language-text highlight"><pre><span></span><code>registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
     fields=[(MoneyField, {&quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;money&quot;})],
 )
 schema = serializer_to_json_schema(MySerializer, registry=registry)
 </code></pre></div>
-<p>The built-in mappings are intentionally <em>not</em> held here — they live with the
-walkers (and the filter built-ins import <code>django-filter</code> lazily). A
-registry carries only consumer additions, so the empty default stays
-dependency-free.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.json_schema_registry.JsonSchemaRegistry.fields">fields</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="rest_framework_services.types.json_schema_registry._Rule">_Rule</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>DRF <code>Field</code> subclasses, matched by <code>isinstance</code> when walking
+a serializer (<code>serializer_to_json_schema</code>, and the input side of
+<code>spec_to_json_schema</code>).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.json_schema_registry.JsonSchemaRegistry.filters">filters</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="rest_framework_services.types.json_schema_registry._Rule">_Rule</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>django-filter</code> <code>Filter</code> subclasses, matched by
+<code>isinstance</code> when walking a <code>FilterSet</code>
+(<code>filterset_to_json_schema</code>).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.json_schema_registry.JsonSchemaRegistry.python_types">python_types</span></code></td>
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="rest_framework_services.types.json_schema_registry._Rule">_Rule</span>, ...]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Bare Python types, matched by <em>identity</em> when walking a
+dataclass's field annotations.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 

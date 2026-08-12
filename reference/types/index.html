@@ -3101,159 +3101,316 @@ print-friendly while still behaving as a proper enum for <code>is</code> /
 argument to :class:<code>SelectorListView</code> / :class:<code>SelectorRetrieveView</code>,
 and as the <code>output_selector_spec</code> field on :class:<code>ServiceSpec</code>
 (where it describes the post-mutation re-fetch).</p>
-<p>Generic parameters (both default to <code>Any</code>):</p>
-<ul>
-<li><code>ResultT</code> — the selector's return type.</li>
-<li><code>ExtraT</code> — a <code>TypedDict</code> describing the keys returned by <code>kwargs</code>.</li>
-</ul>
 <p>All fields are keyword-only: <code>SelectorSpec(kind=SelectorKind.LIST,
-selector=fn)</code> rather than positional. <code>kind</code> is required and has no
-default — see below.</p>
-<p>Fields:</p>
-<ul>
-<li><strong><code>kind</code></strong> — required :class:<code>SelectorKind</code> discriminator (<code>LIST</code> vs
-  <code>RETRIEVE</code>). Drives the dispatcher: <code>RETRIEVE</code> materializes a
-  QuerySet via <code>.first()</code> and raises
-  :exc:<code>~rest_framework.exceptions.NotFound</code> on <code>None</code> / missing-object,
-  <code>LIST</code> returns whatever the selector returns unchanged. Also drives
-  the fail-fast check that the spec is mounted on a compatible view (a
-  <code>LIST</code> spec on :class:<code>SelectorRetrieveView</code> raises at <code>as_view()</code>).
-  Making it explicit lets a spec be reused outside a request — from a
-  management command, a cron job, or any non-DRF caller — without the
-  semantics living implicitly in the call site.</li>
-<li><strong><code>selector</code></strong> — callable invoked by <code>get_queryset()</code> (list) or
-  <code>get_object()</code> (retrieve). <code>None</code> means "use the configured
-  <code>queryset</code> / default DRF behaviour".</li>
-<li><strong><code>allow_none</code></strong> — <code>RETRIEVE</code>-only knob for the <code>None</code> /
-  missing-object case. <code>False</code> (the default) keeps the standard
-  behaviour: raise :exc:<code>~rest_framework.exceptions.NotFound</code>. <code>True</code>
-  expresses a nullable-resource contract: the standalone retrieve view
-  and the retrieve viewset mixin render <code>200</code> with a JSON <code>null</code>
-  body, skipping the output serializer. The flag is <strong>ignored</strong> when
-  the spec is nested — :attr:<code>ServiceSpec.output_selector_spec</code> keeps
-  its authoritative-<code>None</code> → 204 contract, and
-  :attr:<code>ServiceSpec.instance_selector_spec</code> always 404s (an update
-  against a missing row is not a nullable read).</li>
-<li><strong><code>output_serializer</code></strong> — DRF <code>Serializer</code> subclass used by
-  <code>get_serializer_class()</code> for this action. <code>None</code> falls back to
-  DRF's standard <code>serializer_class</code>.</li>
-<li><strong><code>kwargs</code></strong> — callable returning extra kwargs to merge into the pool
-  the selector receives. Co-locating it with the spec lets each action
-  declare its own contract — no <code>if self.action == ...</code> branching in a
-  catch-all <code>get_selector_kwargs</code>.</li>
-<li><strong><code>permission_classes</code></strong> — overrides the calling view's
-  <code>permission_classes</code> for the action the spec backs. <code>None</code> (the
-  default) means "inherit the view's class-level permissions"; an empty
-  sequence means "no permissions" explicitly. Forwarded through DRF's
-  <code>@action(permission_classes=...)</code> for the <code>@selector_action</code>
-  decorator, and surfaced via <code>get_permissions</code> for the viewset
-  mixins and standalone views. Ignored when the spec is nested under
-  :attr:<code>ServiceSpec.output_selector_spec</code> — the surrounding mutation
-  action's permissions apply.</li>
-<li><strong><code>output_serializer_context</code></strong> — per-spec hook for the response
-  serializer's <code>context=</code> dict. Sits at the most-specific layer of
-  the resolution chain (<code>view.get_serializer_context</code> →
-  <code>view.get_output_serializer_context</code> →
-  <code>view.get_&lt;action&gt;_output_serializer_context</code> → spec hook), so it
-  wins on overlapping keys. <code>None</code> (the default) leaves the three
-  earlier layers intact. Selectors don't validate input, so there's
-  no symmetrical <code>input_serializer_context</code>.</li>
-</ul>
-<p>The provider is invoked through the framework's keyword-pool
-  convention, so it declares only what it needs: <code>view</code>, <code>request</code>,
-  and/or the resolved data being serialized — <code>page</code> on a <code>LIST</code> spec
-  (the paginated object list, or the full queryset when pagination is off)
-  or <code>instance</code> on a <code>RETRIEVE</code> spec — or <code>**kwargs</code> for the whole
-  pool. Any subset works (just <code>view</code>, just <code>request</code>, just <code>page</code>,
-  none). This lets the provider run a single batched query against the
-  exact objects being serialized and propagate the result through context
-  — e.g. <code>lambda *, page: {"votes": tally(page)}</code> or
-  <code>lambda view, request, *, page: {"votes": tally(page)}</code>. The hook
-  always runs <em>after</em> the data is resolved.
-- <strong><code>select_related</code></strong> / <strong><code>prefetch_related</code></strong> / <strong><code>annotations</code></strong>
-  — declarative queryset shaping applied to the selector's return value
-  before it leaves :func:<code>dispatch_selector_for_spec</code>. <code>select_related</code>
-  is a sequence of relation names (forwarded as
-  <code>qs.select_related(*spec.select_related)</code>); <code>prefetch_related</code> is
-  a sequence of relation names or :class:<code>Prefetch</code> objects;
-  <code>annotations</code> is a mapping merged into a single <code>.annotate(**...)</code>
-  call. Use these for the common case where the same shaping applies
-  every request — they're introspectable for OpenAPI / future tooling.
-- <strong><code>extend_queryset</code></strong> — dynamic escape hatch. A
-  <code>Callable[[QuerySet, ServiceView, Request], QuerySet]</code> invoked
-  <em>after</em> the declarative fields have applied, so it always sees the
-  fully statically-shaped queryset. Use it when the shaping depends on
-  the request (e.g. only prefetch when a query string opts in).
-  Synchronous only — it manipulates the queryset's lazy expression
-  tree, not the database.
-- <strong><code>filter_set</code></strong> — transport-neutral filtering applied to the
-  selector's QuerySet. Holds a <code>django-filter</code> <code>FilterSet</code> class (or
-  any object honouring the same <code>(data, queryset) -&gt; .qs</code> contract):
-  the dispatcher calls <code>filter_set(data=request.query_params,
-  queryset=qs).qs</code>, so the <em>declaration</em> of which fields are filterable
-  (with which lookups) lives on the spec while the <em>values</em> come from the
-  request. Applied <strong>after</strong> the four shaping fields above and <strong>before</strong>
-  the retrieve <code>.first()</code> materialization, so it composes with shaping
-  and narrows both <code>LIST</code> and <code>RETRIEVE</code> selectors — closing the
-  retrieve-path gap where <code>RetrieveModelMixin</code> runs no filter step.</p>
-<p>Because the values are read off <code>request.query_params</code>, a
-  <code>FilterSet</code> here is exactly what
-  :class:<code>~django_filters.rest_framework.DjangoFilterBackend</code> applies
-  view-side, so on the list path it <strong>replaces</strong> that backend rather than
-  stacking with it — wiring both for one action raises at <code>as_view()</code>.
-  Replacing it means keeping its contract, so <strong>invalid filter input is
-  rejected with a 400</strong> rather than silently ignored: the <code>FilterSet</code> is
-  validated via <code>is_valid()</code> and its <code>errors</code> are raised as a DRF
-  :exc:<code>~rest_framework.exceptions.ValidationError</code>. (Reading <code>.qs</code>
-  without validating would return the <em>unfiltered</em> queryset in
-  django-filter's default non-strict mode — a bad <code>?field=</code> value would
-  answer 200 with unfiltered rows.) Only enforced when the duck-typed
-  object actually exposes <code>is_valid</code>; a bare
-  <code>(data, queryset) -&gt; .qs</code> stand-in that doesn't opt into validation
-  keeps its pass-through behaviour.
-  The dispatcher also forwards the <code>request</code> into the FilterSet when its
-  constructor declares one (as <code>django-filter</code>'s does), so a request-scoped
-  FilterSet — <code>self.request.user</code> scoping, a request-aware
-  <code>ModelChoiceFilter</code> <code>queryset</code> — sees the same <code>self.request</code> it would
-  behind <code>DjangoFilterBackend</code> rather than <code>None</code>. That request is real on
-  the HTTP / MCP paths and a synthetic off-HTTP one whose <code>user</code> and
-  <code>query_params</code> are faithful (headers / session are best-effort there); a
-  bare <code>(data, queryset)</code> stand-in never receives it. <code>None</code> (the default)
-  applies no filtering. Reach for <code>filter_set</code> only when the selector returns
-  a QuerySet; when it returns an aggregate / computed object the <code>?param</code>
-  values are computation inputs — use <code>kwargs</code> / <code>get_selector_kwargs()</code>
-  instead.</p>
-<ul>
-<li><strong><code>metadata</code></strong> — consumer-owned, framework-opaque mapping.</li>
-</ul>
-<p>⚠ <strong>The framework never reads it.</strong> No known keys, no per-key
-  validation, no defaulting, no effect on the generated JSON Schema or
-  OpenAPI. Validation is shape-only: a non-<code>Mapping</code> raises
-  :exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at construction.</p>
-<p>It is here so a project can attach its own per-operation facts — read
-  back later by its own permission class, scoping helper, or audit hook —
-  to the thing they describe, instead of a name-keyed side table that
-  drifts the day a spec is renamed. Reachable wherever the spec is:
-  <code>view.action_specs[view.action].metadata</code> inside a permission class
-  (which receives <code>(request, view)</code> and so has the spec but knows no
-  registry or name), or <code>entry.spec.metadata</code> from a
-  :class:<code>~rest_framework_services.types.registered_spec.RegisteredSpec</code>.
-  That two-sided reachability is why it lives on the spec rather than on
-  the registry entry, where <code>tags</code> handles the boolean-ish labels this
-  is <em>not</em> for.</p>
-<p>Two things it deliberately doesn't do. It never merges or inherits: a
-  :class:<code>ServiceSpec</code> and its <code>output_selector_spec</code> are independent
-  objects with independent metadata. And it is stored exactly as given —
-  the spec is frozen, the mapping is not, and the library neither copies
-  nor deep-freezes it, so pass something you don't mutate. <code>None</code> (the
-  default) means "not declared", which stays distinguishable from a
-  declared empty mapping.</p>
-<p>All five shaping fields (<code>select_related</code> / <code>prefetch_related</code> /
+selector=fn)</code> rather than positional. <code>kind</code> is required and is the only
+field without a default. Several fields are <strong>providers</strong>: they are
+resolved through the framework keyword pool, declaring any subset of the
+keywords listed for them (or <code>**kwargs</code>) and receiving only what they
+name.</p>
+<p>The generic parameters both default to <code>Any</code>: <code>ResultT</code> is the
+selector's return type and <code>ExtraT</code> a <code>TypedDict</code> of the keys
+<code>kwargs</code> returns.</p>
+<p>The five shaping fields (<code>select_related</code> / <code>prefetch_related</code> /
 <code>annotations</code> / <code>extend_queryset</code> / <code>filter_set</code>) require
 <code>selector</code> to be set and the selector to return a Django
 :class:<code>QuerySet</code>. Configuring any of them with no selector raises
 :exc:<code>ImproperlyConfigured</code> at <code>as_view()</code> time; a non-QuerySet return
 raises at request time.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.kind">kind</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="SelectorKind (rest_framework_services.types.selector_kind.SelectorKind)" href="#rest_framework_services.types.selector_kind.SelectorKind">SelectorKind</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Required :class:<code>SelectorKind</code> discriminator. <code>RETRIEVE</code>
+materializes a QuerySet via <code>.first()</code> and raises
+:exc:<code>~rest_framework.exceptions.NotFound</code> on a <code>None</code> /
+missing object; <code>LIST</code> returns whatever the selector returns
+unchanged. It also drives the fail-fast check that the spec is
+mounted on a compatible view — a <code>LIST</code> spec on
+:class:<code>SelectorRetrieveView</code> raises at <code>as_view()</code>. Being
+explicit rather than inferred from the call site, it also carries
+the semantics outside a request, to a management command or any
+other non-DRF caller.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.selector">selector</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="rest_framework_services.types.selector_spec.ResultT">ResultT</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Callable invoked by <code>get_queryset()</code> (list) or
+<code>get_object()</code> (retrieve). <code>None</code> uses the configured
+<code>queryset</code> / default DRF behaviour.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.allow_none">allow_none</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>RETRIEVE-only knob for the <code>None</code> / missing-object case.
+<code>False</code> raises :exc:<code>~rest_framework.exceptions.NotFound</code>;
+<code>True</code> expresses a nullable-resource contract, where the
+standalone retrieve view and the retrieve viewset mixin render
+<code>200</code> with a JSON <code>null</code> body and skip the output serializer.
+<strong>Ignored</strong> when the spec is nested:
+:attr:<code>ServiceSpec.output_selector_spec</code> keeps its
+authoritative-<code>None</code> → 204 contract and
+:attr:<code>ServiceSpec.instance_selector_spec</code> always 404s.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.output_serializer">output_serializer</span></code></td>
+            <td>
+                  <code><span title="type">type</span>[<span title="rest_framework.serializers.Serializer">Serializer</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>DRF <code>Serializer</code> subclass used by
+<code>get_serializer_class()</code> for this action. <code>None</code> falls back to
+DRF's standard <code>serializer_class</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.output_serializer_context">output_serializer_context</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Provider for the response serializer's
+<code>context=</code>, at the most specific layer of the chain
+(<code>get_serializer_context</code> → <code>get_output_serializer_context</code> →
+<code>get_&lt;action&gt;_output_serializer_context</code> → this), so it wins on
+overlapping keys. <code>None</code> leaves the earlier layers intact. Its
+pool is <code>view</code> / <code>request</code> plus the resolved data being
+serialized — <code>page</code> on a LIST spec (the paginated object list, or
+the full queryset when pagination is off) or <code>instance</code> on a
+RETRIEVE spec — so it can run a single batched query against the
+exact objects being serialized and propagate the outcome through
+context, as in <code>lambda *, page: {"votes": tally(page)}</code>. It always
+runs <em>after</em> the data is resolved. Selectors do not validate input,
+so there is no symmetrical <code>input_serializer_context</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.select_related">select_related</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Relation names, forwarded as
+<code>qs.select_related(*spec.select_related)</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.prefetch_related">prefetch_related</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span> | <span title="django.db.models.query.Prefetch">Prefetch</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Relation names or :class:<code>Prefetch</code> objects.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.annotations">annotations</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Mapping merged into a single <code>.annotate(**...)</code> call.
+With the two fields above, this is declarative shaping applied to
+the selector's return value before it leaves
+:func:<code>dispatch_selector_for_spec</code> — reach for it whenever the same
+shaping applies every request, since it stays introspectable.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.extend_queryset">extend_queryset</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="django.db.models.QuerySet">QuerySet</span>[<span title="typing.Any">Any</span>], <a class="autorefs autorefs-internal" title="ServiceView (rest_framework_services.types.service_view.ServiceView)" href="../views/#rest_framework_services.types.service_view.ServiceView">ServiceView</a>, <span title="rest_framework.request.Request">Request</span>], <span title="django.db.models.QuerySet">QuerySet</span>[<span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Dynamic escape hatch, invoked <em>after</em> the declarative
+fields have applied, so it always sees the fully statically-shaped
+queryset. Use it when the shaping depends on the request, such as
+prefetching only when a query string opts in. Synchronous only — it
+manipulates the queryset's lazy expression tree, not the database.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.filter_set">filter_set</span></code></td>
+            <td>
+                  <code><span title="typing.Any">Any</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Transport-neutral filtering applied to the selector's
+QuerySet: a <code>django-filter</code> <code>FilterSet</code> class, or any object
+honouring the same <code>(data, queryset) -&gt; .qs</code> contract. The
+dispatcher calls
+<code>filter_set(data=request.query_params, queryset=qs).qs</code>, so the
+<em>declaration</em> of which fields are filterable lives on the spec
+while the <em>values</em> come from the request. Applied <strong>after</strong> the
+four shaping fields and <strong>before</strong> the retrieve <code>.first()</code>, so it
+composes with shaping and narrows <code>RETRIEVE</code> selectors too, where
+<code>RetrieveModelMixin</code> runs no filter step. On the list path it
+<strong>replaces</strong>
+:class:<code>~django_filters.rest_framework.DjangoFilterBackend</code> rather
+than stacking with it — the values come off the same
+<code>request.query_params</code> — and wiring both for one action raises at
+<code>as_view()</code>. Replacing it means keeping its contract, so
+<strong>invalid filter input is rejected with a 400</strong>: the <code>FilterSet</code>
+is validated via <code>is_valid()</code> and its <code>errors</code> are raised as a
+DRF :exc:<code>~rest_framework.exceptions.ValidationError</code>, where
+reading <code>.qs</code> unvalidated would answer 200 with <em>unfiltered</em> rows
+in django-filter's default non-strict mode. That is enforced only
+when the duck-typed object actually exposes <code>is_valid</code>; a bare
+<code>(data, queryset) -&gt; .qs</code> stand-in keeps its pass-through
+behaviour. The dispatcher also forwards the <code>request</code> into the
+<code>FilterSet</code> when its constructor declares one, so a
+request-scoped <code>FilterSet</code> — <code>self.request.user</code> scoping, a
+request-aware <code>ModelChoiceFilter</code> <code>queryset</code> — sees the same
+<code>self.request</code> it would behind <code>DjangoFilterBackend</code> rather
+than <code>None</code>: real on the HTTP / MCP paths, and a synthetic
+off-HTTP one whose <code>user</code> and <code>query_params</code> are faithful
+(headers / session are best-effort there). A bare
+<code>(data, queryset)</code> stand-in never receives it. <code>None</code> applies
+no filtering. Reach for it only when the selector returns a
+QuerySet: for an aggregate / computed return the <code>?param</code> values
+are computation inputs, so use <code>kwargs</code> /
+<code>get_selector_kwargs()</code> instead.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.kwargs">kwargs</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="rest_framework_services.types.selector_spec.ExtraT">ExtraT</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Provider (pool: <code>view</code> / <code>request</code>) of extra kwargs merged
+into the pool the selector receives. Co-locating it with the spec
+lets each action declare its own contract, instead of
+<code>if self.action == ...</code> branching in one catch-all
+<code>get_selector_kwargs</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.permission_classes">permission_classes</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="type">type</span>[<span title="rest_framework.permissions.BasePermission">BasePermission</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Override the calling view's permissions for the
+action the spec backs. <code>None</code> inherits the view's class-level
+permissions; an empty sequence means none, explicitly. Forwarded
+through DRF's <code>@action(permission_classes=...)</code> for the
+<code>@selector_action</code> decorator and surfaced via <code>get_permissions</code>
+for the viewset mixins and standalone views. Ignored when the spec
+is nested under :attr:<code>ServiceSpec.output_selector_spec</code> — the
+surrounding mutation action's permissions apply.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.progress_reporter">progress_reporter</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Provider returning a :class:<code>ProgressReporter</code> sink,
+fanned together with whatever reporter the transport supplied. For
+sinks that do not care which transport carries the run — a task
+record, an audit trail, metrics.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.preconditions">preconditions</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="collections.abc.Callable">Callable</span>[..., None]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>State/DB rules invoked after the target resolves, seeded
+with <code>instance</code> (RETRIEVE) or <code>collection</code> (LIST). A selector
+has no validation step, so that is the one position available, and
+pool binding does the discrimination — a precondition declaring
+<code>instance</code> cannot be written against a LIST spec. Raise-to-abort:
+the return value is ignored. See :class:<code>ServiceSpec</code> for the raise
+contract.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.metadata">metadata</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Consumer-owned, framework-opaque mapping — <strong>the framework
+never reads it</strong>. No known keys, no per-key validation, no
+defaulting, no effect on the generated JSON Schema or OpenAPI;
+validation is shape-only, and a non-<code>Mapping</code> raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at
+construction. Use it to attach a project's own per-operation facts
+— read back by its own permission class, scoping helper, or audit
+hook — to the spec describing the operation, rather than to a
+name-keyed side table that drifts the day a spec is renamed. It is
+reachable wherever the spec is:
+<code>view.action_specs[view.action].metadata</code> inside a permission
+class (which receives <code>(request, view)</code>, so it has the spec but
+knows no registry or name), or <code>entry.spec.metadata</code> from a
+:class:<code>~rest_framework_services.types.registered_spec.RegisteredSpec</code>,
+whose <code>tags</code> handles the boolean-ish labels this is <em>not</em> for. It
+never merges or inherits — a :class:<code>ServiceSpec</code> and its
+<code>output_selector_spec</code> carry independent metadata — and it is
+stored exactly as given: the spec is frozen, the mapping is not,
+and the library neither copies nor deep-freezes it, so pass
+something you don't mutate. <code>None</code> means "not declared", which
+stays distinguishable from a declared empty mapping.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -3310,165 +3467,343 @@ raises at request time.</p>
 <p>Used as a value in <code>ServiceViewSet.action_specs</code> and as the <code>spec=</code>
 argument to :func:<code>service_action</code> / :class:<code>ServiceCreateView</code> /
 :class:<code>ServiceUpdateView</code> / :class:<code>ServiceDeleteView</code>.</p>
-<p>Generic parameters are optional and purely informational for type checkers:</p>
-<ul>
-<li><code>InputT</code> — the validated-data type produced by <code>input_serializer</code>.
-  For dataclass-based serializers this is the dataclass; for plain
-  <code>ModelSerializer</code> it is typically <code>dict[str, Any]</code>.</li>
-<li><code>ResultT</code> — the value returned by the service callable, and (when
-  <code>output_selector_spec</code> is set) the input to its <code>selector</code>.</li>
-<li><code>ExtraT</code> — a <code>TypedDict</code> describing the keys returned by <code>kwargs</code>.</li>
-</ul>
-<p>All three default to <code>Any</code>, so <code>ServiceSpec(service=fn)</code> keeps working
-unchanged.</p>
-<p>Fields are grouped by what they configure: the service callable itself,
-the input pipeline (<code>input_*</code>), the output pipeline (a single nested
-:class:<code>SelectorSpec</code>), and the cross-cutting concerns (<code>kwargs</code>,
-<code>permission_classes</code>).</p>
-<p><code>success_status</code> is left as <code>None</code> so each consumer can supply its
-own action-appropriate default (201 for create, 200 for update, 204
-for destroy). It may also be a <strong>callable</strong> resolved through the framework
-keyword pool — declaring any subset of <code>result</code> / <code>instance</code> /
-<code>request</code> / <code>view</code> (or <code>**kwargs</code>) — returning the status <code>int</code>.
-This covers upserts whose code depends on the outcome (<code>200</code> for an
-existing row, <code>201</code> for a freshly created one); the callable sees the
-<em>service's</em> return value as <code>result</code>. A <code>None</code> return from the field
-itself is not meaningful — return an <code>int</code>. OpenAPI can't resolve a
-callable statically, so the generated schema documents the mixin default
-for the dynamic case.</p>
-<p><code>input_data</code> is the symmetrical hook for the <em>serializer's</em> input.
-Returns a mapping merged on top of <code>request.data</code> before the
-<code>input_serializer</code> validates it — useful for lifting URL kwargs
-(e.g. parent IDs from nested routes) into fields the serializer can
-cross-validate. Server-provided keys win on conflict. The provider is
-invoked through the framework's keyword pool, so it declares any subset of
-<code>view</code> / <code>request</code> plus <code>instance</code> (the resolved mutation target,
-<code>None</code> on create) — or <code>**kwargs</code> — receiving only what it names, so
-pre-validation input mutation that depends on the current row has a home.
-The same declare-to-receive rule applies to the <code>get_input_data</code> /
-<code>get_&lt;action&gt;_input_data</code> view hooks.</p>
-<p><code>input_serializer_context</code> is a per-spec hook for the input
-serializer's <code>context=</code> dict. It sits at the most-specific layer of
-the resolution chain (<code>view.get_serializer_context</code> →
-<code>view.get_input_serializer_context</code> →
-<code>view.get_&lt;action&gt;_input_serializer_context</code> → spec hook), so the
-spec wins on overlapping keys. <code>None</code> (the default) leaves the
-three earlier layers intact. The symmetrical output hook lives on the
-nested <code>output_selector_spec.output_serializer_context</code>; that hook may
-additionally declare a <code>result</code> keyword to receive the final
-(post-selector) instance being serialized — passed only when declared —
-so it can run a single batched query against it and propagate the
-outcome through context. The output hook always runs <em>after</em> the service
-and output selector have resolved <code>result</code>.</p>
-<p><code>output_selector_spec</code> is the full output pipeline collapsed into a
-single :class:<code>SelectorSpec</code>. Its <code>kind</code> declares the response
-cardinality: :attr:<code>SelectorKind.RETRIEVE</code> (the default) re-fetches a
-single instance (typical pattern: the service returns a freshly
-created/updated instance, the <code>output_selector_spec.selector</code> re-fetches
-it with the relations the response serializer needs, and the spec's
-<code>output_serializer</code> renders the result); :attr:<code>SelectorKind.LIST</code>
-re-fetches and renders a <em>set</em> (<code>many=True</code>) and is valid only alongside
-<code>collection_selector_spec</code> — the bulk-output twin that lets a
-collection mutation return the affected set. <code>None</code> (the default) means
-"render the service's return value directly". The nested spec's
+<p>Fields group into the service callable itself, the input pipeline
+(<code>input_*</code>), the output pipeline (a nested :class:<code>SelectorSpec</code>), and
+cross-cutting concerns. Several are <strong>providers</strong>: they are resolved
+through the framework keyword pool, declaring any subset of the keywords
+listed for them (or <code>**kwargs</code>) and receiving only what they name.</p>
+<p>The generic parameters are optional and purely informational for type
+checkers. <code>InputT</code> is the validated-data type <code>input_serializer</code>
+produces (the dataclass for dataclass-based serializers, usually
+<code>dict[str, Any]</code> for a plain <code>ModelSerializer</code>), <code>ResultT</code> the
+service's return value and the input to <code>output_selector_spec.selector</code>,
+and <code>ExtraT</code> a <code>TypedDict</code> of the keys <code>kwargs</code> returns. All three
+default to <code>Any</code>, so <code>ServiceSpec(service=fn)</code> keeps working unchanged.</p>
+<p><code>many</code> and <code>collection_selector_spec</code> are the two bulk shapes and are
+mutually exclusive. Both run all-or-nothing under <code>atomic=True</code>, and both
+authorize per-set — the view / spec <code>permission_classes</code> plus the scoped
+selector, with no per-row check.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.service">service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="rest_framework_services.types.service_spec.ResultT">ResultT</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The callable the action runs.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.atomic">atomic</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Run the dispatch in a transaction.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.success_status">success_status</span></code></td>
+            <td>
+                  <code><span title="int">int</span> | <span title="collections.abc.Callable">Callable</span>[..., <span title="int">int</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The 2xx status. An <code>int</code> is used verbatim; a provider
+(pool: <code>result</code> / <code>instance</code> / <code>request</code> / <code>view</code>) returns
+one, which is what an upsert answering 201 or 200 by outcome needs
+— it sees the <em>service's</em> return value as <code>result</code>. <code>None</code> lets
+each consumer apply its action-appropriate default (201 create, 200
+update, 204 destroy). OpenAPI cannot resolve a provider statically,
+so the schema documents the mixin default in that case.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.partial">partial</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Override the partial-validation flag the calling surface
+derives (<code>False</code> for PUT/POST, <code>True</code> for PATCH). Forcing
+<code>False</code> on a <code>partial_update</code> entry makes a PATCH endpoint
+enforce <code>required</code> like a PUT. Applied once, in
+<code>dispatch_mutation_for_spec</code>, so the viewset mixins, the
+standalone views and <code>@service_action</code> all honour it.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.many">many</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Validate the request body as a list and render the result list
+the same way. The service receives the validated list as <code>data</code>
+and loops itself, so one call does the batch.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.document_service_error">document_service_error</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>OpenAPI-only — whether the schema documents the
+422 :class:<code>ServiceError</code> response. No runtime effect; a service may
+always raise. <code>None</code> gates it on <code>input_serializer is not None</code>,
+so a plain delete carries no spurious 422. Only consulted when the
+<code>[spectacular]</code> extra is enabled through
+:func:<code>~rest_framework_services.openapi.enable_openapi</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.input_serializer">input_serializer</span></code></td>
+            <td>
+                  <code><span title="type">type</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Validates the request body.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.input_data">input_data</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Provider (pool: <code>view</code> / <code>request</code> / <code>instance</code>,
+the latter <code>None</code> on create) returning a mapping merged on top of
+<code>request.data</code> before validation — the home for lifting URL kwargs
+such as a nested route's parent id into fields the serializer can
+cross-validate. Server-provided keys win on conflict. The
+<code>get_input_data</code> / <code>get_&lt;action&gt;_input_data</code> view hooks follow
+the same declare-to-receive rule.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.input_serializer_context">input_serializer_context</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Provider for the input serializer's
+<code>context=</code>, at the most specific layer of the chain
+(<code>get_serializer_context</code> → <code>get_input_serializer_context</code> →
+<code>get_&lt;action&gt;_input_serializer_context</code> → this), so it wins on
+overlapping keys. <code>None</code> leaves the earlier layers intact. The
+output twin is <code>output_selector_spec.output_serializer_context</code>,
+which may also declare <code>result</code> to receive the post-selector
+instance and run a single batched query against it.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.instance_selector_spec">instance_selector_spec</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.selector_spec.SelectorSpec)" href="#rest_framework_services.types.selector_spec.SelectorSpec">SelectorSpec</a>[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nested RETRIEVE spec resolving the row an
+update / destroy / detail action targets, embedding the lookup in
+the spec rather than the view's <code>queryset</code> / <code>get_object()</code>
+chain. Its kwarg pool is <code>{request, user}</code> plus the URL kwargs, so
+<code>selector=lambda *, pk: Project.objects.filter(pk=pk)</code> resolves
+from the route. Resolution runs <strong>before</strong> input validation: the row
+is handed to the input serializer DRF-style and seeded into the
+service pool as <code>instance</code>. A missing row is always
+:exc:<code>~rest_framework.exceptions.NotFound</code> — the nested
+<code>allow_none</code> is ignored — and <code>check_object_permissions</code> runs
+against it. Queryset shaping applies; the nested
+<code>permission_classes</code> / <code>output_serializer</code> /
+<code>output_serializer_context</code> are ignored.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.collection_selector_spec">collection_selector_spec</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.selector_spec.SelectorSpec)" href="#rest_framework_services.types.selector_spec.SelectorSpec">SelectorSpec</a>[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The LIST-kind twin of
+<code>instance_selector_spec</code>. Its resolved set is seeded into the pool
+as <code>collection</code> to <code>.delete()</code> / <code>.update()</code> / iterate, for an
+instance-less "operate on the filtered set" action where an empty
+set is a harmless no-op rather than a 404. The pool carries query
+params, body and URL kwargs, so a nested-route bulk can scope by
+<code>parent_pk</code>; route captures win on conflict, so a filter value
+cannot override the route scope.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.output_selector_spec">output_selector_spec</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.selector_spec.SelectorSpec)" href="#rest_framework_services.types.selector_spec.SelectorSpec">SelectorSpec</a>[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The output pipeline as one nested spec. Its
+<code>kind</code> declares response cardinality: RETRIEVE re-fetches a single
+instance (the service returns the written row, the selector
+re-fetches it with the relations the response needs, and
+<code>output_serializer</code> renders it); LIST re-fetches and renders a set
+and is valid only alongside <code>collection_selector_spec</code>. <code>None</code>
+renders the service's return value directly. The nested
 <code>permission_classes</code> and <code>kwargs</code> are ignored — the surrounding
-mutation's permissions and kwargs chain apply.</p>
-<p><code>instance_selector_spec</code> is the input-side twin of
-<code>output_selector_spec</code>: a nested :class:<code>SelectorSpec</code> (<code>kind</code> must
-be :attr:<code>SelectorKind.RETRIEVE</code>) that resolves the instance an
-update / destroy / detail action targets, embedding the lookup in the
-spec instead of relying on the view's <code>queryset</code> / <code>get_object()</code>
-chain. The selector's kwarg pool is <code>{request, user}</code> plus the URL
-kwargs (plus the standard selector extras chain), so
-<code>selector=lambda *, pk: Project.objects.filter(pk=pk)</code> resolves the
-row from the route. Resolution happens <strong>before</strong> input validation —
-the resolved instance is handed to the input serializer
-(DRF-style <code>serializer(instance, data=..., partial=...)</code>) and seeded
-into the service kwarg pool as <code>instance</code>. A <code>None</code> / missing
-resolution raises :exc:<code>~rest_framework.exceptions.NotFound</code> (the
-nested spec's <code>allow_none</code> flag is ignored — an update against a
-missing row is always a 404), and object-level permissions
-(<code>check_object_permissions</code>) run against the resolved instance. The
-queryset-shaping fields apply; <code>permission_classes</code>,
-<code>output_serializer</code>, and <code>output_serializer_context</code> on the nested
-spec are ignored. <code>None</code> (the default) keeps today's <code>get_object()</code>
-chain.</p>
-<p><code>partial</code> overrides the transport-derived partial-validation flag.
-<code>None</code> (the default) inherits the flag the calling surface derives
-(<code>False</code> for PUT/POST, <code>True</code> for PATCH); <code>True</code> / <code>False</code>
-forces it regardless of HTTP method — e.g. <code>partial=False</code> on an
-<code>action_specs["partial_update"]</code> entry makes a PATCH endpoint
-enforce <code>required</code> fields like a PUT. Applied once, at
-<code>dispatch_mutation_for_spec</code>, so it is honoured uniformly by the
-viewset mixins, the standalone views, and <code>@service_action</code>.</p>
-<p><code>document_service_error</code> is an <strong>OpenAPI-only</strong> flag controlling whether
-the generated schema documents the <code>422</code> :class:<code>ServiceError</code> response
-(it has no effect on runtime behaviour — a service may always raise
-<code>ServiceError</code>). <code>None</code> (the default) gates the 422 on whether the
-operation validates input (<code>input_serializer is not None</code>), so a
-no-input mutation (e.g. a plain delete) doesn't carry a spurious 422 in
-its schema. Set <code>True</code> to document it anyway (a no-input service that
-<em>does</em> raise <code>ServiceError</code>) or <code>False</code> to drop it (an input-bearing
-service that never raises one). Only consulted when the <code>[spectacular]</code>
-extra is enabled via :func:<code>~rest_framework_services.openapi.enable_openapi</code>.</p>
-<p><code>many</code> and <code>collection_selector_spec</code> are the two <strong>bulk</strong> shapes,
-mutually exclusive with each other. <code>many=True</code> validates the request
-body as a list (<code>input_serializer</code> runs <code>many=True</code>) and renders the
-result list the same way — the service receives the validated list as
-<code>data</code> and loops itself (<code>bulk_create</code> / a comprehension), so one call
-does the batch. <code>collection_selector_spec</code> is the LIST-kind twin of
-<code>instance_selector_spec</code>: its resolved set (a queryset or any iterable,
-scoped by the selector + <code>filter_set</code>) is seeded into the pool as
-<code>collection</code> for the service to <code>.delete()</code> / <code>.update()</code> / iterate —
-an instance-less "operate on the filtered set" action (bulk delete/update),
-where an empty set is a harmless no-op. Its selector's kwarg pool carries
-the request's query params and body plus the view's URL kwargs, so a
-nested-route bulk (<code>/parents/{parent_pk}/children/</code>) can scope by
-<code>parent_pk</code> — matching <code>instance_selector_spec</code>. Route captures win over
-client query / body on a key conflict, so a filter value can't override the
-route scope. Both run all-or-nothing under
-<code>atomic=True</code>; authorization is per-set (the view / spec
-<code>permission_classes</code> plus the scoped selector), with no per-row check.</p>
-<p><code>kwargs</code> is a callable that returns extra kwargs to merge into the
-pool the service receives. Co-locating it with the spec lets each action
-declare its own contract — no <code>if self.action == ...</code> branching in a
-catch-all <code>get_service_kwargs</code>. See :class:<code>ServiceView</code> for the
-attributes available on the <code>view</code> argument.</p>
-<p><code>permission_classes</code> overrides the calling view's <code>permission_classes</code>
-for the action the spec backs. <code>None</code> (the default) means "inherit the
-view's class-level permissions"; an empty sequence means "no permissions"
-explicitly. Forwarded through DRF's <code>@action(permission_classes=...)</code>
-for the <code>@service_action</code> decorator, and surfaced via <code>get_permissions</code>
-for the viewset mixins and standalone views.</p>
-<p><code>metadata</code> is a consumer-owned, framework-opaque mapping — the one field
-here the framework carries but ⚠ <strong>never reads</strong>. No known keys, no
-per-key validation, no defaulting, no effect on the generated JSON Schema
-or OpenAPI; validation is shape-only, and a non-<code>Mapping</code> raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at construction. Use
-it to attach a project's own per-operation facts — read back by its own
-permission class, scoping helper, or audit hook — to the spec that
-describes the operation, rather than to a name-keyed side table that
-drifts the day a spec is renamed. It never merges with a nested spec's
-metadata, and it is stored exactly as given (the spec is frozen, the
-mapping is not). See :class:<code>SelectorSpec</code> for the full contract.</p>
-<p><code>response_finalizer</code> is a post-serialization hook for HTTP response side
-effects (cookies, headers, a swapped response). It runs on the <strong>2xx path
-only</strong>, after the output serializer has produced the <code>Response</code> and
-<em>before</em> it is returned (pre-render); error paths bypass it. Invoked through
-the framework keyword pool, it declares any subset of
-<code>response</code> / <code>result</code> / <code>request</code> / <code>view</code> / <code>instance</code> / <code>data</code>
-(or <code>**kwargs</code>) and returns either a <code>Response</code> (which replaces the
-built one) or <code>None</code> (which keeps it) — so <code>lambda *, response:
-response.set_cookie(...) or response</code> attaches a cookie, and returning a
-fresh <code>Response</code> swaps it wholesale. Unlike the service/selector pool it
-<strong>does</strong> receive <code>view</code> (a documented exception — a response decision
-legitimately needs view/request context). <code>result</code> is the <em>service's</em>
-return value (the flags carrier), so the idiomatic pattern keeps services
-DRF-free: the service returns domain flags on its result DTO and the
-finalizer translates flags → transport effects. <strong>HTTP-only:</strong> it is skipped
-on the transport-neutral path (<code>dispatch_spec</code> / <code>call_service</code> / MCP),
-which builds no <code>Response</code>. On the bulk path <code>instance</code> / <code>data</code> are
-absent and <code>result</code> is the dispatched value (post-output-selector).</p>
+mutation's chains apply.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.kwargs">kwargs</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="rest_framework_services.types.service_spec.ExtraT">ExtraT</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Provider (pool: <code>view</code> / <code>request</code>) of extra kwargs merged
+into the pool the service receives. Co-locating it with the spec
+lets each action declare its own contract, instead of
+<code>if self.action == ...</code> branching in one catch-all. See
+:class:<code>ServiceView</code> for what the <code>view</code> argument offers.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.permission_classes">permission_classes</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="type">type</span>[<span title="rest_framework.permissions.BasePermission">BasePermission</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Override the calling view's permissions for this
+action. <code>None</code> inherits the view's; an empty sequence means none,
+explicitly. Forwarded through DRF's <code>@action</code> for
+<code>@service_action</code> and surfaced via <code>get_permissions</code> elsewhere.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.progress_reporter">progress_reporter</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Provider returning a :class:<code>ProgressReporter</code> sink,
+fanned together with whatever reporter the transport supplied. For
+sinks that do not care which transport carries the run — a task
+record, an audit trail, metrics.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.preconditions">preconditions</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="collections.abc.Callable">Callable</span>[..., None]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>State/DB rules invoked immediately before the service,
+after validation and target resolution, so each sees <code>data</code> /
+<code>serializer</code> alongside <code>instance</code> or <code>collection</code> / <code>user</code> /
+<code>request</code>. Raise-to-abort: the return value is ignored, so a
+predicate returning <code>False</code> does nothing. Raise <code>ServiceError</code>
+or <code>ServiceValidationError</code> — every transport maps those, whereas
+a DRF <code>APIException</code> is mapped on HTTP only.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.response_finalizer">response_finalizer</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="rest_framework.response.Response">Response</span> | None] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Provider (pool: <code>response</code> / <code>result</code> /
+<code>request</code> / <code>view</code> / <code>instance</code> / <code>data</code>) for HTTP response
+side effects — cookies, headers, a swapped response. Runs on the
+<strong>2xx path only</strong>, after the output serializer has built the
+<code>Response</code> and before it is returned; error paths bypass it.
+Return a <code>Response</code> to replace the built one or <code>None</code> to keep
+it. <code>result</code> is the <em>service's</em> return value, so the idiomatic
+pattern keeps services DRF-free: the service returns domain flags
+and the finalizer translates them into transport effects.
+<strong>HTTP-only</strong> — skipped on the transport-neutral path, which builds
+no <code>Response</code>. On the bulk path <code>instance</code> / <code>data</code> are absent
+and <code>result</code> is the post-output-selector value.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.metadata">metadata</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Consumer-owned and framework-opaque — the one field carried
+but <strong>never read</strong>. No known keys, no per-key validation, no
+defaulting, no effect on the generated JSON Schema or OpenAPI;
+validation is shape-only, and a non-<code>Mapping</code> raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at construction.
+Use it to attach a project's own per-operation facts, read back by
+its own permission class or audit hook, to the spec describing the
+operation rather than to a name-keyed side table that drifts the day
+a spec is renamed. It never merges with a nested spec's metadata and
+is stored exactly as given. See :class:<code>SelectorSpec</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -3531,46 +3866,87 @@ chosen spec exactly as a plain <code>ServiceSpec</code> would. Usable anywhere a
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">specs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="n">email_spec</span><span class="p">,</span> <span class="s2">&quot;token&quot;</span><span class="p">:</span> <span class="n">token_spec</span><span class="p">},</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="p">)</span>
 </span></code></pre></div>
-<p><code>discriminator</code> is resolved through the framework keyword pool — it
-declares any subset of <code>request</code> / <code>data</code> (the <em>raw</em> <code>request.data</code>) /
+<p>The discriminator is resolved once per request and reused across dispatch,
+permissions, and serializer resolution, and the resolved concrete spec flows
+through the shared action→spec chain — so the chosen variant's serializer
+context, kwargs, and output pipeline all apply.</p>
+<p><strong>There is no <code>metadata</code> field here.</strong> The wrapper is never dispatched, so
+<code>metadata</code> belongs on the variants; a permission class that reads it off
+the spec it finds on the view therefore finds <em>this</em> wrapper, which has none,
+and under the default <code>permission_strategy="union"</code> there is no variant yet
+to fall back to — permissions run before discrimination. Express a
+metadata-driven rule per variant, via each variant's own
+<code>permission_classes</code>, rather than reading the wrapper.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec.discriminator">discriminator</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Resolved through the framework keyword pool — it declares
+any subset of <code>request</code> / <code>data</code> (the <em>raw</em> <code>request.data</code>) /
 <code>user</code> / <code>view</code> (or <code>**kwargs</code>) — and returns a key present in
 <code>specs</code>. For a no-match / rejected payload it should <strong>raise</strong>
 (e.g. :exc:<code>~rest_framework_services.exceptions.service_validation_error.ServiceValidationError</code>,
-which the view layer maps to a 400); returning a key absent from <code>specs</code>
-is a configuration error and raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
-<p><code>permission_strategy</code> decides how <code>get_permissions</code> behaves, since DRF
-runs permissions before the body is necessarily parsed:</p>
-<ul>
-<li><code>"union"</code> (the default) — require the union of every variant's
-  <code>permission_classes</code>; the request must satisfy them all. No early body
-  read, and the conservative/secure failure mode (a mis-declared
-  discriminator branch can't <em>widen</em> access). For the common "same auth,
-  different payload shapes" case this is identical to <code>"require_identical"</code>.</li>
-<li><code>"discriminate"</code> — run the discriminator early (reading the raw body)
-  and apply only the chosen variant's <code>permission_classes</code>. Most precise,
-  for the genuine "each variant is a different privilege" case; accepts the
-  early-body-read tradeoff.</li>
-<li><code>"require_identical"</code> — validated at <code>as_view()</code> time to require every
-  variant to declare the same <code>permission_classes</code>; sidesteps ordering
-  entirely.</li>
-</ul>
-<p><strong>No <code>metadata</code> field here — by decision, not oversight.</strong> The wrapper
-is never dispatched: it resolves to a variant, and the variant is the
-:class:<code>ServiceSpec</code> every downstream consumer ends up holding, so
-<code>metadata</code> belongs on the variants and a wrapper-level copy would raise
-an inheritance question (does a variant without metadata fall back to the
-wrapper's?) that the field deliberately does not answer anywhere else.
-One consequence worth knowing: a permission class that reads <code>metadata</code>
-off the spec it finds on the view finds <em>this</em> wrapper, which has none.
-Under the default <code>permission_strategy="union"</code> there is no variant yet
-to fall back to — permissions run before discrimination. So express a
-metadata-driven rule per variant, via each variant's own
-<code>permission_classes</code> (under <code>"discriminate"</code>, only the chosen
-variant's run), rather than reading the wrapper.</p>
-<p>The resolved concrete spec flows through the shared action→spec chain, so
-the chosen variant's serializer context, kwargs, and output pipeline all
-apply — the discriminator is resolved once per request and reused across
-dispatch, permissions, and serializer resolution.</p>
+which the view layer maps to a 400); returning a key absent from
+<code>specs</code> is a configuration error and raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec.specs">specs</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.service_spec.ServiceSpec)" href="#rest_framework_services.types.service_spec.ServiceSpec">ServiceSpec</a>[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The variants, keyed by the value <code>discriminator</code> returns.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec.permission_strategy">permission_strategy</span></code></td>
+            <td>
+                  <code><span title="rest_framework_services.types.polymorphic_service_spec.PermissionStrategy">PermissionStrategy</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>How <code>get_permissions</code> behaves, given that DRF runs
+permissions before the body is necessarily parsed. <code>"union"</code> (the
+default) requires the union of every variant's <code>permission_classes</code>
+— no early body read, and the conservative/secure failure mode, since
+a mis-declared discriminator branch can't <em>widen</em> access; for the
+common "same auth, different payload shapes" case it is identical to
+<code>"require_identical"</code>. <code>"discriminate"</code> runs the discriminator
+early (reading the raw body) and applies only the chosen variant's
+<code>permission_classes</code> — most precise, for the genuine "each variant
+is a different privilege" case. <code>"require_identical"</code> is validated
+at <code>as_view()</code> time to require every variant to declare the same
+<code>permission_classes</code>, sidestepping the ordering entirely.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -3849,57 +4225,9 @@ shipped as — and forwarded by the default
 :func:<code>~rest_framework_services.delete_model</code> services. The incoming child
 rows are read from <code>data[relation_name]</code>; each child is persisted by
 running it back through the same mutation helpers, so scalar / m2m / nested
-semantics compose recursively.</p>
-<p>Fields:</p>
-<ul>
-<li><strong><code>model</code></strong> — the child model class.</li>
-<li><strong><code>fk</code></strong> — the name of the child's forward foreign-key field pointing
-  at the parent (e.g. <code>"author"</code> for <code>Book.author</code>). It is set
-  automatically on created children and used to resolve the parent's
-  reverse manager.</li>
-<li><strong><code>match_key</code></strong> — the field used to pair an incoming row with an
-  existing child (default <code>"pk"</code>). An incoming row whose <code>match_key</code>
-  matches an existing child updates it; one with no match (or no key) is
-  created. The same name is read off both the incoming mapping
-  (<code>item[match_key]</code>) and the existing instance
-  (<code>getattr(child, match_key)</code>), so serializers emitting <code>"id"</code> should
-  set <code>match_key="id"</code>.</li>
-<li><strong><code>mode</code></strong> — <code>"replace"</code> (the default) matches incoming to existing,
-  creates new, updates matched, and removes orphans (existing children
-  absent from the incoming set); <code>"merge"</code> upserts only and never removes.</li>
-<li><strong><code>orphan</code></strong> — what removing an orphan <em>does</em>, where <code>mode</code> says
-  whether one is removed at all. <code>"auto"</code> (the default) derives it from
-  the schema: <strong>unlinked</strong> (its <code>fk</code> set to <code>None</code>) when the FK is
-  nullable, else <strong>deleted</strong> — mirroring <code>on_delete=SET_NULL</code> vs
-  <code>CASCADE</code>. <code>"unlink"</code> and <code>"delete"</code> say it outright, for a spec
-  that means one of them rather than whichever the column happens to allow;
-  a later migration adding <code>null=True</code> would otherwise turn a destructive
-  <code>"replace"</code> into a non-destructive one with nothing in the spec
-  changing. <code>"unlink"</code> against a non-nullable FK raises
-  :exc:<code>~django.core.exceptions.ImproperlyConfigured</code> when the relation is
-  written, since there is no link to blank. The same rule governs the
-  :func:<code>~rest_framework_services.delete_model</code> cascade, which disposes of
-  the same rows.</li>
-<li><strong><code>field_map</code></strong> / <strong><code>exclude_fields</code></strong> — forwarded to the per-child
-  <code>create_from_input</code> / <code>update_from_input</code> call, exactly as for the
-  parent.</li>
-<li><strong><code>m2m</code></strong> — optional callable <code>(child_row) -&gt; mapping</code> deriving the
-  child's many-to-many assignments from its incoming row (the per-child
-  analogue of :func:<code>~rest_framework_services.create_model</code>'s <code>m2m</code>).</li>
-<li><strong><code>children</code></strong> — a nested <code>{relation_name: ChildSpec}</code> map for
-  grandchildren; recursion follows the declared tree, so depth is bounded
-  by how deeply you nest specs.</li>
-<li><strong><code>relations</code></strong> — the same nesting for every other relation kind: a
-  <code>{relation_name: RelationSpec}</code> map applied to each child row exactly
-  as the top-level <code>relations=</code> is applied to the parent.</li>
-<li><strong><code>create_service</code></strong> / <strong><code>update_service</code></strong> / <strong><code>delete_service</code></strong>
-  — optional per-row services replacing the default mutation-helper call
-  for that operation, for a child whose write has real behaviour (side
-  effects, derived columns, events, an external call). See below.</li>
-</ul>
-<p>The whole parent + children write runs inside the service's atomic block;
-field-level validation stays in the input serializer / dataclass — the
-helper owns persistence only.</p>
+semantics compose recursively. The whole parent + children write runs
+inside the service's atomic block; field-level validation stays in the
+input serializer / dataclass — the helper owns persistence only.</p>
 <p><strong>Pluggable services — the spec owns reconciliation, the service owns the
 row.</strong> Matching, <code>mode</code> and orphan handling never move into your code;
 a slot is called once per row the loop has already decided about. Each is
@@ -3910,24 +4238,12 @@ because the surrounding service's atomic block already wraps the whole
 tree and letting each row open its own would mean a savepoint per row.
 Each receives only the pool keys it declares (the library's usual
 signature-filtering idiom), drawn from the mutation helpers' opaque
-<code>context=</code> plus the loop's own seeds:</p>
-<ul>
-<li><code>create_service(*, data, parent, **extras)</code> — <code>data</code> is the incoming
-  row with the <code>fk</code> already pointing at <code>parent</code>, since linking the
-  child <em>is</em> reconciliation. Must return the created row; the loop reads
-  its pk for the delta.</li>
-<li><code>update_service(*, instance, data, parent, **extras)</code> — returning
-  <code>None</code> means "use the in-memory instance", the framework's existing
-  convention.</li>
-<li><code>delete_service(*, instance, parent, **extras)</code> — replaces the
-  unlink-or-delete rule for that row, both for orphan removal and for the
-  :func:<code>~rest_framework_services.delete_model</code> cascade. The loop can no
-  longer tell an unlink from a delete, so the pk is reported under
-  :attr:<code>~rest_framework_services.ChildCollectionChange.removed</code> rather
-  than guessed into one of the two. It <em>is</em> the disposal, so declaring it
-  beside an explicit <code>orphan</code> raises at construction: the flag would
-  decide nothing.</li>
-</ul>
+<code>context=</code> plus the loop's own seeds. Those seeds — <code>data</code> /
+<code>instance</code> / <code>parent</code> — are applied <strong>after</strong> the context, so a context
+key of the same name cannot outrank them, the precedence form of the rule
+:data:<code>~rest_framework_services.types.reserved_pool_seeds.RESERVED_POOL_SEEDS</code>
+states for the dispatcher's pools. In the async loops the slot must be an
+<code>async def</code>: the async path is awaited end to end.</p>
 <p>A declared slot owns that row <strong>entirely</strong>: <code>field_map</code>,
 <code>exclude_fields</code>, <code>m2m</code> and the nested <code>children</code> / <code>relations</code>
 maps configure the default mutation-helper call, so a <code>create_service</code> /
@@ -3939,12 +4255,214 @@ unlink-or-delete rule, not the helper call, so the cascade still removes a
 row's grandchildren before handing the row over. The spec keeps only what
 it never delegates — which rows exist, which incoming row matches which
 existing one, and what happens to the ones left over.</p>
-<p>The loop's own <code>data</code> / <code>instance</code> / <code>parent</code> are applied <strong>after</strong>
-the context, so a context key of the same name cannot outrank them —
-the precedence form of the rule
-:data:<code>~rest_framework_services.types.reserved_pool_seeds.RESERVED_POOL_SEEDS</code>
-states for the dispatcher's pools. In the async loops the slot must be an
-<code>async def</code>: the async path is awaited end to end.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.model">model</span></code></td>
+            <td>
+                  <code><span title="type">type</span>[<span title="django.db.models.Model">Model</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The child model class.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.fk">fk</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the child's forward foreign-key field pointing at the
+parent (<code>"author"</code> for <code>Book.author</code>). Set automatically on
+created children, and used to resolve the parent's reverse manager.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.match_key">match_key</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Field used to pair an incoming row with an existing child.
+An incoming row whose <code>match_key</code> matches an existing child
+updates it; one with no match, or no key, is created. The same name
+is read off both the incoming mapping (<code>item[match_key]</code>) and the
+existing instance (<code>getattr(child, match_key)</code>), so serializers
+emitting <code>"id"</code> should set <code>match_key="id"</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.mode">mode</span></code></td>
+            <td>
+                  <code><span title="rest_framework_services.types.relation_mode.RelationMode">RelationMode</span> | <span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"replace"</code> matches incoming to existing, creates new, updates
+matched, and removes orphans (existing children absent from the
+incoming set); <code>"merge"</code> upserts only and never removes.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.field_map">field_map</span></code></td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded to the per-child <code>create_from_input</code> /
+<code>update_from_input</code> call, exactly as for the parent.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.exclude_fields">exclude_fields</span></code></td>
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded to the per-child call, as <code>field_map</code> is.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.m2m">m2m</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Callable <code>(child_row) -&gt; mapping</code> deriving the child's
+many-to-many assignments from its incoming row — the per-child
+analogue of :func:<code>~rest_framework_services.create_model</code>'s <code>m2m</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.children">children</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.child_spec.ChildSpec)" href="#rest_framework_services.types.child_spec.ChildSpec">ChildSpec</a>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Nested <code>{relation_name: ChildSpec}</code> map for grandchildren;
+recursion follows the declared tree, so depth is bounded by how
+deeply you nest specs.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.relations">relations</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="RelationSpec (rest_framework_services.types.relation_spec.RelationSpec)" href="#rest_framework_services.types.relation_spec.RelationSpec">RelationSpec</a>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The same nesting for every other relation kind — a
+<code>{relation_name: RelationSpec}</code> map applied to each child row
+exactly as the top-level <code>relations=</code> is applied to the parent.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.create_service">create_service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Per-row service replacing the default mutation-helper
+call, for a child whose write has real behaviour (side effects,
+derived columns, events, an external call). Called as
+<code>create_service(*, data, parent, **extras)</code>, where <code>data</code> is
+the incoming row with the <code>fk</code> already pointing at <code>parent</code>,
+since linking the child <em>is</em> reconciliation. Must return the
+created row; the loop reads its pk for the delta.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.update_service">update_service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The same for updates, called as
+<code>update_service(*, instance, data, parent, **extras)</code>. Returning
+<code>None</code> means "use the in-memory instance", the framework's
+existing convention.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.delete_service">delete_service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Called as
+<code>delete_service(*, instance, parent, **extras)</code>, replacing the
+unlink-or-delete rule for that row — both for orphan removal and
+for the :func:<code>~rest_framework_services.delete_model</code> cascade. The
+loop can no longer tell an unlink from a delete, so the pk is
+reported under
+:attr:<code>~rest_framework_services.ChildCollectionChange.removed</code>
+rather than guessed into one of the two. It <em>is</em> the disposal, so
+declaring it beside an explicit <code>orphan</code> raises at construction:
+the flag would decide nothing.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.orphan">orphan</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="RelationOrphan (rest_framework_services.types.relation_orphan.RelationOrphan)" href="#rest_framework_services.types.relation_orphan.RelationOrphan">RelationOrphan</a> | <span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>What removing an orphan <em>does</em>, where <code>mode</code> says whether one
+is removed at all. <code>"auto"</code> derives it from the schema:
+<strong>unlinked</strong> (its <code>fk</code> set to <code>None</code>) when the FK is nullable,
+else <strong>deleted</strong>, mirroring <code>on_delete=SET_NULL</code> vs <code>CASCADE</code>.
+<code>"unlink"</code> and <code>"delete"</code> say it outright, for a spec that means
+one of them rather than whichever the column happens to allow — a
+later migration adding <code>null=True</code> would otherwise turn a
+destructive <code>"replace"</code> into a non-destructive one with nothing in
+the spec changing. <code>"unlink"</code> against a non-nullable FK raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> when the
+relation is written, since there is no link to blank. The same rule
+governs the :func:<code>~rest_framework_services.delete_model</code> cascade,
+which disposes of the same rows.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -4348,75 +4866,181 @@ deleting the row instead would be the opposite of what was asked.</p>
 
         <p>How to persist a <strong>forward</strong> relation — a <code>ForeignKey</code> <em>or</em> a
 <code>OneToOneField</code> declared on the parent itself.</p>
-<p>One spec for both because Django makes them one thing: <code>OneToOneField</code>
-subclasses <code>ForeignKey</code>, and the column being unique changes nothing
-about how it is written.</p>
+<p>One spec covers both: <code>OneToOneField</code> subclasses <code>ForeignKey</code>, and the
+column being unique changes nothing about how it is written.</p>
 <p>Declared in <code>relations={field_name: ForwardRelationSpec(...)}</code> on the
 mutation helpers, where the name is the parent's own field
 (<code>relations={"author": ...}</code> for <code>Post.author</code>). The nested payload is
 read from <code>data[field_name]</code> and the resolved row is assigned to that
 field <strong>before</strong> the parent is saved
-(:attr:<code>~rest_framework_services.RelationPhase.FORWARD</code>) — which is what
-makes it an ordinary column assignment, reported by <code>diff_attrs</code> and
-persisted by the same minimal <code>update_fields</code> save as any other field,
-with no plumbing of its own.</p>
-<p>The value is read three ways, and all three are meaningful:</p>
-<ul>
-<li><strong>omitted</strong> — the relation is untouched.</li>
-<li><strong><code>None</code></strong> — the parent's foreign key is set to <code>None</code>. The row it
-  used to point at is <em>not</em> removed: a forward target is not owned by the
-  parent and may be shared. Removing rows is the reverse kinds' job.</li>
-<li><strong>a mapping</strong> — the target row is written. A mapping <em>without</em> a
-  <code>match_key</code> creates a row; one <em>with</em> it names a row, and is matched
-  against <code>scope</code>.</li>
-</ul>
-<p>The <code>match_key</code> identifies a row rather than describing one, so a key
-that matches nothing in scope raises
-:exc:<code>~rest_framework_services.ServiceValidationError</code> (a 400) instead of
-falling through to a create. Creating there would be unsafe as well as
-surprising: the key travels in the payload, so a <code>pk</code> naming an
-out-of-scope row would be written straight back onto that row by
-<code>Model.save()</code> — reaching the very row the scope exists to protect. This
-is where a forward relation deliberately parts company with
-:class:<code>~rest_framework_services.ChildSpec</code>, whose unmatched rows <em>are</em>
-created: a child collection matches within the parent's own manager, so a
-miss there really does mean "a new child".</p>
+(:attr:<code>~rest_framework_services.RelationPhase.FORWARD</code>) — an ordinary
+column assignment, reported by <code>diff_attrs</code> and persisted by the same
+minimal <code>update_fields</code> save as any other field.</p>
+<p>The value reads three ways. <strong>Omitted</strong> leaves the relation untouched.
+<strong><code>None</code></strong> sets the parent's foreign key to <code>None</code> without removing the
+row it used to point at — a forward target is not owned by the parent and
+may be shared, so removing rows is the reverse kinds' job. <strong>A mapping</strong>
+writes the target row: without a <code>match_key</code> it creates one, with a
+<code>match_key</code> it names one, matched against <code>scope</code>.</p>
 <p>A spec writes a <em>row</em>. To merely point the column at a row that already
 exists, don't declare a relation at all — pass the pk or the instance as
 the plain field it is.</p>
-<p>Fields:</p>
-<ul>
-<li><strong><code>model</code></strong> — the target model class.</li>
-<li><strong><code>match_key</code></strong> — the field pairing an incoming payload with an
-  existing row (default <code>"pk"</code>), read off both the mapping
-  (<code>item[match_key]</code>) and the queryset (<code>filter(**{match_key: key})</code>).</li>
-<li><strong><code>scope</code></strong> — the rows this caller may update: a queryset, or a
-  callable resolved from the caller's <code>context</code> pool by signature
-  (<code>lambda user: Author.objects.filter(owner=user)</code>), the library's usual
-  idiom. <strong>Without it the spec is create-only</strong>, and a payload that
-  carries a <code>match_key</code> raises
-  :exc:<code>~django.core.exceptions.ImproperlyConfigured</code> rather than quietly
-  creating a duplicate. A forward target has no owning manager to scope it
-  the way a child collection has, so an unscoped by-key match would mean
-  "any caller may write any row of that model by guessing a key" — and the
-  remedy is always to declare a scope, never for the client to send
-  something else, which is why it is a misconfiguration and not a
-  validation error.</li>
-<li><strong><code>field_map</code></strong> / <strong><code>exclude_fields</code></strong> / <strong><code>m2m</code></strong> /
- <strong><code>children</code></strong> / <strong><code>relations</code></strong> — forwarded to the target row's own
-  <code>create_from_input</code> / <code>update_from_input</code> call, exactly as for the
-  parent.</li>
-<li><strong><code>create_service</code></strong> / <strong><code>update_service</code></strong> — optional services
-  replacing that call, for a target whose write has behaviour of its own.
-  They receive <code>data</code> (and <code>instance</code>, on update) plus the caller
-  context — but <strong>no <code>parent</code></strong>: a forward target is written before
-  the parent row exists, which is the whole point of the phase. Declaring
-  either alongside the row-shaping knobs above raises at construction, for
-  the reason given on :class:<code>~rest_framework_services.ChildSpec</code>.</li>
-</ul>
 <p>There is no <code>mode</code> and no <code>delete_service</code>: a forward relation has no
 collection to reconcile and no orphans to dispose of. Clearing it is the
 <code>None</code> case, and it clears the <em>column</em>.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.forward_relation_spec.ForwardRelationSpec.model">model</span></code></td>
+            <td>
+                  <code><span title="type">type</span>[<span title="django.db.models.Model">Model</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The target model class.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.forward_relation_spec.ForwardRelationSpec.match_key">match_key</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The field pairing an incoming payload with an existing row
+(default <code>"pk"</code>), read off both the mapping (<code>item[match_key]</code>)
+and the queryset (<code>filter(**{match_key: key})</code>). It <em>identifies</em> a
+row rather than describing one, so a key matching nothing in
+<code>scope</code> raises
+:exc:<code>~rest_framework_services.ServiceValidationError</code> (a 400)
+instead of falling through to a create — unlike
+:class:<code>~rest_framework_services.ChildSpec</code>, which matches inside
+the parent's own manager, where a miss really does mean "a new
+child".</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.forward_relation_spec.ForwardRelationSpec.scope">scope</span></code></td>
+            <td>
+                  <code><span title="django.db.models.QuerySet">QuerySet</span>[<span title="typing.Any">Any</span>] | <span title="collections.abc.Callable">Callable</span>[..., <span title="django.db.models.QuerySet">QuerySet</span>[<span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The rows this caller may update — a queryset, or a callable
+resolved from the caller's <code>context</code> pool by signature
+(<code>lambda user: Author.objects.filter(owner=user)</code>), the library's
+usual idiom. <strong>Without it the spec is create-only</strong>, and a payload
+carrying a <code>match_key</code> raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> rather than
+quietly creating a duplicate: a forward target has no owning manager
+to match within, so an unscoped by-key match would mean "any caller
+may write any row of that model by guessing a key".</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.forward_relation_spec.ForwardRelationSpec.field_map">field_map</span></code></td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded to the target row's own <code>create_from_input</code> /
+<code>update_from_input</code> call, exactly as for the parent.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.forward_relation_spec.ForwardRelationSpec.exclude_fields">exclude_fields</span></code></td>
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.forward_relation_spec.ForwardRelationSpec.m2m">m2m</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise — the target's own many-to-many assignments.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.forward_relation_spec.ForwardRelationSpec.children">children</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.child_spec.ChildSpec)" href="#rest_framework_services.types.child_spec.ChildSpec">ChildSpec</a>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.forward_relation_spec.ForwardRelationSpec.relations">relations</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="RelationSpec (rest_framework_services.types.relation_spec.RelationSpec)" href="#rest_framework_services.types.relation_spec.RelationSpec">RelationSpec</a>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.forward_relation_spec.ForwardRelationSpec.create_service">create_service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional service replacing that call, for a target whose
+write has behaviour of its own. It receives <code>data</code> plus the caller
+context — but <strong>no <code>parent</code></strong>: a forward target is written before
+the parent row exists, which is the whole point of the phase.
+Declaring it alongside the row-shaping fields above raises at
+construction, for the reason given on
+:class:<code>~rest_framework_services.ChildSpec</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.forward_relation_spec.ForwardRelationSpec.update_service">update_service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The same, and additionally receives <code>instance</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -4471,57 +5095,180 @@ collection to reconcile and no orphans to dispose of. Clearing it is the
 
         <p>How to persist a <strong>reverse</strong> one-to-one — the row that points <em>back</em>.</p>
 <p>The other side of a <code>OneToOneField</code>: the column lives on the related row
-(<code>Profile.author</code>) and the parent (<code>Author</code>) reaches at most one of
-them through the reverse accessor. So the write belongs to
-:attr:<code>~rest_framework_services.RelationPhase.REVERSE</code>, after the parent
-has a primary key to point at — the same phase as
-:class:<code>~rest_framework_services.ChildSpec</code>, and the same loop, minus the
-collection.</p>
+(<code>Profile.author</code>) and the parent (<code>Author</code>) reaches at most one of them
+through the reverse accessor. So it is the
+:class:<code>~rest_framework_services.ChildSpec</code> loop minus the collection,
+written in :attr:<code>~rest_framework_services.RelationPhase.REVERSE</code> once the
+parent has a primary key to point at.</p>
 <p>Declared in <code>relations={accessor_name: ReverseOneToOneSpec(...)}</code>, where
 the name is the parent's reverse accessor (<code>relations={"profile": ...}</code>
 for <code>Author.profile</code>). The value at <code>data[accessor_name]</code> reads three
-ways:</p>
-<ul>
-<li><strong>omitted</strong> — the relation is untouched.</li>
-<li><strong><code>None</code></strong> — the existing row, if any, is removed by the same rule the
-  children loop uses for orphans: <strong>unlinked</strong> when <code>fk</code> is nullable
-  (like <code>on_delete=SET_NULL</code>), <strong>deleted</strong> when it is not (like
-  <code>CASCADE</code>). Unlike a forward relation, this row <em>is</em> the parent's —
-  clearing the relation has to do something about it.</li>
-<li><strong>a mapping</strong> — the row is updated when the parent already has one, and
-  created and linked when it does not.</li>
-</ul>
-<p>Fields:</p>
-<ul>
-<li><strong><code>model</code></strong> — the related model class.</li>
-<li><strong><code>fk</code></strong> — the name of that model's field pointing at the parent
-  (<code>"author"</code> for <code>Profile.author</code>). Set automatically on creation, and
-  the field whose nullability decides unlink-versus-delete by default.</li>
-<li><strong><code>orphan</code></strong> — what removing the row <em>does</em>: <code>"auto"</code> (the default)
-  derives it from that field, and <code>"unlink"</code> / <code>"delete"</code> state it, for
-  a spec that means one of them rather than whichever the column happens to
-  allow. <code>"unlink"</code> against a non-nullable <code>fk</code> raises
-  :exc:<code>~django.core.exceptions.ImproperlyConfigured</code> when the relation is
-  written. The rule covers both removals there are — the <code>None</code> case here
-  and the :func:<code>~rest_framework_services.delete_model</code> cascade.</li>
-<li><strong><code>field_map</code></strong> / <strong><code>exclude_fields</code></strong> / <strong><code>m2m</code></strong> /
-  <strong><code>children</code></strong> / <strong><code>relations</code></strong> — forwarded to the row's own
-  <code>create_from_input</code> / <code>update_from_input</code> call.</li>
-<li><strong><code>create_service</code></strong> / <strong><code>update_service</code></strong> / <strong><code>delete_service</code></strong>
-  — optional services replacing that call for the row, with the same
-  contract as :class:<code>~rest_framework_services.ChildSpec</code>'s: they receive
-  <code>parent</code>, a create service's <code>data</code> already carries the <code>fk</code>, an
-  update service returning <code>None</code> means "use the in-memory instance",
-  and a delete service replaces the unlink-or-delete rule (so the outcome
-  is reported as <code>"removed"</code>, the only thing still known, and an explicit
-  <code>orphan</code> beside it raises). Declaring <code>create_service</code> /
-  <code>update_service</code> alongside the row-shaping knobs raises at
-  construction.</li>
-</ul>
-<p>There is no <code>match_key</code> and no <code>scope</code>: the parent owns at most one
-row here, so there is nothing to match and nothing to scope — the relation
-itself is the match. There is no <code>mode</code> either: a one-row relation has no
-orphans beyond the <code>None</code> case, which is explicit.</p>
+ways. <strong>Omitted</strong> leaves the relation untouched. <strong><code>None</code></strong> removes the
+existing row, if any, by the <code>orphan</code> rule below — unlike a forward
+relation, this row <em>is</em> the parent's, so clearing the relation has to do
+something about it. <strong>A mapping</strong> updates the row when the parent already
+has one, and creates and links one when it does not.</p>
+<p>There is no <code>match_key</code> and no <code>scope</code> — the parent owns at most one row
+here, so the relation itself is the match — and no <code>mode</code>: a one-row
+relation has no orphans beyond the <code>None</code> case, which is explicit.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec.model">model</span></code></td>
+            <td>
+                  <code><span title="type">type</span>[<span title="django.db.models.Model">Model</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The related model class.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec.fk">fk</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The name of that model's field pointing at the parent (<code>"author"</code>
+for <code>Profile.author</code>). Set automatically on creation, and the
+field whose nullability decides unlink-versus-delete by default.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec.field_map">field_map</span></code></td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded to the row's own <code>create_from_input</code> /
+<code>update_from_input</code> call.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec.exclude_fields">exclude_fields</span></code></td>
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec.m2m">m2m</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec.children">children</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.child_spec.ChildSpec)" href="#rest_framework_services.types.child_spec.ChildSpec">ChildSpec</a>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec.relations">relations</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="RelationSpec (rest_framework_services.types.relation_spec.RelationSpec)" href="#rest_framework_services.types.relation_spec.RelationSpec">RelationSpec</a>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec.create_service">create_service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional service replacing that call for the row, with
+the contract :class:<code>~rest_framework_services.ChildSpec</code> states: it
+receives <code>parent</code>, and its <code>data</code> already carries the <code>fk</code>.
+Declaring it alongside the row-shaping fields above raises at
+construction.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec.update_service">update_service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The same; returning <code>None</code> means "use the in-memory
+instance".</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec.delete_service">delete_service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Replaces the unlink-or-delete rule below, so the outcome
+is reported as <code>"removed"</code> — the only thing still known — and an
+explicit <code>orphan</code> beside it raises.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec.orphan">orphan</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="RelationOrphan (rest_framework_services.types.relation_orphan.RelationOrphan)" href="#rest_framework_services.types.relation_orphan.RelationOrphan">RelationOrphan</a> | <span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>What removing the row <em>does</em>, by
+:class:<code>~rest_framework_services.ChildSpec</code>'s rule: <code>"auto"</code> (the
+default) derives it from <code>fk</code> — <strong>unlinked</strong> when that field is
+nullable (like <code>on_delete=SET_NULL</code>), <strong>deleted</strong> when it is not
+(like <code>CASCADE</code>) — while <code>"unlink"</code> / <code>"delete"</code> state it
+instead, and <code>"unlink"</code> against a non-nullable <code>fk</code> raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at write time.
+It covers both removals there are: the <code>None</code> case above and the
+:func:<code>~rest_framework_services.delete_model</code> cascade.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -4577,60 +5324,214 @@ orphans beyond the <code>None</code> case, which is explicit.</p>
         <p>How to persist a <code>GenericRelation</code> — a collection linked by content type.</p>
 <p>The reverse-FK collection with the foreign key replaced by a pair of
 columns: a <code>ForeignKey</code> to <code>ContentType</code> saying <em>which model</em> the row
-belongs to, and an id column saying <em>which row</em>. Everything else is the
-same, which is why it reconciles exactly as
+belongs to, and an id column saying <em>which row</em>. It reconciles exactly as
 :class:<code>~rest_framework_services.ChildSpec</code> does — matched inside the
-parent's own accessor, so no <code>scope=</code> is needed or accepted — and why it
-is written after the parent's <code>save()</code>
-(:attr:<code>~rest_framework_services.RelationPhase.GENERIC</code>, once the parent
-has both a content type and a primary key).</p>
+parent's own accessor, so no <code>scope=</code> is needed or accepted — and is
+written in :attr:<code>~rest_framework_services.RelationPhase.GENERIC</code>, once the
+parent's <code>save()</code> has given it both a content type and a primary key.</p>
 <p>Declared in <code>relations={accessor_name: GenericRelationSpec(...)}</code>, where
 the name is the <code>GenericRelation</code> declared on the parent
 (<code>relations={"attachments": ...}</code> for <code>Catalog.attachments</code>). A
 relation the input omits is untouched; an explicit <code>[]</code> in <code>"replace"</code>
 mode empties it.</p>
-<p><strong>This kind needs <code>django.contrib.contenttypes</code> in <code>INSTALLED_APPS</code></strong>
-and nothing else in the library does, so the content-type lookup is
-resolved on first use rather than imported with the package: this package
-ships in <code>INSTALLED_APPS</code> itself and is imported while Django is still
-populating the app registry, where importing a model raises
-<code>AppRegistryNotReady</code>. Declaring the spec is always safe; <em>writing</em> one
-without the app installed raises
+<p><strong>This kind needs <code>django.contrib.contenttypes</code> in <code>INSTALLED_APPS</code></strong>,
+and nothing else in the library does. Declaring the spec is always safe;
+<em>writing</em> one without the app installed raises
 :exc:<code>~django.core.exceptions.ImproperlyConfigured</code> naming the remedy.</p>
-<p>Fields:</p>
-<ul>
-<li><strong><code>model</code></strong> — the related model class (the one carrying the content
-  type and id columns, e.g. <code>Attachment</code>).</li>
-<li><strong><code>content_type_field</code></strong> / <strong><code>object_id_field</code></strong> — the names of those
-  two columns, defaulting to Django's own <code>"content_type"</code> /
-  <code>"object_id"</code>. They mirror the arguments of the same name on
-  <code>GenericRelation</code>; set them when the model spells them differently.</li>
-<li><strong><code>match_key</code></strong> — the field pairing an incoming row with an existing
-  one (default <code>"pk"</code>), read inside the parent's own accessor.</li>
-<li><strong><code>mode</code></strong> — <code>"replace"</code> (the default) removes the rows the incoming
-  set leaves out, <code>"merge"</code> upserts only.</li>
-<li><strong><code>orphan</code></strong> — what removing one <em>does</em>. <code>"auto"</code> (the default)
-  <strong>unlinks</strong> (both link columns set to <code>None</code>) when both are nullable and
-  <strong>deletes</strong> otherwise — the same rule
-  :class:<code>~rest_framework_services.ChildSpec</code> applies to one column, applied
-  to the pair, since half a link is not a state the relation has a meaning
-  for. <code>"unlink"</code> and <code>"delete"</code> state it instead of deriving it, with
-  the same wording and the same effect on the
-  :func:<code>~rest_framework_services.delete_model</code> cascade; <code>"unlink"</code> raises
-  at write time unless both columns can hold <code>NULL</code>.</li>
-<li><strong><code>field_map</code></strong> / <strong><code>exclude_fields</code></strong> / <strong><code>m2m</code></strong> /
-  <strong><code>children</code></strong> / <strong><code>relations</code></strong> — forwarded to the row's own
-  <code>create_from_input</code> / <code>update_from_input</code> call.</li>
-<li><strong><code>create_service</code></strong> / <strong><code>update_service</code></strong> / <strong><code>delete_service</code></strong>
-  — optional services replacing that call, with the same contract as
-  :class:<code>~rest_framework_services.ChildSpec</code>'s: a create service's
-  <code>data</code> already carries both link columns, an update service returning
-  <code>None</code> means "use the in-memory instance", and a delete service
-  replaces the unlink-or-delete rule (so the outcome is reported as
-  <code>"removed"</code>, and an explicit <code>orphan</code> beside it raises). Declaring
-  <code>create_service</code> / <code>update_service</code> alongside the row-shaping knobs
-  raises at construction.</li>
-</ul>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.model">model</span></code></td>
+            <td>
+                  <code><span title="type">type</span>[<span title="django.db.models.Model">Model</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The related model class — the one carrying the content-type and
+id columns, e.g. <code>Attachment</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.content_type_field">content_type_field</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the content-type column, defaulting to
+Django's own <code>"content_type"</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.object_id_field">object_id_field</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Name of the id column, defaulting to <code>"object_id"</code>.
+Both mirror the <code>GenericRelation</code> arguments of the same name; set
+them when the model spells the columns differently.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.match_key">match_key</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The field pairing an incoming row with an existing one
+(default <code>"pk"</code>), read inside the parent's own accessor.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.mode">mode</span></code></td>
+            <td>
+                  <code><span title="rest_framework_services.types.relation_mode.RelationMode">RelationMode</span> | <span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"replace"</code> (the default) removes the rows the incoming set
+leaves out, <code>"merge"</code> upserts only.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.field_map">field_map</span></code></td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded to the row's own <code>create_from_input</code> /
+<code>update_from_input</code> call.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.exclude_fields">exclude_fields</span></code></td>
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.m2m">m2m</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.children">children</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.child_spec.ChildSpec)" href="#rest_framework_services.types.child_spec.ChildSpec">ChildSpec</a>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.relations">relations</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="RelationSpec (rest_framework_services.types.relation_spec.RelationSpec)" href="#rest_framework_services.types.relation_spec.RelationSpec">RelationSpec</a>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.create_service">create_service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional service replacing that call, with the contract
+:class:<code>~rest_framework_services.ChildSpec</code> states; its <code>data</code>
+already carries both link columns. Declaring it alongside the
+row-shaping fields above raises at construction.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.update_service">update_service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The same; returning <code>None</code> means "use the in-memory
+instance".</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.delete_service">delete_service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Replaces the unlink-or-delete rule below, so the outcome
+is reported as <code>"removed"</code> and an explicit <code>orphan</code> beside it
+raises.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.orphan">orphan</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="RelationOrphan (rest_framework_services.types.relation_orphan.RelationOrphan)" href="#rest_framework_services.types.relation_orphan.RelationOrphan">RelationOrphan</a> | <span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>What removing a row <em>does</em> —
+:class:<code>~rest_framework_services.ChildSpec</code>'s rule applied to the
+pair of link columns rather than to one, since half a link is not a
+state the relation has a meaning for. <code>"auto"</code> (the default)
+<strong>unlinks</strong> (both columns set to <code>None</code>) when both are nullable
+and <strong>deletes</strong> otherwise; <code>"unlink"</code> and <code>"delete"</code> state it
+instead of deriving it, and <code>"unlink"</code> raises at write time unless
+both columns can hold <code>NULL</code>. The rule also governs the
+:func:<code>~rest_framework_services.delete_model</code> cascade.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -4687,61 +5588,184 @@ without the app installed raises
 <p>Declared in <code>relations={accessor_name: ManyToManySpec(...)}</code>, where the
 name is whichever side the parent reaches the relation through — the field
 it declares (<code>Post.tags</code>) or the reverse accessor of a field declared on
-the other model (<code>Tag.posts</code>). Django hands back the same related manager
-either way, so forward and reverse are one code path here.</p>
+the other model (<code>Tag.posts</code>). Either works; Django hands back the same
+related manager.</p>
 <p>Each row in <code>data[accessor_name]</code> is a <strong>payload</strong>, not a key: the target
 row is created or updated first, and only then is the membership written
 (:attr:<code>~rest_framework_services.RelationPhase.M2M</code>, after the parent has a
 primary key). That is the difference from the mutation helpers' <code>m2m=</code>
-argument, which assigns rows that already exist and creates nothing. Both
-still ship, because they are different jobs — but a relation named by both
-is refused, since it would be written twice and keep whichever ran last.</p>
-<ul>
-<li><strong>omitted</strong> — the relation is untouched.</li>
-<li><strong><code>[]</code></strong> — in <code>"replace"</code> mode the membership is emptied.</li>
-<li><strong>a list of mappings</strong> — every target is written, then the membership is
-  set (or added to, in <code>"merge"</code> mode).</li>
-</ul>
-<p>Fields:</p>
-<ul>
-<li><strong><code>model</code></strong> — the target model class.</li>
-<li><strong><code>match_key</code></strong> — the field pairing an incoming payload with an
-  existing target row (default <code>"pk"</code>).</li>
-<li><strong><code>scope</code></strong> — the rows this caller may update: a queryset, or a
-  callable resolved from the caller's <code>context</code> pool by signature.
-  <strong>Without it the spec is create-only</strong>, and a payload carrying a
-  <code>match_key</code> raises
-  :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>. A many-to-many
-  target is shared by definition — every parent linked to it reaches the
-  same row — so there is no owning manager to match within and an unscoped
-  by-key match would mean "any caller may write any row of that model by
-  guessing a key". Matching is done in <code>scope</code>, not in the parent's
-  current membership: the payload names rows to link, which is exactly the
-  set that is not linked yet.</li>
-<li><strong><code>mode</code></strong> — <code>"replace"</code> (the default) makes the incoming set
-  authoritative and drops the members it leaves out; <code>"merge"</code> adds and
-  never drops.</li>
-<li><strong><code>field_map</code></strong> / <strong><code>exclude_fields</code></strong> / <strong><code>m2m</code></strong> /
-  <strong><code>children</code></strong> / <strong><code>relations</code></strong> — forwarded to the <em>target row's</em>
-  own <code>create_from_input</code> / <code>update_from_input</code> call. (<code>m2m</code> here is
-  the target's own many-to-many assignments, not this relation.)</li>
-<li><strong><code>create_service</code></strong> / <strong><code>update_service</code></strong> — optional services
-  replacing that call for a target whose write has behaviour of its own.
-  They receive <code>data</code> (and <code>instance</code>, on update) plus <code>parent</code> and
-  the caller context. Unlike a child collection, <code>data</code> carries no link
-  to the parent: the link is a through-table row the loop writes afterwards
-  and a service could not write it by returning one. Declaring either
-  alongside the row-shaping knobs above raises at construction, for the
-  reason given on :class:<code>~rest_framework_services.ChildSpec</code>.</li>
-</ul>
-<p>There is no <code>delete_service</code>: a target dropped from the relation is not
-deleted and never was. The row is shared, so the only thing the loop
-removes is the membership — which is why a dropped target is reported
-under :attr:<code>~rest_framework_services.ChildCollectionChange.unlinked</code> and
-<code>deleted</code> stays empty for this kind.</p>
+argument, which assigns rows that already exist and creates nothing. A
+relation named by both is refused: it would be written twice and keep
+whichever ran last.</p>
+<p>An omitted relation is untouched; an explicit <code>[]</code> empties the membership
+in <code>"replace"</code> mode; a list of mappings writes every target and then sets
+the membership (or adds to it, in <code>"merge"</code> mode).</p>
+<p>There is no <code>delete_service</code>: the row is shared, so a target dropped from
+the relation loses only its membership and is reported under
+:attr:<code>~rest_framework_services.ChildCollectionChange.unlinked</code>, leaving
+<code>deleted</code> empty for this kind.</p>
 <p>A many-to-many with an explicit <code>through</code> model is <strong>not</strong> covered. The
 loop writes target rows and lets Django write the through row, which cannot
 carry the extra columns a custom through model exists for.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.many_to_many_spec.ManyToManySpec.model">model</span></code></td>
+            <td>
+                  <code><span title="type">type</span>[<span title="django.db.models.Model">Model</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The target model class.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.many_to_many_spec.ManyToManySpec.match_key">match_key</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The field pairing an incoming payload with an existing target
+row (default <code>"pk"</code>).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.many_to_many_spec.ManyToManySpec.scope">scope</span></code></td>
+            <td>
+                  <code><span title="django.db.models.QuerySet">QuerySet</span>[<span title="typing.Any">Any</span>] | <span title="collections.abc.Callable">Callable</span>[..., <span title="django.db.models.QuerySet">QuerySet</span>[<span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The rows this caller may update, on the terms
+:class:<code>~rest_framework_services.ForwardRelationSpec</code> states:
+without it the spec is create-only, and a payload carrying a
+<code>match_key</code> raises
+:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>. Matching runs
+against <code>scope</code>, not against the parent's current membership — the
+payload names rows to link, which is exactly the set that is not
+linked yet.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.many_to_many_spec.ManyToManySpec.mode">mode</span></code></td>
+            <td>
+                  <code><span title="rest_framework_services.types.relation_mode.RelationMode">RelationMode</span> | <span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"replace"</code> (the default) makes the incoming set authoritative
+and drops the members it leaves out; <code>"merge"</code> adds and never
+drops.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.many_to_many_spec.ManyToManySpec.field_map">field_map</span></code></td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded to the <em>target row's</em> own <code>create_from_input</code> /
+<code>update_from_input</code> call.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.many_to_many_spec.ManyToManySpec.exclude_fields">exclude_fields</span></code></td>
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.many_to_many_spec.ManyToManySpec.m2m">m2m</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise — the target's own many-to-many assignments, not
+this relation.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.many_to_many_spec.ManyToManySpec.children">children</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.child_spec.ChildSpec)" href="#rest_framework_services.types.child_spec.ChildSpec">ChildSpec</a>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.many_to_many_spec.ManyToManySpec.relations">relations</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="RelationSpec (rest_framework_services.types.relation_spec.RelationSpec)" href="#rest_framework_services.types.relation_spec.RelationSpec">RelationSpec</a>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Forwarded likewise.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.many_to_many_spec.ManyToManySpec.create_service">create_service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional service replacing that call for a target whose
+write has behaviour of its own. It receives <code>data</code> plus <code>parent</code>
+and the caller context, but — unlike a child collection — <code>data</code>
+carries no link to the parent: the link is a through-table row the
+loop writes afterwards, which a service could not write by returning
+one. Declaring it alongside the row-shaping fields above raises at
+construction, for the reason given on
+:class:<code>~rest_framework_services.ChildSpec</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.many_to_many_spec.ManyToManySpec.update_service">update_service</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The same, and additionally receives <code>instance</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -5108,13 +6132,11 @@ required in the <em>type system</em>. Use it inside <code>Annotated[...]</code> 
 def list_widgets(**extras: Unpack[WidgetExtras]) -&gt; list[Widget]:
     return Widget.objects.filter(project_id=extras[&quot;project_pk&quot;])
 </code></pre></div>
-<p><strong>Why a marker and not a required <code>TypedDict</code> key.</strong> Under PEP 692, a required
-key in <code>Unpack[&lt;TypedDict&gt;]</code> makes the function reject callers that omit it,
-which breaks assignability to :class:<code>~rest_framework_services.ListSelector</code> /
+<p>A required <code>TypedDict</code> key will not do: under PEP 692 it makes the function
+reject callers that omit it, which breaks assignability to
+:class:<code>~rest_framework_services.ListSelector</code> /
 :class:<code>~rest_framework_services.RetrieveSelector</code> / the service Protocols — the
 very reason :class:<code>~rest_framework_services.HttpExtras</code> mandates <code>total=False</code>.
-So the two things a consumer wants — Protocol conformance and an honest schema —
-are mutually exclusive through the <code>TypedDict</code>'s own totality.
 <code>Annotated</code> metadata carries no typing weight, so the key stays <code>NotRequired</code>
 to the type checker while :func:<code>spec_to_json_schema</code> lists it in <code>required</code>.</p>
 <p>The marker is <strong>advertisement plus enforcement</strong>, never delivery: it does not
@@ -5128,9 +6150,9 @@ inside dispatch, which no transport maps to a useful error.</p>
 <p>Its counterpart is :data:<code>~rest_framework_services.NotClientInput</code>, which hides a
 key from the schema entirely. A key marked with both is a contradiction and
 raises at schema-generation time.</p>
-<p><code>InputRequired</code> is the singleton you place in the annotation.
-<code>InputRequiredType</code> is its type, exported only so the singleton can be spelled
-in annotations; you never need to instantiate it.</p>
+<p><code>InputRequired</code> is the singleton you place in the annotation;
+<code>InputRequiredType</code> is its type, exported only so it can be spelled in
+annotations.</p>
 
 
 
@@ -5360,41 +6382,99 @@ out of the arguments, and hands it to <code>build_offline_context(kwargs=…)</c
 from where :func:<code>~rest_framework_services.dispatch_spec</code> spreads it into the
 selector / target pools — authoritative over the spec params, below a
 <code>spec.kwargs</code> provider. It never reaches the spec as an ordinary input, so
-the unknown-argument policy never flags it.</p>
-<p><strong>This type is declared here, not in each adapter, on purpose.</strong> It is the
-same declaration whichever transport carries it, and two independent copies
-had already drifted into validating the same declaration against different
-reserved-name sets. Adapters import it and pair it with
+the unknown-argument policy never flags it. Adapters import this declaration
+and pair it with :func:<code>~rest_framework_services.validate_channel_names</code>.</p>
+<p>Reach for one when the value is a URL-derived input a spec depends on that is
+<strong>not</strong> already an ordinary argument — most commonly a scoping <code>spec.kwargs</code>
+provider reading <code>view.kwargs</code> (off-HTTP that mapping is otherwise empty, so
+the provider mis-scopes for every caller), or a closed-surface spec whose route
+capture must be caller-suppliable. A selector reading the value from its own
+<code>**extras: Unpack[TypedDict]</code> needs <strong>no</strong> <code>UrlKwarg</code>: drf-services reflects
+the key into the schema and <code>params</code> delivers it. A key can be <em>both</em>
+reflected and registered — the explicit <code>UrlKwarg</code> wins the adapter's schema
+merge, registration pops the argument into <code>kwargs=</code>, and the authoritative
+spread still delivers it to the selector pool, so both readers see it.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.url_kwarg.UrlKwarg.name">name</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The argument / view-kwarg key. Must not collide with a reserved
+transport key; see
 :func:<code>~rest_framework_services.validate_channel_names</code>.</p>
-<p>Reach for a <code>UrlKwarg</code> when the value is a URL-derived input a spec depends
-on that is <strong>not</strong> already an ordinary argument — most commonly a scoping
-<code>spec.kwargs</code> provider reading <code>view.kwargs</code> (off-HTTP that mapping is
-otherwise empty, so the provider mis-scopes for every caller), or a
-closed-surface spec whose route capture must be caller-suppliable.</p>
-<p>A selector that reads the value from its own <code>**extras: Unpack[TypedDict]</code>
-needs <strong>no</strong> <code>UrlKwarg</code>: drf-services reflects the key into the schema and
-<code>params</code> delivers it. A key can be <em>both</em> reflected and registered — the
-explicit <code>UrlKwarg</code> wins the adapter's schema merge, registration pops the
-argument into <code>kwargs=</code>, and the authoritative spread still delivers it to
-the selector pool, so both readers see it.</p>
-<ul>
-<li><code>name</code> — the argument / view-kwarg key. Must not collide with a reserved
-  transport key; see :func:<code>~rest_framework_services.validate_channel_names</code>.</li>
-<li><code>type</code> — the JSON-Schema type advertised to the caller (<code>"string"</code> by
-  default; <code>"integer"</code> / <code>"number"</code> / <code>"boolean"</code> …).</li>
-<li><code>description</code> — optional help text shown to the caller.</li>
-<li><code>default</code> — optional value seeded when the caller omits the argument;
-  also surfaced as the schema <code>default</code>.</li>
-<li><code>required</code> — advertise the key in the schema's <code>required</code> list. Use it
-  for a route capture the spec genuinely cannot run without, so a caller is
-  told up front instead of failing mid-dispatch. Setting both <code>required</code>
-  and a <code>default</code> is contradictory and raises in
-  :func:<code>~rest_framework_services.validate_channel_names</code>.</li>
-</ul>
-<p><code>required</code> here is the registered-declaration counterpart of the
-:data:<code>~rest_framework_services.InputRequired</code> marker, which does the same
-job for a key the callable's own <code>TypedDict</code> declares. Both end up in the
-schema's <code>required</code>; they differ only in where the key is declared.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.url_kwarg.UrlKwarg.type">type</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The JSON-Schema type advertised to the caller — <code>"string"</code> by
+default, or <code>"integer"</code> / <code>"number"</code> / <code>"boolean"</code> …</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.url_kwarg.UrlKwarg.description">description</span></code></td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional help text shown to the caller.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.url_kwarg.UrlKwarg.default">default</span></code></td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional value seeded when the caller omits the argument; also
+surfaced as the schema <code>default</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.url_kwarg.UrlKwarg.required">required</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Advertise the key in the schema's <code>required</code> list. Use it for
+a route capture the spec genuinely cannot run without, so a caller is
+told up front instead of failing mid-dispatch. Setting both
+<code>required</code> and a <code>default</code> is contradictory and raises in
+:func:<code>~rest_framework_services.validate_channel_names</code>. It is the
+registered-declaration counterpart of
+:data:<code>~rest_framework_services.InputRequired</code>, which does the same job
+for a key the callable's own <code>TypedDict</code> declares; both end up in the
+schema's <code>required</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
 
@@ -5624,14 +6704,10 @@ parameter and it arrives::</p>
         write(row)
         progress(index + 1, total=len(rows), message=&quot;writing rows&quot;)
 </code></pre></div>
-<p>⚠ <strong>Reporting is always safe and never required.</strong> Every transport seeds a
+<p><strong>Reporting is always safe and never required.</strong> Every transport seeds a
 reporter — the ones with nowhere to send progress seed a no-op — so a
 service that declares the parameter runs unchanged over HTTP, off-HTTP, and
-in tests. That is the whole point of putting it in the pool rather than
-passing it as an argument only some callers know about: the service is
-written once, and whether anyone is listening is the transport's business.</p>
-<p>The four arguments split into "what every receiver understands" and "what
-only yours does":</p>
+in tests. The call takes four arguments:</p>
 <ul>
 <li><code>progress</code> — how far along, in whatever unit the service chose. It
   <strong>must increase</strong> across calls within one dispatch; a transport that
@@ -5641,31 +6717,19 @@ only yours does":</p>
   and a wrong percentage for a wrong one.</li>
 <li><code>message</code> — a short human-readable status. For a person watching, not
   for a machine to parse.</li>
-<li><code>meta</code> — structured detail <em>about this update</em>, for a receiver that
-  knows what to do with it.</li>
+<li><code>meta</code> — structured detail <em>about this update</em> (which stage, which
+  file, how many rows have failed), so that structure need not be
+  stringified into <code>message</code> and parsed back out at the far end.</li>
 </ul>
-<p>⭐ <strong><code>meta</code> is what keeps the first three honest.</strong> Without it, a service
-with structured state to report — which stage it is in, which file it is
-on, how many rows failed so far — has to stringify it into <code>message</code> and
-have the far end parse it back out. That is a wire format invented by
-accident, in a string field documented as being for humans. Put the
-structure in <code>meta</code> and leave <code>message</code> as prose::</p>
-<div class="language-text highlight"><pre><span></span><code>progress(
-    processed,
-    total=row_count,
-    message=f&quot;importing {path.name}&quot;,
-    meta={&quot;stage&quot;: &quot;import&quot;, &quot;file&quot;: path.name, &quot;failed&quot;: failures},
-)
-</code></pre></div>
-<p>⚠ <strong><code>meta</code> is the part a receiver may not understand</strong>, and each decides
+<p><strong><code>meta</code> is the part a receiver may not understand</strong>, and each decides
 for itself: a websocket consumer forwards it into the frame the UI renders;
 a receiver with nowhere to put it drops it. Never encode something the
-operation's <em>correctness</em> depends on — it is telemetry, not a channel.</p>
-<p>⚠ <strong>Namespace the keys if the far end might be MCP.</strong> A progress
-notification carries the structure under the protocol's <code>_meta</code>, whose
-key-naming rules reserve unprefixed names and anything under a
-<code>modelcontextprotocol</code> / <code>mcp</code> prefix. <code>{"com.example/stage": …}</code> is
-safe; <code>{"stage": …}</code> is not portable.</p>
+operation's <em>correctness</em> depends on — it is telemetry, not a channel. And
+namespace the keys if the far end might be MCP: a progress notification
+carries the structure under the protocol's <code>_meta</code>, whose key-naming
+rules reserve unprefixed names and anything under a
+<code>modelcontextprotocol</code> / <code>mcp</code> prefix, so <code>{"com.example/stage": …}</code>
+is safe and <code>{"stage": …}</code> is not portable.</p>
 <p>Implementations must not raise. A reporter is called from inside domain
 code that has no reason to defend against it, and a transport failing
 mid-report should not take the service run down with it.</p>

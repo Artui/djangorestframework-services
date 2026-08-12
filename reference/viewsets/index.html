@@ -2249,15 +2249,11 @@ action-specific override, do it explicitly in your own <code>get_object()</code>
 
 
         <p>Resolve <code>get_serializer_class()</code> from <code>action_specs</code>.</p>
-<p>Consults the <code>action_specs</code> map for the active action's entry:</p>
-<ul>
-<li>:class:<code>SelectorSpec</code> — uses <code>spec.output_serializer</code> directly.</li>
-<li>:class:<code>ServiceSpec</code> — uses
-  <code>spec.output_selector_spec.output_serializer</code> (the output pipeline
-  is collapsed into the nested selector spec).</li>
-</ul>
-<p>Falls back to DRF's standard <code>serializer_class</code> attribute (and raises
-the usual DRF <code>AssertionError</code> if neither is set).</p>
+<p>Reads the active action's entry: a :class:<code>SelectorSpec</code> supplies
+<code>output_serializer</code>, a :class:<code>ServiceSpec</code> supplies
+<code>output_selector_spec.output_serializer</code>. Falls back to DRF's
+<code>serializer_class</code>, raising the usual <code>AssertionError</code> when neither is
+set.</p>
 <p>Example::</p>
 <div class="language-text highlight"><pre><span></span><code>class InvoiceViewSet(ActionSerializerResolver, GenericViewSet):
     action_specs = {
@@ -2360,29 +2356,21 @@ since there is no single list to forward.</p>
     <div class="doc doc-contents first">
 
         <p>Wrap a viewset method as a selector-backed custom action.</p>
-<p>The decorated method's body is <em>not</em> executed — the decorator supplies
-the handler. The method exists so that <code>@selector_action</code> can attach
-DRF <code>@action</code> metadata and pick up the action name from <code>__name__</code>.</p>
-<p>Pass a :class:<code>SelectorSpec</code> for the selector wiring. The dispatch shape
-and the DRF URL shape are both driven by <code>spec.kind</code> — <code>kind</code> is
-the single source of truth, with no separate <code>detail=</code> parameter to
-keep in sync:</p>
-<ul>
-<li>:attr:<code>SelectorKind.LIST</code> — collection action (<code>detail=False</code>); the
-  selector is expected to return an iterable. The result flows through
-  <code>self.paginate_queryset</code> / <code>self.get_paginated_response</code> if
-  pagination is configured, otherwise it's serialized many=True.</li>
-<li>:attr:<code>SelectorKind.RETRIEVE</code> — detail action (<code>detail=True</code>); the
-  selector is expected to return a single object (or <code>None</code> / raise
-  :exc:<code>~django.core.exceptions.ObjectDoesNotExist</code>, both of which
-  surface as 404).</li>
-</ul>
-<p>If you need a URL shape that doesn't match the response shape (a
-detail action that returns a list, or a collection action that returns
-a single resource), fall back to DRF's plain <code>@action</code> and write
-the dispatch yourself.</p>
-<p>Output serialization resolves to <code>spec.output_serializer</code> when set,
-falling back to <code>self.get_serializer(...)</code> otherwise.</p>
+<p>The decorated method's body is <em>not</em> executed — the decorator supplies the
+handler. The method exists so the decorator can attach DRF <code>@action</code>
+metadata and take the action name from <code>__name__</code>.</p>
+<p><code>spec.kind</code> drives both the dispatch shape and the DRF URL shape, so there
+is no separate <code>detail=</code> to keep in sync. :attr:<code>SelectorKind.LIST</code> is a
+collection action (<code>detail=False</code>) whose selector returns an iterable,
+flowing through <code>self.paginate_queryset</code> / <code>self.get_paginated_response</code>
+when pagination is configured and serialized <code>many=True</code> otherwise;
+:attr:<code>SelectorKind.RETRIEVE</code> is a detail action (<code>detail=True</code>) whose
+selector returns a single object, or <code>None</code> / raises
+:exc:<code>~django.core.exceptions.ObjectDoesNotExist</code> for a 404. For a URL shape
+that doesn't match the response shape, fall back to DRF's plain <code>@action</code>
+and write the dispatch yourself.</p>
+<p>Output serialization uses <code>spec.output_serializer</code> when set, falling back
+to <code>self.get_serializer(...)</code>.</p>
 
 
     </div>

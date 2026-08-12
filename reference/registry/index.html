@@ -1799,37 +1799,25 @@ filtered views — see the recipe
 
 
         <p>A <code>name → spec</code> map with tags, stable ordering, and filtered views.</p>
-<p>A project that exposes the same operations over more than one transport
-otherwise writes the list once per transport, and the lists drift. A
-registry gives that set one declaration site: each transport reads the same
-source instead of enumerating specs again.</p>
-<p>It holds only the <strong>invariant</strong> part of an operation — which spec, its
-canonical name, its tags. Per-transport configuration stays at the binding
-that already owns it, so this is a source <em>for</em> a transport's own registry,
-never a replacement for one. Nothing consults a registry per request:
-adapters read it at configuration time to build their binding tables.</p>
+<p>One declaration site for the operations a project exposes over more than one
+transport, so the transports read one source instead of each enumerating
+specs and drifting. It holds only the <strong>invariant</strong> part of an operation —
+which spec, its canonical name, its tags; per-transport configuration stays
+at the binding that owns it. Adapters read a registry at configuration time
+to build their binding tables; nothing consults one per request.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_orders&quot;</span><span class="p">,</span> <span class="n">orders_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;read&quot;</span><span class="p">,</span> <span class="s2">&quot;public&quot;</span><span class="p">))</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;refund_order&quot;</span><span class="p">,</span> <span class="n">refund_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;write&quot;</span><span class="p">,</span> <span class="s2">&quot;admin&quot;</span><span class="p">))</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">public</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">by_tag</span><span class="p">(</span><span class="s2">&quot;public&quot;</span><span class="p">)</span>   <span class="c1"># a new registry — a snapshot</span>
 </span></code></pre></div>
-<p>Adoption needs no adapter support: :meth:<code>specs</code> returns the
-<code>dict[str, spec]</code> today's adapters already accept.</p>
-<p><strong>There is no global registry.</strong> A consumer holds its own instances — a
-module attribute in its app, or built in a server's constructor — and may
-hold as many as it likes, with no shared state between them. Two shapes
-both work: <strong>independent registries</strong> (separate name namespaces, full
-isolation, one per mount) and <strong>one registry with many projections</strong>
-(:meth:<code>by_tag</code> / :meth:<code>subset</code> views feeding several toolsets). Both are
-what a multi-instance deployment needs; a blessed global would nudge every
-project toward a single surface instead.</p>
-<p>Registries are <strong>mutable containers</strong> (:meth:<code>register</code> adds), but every
-derivation — :meth:<code>by_tag</code>, :meth:<code>subset</code>, :meth:<code>merge</code> — returns a
-<strong>new</strong> registry holding a snapshot of the selected entries. The spec
-objects themselves are shared, not copied. So a derived view never mutates
-its source, and a later <code>register()</code> on the source does <strong>not</strong> appear in
-a view derived earlier.</p>
+<p><strong>There is no global registry</strong>: a consumer holds as many of its own
+instances as it likes, with no shared state between them. Registries are
+mutable — :meth:<code>register</code> adds — but every derivation (:meth:<code>by_tag</code>,
+:meth:<code>subset</code>, :meth:<code>merge</code>) returns a <strong>new</strong> registry holding a snapshot
+of the selected entries, sharing the spec objects rather than copying them.
+A derived view never mutates its source, and a later <code>register()</code> on the
+source does <strong>not</strong> appear in a view derived earlier.</p>
 
 
 
@@ -1893,10 +1881,10 @@ a view derived earlier.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The canonical name. Must be unused <strong>in this registry</strong> —
-a duplicate raises rather than overwriting, so a
-copy-paste declaration fails at import time instead of
-silently shadowing an operation.</p>
+                <p>The canonical name. Must be unused <strong>in this registry</strong> — a
+duplicate raises rather than overwriting, so a copy-pasted
+declaration fails at import time instead of silently shadowing
+an operation.</p>
               </div>
             </td>
             <td>
@@ -1975,10 +1963,9 @@ silently shadowing an operation.</p>
             <td>
               <div class="doc-md-description">
                 <p><code>spec</code> is neither a <code>ServiceSpec</code> nor a
-<code>SelectorSpec</code>. A <code>PolymorphicServiceSpec</code> is rejected
-with a pointer at the supported shape: register each of its
-variants under its own name, since transports project one
-operation per variant rather than a union.</p>
+<code>SelectorSpec</code>. A <code>PolymorphicServiceSpec</code> is rejected —
+register each of its variants under its own name, since
+transports project one operation per variant, not a union.</p>
               </div>
             </td>
           </tr>
@@ -2023,9 +2010,7 @@ operation per variant rather than a union.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Every entry, in registration order.</p>
-<p>Order is stable so a transport's tool listing is stable — a listing
-that reshuffles between processes is noise for clients that diff it.</p>
+        <p>Every entry, in registration order, so a transport's listing is stable.</p>
 
 
     </div>
@@ -2086,10 +2071,8 @@ that reshuffles between processes is noise for clients that diff it.</p>
     <div class="doc doc-contents ">
 
         <p>A new registry holding the entries carrying <strong>any</strong> of <code>tags</code>.</p>
-<p>Union rather than intersection, because intersection composes from
-this (<code>reg.by_tag("read").by_tag("public")</code>) while union cannot be
-composed from an intersection. Passing no tags matches nothing and
-returns an empty registry.</p>
+<p>Union, not intersection — chain calls for an intersection
+(<code>reg.by_tag("read").by_tag("public")</code>). No tags matches nothing.</p>
 
 
     </div>
@@ -2127,9 +2110,8 @@ returns an empty registry.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A name is not registered here. Naming entries
-explicitly means a typo is a configuration error, not a
-quietly smaller surface.</p>
+                <p>A name is not registered here — a typo is a
+configuration error, not a quietly smaller surface.</p>
               </div>
             </td>
           </tr>
@@ -2200,10 +2182,8 @@ one; merging is the single place that reuse becomes a conflict.</p>
     <div class="doc doc-contents ">
 
         <p>A fresh <code>name → spec</code> dict — the shape adapters already accept.</p>
-<p>This is what makes a registry usable before any adapter grows
-registry-aware sugar: pass <code>registry.specs()</code> wherever a
-<code>dict[str, spec]</code> goes today. Mutating the returned dict does not
-affect the registry.</p>
+<p>Pass <code>registry.specs()</code> wherever a <code>dict[str, spec]</code> goes today.
+Mutating the returned dict does not affect the registry.</p>
 
 
     </div>

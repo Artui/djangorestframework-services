@@ -1591,8 +1591,10 @@ surface a meaningful response without the service depending on DRF.</p>
 
 
         <p>Raised by services to signal invalid input or invalid state.</p>
-<p>The <code>detail</code> argument may be a string, a dict (field → error(s)), or a
-list of errors — mirroring DRF's own <code>ValidationError</code> payload shapes.</p>
+<p>Distinct from :class:<code>ServiceError</code> so the view boundary maps it to a DRF
+<code>ValidationError</code> (HTTP 400) where <code>ServiceError</code> maps to 422.
+<code>detail</code> may be a string, a dict (field → error(s)), or a list of errors,
+mirroring DRF's own <code>ValidationError</code> payload shapes.</p>
 
 
 
