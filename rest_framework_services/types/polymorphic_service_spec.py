@@ -30,48 +30,41 @@ class PolymorphicServiceSpec:
     )
     ```
 
-    ``discriminator`` is resolved through the framework keyword pool — it
-    declares any subset of ``request`` / ``data`` (the *raw* ``request.data``) /
-    ``user`` / ``view`` (or ``**kwargs``) — and returns a key present in
-    ``specs``. For a no-match / rejected payload it should **raise**
-    (e.g. :exc:`~rest_framework_services.exceptions.service_validation_error.ServiceValidationError`,
-    which the view layer maps to a 400); returning a key absent from ``specs``
-    is a configuration error and raises :exc:`~django.core.exceptions.ImproperlyConfigured`.
+    The discriminator is resolved once per request and reused across dispatch,
+    permissions, and serializer resolution, and the resolved concrete spec flows
+    through the shared action→spec chain — so the chosen variant's serializer
+    context, kwargs, and output pipeline all apply.
 
-    ``permission_strategy`` decides how ``get_permissions`` behaves, since DRF
-    runs permissions before the body is necessarily parsed:
-
-    - ``"union"`` (the default) — require the union of every variant's
-      ``permission_classes``; the request must satisfy them all. No early body
-      read, and the conservative/secure failure mode (a mis-declared
-      discriminator branch can't *widen* access). For the common "same auth,
-      different payload shapes" case this is identical to ``"require_identical"``.
-    - ``"discriminate"`` — run the discriminator early (reading the raw body)
-      and apply only the chosen variant's ``permission_classes``. Most precise,
-      for the genuine "each variant is a different privilege" case; accepts the
-      early-body-read tradeoff.
-    - ``"require_identical"`` — validated at ``as_view()`` time to require every
-      variant to declare the same ``permission_classes``; sidesteps ordering
-      entirely.
-
-    **No ``metadata`` field here — by decision, not oversight.** The wrapper
-    is never dispatched: it resolves to a variant, and the variant is the
-    :class:`ServiceSpec` every downstream consumer ends up holding, so
-    ``metadata`` belongs on the variants and a wrapper-level copy would raise
-    an inheritance question (does a variant without metadata fall back to the
-    wrapper's?) that the field deliberately does not answer anywhere else.
-    One consequence worth knowing: a permission class that reads ``metadata``
-    off the spec it finds on the view finds *this* wrapper, which has none.
-    Under the default ``permission_strategy="union"`` there is no variant yet
-    to fall back to — permissions run before discrimination. So express a
+    **There is no ``metadata`` field here.** The wrapper is never dispatched, so
+    ``metadata`` belongs on the variants; a permission class that reads it off
+    the spec it finds on the view therefore finds *this* wrapper, which has none,
+    and under the default ``permission_strategy="union"`` there is no variant yet
+    to fall back to — permissions run before discrimination. Express a
     metadata-driven rule per variant, via each variant's own
-    ``permission_classes`` (under ``"discriminate"``, only the chosen
-    variant's run), rather than reading the wrapper.
+    ``permission_classes``, rather than reading the wrapper.
 
-    The resolved concrete spec flows through the shared action→spec chain, so
-    the chosen variant's serializer context, kwargs, and output pipeline all
-    apply — the discriminator is resolved once per request and reused across
-    dispatch, permissions, and serializer resolution.
+    Attributes:
+        discriminator: Resolved through the framework keyword pool — it declares
+            any subset of ``request`` / ``data`` (the *raw* ``request.data``) /
+            ``user`` / ``view`` (or ``**kwargs``) — and returns a key present in
+            ``specs``. For a no-match / rejected payload it should **raise**
+            (e.g. :exc:`~rest_framework_services.exceptions.service_validation_error.ServiceValidationError`,
+            which the view layer maps to a 400); returning a key absent from
+            ``specs`` is a configuration error and raises
+            :exc:`~django.core.exceptions.ImproperlyConfigured`.
+        specs: The variants, keyed by the value ``discriminator`` returns.
+        permission_strategy: How ``get_permissions`` behaves, given that DRF runs
+            permissions before the body is necessarily parsed. ``"union"`` (the
+            default) requires the union of every variant's ``permission_classes``
+            — no early body read, and the conservative/secure failure mode, since
+            a mis-declared discriminator branch can't *widen* access; for the
+            common "same auth, different payload shapes" case it is identical to
+            ``"require_identical"``. ``"discriminate"`` runs the discriminator
+            early (reading the raw body) and applies only the chosen variant's
+            ``permission_classes`` — most precise, for the genuine "each variant
+            is a different privilege" case. ``"require_identical"`` is validated
+            at ``as_view()`` time to require every variant to declare the same
+            ``permission_classes``, sidestepping the ordering entirely.
     """
 
     discriminator: Callable[..., str]

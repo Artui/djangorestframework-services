@@ -27,11 +27,9 @@ async def acall_service(
 ) -> ResultT:
     """Invoke ``service`` from async code with the framework's kwargs pool.
 
-    Same contract as :func:`call_service`, including ``map_errors``: when
-    ``True`` a raised ``ServiceError`` is translated to the matching DRF
-    exception (validation → 400, else 422); ``False`` (the default) propagates
-    it raw. Async services are awaited directly; sync services are called inline
-    (no thread hop) — caller is responsible for any sync-side I/O safety.
+    Same contract as :func:`call_service`, ``map_errors`` included. Async
+    services are awaited directly; a sync service is called inline with no
+    thread hop, so the caller owns any sync-side I/O safety.
     """
     pool: dict[str, Any] = {
         "request": request,

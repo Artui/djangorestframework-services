@@ -15,44 +15,29 @@ from rest_framework_services.views.mutation.utils import dispatch_mutation_for_s
 class MutationFlowMixin:
     """Provides ``_run_mutation`` for service-backed views and viewset mixins.
 
-    The actual flow lives in :func:`dispatch_mutation_for_spec` (so
-    ``@service_action`` can reach it without being a class). This mixin
-    is the OO entry point: the per-action mixins (``ServiceCreateMixin``
-    etc.) and the standalone single-purpose views compose it and call
+    The flow itself lives in :func:`dispatch_mutation_for_spec`, so
+    ``@service_action`` can reach it without being a class; this mixin is the OO
+    entry point that the per-action mixins (``ServiceCreateMixin`` and friends)
+    and the standalone single-purpose views compose, calling
     ``self._run_mutation(...)`` after resolving their per-action spec.
 
-    Three layers contribute extra kwargs to every service call (most specific
-    wins):
+    Four hook chains feed a mutation, each layered view-wide → per-action →
+    per-spec and merged with ``dict.update`` so the more specific hook wins on
+    overlapping keys:
 
-    1. ``get_service_kwargs(self)`` — global fallback on the view.
-    2. ``get_<action>_service_kwargs(self)`` — per-action override
-       (viewsets only; ``self.action`` must be set).
-    3. ``ServiceSpec.kwargs`` — per-spec callable, co-located with the
-       service it feeds.
+    - extra service kwargs: ``get_service_kwargs`` →
+      ``get_<action>_service_kwargs`` → :attr:`ServiceSpec.kwargs`.
+    - the *serializer's* input dict, merged on top of ``request.data`` before
+      validation: ``get_input_data`` → ``get_<action>_input_data`` →
+      :attr:`ServiceSpec.input_data`.
+    - the input serializer's ``context=``: ``get_serializer_context`` (DRF's
+      own) → ``get_input_serializer_context`` →
+      ``get_<action>_input_serializer_context`` →
+      :attr:`ServiceSpec.input_serializer_context`.
+    - the output serializer's ``context=``: the same chain with ``output`` in
+      place of ``input``, applied during response rendering.
 
-    A symmetrical three-layer chain feeds the *serializer's* input dict
-    (merged on top of ``request.data`` before validation):
-
-    1. ``get_input_data(self, request)`` — global fallback on the view.
-    2. ``get_<action>_input_data(self, request)`` — per-action override.
-    3. ``ServiceSpec.input_data`` — per-spec callable.
-
-    Two further three-layer chains feed the ``context=`` argument passed to
-    the input serializer (during validation) and the output serializer
-    (during response rendering):
-
-    1. ``get_serializer_context(self)`` — DRF's default
-       (request, view, format).
-    2. ``get_input_serializer_context(self)`` /
-       ``get_output_serializer_context(self)`` — directional fallback;
-       defaults to ``self.get_serializer_context()`` so a single
-       ``get_serializer_context`` override flows into both directions.
-    3. ``get_<action>_input_serializer_context(self)`` /
-       ``get_<action>_output_serializer_context(self)`` — per-action
-       override (viewsets only; ``self.action`` must be set).
-
-    Each layer's result is merged with ``dict.update`` so the more specific
-    hook wins on overlapping keys.
+    The per-action layer reads ``self.action``, so it applies to viewsets only.
     """
 
     def get_service_kwargs(self) -> dict[str, Any]:
@@ -66,19 +51,18 @@ class MutationFlowMixin:
     def get_input_serializer_context(self) -> dict[str, Any]:
         """Hook for the ``context=`` dict passed to the *input* serializer.
 
-        Defaults to :meth:`get_serializer_context` so overriding the
-        DRF-standard hook flows into the input-validation path automatically.
-        Override here to inject keys visible only during input validation.
+        Defaults to :meth:`get_serializer_context`, so overriding the
+        DRF-standard hook flows into input validation automatically; override
+        here for keys visible only during input validation.
         """
         return self.get_serializer_context()  # ty: ignore[unresolved-attribute]
 
     def get_output_serializer_context(self) -> dict[str, Any]:
         """Hook for the ``context=`` dict passed to the *output* serializer.
 
-        Defaults to :meth:`get_serializer_context` so overriding the
-        DRF-standard hook flows into the response-rendering path
-        automatically. Override here to inject keys visible only during
-        response rendering.
+        Defaults to :meth:`get_serializer_context`, so overriding the
+        DRF-standard hook flows into response rendering automatically; override
+        here for keys visible only during response rendering.
         """
         return self.get_serializer_context()  # ty: ignore[unresolved-attribute]
 
@@ -86,9 +70,8 @@ class MutationFlowMixin:
         """Honor ``spec.permission_classes`` on standalone mutation views.
 
         Standalone ``Service*View`` subclasses carry ``spec`` as a class
-        attribute. When the spec sets ``permission_classes`` it wins over
-        the view's class-level ``permission_classes``; ``None`` (the default)
-        falls through.
+        attribute; when it sets ``permission_classes`` those win over the view's
+        class-level ones, and ``None`` falls through.
         """
         spec: ServiceSpec[Any, Any, Any] | None = getattr(self, "spec", None)
         if spec is not None and spec.permission_classes is not None:

@@ -27,31 +27,23 @@ def selector_action(
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Wrap a viewset method as a selector-backed custom action.
 
-    The decorated method's body is *not* executed — the decorator supplies
-    the handler. The method exists so that ``@selector_action`` can attach
-    DRF ``@action`` metadata and pick up the action name from ``__name__``.
+    The decorated method's body is *not* executed — the decorator supplies the
+    handler. The method exists so the decorator can attach DRF ``@action``
+    metadata and take the action name from ``__name__``.
 
-    Pass a :class:`SelectorSpec` for the selector wiring. The dispatch shape
-    and the DRF URL shape are both driven by ``spec.kind`` — ``kind`` is
-    the single source of truth, with no separate ``detail=`` parameter to
-    keep in sync:
+    ``spec.kind`` drives both the dispatch shape and the DRF URL shape, so there
+    is no separate ``detail=`` to keep in sync. :attr:`SelectorKind.LIST` is a
+    collection action (``detail=False``) whose selector returns an iterable,
+    flowing through ``self.paginate_queryset`` / ``self.get_paginated_response``
+    when pagination is configured and serialized ``many=True`` otherwise;
+    :attr:`SelectorKind.RETRIEVE` is a detail action (``detail=True``) whose
+    selector returns a single object, or ``None`` / raises
+    :exc:`~django.core.exceptions.ObjectDoesNotExist` for a 404. For a URL shape
+    that doesn't match the response shape, fall back to DRF's plain ``@action``
+    and write the dispatch yourself.
 
-    - :attr:`SelectorKind.LIST` — collection action (``detail=False``); the
-      selector is expected to return an iterable. The result flows through
-      ``self.paginate_queryset`` / ``self.get_paginated_response`` if
-      pagination is configured, otherwise it's serialized many=True.
-    - :attr:`SelectorKind.RETRIEVE` — detail action (``detail=True``); the
-      selector is expected to return a single object (or ``None`` / raise
-      :exc:`~django.core.exceptions.ObjectDoesNotExist`, both of which
-      surface as 404).
-
-    If you need a URL shape that doesn't match the response shape (a
-    detail action that returns a list, or a collection action that returns
-    a single resource), fall back to DRF's plain ``@action`` and write
-    the dispatch yourself.
-
-    Output serialization resolves to ``spec.output_serializer`` when set,
-    falling back to ``self.get_serializer(...)`` otherwise.
+    Output serialization uses ``spec.output_serializer`` when set, falling back
+    to ``self.get_serializer(...)``.
     """
     is_retrieve = spec.kind is SelectorKind.RETRIEVE
 
@@ -87,8 +79,8 @@ def selector_action(
             serializer = _build_serializer(self, spec, result, many=True, extras={"page": result})
             return Response(serializer.data)
 
-        # Stash the spec on the handler so schema generators (and any future
-        # introspection) can recover it; the closure is otherwise opaque.
+        # Stash the spec so schema generators can recover it; the closure is
+        # otherwise opaque.
         handler._selector_spec = spec  # ty: ignore[unresolved-attribute]
         return action(**drf_kwargs)(handler)
 
@@ -105,20 +97,14 @@ def _build_serializer(
 ) -> Any:
     """Instantiate the response serializer for a ``@selector_action`` result.
 
-    ``spec.output_serializer`` wins when set (matching the standalone
-    selector views' override semantics); otherwise the viewset's
-    ``get_serializer(...)`` is used so existing
-    :class:`ActionSerializerResolver` wiring continues to apply.
-
-    Context flows through the standard three-layer chain:
-    DRF default → ``get_output_serializer_context`` (if defined) →
-    ``get_<action>_output_serializer_context`` (if defined). The directional
-    hook is optional, so plain ``ViewSet`` subclasses get DRF default
-    context plus any per-action override they declare.
-
-    ``extras`` carries the resolved data (the ``instance`` for a detail
-    action, the ``page`` for a collection action), offered to each context
-    provider by keyword when it declares the name.
+    ``spec.output_serializer`` wins when set, matching the standalone selector
+    views; otherwise the viewset's ``get_serializer(...)`` keeps existing
+    :class:`ActionSerializerResolver` wiring in play. Context flows through the
+    DRF default → ``get_output_serializer_context`` →
+    ``get_<action>_output_serializer_context`` chain, both hooks optional.
+    ``extras`` carries the resolved data — ``instance`` for a detail action,
+    ``page`` for a collection one — offered to each context provider by keyword
+    when it declares the name.
     """
     if spec.output_serializer is not None:
         action: str | None = getattr(view, "action", None)

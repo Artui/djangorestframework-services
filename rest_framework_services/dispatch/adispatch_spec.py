@@ -62,21 +62,14 @@ async def adispatch_spec(
     on_target_resolved: TargetGuard | None = None,
     progress: ProgressReporter | None = None,
     view_hooks: ViewHooks | None = None,
-    # See the sync sibling for the full contract. Kept in step with it
-    # deliberately: this parameter was missing here for as long as it existed
-    # there, so an async caller that needed to filter on something other than
-    # the callable's own kwarg pool got a ``TypeError`` — and nothing noticed,
-    # because the one caller that passed it was sync-only.
     filter_data: Mapping[str, Any] | None = None,
 ) -> DispatchResult:
     """Async :func:`~rest_framework_services.dispatch_spec`.
 
-    Same contract, :class:`DispatchResult` shape, and ``argument_binding`` /
-    ``unknown_arguments`` / ``on_target_resolved`` policies; async selectors /
-    services are awaited and sync ones run in Django's thread-sensitive executor
-    so the ORM stays safe off the event loop. A ``LIST`` result is returned as
-    the (lazy) shaped queryset — the async transport materializes / paginates it
-    in a thread, exactly as on the sync path.
+    Identical contract, arguments, policies and :class:`DispatchResult` shape —
+    see the sync twin. What differs is only the execution model: async selectors
+    and services are awaited, and sync ones run in Django's thread-sensitive
+    executor so the ORM stays safe off the event loop.
 
     That rule covers **every** callable a spec carries, not just the selector /
     service: ``kwargs`` providers, ``extend_queryset``, ``filter_set``,
@@ -88,10 +81,8 @@ async def adispatch_spec(
     that queries would otherwise raise ``SynchronousOnlyOperation`` here and
     nowhere else.
 
-    As on :func:`~rest_framework_services.dispatch_spec`, a ``many=True`` bulk
-    spec honours ``unknown_arguments`` per list element and rejects a non-default
-    ``argument_binding`` (there is no per-item kwarg to spread into a single
-    list-payload service call).
+    A ``LIST`` result comes back as the lazy shaped queryset, for the async
+    transport to materialize / paginate in a thread.
     """
     if isinstance(spec, ServiceSpec):
         return await _adispatch_service(
@@ -435,18 +426,13 @@ async def _aresolve_target(
                 "collection_selector_spec requires a `selector` resolving the target set."
             )
         pool: dict[str, Any] = {
-            # **No live reporter here, deliberately.** Target resolution and the
-            # output re-fetch resolve a row (or a filtered set) and return; there is
-            # no progress to report from a lookup. Worse, a live reporter would let
-            # the output selector emit progress *after* the service finished, which
-            # to a watching client reads as the work having restarted. They take the
-            # no-op :func:`base_pool` supplies.
+            # No live reporter, deliberately: a lookup has no progress to report, and
+            # one emitting *after* the service finished reads to a watching client as
+            # the work having restarted. These take the no-op ``base_pool`` supplies.
             **base_pool(user=user, request=request),
-            # Reserved seeds stripped from the client spread — the same rule
-            # ``merge_arguments`` applies to every other pool. Without it a caller
-            # sending ``{"user": …}`` outranks the dispatcher's authoritative value
-            # in the pool that decides *which row* (or which set) is mutated, and
-            # over MCP that spread is the tool call.
+            # Reserved seeds stripped from the client spread, as ``merge_arguments``
+            # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
+            # dispatcher in the pool deciding *which row* is mutated.
             **strip_reserved_seeds(params),
             **view_url_kwargs(view),
         }
@@ -485,21 +471,16 @@ async def _arun_output_selector(
 ) -> tuple[Any, bool]:
     """Async :func:`~...dispatch.dispatch_spec._run_output_selector`.
 
-    Same ``(value, is_list)`` contract and ``kind`` semantics. A ``LIST``
-    output returns the lazy shaped queryset (the async transport materializes /
-    paginates it in a thread, like any list result); a ``RETRIEVE`` output
-    awaits ``.afirst()``.
+    Same ``(value, is_list)`` contract and ``kind`` semantics; a ``LIST`` output
+    stays the lazy shaped queryset and a ``RETRIEVE`` awaits ``.afirst()``.
     """
     out_spec = spec.output_selector_spec
     if out_spec is None or out_spec.selector is None:
         return result, False
     pool: dict[str, Any] = {
-        # **No live reporter here, deliberately.** Target resolution and the
-        # output re-fetch resolve a row (or a filtered set) and return; there is
-        # no progress to report from a lookup. Worse, a live reporter would let
-        # the output selector emit progress *after* the service finished, which
-        # to a watching client reads as the work having restarted. They take the
-        # no-op :func:`base_pool` supplies.
+        # No live reporter, deliberately: a lookup has no progress to report, and
+        # one emitting *after* the service finished reads to a watching client as
+        # the work having restarted. These take the no-op ``base_pool`` supplies.
         **base_pool(user=user, request=request),
         "instance": result,
         "result": result,
@@ -533,18 +514,13 @@ async def _aresolve_instance(
     if instance_spec is None or instance_spec.selector is None:
         return (True, None)
     pool: dict[str, Any] = {
-        # **No live reporter here, deliberately.** Target resolution and the
-        # output re-fetch resolve a row (or a filtered set) and return; there is
-        # no progress to report from a lookup. Worse, a live reporter would let
-        # the output selector emit progress *after* the service finished, which
-        # to a watching client reads as the work having restarted. They take the
-        # no-op :func:`base_pool` supplies.
+        # No live reporter, deliberately: a lookup has no progress to report, and
+        # one emitting *after* the service finished reads to a watching client as
+        # the work having restarted. These take the no-op ``base_pool`` supplies.
         **base_pool(user=user, request=request),
-        # Reserved seeds stripped from the client spread — the same rule
-        # ``merge_arguments`` applies to every other pool. Without it a caller
-        # sending ``{"user": …}`` outranks the dispatcher's authoritative value
-        # in the pool that decides *which row* (or which set) is mutated, and
-        # over MCP that spread is the tool call.
+        # Reserved seeds stripped from the client spread, as ``merge_arguments``
+        # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
+        # dispatcher in the pool deciding *which row* is mutated.
         **strip_reserved_seeds(params),
         **view_url_kwargs(view),
     }

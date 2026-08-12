@@ -11,16 +11,12 @@ def base_pool(
 ) -> dict[str, Any]:
     """The seeds every dispatched callable's pool carries, on every transport.
 
-    **Every** pool — HTTP and off-HTTP both route through here. The two
-    view-layer pools used to restate ``request`` / ``user`` inline, which was
-    harmless while the set was two names and stopped being harmless the moment
-    it grew: a seed added in one place and not the other means a service that
-    declares it works over one transport and raises a ``TypeError`` over the
-    other.
+    **Every** pool routes through here, HTTP and off-HTTP alike, so a service
+    that declares a seed behaves the same whoever dispatched it. Build a pool
+    of your own from this rather than restating the seeds.
 
     ``progress`` defaults to :func:`null_progress` rather than to ``None``, so
-    a declared reporter is always callable. See :class:`ProgressReporter` for
-    why that default is load-bearing.
+    a declared reporter is always callable — see :class:`ProgressReporter`.
     """
     return {"request": request, "user": user, "progress": progress or null_progress}
 

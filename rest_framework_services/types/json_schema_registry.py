@@ -1,9 +1,4 @@
-"""``JsonSchemaRegistry`` — consumer-extensible type → JSON Schema mappings.
-
-``DEFAULT_JSON_SCHEMA_REGISTRY`` is the empty base every ``*_to_json_schema``
-helper falls back to; layer your own rules on with :meth:`JsonSchemaRegistry.extend`
-and pass the result via the helpers' ``registry=`` argument.
-"""
+"""``JsonSchemaRegistry`` — consumer-extensible type → JSON Schema mappings."""
 
 from __future__ import annotations
 
@@ -11,24 +6,16 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
-# A single mapping rule: ``(type, schema_fragment)``. The fragment is copied
-# per use, so a matched consumer dict is never mutated by the walkers.
+# A single mapping rule: ``(type, schema_fragment)``.
 _Rule = tuple[type, dict[str, Any]]
 
 
+# The built-in mappings live with the walkers, not here (the filter built-ins
+# import django-filter lazily): a registry carries only consumer additions, so
+# the empty default stays dependency-free.
 @dataclass(frozen=True)
 class JsonSchemaRegistry:
     """Consumer-extensible ``type → JSON Schema fragment`` rules for the helpers.
-
-    Three ordered rule lists, each a sequence of ``(type, schema_fragment)``:
-
-    - ``fields`` — DRF ``Field`` subclasses, matched by ``isinstance`` when
-      walking a serializer (``serializer_to_json_schema`` / the input side of
-      ``spec_to_json_schema``).
-    - ``filters`` — ``django-filter`` ``Filter`` subclasses, matched by
-      ``isinstance`` when walking a ``FilterSet`` (``filterset_to_json_schema``).
-    - ``python_types`` — bare Python types, matched by *identity* when walking a
-      dataclass's field annotations.
 
     Rules are tried in order and the first match wins, **before** the built-in
     mappings — so a rule both adds support for a custom type and can override a
@@ -37,17 +24,24 @@ class JsonSchemaRegistry:
 
     Immutable: :meth:`extend` returns a *new* registry rather than mutating, so
     there is no shared global state to leak across callers or tests. Start from
-    :data:`DEFAULT_JSON_SCHEMA_REGISTRY` (empty) and layer rules on::
+    :data:`DEFAULT_JSON_SCHEMA_REGISTRY`, the empty base every
+    ``*_to_json_schema`` helper falls back to, layer rules on, and pass the
+    result via the helpers' ``registry=`` argument::
 
         registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
             fields=[(MoneyField, {"type": "string", "format": "money"})],
         )
         schema = serializer_to_json_schema(MySerializer, registry=registry)
 
-    The built-in mappings are intentionally *not* held here — they live with the
-    walkers (and the filter built-ins import ``django-filter`` lazily). A
-    registry carries only consumer additions, so the empty default stays
-    dependency-free.
+    Attributes:
+        fields: DRF ``Field`` subclasses, matched by ``isinstance`` when walking
+            a serializer (``serializer_to_json_schema``, and the input side of
+            ``spec_to_json_schema``).
+        filters: ``django-filter`` ``Filter`` subclasses, matched by
+            ``isinstance`` when walking a ``FilterSet``
+            (``filterset_to_json_schema``).
+        python_types: Bare Python types, matched by *identity* when walking a
+            dataclass's field annotations.
     """
 
     fields: tuple[_Rule, ...] = ()

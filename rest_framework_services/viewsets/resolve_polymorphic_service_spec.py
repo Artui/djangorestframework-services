@@ -12,7 +12,6 @@ from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.mutation.map_service_error import map_service_error
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
-# Per-request cache stashed on the view instance so the discriminator runs once.
 _CACHE_ATTR = "_rfs_polymorphic_choices"
 
 
@@ -21,20 +20,14 @@ def resolve_polymorphic_service_spec(
 ) -> ServiceSpec[Any, Any, Any]:
     """Run the discriminator and return the chosen variant ``ServiceSpec``.
 
-    The discriminator is resolved through the framework keyword pool
-    ``{request, data, user, view}`` (``data`` is the *raw* ``request.data``).
-    The result is memoized on the ``view`` instance keyed by ``id(poly)``, so
-    the discriminator runs at most once per request even though dispatch,
-    ``get_permissions`` (the ``discriminate`` strategy), and serializer
-    resolution may each resolve the same spec.
-
-    A discriminator that returns a key absent from ``specs`` is a configuration
-    error (:exc:`ImproperlyConfigured`). A *rejected* payload is the
-    discriminator's own responsibility to raise a
-    :exc:`~rest_framework_services.exceptions.service_error.ServiceError` on;
-    because the discriminator runs before the mutation flow's own error
-    mapping, that ``ServiceError`` is translated to its DRF equivalent here
-    (``ServiceValidationError`` → 400, else 422).
+    The discriminator resolves through the keyword pool
+    ``{request, data, user, view}`` (``data`` is the *raw* ``request.data``) and
+    its result is memoized on ``view`` keyed by ``id(poly)``, since dispatch,
+    ``get_permissions`` and serializer resolution may each resolve the same
+    spec. A key absent from ``specs`` is :exc:`ImproperlyConfigured`; a
+    ``ServiceError`` the discriminator raises to reject a payload is mapped to
+    its DRF equivalent here, because this runs ahead of the mutation flow's own
+    error mapping.
     """
     cache: dict[int, ServiceSpec[Any, Any, Any]] | None = getattr(view, _CACHE_ATTR, None)
     if cache is None:

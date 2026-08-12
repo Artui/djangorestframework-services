@@ -63,75 +63,76 @@ def dispatch_spec(
     progress: ProgressReporter | None = None,
     view_hooks: ViewHooks | None = None,
     instance: Any = UNSET,
-    # Only meaningful when ``params`` is *not* the filter source. Off HTTP a
-    # single flat ``params`` mapping is usually both the callable's input and the
-    # ``filter_set`` data, so this stays ``None``. Over HTTP they are two
-    # different things — the body validates, the **query string** filters — and
-    # merging them would quietly let a query parameter satisfy a serializer
-    # field. So the HTTP caller passes its query params here and keeps ``params``
-    # as the body.
-    #
-    # It applies to **both** spec kinds: a selector's ``filter_set`` and a
-    # service's output-selector re-fetch. It reached only the service path until
-    # 0.36 — a selector's filtering silently used ``params`` no matter what was
-    # passed here — which made it impossible for an off-HTTP transport to give
-    # the FilterSet a wider view of the arguments than the selector callable's
-    # own kwarg pool. That is exactly what an agent transport needs, because a
-    # spec's ``OrderingFilter`` is advertised to the model but ``ordering`` is
-    # not a kwarg any selector declares.
     filter_data: Mapping[str, Any] | None = None,
 ) -> DispatchResult:
     """Execute ``spec`` without a DRF view, returning a :class:`DispatchResult`.
 
-    The single transport-neutral execution path: an HTTP view, the MCP server,
-    or any other caller hands the **flat** ``params`` mapping (the role
-    ``request.data`` / ``query_params`` / URL kwargs play on HTTP) plus the
-    acting ``user``, and gets back the resolved domain value to format for its
-    wire. Composes the blessed dispatch leaves; no pagination, ordering, or
-    output rendering happens here (those are transport concerns — render the
-    result with :func:`~rest_framework_services.render_spec_output`).
+    The single transport-neutral execution path: a caller hands the **flat**
+    ``params`` mapping (the role ``request.data`` / ``query_params`` / URL
+    kwargs play on HTTP) plus the acting ``user``, and gets back the resolved
+    domain value to format for its wire. No pagination, ordering, or output
+    rendering happens here — those are transport concerns; render the result
+    with :func:`~rest_framework_services.render_spec_output`.
 
     - A :class:`ServiceSpec` runs the mutation flow: resolve the target via
       ``instance_selector_spec`` (from ``params``) → validate ``input_serializer``
       → run the service → re-fetch through ``output_selector_spec`` → result.
       A missing instance yields ``kind="not_found"``.
     - A :class:`SelectorSpec` runs the read flow: invoke the selector → apply
-      queryset shaping (``select_related`` … ``filter_set``, with ``params`` as
-      the filter data) → for ``RETRIEVE`` materialize via ``.first()`` and honour
-      ``allow_none`` / not-found; ``LIST`` returns the shaped + filtered queryset.
+      queryset shaping (``select_related`` … ``filter_set``) → for ``RETRIEVE``
+      materialize via ``.first()`` and honour ``allow_none`` / not-found;
+      ``LIST`` returns the shaped + filtered queryset.
 
-    ``request`` / ``view`` are optional and only forwarded to user callables
-    that declare them (``extend_queryset``, the context providers, ``kwargs``);
-    a pure non-HTTP caller passes neither. The ``view``'s ``kwargs`` (a route's
-    captures, seeded by ``build_offline_context(kwargs=…)``) are additionally
-    **spread into the selector / target pools** — the off-HTTP counterpart of the
-    HTTP ``extra_url_kwargs=view.kwargs``, authoritative over ``params`` on a
-    conflict, below the ``spec.kwargs`` provider — so a selector reading a URL
-    kwarg from its extras works off-HTTP. ``success_status`` overrides the
-    mutation status hint (else ``spec.success_status`` or ``200``).
+    Every argument below the acting user is optional, and the defaults reproduce
+    the pre-policy behaviour exactly.
 
-    Three caller-side policies tune how the wire maps onto the spec; the
-    defaults reproduce the pre-policy behaviour exactly:
+    Args:
+        spec: The :class:`ServiceSpec` or :class:`SelectorSpec` to execute.
+        user: The acting user, seeded into every callable's pool.
+        params: The flat client input — a list on a ``many=True`` spec.
+        request: Forwarded only to user callables that declare it
+            (``extend_queryset``, the context providers, ``kwargs``); a pure
+            non-HTTP caller passes neither this nor ``view``.
+        view: As ``request``, plus its ``kwargs`` (a route's captures, seeded by
+            ``build_offline_context(kwargs=…)``) are **spread into the selector /
+            target pools** — the off-HTTP counterpart of the HTTP
+            ``extra_url_kwargs=view.kwargs``, authoritative over ``params`` on a
+            conflict, below the ``spec.kwargs`` provider.
+        success_status: Overrides the mutation status hint (else
+            ``spec.success_status``, else ``200``).
+        argument_binding: Whether client input lands as a single ``data`` bundle
+            or is spread as individual kwargs, and how it ranks against the
+            author's ``kwargs``. ``AUTO`` resolves per spec type (service →
+            bundle, selector → spread). Meaningless on a ``many=True`` spec —
+            the service receives the whole list as one ``data`` argument — where
+            a non-default value raises ``ValueError`` rather than being ignored.
+        unknown_arguments: Strictness about ``params`` keys outside the spec's
+            declared set: ``IGNORE`` (drop), ``REJECT`` (raise), ``PASSTHROUGH``
+            (forward to the callable). Honoured **per list element** on a
+            ``many=True`` spec.
+        on_target_resolved: Hook invoked with the resolved mutation target before
+            the service runs. Pass
+            :func:`~rest_framework_services.enforce_permissions` directly for
+            object-level permissions; the core itself stays authz-agnostic.
+        progress: The transport's own progress sink, fanned together with the one
+            ``spec.progress_reporter`` declares.
+        view_hooks: The calling DRF view's resolved hook-chain layers. HTTP-only.
+        instance: A target the caller resolved itself, skipping
+            ``instance_selector_spec``. ``None`` is a *supplied* value (a
+            create), which is why the default is a sentinel.
+        filter_data: The data the ``filter_set`` reads, on both spec kinds — a
+            selector's own filtering and a service's output-selector re-fetch.
+            Only meaningful when ``params`` is not the filter source: off HTTP
+            one flat mapping is usually both, so this stays ``None``, whereas
+            over HTTP the body validates and the **query string** filters, and
+            merging them would let a query parameter satisfy a serializer field.
 
-    - ``argument_binding`` (:class:`ArgumentBinding`) — whether client input
-      lands as a single ``data`` bundle or is spread as individual kwargs, and
-      how it ranks against the author's ``kwargs``. ``AUTO`` resolves per spec
-      type (service → bundle, selector → spread).
-    - ``unknown_arguments`` (:class:`UnknownArguments`) — strictness about
-      ``params`` keys outside the spec's declared set: ``IGNORE`` (drop),
-      ``REJECT`` (raise), ``PASSTHROUGH`` (forward to the callable).
-    - ``on_target_resolved`` (:class:`TargetGuard`) — a hook invoked with the
-      resolved mutation target before the service runs. Pass
-      :func:`~rest_framework_services.enforce_permissions` directly to enforce
-      object-level permissions; ``dispatch_spec`` itself stays authz-agnostic.
+    Returns:
+        The :class:`DispatchResult` — value, ``kind``, status, and on the
+        mutation path the service's own return, resolved instance and data.
 
-    On a ``many=True`` bulk spec ``unknown_arguments`` is honoured **per list
-    element** (``REJECT`` raises on the first item with an undeclared key,
-    ``PASSTHROUGH`` folds each item's extras into its data, ``IGNORE`` drops
-    them). ``argument_binding`` has no meaning there — the service receives the
-    whole list as one ``data`` argument, so there is nothing to spread — and a
-    non-default binding with ``many=True`` raises ``ValueError`` rather than
-    being silently ignored.
+    Raises:
+        TypeError: ``spec`` is neither a ``ServiceSpec`` nor a ``SelectorSpec``.
     """
     if isinstance(spec, ServiceSpec):
         return _dispatch_service(
@@ -223,8 +224,8 @@ def _dispatch_selector(
         raise
 
     if spec.kind is not SelectorKind.RETRIEVE:
-        # LIST: guard the resolved set (per-set / class-level only — the queryset
-        # is not a Model, so fix (a) skips has_object_permission).
+        # LIST: guard the resolved set — class-level only, since the guard skips
+        # ``has_object_permission`` for anything that is not a Model.
         call_target_guard(on_target_resolved, spec, result, user=user, request=request, view=view)
         pool["collection"] = result
         call_preconditions(spec, pool)
@@ -279,10 +280,7 @@ def _dispatch_service(
 
     if instance is not UNSET:
         # The caller resolved the target itself — the HTTP path, whose
-        # ``get_object()`` chain (view ``queryset`` / ``lookup_field`` / a user
-        # override) has no off-HTTP meaning and so cannot live in this core.
-        # ``None`` is a *supplied* value here (a create), which is why the
-        # sentinel and not ``None`` marks "resolve it yourself".
+        # ``get_object()`` chain has no off-HTTP meaning and so cannot live here.
         mode, target = "instance", instance
     else:
         mode, target = _resolve_target(spec, user=user, params=params, request=request, view=view)
@@ -414,9 +412,9 @@ def _dispatch_service_many(
         pool["data"] = data
     if serializer is not None:
         pool["serializer"] = serializer
-    # Bulk runs them once with no target, matching the ``call_target_guard(…,
-    # None)`` above: only preconditions declaring ``user`` / ``request`` / the
-    # payload bind. Per-item rules belong in the service's own loop.
+    # Once, with no target, matching the ``call_target_guard(…, None)`` above:
+    # only preconditions declaring ``user`` / ``request`` / the payload bind.
+    # Per-item rules belong in the service's own loop.
     call_preconditions(spec, pool)
     result: Any = run_service(
         spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
@@ -470,18 +468,13 @@ def _resolve_collection(
             "collection_selector_spec requires a `selector` resolving the target set."
         )
     pool: dict[str, Any] = {
-        # **No live reporter here, deliberately.** Target resolution and the
-        # output re-fetch resolve a row (or a filtered set) and return; there is
-        # no progress to report from a lookup. Worse, a live reporter would let
-        # the output selector emit progress *after* the service finished, which
-        # to a watching client reads as the work having restarted. They take the
-        # no-op :func:`base_pool` supplies.
+        # No live reporter, deliberately: a lookup has no progress to report, and
+        # one emitting *after* the service finished reads to a watching client as
+        # the work having restarted. These take the no-op ``base_pool`` supplies.
         **base_pool(user=user, request=request),
-        # Reserved seeds stripped from the client spread — the same rule
-        # ``merge_arguments`` applies to every other pool. Without it a caller
-        # sending ``{"user": …}`` outranks the dispatcher's authoritative value
-        # in the pool that decides *which row* (or which set) is mutated, and
-        # over MCP that spread is the tool call.
+        # Reserved seeds stripped from the client spread, as ``merge_arguments``
+        # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
+        # dispatcher in the pool deciding *which row* is mutated.
         **strip_reserved_seeds(params),
         **view_url_kwargs(view),
     }
@@ -505,26 +498,21 @@ def _run_output_selector(
 ) -> tuple[Any, bool]:
     """Re-fetch + shape the service result through ``output_selector_spec``.
 
-    Returns ``(value, is_list)``. ``output_selector_spec.kind`` drives the
-    cardinality: ``RETRIEVE`` (the default) collapses a queryset to a single
-    instance via ``.first()`` (``is_list`` ``False``); ``LIST`` — valid only
-    alongside ``collection_selector_spec`` — returns the shaped set untouched
-    (``is_list`` ``True``) so the transport renders it ``many=True``. With no
-    output selector the service return passes through as a single value.
+    Returns ``(value, is_list)``, the cardinality driven by the nested ``kind``:
+    ``RETRIEVE`` collapses a queryset via ``.first()``; ``LIST`` — valid only
+    alongside ``collection_selector_spec`` — returns the shaped set untouched so
+    the transport renders it ``many=True``. With no output selector the service
+    return passes through as a single value.
     """
     out_spec = spec.output_selector_spec
     if out_spec is None or out_spec.selector is None:
         return result, False
-    # The nested spec's own kwargs / permissions are ignored (the surrounding
-    # mutation owns them); the service return joins the pool as ``result`` /
-    # ``instance``.
+    # The nested spec's kwargs / permissions are the surrounding mutation's; the
+    # service return joins the pool as both ``result`` and ``instance``.
     pool: dict[str, Any] = {
-        # **No live reporter here, deliberately.** Target resolution and the
-        # output re-fetch resolve a row (or a filtered set) and return; there is
-        # no progress to report from a lookup. Worse, a live reporter would let
-        # the output selector emit progress *after* the service finished, which
-        # to a watching client reads as the work having restarted. They take the
-        # no-op :func:`base_pool` supplies.
+        # No live reporter, deliberately: a lookup has no progress to report, and
+        # one emitting *after* the service finished reads to a watching client as
+        # the work having restarted. These take the no-op ``base_pool`` supplies.
         **base_pool(user=user, request=request),
         "instance": result,
         "result": result,
@@ -557,18 +545,13 @@ def _resolve_instance(
     if instance_spec is None or instance_spec.selector is None:
         return (True, None)
     pool: dict[str, Any] = {
-        # **No live reporter here, deliberately.** Target resolution and the
-        # output re-fetch resolve a row (or a filtered set) and return; there is
-        # no progress to report from a lookup. Worse, a live reporter would let
-        # the output selector emit progress *after* the service finished, which
-        # to a watching client reads as the work having restarted. They take the
-        # no-op :func:`base_pool` supplies.
+        # No live reporter, deliberately: a lookup has no progress to report, and
+        # one emitting *after* the service finished reads to a watching client as
+        # the work having restarted. These take the no-op ``base_pool`` supplies.
         **base_pool(user=user, request=request),
-        # Reserved seeds stripped from the client spread — the same rule
-        # ``merge_arguments`` applies to every other pool. Without it a caller
-        # sending ``{"user": …}`` outranks the dispatcher's authoritative value
-        # in the pool that decides *which row* (or which set) is mutated, and
-        # over MCP that spread is the tool call.
+        # Reserved seeds stripped from the client spread, as ``merge_arguments``
+        # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
+        # dispatcher in the pool deciding *which row* is mutated.
         **strip_reserved_seeds(params),
         **view_url_kwargs(view),
     }

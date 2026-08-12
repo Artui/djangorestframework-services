@@ -1,15 +1,4 @@
-"""``call_service`` — invoke a service callable from inside an HTTP request.
-
-Designed for the case where one view (or middleware, or custom action)
-needs to delegate to a service originally wired to a different action.
-The helper builds the same kwargs pool the framework would build, filters
-it against the service's signature, and dispatches sync-or-async — the
-caller doesn't have to know which.
-
-Outside HTTP scope (Celery tasks, management commands), call the service
-callable directly with whatever kwargs you have; this helper is not the
-right tool there.
-"""
+"""``call_service`` — invoke a service callable from inside an HTTP request."""
 
 from __future__ import annotations
 
@@ -39,30 +28,32 @@ def call_service(
 ) -> ResultT:
     """Invoke ``service`` with the framework's kwargs pool.
 
-    ``request`` is required — the helper is HTTP-scoped by design. ``user``
-    is derived from ``request.user`` (``None`` if the request bypassed
-    authentication middleware), matching the framework's own pool
-    construction.
+    For a view, middleware, or custom action delegating to a service wired to a
+    different action: the helper builds the pool the framework would build,
+    filters it against the service's signature, and dispatches sync-or-async so
+    the caller need not know which — async services are bridged through
+    ``async_to_sync``, sync services called inline. Outside HTTP scope (Celery
+    tasks, management commands) call the service directly with whatever kwargs
+    you have; this helper is not the right tool there.
 
-    ``data`` and ``instance`` are passed through when not ``UNSET``;
-    omitting them mirrors the create / list call shape. Anything else
-    goes into ``**extras`` and merges into the pool — the framework's
-    standard signature filter (:func:`resolve_callable_kwargs`) decides
-    which keys actually reach the service.
-
-    ``map_errors`` mirrors what the mutation view layer does with a
-    :class:`~rest_framework_services.exceptions.service_error.ServiceError`.
-    By default (``False``) a raised ``ServiceError`` propagates unchanged, so a
-    caller that forgets to handle it lets the error surface as a ``500``. Set
-    ``True`` and a ``ServiceError`` is translated to the same DRF exception the
-    framework raises on the normal view path — ``ServiceValidationError`` →
-    ``ValidationError`` (400), any other ``ServiceError`` → 422 — so DRF's
-    exception handler renders it as a proper response. Only meaningful because
-    ``call_service`` is HTTP-scoped; a non-HTTP caller wants the raw
-    ``ServiceError`` (hence the ``False`` default).
-
-    Async services are bridged transparently via ``async_to_sync``;
-    sync services are called inline.
+    Args:
+        service: The service callable, sync or async.
+        request: Required — the helper is HTTP-scoped by design. ``user`` is
+            derived from ``request.user`` (``None`` if the request bypassed
+            authentication middleware), matching the framework's own pool
+            construction.
+        data: Passed into the pool when not ``UNSET``; omitting it along with
+            ``instance`` mirrors the create / list call shape.
+        instance: Passed into the pool when not ``UNSET``.
+        map_errors: Translate a raised
+            :class:`~rest_framework_services.exceptions.service_error.ServiceError`
+            into the DRF exception the normal view path raises for it
+            (``ServiceValidationError`` → 400, any other → 422) so DRF's
+            handler renders it as a proper response. Left ``False`` it
+            propagates unchanged and an unhandled one surfaces as a ``500``.
+        **extras: Merged into the pool; the signature filter
+            (:func:`resolve_callable_kwargs`) decides which keys reach the
+            service.
     """
     pool: dict[str, Any] = {
         "request": request,
