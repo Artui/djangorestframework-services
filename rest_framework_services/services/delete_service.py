@@ -19,11 +19,11 @@ class DeleteService(Protocol[InputT, InstanceT, ResultT]):
 
     For *delete with payload* — when the spec carries an ``input_serializer``
     — bind ``InputT`` to your input dataclass and declare ``data`` on the
-    service. ``data`` is optional in the Protocol (default :data:`Ellipsis`)
+    service. ``data`` is optional in the Protocol (default ``Ellipsis``)
     so services that don't read a body can still match the shape by binding
-    ``InputT`` to :class:`~rest_framework_services.types.no_input.NoInput`.
+    ``InputT`` to [`NoInput`][rest_framework_services.types.no_input.NoInput].
 
-    See :class:`CreateService` for the extras-typing notes.
+    See [`CreateService`][rest_framework_services.services.create_service.CreateService] for the extras-typing notes.
     """
 
     def __call__(

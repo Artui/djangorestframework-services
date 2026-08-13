@@ -1,6 +1,6 @@
 """``call_selector`` — invoke a selector callable from inside an HTTP request.
 
-Mirrors :func:`~rest_framework_services.services.call_service.call_service`
+Mirrors [`call_service`][rest_framework_services.services.call_service.call_service]
 for selectors. No ``data`` / ``instance`` keys — selectors are read-only
 business logic.
 """

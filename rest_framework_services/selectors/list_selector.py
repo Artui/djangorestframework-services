@@ -14,7 +14,7 @@ class ListSelector(Protocol[ResultT]):
     The framework calls this from ``get_queryset()``; the returned iterable
     flows through DRF's filter backends, pagination, and ``output_serializer``.
 
-    See :class:`~rest_framework_services.services.CreateService` for the
+    See [`CreateService`][rest_framework_services.services.create_service.CreateService] for the
     extras-typing notes.
     """
 

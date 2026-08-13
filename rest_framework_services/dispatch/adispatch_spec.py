@@ -1,4 +1,4 @@
-"""``adispatch_spec`` — async sibling of :func:`dispatch_spec`."""
+"""``adispatch_spec`` — async sibling of [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec]."""
 
 from __future__ import annotations
 
@@ -65,9 +65,9 @@ async def adispatch_spec(
     view_hooks: ViewHooks | None = None,
     filter_data: Mapping[str, Any] | None = None,
 ) -> DispatchResult:
-    """Async :func:`~rest_framework_services.dispatch_spec`.
+    """Async [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec].
 
-    Identical contract, arguments, policies and :class:`DispatchResult` shape —
+    Identical contract, arguments, policies and [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult] shape —
     see the sync twin. What differs is only the execution model: async selectors
     and services are awaited, and sync ones run in Django's thread-sensitive
     executor so the ORM stays safe off the event loop.
@@ -77,7 +77,7 @@ async def adispatch_spec(
     ``input_serializer_context``, a callable ``success_status``,
     ``preconditions``, and the ``on_target_resolved`` guard all run in the
     executor (see
-    :func:`~rest_framework_services.dispatch.utils.arun_off_loop`). None of them
+    ``arun_off_loop``). None of them
     can be ``async def`` — a spec is written once for both transports — so any
     that queries would otherwise raise ``SynchronousOnlyOperation`` here and
     nowhere else.

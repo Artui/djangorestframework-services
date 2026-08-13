@@ -77,9 +77,9 @@ def resolve_action_service_spec(
     *,
     view: Any,
 ) -> ServiceSpec[Any, Any, Any]:
-    """Pick a :class:`ServiceSpec` from ``action_specs`` for a mutation action.
+    """Pick a [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] from ``action_specs`` for a mutation action.
 
-    A :class:`PolymorphicServiceSpec` entry is resolved to its chosen variant via
+    A [`PolymorphicServiceSpec`][rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec] entry is resolved to its chosen variant via
     the discriminator (memoized on ``view`` for the request). Centralised so all
     three mutation viewset mixins share one error path.
     """
@@ -101,7 +101,7 @@ def resolve_action_selector_spec(
     action_specs: Mapping[str, ActionSpec],
     action: str,
 ) -> SelectorSpec[Any, Any] | None:
-    """Pick a :class:`SelectorSpec` from ``action_specs`` for a read action.
+    """Pick a [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] from ``action_specs`` for a read action.
 
     ``None`` means the caller must fall back to vanilla DRF
     (``super().get_queryset()`` / ``super().get_object()``) — either the action is
@@ -154,11 +154,11 @@ def _validate_action_spec(view_cls: type, action: str, spec: object) -> None:
 class _ActionSpecsMixin:
     """Declares the ``action_specs`` class attribute shared by all viewset mixins.
 
-    All per-action mixins and :class:`ActionSerializerResolver` inherit from this
-    so the attribute is defined in exactly one place. :meth:`as_view` runs
+    All per-action mixins and [`ActionSerializerResolver`][rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver] inherit from this
+    so the attribute is defined in exactly one place. ``as_view`` runs
     fail-fast spec validation once per view at URL-wiring time.
 
-    In :meth:`get_permissions`, a spec's ``permission_classes`` of ``None`` means
+    In ``get_permissions``, a spec's ``permission_classes`` of ``None`` means
     inherit the view's; an empty sequence means "no permissions" explicitly.
     """
 
@@ -183,12 +183,12 @@ class _ActionSpecsMixin:
         serializer's context only through here, so a selector spec's
         ``output_serializer_context`` has to be layered on this path.
 
-        Restricted to :class:`SelectorSpec` entries: mutations already apply
+        Restricted to [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] entries: mutations already apply
         their context inside ``dispatch_mutation_for_spec``, so layering here
         would double-apply it and bleed output context into the input direction.
 
         The ``get_output_serializer_context`` *directional* hook is deliberately
-        not consulted — :class:`MutationFlowMixin`'s default implementation calls
+        not consulted — [`MutationFlowMixin`][rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin]'s default implementation calls
         ``self.get_serializer_context()`` and would recurse into this override.
         """
         base: dict[str, Any] = dict(super().get_serializer_context())  # ty: ignore[unresolved-attribute]

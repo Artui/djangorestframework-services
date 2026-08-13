@@ -1,10 +1,10 @@
-"""Opt-in helper that wires :class:`ServiceAutoSchema` onto every library view."""
+"""Opt-in helper that wires [`ServiceAutoSchema`][rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema] onto every library view."""
 
 from __future__ import annotations
 
 
 def enable_openapi() -> None:
-    """Set :class:`ServiceAutoSchema` as the schema on every library view class.
+    """Set [`ServiceAutoSchema`][rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema] as the schema on every library view class.
 
     Call once from ``AppConfig.ready()`` (or anywhere after Django apps are
     loaded) to make ``drf-spectacular`` see ``ServiceSpec`` request bodies,
@@ -16,7 +16,7 @@ def enable_openapi() -> None:
 
     The function-local imports keep ``drf-spectacular`` an optional
     dependency: importing
-    :mod:`rest_framework_services.openapi` does not require it, and only
+    ``rest_framework_services.openapi`` does not require it, and only
     this call brings in the schema-generator code.
 
     User subclasses inherit ``schema = ServiceAutoSchema()`` automatically;

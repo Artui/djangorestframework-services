@@ -6,7 +6,7 @@ from enum import Enum
 
 
 class RelationOutcome(str, Enum):
-    """The single fact a :class:`RelatedObjectChange` reports.
+    """The single fact a [`RelatedObjectChange`][rest_framework_services.types.related_object_change.RelatedObjectChange] reports.
 
     A collection reports four tuples of primary keys, which is the honest shape
     for many rows and a poor one for a relation that holds exactly one: every
@@ -15,7 +15,7 @@ class RelationOutcome(str, Enum):
 
     Inheriting from ``str`` keeps the value JSON-serializable and lets a caller
     compare against the plain string, matching
-    :class:`~rest_framework_services.SelectorKind`.
+    [`SelectorKind`][rest_framework_services.types.selector_kind.SelectorKind].
     """
 
     UNTOUCHED = "untouched"
@@ -56,7 +56,7 @@ class RelationOutcome(str, Enum):
     REMOVED = "removed"
     """A row was handed to the spec's ``delete_service``.
 
-    Deliberately not :attr:`DELETED`. Once a service owns the row the loop no
+    Deliberately not ``DELETED``. Once a service owns the row the loop no
     longer knows whether it was deleted, archived, unlinked or left standing,
     and reporting a guess as fact is worse than reporting the one thing that is
     true: the loop removed the row from the relation and a service decided the

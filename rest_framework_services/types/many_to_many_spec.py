@@ -27,7 +27,7 @@ class ManyToManySpec(RelationSpec):
 
     Each row in ``data[accessor_name]`` is a **payload**, not a key: the target
     row is created or updated first, and only then is the membership written
-    (:attr:`~rest_framework_services.RelationPhase.M2M`, after the parent has a
+    (``RelationPhase.M2M``, after the parent has a
     primary key). That is the difference from the mutation helpers' ``m2m=``
     argument, which assigns rows that already exist and creates nothing. A
     relation named by both is refused: it would be written twice and keep
@@ -39,7 +39,7 @@ class ManyToManySpec(RelationSpec):
 
     There is no ``delete_service``: the row is shared, so a target dropped from
     the relation loses only its membership and is reported under
-    :attr:`~rest_framework_services.ChildCollectionChange.unlinked`, leaving
+    ``ChildCollectionChange.unlinked``, leaving
     ``deleted`` empty for this kind.
 
     A many-to-many with an explicit ``through`` model is **not** covered. The
@@ -51,10 +51,10 @@ class ManyToManySpec(RelationSpec):
         match_key: The field pairing an incoming payload with an existing target
             row (default ``"pk"``).
         scope: The rows this caller may update, on the terms
-            :class:`~rest_framework_services.ForwardRelationSpec` states:
+            [`ForwardRelationSpec`][rest_framework_services.types.forward_relation_spec.ForwardRelationSpec] states:
             without it the spec is create-only, and a payload carrying a
             ``match_key`` raises
-            :exc:`~django.core.exceptions.ImproperlyConfigured`. Matching runs
+            ``ImproperlyConfigured``. Matching runs
             against ``scope``, not against the parent's current membership — the
             payload names rows to link, which is exactly the set that is not
             linked yet.
@@ -75,7 +75,7 @@ class ManyToManySpec(RelationSpec):
             loop writes afterwards, which a service could not write by returning
             one. Declaring it alongside the row-shaping fields above raises at
             construction, for the reason given on
-            :class:`~rest_framework_services.ChildSpec`.
+            [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec].
         update_service: The same, and additionally receives ``instance``.
     """
 

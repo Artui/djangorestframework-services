@@ -19,8 +19,8 @@ class RelationSpec:
     ``save()`` because it is a forward foreign key, not because a particular
     spec asked to be.
 
-    So each concrete spec declares :attr:`write_phase` as a class attribute and
-    the driver orders by it (see :class:`RelationPhase` for the sequence). A
+    So each concrete spec declares ``write_phase`` as a class attribute and
+    the driver orders by it (see [`RelationPhase`][rest_framework_services.types.relation_phase.RelationPhase] for the sequence). A
     spec author never sets it per-instance, and the mapping's insertion order
     cannot reorder the phases — only the relations *within* one.
 

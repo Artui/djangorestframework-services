@@ -15,8 +15,8 @@ def read_schema_markers(annotation: Any) -> tuple[Any, bool, bool]:
 
     ``type`` is the annotation with any ``Annotated[...]`` wrapper removed, so
     callers map the *underlying* type to JSON Schema. ``required`` is ``True``
-    when :data:`~rest_framework_services.InputRequired` is among the metadata;
-    ``hidden`` is ``True`` for :data:`~rest_framework_services.NotClientInput`.
+    when ``InputRequired`` is among the metadata;
+    ``hidden`` is ``True`` for ``NotClientInput``.
     A plain annotation returns ``(annotation, False, False)``.
 
     **Stripping matters even with no markers.** ``Annotated[int, "help text"]``

@@ -27,7 +27,7 @@ class ForwardRelationSpec(RelationSpec):
     (``relations={"author": ...}`` for ``Post.author``). The nested payload is
     read from ``data[field_name]`` and the resolved row is assigned to that
     field **before** the parent is saved
-    (:attr:`~rest_framework_services.RelationPhase.FORWARD`) — an ordinary
+    (``RelationPhase.FORWARD``) — an ordinary
     column assignment, reported by ``diff_attrs`` and persisted by the same
     minimal ``update_fields`` save as any other field.
 
@@ -53,9 +53,9 @@ class ForwardRelationSpec(RelationSpec):
             and the queryset (``filter(**{match_key: key})``). It *identifies* a
             row rather than describing one, so a key matching nothing in
             ``scope`` raises
-            :exc:`~rest_framework_services.ServiceValidationError` (a 400)
+            [`ServiceValidationError`][rest_framework_services.exceptions.service_validation_error.ServiceValidationError] (a 400)
             instead of falling through to a create — unlike
-            :class:`~rest_framework_services.ChildSpec`, which matches inside
+            [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec], which matches inside
             the parent's own manager, where a miss really does mean "a new
             child".
         scope: The rows this caller may update — a queryset, or a callable
@@ -63,7 +63,7 @@ class ForwardRelationSpec(RelationSpec):
             (``lambda user: Author.objects.filter(owner=user)``), the library's
             usual idiom. **Without it the spec is create-only**, and a payload
             carrying a ``match_key`` raises
-            :exc:`~django.core.exceptions.ImproperlyConfigured` rather than
+            ``ImproperlyConfigured`` rather than
             quietly creating a duplicate: a forward target has no owning manager
             to match within, so an unscoped by-key match would mean "any caller
             may write any row of that model by guessing a key".
@@ -79,7 +79,7 @@ class ForwardRelationSpec(RelationSpec):
             the parent row exists, which is the whole point of the phase.
             Declaring it alongside the row-shaping fields above raises at
             construction, for the reason given on
-            :class:`~rest_framework_services.ChildSpec`.
+            [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec].
         update_service: The same, and additionally receives ``instance``.
     """
 

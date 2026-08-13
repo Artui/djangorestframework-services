@@ -25,17 +25,17 @@ class ChildSpec(RelationSpec):
 
     The reverse-FK member of the relation taxonomy: it writes rows whose
     foreign key points back at the parent, so it belongs to
-    :attr:`~rest_framework_services.RelationPhase.REVERSE` and is written after
+    ``RelationPhase.REVERSE`` and is written after
     the parent's ``save()``.
 
     Passed in the ``relations={relation_name: ChildSpec(...)}`` map of
-    :func:`~rest_framework_services.create_from_input` /
-    :func:`~rest_framework_services.update_from_input` (and their async
+    [`create_from_input`][rest_framework_services.mutations.create_from_input.create_from_input] /
+    [`update_from_input`][rest_framework_services.mutations.update_from_input.update_from_input] (and their async
     siblings) — or in ``children=``, which is the same thing under the name it
     shipped as — and forwarded by the default
-    :func:`~rest_framework_services.create_model` /
-    :func:`~rest_framework_services.update_model` /
-    :func:`~rest_framework_services.delete_model` services. The incoming child
+    [`create_model`][rest_framework_services.services.create_model.create_model] /
+    [`update_model`][rest_framework_services.services.update_model.update_model] /
+    [`delete_model`][rest_framework_services.services.delete_model.delete_model] services. The incoming child
     rows are read from ``data[relation_name]``; each child is persisted by
     running it back through the same mutation helpers, so scalar / m2m / nested
     semantics compose recursively. The whole parent + children write runs
@@ -46,8 +46,8 @@ class ChildSpec(RelationSpec):
     row.** Matching, ``mode`` and orphan handling never move into your code;
     a slot is called once per row the loop has already decided about. Each is
     invoked through
-    :func:`~rest_framework_services.run_service` /
-    :func:`~rest_framework_services.arun_service` with ``atomic=False``,
+    [`run_service`][rest_framework_services.services.run_service.run_service] /
+    [`arun_service`][rest_framework_services.services.arun_service.arun_service] with ``atomic=False``,
     because the surrounding service's atomic block already wraps the whole
     tree and letting each row open its own would mean a savepoint per row.
     Each receives only the pool keys it declares (the library's usual
@@ -55,7 +55,7 @@ class ChildSpec(RelationSpec):
     ``context=`` plus the loop's own seeds. Those seeds — ``data`` /
     ``instance`` / ``parent`` — are applied **after** the context, so a context
     key of the same name cannot outrank them, the precedence form of the rule
-    :data:`~rest_framework_services.types.reserved_pool_seeds.RESERVED_POOL_SEEDS`
+    ``RESERVED_POOL_SEEDS``
     states for the dispatcher's pools. In the async loops the slot must be an
     ``async def``: the async path is awaited end to end.
 
@@ -64,7 +64,7 @@ class ChildSpec(RelationSpec):
     maps configure the default mutation-helper call, so a ``create_service`` /
     ``update_service`` standing in for it makes them dead configuration.
     Declaring both raises
-    :exc:`~django.core.exceptions.ImproperlyConfigured` at construction rather
+    ``ImproperlyConfigured`` at construction rather
     than dropping them quietly. ``delete_service`` is exempt — it replaces the
     unlink-or-delete rule, not the helper call, so the cascade still removes a
     row's grandchildren before handing the row over. The spec keeps only what
@@ -90,7 +90,7 @@ class ChildSpec(RelationSpec):
         exclude_fields: Forwarded to the per-child call, as ``field_map`` is.
         m2m: Callable ``(child_row) -> mapping`` deriving the child's
             many-to-many assignments from its incoming row — the per-child
-            analogue of :func:`~rest_framework_services.create_model`'s ``m2m``.
+            analogue of [`create_model`][rest_framework_services.services.create_model.create_model]'s ``m2m``.
         children: Nested ``{relation_name: ChildSpec}`` map for grandchildren;
             recursion follows the declared tree, so depth is bounded by how
             deeply you nest specs.
@@ -111,10 +111,10 @@ class ChildSpec(RelationSpec):
         delete_service: Called as
             ``delete_service(*, instance, parent, **extras)``, replacing the
             unlink-or-delete rule for that row — both for orphan removal and
-            for the :func:`~rest_framework_services.delete_model` cascade. The
+            for the [`delete_model`][rest_framework_services.services.delete_model.delete_model] cascade. The
             loop can no longer tell an unlink from a delete, so the pk is
             reported under
-            :attr:`~rest_framework_services.ChildCollectionChange.removed`
+            ``ChildCollectionChange.removed``
             rather than guessed into one of the two. It *is* the disposal, so
             declaring it beside an explicit ``orphan`` raises at construction:
             the flag would decide nothing.
@@ -127,9 +127,9 @@ class ChildSpec(RelationSpec):
             later migration adding ``null=True`` would otherwise turn a
             destructive ``"replace"`` into a non-destructive one with nothing in
             the spec changing. ``"unlink"`` against a non-nullable FK raises
-            :exc:`~django.core.exceptions.ImproperlyConfigured` when the
+            ``ImproperlyConfigured`` when the
             relation is written, since there is no link to blank. The same rule
-            governs the :func:`~rest_framework_services.delete_model` cascade,
+            governs the [`delete_model`][rest_framework_services.services.delete_model.delete_model] cascade,
             which disposes of the same rows.
     """
 

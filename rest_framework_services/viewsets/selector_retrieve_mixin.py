@@ -16,10 +16,10 @@ from rest_framework_services.viewsets.utils import (
 
 
 class SelectorRetrieveMixin(RetrieveModelMixin, _ActionSpecsMixin):
-    """Compose with :class:`~rest_framework.viewsets.GenericViewSet`.
+    """Compose with ``GenericViewSet``.
 
     When ``action_specs["retrieve"]`` is a
-    :class:`~rest_framework_services.types.selector_spec.SelectorSpec` with
+    [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] with
     a non-``None`` ``selector``, ``get_object()`` invokes it instead of
     falling through to DRF's standard lookup. The selector receives the
     URL kwargs plus the standard pool. Returning ``None`` or raising
@@ -30,7 +30,7 @@ class SelectorRetrieveMixin(RetrieveModelMixin, _ActionSpecsMixin):
     ``action_specs["retrieve"] = SelectorSpec(selector=None)`` or an absent
     ``"retrieve"`` key both fall through to DRF's default ``get_object()``.
     Any other entry type raises
-    :exc:`~django.core.exceptions.ImproperlyConfigured`.
+    ``ImproperlyConfigured``.
 
     The selector applies wherever ``get_object()`` is called, including from
     update/destroy actions composed alongside this mixin. If you need an

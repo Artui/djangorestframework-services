@@ -45,7 +45,7 @@ OUTPUT_SOURCE = "ServiceSpec.output_selector_spec.selector"
 def strip_reserved_seeds(params: Mapping[str, Any]) -> dict[str, Any]:
     """Drop the dispatcher-owned names from a client-supplied mapping.
 
-    :func:`merge_arguments` applies this to every spread it performs, but the
+    ``merge_arguments`` applies this to every spread it performs, but the
     nested target resolutions build their pool directly and must call it
     themselves — skipping it lets a caller-supplied ``user`` / ``request`` /
     ``instance`` outrank the dispatcher's authoritative value.
@@ -57,7 +57,7 @@ def view_url_kwargs(view: Any) -> dict[str, Any]:
     """Route-capture kwargs carried by the (offline) view, reserved seeds stripped.
 
     On HTTP the selector pool picks these up as ``extra_url_kwargs=view.kwargs``;
-    off-HTTP the :class:`OfflineServiceView` carries the same mapping but
+    off-HTTP the [`OfflineServiceView`][rest_framework_services.types.offline_service_view.OfflineServiceView] carries the same mapping but
     ``dispatch_spec`` has to read it explicitly. Stripping the reserved seeds
     stops a capture named after one clobbering the dispatcher's own value.
     """
@@ -119,7 +119,7 @@ def _callable_param_names(fn: Callable[..., Any]) -> set[str] | None:
     "unknown". A ``**kwargs: Unpack[SomeExtras]`` is *not*: the ``TypedDict``
     names an exact keyword surface, and only those keys join the declared set.
 
-    Keys marked :data:`~rest_framework_services.NotClientInput` are excluded as
+    Keys marked ``NotClientInput`` are excluded as
     provider-owned and never advertised. Delivery is unaffected — this feeds the
     unknown-argument check only, never the kwargs pool.
     """
@@ -209,13 +209,13 @@ def resolve_unknown_arguments(
 
 
 def resolve_dispatch_kwargs(fn: Callable[..., Any], pool: dict[str, Any]) -> dict[str, Any]:
-    """``resolve_callable_kwargs`` plus the :data:`InputRequired` check.
+    """``resolve_callable_kwargs`` plus the ``InputRequired`` check.
 
     Must run against the **fully assembled** pool: any channel (caller params,
     URL kwargs, the ``spec.kwargs`` provider) satisfies the marker, which says
     the value must arrive, not where from.
 
-    Raises :exc:`ServiceValidationError` rather than letting the callable raise
+    Raises [`ServiceValidationError`][rest_framework_services.exceptions.service_validation_error.ServiceValidationError] rather than letting the callable raise
     ``KeyError``, because every transport maps the former to a caller-visible
     validation failure and none maps the latter.
 
@@ -254,7 +254,7 @@ def service_input_for_validated(
 ) -> tuple[Any, Mapping[str, Any]]:
     """The ``(data, spread_source)`` fold for one already-validated value.
 
-    Split out of :func:`service_input` so the ``many=True`` path gets identical
+    Split out of ``service_input`` so the ``many=True`` path gets identical
     per-item semantics; see there for the dict / dataclass / no-serializer rules.
     """
     if isinstance(validated, dict):
@@ -355,7 +355,7 @@ async def acall_preconditions(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     pool: dict[str, Any],
 ) -> None:
-    """:func:`call_preconditions` for the async path.
+    """``call_preconditions`` for the async path.
 
     Preconditions are sync-only, like every auxiliary callable a spec carries:
     only ``selector`` and ``service`` may be ``async def``, because a spec is
@@ -403,7 +403,7 @@ def resolve_progress(
 def resolve_provider(provider: Callable[..., Any] | None, pool: dict[str, Any]) -> dict[str, Any]:
     """Invoke a ``spec.kwargs`` / context provider through the keyword pool.
 
-    A key whose value is :data:`~rest_framework_services.UNSET` is dropped: the
+    A key whose value is ``UNSET`` is dropped: the
     provider is *declining* to set it, not setting it to ``UNSET``. That lets a
     provider unable to resolve a value off-HTTP step aside so a caller-supplied
     ``params`` value survives the merge, instead of a fallback ``None`` silently
@@ -497,7 +497,7 @@ def resolve_input_context(
 ) -> dict[str, Any]:
     """Resolve the input serializer context — DRF baseline + view layers + spec.
 
-    The input-phase twin of :func:`resolve_output_context`, and same layering
+    The input-phase twin of ``resolve_output_context``, and same layering
     order: an ``input_serializer`` validator reading ``self.context["request"]``
     behaves the same over HTTP and off it.
     """
@@ -582,7 +582,7 @@ async def arun_off_loop(fn: Callable[..., Any], /, *args: Any, **kwargs: Any) ->
     the same transaction state as on the sync path.
 
     Not for the spec's own selector / service, which may be ``async def``; those
-    go through :func:`arun_callable` / :func:`arun_service_callable`.
+    go through ``arun_callable`` / ``arun_service_callable``.
     """
     return await sync_to_async(fn, thread_sensitive=True)(*args, **kwargs)
 

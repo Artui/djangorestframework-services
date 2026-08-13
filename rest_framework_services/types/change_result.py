@@ -19,13 +19,13 @@ class ChangeResult(Generic[ModelT]):
     """Outcome of a mutation helper call.
 
     ``instance`` is the model instance after the mutation. ``created`` is True
-    iff this came from :func:`create_from_input` / :func:`acreate_from_input`.
+    iff this came from [`create_from_input`][rest_framework_services.mutations.create_from_input.create_from_input] / [`acreate_from_input`][rest_framework_services.mutations.acreate_from_input.acreate_from_input].
     ``changes`` records every field whose value actually differed from its
     prior value (or from ``UNSET`` for creates). ``children`` carries one
-    :class:`ChildCollectionChange` per reverse-FK collection written via the
+    [`ChildCollectionChange`][rest_framework_services.types.child_collection_change.ChildCollectionChange] per reverse-FK collection written via the
     ``children=`` argument — empty for the common no-nested-write case.
 
-    ``relations`` carries one :class:`RelatedObjectChange` per **singular**
+    ``relations`` carries one [`RelatedObjectChange`][rest_framework_services.types.related_object_change.RelatedObjectChange] per **singular**
     relation written via ``relations=`` (forward FK / one-to-one, reverse
     one-to-one). The split is by shape, not by keyword: a collection reports
     tuples of pks and a one-row relation reports an outcome, so they are
@@ -51,25 +51,25 @@ class ChangeResult(Generic[ModelT]):
 
     @property
     def changed_fields(self) -> tuple[str, ...]:
-        """Names of every field present in :attr:`changes`."""
+        """Names of every field present in ``changes``."""
         return tuple(change.field for change in self.changes)
 
     def get_field_change(self, field_name: str) -> FieldChange | None:
-        """Return the :class:`FieldChange` for ``field_name``, or ``None``."""
+        """Return the [`FieldChange`][rest_framework_services.types.field_change.FieldChange] for ``field_name``, or ``None``."""
         for change in self.changes:
             if change.field == field_name:
                 return change
         return None
 
     def get_child_change(self, relation: str) -> ChildCollectionChange | None:
-        """Return the :class:`ChildCollectionChange` for ``relation``, or ``None``."""
+        """Return the [`ChildCollectionChange`][rest_framework_services.types.child_collection_change.ChildCollectionChange] for ``relation``, or ``None``."""
         for change in self.children:
             if change.relation == relation:
                 return change
         return None
 
     def get_relation_change(self, relation: str) -> RelatedObjectChange | None:
-        """Return the :class:`RelatedObjectChange` for ``relation``, or ``None``."""
+        """Return the [`RelatedObjectChange`][rest_framework_services.types.related_object_change.RelatedObjectChange] for ``relation``, or ``None``."""
         for change in self.relations:
             if change.relation == relation:
                 return change

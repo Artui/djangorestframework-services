@@ -11,7 +11,7 @@ class RelationOrphan(str, Enum):
     Shared by the kinds that own their rows — a reverse-FK collection, a
     generic relation, a reverse one-to-one — so the word means the same thing on
     all three. It answers *what* happens to a row that is let go;
-    :class:`RelationMode` answers *when* a row is let go at all, and the two are
+    ``RelationMode`` answers *when* a row is let go at all, and the two are
     independent knobs on purpose.
 
     The default derives the answer from the schema, as it always has. The other
@@ -22,8 +22,8 @@ class RelationOrphan(str, Enum):
     means to delete says so.
 
     Inheriting from ``str`` keeps the value JSON-serializable and means a plain
-    string works wherever the member does, matching :class:`RelationMode` and
-    :class:`RelationOutcome`.
+    string works wherever the member does, matching ``RelationMode`` and
+    ``RelationOutcome``.
     """
 
     AUTO = "auto"

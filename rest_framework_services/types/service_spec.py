@@ -22,11 +22,11 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     """All wiring for a single mutation action in one record.
 
     Used as a value in ``ServiceViewSet.action_specs`` and as the ``spec=``
-    argument to :func:`service_action` / :class:`ServiceCreateView` /
-    :class:`ServiceUpdateView` / :class:`ServiceDeleteView`.
+    argument to [`service_action`][rest_framework_services.viewsets.decorators.service_action.service_action] / [`ServiceCreateView`][rest_framework_services.views.mutation.service_create_view.ServiceCreateView] /
+    [`ServiceUpdateView`][rest_framework_services.views.mutation.service_update_view.ServiceUpdateView] / [`ServiceDeleteView`][rest_framework_services.views.mutation.service_delete_view.ServiceDeleteView].
 
     Fields group into the service callable itself, the input pipeline
-    (``input_*``), the output pipeline (a nested :class:`SelectorSpec`), and
+    (``input_*``), the output pipeline (a nested [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec]), and
     cross-cutting concerns. Several are **providers**: they are resolved
     through the framework keyword pool, declaring any subset of the keywords
     listed for them (or ``**kwargs``) and receiving only what they name.
@@ -64,11 +64,11 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             the same way. The service receives the validated list as ``data``
             and loops itself, so one call does the batch.
         document_service_error: OpenAPI-only — whether the schema documents the
-            422 :class:`ServiceError` response. No runtime effect; a service may
+            422 [`ServiceError`][rest_framework_services.exceptions.service_error.ServiceError] response. No runtime effect; a service may
             always raise. ``None`` gates it on ``input_serializer is not None``,
             so a plain delete carries no spurious 422. Only consulted when the
             ``[spectacular]`` extra is enabled through
-            :func:`~rest_framework_services.openapi.enable_openapi`.
+            [`enable_openapi`][rest_framework_services.openapi.enable_openapi.enable_openapi].
         input_serializer: Validates the request body.
         input_data: Provider (pool: ``view`` / ``request`` / ``instance``,
             the latter ``None`` on create) returning a mapping merged on top of
@@ -93,7 +93,7 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             from the route. Resolution runs **before** input validation: the row
             is handed to the input serializer DRF-style and seeded into the
             service pool as ``instance``. A missing row is always
-            :exc:`~rest_framework.exceptions.NotFound` — the nested
+            ``NotFound`` — the nested
             ``allow_none`` is ignored — and ``check_object_permissions`` runs
             against it. Queryset shaping applies; the nested
             ``permission_classes`` / ``output_serializer`` /
@@ -119,12 +119,12 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             into the pool the service receives. Co-locating it with the spec
             lets each action declare its own contract, instead of
             ``if self.action == ...`` branching in one catch-all. See
-            :class:`ServiceView` for what the ``view`` argument offers.
+            [`ServiceView`][rest_framework_services.types.service_view.ServiceView] for what the ``view`` argument offers.
         permission_classes: Override the calling view's permissions for this
             action. ``None`` inherits the view's; an empty sequence means none,
             explicitly. Forwarded through DRF's ``@action`` for
             ``@service_action`` and surfaced via ``get_permissions`` elsewhere.
-        progress_reporter: Provider returning a :class:`ProgressReporter` sink,
+        progress_reporter: Provider returning a [`ProgressReporter`][rest_framework_services.types.progress_reporter.ProgressReporter] sink,
             fanned together with whatever reporter the transport supplied. For
             sinks that do not care which transport carries the run — a task
             record, an audit trail, metrics.
@@ -151,12 +151,12 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             but **never read**. No known keys, no per-key validation, no
             defaulting, no effect on the generated JSON Schema or OpenAPI;
             validation is shape-only, and a non-``Mapping`` raises
-            :exc:`~django.core.exceptions.ImproperlyConfigured` at construction.
+            ``ImproperlyConfigured`` at construction.
             Use it to attach a project's own per-operation facts, read back by
             its own permission class or audit hook, to the spec describing the
             operation rather than to a name-keyed side table that drifts the day
             a spec is renamed. It never merges with a nested spec's metadata and
-            is stored exactly as given. See :class:`SelectorSpec`.
+            is stored exactly as given. See [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec].
     """
 
     # The service callable and per-call dispatch flags.

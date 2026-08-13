@@ -14,10 +14,10 @@ from rest_framework_services.viewsets.utils import (
 
 
 class SelectorListMixin(ListModelMixin, _ActionSpecsMixin):
-    """Compose with :class:`~rest_framework.viewsets.GenericViewSet`.
+    """Compose with ``GenericViewSet``.
 
     When ``action_specs["list"]`` is a
-    :class:`~rest_framework_services.types.selector_spec.SelectorSpec` with
+    [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] with
     a non-``None`` ``selector``, ``get_queryset()`` invokes it instead of
     returning the configured ``queryset``. The rest of DRF's list flow —
     filter backends, pagination, serialization — is unchanged.
@@ -25,7 +25,7 @@ class SelectorListMixin(ListModelMixin, _ActionSpecsMixin):
     ``action_specs["list"] = SelectorSpec(selector=None)`` or an absent
     ``"list"`` key both fall through to DRF's default ``get_queryset()``.
     Any other entry type raises
-    :exc:`~django.core.exceptions.ImproperlyConfigured`.
+    ``ImproperlyConfigured``.
     """
 
     # Provided at runtime by ``GenericViewSet`` / ``GenericAPIView``.

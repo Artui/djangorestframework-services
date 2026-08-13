@@ -31,8 +31,8 @@ class SpecRegistry:
 
     **There is no global registry**: a consumer holds as many of its own
     instances as it likes, with no shared state between them. Registries are
-    mutable — :meth:`register` adds — but every derivation (:meth:`by_tag`,
-    :meth:`subset`, :meth:`merge`) returns a **new** registry holding a snapshot
+    mutable — ``register`` adds — but every derivation (``by_tag``,
+    ``subset``, ``merge``) returns a **new** registry holding a snapshot
     of the selected entries, sharing the spec objects rather than copying them.
     A derived view never mutates its source, and a later ``register()`` on the
     source does **not** appear in a view derived earlier.
@@ -43,7 +43,7 @@ class SpecRegistry:
 
         Args:
             entries: Entries to seed, in order, validated exactly as
-                :meth:`register` validates.
+                ``register`` validates.
         """
         self._entries: dict[str, RegisteredSpec] = {}
         for entry in entries:

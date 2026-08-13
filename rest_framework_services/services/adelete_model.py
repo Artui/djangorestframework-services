@@ -19,14 +19,14 @@ def adelete_model(
     relations: Mapping[str, RelationSpec] | None = None,
 ) -> Callable[..., Awaitable[None]]:
     """Async sibling of
-    :func:`~rest_framework_services.services.delete_model`.
+    [`delete_model`][rest_framework_services.services.delete_model.delete_model].
 
     Calls ``await instance.adelete()`` by default (Django 4.1+; the
     package floor is 4.2, so this is always available). ``soft_delete``
     is an optional ``async`` hook called instead of ``adelete``.
     ``relations`` (and its reverse-FK alias ``children``) removes what the
     parent owns first, by the one rule
-    :func:`~rest_framework_services.services.delete_model` states, with the
+    [`delete_model`][rest_framework_services.services.delete_model.delete_model] states, with the
     rest of the kwargs pool handed on as ``context=``.
     """
     declared = merge_relations(children, relations)

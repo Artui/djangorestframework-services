@@ -1,6 +1,6 @@
 """Selector protocols — typed shapes for query callables.
 
-See :mod:`rest_framework_services.services` for the extras-typing
+See ``rest_framework_services.services`` for the extras-typing
 conventions; selectors follow the identical pattern.
 """
 

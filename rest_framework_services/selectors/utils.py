@@ -154,7 +154,7 @@ def _filter_set_accepts_request(filter_set: Any) -> bool:
     Forwarding it only when the constructor declares it keeps those working
     while a bare stand-in is called exactly as before.
 
-    :func:`inspect.signature` resolves a class to its ``__init__``: a declared
+    ``inspect.signature`` resolves a class to its ``__init__``: a declared
     ``request`` (positional-or-keyword or keyword-only) counts, as does a
     ``**kwargs`` catch-all.
     """
@@ -182,7 +182,7 @@ def materialize_retrieve(result: Any) -> Any:
 
 
 async def amaterialize_retrieve(result: Any) -> Any:
-    """Async twin of :func:`materialize_retrieve`, awaiting ``.afirst()``.
+    """Async twin of ``materialize_retrieve``, awaiting ``.afirst()``.
 
     Separate because the materialization *is* the query — ``.first()`` would
     block the event loop. Same rule otherwise; keep the two in step.
@@ -196,9 +196,9 @@ def check_view_object_permissions(
     *,
     instance: Any = None,
 ) -> None:
-    """:class:`TargetGuard` running DRF's object-permission check for an HTTP view.
+    """[`TargetGuard`][rest_framework_services.types.target_guard.TargetGuard] running DRF's object-permission check for an HTTP view.
 
-    The HTTP counterpart of :func:`~rest_framework_services.enforce_permissions`:
+    The HTTP counterpart of [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions]:
     off HTTP a transport enforces ``spec.permission_classes`` itself, while a DRF
     view has already instantiated them and exposes ``check_object_permissions``.
     Both plug into the same ``on_target_resolved`` seam, so the core stays
@@ -216,10 +216,10 @@ def dispatch_selector_for_spec(view: Any, spec: SelectorSpec[Any, Any]) -> Any:
     """End-to-end dispatch for one ``SelectorSpec`` call from a DRF view.
 
     Resolves the view's ``get_selector_kwargs`` / ``get_<action>_selector_kwargs``
-    chain into a :class:`ViewHooks` carrier, hands off to the one
-    :func:`~rest_framework_services.dispatch_spec` core, and translates the
-    neutral :class:`DispatchResult` into the view-layer contract: a RETRIEVE that
-    resolved nothing raises :exc:`~rest_framework.exceptions.NotFound`, unless the
+    chain into a [`ViewHooks`][rest_framework_services.types.view_hooks.ViewHooks] carrier, hands off to the one
+    [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec] core, and translates the
+    neutral [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult] into the view-layer contract: a RETRIEVE that
+    resolved nothing raises ``NotFound``, unless the
     spec sets ``allow_none=True`` (then ``None``, and the retrieve views render
     200 + JSON ``null``). ``SelectorKind.LIST`` returns the shaped queryset.
 

@@ -4,7 +4,7 @@ Importing the Protocols is purely opt-in: ``ServiceSpec.service`` accepts any
 plain callable. Annotate your service against the matching Protocol when you
 want IDE / type-checker support for the keys the framework provides.
 
-Each Protocol types ``**extras`` as :class:`~typing.Any`, so any service
+Each Protocol types ``**extras`` as ``Any``, so any service
 function that declares ``**extras: Any`` (or omits the keyword-spread
 entirely and reads only declared keys) conforms. To get IDE / type-checker
 help on extras keys, annotate your function with

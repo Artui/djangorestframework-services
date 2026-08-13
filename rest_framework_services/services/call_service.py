@@ -46,13 +46,13 @@ def call_service(
             ``instance`` mirrors the create / list call shape.
         instance: Passed into the pool when not ``UNSET``.
         map_errors: Translate a raised
-            :class:`~rest_framework_services.exceptions.service_error.ServiceError`
+            [`ServiceError`][rest_framework_services.exceptions.service_error.ServiceError]
             into the DRF exception the normal view path raises for it
             (``ServiceValidationError`` → 400, any other → 422) so DRF's
             handler renders it as a proper response. Left ``False`` it
             propagates unchanged and an unhandled one surfaces as a ``500``.
         **extras: Merged into the pool; the signature filter
-            (:func:`resolve_callable_kwargs`) decides which keys reach the
+            (``resolve_callable_kwargs``) decides which keys reach the
             service.
     """
     pool: dict[str, Any] = {

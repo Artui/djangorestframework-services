@@ -4,7 +4,7 @@ These helpers turn a ``ServiceSpec`` / ``SelectorSpec`` (or a bare DRF
 serializer / dataclass) into a JSON Schema dict, with **no** view, request, or
 ``drf-spectacular`` dependency. They are what an alternate transport (a
 Pydantic-AI toolset, the MCP server) builds tool definitions from. Distinct
-from :mod:`rest_framework_services.openapi`, which produces DRF serializer
+from ``rest_framework_services.openapi``, which produces DRF serializer
 classes for DRF's own OpenAPI generators.
 """
 

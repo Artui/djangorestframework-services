@@ -27,7 +27,7 @@ def run_service(
     """Call ``fn(**kwargs)`` from sync code, optionally inside ``transaction.atomic()``.
 
     An ``async def`` service is bridged transparently via ``async_to_sync``,
-    mirroring :func:`~rest_framework_services.selectors.utils.run_selector`. The
+    mirroring ``run_selector``. The
     bridge is **not** optional politeness: without it an async service returns its
     coroutine object to the caller un-awaited — no exception, and under
     ``atomic=True`` the transaction commits before the body would have run. The
@@ -35,7 +35,7 @@ def run_service(
     ``dispatch_spec`` reached this leaf directly, so the same spec resolved over
     HTTP and returned a coroutine over MCP.
 
-    Async services under ``atomic=True`` route through :func:`arun_service`, which
+    Async services under ``atomic=True`` route through [`arun_service`][rest_framework_services.services.arun_service.arun_service], which
     owns the thread-sensitivity rule that keeps the ORM connection holding the
     open transaction the same one the inner async DB calls use.
     """

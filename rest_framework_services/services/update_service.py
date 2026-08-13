@@ -16,7 +16,7 @@ class UpdateService(Protocol[InputT, InstanceT, ResultT]):
     ``None`` instructs the framework to render the in-memory ``instance``
     (mirroring DRF's ``UpdateAPIView`` shape).
 
-    See :class:`CreateService` for the extras-typing notes.
+    See [`CreateService`][rest_framework_services.services.create_service.CreateService] for the extras-typing notes.
     """
 
     def __call__(

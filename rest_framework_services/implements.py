@@ -11,7 +11,7 @@ F = TypeVar("F")
 def implements(proto: type[F]) -> Callable[[F], F]:
     """Identity decorator: assert ``fn`` structurally matches ``proto``.
 
-    ``proto`` is a parameterised service or selector :class:`~typing.Protocol`::
+    ``proto`` is a parameterised service or selector ``Protocol``::
 
         @implements(CreateService[AuthorIn, Author])
         def create_author(
@@ -24,7 +24,7 @@ def implements(proto: type[F]) -> Callable[[F], F]:
     ``NotRequired`` keys (so the function still conforms to a Protocol whose
     caller may not supply those keys) and annotate
     ``**extras: Unpack[YourKw]``. The Protocol itself does not carry an
-    extras-shape parameter — see :class:`CreateService` for the rationale.
+    extras-shape parameter — see [`CreateService`][rest_framework_services.services.create_service.CreateService] for the rationale.
 
     Drift between the decorated function and ``proto`` is reported at the
     decorator line by ``ty``. mypy refuses ``type[Protocol]`` arguments (the

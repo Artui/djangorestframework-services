@@ -25,8 +25,8 @@ class ReverseOneToOneSpec(RelationSpec):
     The other side of a ``OneToOneField``: the column lives on the related row
     (``Profile.author``) and the parent (``Author``) reaches at most one of them
     through the reverse accessor. So it is the
-    :class:`~rest_framework_services.ChildSpec` loop minus the collection,
-    written in :attr:`~rest_framework_services.RelationPhase.REVERSE` once the
+    [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] loop minus the collection,
+    written in ``RelationPhase.REVERSE`` once the
     parent has a primary key to point at.
 
     Declared in ``relations={accessor_name: ReverseOneToOneSpec(...)}``, where
@@ -54,7 +54,7 @@ class ReverseOneToOneSpec(RelationSpec):
         children: Forwarded likewise.
         relations: Forwarded likewise.
         create_service: Optional service replacing that call for the row, with
-            the contract :class:`~rest_framework_services.ChildSpec` states: it
+            the contract [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] states: it
             receives ``parent``, and its ``data`` already carries the ``fk``.
             Declaring it alongside the row-shaping fields above raises at
             construction.
@@ -64,14 +64,14 @@ class ReverseOneToOneSpec(RelationSpec):
             is reported as ``"removed"`` — the only thing still known — and an
             explicit ``orphan`` beside it raises.
         orphan: What removing the row *does*, by
-            :class:`~rest_framework_services.ChildSpec`'s rule: ``"auto"`` (the
+            [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec]'s rule: ``"auto"`` (the
             default) derives it from ``fk`` — **unlinked** when that field is
             nullable (like ``on_delete=SET_NULL``), **deleted** when it is not
             (like ``CASCADE``) — while ``"unlink"`` / ``"delete"`` state it
             instead, and ``"unlink"`` against a non-nullable ``fk`` raises
-            :exc:`~django.core.exceptions.ImproperlyConfigured` at write time.
+            ``ImproperlyConfigured`` at write time.
             It covers both removals there are: the ``None`` case above and the
-            :func:`~rest_framework_services.delete_model` cascade.
+            [`delete_model`][rest_framework_services.services.delete_model.delete_model] cascade.
     """
 
     write_phase: ClassVar[RelationPhase] = RelationPhase.REVERSE

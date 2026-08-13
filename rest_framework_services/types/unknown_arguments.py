@@ -9,8 +9,8 @@ class UnknownArguments(Enum):
     """How ``dispatch_spec`` treats ``params`` keys outside a spec's declared set.
 
     The *declared set* is derived from the spec without any transport knowledge:
-    a :class:`ServiceSpec`'s ``input_serializer`` fields plus the keys its nested
-    target selectors consume; a :class:`SelectorSpec`'s ``selector`` parameters.
+    a [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]'s ``input_serializer`` fields plus the keys its nested
+    target selectors consume; a [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec]'s ``selector`` parameters.
     When the set cannot be enumerated — a callable that declares ``**kwargs``, or
     a duck-typed ``filter_set`` whose fields are opaque to the core — the spec is
     treated as **open** and this policy is a no-op (there is nothing to call
@@ -22,7 +22,7 @@ class UnknownArguments(Enum):
       to a mutation's payload, and a selector simply never receives kwargs it
       doesn't declare). The default, reproducing the pre-policy behaviour.
     - ``REJECT`` — an undeclared key raises
-      :exc:`~rest_framework.exceptions.ValidationError`, the same surface a
+      ``ValidationError``, the same surface a
       strict serializer produces. Useful when the caller wants a clean
       correction signal (e.g. a model calling a tool with a mistyped argument).
     - ``PASSTHROUGH`` — undeclared keys survive: they are merged onto the

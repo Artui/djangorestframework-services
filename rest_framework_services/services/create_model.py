@@ -29,7 +29,7 @@ def create_model(
             return create_from_input(Author, data).instance
 
     ``field_map`` and ``exclude_fields`` are forwarded to
-    :func:`~rest_framework_services.mutations.create_from_input`.
+    [`create_from_input`][rest_framework_services.mutations.create_from_input.create_from_input].
 
     ``m2m`` accepts either a static mapping (passed straight through) or a
     callable that receives the validated ``data`` and returns the mapping —
@@ -42,7 +42,7 @@ def create_model(
         )
 
     ``relations`` (and its reverse-FK alias ``children``) is forwarded to
-    :func:`~rest_framework_services.mutations.create_from_input` to write
+    [`create_from_input`][rest_framework_services.mutations.create_from_input.create_from_input] to write
     nested relations declaratively (no hand-written service)::
 
         create_model(
@@ -53,10 +53,10 @@ def create_model(
     The returned closure accepts ``**kwargs`` so the framework's kwargs pool
     (``request``, ``user``, URL kwargs, ``ServiceSpec.kwargs`` returns) is
     absorbed without the service caring — matching the unified
-    :class:`~rest_framework_services.services.CreateService` Protocol's
+    [`CreateService`][rest_framework_services.services.create_service.CreateService] Protocol's
     default ``ExtraT`` (open extras). That same pool is handed on as the
     helper's ``context=``, so a per-child service declared on a
-    :class:`~rest_framework_services.ChildSpec` can see who is calling.
+    [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] can see who is calling.
     """
 
     def _service(*, data: Any, **kwargs: Any) -> ModelT:

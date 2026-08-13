@@ -14,7 +14,7 @@ class RegisteredSpec:
     """A spec under its canonical name, with free-form tags.
 
     The value type held by
-    :class:`~rest_framework_services.registry.spec_registry.SpecRegistry`. It
+    [`SpecRegistry`][rest_framework_services.registry.spec_registry.SpecRegistry]. It
     carries only the part of a "tool" that is **invariant across transports** —
     which spec, what it is called, and how it is grouped. Per-transport knobs
     (MCP annotations and output schemas, Pydantic-AI pagination or query-param
@@ -25,8 +25,8 @@ class RegisteredSpec:
     - **``name``** — the canonical name for this operation. Unique within the
       registry that holds it; two independent registries are separate
       namespaces and may reuse a name.
-    - **``spec``** — a :class:`~rest_framework_services.types.service_spec.ServiceSpec`
-      (a mutation) or a :class:`~rest_framework_services.types.selector_spec.SelectorSpec`
+    - **``spec``** — a [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]
+      (a mutation) or a [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec]
       (a read). The kind is deliberately **not** stored: it is derived by
       ``isinstance`` wherever it is needed, so a stored discriminator can never
       drift from the object it describes.

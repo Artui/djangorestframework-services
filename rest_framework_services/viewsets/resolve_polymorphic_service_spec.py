@@ -1,4 +1,4 @@
-"""Resolve a :class:`PolymorphicServiceSpec` to its chosen concrete spec."""
+"""Resolve a [`PolymorphicServiceSpec`][rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec] to its chosen concrete spec."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def resolve_polymorphic_service_spec(
     ``{request, data, user, view}`` (``data`` is the *raw* ``request.data``) and
     its result is memoized on ``view`` keyed by ``id(poly)``, since dispatch,
     ``get_permissions`` and serializer resolution may each resolve the same
-    spec. A key absent from ``specs`` is :exc:`ImproperlyConfigured`; a
+    spec. A key absent from ``specs`` is ``ImproperlyConfigured``; a
     ``ServiceError`` the discriminator raises to reject a payload is mapped to
     its DRF equivalent here, because this runs ahead of the mutation flow's own
     error mapping.

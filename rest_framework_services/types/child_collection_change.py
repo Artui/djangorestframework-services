@@ -10,12 +10,12 @@ from typing import Any
 class ChildCollectionChange:
     """What a nested write did to one reverse-FK child collection.
 
-    Carried in :attr:`~rest_framework_services.ChangeResult.children`, one
+    Carried in ``ChangeResult.children``, one
     entry per ``children=`` relation. The tuples hold child **primary keys**:
 
     - **``created``** — children inserted.
     - **``updated``** — existing children whose row was updated (matched by the
-      :class:`~rest_framework_services.ChildSpec`'s ``match_key``).
+      [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec]'s ``match_key``).
     - **``deleted``** — orphaned children removed because their FK is
       non-nullable.
     - **``unlinked``** — orphaned children detached (FK set to ``None``) because

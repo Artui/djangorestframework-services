@@ -24,7 +24,7 @@ def render_spec_output(
     """Render ``value`` to a JSON-shaped payload using ``spec``'s output serializer.
 
     The blessed render step that pairs with
-    :func:`~rest_framework_services.dispatch_spec`: every transport renders the
+    [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec]: every transport renders the
     same way instead of re-implementing serializer + context plumbing. Reads
     the output serializer from ``spec.output_serializer`` (selector) or
     ``spec.output_selector_spec.output_serializer`` (service); when none is set
@@ -33,7 +33,7 @@ def render_spec_output(
 
     The serializer ``context`` always carries DRF's baseline — ``request`` /
     ``format`` / ``view``, from
-    :func:`~rest_framework_services.base_serializer_context` — so a serializer
+    [`base_serializer_context`][rest_framework_services.dispatch.base_serializer_context.base_serializer_context] — so a serializer
     that reads ``self.context["request"]`` renders identically here and behind
     a DRF view. The spec's ``output_serializer_context`` provider, if any, is
     resolved with ``view`` / ``request`` plus the resolved-data ``extras`` it

@@ -25,10 +25,10 @@ class ServiceUpdateMixin(MutationFlowMixin, _ActionSpecsMixin):
     ``action_specs["update"]``; ``PATCH`` reads ``action_specs["partial_update"]``
     first and falls back to ``"update"`` — defining *only*
     ``"partial_update"`` yields a PATCH-only endpoint (PUT raises
-    :exc:`~rest_framework.exceptions.MethodNotAllowed`). When neither key
+    ``MethodNotAllowed``). When neither key
     resolves, both actions raise
-    :exc:`~rest_framework.exceptions.MethodNotAllowed`. A non-``ServiceSpec``
-    entry raises :exc:`~django.core.exceptions.ImproperlyConfigured`.
+    ``MethodNotAllowed``. A non-``ServiceSpec``
+    entry raises ``ImproperlyConfigured``.
     """
 
     # Provided at runtime by ``GenericAPIView`` / ``GenericViewSet``.

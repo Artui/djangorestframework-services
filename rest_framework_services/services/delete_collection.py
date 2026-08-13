@@ -15,7 +15,7 @@ def delete_collection(
 ) -> Callable[..., None]:
     """Return a service that deletes the resolved ``collection`` (bulk).
 
-    Pairs with :attr:`ServiceSpec.collection_selector_spec`, which seeds the
+    Pairs with ``ServiceSpec.collection_selector_spec``, which seeds the
     target set into the pool as ``collection``. Equivalent to::
 
         def delete_books(*, collection, **_: Any) -> None:
@@ -24,7 +24,7 @@ def delete_collection(
     The default calls ``collection.delete()`` — a single queryset bulk delete.
     An **empty** collection is a no-op (deletes nothing), so the action is
     idempotent. ``model`` is accepted for symmetry / type binding (like
-    :func:`delete_model`); the set itself comes from the spec.
+    [`delete_model`][rest_framework_services.services.delete_model.delete_model]); the set itself comes from the spec.
 
     ``soft_delete`` is an optional hook called with the ``collection`` *instead
     of* ``delete()`` — e.g. ``lambda qs: qs.update(is_archived=True)``.

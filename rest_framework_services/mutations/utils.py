@@ -115,7 +115,7 @@ def m2m_current_pks(instance: Model, attr: str) -> list[Any]:
 
 
 async def am2m_current_pks(instance: Model, attr: str) -> list[Any]:
-    """Async variant of :func:`m2m_current_pks`."""
+    """Async variant of ``m2m_current_pks``."""
     manager: Any = getattr(instance, attr)
     return [pk async for pk in manager.values_list("pk", flat=True)]
 
@@ -162,7 +162,7 @@ async def am2m_changes(
     *,
     created: bool,
 ) -> tuple[tuple[FieldChange, ...], dict[str, Any]]:
-    """Async variant of :func:`m2m_changes`."""
+    """Async variant of ``m2m_changes``."""
     if not m2m:
         return ((), {})
     changes: list[FieldChange] = []
@@ -202,7 +202,7 @@ async def aapply_m2m(instance: Model, to_apply: dict[str, Any]) -> None:
 
 
 def changes_for_create(new_values: dict[str, Any]) -> tuple[FieldChange, ...]:
-    """Build :class:`FieldChange` entries for every assigned create field."""
+    """Build [`FieldChange`][rest_framework_services.types.field_change.FieldChange] entries for every assigned create field."""
     return tuple(
         FieldChange(field=attr, old=UNSET, new=value) for attr, value in new_values.items()
     )
@@ -357,7 +357,7 @@ def _link_values(spec: _OwnedRowSpec, parent: Model) -> dict[str, Any]:
 
 
 async def _alink_values(spec: _OwnedRowSpec, parent: Model) -> dict[str, Any]:
-    """Async variant of :func:`_link_values`.
+    """Async variant of ``_link_values``.
 
     Only the generic branch takes a thread hop: ``get_for_model`` has no async
     form on any supported Django, while a foreign key needs no query at all.
@@ -437,7 +437,7 @@ def remove_child(
 ) -> tuple[RelationOutcome, Any]:
     """Detach (``SET_NULL``) or delete (``CASCADE``) ``child``, as ``unlink`` says.
 
-    Handed the answer by :func:`_unlinks_orphans` rather than deriving one.
+    Handed the answer by ``_unlinks_orphans`` rather than deriving one.
     Every column of ``link`` is blanked together, and the pk is captured
     *before* the delete because Django clears ``instance.pk``.
     """
@@ -454,7 +454,7 @@ def remove_child(
 async def aremove_child(
     child: Model, link: tuple[str, ...], *, unlink: bool
 ) -> tuple[RelationOutcome, Any]:
-    """Async variant of :func:`remove_child`."""
+    """Async variant of ``remove_child``."""
     pk = child.pk
     if unlink:
         for name in link:
@@ -478,7 +478,7 @@ def _omitted(value: Any) -> bool:
     Two spellings mean "not supplied" and the row writers have to read both:
     ``None``, which a mapping uses, and ``UNSET``, which is what a partial-input
     dataclass carries for a field its caller left alone. The sentinel is not a
-    third state to reason about -- :func:`filter_input` already drops it before
+    third state to reason about -- ``filter_input`` already drops it before
     anything is assigned, so the only places it can be mistaken for a value are
     the reads that happen *before* that, on the way to deciding whether there is
     a row to match.
@@ -498,7 +498,7 @@ def _reject_unmatched_reference(
     row belonging to somebody else: the scoping that makes the *match* safe
     does not constrain the write that follows it. A payload can slip a pk past
     any kind's matching step, which is why the check sits in
-    :func:`_create_row`, the one create every kind goes through.
+    ``_create_row``, the one create every kind goes through.
 
     Refused rather than stripped, because quietly creating a different row does
     the opposite of what was asked. A non-primary ``match_key`` is untouched,
@@ -599,7 +599,7 @@ def _run_child_service(fn: Callable[..., Any], pool: dict[str, Any]) -> Any:
 
 
 async def _arun_child_service(fn: Callable[..., Awaitable[Any]], pool: dict[str, Any]) -> Any:
-    """Async variant of :func:`_run_child_service` (the slot must be ``async def``)."""
+    """Async variant of ``_run_child_service`` (the slot must be ``async def``)."""
     return await arun_service(fn, resolve_callable_kwargs(fn, pool), atomic=False)
 
 
@@ -632,7 +632,7 @@ async def _aremove_one_child(
     context: Mapping[str, Any] | None,
     unlink: bool,
 ) -> tuple[RelationOutcome, Any]:
-    """Async variant of :func:`_remove_one_child`."""
+    """Async variant of ``_remove_one_child``."""
     if spec.delete_service is None:
         return await aremove_child(child, _link_fields(spec), unlink=unlink)
     pk = child.pk
@@ -679,7 +679,7 @@ async def aapply_forward_relations(
     *,
     context: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], tuple[RelatedObjectChange, ...]]:
-    """Async variant of :func:`apply_forward_relations`."""
+    """Async variant of ``apply_forward_relations``."""
     assignments: dict[str, Any] = {}
     changes: list[RelatedObjectChange] = []
     for relation, spec in relations_in_phase(relations, RelationPhase.FORWARD):
@@ -732,7 +732,7 @@ async def _awrite_forward_relation(
     relation: str,
     context: Mapping[str, Any] | None,
 ) -> tuple[Any, RelatedObjectChange]:
-    """Async variant of :func:`_write_forward_relation`."""
+    """Async variant of ``_write_forward_relation``."""
     if value is None:
         return (None, RelatedObjectChange(relation=relation, outcome=RelationOutcome.CLEARED))
     item = coerce_to_dict(value)
@@ -834,7 +834,7 @@ async def _amatch_scoped_target(
     relation: str,
     context: Mapping[str, Any] | None,
 ) -> Any:
-    """Async variant of :func:`_match_scoped_target`."""
+    """Async variant of ``_match_scoped_target``."""
     resolved = _resolve_scope(item, spec, relation=relation, context=context)
     if resolved is None:
         return None
@@ -859,7 +859,7 @@ def apply_relations(
     """Write every relation that belongs after the parent's ``save()``.
 
     The one post-save driver, shared by create and update: the ordering comes
-    from :func:`post_save_relations`, so neither path can grow an order of its
+    from ``post_save_relations``, so neither path can grow an order of its
     own. ``context`` is the opaque caller pool, forwarded verbatim down the
     tree and into any service a spec declares; this driver never reads it.
     """
@@ -957,7 +957,7 @@ async def _awrite_reverse_one_to_one(
     created: bool,
     context: Mapping[str, Any] | None,
 ) -> RelatedObjectChange:
-    """Async variant of :func:`_write_reverse_one_to_one`."""
+    """Async variant of ``_write_reverse_one_to_one``."""
     if value is UNSET:
         return RelatedObjectChange(relation=relation)
     existing = None if created else await spec.model.objects.filter(**{spec.fk: parent}).afirst()
@@ -1004,7 +1004,7 @@ def _write_owned_collection(
 
     Reverse foreign keys and generic relations share this loop whole: the link
     is the only thing that differs, one column or two, via
-    :func:`_link_values` on the way in and :func:`_link_fields` on the way out.
+    ``_link_values`` on the way in and ``_link_fields`` on the way out.
     Both match inside the parent's own accessor, which is why neither takes a
     ``scope=``.
     """
@@ -1080,7 +1080,7 @@ def _write_m2m_relation(
     created_pks: list[Any] = []
     updated_pks: list[Any] = []
     targets: list[Any] = []
-    # Materialized for the reason :func:`_write_owned_collection` gives.
+    # Materialized for the reason ``_write_owned_collection`` gives.
     rows: list[dict[str, Any]] = [coerce_to_dict(i) for i in (items or [])]
     for index, item in enumerate(rows):
         row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
@@ -1179,8 +1179,8 @@ async def _acreate_row(
     context: Mapping[str, Any] | None,
     m2m: dict[str, Any] | None,
 ) -> Any:
-    """Async variant of :func:`_create_row`."""
-    # Lazy import: genuine recursion cycle — see :func:`_create_row`.
+    """Async variant of ``_create_row``."""
+    # Lazy import: genuine recursion cycle — see ``_create_row``.
     from rest_framework_services.mutations.acreate_from_input import acreate_from_input
 
     _reject_unmatched_reference(data, spec, path.relation)
@@ -1218,7 +1218,7 @@ def _update_row(
 
     A service returning ``None`` means "use the in-memory instance".
     """
-    # Lazy import: genuine recursion cycle — see :func:`_create_row`.
+    # Lazy import: genuine recursion cycle — see ``_create_row``.
     from rest_framework_services.mutations.update_from_input import update_from_input
 
     try:
@@ -1253,8 +1253,8 @@ async def _aupdate_row(
     context: Mapping[str, Any] | None,
     m2m: dict[str, Any] | None,
 ) -> Any:
-    """Async variant of :func:`_update_row`."""
-    # Lazy import: genuine recursion cycle — see :func:`_create_row`.
+    """Async variant of ``_update_row``."""
+    # Lazy import: genuine recursion cycle — see ``_create_row``.
     from rest_framework_services.mutations.aupdate_from_input import aupdate_from_input
 
     try:
@@ -1315,7 +1315,7 @@ async def aapply_relations(
     created: bool,
     context: Mapping[str, Any] | None = None,
 ) -> tuple[tuple[ChildCollectionChange, ...], tuple[RelatedObjectChange, ...]]:
-    """Async variant of :func:`apply_relations` — same ordering, awaited."""
+    """Async variant of ``apply_relations`` — same ordering, awaited."""
     collections: list[ChildCollectionChange] = []
     singular: list[RelatedObjectChange] = []
     for relation, spec in post_save_relations(relations):
@@ -1352,7 +1352,7 @@ async def _awrite_owned_collection(
     created: bool,
     context: Mapping[str, Any] | None,
 ) -> ChildCollectionChange:
-    """Async variant of :func:`_write_owned_collection`."""
+    """Async variant of ``_write_owned_collection``."""
     if items is UNSET:
         return ChildCollectionChange(relation=relation)
     existing_by_key: dict[Any, Model] = {}
@@ -1363,7 +1363,7 @@ async def _awrite_owned_collection(
     created_pks: list[Any] = []
     updated_pks: list[Any] = []
     matched: set[Any] = set()
-    # Materialized for the reason :func:`_write_owned_collection` gives.
+    # Materialized for the reason ``_write_owned_collection`` gives.
     rows: list[dict[str, Any]] = [coerce_to_dict(i) for i in (items or [])]
     for index, item in enumerate(rows):
         child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
@@ -1411,7 +1411,7 @@ async def _awrite_m2m_relation(
     created: bool,
     context: Mapping[str, Any] | None,
 ) -> ChildCollectionChange:
-    """Async variant of :func:`_write_m2m_relation`."""
+    """Async variant of ``_write_m2m_relation``."""
     if items is UNSET:
         return ChildCollectionChange(relation=relation)
     manager: Any = getattr(parent, relation)
@@ -1419,7 +1419,7 @@ async def _awrite_m2m_relation(
     created_pks: list[Any] = []
     updated_pks: list[Any] = []
     targets: list[Any] = []
-    # Materialized for the reason :func:`_write_owned_collection` gives.
+    # Materialized for the reason ``_write_owned_collection`` gives.
     rows: list[dict[str, Any]] = [coerce_to_dict(i) for i in (items or [])]
     for index, item in enumerate(rows):
         row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
@@ -1463,7 +1463,7 @@ async def _aremove_orphans(
     parent: Model,
     context: Mapping[str, Any] | None,
 ) -> list[tuple[RelationOutcome, Any]]:
-    """Async variant of :func:`_remove_orphans`."""
+    """Async variant of ``_remove_orphans``."""
     removals: list[tuple[RelationOutcome, Any]] = []
     if created or spec.mode != "replace":
         return removals
@@ -1521,7 +1521,7 @@ async def adelete_relations(
     *,
     context: Mapping[str, Any] | None = None,
 ) -> tuple[tuple[ChildCollectionChange, ...], tuple[RelatedObjectChange, ...]]:
-    """Async variant of :func:`delete_relations` — same rule, awaited."""
+    """Async variant of ``delete_relations`` — same rule, awaited."""
     collections: list[ChildCollectionChange] = []
     singular: list[RelatedObjectChange] = []
     for relation, spec in relations.items():
@@ -1568,7 +1568,7 @@ async def _adelete_owned_collection(
     relation: str,
     context: Mapping[str, Any] | None,
 ) -> ChildCollectionChange:
-    """Async variant of :func:`_delete_owned_collection`."""
+    """Async variant of ``_delete_owned_collection``."""
     unlink = _unlinks_orphans(spec, relation=relation)
     nested = merge_relations(spec.children, spec.relations)
     removals: list[tuple[RelationOutcome, Any]] = []
@@ -1605,7 +1605,7 @@ async def _adelete_owned_row(
     relation: str,
     context: Mapping[str, Any] | None,
 ) -> RelatedObjectChange:
-    """Async variant of :func:`_delete_owned_row`."""
+    """Async variant of ``_delete_owned_row``."""
     row = await spec.model.objects.filter(**{spec.fk: parent}).afirst()
     if row is None:
         return RelatedObjectChange(relation=relation)
@@ -1628,7 +1628,7 @@ def _clear_m2m_membership(parent: Model, *, relation: str) -> ChildCollectionCha
 
 
 async def _aclear_m2m_membership(parent: Model, *, relation: str) -> ChildCollectionChange:
-    """Async variant of :func:`_clear_m2m_membership`."""
+    """Async variant of ``_clear_m2m_membership``."""
     manager: Any = getattr(parent, relation)
     members: tuple[Any, ...] = tuple(await am2m_current_pks(parent, relation))
     await manager.aclear()

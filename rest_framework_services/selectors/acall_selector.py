@@ -1,4 +1,4 @@
-"""``acall_selector`` — async counterpart to :func:`call_selector`."""
+"""``acall_selector`` — async counterpart to [`call_selector`][rest_framework_services.selectors.call_selector.call_selector]."""
 
 from __future__ import annotations
 

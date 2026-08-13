@@ -6,9 +6,9 @@ from django.http import HttpRequest
 
 
 class OfflineHttpRequest(HttpRequest):
-    """An :class:`~django.http.HttpRequest` with no ambient host, made safe to use.
+    """An ``HttpRequest`` with no ambient host, made safe to use.
 
-    Built by :func:`~rest_framework_services.build_offline_context` when the
+    Built by [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context] when the
     caller has no real request to wrap (a Pydantic-AI toolset, a management
     command, a task runner). A bare ``HttpRequest`` has an **empty** ``META``,
     and Django resolves the host from ``HTTP_HOST`` / ``SERVER_NAME`` — so
@@ -38,7 +38,7 @@ class OfflineHttpRequest(HttpRequest):
 
     #: The configured host (``"example.com"`` / ``"example.com:8000"``), or
     #: ``None`` when the caller didn't configure one. Set by
-    #: :func:`~rest_framework_services.build_offline_context`; when it is set,
+    #: [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context]; when it is set,
     #: ``META`` carries the matching keys and Django's own machinery is in
     #: charge, so nothing on this class changes behaviour.
     offline_host: str | None = None

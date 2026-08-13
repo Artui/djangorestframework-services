@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Docstring cross-references now render as links instead of raw markup.** The
+  docstrings carried Sphinx roles — ``:class:`~rest_framework_services.ServiceSpec` ``
+  — but the docs build is mkdocstrings, which renders docstring bodies as
+  Markdown and has no such syntax, so all 450 reached the published page
+  verbatim, `:class:` prefix and Sphinx's abbreviating `~` included. They are now
+  mkdocstrings autorefs links; references to symbols the reference does not
+  render, to undocumented dataclass fields and enum members (mkdocstrings emits
+  no anchor for those), and to third-party symbols became plain code spans.
+
+  This also clears the raw roles that were leaking onto **other** packages'
+  reference pages, which render some of these symbols from the installed
+  package — `djangorestframework-pydantic-ai` and
+  `djangorestframework-mcp-server` both pick the fix up on their next resolve.
+
 ## [0.39.0] — 2026-08-12
 
 ### Upgrade notes

@@ -41,7 +41,7 @@ def service_action(
     the handler. The method exists so that ``@service_action`` can attach
     DRF ``@action`` metadata and pick up the action name from ``__name__``.
 
-    Pass a :class:`ServiceSpec` (or a :class:`PolymorphicServiceSpec` for one
+    Pass a [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] (or a [`PolymorphicServiceSpec`][rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec] for one
     action accepting several payload shapes) for the service wiring. ``detail``,
     ``methods``, ``url_path``, ``url_name``, and any extra ``**action_kwargs``
     are forwarded to DRF's ``@action``.

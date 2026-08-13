@@ -70,7 +70,7 @@ def resolve_service_spec(view: Any) -> ServiceSpec[Any, Any, Any] | None:
 def resolve_selector_spec(view: Any) -> SelectorSpec[Any, Any] | None:
     """Return the ``SelectorSpec`` driving ``view``'s current read, if any.
 
-    The read-side twin of :func:`resolve_service_spec`, walking the same three
+    The read-side twin of ``resolve_service_spec``, walking the same three
     surfaces with ``_selector_spec`` as the handler stamp. The ``action_specs``
     lookup is non-raising plus an ``isinstance`` gate, so a write action whose
     entry is a ``ServiceSpec`` yields ``None`` rather than raising during schema
