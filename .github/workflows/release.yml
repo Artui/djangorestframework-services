@@ -39,6 +39,17 @@ jobs:
       - name: Publish to PyPI
         if: steps.prepare.outputs.released == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Idempotent on purpose. What gates a release is the git tag, not the
+          # index (see `prepare`), so re-running this job after a failure in a
+          # later step arrives here having already uploaded these files. Without
+          # this the upload is the step that makes that re-run impossible, and
+          # every recovery becomes manual — which is how one release lost its tag,
+          # its GitHub Release and its docs deploy to a single transient push
+          # failure, with the package already published.
+          # PyPI never lets a file be replaced, so skipping one cannot overwrite
+          # a published artefact.
+          skip-existing: true
 
       - name: Tag + GitHub Release
         if: steps.prepare.outputs.released == 'true'
