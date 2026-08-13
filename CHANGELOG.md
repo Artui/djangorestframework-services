@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`OfflineHttpRequest.offline_host`'s description now reaches the page at all.**
+  It documented itself with a Sphinx `#:` comment, which mkdocstrings reads as an
+  ordinary Python comment — so the text was never rendered anywhere. It is an
+  attribute docstring now, and the dispatch reference carries it.
+- **The reST literal-block marker no longer reaches the page.** Sphinx reads a
+  trailing `::` as "an indented literal block follows" and prints one colon;
+  Markdown has no such rule, so the second colon rendered verbatim. The indented
+  block was already coming out as a code block either way, so this drops the
+  stray character and nothing else. 19 occurrences, the last of the Sphinx
+  markup this package carried.
+
+### Fixed
+
 - **Docstring cross-references now render as links instead of raw markup.** The
   docstrings carried Sphinx roles — ``:class:`~rest_framework_services.ServiceSpec` ``
   — but the docs build is mkdocstrings, which renders docstring bodies as

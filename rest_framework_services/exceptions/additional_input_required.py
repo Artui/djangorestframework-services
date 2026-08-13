@@ -13,7 +13,7 @@ class AdditionalInputRequired(ServiceError):
     [`ServiceValidationError`][rest_framework_services.exceptions.service_validation_error.ServiceValidationError]
     — but "I got far enough to discover I need something else", usually
     *conditional on what the service found*, so it cannot be expressed as a
-    required input on the serializer::
+    required input on the serializer:
 
         def delete_rows(*, data, confirmed: bool = False):
             doomed = rows_matching(data)

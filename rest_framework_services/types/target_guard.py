@@ -22,7 +22,7 @@ class TargetGuard(Protocol):
 
     The signature is deliberately **identical to**
     [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions], so the canonical wiring
-    is passing that function directly, by name — not wrapping it in a ``lambda``::
+    is passing that function directly, by name — not wrapping it in a ``lambda``:
 
         dispatch_spec(spec, ..., on_target_resolved=enforce_permissions)
 

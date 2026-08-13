@@ -11,7 +11,7 @@ F = TypeVar("F")
 def implements(proto: type[F]) -> Callable[[F], F]:
     """Identity decorator: assert ``fn`` structurally matches ``proto``.
 
-    ``proto`` is a parameterised service or selector ``Protocol``::
+    ``proto`` is a parameterised service or selector ``Protocol``:
 
         @implements(CreateService[AuthorIn, Author])
         def create_author(

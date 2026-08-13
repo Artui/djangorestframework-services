@@ -22,7 +22,7 @@ class ActionSerializerResolver(_ActionSpecsMixin):
     ``output_selector_spec.output_serializer``. Falls back to DRF's
     ``serializer_class``, raising the usual ``AssertionError`` when neither is set.
 
-    Example::
+    Example:
 
         class InvoiceViewSet(ActionSerializerResolver, GenericViewSet):
             action_specs = {

@@ -2,7 +2,7 @@
 
 Marks a declared input as **required in the generated schema** without making it
 required in the *type system*. Use it inside ``Annotated[...]`` on an extras
-``TypedDict`` key (or an ordinary parameter) of a service / selector::
+``TypedDict`` key (or an ordinary parameter) of a service / selector:
 
     class WidgetExtras(HttpExtras[MyUser], total=False):
         project_pk: Annotated[int, InputRequired]

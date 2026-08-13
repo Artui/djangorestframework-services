@@ -24,7 +24,7 @@ def update_model(
 ) -> Callable[..., ModelT]:
     """Return a service callable that updates the resolved instance in place.
 
-    Equivalent to::
+    Equivalent to:
 
         def update_author(*, instance: Author, data: AuthorIn, **_: Any) -> Author:
             return update_from_input(instance, data).instance
