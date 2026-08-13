@@ -3,7 +3,7 @@
 Mirrors Django's built-in ``startapp`` but writes a layout where each
 "slot" (services, selectors, validators, serializers, utils) is a package
 of its own, and ``models`` / ``views`` are packages rather than single
-files. Backed by Django's :class:`~django.core.management.templates.TemplateCommand`,
+files. Backed by Django's ``TemplateCommand``,
 so behaviour around naming, target directories, and template rendering
 matches ``startapp`` exactly.
 """

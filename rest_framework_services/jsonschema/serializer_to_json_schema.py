@@ -33,7 +33,7 @@ def serializer_to_json_schema(
     would make schema-strict consumers reject calls the service accepts.
 
     ``registry`` supplies consumer rules for custom field / Python types — see
-    :class:`~rest_framework_services.JsonSchemaRegistry`.
+    [`JsonSchemaRegistry`][rest_framework_services.types.json_schema_registry.JsonSchemaRegistry].
     """
     schema: dict[str, Any]
     if serializer is None:

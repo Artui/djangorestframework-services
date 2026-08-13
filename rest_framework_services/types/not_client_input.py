@@ -26,10 +26,10 @@ voids that guarantee just as it did before, and a provider owning a scoping key
 must still never decline via ``UNSET``.
 
 A key marked ``NotClientInput`` is also excluded from
-:func:`declared_input_keys`, so ``UnknownArguments.REJECT`` treats a caller that
+``declared_input_keys``, so ``UnknownArguments.REJECT`` treats a caller that
 supplies it as passing an unknown argument — which is exactly what it is.
 
-Its counterpart is :data:`~rest_framework_services.InputRequired`, which marks a
+Its counterpart is ``InputRequired``, which marks a
 key mandatory. A key marked with both is a contradiction and raises at
 schema-generation time.
 

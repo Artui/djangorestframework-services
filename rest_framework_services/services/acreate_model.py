@@ -22,15 +22,15 @@ def acreate_model(
     relations: Mapping[str, RelationSpec] | None = None,
 ) -> Callable[..., Awaitable[ModelT]]:
     """Async sibling of
-    :func:`~rest_framework_services.services.create_model`.
+    [`create_model`][rest_framework_services.services.create_model.create_model].
 
     Returns an ``async def`` closure that wraps
-    :func:`~rest_framework_services.mutations.acreate_from_input`. The
-    framework's :func:`~rest_framework_services.is_async.is_async`
+    [`acreate_from_input`][rest_framework_services.mutations.acreate_from_input.acreate_from_input]. The
+    framework's [`is_async`][rest_framework_services.is_async.is_async]
     detection routes it through the async dispatch path automatically.
     ``children`` is forwarded for declarative reverse-FK writes, and the rest
     of the kwargs pool as ``context=`` (see
-    :func:`~rest_framework_services.services.create_model`).
+    [`create_model`][rest_framework_services.services.create_model.create_model]).
     """
 
     async def _service(*, data: Any, **kwargs: Any) -> ModelT:

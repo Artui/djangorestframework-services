@@ -23,7 +23,7 @@ def aupdate_model(
     relations: Mapping[str, RelationSpec] | None = None,
 ) -> Callable[..., Awaitable[ModelT]]:
     """Async sibling of
-    :func:`~rest_framework_services.services.update_model`."""
+    [`update_model`][rest_framework_services.services.update_model.update_model]."""
 
     async def _service(*, instance: ModelT, data: Any, **kwargs: Any) -> ModelT:
         result = await aupdate_from_input(

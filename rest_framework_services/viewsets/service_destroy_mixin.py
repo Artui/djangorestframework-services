@@ -23,8 +23,8 @@ class ServiceDestroyMixin(MutationFlowMixin, _ActionSpecsMixin):
     Looks up the instance via ``spec.instance_selector_spec`` when set,
     falling back to DRF's ``get_object()``. Reads its config from
     ``action_specs["destroy"]``; when that key is absent the action raises
-    :exc:`~rest_framework.exceptions.MethodNotAllowed`. A non-``ServiceSpec``
-    entry raises :exc:`~django.core.exceptions.ImproperlyConfigured`.
+    ``MethodNotAllowed``. A non-``ServiceSpec``
+    entry raises ``ImproperlyConfigured``.
     """
 
     # Provided at runtime by ``GenericAPIView`` / ``GenericViewSet``.

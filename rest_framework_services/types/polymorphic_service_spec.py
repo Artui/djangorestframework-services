@@ -17,7 +17,7 @@ class PolymorphicServiceSpec:
     """A single action that accepts several mutually exclusive payload shapes.
 
     Each variant has its own input serializer and service, bundled as a full
-    :class:`ServiceSpec` under a string key. A ``discriminator`` callable
+    [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] under a string key. A ``discriminator`` callable
     inspects the request and returns the key; dispatch then proceeds through the
     chosen spec exactly as a plain ``ServiceSpec`` would. Usable anywhere a
     ``ServiceSpec`` is: an ``action_specs`` entry and the ``spec=`` of
@@ -48,10 +48,10 @@ class PolymorphicServiceSpec:
             any subset of ``request`` / ``data`` (the *raw* ``request.data``) /
             ``user`` / ``view`` (or ``**kwargs``) — and returns a key present in
             ``specs``. For a no-match / rejected payload it should **raise**
-            (e.g. :exc:`~rest_framework_services.exceptions.service_validation_error.ServiceValidationError`,
+            (e.g. [`ServiceValidationError`][rest_framework_services.exceptions.service_validation_error.ServiceValidationError],
             which the view layer maps to a 400); returning a key absent from
             ``specs`` is a configuration error and raises
-            :exc:`~django.core.exceptions.ImproperlyConfigured`.
+            ``ImproperlyConfigured``.
         specs: The variants, keyed by the value ``discriminator`` returns.
         permission_strategy: How ``get_permissions`` behaves, given that DRF runs
             permissions before the body is necessarily parsed. ``"union"`` (the

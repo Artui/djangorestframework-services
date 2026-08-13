@@ -19,11 +19,11 @@ class ServiceCreateMixin(MutationFlowMixin, _ActionSpecsMixin):
     """Provides the ``create`` action; reads its config from ``action_specs``.
 
     Set ``action_specs["create"]`` to a
-    :class:`~rest_framework_services.types.service_spec.ServiceSpec`.
+    [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec].
     When the ``"create"`` key is absent the action raises
-    :exc:`~rest_framework.exceptions.MethodNotAllowed`. A non-``ServiceSpec``
-    entry (e.g. a :class:`~rest_framework_services.types.selector_spec.SelectorSpec`)
-    raises :exc:`~django.core.exceptions.ImproperlyConfigured`.
+    ``MethodNotAllowed``. A non-``ServiceSpec``
+    entry (e.g. a [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec])
+    raises ``ImproperlyConfigured``.
     """
 
     def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:

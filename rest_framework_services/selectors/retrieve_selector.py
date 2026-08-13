@@ -14,7 +14,7 @@ class RetrieveSelector(Protocol[ResultT]):
     raising ``Model.DoesNotExist``) results in a 404. The URL lookup field
     (typically ``pk``) is delivered via ``**extras``.
 
-    See :class:`~rest_framework_services.services.CreateService` for the
+    See [`CreateService`][rest_framework_services.services.create_service.CreateService] for the
     extras-typing notes.
     """
 

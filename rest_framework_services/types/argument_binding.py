@@ -20,9 +20,9 @@ class ArgumentBinding(Enum):
     transport-controlled state by naming an argument after one of them.
 
     Attributes:
-        AUTO: The default — resolve per spec type: :class:`ServiceSpec` →
+        AUTO: The default — resolve per spec type: [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] →
             ``BUNDLE`` (a mutation takes its validated payload as one ``data``
-            bundle), :class:`SelectorSpec` → ``SPREAD_AUTHOR_WINS`` (a read
+            bundle), [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] → ``SPREAD_AUTHOR_WINS`` (a read
             spreads its params so the selector can declare them as parameters).
         BUNDLE: Only the validated payload reaches the callable, as ``data=``;
             individual client fields are **not** spread as kwargs. The safe

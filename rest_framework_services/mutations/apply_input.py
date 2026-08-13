@@ -23,7 +23,7 @@ def apply_input(
 ) -> ChangeResult:
     """Set attributes from ``data`` onto ``instance`` without saving.
 
-    Returns a :class:`ChangeResult` describing fields whose value actually
+    Returns a [`ChangeResult`][rest_framework_services.types.change_result.ChangeResult] describing fields whose value actually
     changed. Useful when a service wants to inspect what the input would
     change before deciding whether to persist.
     """

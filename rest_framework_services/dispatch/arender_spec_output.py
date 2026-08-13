@@ -1,4 +1,4 @@
-"""``arender_spec_output`` — async sibling of :func:`render_spec_output`."""
+"""``arender_spec_output`` — async sibling of [`render_spec_output`][rest_framework_services.dispatch.render_spec_output.render_spec_output]."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ async def arender_spec_output(
     request: Any = None,
     extras: Mapping[str, Any] | None = None,
 ) -> Any:
-    """Async :func:`~rest_framework_services.render_spec_output`.
+    """Async [`render_spec_output`][rest_framework_services.dispatch.render_spec_output.render_spec_output].
 
     Identical arguments, identical result — the whole render runs in Django's
     thread-sensitive executor instead of on the event loop, which is what an
@@ -34,7 +34,7 @@ async def arender_spec_output(
       documented as the place to run one batched query keyed on the page.
     - The no-serializer path list-coerces, which evaluates a queryset too.
 
-    So an async caller that awaited :func:`~rest_framework_services.adispatch_spec`
+    So an async caller that awaited [`adispatch_spec`][rest_framework_services.dispatch.adispatch_spec.adispatch_spec]
     — which returns a ``LIST`` result as a **lazy** queryset, deliberately —
     cannot render it inline without raising ``SynchronousOnlyOperation``. Pair
     the two:
@@ -46,7 +46,7 @@ async def arender_spec_output(
 
     A transport that already does its own thread hop around rendering (to
     paginate or post-process in the same hop) can keep calling
-    :func:`render_spec_output` inside it — this is for the ordinary case, where
+    [`render_spec_output`][rest_framework_services.dispatch.render_spec_output.render_spec_output] inside it — this is for the ordinary case, where
     the hop shouldn't have to be the caller's problem to remember.
 
     Pagination is still the caller's job; see the sync twin for the ``extras``

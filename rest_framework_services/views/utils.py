@@ -28,8 +28,8 @@ def resolve_extra_kwargs(
     ``{view, request}`` it declares (or the whole pool via ``**kwargs``).
 
     Args:
-        spec_kwargs: The spec's own :attr:`ServiceSpec.kwargs` /
-            :attr:`SelectorSpec.kwargs` provider — the most specific layer.
+        spec_kwargs: The spec's own ``ServiceSpec.kwargs`` /
+            ``SelectorSpec.kwargs`` provider — the most specific layer.
         action_hook: Per-action view method, e.g. ``get_create_service_kwargs``
             / ``get_list_selector_kwargs``. ``None`` (standalone single-purpose
             views) or an absent method skips the layer.
@@ -60,8 +60,8 @@ def resolve_input_extras(
 ) -> dict[str, Any]:
     """Collect the extras to merge into the serializer input dict.
 
-    :func:`resolve_extra_kwargs`'s layering — ``catch_all_hook`` view method,
-    then ``action_hook``, then the spec's :attr:`ServiceSpec.input_data`
+    ``resolve_extra_kwargs``'s layering — ``catch_all_hook`` view method,
+    then ``action_hook``, then the spec's ``ServiceSpec.input_data``
     provider — applied to the ``input_serializer``-bound data rather than the
     service-call pool.
 
@@ -97,14 +97,14 @@ def _invoke_provider(
 
     The single provider-invocation convention: the spec-level ``kwargs`` /
     ``input_data`` / ``*_serializer_context`` callables and the view's ``get_*``
-    hooks all come through here, dispatched by :func:`resolve_callable_kwargs`
+    hooks all come through here, dispatched by ``resolve_callable_kwargs``
     exactly as services and selectors are. Bound view-method hooks simply don't
     declare ``view`` (it is their ``self``), so it is filtered out for them.
 
-    A returned key whose value is :data:`~rest_framework_services.UNSET` is
+    A returned key whose value is ``UNSET`` is
     **dropped** — the provider is declining to set it rather than setting it to
     ``UNSET``. This mirrors the off-HTTP
-    :func:`~rest_framework_services.dispatch.utils.resolve_provider` so the
+    ``resolve_provider`` so the
     sentinel means the same thing on every transport.
     """
     pool: dict[str, Any] = {"view": view, "request": request, **extras}
@@ -124,7 +124,7 @@ def layer_serializer_context(
 ) -> dict[str, Any]:
     """Layer the directional, action, and spec context hooks onto ``base``.
 
-    :func:`resolve_serializer_context`'s precedence rules with layer 1 handed in
+    ``resolve_serializer_context``'s precedence rules with layer 1 handed in
     rather than read from ``view.get_serializer_context()`` — for overrides of
     that method which need to extend ``super()``'s result without recursing. See
     there for ``action_hook`` / ``spec_provider`` / ``extras``.
@@ -133,7 +133,7 @@ def layer_serializer_context(
         base: The layer-1 context to build on.
         direction_hook: Directional view hook name; ``None`` skips the layer.
             That is what ``_ActionSpecsMixin.get_serializer_context`` needs:
-            :class:`MutationFlowMixin`'s default
+            [`MutationFlowMixin`][rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin]'s default
             ``get_output_serializer_context`` would recurse back into
             ``get_serializer_context``.
     """
@@ -236,9 +236,9 @@ def resolve_progress_hook(view: Any, request: Request, *, action: str | None) ->
     Most-specific wins and there is **no merging** — a reporter is a single sink,
     not a set of keys, so layering two of them would mean silently fanning out;
     a view that wants that composes them itself with
-    :func:`~rest_framework_services.combine_progress`. ``None`` when the view
+    ``combine_progress``. ``None`` when the view
     offers neither, which leaves the seed as
-    :func:`~rest_framework_services.null_progress`.
+    [`null_progress`][rest_framework_services.dispatch.null_progress.null_progress].
     """
     for name in (f"get_{action}_progress_reporter" if action else None, "get_progress_reporter"):
         hook = getattr(view, name, None) if name else None
@@ -259,13 +259,13 @@ def resolve_view_hooks(
     chain: str = "service",
     instance: Any = None,
 ) -> ViewHooks:
-    """Resolve the calling view's hook chains into a :class:`ViewHooks` carrier.
+    """Resolve the calling view's hook chains into a [`ViewHooks`][rest_framework_services.types.view_hooks.ViewHooks] carrier.
 
     **View layers only** — every ``spec_*`` argument below is deliberately
     ``None``. The chains run ``view.get_<x>`` → ``view.get_<action>_<x>`` →
     ``spec.<x>``, and ``dispatch_spec`` owns that last layer; resolving the spec
     provider here too would invoke it **twice**, which is not safe for a provider
-    that queries the database. See :class:`ViewHooks`.
+    that queries the database. See [`ViewHooks`][rest_framework_services.types.view_hooks.ViewHooks].
 
     Args:
         chain: Which kwargs chain to collect — ``"service"`` for mutations,

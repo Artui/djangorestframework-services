@@ -15,7 +15,7 @@ class ViewHooks:
     configuration surface the core knows nothing about: the ``get_service_kwargs``
     / ``get_<action>_service_kwargs`` / ``get_input_data`` /
     ``get_<action>_input_data`` / ``get_*_serializer_context`` chains declared on
-    :class:`MutationFlowMixin` and its viewset mixins. Those are methods on a DRF
+    [`MutationFlowMixin`][rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin] and its viewset mixins. Those are methods on a DRF
     view, so the core cannot resolve them; this carrier is how a caller that has
     resolved them hands them over.
 
@@ -39,7 +39,7 @@ class ViewHooks:
         input_data: Merges onto the client payload *before* validation, beneath
             ``spec.input_data``; server-provided keys win over the client's.
         input_serializer_context: Layers onto the baseline serializer context
-            (:func:`base_serializer_context`), beneath
+            ([`base_serializer_context`][rest_framework_services.dispatch.base_serializer_context.base_serializer_context]), beneath
             ``spec.input_serializer_context``.
         output_serializer_context: **Lazy** — a callable taking the final
             post-selector ``result`` and returning the context — because the

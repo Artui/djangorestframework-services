@@ -34,12 +34,12 @@ def spec_to_json_schema(
     The convenience an alternate transport (a Pydantic-AI toolset, the MCP
     server) calls instead of reaching into spec internals itself. ``registry``
     supplies consumer rules for custom field / filter / Python types — see
-    :class:`~rest_framework_services.JsonSchemaRegistry`.
+    [`JsonSchemaRegistry`][rest_framework_services.types.json_schema_registry.JsonSchemaRegistry].
 
     ``phase="input"`` (default) returns the input-argument schema:
 
-    - :class:`ServiceSpec` → its ``input_serializer`` (``spec.partial`` honoured).
-    - :class:`SelectorSpec` → an object whose ``properties`` combine the
+    - [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] → its ``input_serializer`` (``spec.partial`` honoured).
+    - [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] → an object whose ``properties`` combine the
       selector callable's own annotated parameters (skipping the ``request`` /
       ``user`` / ``view`` transport seeds) with its ``filter_set`` fields, so
       ``get_widget(user, pk)`` advertises ``pk`` instead of leaning on its
@@ -51,8 +51,8 @@ def spec_to_json_schema(
       extra.
 
     ``phase="output"`` returns the output schema, or ``None`` when undeclared:
-    a :class:`ServiceSpec` supplies its ``output_selector_spec``'s
-    ``output_serializer`` and ``kind``, a :class:`SelectorSpec` its own.
+    a [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] supplies its ``output_selector_spec``'s
+    ``output_serializer`` and ``kind``, a [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] its own.
     """
     if phase == "input":
         return _input_schema(spec, registry)

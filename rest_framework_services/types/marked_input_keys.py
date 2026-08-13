@@ -14,11 +14,11 @@ from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
 def marked_input_keys(fn: Callable[..., Any]) -> tuple[frozenset[str], frozenset[str]]:
     """Return ``(required, hidden)`` — the keys ``fn`` marks with the schema markers.
 
-    Covers the same surface :func:`callable_input_schema` reflects: ordinary
+    Covers the same surface ``callable_input_schema`` reflects: ordinary
     keyword-acceptable parameters, and the keys of a
     ``**kwargs: Unpack[SomeExtras]`` ``TypedDict``. ``required`` is the set marked
-    :data:`~rest_framework_services.InputRequired`, ``hidden`` the set marked
-    :data:`~rest_framework_services.NotClientInput`. A callable with no markers
+    ``InputRequired``, ``hidden`` the set marked
+    ``NotClientInput``. A callable with no markers
     returns two empty sets — nothing to enforce, nothing to hide — which is the
     overwhelmingly common case.
 

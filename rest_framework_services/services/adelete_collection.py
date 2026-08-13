@@ -14,7 +14,7 @@ def adelete_collection(
     soft_delete: Callable[[Any], Awaitable[None]] | None = None,
 ) -> Callable[..., Awaitable[None]]:
     """Async sibling of
-    :func:`~rest_framework_services.services.delete_collection`.
+    [`delete_collection`][rest_framework_services.services.delete_collection.delete_collection].
 
     Calls ``await collection.adelete()`` by default (Django 4.1+; the package
     floor is 4.2). ``soft_delete`` is an optional ``async`` hook called with the

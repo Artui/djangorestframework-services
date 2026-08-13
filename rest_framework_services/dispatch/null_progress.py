@@ -11,9 +11,9 @@ def null_progress(
     message: str | None = None,
     meta: Mapping[str, Any] | None = None,
 ) -> None:
-    """The :class:`ProgressReporter` a transport with nowhere to send progress uses.
+    """The [`ProgressReporter`][rest_framework_services.types.progress_reporter.ProgressReporter] a transport with nowhere to send progress uses.
 
-    Seeded by :func:`base_pool` whenever the caller supplied no reporter, which
+    Seeded by [`base_pool`][rest_framework_services.dispatch.base_pool.base_pool] whenever the caller supplied no reporter, which
     is every HTTP request, every test, and every off-HTTP dispatch from a
     transport that has no progress channel of its own.
 

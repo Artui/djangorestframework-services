@@ -14,7 +14,7 @@ def resolve_success_status(
     default: int,
     pool: Mapping[str, Any],
 ) -> int:
-    """Resolve a :attr:`ServiceSpec.success_status` to an HTTP status code.
+    """Resolve a ``ServiceSpec.success_status`` to an HTTP status code.
 
     Mirrors the three shapes of the spec field:
 

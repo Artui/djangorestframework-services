@@ -32,13 +32,13 @@ def selector_action(
     metadata and take the action name from ``__name__``.
 
     ``spec.kind`` drives both the dispatch shape and the DRF URL shape, so there
-    is no separate ``detail=`` to keep in sync. :attr:`SelectorKind.LIST` is a
+    is no separate ``detail=`` to keep in sync. ``SelectorKind.LIST`` is a
     collection action (``detail=False``) whose selector returns an iterable,
     flowing through ``self.paginate_queryset`` / ``self.get_paginated_response``
     when pagination is configured and serialized ``many=True`` otherwise;
-    :attr:`SelectorKind.RETRIEVE` is a detail action (``detail=True``) whose
+    ``SelectorKind.RETRIEVE`` is a detail action (``detail=True``) whose
     selector returns a single object, or ``None`` / raises
-    :exc:`~django.core.exceptions.ObjectDoesNotExist` for a 404. For a URL shape
+    ``ObjectDoesNotExist`` for a 404. For a URL shape
     that doesn't match the response shape, fall back to DRF's plain ``@action``
     and write the dispatch yourself.
 
@@ -99,7 +99,7 @@ def _build_serializer(
 
     ``spec.output_serializer`` wins when set, matching the standalone selector
     views; otherwise the viewset's ``get_serializer(...)`` keeps existing
-    :class:`ActionSerializerResolver` wiring in play. Context flows through the
+    [`ActionSerializerResolver`][rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver] wiring in play. Context flows through the
     DRF default → ``get_output_serializer_context`` →
     ``get_<action>_output_serializer_context`` chain, both hooks optional.
     ``extras`` carries the resolved data — ``instance`` for a detail action,

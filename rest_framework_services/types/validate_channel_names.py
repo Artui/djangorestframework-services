@@ -11,7 +11,7 @@ from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEED
 
 
 class _ChannelDeclaration(Protocol):
-    """The shape shared by :class:`UrlKwarg` and :class:`QueryParam`.
+    """The shape shared by [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg] and [`QueryParam`][rest_framework_services.types.query_param.QueryParam].
 
     Members are **read-only properties**, not bare attributes. Both concrete
     types are ``@dataclass(frozen=True)``, whose fields are read-only — a bare
@@ -36,14 +36,14 @@ def validate_channel_names(
 ) -> None:
     """Raise ``ImproperlyConfigured`` on a bad channel declaration set.
 
-    A :class:`~rest_framework_services.UrlKwarg` /
-    :class:`~rest_framework_services.QueryParam` is popped out of the caller's
+    A [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg] /
+    [`QueryParam`][rest_framework_services.types.query_param.QueryParam] is popped out of the caller's
     arguments and routed to a side channel, so its name must not collide with a
     key the transport controls, and must not be declared twice.
 
     Three failure modes, all caught at registration time rather than on a call:
 
-    - **Reserved-name collision.** :data:`RESERVED_POOL_SEEDS` is always
+    - **Reserved-name collision.** ``RESERVED_POOL_SEEDS`` is always
       included — those are the dispatcher's authoritative seeds, and letting a
       caller route a value onto one is the spoofing footgun the spread modes
       strip. ``reserved`` adds the transport's own keys on top; pass the

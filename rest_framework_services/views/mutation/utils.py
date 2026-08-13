@@ -70,7 +70,7 @@ def build_input_serializer(
             constructed, server-provided keys winning on overlap — the seam the
             ``input_data`` resolver chain uses to lift URL kwargs into serializer
             input. The merge goes through
-            :func:`~rest_framework_services.dispatch.apply_input_data.apply_input_data`,
+            ``apply_input_data``,
             which keeps a form-encoded / multipart ``QueryDict``'s scalars from
             flattening into one-element lists.
         context: Forwarded to the serializer's ``context=`` so DRF-style
@@ -111,10 +111,10 @@ def build_input_serializer_from_data(
 ) -> Serializer | None:
     """Construct + validate the bound input serializer from a raw ``data`` dict.
 
-    The transport-neutral core of :func:`build_input_serializer`: it takes the
+    The transport-neutral core of [`build_input_serializer`][rest_framework_services.views.mutation.utils.build_input_serializer]: it takes the
     input ``data`` directly instead of reaching into a DRF ``request.data``, so a
     non-HTTP caller (``dispatch_spec``) and the HTTP view path share one
-    validation implementation. See :func:`build_input_serializer` for the
+    validation implementation. See [`build_input_serializer`][rest_framework_services.views.mutation.utils.build_input_serializer] for the
     remaining parameter semantics.
     """
     if input_serializer is None:
@@ -153,7 +153,7 @@ def validate_input(
 ) -> Any:
     """Validate ``request.data`` against ``input_serializer``; ``None`` if absent.
 
-    Thin wrapper over :func:`build_input_serializer` (see there for the parameter
+    Thin wrapper over [`build_input_serializer`][rest_framework_services.views.mutation.utils.build_input_serializer] (see there for the parameter
     semantics) returning only ``validated_data``, for callers that don't need the
     bound serializer itself.
     """
@@ -179,7 +179,7 @@ def render_mutation_response(
     render_instance_on_none: bool,
     output_context: Callable[[Any], dict[str, Any]],
 ) -> Response:
-    """Turn a :class:`DispatchResult` into the HTTP ``Response`` for a mutation.
+    """Turn a [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult] into the HTTP ``Response`` for a mutation.
 
     Everything downstream of the dispatch that is genuinely transport-shaped, and
     nothing that isn't: resolve the success status against the *action's* default
@@ -266,7 +266,7 @@ def _dispatch_bulk_via_spec(
 
     The list body / collection target, validation, and per-set scoping all live
     in the transport-neutral path; here we only map its
-    :class:`~rest_framework_services.DispatchResult` to a DRF ``Response`` and
+    [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult] to a DRF ``Response`` and
     translate a ``ServiceError`` the same way the single-instance flow does. The
     status and finalizer pools carry no ``instance`` / ``data`` on a bulk path.
     """
@@ -340,11 +340,11 @@ def dispatch_mutation_for_spec(
 ) -> Response:
     """End-to-end dispatch for one ``ServiceSpec`` call over HTTP.
 
-    Used by :class:`MutationFlowMixin`, the standalone mutation views, and
+    Used by [`MutationFlowMixin`][rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin], the standalone mutation views, and
     ``@service_action`` so the call shape lives in one place: resolve the view's
-    hook chains (:func:`resolve_view_hooks`), dispatch through
-    :func:`~rest_framework_services.dispatch_spec`, render
-    (:func:`render_mutation_response`). Only the first and last steps are HTTP's.
+    hook chains (``resolve_view_hooks``), dispatch through
+    [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec], render
+    (``render_mutation_response``). Only the first and last steps are HTTP's.
     The target is passed in rather than resolved in the core, because HTTP's
     ``get_object()`` chain has no off-HTTP meaning; a bulk spec takes the same
     route with its own params assembly and renderer.
@@ -436,13 +436,13 @@ def resolve_mutation_instance(
         ``None`` for a **bulk** spec (``many=True`` or a
         ``collection_selector_spec``): there is no single instance, and the
         ``get_object()`` lookup would 404 a body-only bulk endpoint.
-        :data:`UNSET` when the spec carries an ``instance_selector_spec`` — *the
+        ``UNSET`` when the spec carries an ``instance_selector_spec`` — *the
         core resolves it*, with the right kwarg pool, error label, and
         reserved-seed strip. Object permissions still run: the core fires
         ``on_target_resolved`` against the resolved target and the HTTP caller
-        passes :func:`check_view_object_permissions`. Otherwise the view's
+        passes ``check_view_object_permissions``. Otherwise the view's
         ``get_object()`` chain (an ``action_specs["retrieve"]`` selector via
-        :class:`SelectorRetrieveMixin`, else DRF's ``queryset`` /
+        [`SelectorRetrieveMixin`][rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin], else DRF's ``queryset`` /
         ``lookup_field`` lookup, else a user override) — the one branch that is
         genuinely HTTP-only and so cannot move.
     """

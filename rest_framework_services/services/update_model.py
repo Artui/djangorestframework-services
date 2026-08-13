@@ -30,19 +30,19 @@ def update_model(
             return update_from_input(instance, data).instance
 
     ``model`` is accepted for symmetry with
-    :func:`create_model` / :func:`delete_model` and to bind ``ModelT`` for
+    [`create_model`][rest_framework_services.services.create_model.create_model] / [`delete_model`][rest_framework_services.services.delete_model.delete_model] and to bind ``ModelT`` for
     the type checker; the instance itself comes from the view's
     ``get_object()``. ``field_map``, ``exclude_fields``, ``m2m``,
     ``update_fields``, and ``children`` are forwarded to
-    :func:`~rest_framework_services.mutations.update_from_input`. ``m2m``
+    [`update_from_input`][rest_framework_services.mutations.update_from_input.update_from_input]. ``m2m``
     accepts either a static mapping or a callable receiving the validated
-    ``data`` (see :func:`create_model` for the common shape); ``children``
+    ``data`` (see [`create_model`][rest_framework_services.services.create_model.create_model] for the common shape); ``children``
     reconciles reverse-FK collections from ``data[relation]`` per its
-    :class:`~rest_framework_services.ChildSpec`.
+    [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec].
 
     The rest of the framework's kwargs pool is handed on as the helper's
     ``context=``, so a per-child service declared on a ``ChildSpec`` can see
-    who is calling (see :func:`create_model`).
+    who is calling (see [`create_model`][rest_framework_services.services.create_model.create_model]).
     """
 
     def _service(*, instance: ModelT, data: Any, **kwargs: Any) -> ModelT:

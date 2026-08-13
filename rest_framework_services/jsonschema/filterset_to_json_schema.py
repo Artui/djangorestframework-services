@@ -19,7 +19,7 @@ def filterset_to_json_schema(
 
     Returns a dict shaped like the ``"properties"`` key of a JSON Schema object,
     ready to merge into a spec's input schema — which is what
-    :func:`~rest_framework_services.spec_to_json_schema` does for a
+    [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema] does for a
     ``SelectorSpec`` carrying a ``filter_set``. Every filter is optional: a
     filter narrows the queryset but is never required to call the operation, so
     no name is added to a ``required`` array.

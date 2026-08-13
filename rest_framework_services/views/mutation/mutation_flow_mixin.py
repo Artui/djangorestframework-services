@@ -15,7 +15,7 @@ from rest_framework_services.views.mutation.utils import dispatch_mutation_for_s
 class MutationFlowMixin:
     """Provides ``_run_mutation`` for service-backed views and viewset mixins.
 
-    The flow itself lives in :func:`dispatch_mutation_for_spec`, so
+    The flow itself lives in ``dispatch_mutation_for_spec``, so
     ``@service_action`` can reach it without being a class; this mixin is the OO
     entry point that the per-action mixins (``ServiceCreateMixin`` and friends)
     and the standalone single-purpose views compose, calling
@@ -26,14 +26,14 @@ class MutationFlowMixin:
     overlapping keys:
 
     - extra service kwargs: ``get_service_kwargs`` →
-      ``get_<action>_service_kwargs`` → :attr:`ServiceSpec.kwargs`.
+      ``get_<action>_service_kwargs`` → ``ServiceSpec.kwargs``.
     - the *serializer's* input dict, merged on top of ``request.data`` before
       validation: ``get_input_data`` → ``get_<action>_input_data`` →
-      :attr:`ServiceSpec.input_data`.
+      ``ServiceSpec.input_data``.
     - the input serializer's ``context=``: ``get_serializer_context`` (DRF's
       own) → ``get_input_serializer_context`` →
       ``get_<action>_input_serializer_context`` →
-      :attr:`ServiceSpec.input_serializer_context`.
+      ``ServiceSpec.input_serializer_context``.
     - the output serializer's ``context=``: the same chain with ``output`` in
       place of ``input``, applied during response rendering.
 
@@ -51,7 +51,7 @@ class MutationFlowMixin:
     def get_input_serializer_context(self) -> dict[str, Any]:
         """Hook for the ``context=`` dict passed to the *input* serializer.
 
-        Defaults to :meth:`get_serializer_context`, so overriding the
+        Defaults to ``get_serializer_context``, so overriding the
         DRF-standard hook flows into input validation automatically; override
         here for keys visible only during input validation.
         """
@@ -60,7 +60,7 @@ class MutationFlowMixin:
     def get_output_serializer_context(self) -> dict[str, Any]:
         """Hook for the ``context=`` dict passed to the *output* serializer.
 
-        Defaults to :meth:`get_serializer_context`, so overriding the
+        Defaults to ``get_serializer_context``, so overriding the
         DRF-standard hook flows into response rendering automatically; override
         here for keys visible only during response rendering.
         """

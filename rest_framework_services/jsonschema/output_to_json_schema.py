@@ -34,7 +34,7 @@ def output_to_json_schema(
       ``{items, page, totalPages, hasNext}``.
 
     ``registry`` supplies consumer rules for custom field / Python types — see
-    :class:`~rest_framework_services.JsonSchemaRegistry`.
+    [`JsonSchemaRegistry`][rest_framework_services.types.json_schema_registry.JsonSchemaRegistry].
     """
     item_schema: dict[str, Any] | None = _item_schema(output_serializer, registry)
     if item_schema is None:

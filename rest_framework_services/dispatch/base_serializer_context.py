@@ -9,7 +9,7 @@ def base_serializer_context(*, view: Any, request: Any) -> dict[str, Any]:
     """Build the baseline serializer ``context`` a spec-driven render starts from.
 
     Over HTTP every serializer DRF builds carries
-    :meth:`~rest_framework.generics.GenericAPIView.get_serializer_context` —
+    ``get_serializer_context`` —
     ``{"request", "format", "view"}`` — so serializers routinely read
     ``self.context["request"]`` unguarded (``build_absolute_uri``,
     ``request.user``, a permission check in a ``SerializerMethodField``). A
@@ -27,7 +27,7 @@ def base_serializer_context(*, view: Any, request: Any) -> dict[str, Any]:
       documented extension point and may already be overridden, so it wins.
     - Otherwise DRF's shape, synthesized from the ``view`` / ``request`` the
       caller passed: the synthetic pair from
-      :func:`~rest_framework_services.build_offline_context` off HTTP, or
+      [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context] off HTTP, or
       ``None`` when the caller supplied neither. ``format`` is always ``None``
       — content negotiation is an HTTP-only concern.
 
@@ -39,8 +39,8 @@ def base_serializer_context(*, view: Any, request: Any) -> dict[str, Any]:
     one, as the MCP server does.
 
     The spec's provider is merged *over* this by
-    :func:`~rest_framework_services.dispatch.utils.resolve_output_context` /
-    :func:`~rest_framework_services.dispatch.utils.resolve_input_context`, so a
+    ``resolve_output_context`` /
+    ``resolve_input_context``, so a
     provider keeps the final say on every key — including these three.
     """
     getter: Any = getattr(view, "get_serializer_context", None)

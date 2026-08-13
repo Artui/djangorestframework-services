@@ -52,9 +52,9 @@ def delete_model(
     (``match_key`` / ``mode`` / ``field_map`` / ``m2m``) are ignored here.
 
     The rest of the framework's kwargs pool is handed on as
-    :func:`~rest_framework_services.mutations.utils.delete_relations`'s
+    ``delete_relations``'s
     ``context=``, so a per-row service declared on a spec can see who is
-    calling (see :func:`create_model`).
+    calling (see [`create_model`][rest_framework_services.services.create_model.create_model]).
     """
     declared = merge_relations(children, relations)
 

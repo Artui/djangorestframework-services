@@ -1,6 +1,6 @@
 """Fail-fast validation of service / selector signatures at view setup time.
 
-:func:`resolve_callable_kwargs` forwards pool∩signature, so a required parameter
+``resolve_callable_kwargs`` forwards pool∩signature, so a required parameter
 the framework cannot supply is *omitted* rather than rejected and the call dies
 as a bare ``TypeError`` deep in dispatch, at the first request. These helpers
 surface the same misconfiguration at ``as_view()`` time with a precise message.
@@ -61,7 +61,7 @@ def validate_callable_signature(
     permissive_extras: bool,
     extra_known_keys: Iterable[str] = (),
 ) -> None:
-    """Raise :exc:`ImproperlyConfigured` on a misconfigured service / selector.
+    """Raise ``ImproperlyConfigured`` on a misconfigured service / selector.
 
     ``has_data`` / ``has_instance`` / ``has_result`` say whether those
     framework-injected keys exist at *this* call site; requiring one that does
@@ -159,9 +159,9 @@ def _validate_selector_shaping(
     *,
     label: str,
 ) -> None:
-    """Raise :exc:`ImproperlyConfigured` when shaping is set without a selector.
+    """Raise ``ImproperlyConfigured`` when shaping is set without a selector.
 
-    Shaping only runs inside :func:`dispatch_selector_for_spec`, which is skipped
+    Shaping only runs inside ``dispatch_selector_for_spec``, which is skipped
     when ``spec.selector is None`` — so without this the fields are a silent
     no-op at request time.
     """
@@ -221,7 +221,7 @@ def _validate_permission_classes(
     *,
     label: str,
 ) -> None:
-    """Raise :exc:`ImproperlyConfigured` on a malformed ``permission_classes``.
+    """Raise ``ImproperlyConfigured`` on a malformed ``permission_classes``.
 
     ``None`` is the inherit-from-view default and skips validation. Catches the
     common ``[MyPermission()]`` typo, which DRF would otherwise call as if it
@@ -308,7 +308,7 @@ def _validate_output_selector_spec(
     spec_kwargs: Callable[..., Any] | None,
     input_serializer: type | None,
 ) -> None:
-    """Validate the nested :class:`SelectorSpec` on :attr:`ServiceSpec.output_selector_spec`.
+    """Validate the nested [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] on ``ServiceSpec.output_selector_spec``.
 
     ``kind=LIST`` is refused without ``collection_selector_spec``: a
     single-instance mutation returns one representation. ``has_result=True``
@@ -344,7 +344,7 @@ def _validate_instance_selector_spec(
     label: str,
     has_instance: bool,
 ) -> None:
-    """Validate the nested :class:`SelectorSpec` on :attr:`ServiceSpec.instance_selector_spec`.
+    """Validate the nested [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] on ``ServiceSpec.instance_selector_spec``.
 
     On an action with no instance the spec would silently never run, so that
     fails fast too. The selector runs *before* input validation, against
@@ -383,7 +383,7 @@ def _validate_collection_selector_spec(
     *,
     label: str,
 ) -> None:
-    """Validate the nested :class:`SelectorSpec` on ``ServiceSpec.collection_selector_spec``.
+    """Validate the nested [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] on ``ServiceSpec.collection_selector_spec``.
 
     Unlike ``instance_selector_spec``, a ``selector`` is mandatory — there is no
     view fallback for a collection target. Runs against ``{request, user}`` plus
@@ -423,7 +423,7 @@ def _validate_success_status(
 ) -> None:
     """Reject a ``success_status`` that is neither int/None nor a well-formed callable.
 
-    A required parameter outside :data:`_SUCCESS_STATUS_KEYS` can never be
+    A required parameter outside ``_SUCCESS_STATUS_KEYS`` can never be
     supplied, so it fails here rather than as a ``TypeError`` deep in dispatch.
     """
     if success_status is None or isinstance(success_status, int):
@@ -447,8 +447,8 @@ def _validate_success_status(
 def _validate_response_finalizer(finalizer: Any, *, label: str) -> None:
     """Reject a ``response_finalizer`` that isn't a well-formed callable.
 
-    Same rule as :func:`_validate_success_status`, against
-    :data:`_RESPONSE_FINALIZER_KEYS`.
+    Same rule as ``_validate_success_status``, against
+    ``_RESPONSE_FINALIZER_KEYS``.
     """
     if finalizer is None:
         return
@@ -475,7 +475,7 @@ def validate_service_spec(
     has_instance: bool,
     permissive_extras: bool,
 ) -> None:
-    """Validate a :class:`ServiceSpec`'s ``service`` and nested selector specs.
+    """Validate a [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]'s ``service`` and nested selector specs.
 
     Shared between standalone mutation views, viewset mixins, and
     ``@service_action``. ``has_instance`` is fixed by the action context
@@ -539,7 +539,7 @@ def validate_polymorphic_service_spec(
     has_instance: bool,
     permissive_extras: bool,
 ) -> None:
-    """Validate every variant of a :class:`PolymorphicServiceSpec` + its strategy.
+    """Validate every variant of a [`PolymorphicServiceSpec`][rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec] + its strategy.
 
     Each variant is validated with the same ``has_instance`` /
     ``permissive_extras`` as a plain entry would be.
@@ -575,13 +575,13 @@ def validate_selector_spec(
     label: str,
     expected_kind: SelectorKind | None = None,
 ) -> None:
-    """Validate a :class:`SelectorSpec`'s ``selector``.
+    """Validate a [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec]'s ``selector``.
 
     Selectors are always permissive on extras (URL kwargs and
     ``get_selector_kwargs`` are dynamic), so the only fatal misuses are
     framework-only keys absent from the selector pool. ``expected_kind`` catches
     a spec mounted on the wrong view — a ``LIST`` spec on
-    :class:`SelectorRetrieveView` would otherwise misbehave only at runtime.
+    [`SelectorRetrieveView`][rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView] would otherwise misbehave only at runtime.
     """
     _validate_permission_classes(spec.permission_classes, label=label)
     _validate_selector_shaping(spec, label=label)
@@ -654,8 +654,8 @@ def validate_selector_view_spec(
     """Validate ``view_cls.spec`` on a standalone selector view.
 
     No-op when ``spec`` is unset — that means "use vanilla DRF". ``expected_kind``
-    is the kind the view is shaped for (``LIST`` for :class:`SelectorListView`,
-    ``RETRIEVE`` for :class:`SelectorRetrieveView`).
+    is the kind the view is shaped for (``LIST`` for [`SelectorListView`][rest_framework_services.views.query.selector_list_view.SelectorListView],
+    ``RETRIEVE`` for [`SelectorRetrieveView`][rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView]).
     """
     spec: SelectorSpec[Any, Any] | None = getattr(view_cls, "spec", None)
     if spec is None:

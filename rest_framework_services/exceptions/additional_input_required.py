@@ -10,7 +10,7 @@ class AdditionalInputRequired(ServiceError):
     """A service cannot proceed without a value it was not given.
 
     Not "what you sent is wrong" — that is
-    :class:`~rest_framework_services.exceptions.service_validation_error.ServiceValidationError`
+    [`ServiceValidationError`][rest_framework_services.exceptions.service_validation_error.ServiceValidationError]
     — but "I got far enough to discover I need something else", usually
     *conditional on what the service found*, so it cannot be expressed as a
     required input on the serializer::
@@ -32,7 +32,7 @@ class AdditionalInputRequired(ServiceError):
     arguments before dispatch — so raising is the whole of the service's
     involvement; there is no callback to hold and no session to resume.
 
-    A :class:`ServiceError` subclass deliberately, so a transport that has never
+    A [`ServiceError`][rest_framework_services.exceptions.service_error.ServiceError] subclass deliberately, so a transport that has never
     heard of it still reports that the operation could not be completed and why.
     One that wants to do better must catch it *before* its generic
     ``ServiceError`` handler.

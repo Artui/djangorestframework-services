@@ -19,7 +19,7 @@ def unguarded_specs(specs: Mapping[str, Spec]) -> list[str]:
     ``DEFAULT_PERMISSION_CLASSES`` supply the answer. **Off HTTP neither
     exists**, so the same spec becomes an unguarded operation the moment a
     toolset or an MCP server exposes it, and
-    :func:`~rest_framework_services.enforce_permissions` returns early with
+    [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions] returns early with
     nothing to enforce.
 
     This **raises nothing and defaults nothing, deliberately**: whether an

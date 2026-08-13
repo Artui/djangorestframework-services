@@ -18,18 +18,18 @@ class QueryParam:
     ``build_offline_context(query_params=…)``; it never reaches the spec as an
     input, so the unknown-argument policy never flags it.
 
-    A :class:`~rest_framework_services.SelectorSpec` ``filter_set`` does **not**
+    A [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] ``filter_set`` does **not**
     need this — its fields are already generated into the schema and flow through
     as ordinary ``params``.
 
     Declared here rather than in each adapter for the same reason as
-    :class:`~rest_framework_services.UrlKwarg`: it is the same declaration
+    [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg]: it is the same declaration
     whichever transport carries it. Pair it with
-    :func:`~rest_framework_services.validate_channel_names`.
+    [`validate_channel_names`][rest_framework_services.types.validate_channel_names.validate_channel_names].
 
     - ``name`` — the argument / query-string key. Must not collide with a
       reserved transport key; see
-      :func:`~rest_framework_services.validate_channel_names`.
+      [`validate_channel_names`][rest_framework_services.types.validate_channel_names.validate_channel_names].
     - ``type`` — the JSON-Schema type advertised to the caller (``"string"`` by
       default; ``"integer"`` / ``"number"`` / ``"boolean"`` / ``"array"`` …).
     - ``description`` — optional help text shown to the caller.
@@ -39,8 +39,8 @@ class QueryParam:
     **No ``required`` flag, deliberately.** A query param is *read-shaping* —
     omitting one is legitimate by construction, and the spec runs correctly
     without it. Requiredness belongs to inputs the spec cannot run without, which
-    is :class:`~rest_framework_services.UrlKwarg` and the
-    :data:`~rest_framework_services.InputRequired` marker.
+    is [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg] and the
+    ``InputRequired`` marker.
     """
 
     name: str

@@ -27,9 +27,9 @@ class GenericRelationSpec(RelationSpec):
     The reverse-FK collection with the foreign key replaced by a pair of
     columns: a ``ForeignKey`` to ``ContentType`` saying *which model* the row
     belongs to, and an id column saying *which row*. It reconciles exactly as
-    :class:`~rest_framework_services.ChildSpec` does — matched inside the
+    [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] does — matched inside the
     parent's own accessor, so no ``scope=`` is needed or accepted — and is
-    written in :attr:`~rest_framework_services.RelationPhase.GENERIC`, once the
+    written in ``RelationPhase.GENERIC``, once the
     parent's ``save()`` has given it both a content type and a primary key.
 
     Declared in ``relations={accessor_name: GenericRelationSpec(...)}``, where
@@ -41,7 +41,7 @@ class GenericRelationSpec(RelationSpec):
     **This kind needs ``django.contrib.contenttypes`` in ``INSTALLED_APPS``**,
     and nothing else in the library does. Declaring the spec is always safe;
     *writing* one without the app installed raises
-    :exc:`~django.core.exceptions.ImproperlyConfigured` naming the remedy.
+    ``ImproperlyConfigured`` naming the remedy.
 
     Attributes:
         model: The related model class — the one carrying the content-type and
@@ -62,7 +62,7 @@ class GenericRelationSpec(RelationSpec):
         children: Forwarded likewise.
         relations: Forwarded likewise.
         create_service: Optional service replacing that call, with the contract
-            :class:`~rest_framework_services.ChildSpec` states; its ``data``
+            [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] states; its ``data``
             already carries both link columns. Declaring it alongside the
             row-shaping fields above raises at construction.
         update_service: The same; returning ``None`` means "use the in-memory
@@ -71,14 +71,14 @@ class GenericRelationSpec(RelationSpec):
             is reported as ``"removed"`` and an explicit ``orphan`` beside it
             raises.
         orphan: What removing a row *does* —
-            :class:`~rest_framework_services.ChildSpec`'s rule applied to the
+            [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec]'s rule applied to the
             pair of link columns rather than to one, since half a link is not a
             state the relation has a meaning for. ``"auto"`` (the default)
             **unlinks** (both columns set to ``None``) when both are nullable
             and **deletes** otherwise; ``"unlink"`` and ``"delete"`` state it
             instead of deriving it, and ``"unlink"`` raises at write time unless
             both columns can hold ``NULL``. The rule also governs the
-            :func:`~rest_framework_services.delete_model` cascade.
+            [`delete_model`][rest_framework_services.services.delete_model.delete_model] cascade.
     """
 
     write_phase: ClassVar[RelationPhase] = RelationPhase.GENERIC

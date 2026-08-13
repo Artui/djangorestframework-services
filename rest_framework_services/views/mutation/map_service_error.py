@@ -2,7 +2,7 @@
 
 Kept in its own leaf module (rather than inside ``views.mutation.utils``) so it
 can be imported without pulling in the heavy mutation-flow machinery. That
-matters for :func:`~rest_framework_services.services.call_service.call_service`,
+matters for [`call_service`][rest_framework_services.services.call_service.call_service],
 which is part of the package's eagerly-imported public API: importing the whole
 ``utils`` module at package-import time (during ``apps.populate()``) triggers a
 circular import, whereas this leaf depends only on DRF exceptions and the
@@ -21,7 +21,7 @@ from rest_framework_services.exceptions.service_validation_error import (
 
 
 class _ServiceAPIException(drf_exceptions.APIException):
-    """Default DRF mapping for non-validation :class:`ServiceError`."""
+    """Default DRF mapping for non-validation [`ServiceError`][rest_framework_services.exceptions.service_error.ServiceError]."""
 
     status_code = drf_status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "Service error."

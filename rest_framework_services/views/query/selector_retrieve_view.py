@@ -20,7 +20,7 @@ from rest_framework_services.views.utils import get_class_attr, layer_serializer
 class SelectorRetrieveView(RetrieveModelMixin, GenericAPIView):
     """``GET`` endpoint that returns a single object.
 
-    Set ``spec`` to a :class:`SelectorSpec` to configure the selector and/or
+    Set ``spec`` to a [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] to configure the selector and/or
     the output serializer. Both fields are optional:
 
     - ``spec.selector`` overrides ``get_object()``; ``None`` falls back to

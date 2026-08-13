@@ -66,20 +66,20 @@ def dispatch_spec(
     instance: Any = UNSET,
     filter_data: Mapping[str, Any] | None = None,
 ) -> DispatchResult:
-    """Execute ``spec`` without a DRF view, returning a :class:`DispatchResult`.
+    """Execute ``spec`` without a DRF view, returning a [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult].
 
     The single transport-neutral execution path: a caller hands the **flat**
     ``params`` mapping (the role ``request.data`` / ``query_params`` / URL
     kwargs play on HTTP) plus the acting ``user``, and gets back the resolved
     domain value to format for its wire. No pagination, ordering, or output
     rendering happens here — those are transport concerns; render the result
-    with :func:`~rest_framework_services.render_spec_output`.
+    with [`render_spec_output`][rest_framework_services.dispatch.render_spec_output.render_spec_output].
 
-    - A :class:`ServiceSpec` runs the mutation flow: resolve the target via
+    - A [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] runs the mutation flow: resolve the target via
       ``instance_selector_spec`` (from ``params``) → validate ``input_serializer``
       → run the service → re-fetch through ``output_selector_spec`` → result.
       A missing instance yields ``kind="not_found"``.
-    - A :class:`SelectorSpec` runs the read flow: invoke the selector → apply
+    - A [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] runs the read flow: invoke the selector → apply
       queryset shaping (``select_related`` … ``filter_set``) → for ``RETRIEVE``
       materialize via ``.first()`` and honour ``allow_none`` / not-found;
       ``LIST`` returns the shaped + filtered queryset.
@@ -88,7 +88,7 @@ def dispatch_spec(
     the pre-policy behaviour exactly.
 
     Args:
-        spec: The :class:`ServiceSpec` or :class:`SelectorSpec` to execute.
+        spec: The [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] or [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] to execute.
         user: The acting user, seeded into every callable's pool.
         params: The flat client input — a list on a ``many=True`` spec.
         request: Forwarded only to user callables that declare it
@@ -113,7 +113,7 @@ def dispatch_spec(
             ``many=True`` spec.
         on_target_resolved: Hook invoked with the resolved mutation target before
             the service runs. Pass
-            :func:`~rest_framework_services.enforce_permissions` directly for
+            [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions] directly for
             object-level permissions; the core itself stays authz-agnostic.
         progress: The transport's own progress sink, fanned together with the one
             ``spec.progress_reporter`` declares.
@@ -129,7 +129,7 @@ def dispatch_spec(
             merging them would let a query parameter satisfy a serializer field.
 
     Returns:
-        The :class:`DispatchResult` — value, ``kind``, status, and on the
+        The [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult] — value, ``kind``, status, and on the
         mutation path the service's own return, resolved instance and data.
 
     Raises:

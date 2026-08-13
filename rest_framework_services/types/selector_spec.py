@@ -25,8 +25,8 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     """All wiring for a single read action in one record.
 
     Used as a value in ``action_specs`` on viewsets, as the ``spec=``
-    argument to :class:`SelectorListView` / :class:`SelectorRetrieveView`,
-    and as the ``output_selector_spec`` field on :class:`ServiceSpec`
+    argument to [`SelectorListView`][rest_framework_services.views.query.selector_list_view.SelectorListView] / [`SelectorRetrieveView`][rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView],
+    and as the ``output_selector_spec`` field on [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]
     (where it describes the post-mutation re-fetch).
 
     All fields are keyword-only: ``SelectorSpec(kind=SelectorKind.LIST,
@@ -43,18 +43,18 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     The five shaping fields (``select_related`` / ``prefetch_related`` /
     ``annotations`` / ``extend_queryset`` / ``filter_set``) require
     ``selector`` to be set and the selector to return a Django
-    :class:`QuerySet`. Configuring any of them with no selector raises
-    :exc:`ImproperlyConfigured` at ``as_view()`` time; a non-QuerySet return
+    ``QuerySet``. Configuring any of them with no selector raises
+    ``ImproperlyConfigured`` at ``as_view()`` time; a non-QuerySet return
     raises at request time.
 
     Attributes:
-        kind: Required :class:`SelectorKind` discriminator. ``RETRIEVE``
+        kind: Required [`SelectorKind`][rest_framework_services.types.selector_kind.SelectorKind] discriminator. ``RETRIEVE``
             materializes a QuerySet via ``.first()`` and raises
-            :exc:`~rest_framework.exceptions.NotFound` on a ``None`` /
+            ``NotFound`` on a ``None`` /
             missing object; ``LIST`` returns whatever the selector returns
             unchanged. It also drives the fail-fast check that the spec is
             mounted on a compatible view — a ``LIST`` spec on
-            :class:`SelectorRetrieveView` raises at ``as_view()``. Being
+            [`SelectorRetrieveView`][rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView] raises at ``as_view()``. Being
             explicit rather than inferred from the call site, it also carries
             the semantics outside a request, to a management command or any
             other non-DRF caller.
@@ -62,14 +62,14 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             ``get_object()`` (retrieve). ``None`` uses the configured
             ``queryset`` / default DRF behaviour.
         allow_none: RETRIEVE-only knob for the ``None`` / missing-object case.
-            ``False`` raises :exc:`~rest_framework.exceptions.NotFound`;
+            ``False`` raises ``NotFound``;
             ``True`` expresses a nullable-resource contract, where the
             standalone retrieve view and the retrieve viewset mixin render
             ``200`` with a JSON ``null`` body and skip the output serializer.
             **Ignored** when the spec is nested:
-            :attr:`ServiceSpec.output_selector_spec` keeps its
+            ``ServiceSpec.output_selector_spec`` keeps its
             authoritative-``None`` → 204 contract and
-            :attr:`ServiceSpec.instance_selector_spec` always 404s.
+            ``ServiceSpec.instance_selector_spec`` always 404s.
         output_serializer: DRF ``Serializer`` subclass used by
             ``get_serializer_class()`` for this action. ``None`` falls back to
             DRF's standard ``serializer_class``.
@@ -88,11 +88,11 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             so there is no symmetrical ``input_serializer_context``.
         select_related: Relation names, forwarded as
             ``qs.select_related(*spec.select_related)``.
-        prefetch_related: Relation names or :class:`Prefetch` objects.
+        prefetch_related: Relation names or ``Prefetch`` objects.
         annotations: Mapping merged into a single ``.annotate(**...)`` call.
             With the two fields above, this is declarative shaping applied to
             the selector's return value before it leaves
-            :func:`dispatch_selector_for_spec` — reach for it whenever the same
+            ``dispatch_selector_for_spec`` — reach for it whenever the same
             shaping applies every request, since it stays introspectable.
         extend_queryset: Dynamic escape hatch, invoked *after* the declarative
             fields have applied, so it always sees the fully statically-shaped
@@ -110,13 +110,13 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             composes with shaping and narrows ``RETRIEVE`` selectors too, where
             ``RetrieveModelMixin`` runs no filter step. On the list path it
             **replaces**
-            :class:`~django_filters.rest_framework.DjangoFilterBackend` rather
+            ``DjangoFilterBackend`` rather
             than stacking with it — the values come off the same
             ``request.query_params`` — and wiring both for one action raises at
             ``as_view()``. Replacing it means keeping its contract, so
             **invalid filter input is rejected with a 400**: the ``FilterSet``
             is validated via ``is_valid()`` and its ``errors`` are raised as a
-            DRF :exc:`~rest_framework.exceptions.ValidationError`, where
+            DRF ``ValidationError``, where
             reading ``.qs`` unvalidated would answer 200 with *unfiltered* rows
             in django-filter's default non-strict mode. That is enforced only
             when the duck-typed object actually exposes ``is_valid``; a bare
@@ -145,9 +145,9 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             through DRF's ``@action(permission_classes=...)`` for the
             ``@selector_action`` decorator and surfaced via ``get_permissions``
             for the viewset mixins and standalone views. Ignored when the spec
-            is nested under :attr:`ServiceSpec.output_selector_spec` — the
+            is nested under ``ServiceSpec.output_selector_spec`` — the
             surrounding mutation action's permissions apply.
-        progress_reporter: Provider returning a :class:`ProgressReporter` sink,
+        progress_reporter: Provider returning a [`ProgressReporter`][rest_framework_services.types.progress_reporter.ProgressReporter] sink,
             fanned together with whatever reporter the transport supplied. For
             sinks that do not care which transport carries the run — a task
             record, an audit trail, metrics.
@@ -156,13 +156,13 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             has no validation step, so that is the one position available, and
             pool binding does the discrimination — a precondition declaring
             ``instance`` cannot be written against a LIST spec. Raise-to-abort:
-            the return value is ignored. See :class:`ServiceSpec` for the raise
+            the return value is ignored. See [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] for the raise
             contract.
         metadata: Consumer-owned, framework-opaque mapping — **the framework
             never reads it**. No known keys, no per-key validation, no
             defaulting, no effect on the generated JSON Schema or OpenAPI;
             validation is shape-only, and a non-``Mapping`` raises
-            :exc:`~django.core.exceptions.ImproperlyConfigured` at
+            ``ImproperlyConfigured`` at
             construction. Use it to attach a project's own per-operation facts
             — read back by its own permission class, scoping helper, or audit
             hook — to the spec describing the operation, rather than to a
@@ -171,9 +171,9 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             ``view.action_specs[view.action].metadata`` inside a permission
             class (which receives ``(request, view)``, so it has the spec but
             knows no registry or name), or ``entry.spec.metadata`` from a
-            :class:`~rest_framework_services.types.registered_spec.RegisteredSpec`,
+            [`RegisteredSpec`][rest_framework_services.types.registered_spec.RegisteredSpec],
             whose ``tags`` handles the boolean-ish labels this is *not* for. It
-            never merges or inherits — a :class:`ServiceSpec` and its
+            never merges or inherits — a [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] and its
             ``output_selector_spec`` carry independent metadata — and it is
             stored exactly as given: the spec is frozen, the mapping is not,
             and the library neither copies nor deep-freezes it, so pass

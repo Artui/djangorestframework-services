@@ -46,7 +46,7 @@ def update_from_input(
     are written (no auto-injection in that case).
 
     ``m2m`` assigns many-to-many rows that already exist;
-    :class:`~rest_framework_services.ManyToManySpec` in ``relations`` writes
+    [`ManyToManySpec`][rest_framework_services.types.many_to_many_spec.ManyToManySpec] in ``relations`` writes
     the target rows from the payload instead. A relation named by both is
     refused rather than written twice.
 
@@ -60,9 +60,9 @@ def update_from_input(
     the service's atomic block.
 
     ``context`` is an **opaque** mapping forwarded verbatim into the pool of
-    any per-child service a :class:`~rest_framework_services.ChildSpec`
+    any per-child service a [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec]
     declares; this helper never reads it. See
-    :func:`~rest_framework_services.create_from_input`.
+    [`create_from_input`][rest_framework_services.mutations.create_from_input.create_from_input].
     """
     relation_specs = merge_relations(children, relations)
     reject_m2m_overlap(m2m, relation_specs)
