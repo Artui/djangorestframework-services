@@ -6,10 +6,11 @@ The runtime accepts three shapes for ``input_serializer``:
 - a ``Serializer`` subclass.
 - a bare ``@dataclass`` type, auto-wrapped in a ``DataclassSerializer``.
 
-Schema generators only know how to read ``Serializer`` subclasses, so this
-helper mirrors [`validate_input`][rest_framework_services.views.mutation.utils.validate_input]'s branching to produce a class the
-generator can introspect — keeping the schema and the runtime in lockstep.
-"""
+Schema generators only know how to read ``Serializer`` subclasses, so this helper
+mirrors
+[`validate_input`][rest_framework_services.views.mutation.utils.validate_input]'s
+branching to produce a class the generator can introspect — keeping the schema and the
+runtime in lockstep."""
 
 from __future__ import annotations
 

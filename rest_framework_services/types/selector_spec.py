@@ -24,10 +24,13 @@ ExtraT = TypeVar("ExtraT", bound=Mapping[str, object])
 class SelectorSpec(Generic[ResultT, ExtraT]):
     """All wiring for a single read action in one record.
 
-    Used as a value in ``action_specs`` on viewsets, as the ``spec=``
-    argument to [`SelectorListView`][rest_framework_services.views.query.selector_list_view.SelectorListView] / [`SelectorRetrieveView`][rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView],
-    and as the ``output_selector_spec`` field on [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]
-    (where it describes the post-mutation re-fetch).
+    Used as a value in ``action_specs`` on viewsets, as the ``spec=`` argument to
+    [`SelectorListView`][rest_framework_services.views.query.selector_list_view.SelectorListView]
+    /
+    [`SelectorRetrieveView`][rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView],
+    and as the ``output_selector_spec`` field on
+    [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] (where it
+    describes the post-mutation re-fetch).
 
     All fields are keyword-only: ``SelectorSpec(kind=SelectorKind.LIST,
     selector=fn)`` rather than positional. ``kind`` is required and is the only

@@ -1,4 +1,6 @@
-"""Resolve a [`PolymorphicServiceSpec`][rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec] to its chosen concrete spec."""
+"""Resolve a
+[`PolymorphicServiceSpec`][rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec]
+to its chosen concrete spec."""
 
 from __future__ import annotations
 

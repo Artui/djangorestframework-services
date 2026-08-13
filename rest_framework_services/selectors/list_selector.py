@@ -14,9 +14,8 @@ class ListSelector(Protocol[ResultT]):
     The framework calls this from ``get_queryset()``; the returned iterable
     flows through DRF's filter backends, pagination, and ``output_serializer``.
 
-    See [`CreateService`][rest_framework_services.services.create_service.CreateService] for the
-    extras-typing notes.
-    """
+    See [`CreateService`][rest_framework_services.services.create_service.CreateService]
+    for the extras-typing notes."""
 
     def __call__(
         self,

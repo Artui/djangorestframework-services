@@ -23,11 +23,11 @@ class ServiceUpdateView(MutationFlowMixin, GenericAPIView):
     falling back to DRF's ``get_object()`` (set ``queryset`` and
     ``lookup_field``, or override ``get_object()``).
 
-    Configure by setting ``spec`` to a [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]. The spec's
-    ``success_status`` defaults to ``200 OK`` when unset. Both verbs share
-    the one spec, so a forced ``spec.partial`` applies to PUT *and* PATCH —
-    set ``http_method_names = ["patch"]`` for a PATCH-only endpoint.
-    """
+    Configure by setting ``spec`` to a
+    [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]. The spec's
+    ``success_status`` defaults to ``200 OK`` when unset. Both verbs share the one spec,
+    so a forced ``spec.partial`` applies to PUT *and* PATCH — set ``http_method_names =
+    ["patch"]`` for a PATCH-only endpoint."""
 
     spec: ClassVar[ServiceSpec | None] = None
 

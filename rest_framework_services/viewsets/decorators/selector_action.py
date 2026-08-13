@@ -97,15 +97,14 @@ def _build_serializer(
 ) -> Any:
     """Instantiate the response serializer for a ``@selector_action`` result.
 
-    ``spec.output_serializer`` wins when set, matching the standalone selector
-    views; otherwise the viewset's ``get_serializer(...)`` keeps existing
-    [`ActionSerializerResolver`][rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver] wiring in play. Context flows through the
-    DRF default → ``get_output_serializer_context`` →
-    ``get_<action>_output_serializer_context`` chain, both hooks optional.
-    ``extras`` carries the resolved data — ``instance`` for a detail action,
-    ``page`` for a collection one — offered to each context provider by keyword
-    when it declares the name.
-    """
+    ``spec.output_serializer`` wins when set, matching the standalone selector views;
+    otherwise the viewset's ``get_serializer(...)`` keeps existing
+    [`ActionSerializerResolver`][rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver]
+    wiring in play. Context flows through the DRF default →
+    ``get_output_serializer_context`` → ``get_<action>_output_serializer_context``
+    chain, both hooks optional. ``extras`` carries the resolved data — ``instance`` for
+    a detail action, ``page`` for a collection one — offered to each context provider by
+    keyword when it declares the name."""
     if spec.output_serializer is not None:
         action: str | None = getattr(view, "action", None)
         action_hook: str | None = f"get_{action}_output_serializer_context" if action else None

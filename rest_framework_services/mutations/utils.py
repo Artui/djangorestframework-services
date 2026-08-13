@@ -202,7 +202,8 @@ async def aapply_m2m(instance: Model, to_apply: dict[str, Any]) -> None:
 
 
 def changes_for_create(new_values: dict[str, Any]) -> tuple[FieldChange, ...]:
-    """Build [`FieldChange`][rest_framework_services.types.field_change.FieldChange] entries for every assigned create field."""
+    """Build [`FieldChange`][rest_framework_services.types.field_change.FieldChange]
+    entries for every assigned create field."""
     return tuple(
         FieldChange(field=attr, old=UNSET, new=value) for attr, value in new_values.items()
     )

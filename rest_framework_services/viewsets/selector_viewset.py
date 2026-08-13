@@ -21,7 +21,9 @@ class SelectorViewSet(
 ):
     """Read-only viewset for ``list`` + ``retrieve``.
 
-    Composes [`SelectorListMixin`][rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin], [`SelectorRetrieveMixin`][rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin], and
-    [`ActionSerializerResolver`][rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver] over
-    ``GenericViewSet``.
-    """
+    Composes
+    [`SelectorListMixin`][rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin],
+    [`SelectorRetrieveMixin`][rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin],
+    and
+    [`ActionSerializerResolver`][rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver]
+    over ``GenericViewSet``."""

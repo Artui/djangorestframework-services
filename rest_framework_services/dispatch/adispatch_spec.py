@@ -1,4 +1,5 @@
-"""``adispatch_spec`` — async sibling of [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec]."""
+"""``adispatch_spec`` — async sibling of
+[`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec]."""
 
 from __future__ import annotations
 
@@ -65,12 +66,14 @@ async def adispatch_spec(
     view_hooks: ViewHooks | None = None,
     filter_data: Mapping[str, Any] | None = None,
 ) -> DispatchResult:
-    """Async [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec].
+    """Async
+    [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec].
 
-    Identical contract, arguments, policies and [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult] shape —
-    see the sync twin. What differs is only the execution model: async selectors
-    and services are awaited, and sync ones run in Django's thread-sensitive
-    executor so the ORM stays safe off the event loop.
+    Identical contract, arguments, policies and
+    [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult]
+    shape — see the sync twin. What differs is only the execution model: async selectors
+    and services are awaited, and sync ones run in Django's thread-sensitive executor so
+    the ORM stays safe off the event loop.
 
     That rule covers **every** callable a spec carries, not just the selector /
     service: ``kwargs`` providers, ``extend_queryset``, ``filter_set``,

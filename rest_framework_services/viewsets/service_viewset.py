@@ -27,9 +27,12 @@ class ServiceViewSet(
 ):
     """Router-compatible viewset wiring services and selectors.
 
-    Composes [`ServiceCreateMixin`][rest_framework_services.viewsets.service_create_mixin.ServiceCreateMixin], [`ServiceUpdateMixin`][rest_framework_services.viewsets.service_update_mixin.ServiceUpdateMixin],
-    [`ServiceDestroyMixin`][rest_framework_services.viewsets.service_destroy_mixin.ServiceDestroyMixin], [`SelectorListMixin`][rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin],
-    [`SelectorRetrieveMixin`][rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin], and [`ActionSerializerResolver`][rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver]
-    over ``GenericViewSet``. See those classes
-    for the configurable attributes.
-    """
+    Composes
+    [`ServiceCreateMixin`][rest_framework_services.viewsets.service_create_mixin.ServiceCreateMixin],
+    [`ServiceUpdateMixin`][rest_framework_services.viewsets.service_update_mixin.ServiceUpdateMixin],
+    [`ServiceDestroyMixin`][rest_framework_services.viewsets.service_destroy_mixin.ServiceDestroyMixin],
+    [`SelectorListMixin`][rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin],
+    [`SelectorRetrieveMixin`][rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin],
+    and
+    [`ActionSerializerResolver`][rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver]
+    over ``GenericViewSet``. See those classes for the configurable attributes."""

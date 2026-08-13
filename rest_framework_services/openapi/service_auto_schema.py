@@ -31,15 +31,14 @@ class ServiceAutoSchema(AutoSchema):
     On mutation surfaces (standalone ``Service*View`` classes, the
     ``ServiceViewSet`` action mixins, and ``@service_action``):
 
-    - Request body from ``spec.input_serializer``, a bare dataclass being
-      auto-wrapped in ``DataclassSerializer``, built with whatever partial
-      flag ``spec.partial`` resolves to so the documented body matches what
-      actually validates.
-    - Success response from ``spec.output_selector_spec.output_serializer``, or
-      a no-content response when that is unset and the action's default status
-      is 204.
-    - A ``422`` documenting [`ServiceErrorSerializer`][rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer], as
-      ``spec.document_service_error`` gates it.
+    - Request body from ``spec.input_serializer``, a bare dataclass being auto-wrapped
+      in ``DataclassSerializer``, built with whatever partial flag ``spec.partial``
+      resolves to so the documented body matches what actually validates.
+    - Success response from ``spec.output_selector_spec.output_serializer``, or a
+      no-content response when that is unset and the action's default status is 204.
+    - A ``422`` documenting
+      [`ServiceErrorSerializer`][rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer],
+      as ``spec.document_service_error`` gates it.
 
     Read surfaces (``Selector*View`` and the read-side action mixins) lean on
     the base ``AutoSchema`` for their body: ``output_serializer`` is already

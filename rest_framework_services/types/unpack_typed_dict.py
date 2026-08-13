@@ -11,13 +11,14 @@ def unpack_typed_dict(annotation: Any) -> type | None:
     """Return the ``TypedDict`` class ``T`` when ``annotation`` is ``Unpack[T]``.
 
     The blessed strict-typing idiom for a service / selector's keyword extras is
-    ``**extras: Unpack[SomeExtras]`` (see [`HttpExtras`][rest_framework_services.types.http_extras.HttpExtras]).
-    Given the resolved annotation of such a ``**kwargs`` parameter, this returns
-    the underlying ``TypedDict`` so its keys can be reflected into a JSON Schema
-    (``jsonschema``) and counted as the callable's declared input surface
-    (``dispatch``). Returns ``None`` for a bare ``**kwargs``, a non-``Unpack``
-    annotation, or an ``Unpack`` of something that isn't a ``TypedDict`` — every
-    caller treats ``None`` as "no reflectable extras".
+    ``**extras: Unpack[SomeExtras]`` (see
+    [`HttpExtras`][rest_framework_services.types.http_extras.HttpExtras]). Given the
+    resolved annotation of such a ``**kwargs`` parameter, this returns the underlying
+    ``TypedDict`` so its keys can be reflected into a JSON Schema (``jsonschema``) and
+    counted as the callable's declared input surface (``dispatch``). Returns ``None``
+    for a bare ``**kwargs``, a non-``Unpack`` annotation, or an ``Unpack`` of something
+    that isn't a ``TypedDict`` — every caller treats ``None`` as "no reflectable
+    extras".
 
     A parameterised generic alias (``Unpack[HttpExtras[MyUser]]``) is resolved to
     its origin class before the ``TypedDict`` check, since ``is_typeddict`` wants

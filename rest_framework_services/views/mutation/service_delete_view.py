@@ -22,12 +22,12 @@ class ServiceDeleteView(MutationFlowMixin, GenericAPIView):
     when set — no ``queryset`` / ``lookup_field`` required on the subclass —
     falling back to DRF's ``get_object()``.
 
-    Configure by setting ``spec`` to a [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]. The spec's
-    ``input_serializer`` is optional (for delete-with-payload patterns
-    such as a deletion reason); ``success_status`` defaults to
-    ``204 No Content``; set ``output_selector_spec`` with an
-    ``output_serializer`` on the spec to render a body instead.
-    """
+    Configure by setting ``spec`` to a
+    [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]. The spec's
+    ``input_serializer`` is optional (for delete-with-payload patterns such as a
+    deletion reason); ``success_status`` defaults to ``204 No Content``; set
+    ``output_selector_spec`` with an ``output_serializer`` on the spec to render a body
+    instead."""
 
     spec: ClassVar[ServiceSpec | None] = None
 

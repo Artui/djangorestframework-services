@@ -21,15 +21,21 @@ ExtraT = TypeVar("ExtraT", bound=Mapping[str, object])
 class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     """All wiring for a single mutation action in one record.
 
-    Used as a value in ``ServiceViewSet.action_specs`` and as the ``spec=``
-    argument to [`service_action`][rest_framework_services.viewsets.decorators.service_action.service_action] / [`ServiceCreateView`][rest_framework_services.views.mutation.service_create_view.ServiceCreateView] /
-    [`ServiceUpdateView`][rest_framework_services.views.mutation.service_update_view.ServiceUpdateView] / [`ServiceDeleteView`][rest_framework_services.views.mutation.service_delete_view.ServiceDeleteView].
+    Used as a value in ``ServiceViewSet.action_specs`` and as the ``spec=`` argument to
+    [`service_action`][rest_framework_services.viewsets.decorators.service_action.service_action]
+    /
+    [`ServiceCreateView`][rest_framework_services.views.mutation.service_create_view.ServiceCreateView]
+    /
+    [`ServiceUpdateView`][rest_framework_services.views.mutation.service_update_view.ServiceUpdateView]
+    /
+    [`ServiceDeleteView`][rest_framework_services.views.mutation.service_delete_view.ServiceDeleteView].
 
-    Fields group into the service callable itself, the input pipeline
-    (``input_*``), the output pipeline (a nested [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec]), and
-    cross-cutting concerns. Several are **providers**: they are resolved
-    through the framework keyword pool, declaring any subset of the keywords
-    listed for them (or ``**kwargs``) and receiving only what they name.
+    Fields group into the service callable itself, the input pipeline (``input_*``), the
+    output pipeline (a nested
+    [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec]), and
+    cross-cutting concerns. Several are **providers**: they are resolved through the
+    framework keyword pool, declaring any subset of the keywords listed for them (or
+    ``**kwargs``) and receiving only what they name.
 
     The generic parameters are optional and purely informational for type
     checkers. ``InputT`` is the validated-data type ``input_serializer``

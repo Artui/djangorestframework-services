@@ -51,13 +51,13 @@ def create_model(
         )
 
     The returned closure accepts ``**kwargs`` so the framework's kwargs pool
-    (``request``, ``user``, URL kwargs, ``ServiceSpec.kwargs`` returns) is
-    absorbed without the service caring — matching the unified
-    [`CreateService`][rest_framework_services.services.create_service.CreateService] Protocol's
-    default ``ExtraT`` (open extras). That same pool is handed on as the
+    (``request``, ``user``, URL kwargs, ``ServiceSpec.kwargs`` returns) is absorbed
+    without the service caring — matching the unified
+    [`CreateService`][rest_framework_services.services.create_service.CreateService]
+    Protocol's default ``ExtraT`` (open extras). That same pool is handed on as the
     helper's ``context=``, so a per-child service declared on a
-    [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] can see who is calling.
-    """
+    [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] can see who is
+    calling."""
 
     def _service(*, data: Any, **kwargs: Any) -> ModelT:
         return create_from_input(

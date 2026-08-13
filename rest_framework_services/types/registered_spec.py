@@ -22,19 +22,21 @@ class RegisteredSpec:
 
     Fields:
 
-    - **``name``** — the canonical name for this operation. Unique within the
-      registry that holds it; two independent registries are separate
-      namespaces and may reuse a name.
-    - **``spec``** — a [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]
-      (a mutation) or a [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec]
-      (a read). The kind is deliberately **not** stored: it is derived by
-      ``isinstance`` wherever it is needed, so a stored discriminator can never
-      drift from the object it describes.
-    - **``tags``** — a frozen set of free-form labels used to derive filtered
-      views (``registry.by_tag("public")``). Tags carry boolean-ish facts —
-      ``"read"``, ``"admin"``, ``"destructive"`` — that every transport can
-      interpret in its own vocabulary. Structured, transport-specific payloads
-      do not belong in a tag string; they belong at the binding.
+    - **``name``** — the canonical name for this operation. Unique within the registry
+      that holds it; two independent registries are separate namespaces and may reuse a
+      name.
+    - **``spec``** — a
+      [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] (a
+      mutation) or a
+      [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] (a
+      read). The kind is deliberately **not** stored: it is derived by ``isinstance``
+      wherever it is needed, so a stored discriminator can never drift from the object
+      it describes.
+    - **``tags``** — a frozen set of free-form labels used to derive filtered views
+      (``registry.by_tag("public")``). Tags carry boolean-ish facts — ``"read"``,
+      ``"admin"``, ``"destructive"`` — that every transport can interpret in its own
+      vocabulary. Structured, transport-specific payloads do not belong in a tag string;
+      they belong at the binding.
     """
 
     name: str

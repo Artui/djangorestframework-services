@@ -8,13 +8,15 @@ from typing import Any
 
 @dataclass(frozen=True)
 class DispatchResult:
-    """What [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec] resolved, pre-wire.
+    """What
+    [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec]
+    resolved, pre-wire.
 
     A transport-neutral carrier the caller formats for its own wire (an HTTP
-    ``Response``, an MCP ``ToolResult``, …). It holds the **raw** resolved
-    domain value — never a paginated page or rendered serializer output —
-    because ordering, pagination, and the response envelope are transport
-    concerns. Render the value through
+    ``Response``, an MCP ``ToolResult``, …). It holds the **raw** resolved domain value
+    — never a paginated page or rendered serializer output — because ordering,
+    pagination, and the response envelope are transport concerns. Render the value
+    through
     [`render_spec_output`][rest_framework_services.dispatch.render_spec_output.render_spec_output].
 
     ``instance`` and ``data`` are informational: a transport that only renders

@@ -20,13 +20,13 @@ def enforce_permissions(
 ) -> None:
     """Enforce ``spec.permission_classes`` against an off-HTTP context.
 
-    Mirrors what a DRF view does on the HTTP path —
-    ``[perm() for perm in spec.permission_classes]`` then
-    ``perm.has_permission(request, view)`` — but against the synthetic request
-    and view from [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context]. ``dispatch_spec`` deliberately
-    does **not** consult ``permission_classes`` (authorization is the view's job
-    on HTTP), so an off-HTTP transport must call this itself before dispatching,
-    or it would skip authorization entirely.
+    Mirrors what a DRF view does on the HTTP path — ``[perm() for perm in
+    spec.permission_classes]`` then ``perm.has_permission(request, view)`` — but against
+    the synthetic request and view from
+    [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context].
+    ``dispatch_spec`` deliberately does **not** consult ``permission_classes``
+    (authorization is the view's job on HTTP), so an off-HTTP transport must call this
+    itself before dispatching, or it would skip authorization entirely.
 
     When ``instance`` is a Django ``Model``, object-level permissions
     (``has_object_permission``) are also checked — matching the HTTP path's

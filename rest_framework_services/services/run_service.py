@@ -35,10 +35,10 @@ def run_service(
     ``dispatch_spec`` reached this leaf directly, so the same spec resolved over
     HTTP and returned a coroutine over MCP.
 
-    Async services under ``atomic=True`` route through [`arun_service`][rest_framework_services.services.arun_service.arun_service], which
-    owns the thread-sensitivity rule that keeps the ORM connection holding the
-    open transaction the same one the inner async DB calls use.
-    """
+    Async services under ``atomic=True`` route through
+    [`arun_service`][rest_framework_services.services.arun_service.arun_service], which
+    owns the thread-sensitivity rule that keeps the ORM connection holding the open
+    transaction the same one the inner async DB calls use."""
     if is_async(fn):
         return async_to_sync(arun_service)(fn, kwargs, atomic=atomic)
     if atomic:

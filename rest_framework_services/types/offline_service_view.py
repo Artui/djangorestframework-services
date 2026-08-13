@@ -10,7 +10,9 @@ from rest_framework.request import Request
 
 @dataclass(frozen=True)
 class OfflineServiceView:
-    """A concrete [`ServiceView`][rest_framework_services.types.service_view.ServiceView] for dispatching a spec outside an HTTP request.
+    """A concrete
+    [`ServiceView`][rest_framework_services.types.service_view.ServiceView] for
+    dispatching a spec outside an HTTP request.
 
     Spec ``kwargs`` / ``extend_queryset`` / context providers are typed against
     [`ServiceView`][rest_framework_services.types.service_view.ServiceView] — the
@@ -18,10 +20,10 @@ class OfflineServiceView:
     dispatched off the HTTP path (a Pydantic-AI toolset, the MCP server, a
     management command) there is no DRF view, so this frozen value stands in:
 
-    - ``request`` — the synthetic DRF ``Request``
-      built by [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context].
-    - ``action`` — an optional label identifying the operation; ``None`` when the
-      caller has no meaningful action name.
+    - ``request`` — the synthetic DRF ``Request`` built by
+      [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context].
+    - ``action`` — an optional label identifying the operation; ``None`` when the caller
+      has no meaningful action name.
     - ``kwargs`` — the URL-kwargs equivalent (e.g. parent ids), empty by default.
     """
 

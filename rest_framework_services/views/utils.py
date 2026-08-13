@@ -259,13 +259,14 @@ def resolve_view_hooks(
     chain: str = "service",
     instance: Any = None,
 ) -> ViewHooks:
-    """Resolve the calling view's hook chains into a [`ViewHooks`][rest_framework_services.types.view_hooks.ViewHooks] carrier.
+    """Resolve the calling view's hook chains into a
+    [`ViewHooks`][rest_framework_services.types.view_hooks.ViewHooks] carrier.
 
-    **View layers only** — every ``spec_*`` argument below is deliberately
-    ``None``. The chains run ``view.get_<x>`` → ``view.get_<action>_<x>`` →
-    ``spec.<x>``, and ``dispatch_spec`` owns that last layer; resolving the spec
-    provider here too would invoke it **twice**, which is not safe for a provider
-    that queries the database. See [`ViewHooks`][rest_framework_services.types.view_hooks.ViewHooks].
+    **View layers only** — every ``spec_*`` argument below is deliberately ``None``. The
+    chains run ``view.get_<x>`` → ``view.get_<action>_<x>`` → ``spec.<x>``, and
+    ``dispatch_spec`` owns that last layer; resolving the spec provider here too would
+    invoke it **twice**, which is not safe for a provider that queries the database. See
+    [`ViewHooks`][rest_framework_services.types.view_hooks.ViewHooks].
 
     Args:
         chain: Which kwargs chain to collect — ``"service"`` for mutations,

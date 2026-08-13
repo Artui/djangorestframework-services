@@ -111,12 +111,13 @@ def build_input_serializer_from_data(
 ) -> Serializer | None:
     """Construct + validate the bound input serializer from a raw ``data`` dict.
 
-    The transport-neutral core of [`build_input_serializer`][rest_framework_services.views.mutation.utils.build_input_serializer]: it takes the
-    input ``data`` directly instead of reaching into a DRF ``request.data``, so a
-    non-HTTP caller (``dispatch_spec``) and the HTTP view path share one
-    validation implementation. See [`build_input_serializer`][rest_framework_services.views.mutation.utils.build_input_serializer] for the
-    remaining parameter semantics.
-    """
+    The transport-neutral core of
+    [`build_input_serializer`][rest_framework_services.views.mutation.utils.build_input_serializer]:
+    it takes the input ``data`` directly instead of reaching into a DRF
+    ``request.data``, so a non-HTTP caller (``dispatch_spec``) and the HTTP view path
+    share one validation implementation. See
+    [`build_input_serializer`][rest_framework_services.views.mutation.utils.build_input_serializer]
+    for the remaining parameter semantics."""
     if input_serializer is None:
         return None
     serializer_kwargs: dict[str, Any] = {"data": data, "partial": partial}
@@ -153,10 +154,10 @@ def validate_input(
 ) -> Any:
     """Validate ``request.data`` against ``input_serializer``; ``None`` if absent.
 
-    Thin wrapper over [`build_input_serializer`][rest_framework_services.views.mutation.utils.build_input_serializer] (see there for the parameter
-    semantics) returning only ``validated_data``, for callers that don't need the
-    bound serializer itself.
-    """
+    Thin wrapper over
+    [`build_input_serializer`][rest_framework_services.views.mutation.utils.build_input_serializer]
+    (see there for the parameter semantics) returning only ``validated_data``, for
+    callers that don't need the bound serializer itself."""
     serializer = build_input_serializer(
         request,
         input_serializer,
@@ -179,7 +180,9 @@ def render_mutation_response(
     render_instance_on_none: bool,
     output_context: Callable[[Any], dict[str, Any]],
 ) -> Response:
-    """Turn a [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult] into the HTTP ``Response`` for a mutation.
+    """Turn a
+    [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult]
+    into the HTTP ``Response`` for a mutation.
 
     Everything downstream of the dispatch that is genuinely transport-shaped, and
     nothing that isn't: resolve the success status against the *action's* default
@@ -264,12 +267,12 @@ def _dispatch_bulk_via_spec(
 ) -> Response:
     """Render a bulk (``many`` / collection) spec through ``dispatch_spec``.
 
-    The list body / collection target, validation, and per-set scoping all live
-    in the transport-neutral path; here we only map its
-    [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult] to a DRF ``Response`` and
-    translate a ``ServiceError`` the same way the single-instance flow does. The
-    status and finalizer pools carry no ``instance`` / ``data`` on a bulk path.
-    """
+    The list body / collection target, validation, and per-set scoping all live in the
+    transport-neutral path; here we only map its
+    [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult] to
+    a DRF ``Response`` and translate a ``ServiceError`` the same way the single-instance
+    flow does. The status and finalizer pools carry no ``instance`` / ``data`` on a bulk
+    path."""
     # Local import: ``dispatch_spec`` composes ``build_input_serializer_from_data``
     # from this module, so the dependency is one-directional only at runtime.
     from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
@@ -340,14 +343,15 @@ def dispatch_mutation_for_spec(
 ) -> Response:
     """End-to-end dispatch for one ``ServiceSpec`` call over HTTP.
 
-    Used by [`MutationFlowMixin`][rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin], the standalone mutation views, and
-    ``@service_action`` so the call shape lives in one place: resolve the view's
-    hook chains (``resolve_view_hooks``), dispatch through
-    [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec], render
-    (``render_mutation_response``). Only the first and last steps are HTTP's.
-    The target is passed in rather than resolved in the core, because HTTP's
-    ``get_object()`` chain has no off-HTTP meaning; a bulk spec takes the same
-    route with its own params assembly and renderer.
+    Used by
+    [`MutationFlowMixin`][rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin],
+    the standalone mutation views, and ``@service_action`` so the call shape lives in
+    one place: resolve the view's hook chains (``resolve_view_hooks``), dispatch through
+    [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec],
+    render (``render_mutation_response``). Only the first and last steps are HTTP's. The
+    target is passed in rather than resolved in the core, because HTTP's
+    ``get_object()`` chain has no off-HTTP meaning; a bulk spec takes the same route
+    with its own params assembly and renderer.
 
     ``partial`` is the transport-derived flag (PATCH → ``True``) and
     ``spec.partial`` overrides it when set. Being the single call-shape point,
@@ -432,19 +436,17 @@ def resolve_mutation_instance(
 ) -> Any:
     """Resolve the mutation target, or defer to the core.
 
-    Returns:
-        ``None`` for a **bulk** spec (``many=True`` or a
+    Returns: ``None`` for a **bulk** spec (``many=True`` or a
         ``collection_selector_spec``): there is no single instance, and the
-        ``get_object()`` lookup would 404 a body-only bulk endpoint.
-        ``UNSET`` when the spec carries an ``instance_selector_spec`` — *the
-        core resolves it*, with the right kwarg pool, error label, and
-        reserved-seed strip. Object permissions still run: the core fires
-        ``on_target_resolved`` against the resolved target and the HTTP caller
-        passes ``check_view_object_permissions``. Otherwise the view's
+        ``get_object()`` lookup would 404 a body-only bulk endpoint. ``UNSET`` when the
+        spec carries an ``instance_selector_spec`` — *the core resolves it*, with the
+        right kwarg pool, error label, and reserved-seed strip. Object permissions still
+        run: the core fires ``on_target_resolved`` against the resolved target and the
+        HTTP caller passes ``check_view_object_permissions``. Otherwise the view's
         ``get_object()`` chain (an ``action_specs["retrieve"]`` selector via
-        [`SelectorRetrieveMixin`][rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin], else DRF's ``queryset`` /
-        ``lookup_field`` lookup, else a user override) — the one branch that is
-        genuinely HTTP-only and so cannot move.
+        [`SelectorRetrieveMixin`][rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin],
+        else DRF's ``queryset`` / ``lookup_field`` lookup, else a user override) — the
+        one branch that is genuinely HTTP-only and so cannot move.
     """
     if spec.many or spec.collection_selector_spec is not None:
         return None

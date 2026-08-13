@@ -17,9 +17,9 @@ from rest_framework_services.views.spec_validation import validate_mutation_view
 class ServiceCreateView(MutationFlowMixin, GenericAPIView):
     """``POST`` endpoint that runs a service callable to create a resource.
 
-    Configure by setting ``spec`` to a [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]. The spec's
-    ``success_status`` defaults to ``201 Created`` when unset.
-    """
+    Configure by setting ``spec`` to a
+    [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]. The spec's
+    ``success_status`` defaults to ``201 Created`` when unset."""
 
     spec: ClassVar[ServiceSpec | None] = None
 

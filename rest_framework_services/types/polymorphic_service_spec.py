@@ -17,11 +17,11 @@ class PolymorphicServiceSpec:
     """A single action that accepts several mutually exclusive payload shapes.
 
     Each variant has its own input serializer and service, bundled as a full
-    [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] under a string key. A ``discriminator`` callable
-    inspects the request and returns the key; dispatch then proceeds through the
-    chosen spec exactly as a plain ``ServiceSpec`` would. Usable anywhere a
-    ``ServiceSpec`` is: an ``action_specs`` entry and the ``spec=`` of
-    ``@service_action``.
+    [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] under a
+    string key. A ``discriminator`` callable inspects the request and returns the key;
+    dispatch then proceeds through the chosen spec exactly as a plain ``ServiceSpec``
+    would. Usable anywhere a ``ServiceSpec`` is: an ``action_specs`` entry and the
+    ``spec=`` of ``@service_action``.
 
     ```python
     PolymorphicServiceSpec(
