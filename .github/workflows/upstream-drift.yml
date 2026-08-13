@@ -45,7 +45,7 @@ jobs:
       # One cell, not the matrix. The matrix answers "does this combination
       # work"; this answers "has an upstream moved under us", and the newest
       # supported Python is where a new release lands first.
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
 
@@ -68,7 +68,7 @@ jobs:
 
       - name: Open or update an issue on failure
         if: failure()
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const title = "upstream drift: the unpinned resolve is failing";
