@@ -1557,7 +1557,9 @@
 
     <div class="doc doc-contents first">
 
-        <p>Set :class:<code>ServiceAutoSchema</code> as the schema on every library view class.</p>
+        <p>Set
+<a class="autorefs autorefs-internal" title="ServiceAutoSchema" href="#rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema"><code>ServiceAutoSchema</code></a>
+as the schema on every library view class.</p>
 <p>Call once from <code>AppConfig.ready()</code> (or anywhere after Django apps are
 loaded) to make <code>drf-spectacular</code> see <code>ServiceSpec</code> request bodies,
 response bodies, success statuses, and 422 contracts on:</p>
@@ -1568,7 +1570,7 @@ response bodies, success statuses, and 422 contracts on:</p>
 </ul>
 <p>The function-local imports keep <code>drf-spectacular</code> an optional
 dependency: importing
-:mod:<code>rest_framework_services.openapi</code> does not require it, and only
+<code>rest_framework_services.openapi</code> does not require it, and only
 this call brings in the schema-generator code.</p>
 <p>User subclasses inherit <code>schema = ServiceAutoSchema()</code> automatically;
 classes that set <code>schema = ...</code> explicitly keep their own choice.</p>
@@ -1599,20 +1601,19 @@ classes that set <code>schema = ...</code> explicitly keep their own choice.</p>
 <p>On mutation surfaces (standalone <code>Service*View</code> classes, the
 <code>ServiceViewSet</code> action mixins, and <code>@service_action</code>):</p>
 <ul>
-<li>Request body from <code>spec.input_serializer</code>, a bare dataclass being
-  auto-wrapped in :class:<code>DataclassSerializer</code>, built with whatever partial
-  flag <code>spec.partial</code> resolves to so the documented body matches what
-  actually validates.</li>
-<li>Success response from <code>spec.output_selector_spec.output_serializer</code>, or
-  a no-content response when that is unset and the action's default status
-  is 204.</li>
-<li>A <code>422</code> documenting :class:<code>ServiceErrorSerializer</code>, as
-  <code>spec.document_service_error</code> gates it.</li>
+<li>Request body from <code>spec.input_serializer</code>, a bare dataclass being auto-wrapped
+  in <code>DataclassSerializer</code>, built with whatever partial flag <code>spec.partial</code>
+  resolves to so the documented body matches what actually validates.</li>
+<li>Success response from <code>spec.output_selector_spec.output_serializer</code>, or a
+  no-content response when that is unset and the action's default status is 204.</li>
+<li>A <code>422</code> documenting
+  <a class="autorefs autorefs-internal" title="ServiceErrorSerializer" href="#rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer"><code>ServiceErrorSerializer</code></a>,
+  as <code>spec.document_service_error</code> gates it.</li>
 </ul>
 <p>Read surfaces (<code>Selector*View</code> and the read-side action mixins) lean on
 the base <code>AutoSchema</code> for their body: <code>output_serializer</code> is already
 wired through <code>get_serializer_class()</code>, which is what drf-spectacular
-reads natively. The one addition is :meth:<code>_get_filter_parameters</code>,
+reads natively. The one addition is <code>_get_filter_parameters</code>,
 contributing the query parameters for a <code>SelectorSpec.filter_set</code>, so
 moving a FilterSet from a view-level <code>filterset_class</code> +
 <code>DjangoFilterBackend</code> onto <code>spec.filter_set</code> leaves the generated
@@ -1668,11 +1669,11 @@ as it does for a view-level FilterSet.</p>
 
 
         <p>Single-field <code>detail</code> serializer that mirrors <code>_ServiceAPIException</code>.</p>
-<p>Used by :class:<code>ServiceAutoSchema</code> to attach a <code>422</code> response to every
-spec-driven mutation in the generated OpenAPI document. It is <em>only</em> used
-for schema generation; runtime 422 bodies are produced by DRF's exception
-handler from
-:class:<code>~rest_framework_services.views.mutation.map_service_error._ServiceAPIException</code>.</p>
+<p>Used by
+<a class="autorefs autorefs-internal" title="ServiceAutoSchema" href="#rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema"><code>ServiceAutoSchema</code></a>
+to attach a <code>422</code> response to every spec-driven mutation in the generated OpenAPI
+document. It is <em>only</em> used for schema generation; runtime 422 bodies are produced
+by DRF's exception handler from <code>_ServiceAPIException</code>.</p>
 
 
 

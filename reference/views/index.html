@@ -2403,7 +2403,13 @@
 
 
         <p><code>POST</code> endpoint that runs a service callable to create a resource.</p>
-<p>Configure by setting <code>spec</code> to a :class:<code>ServiceSpec</code>. The spec's
+<p>Configure by setting <code>spec</code> to a
+<a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a>. The spec's
 <code>success_status</code> defaults to <code>201 Created</code> when unset.</p>
 
 
@@ -2457,10 +2463,16 @@
 when set — no <code>queryset</code> / <code>lookup_field</code> required on the subclass —
 falling back to DRF's <code>get_object()</code> (set <code>queryset</code> and
 <code>lookup_field</code>, or override <code>get_object()</code>).</p>
-<p>Configure by setting <code>spec</code> to a :class:<code>ServiceSpec</code>. The spec's
-<code>success_status</code> defaults to <code>200 OK</code> when unset. Both verbs share
-the one spec, so a forced <code>spec.partial</code> applies to PUT <em>and</em> PATCH —
-set <code>http_method_names = ["patch"]</code> for a PATCH-only endpoint.</p>
+<p>Configure by setting <code>spec</code> to a
+<a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a>. The spec's
+<code>success_status</code> defaults to <code>200 OK</code> when unset. Both verbs share the one spec,
+so a forced <code>spec.partial</code> applies to PUT <em>and</em> PATCH — set <code>http_method_names =
+["patch"]</code> for a PATCH-only endpoint.</p>
 
 
 
@@ -2512,11 +2524,17 @@ set <code>http_method_names = ["patch"]</code> for a PATCH-only endpoint.</p>
 <p>The instance to delete is resolved via <code>spec.instance_selector_spec</code>
 when set — no <code>queryset</code> / <code>lookup_field</code> required on the subclass —
 falling back to DRF's <code>get_object()</code>.</p>
-<p>Configure by setting <code>spec</code> to a :class:<code>ServiceSpec</code>. The spec's
-<code>input_serializer</code> is optional (for delete-with-payload patterns
-such as a deletion reason); <code>success_status</code> defaults to
-<code>204 No Content</code>; set <code>output_selector_spec</code> with an
-<code>output_serializer</code> on the spec to render a body instead.</p>
+<p>Configure by setting <code>spec</code> to a
+<a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a>. The spec's
+<code>input_serializer</code> is optional (for delete-with-payload patterns such as a
+deletion reason); <code>success_status</code> defaults to <code>204 No Content</code>; set
+<code>output_selector_spec</code> with an <code>output_serializer</code> on the spec to render a body
+instead.</p>
 
 
 
@@ -2566,8 +2584,14 @@ such as a deletion reason); <code>success_status</code> defaults to
 
 
         <p><code>GET</code> endpoint that delegates to a selector or to <code>get_queryset()</code>.</p>
-<p>Set <code>spec</code> to a :class:<code>SelectorSpec</code> to configure the selector and/or
-the output serializer. Both fields are optional:</p>
+<p>Set <code>spec</code> to a
+<a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> to
+configure the selector and/or the output serializer. Both fields are optional:</p>
 <ul>
 <li><code>spec.selector</code> overrides <code>get_queryset()</code>; <code>None</code> falls back to
   the inherited <code>queryset</code> attribute.</li>
@@ -2645,8 +2669,14 @@ rendering — is the standard DRF <code>ListModelMixin</code>.</p>
 
 
         <p><code>GET</code> endpoint that returns a single object.</p>
-<p>Set <code>spec</code> to a :class:<code>SelectorSpec</code> to configure the selector and/or
-the output serializer. Both fields are optional:</p>
+<p>Set <code>spec</code> to a
+<a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> to
+configure the selector and/or the output serializer. Both fields are optional:</p>
 <ul>
 <li><code>spec.selector</code> overrides <code>get_object()</code>; <code>None</code> falls back to
   <code>self.get_object()</code> — standard DRF lookup using <code>queryset</code> and
@@ -2705,7 +2735,7 @@ the output serializer. Both fields are optional:</p>
 
 
         <p>Provides <code>_run_mutation</code> for service-backed views and viewset mixins.</p>
-<p>The flow itself lives in :func:<code>dispatch_mutation_for_spec</code>, so
+<p>The flow itself lives in <code>dispatch_mutation_for_spec</code>, so
 <code>@service_action</code> can reach it without being a class; this mixin is the OO
 entry point that the per-action mixins (<code>ServiceCreateMixin</code> and friends)
 and the standalone single-purpose views compose, calling
@@ -2715,14 +2745,14 @@ per-spec and merged with <code>dict.update</code> so the more specific hook wins
 overlapping keys:</p>
 <ul>
 <li>extra service kwargs: <code>get_service_kwargs</code> →
-  <code>get_&lt;action&gt;_service_kwargs</code> → :attr:<code>ServiceSpec.kwargs</code>.</li>
+  <code>get_&lt;action&gt;_service_kwargs</code> → <code>ServiceSpec.kwargs</code>.</li>
 <li>the <em>serializer's</em> input dict, merged on top of <code>request.data</code> before
   validation: <code>get_input_data</code> → <code>get_&lt;action&gt;_input_data</code> →
-  :attr:<code>ServiceSpec.input_data</code>.</li>
+  <code>ServiceSpec.input_data</code>.</li>
 <li>the input serializer's <code>context=</code>: <code>get_serializer_context</code> (DRF's
   own) → <code>get_input_serializer_context</code> →
   <code>get_&lt;action&gt;_input_serializer_context</code> →
-  :attr:<code>ServiceSpec.input_serializer_context</code>.</li>
+  <code>ServiceSpec.input_serializer_context</code>.</li>
 <li>the output serializer's <code>context=</code>: the same chain with <code>output</code> in
   place of <code>input</code>, applied during response rendering.</li>
 </ul>
@@ -2803,7 +2833,7 @@ overlapping keys:</p>
     <div class="doc doc-contents ">
 
         <p>Hook for the <code>context=</code> dict passed to the <em>input</em> serializer.</p>
-<p>Defaults to :meth:<code>get_serializer_context</code>, so overriding the
+<p>Defaults to <code>get_serializer_context</code>, so overriding the
 DRF-standard hook flows into input validation automatically; override
 here for keys visible only during input validation.</p>
 
@@ -2826,7 +2856,7 @@ here for keys visible only during input validation.</p>
     <div class="doc doc-contents ">
 
         <p>Hook for the <code>context=</code> dict passed to the <em>output</em> serializer.</p>
-<p>Defaults to :meth:<code>get_serializer_context</code>, so overriding the
+<p>Defaults to <code>get_serializer_context</code>, so overriding the
 DRF-standard hook flows into response rendering automatically; override
 here for keys visible only during response rendering.</p>
 
@@ -2885,12 +2915,13 @@ class-level ones, and <code>None</code> falls through.</p>
 
 
         <p>Minimal structural shape of a view as exposed to a kwargs provider.</p>
-<p>Per-spec kwargs providers (<code>ServiceSpec.kwargs</code> / <code>SelectorSpec.kwargs</code>)
-receive the calling view typed as :class:<code>ServiceView</code>. The Protocol pins
-only the attributes a provider can rely on across both the standalone
+<p>Per-spec kwargs providers (<code>ServiceSpec.kwargs</code> / <code>SelectorSpec.kwargs</code>) receive
+the calling view typed as
+<a class="autorefs autorefs-internal" title="ServiceView" href="#rest_framework_services.types.service_view.ServiceView"><code>ServiceView</code></a>. The
+Protocol pins only the attributes a provider can rely on across both the standalone
 <code>Service*View</code> classes and the viewset mixins:</p>
 <ul>
-<li><code>request</code> — the current DRF :class:<code>~rest_framework.request.Request</code>.</li>
+<li><code>request</code> — the current DRF <code>Request</code>.</li>
 <li><code>kwargs</code> — the URL kwargs dict resolved by the URLconf
   (e.g. <code>{"pk": 7}</code>). Empty dict on routes without captured groups.</li>
 <li><code>action</code> — the viewset action name (<code>"create"</code>, <code>"list"</code>, etc.)
@@ -2948,17 +2979,19 @@ into typed kwargs for the service, not reach for view internals.</p>
 
 
 
-        <p>A concrete :class:<code>ServiceView</code> for dispatching a spec outside an HTTP request.</p>
+        <p>A concrete
+<a class="autorefs autorefs-internal" title="ServiceView" href="#rest_framework_services.types.service_view.ServiceView"><code>ServiceView</code></a> for
+dispatching a spec outside an HTTP request.</p>
 <p>Spec <code>kwargs</code> / <code>extend_queryset</code> / context providers are typed against
-:class:<code>~rest_framework_services.types.service_view.ServiceView</code> — the
+<a class="autorefs autorefs-internal" title="ServiceView" href="#rest_framework_services.types.service_view.ServiceView"><code>ServiceView</code></a> — the
 structural <code>request</code> / <code>kwargs</code> / <code>action</code> surface. When a spec is
 dispatched off the HTTP path (a Pydantic-AI toolset, the MCP server, a
 management command) there is no DRF view, so this frozen value stands in:</p>
 <ul>
-<li><code>request</code> — the synthetic DRF :class:<code>~rest_framework.request.Request</code>
-  built by :func:<code>~rest_framework_services.dispatch.build_offline_context</code>.</li>
-<li><code>action</code> — an optional label identifying the operation; <code>None</code> when the
-  caller has no meaningful action name.</li>
+<li><code>request</code> — the synthetic DRF <code>Request</code> built by
+  <a class="autorefs autorefs-internal" title="build_offline_context" href="../dispatch/#rest_framework_services.dispatch.build_offline_context.build_offline_context"><code>build_offline_context</code></a>.</li>
+<li><code>action</code> — an optional label identifying the operation; <code>None</code> when the caller
+  has no meaningful action name.</li>
 <li><code>kwargs</code> — the URL-kwargs equivalent (e.g. parent ids), empty by default.</li>
 </ul>
 
@@ -3073,8 +3106,8 @@ through the framework's provider convention, receiving only the subset of
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The spec's own :attr:<code>ServiceSpec.kwargs</code> /
-:attr:<code>SelectorSpec.kwargs</code> provider — the most specific layer.</p>
+                <p>The spec's own <code>ServiceSpec.kwargs</code> /
+<code>SelectorSpec.kwargs</code> provider — the most specific layer.</p>
               </div>
             </td>
             <td>
@@ -3146,8 +3179,8 @@ views) or an absent method skips the layer.</p>
     <div class="doc doc-contents ">
 
         <p>Collect the extras to merge into the serializer input dict.</p>
-<p>:func:<code>resolve_extra_kwargs</code>'s layering — <code>catch_all_hook</code> view method,
-then <code>action_hook</code>, then the spec's :attr:<code>ServiceSpec.input_data</code>
+<p><code>resolve_extra_kwargs</code>'s layering — <code>catch_all_hook</code> view method,
+then <code>action_hook</code>, then the spec's <code>ServiceSpec.input_data</code>
 provider — applied to the <code>input_serializer</code>-bound data rather than the
 service-call pool.</p>
 
@@ -3212,7 +3245,7 @@ provider by keyword only when it declares the name.</p>
     <div class="doc doc-contents ">
 
         <p>Layer the directional, action, and spec context hooks onto <code>base</code>.</p>
-<p>:func:<code>resolve_serializer_context</code>'s precedence rules with layer 1 handed in
+<p><code>resolve_serializer_context</code>'s precedence rules with layer 1 handed in
 rather than read from <code>view.get_serializer_context()</code> — for overrides of
 that method which need to extend <code>super()</code>'s result without recursing. See
 there for <code>action_hook</code> / <code>spec_provider</code> / <code>extras</code>.</p>
@@ -3256,7 +3289,7 @@ there for <code>action_hook</code> / <code>spec_provider</code> / <code>extras</
               <div class="doc-md-description">
                 <p>Directional view hook name; <code>None</code> skips the layer.
 That is what <code>_ActionSpecsMixin.get_serializer_context</code> needs:
-:class:<code>MutationFlowMixin</code>'s default
+<a class="autorefs autorefs-internal" title="MutationFlowMixin" href="#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin"><code>MutationFlowMixin</code></a>'s default
 <code>get_output_serializer_context</code> would recurse back into
 <code>get_serializer_context</code>.</p>
               </div>
@@ -3451,9 +3484,9 @@ Otherwise only parameters present in the signature are forwarded.</p>
 <p>Most-specific wins and there is <strong>no merging</strong> — a reporter is a single sink,
 not a set of keys, so layering two of them would mean silently fanning out;
 a view that wants that composes them itself with
-:func:<code>~rest_framework_services.combine_progress</code>. <code>None</code> when the view
+<code>combine_progress</code>. <code>None</code> when the view
 offers neither, which leaves the seed as
-:func:<code>~rest_framework_services.null_progress</code>.</p>
+<a class="autorefs autorefs-internal" title="null_progress" href="../dispatch/#rest_framework_services.dispatch.null_progress.null_progress"><code>null_progress</code></a>.</p>
 
 
     </div>
@@ -3475,12 +3508,23 @@ offers neither, which leaves the seed as
 
     <div class="doc doc-contents ">
 
-        <p>Resolve the calling view's hook chains into a :class:<code>ViewHooks</code> carrier.</p>
-<p><strong>View layers only</strong> — every <code>spec_*</code> argument below is deliberately
-<code>None</code>. The chains run <code>view.get_&lt;x&gt;</code> → <code>view.get_&lt;action&gt;_&lt;x&gt;</code> →
-<code>spec.&lt;x&gt;</code>, and <code>dispatch_spec</code> owns that last layer; resolving the spec
-provider here too would invoke it <strong>twice</strong>, which is not safe for a provider
-that queries the database. See :class:<code>ViewHooks</code>.</p>
+        <p>Resolve the calling view's hook chains into a
+<a class="autorefs autorefs-internal" title="ViewHooks
+
+
+  
+      dataclass
+  " href="../dispatch/#rest_framework_services.types.view_hooks.ViewHooks"><code>ViewHooks</code></a> carrier.</p>
+<p><strong>View layers only</strong> — every <code>spec_*</code> argument below is deliberately <code>None</code>. The
+chains run <code>view.get_&lt;x&gt;</code> → <code>view.get_&lt;action&gt;_&lt;x&gt;</code> → <code>spec.&lt;x&gt;</code>, and
+<code>dispatch_spec</code> owns that last layer; resolving the spec provider here too would
+invoke it <strong>twice</strong>, which is not safe for a provider that queries the database. See
+<a class="autorefs autorefs-internal" title="ViewHooks
+
+
+  
+      dataclass
+  " href="../dispatch/#rest_framework_services.types.view_hooks.ViewHooks"><code>ViewHooks</code></a>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3561,7 +3605,7 @@ bulk path), offered to the <code>input_data</code> providers that declare it.</p
     <div class="doc doc-contents first">
 
         <p>Fail-fast validation of service / selector signatures at view setup time.</p>
-<p>:func:<code>resolve_callable_kwargs</code> forwards pool∩signature, so a required parameter
+<p><code>resolve_callable_kwargs</code> forwards pool∩signature, so a required parameter
 the framework cannot supply is <em>omitted</em> rather than rejected and the call dies
 as a bare <code>TypeError</code> deep in dispatch, at the first request. These helpers
 surface the same misconfiguration at <code>as_view()</code> time with a precise message.</p>
@@ -3611,7 +3655,7 @@ surface the same misconfiguration at <code>as_view()</code> time with a precise 
 
     <div class="doc doc-contents ">
 
-        <p>Raise :exc:<code>ImproperlyConfigured</code> on a misconfigured service / selector.</p>
+        <p>Raise <code>ImproperlyConfigured</code> on a misconfigured service / selector.</p>
 <p><code>has_data</code> / <code>has_instance</code> / <code>has_result</code> say whether those
 framework-injected keys exist at <em>this</em> call site; requiring one that does
 not always fails, since no user override can supply it. Every other required
@@ -3692,7 +3736,14 @@ only: the selector retrieve path overrides <code>get_object()</code> and never c
 
     <div class="doc doc-contents ">
 
-        <p>Validate a :class:<code>ServiceSpec</code>'s <code>service</code> and nested selector specs.</p>
+        <p>Validate a
+<a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a>'s
+<code>service</code> and nested selector specs.</p>
 <p>Shared between standalone mutation views, viewset mixins, and
 <code>@service_action</code>. <code>has_instance</code> is fixed by the action context
 (<code>False</code> for create, <code>True</code> for update / destroy / detail actions).</p>
@@ -3721,7 +3772,14 @@ only: the selector retrieve path overrides <code>get_object()</code> and never c
 
     <div class="doc doc-contents ">
 
-        <p>Validate every variant of a :class:<code>PolymorphicServiceSpec</code> + its strategy.</p>
+        <p>Validate every variant of a
+<a class="autorefs autorefs-internal" title="PolymorphicServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec"><code>PolymorphicServiceSpec</code></a>
++ its strategy.</p>
 <p>Each variant is validated with the same <code>has_instance</code> /
 <code>permissive_extras</code> as a plain entry would be.</p>
 
@@ -3748,12 +3806,20 @@ only: the selector retrieve path overrides <code>get_object()</code> and never c
 
     <div class="doc doc-contents ">
 
-        <p>Validate a :class:<code>SelectorSpec</code>'s <code>selector</code>.</p>
-<p>Selectors are always permissive on extras (URL kwargs and
-<code>get_selector_kwargs</code> are dynamic), so the only fatal misuses are
-framework-only keys absent from the selector pool. <code>expected_kind</code> catches
-a spec mounted on the wrong view — a <code>LIST</code> spec on
-:class:<code>SelectorRetrieveView</code> would otherwise misbehave only at runtime.</p>
+        <p>Validate a
+<a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a>'s
+<code>selector</code>.</p>
+<p>Selectors are always permissive on extras (URL kwargs and <code>get_selector_kwargs</code>
+are dynamic), so the only fatal misuses are framework-only keys absent from the
+selector pool. <code>expected_kind</code> catches a spec mounted on the wrong view — a
+<code>LIST</code> spec on
+<a class="autorefs autorefs-internal" title="SelectorRetrieveView" href="#rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView"><code>SelectorRetrieveView</code></a>
+would otherwise misbehave only at runtime.</p>
 
 
     </div>
@@ -3796,9 +3862,11 @@ placeholder so <code>as_view()</code> itself doesn't trip.</p>
     <div class="doc doc-contents ">
 
         <p>Validate <code>view_cls.spec</code> on a standalone selector view.</p>
-<p>No-op when <code>spec</code> is unset — that means "use vanilla DRF". <code>expected_kind</code>
-is the kind the view is shaped for (<code>LIST</code> for :class:<code>SelectorListView</code>,
-<code>RETRIEVE</code> for :class:<code>SelectorRetrieveView</code>).</p>
+<p>No-op when <code>spec</code> is unset — that means "use vanilla DRF". <code>expected_kind</code> is
+the kind the view is shaped for (<code>LIST</code> for
+<a class="autorefs autorefs-internal" title="SelectorListView" href="#rest_framework_services.views.query.selector_list_view.SelectorListView"><code>SelectorListView</code></a>,
+<code>RETRIEVE</code> for
+<a class="autorefs autorefs-internal" title="SelectorRetrieveView" href="#rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView"><code>SelectorRetrieveView</code></a>).</p>
 
 
     </div>

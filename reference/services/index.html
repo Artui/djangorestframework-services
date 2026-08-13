@@ -2301,7 +2301,8 @@ one minor version of one type checker (<code>ty</code> 0.0.32) and is not portab
 <p>Receives the resolved <code>instance</code> plus the validated <code>data</code>. Returning
 <code>None</code> instructs the framework to render the in-memory <code>instance</code>
 (mirroring DRF's <code>UpdateAPIView</code> shape).</p>
-<p>See :class:<code>CreateService</code> for the extras-typing notes.</p>
+<p>See <a class="autorefs autorefs-internal" title="CreateService" href="#rest_framework_services.services.create_service.CreateService"><code>CreateService</code></a>
+for the extras-typing notes.</p>
 
 
 
@@ -2356,10 +2357,11 @@ if you need a response body, return a value and configure
 (and optionally a re-fetch <code>selector</code>).</p>
 <p>For <em>delete with payload</em> — when the spec carries an <code>input_serializer</code>
 — bind <code>InputT</code> to your input dataclass and declare <code>data</code> on the
-service. <code>data</code> is optional in the Protocol (default :data:<code>Ellipsis</code>)
+service. <code>data</code> is optional in the Protocol (default <code>Ellipsis</code>)
 so services that don't read a body can still match the shape by binding
-<code>InputT</code> to :class:<code>~rest_framework_services.types.no_input.NoInput</code>.</p>
-<p>See :class:<code>CreateService</code> for the extras-typing notes.</p>
+<code>InputT</code> to <a class="autorefs autorefs-internal" title="NoInput" href="../types/#rest_framework_services.types.no_input.NoInput"><code>NoInput</code></a>.</p>
+<p>See <a class="autorefs autorefs-internal" title="CreateService" href="#rest_framework_services.services.create_service.CreateService"><code>CreateService</code></a>
+for the extras-typing notes.</p>
 
 
 
@@ -2414,36 +2416,42 @@ so services that don't read a body can still match the shape by binding
     <div class="doc doc-contents first">
 
         <p>Return a service callable that builds <code>model</code> from validated input.</p>
-<p>Equivalent to writing the canonical glue stub by hand::</p>
+<p>Equivalent to writing the canonical glue stub by hand:</p>
 <div class="language-text highlight"><pre><span></span><code>def create_author(*, data: AuthorIn, **_: Any) -&gt; Author:
     return create_from_input(Author, data).instance
 </code></pre></div>
 <p><code>field_map</code> and <code>exclude_fields</code> are forwarded to
-:func:<code>~rest_framework_services.mutations.create_from_input</code>.</p>
+<a class="autorefs autorefs-internal" title="create_from_input" href="../mutations/#rest_framework_services.mutations.create_from_input.create_from_input"><code>create_from_input</code></a>.</p>
 <p><code>m2m</code> accepts either a static mapping (passed straight through) or a
 callable that receives the validated <code>data</code> and returns the mapping —
 the common case where M2M values live on the input dataclass / dict
-itself::</p>
+itself:</p>
 <div class="language-text highlight"><pre><span></span><code>create_model(
     Post,
     m2m=lambda data: {&quot;tags&quot;: data.tags},
 )
 </code></pre></div>
 <p><code>relations</code> (and its reverse-FK alias <code>children</code>) is forwarded to
-:func:<code>~rest_framework_services.mutations.create_from_input</code> to write
-nested relations declaratively (no hand-written service)::</p>
+<a class="autorefs autorefs-internal" title="create_from_input" href="../mutations/#rest_framework_services.mutations.create_from_input.create_from_input"><code>create_from_input</code></a> to write
+nested relations declaratively (no hand-written service):</p>
 <div class="language-text highlight"><pre><span></span><code>create_model(
     Author,
     relations={&quot;books&quot;: ChildSpec(model=Book, fk=&quot;author&quot;)},
 )
 </code></pre></div>
 <p>The returned closure accepts <code>**kwargs</code> so the framework's kwargs pool
-(<code>request</code>, <code>user</code>, URL kwargs, <code>ServiceSpec.kwargs</code> returns) is
-absorbed without the service caring — matching the unified
-:class:<code>~rest_framework_services.services.CreateService</code> Protocol's
-default <code>ExtraT</code> (open extras). That same pool is handed on as the
+(<code>request</code>, <code>user</code>, URL kwargs, <code>ServiceSpec.kwargs</code> returns) is absorbed
+without the service caring — matching the unified
+<a class="autorefs autorefs-internal" title="CreateService" href="#rest_framework_services.services.create_service.CreateService"><code>CreateService</code></a>
+Protocol's default <code>ExtraT</code> (open extras). That same pool is handed on as the
 helper's <code>context=</code>, so a per-child service declared on a
-:class:<code>~rest_framework_services.ChildSpec</code> can see who is calling.</p>
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a> can see who is
+calling.</p>
 
 
     </div>
@@ -2474,23 +2482,31 @@ helper's <code>context=</code>, so a per-child service declared on a
     <div class="doc doc-contents first">
 
         <p>Return a service callable that updates the resolved instance in place.</p>
-<p>Equivalent to::</p>
+<p>Equivalent to:</p>
 <div class="language-text highlight"><pre><span></span><code>def update_author(*, instance: Author, data: AuthorIn, **_: Any) -&gt; Author:
     return update_from_input(instance, data).instance
 </code></pre></div>
 <p><code>model</code> is accepted for symmetry with
-:func:<code>create_model</code> / :func:<code>delete_model</code> and to bind <code>ModelT</code> for
-the type checker; the instance itself comes from the view's
-<code>get_object()</code>. <code>field_map</code>, <code>exclude_fields</code>, <code>m2m</code>,
-<code>update_fields</code>, and <code>children</code> are forwarded to
-:func:<code>~rest_framework_services.mutations.update_from_input</code>. <code>m2m</code>
-accepts either a static mapping or a callable receiving the validated
-<code>data</code> (see :func:<code>create_model</code> for the common shape); <code>children</code>
-reconciles reverse-FK collections from <code>data[relation]</code> per its
-:class:<code>~rest_framework_services.ChildSpec</code>.</p>
-<p>The rest of the framework's kwargs pool is handed on as the helper's
-<code>context=</code>, so a per-child service declared on a <code>ChildSpec</code> can see
-who is calling (see :func:<code>create_model</code>).</p>
+<a class="autorefs autorefs-internal" title="create_model" href="#rest_framework_services.services.create_model.create_model"><code>create_model</code></a> /
+<a class="autorefs autorefs-internal" title="delete_model" href="#rest_framework_services.services.delete_model.delete_model"><code>delete_model</code></a> and to
+bind <code>ModelT</code> for the type checker; the instance itself comes from the view's
+<code>get_object()</code>. <code>field_map</code>, <code>exclude_fields</code>, <code>m2m</code>, <code>update_fields</code>, and
+<code>children</code> are forwarded to
+<a class="autorefs autorefs-internal" title="update_from_input" href="../mutations/#rest_framework_services.mutations.update_from_input.update_from_input"><code>update_from_input</code></a>.
+<code>m2m</code> accepts either a static mapping or a callable receiving the validated
+<code>data</code> (see
+<a class="autorefs autorefs-internal" title="create_model" href="#rest_framework_services.services.create_model.create_model"><code>create_model</code></a> for the
+common shape); <code>children</code> reconciles reverse-FK collections from
+<code>data[relation]</code> per its
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a>.</p>
+<p>The rest of the framework's kwargs pool is handed on as the helper's <code>context=</code>,
+so a per-child service declared on a <code>ChildSpec</code> can see who is calling (see
+<a class="autorefs autorefs-internal" title="create_model" href="#rest_framework_services.services.create_model.create_model"><code>create_model</code></a>).</p>
 
 
     </div>
@@ -2518,14 +2534,14 @@ who is calling (see :func:<code>create_model</code>).</p>
     <div class="doc doc-contents first">
 
         <p>Return a service callable that deletes the resolved instance.</p>
-<p>Equivalent to::</p>
+<p>Equivalent to:</p>
 <div class="language-text highlight"><pre><span></span><code>def delete_author(*, instance: Author, **_: Any) -&gt; None:
     instance.delete()
 </code></pre></div>
 <p><code>model</code> is accepted for symmetry / type binding; the instance comes
 from the view's <code>get_object()</code>.</p>
 <p><code>soft_delete</code> is an optional hook called <em>instead of</em>
-<code>instance.delete()</code> — covers the common archive case::</p>
+<code>instance.delete()</code> — covers the common archive case:</p>
 <div class="language-text highlight"><pre><span></span><code>def _archive(instance: Author) -&gt; None:
     instance.is_archived = True
     instance.save(update_fields=[&quot;is_archived&quot;])
@@ -2544,10 +2560,9 @@ and the rest deleted; a many-to-many loses only its membership, since the
 targets are shared; a forward relation is left untouched, because the
 column holding it goes with the parent. The specs' write-only fields
 (<code>match_key</code> / <code>mode</code> / <code>field_map</code> / <code>m2m</code>) are ignored here.</p>
-<p>The rest of the framework's kwargs pool is handed on as
-:func:<code>~rest_framework_services.mutations.utils.delete_relations</code>'s
-<code>context=</code>, so a per-row service declared on a spec can see who is
-calling (see :func:<code>create_model</code>).</p>
+<p>The rest of the framework's kwargs pool is handed on as <code>delete_relations</code>'s
+<code>context=</code>, so a per-row service declared on a spec can see who is calling (see
+<a class="autorefs autorefs-internal" title="create_model" href="#rest_framework_services.services.create_model.create_model"><code>create_model</code></a>).</p>
 
 
     </div>
@@ -2577,14 +2592,18 @@ calling (see :func:<code>create_model</code>).</p>
     <div class="doc doc-contents first">
 
         <p>Async sibling of
-:func:<code>~rest_framework_services.services.create_model</code>.</p>
+<a class="autorefs autorefs-internal" title="create_model" href="#rest_framework_services.services.create_model.create_model"><code>create_model</code></a>.</p>
 <p>Returns an <code>async def</code> closure that wraps
-:func:<code>~rest_framework_services.mutations.acreate_from_input</code>. The
-framework's :func:<code>~rest_framework_services.is_async.is_async</code>
-detection routes it through the async dispatch path automatically.
-<code>children</code> is forwarded for declarative reverse-FK writes, and the rest
-of the kwargs pool as <code>context=</code> (see
-:func:<code>~rest_framework_services.services.create_model</code>).</p>
+<a class="autorefs autorefs-internal" title="acreate_from_input
+
+
+  
+      async
+  " href="../mutations/#rest_framework_services.mutations.acreate_from_input.acreate_from_input"><code>acreate_from_input</code></a>.
+The framework's <a class="autorefs autorefs-internal" title="is_async" href="../dispatch/#rest_framework_services.is_async.is_async"><code>is_async</code></a> detection
+routes it through the async dispatch path automatically. <code>children</code> is forwarded
+for declarative reverse-FK writes, and the rest of the kwargs pool as <code>context=</code>
+(see <a class="autorefs autorefs-internal" title="create_model" href="#rest_framework_services.services.create_model.create_model"><code>create_model</code></a>).</p>
 
 
     </div>
@@ -2615,7 +2634,7 @@ of the kwargs pool as <code>context=</code> (see
     <div class="doc doc-contents first">
 
         <p>Async sibling of
-:func:<code>~rest_framework_services.services.update_model</code>.</p>
+<a class="autorefs autorefs-internal" title="update_model" href="#rest_framework_services.services.update_model.update_model"><code>update_model</code></a>.</p>
 
 
     </div>
@@ -2643,14 +2662,13 @@ of the kwargs pool as <code>context=</code> (see
     <div class="doc doc-contents first">
 
         <p>Async sibling of
-:func:<code>~rest_framework_services.services.delete_model</code>.</p>
-<p>Calls <code>await instance.adelete()</code> by default (Django 4.1+; the
-package floor is 4.2, so this is always available). <code>soft_delete</code>
-is an optional <code>async</code> hook called instead of <code>adelete</code>.
-<code>relations</code> (and its reverse-FK alias <code>children</code>) removes what the
-parent owns first, by the one rule
-:func:<code>~rest_framework_services.services.delete_model</code> states, with the
-rest of the kwargs pool handed on as <code>context=</code>.</p>
+<a class="autorefs autorefs-internal" title="delete_model" href="#rest_framework_services.services.delete_model.delete_model"><code>delete_model</code></a>.</p>
+<p>Calls <code>await instance.adelete()</code> by default (Django 4.1+; the package floor is
+4.2, so this is always available). <code>soft_delete</code> is an optional <code>async</code> hook
+called instead of <code>adelete</code>. <code>relations</code> (and its reverse-FK alias <code>children</code>)
+removes what the parent owns first, by the one rule
+<a class="autorefs autorefs-internal" title="delete_model" href="#rest_framework_services.services.delete_model.delete_model"><code>delete_model</code></a> states,
+with the rest of the kwargs pool handed on as <code>context=</code>.</p>
 
 
     </div>
@@ -2674,15 +2692,16 @@ rest of the kwargs pool handed on as <code>context=</code>.</p>
     <div class="doc doc-contents first">
 
         <p>Return a service that deletes the resolved <code>collection</code> (bulk).</p>
-<p>Pairs with :attr:<code>ServiceSpec.collection_selector_spec</code>, which seeds the
-target set into the pool as <code>collection</code>. Equivalent to::</p>
+<p>Pairs with <code>ServiceSpec.collection_selector_spec</code>, which seeds the
+target set into the pool as <code>collection</code>. Equivalent to:</p>
 <div class="language-text highlight"><pre><span></span><code>def delete_books(*, collection, **_: Any) -&gt; None:
     collection.delete()
 </code></pre></div>
-<p>The default calls <code>collection.delete()</code> — a single queryset bulk delete.
-An <strong>empty</strong> collection is a no-op (deletes nothing), so the action is
-idempotent. <code>model</code> is accepted for symmetry / type binding (like
-:func:<code>delete_model</code>); the set itself comes from the spec.</p>
+<p>The default calls <code>collection.delete()</code> — a single queryset bulk delete. An
+<strong>empty</strong> collection is a no-op (deletes nothing), so the action is idempotent.
+<code>model</code> is accepted for symmetry / type binding (like
+<a class="autorefs autorefs-internal" title="delete_model" href="#rest_framework_services.services.delete_model.delete_model"><code>delete_model</code></a>); the
+set itself comes from the spec.</p>
 <p><code>soft_delete</code> is an optional hook called with the <code>collection</code> <em>instead
 of</em> <code>delete()</code> — e.g. <code>lambda qs: qs.update(is_archived=True)</code>.</p>
 
@@ -2708,7 +2727,7 @@ of</em> <code>delete()</code> — e.g. <code>lambda qs: qs.update(is_archived=Tr
     <div class="doc doc-contents first">
 
         <p>Async sibling of
-:func:<code>~rest_framework_services.services.delete_collection</code>.</p>
+<a class="autorefs autorefs-internal" title="delete_collection" href="#rest_framework_services.services.delete_collection.delete_collection"><code>delete_collection</code></a>.</p>
 <p>Calls <code>await collection.adelete()</code> by default (Django 4.1+; the package
 floor is 4.2). <code>soft_delete</code> is an optional <code>async</code> hook called with the
 <code>collection</code> instead.</p>
@@ -2733,7 +2752,7 @@ floor is 4.2). <code>soft_delete</code> is an optional <code>async</code> hook c
     <div class="doc doc-contents first">
 
         <p>Identity decorator: assert <code>fn</code> structurally matches <code>proto</code>.</p>
-<p><code>proto</code> is a parameterised service or selector :class:<code>~typing.Protocol</code>::</p>
+<p><code>proto</code> is a parameterised service or selector <code>Protocol</code>:</p>
 <div class="language-text highlight"><pre><span></span><code>@implements(CreateService[AuthorIn, Author])
 def create_author(
     *,
@@ -2742,10 +2761,11 @@ def create_author(
 ) -&gt; Author: ...
 </code></pre></div>
 <p>Strict-typed extras stay on your function: declare a <code>TypedDict</code> with
-<code>NotRequired</code> keys (so the function still conforms to a Protocol whose
-caller may not supply those keys) and annotate
-<code>**extras: Unpack[YourKw]</code>. The Protocol itself does not carry an
-extras-shape parameter — see :class:<code>CreateService</code> for the rationale.</p>
+<code>NotRequired</code> keys (so the function still conforms to a Protocol whose caller may
+not supply those keys) and annotate <code>**extras: Unpack[YourKw]</code>. The Protocol
+itself does not carry an extras-shape parameter — see
+<a class="autorefs autorefs-internal" title="CreateService" href="#rest_framework_services.services.create_service.CreateService"><code>CreateService</code></a> for
+the rationale.</p>
 <p>Drift between the decorated function and <code>proto</code> is reported at the
 decorator line by <code>ty</code>. mypy refuses <code>type[Protocol]</code> arguments (the
 <code>type-abstract</code> rule); mypy users either silence that with
@@ -2880,7 +2900,7 @@ construction.</p>
             <td>
               <div class="doc-md-description">
                 <p>Translate a raised
-:class:<code>~rest_framework_services.exceptions.service_error.ServiceError</code>
+<a class="autorefs autorefs-internal" title="ServiceError" href="../exceptions/#rest_framework_services.exceptions.service_error.ServiceError"><code>ServiceError</code></a>
 into the DRF exception the normal view path raises for it
 (<code>ServiceValidationError</code> → 400, any other → 422) so DRF's
 handler renders it as a proper response. Left <code>False</code> it
@@ -2901,7 +2921,7 @@ propagates unchanged and an unhandled one surfaces as a <code>500</code>.</p>
             <td>
               <div class="doc-md-description">
                 <p>Merged into the pool; the signature filter
-(:func:<code>resolve_callable_kwargs</code>) decides which keys reach the
+(<code>resolve_callable_kwargs</code>) decides which keys reach the
 service.</p>
               </div>
             </td>
@@ -2944,9 +2964,10 @@ service.</p>
     <div class="doc doc-contents first">
 
         <p>Invoke <code>service</code> from async code with the framework's kwargs pool.</p>
-<p>Same contract as :func:<code>call_service</code>, <code>map_errors</code> included. Async
-services are awaited directly; a sync service is called inline with no
-thread hop, so the caller owns any sync-side I/O safety.</p>
+<p>Same contract as
+<a class="autorefs autorefs-internal" title="call_service" href="#rest_framework_services.services.call_service.call_service"><code>call_service</code></a>,
+<code>map_errors</code> included. Async services are awaited directly; a sync service is
+called inline with no thread hop, so the caller owns any sync-side I/O safety.</p>
 
 
     </div>

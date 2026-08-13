@@ -1839,11 +1839,15 @@
 
 
         <p>Router-compatible viewset wiring services and selectors.</p>
-<p>Composes :class:<code>ServiceCreateMixin</code>, :class:<code>ServiceUpdateMixin</code>,
-:class:<code>ServiceDestroyMixin</code>, :class:<code>SelectorListMixin</code>,
-:class:<code>SelectorRetrieveMixin</code>, and :class:<code>ActionSerializerResolver</code>
-over :class:<code>~rest_framework.viewsets.GenericViewSet</code>. See those classes
-for the configurable attributes.</p>
+<p>Composes
+<a class="autorefs autorefs-internal" title="ServiceCreateMixin" href="#rest_framework_services.viewsets.service_create_mixin.ServiceCreateMixin"><code>ServiceCreateMixin</code></a>,
+<a class="autorefs autorefs-internal" title="ServiceUpdateMixin" href="#rest_framework_services.viewsets.service_update_mixin.ServiceUpdateMixin"><code>ServiceUpdateMixin</code></a>,
+<a class="autorefs autorefs-internal" title="ServiceDestroyMixin" href="#rest_framework_services.viewsets.service_destroy_mixin.ServiceDestroyMixin"><code>ServiceDestroyMixin</code></a>,
+<a class="autorefs autorefs-internal" title="SelectorListMixin" href="#rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin"><code>SelectorListMixin</code></a>,
+<a class="autorefs autorefs-internal" title="SelectorRetrieveMixin" href="#rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin"><code>SelectorRetrieveMixin</code></a>,
+and
+<a class="autorefs autorefs-internal" title="ActionSerializerResolver" href="#rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver"><code>ActionSerializerResolver</code></a>
+over <code>GenericViewSet</code>. See those classes for the configurable attributes.</p>
 
 
 
@@ -1892,9 +1896,12 @@ for the configurable attributes.</p>
 
 
         <p>Read-only viewset for <code>list</code> + <code>retrieve</code>.</p>
-<p>Composes :class:<code>SelectorListMixin</code>, :class:<code>SelectorRetrieveMixin</code>, and
-:class:<code>ActionSerializerResolver</code> over
-:class:<code>~rest_framework.viewsets.GenericViewSet</code>.</p>
+<p>Composes
+<a class="autorefs autorefs-internal" title="SelectorListMixin" href="#rest_framework_services.viewsets.selector_list_mixin.SelectorListMixin"><code>SelectorListMixin</code></a>,
+<a class="autorefs autorefs-internal" title="SelectorRetrieveMixin" href="#rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin"><code>SelectorRetrieveMixin</code></a>,
+and
+<a class="autorefs autorefs-internal" title="ActionSerializerResolver" href="#rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver"><code>ActionSerializerResolver</code></a>
+over <code>GenericViewSet</code>.</p>
 
 
 
@@ -1945,11 +1952,21 @@ for the configurable attributes.</p>
 
         <p>Provides the <code>create</code> action; reads its config from <code>action_specs</code>.</p>
 <p>Set <code>action_specs["create"]</code> to a
-:class:<code>~rest_framework_services.types.service_spec.ServiceSpec</code>.
-When the <code>"create"</code> key is absent the action raises
-:exc:<code>~rest_framework.exceptions.MethodNotAllowed</code>. A non-<code>ServiceSpec</code>
-entry (e.g. a :class:<code>~rest_framework_services.types.selector_spec.SelectorSpec</code>)
-raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+<a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a>. When the
+<code>"create"</code> key is absent the action raises <code>MethodNotAllowed</code>. A
+non-<code>ServiceSpec</code> entry (e.g. a
+<a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a>) raises
+<code>ImproperlyConfigured</code>.</p>
 
 
 
@@ -2003,10 +2020,10 @@ falling back to DRF's <code>get_object()</code>. <code>PUT</code> reads its conf
 <code>action_specs["update"]</code>; <code>PATCH</code> reads <code>action_specs["partial_update"]</code>
 first and falls back to <code>"update"</code> — defining <em>only</em>
 <code>"partial_update"</code> yields a PATCH-only endpoint (PUT raises
-:exc:<code>~rest_framework.exceptions.MethodNotAllowed</code>). When neither key
+<code>MethodNotAllowed</code>). When neither key
 resolves, both actions raise
-:exc:<code>~rest_framework.exceptions.MethodNotAllowed</code>. A non-<code>ServiceSpec</code>
-entry raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+<code>MethodNotAllowed</code>. A non-<code>ServiceSpec</code>
+entry raises <code>ImproperlyConfigured</code>.</p>
 
 
 
@@ -2058,8 +2075,8 @@ entry raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 <p>Looks up the instance via <code>spec.instance_selector_spec</code> when set,
 falling back to DRF's <code>get_object()</code>. Reads its config from
 <code>action_specs["destroy"]</code>; when that key is absent the action raises
-:exc:<code>~rest_framework.exceptions.MethodNotAllowed</code>. A non-<code>ServiceSpec</code>
-entry raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+<code>MethodNotAllowed</code>. A non-<code>ServiceSpec</code>
+entry raises <code>ImproperlyConfigured</code>.</p>
 
 
 
@@ -2107,16 +2124,21 @@ entry raises :exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
 
 
 
-        <p>Compose with :class:<code>~rest_framework.viewsets.GenericViewSet</code>.</p>
+        <p>Compose with <code>GenericViewSet</code>.</p>
 <p>When <code>action_specs["list"]</code> is a
-:class:<code>~rest_framework_services.types.selector_spec.SelectorSpec</code> with
+<a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> with
 a non-<code>None</code> <code>selector</code>, <code>get_queryset()</code> invokes it instead of
 returning the configured <code>queryset</code>. The rest of DRF's list flow —
 filter backends, pagination, serialization — is unchanged.</p>
 <p><code>action_specs["list"] = SelectorSpec(selector=None)</code> or an absent
 <code>"list"</code> key both fall through to DRF's default <code>get_queryset()</code>.
 Any other entry type raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+<code>ImproperlyConfigured</code>.</p>
 
 
 
@@ -2184,9 +2206,14 @@ Any other entry type raises
 
 
 
-        <p>Compose with :class:<code>~rest_framework.viewsets.GenericViewSet</code>.</p>
+        <p>Compose with <code>GenericViewSet</code>.</p>
 <p>When <code>action_specs["retrieve"]</code> is a
-:class:<code>~rest_framework_services.types.selector_spec.SelectorSpec</code> with
+<a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> with
 a non-<code>None</code> <code>selector</code>, <code>get_object()</code> invokes it instead of
 falling through to DRF's standard lookup. The selector receives the
 URL kwargs plus the standard pool. Returning <code>None</code> or raising
@@ -2196,7 +2223,7 @@ nullable-resource contract; the output serializer is skipped).</p>
 <p><code>action_specs["retrieve"] = SelectorSpec(selector=None)</code> or an absent
 <code>"retrieve"</code> key both fall through to DRF's default <code>get_object()</code>.
 Any other entry type raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+<code>ImproperlyConfigured</code>.</p>
 <p>The selector applies wherever <code>get_object()</code> is called, including from
 update/destroy actions composed alongside this mixin. If you need an
 action-specific override, do it explicitly in your own <code>get_object()</code>.</p>
@@ -2249,12 +2276,23 @@ action-specific override, do it explicitly in your own <code>get_object()</code>
 
 
         <p>Resolve <code>get_serializer_class()</code> from <code>action_specs</code>.</p>
-<p>Reads the active action's entry: a :class:<code>SelectorSpec</code> supplies
-<code>output_serializer</code>, a :class:<code>ServiceSpec</code> supplies
+<p>Reads the active action's entry: a
+<a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> supplies
+<code>output_serializer</code>, a
+<a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> supplies
 <code>output_selector_spec.output_serializer</code>. Falls back to DRF's
-<code>serializer_class</code>, raising the usual <code>AssertionError</code> when neither is
-set.</p>
-<p>Example::</p>
+<code>serializer_class</code>, raising the usual <code>AssertionError</code> when neither is set.</p>
+<p>Example:</p>
 <div class="language-text highlight"><pre><span></span><code>class InvoiceViewSet(ActionSerializerResolver, GenericViewSet):
     action_specs = {
         &quot;list&quot;: SelectorSpec(
@@ -2321,10 +2359,21 @@ set.</p>
 <p>The decorated method's body is <em>not</em> executed — the decorator supplies
 the handler. The method exists so that <code>@service_action</code> can attach
 DRF <code>@action</code> metadata and pick up the action name from <code>__name__</code>.</p>
-<p>Pass a :class:<code>ServiceSpec</code> (or a :class:<code>PolymorphicServiceSpec</code> for one
-action accepting several payload shapes) for the service wiring. <code>detail</code>,
-<code>methods</code>, <code>url_path</code>, <code>url_name</code>, and any extra <code>**action_kwargs</code>
-are forwarded to DRF's <code>@action</code>.</p>
+<p>Pass a <a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> (or a
+<a class="autorefs autorefs-internal" title="PolymorphicServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec"><code>PolymorphicServiceSpec</code></a>
+for one action accepting several payload shapes) for the service wiring. <code>detail</code>,
+<code>methods</code>, <code>url_path</code>, <code>url_name</code>, and any extra <code>**action_kwargs</code> are
+forwarded to DRF's <code>@action</code>.</p>
 <p>For a polymorphic action, per-variant <code>permission_classes</code> are enforced by
 the viewset's <code>get_permissions</code> (the <code>_ActionSpecsMixin</code> reads the
 stashed spec) rather than via DRF's <code>@action(permission_classes=...)</code>,
@@ -2360,13 +2409,13 @@ since there is no single list to forward.</p>
 handler. The method exists so the decorator can attach DRF <code>@action</code>
 metadata and take the action name from <code>__name__</code>.</p>
 <p><code>spec.kind</code> drives both the dispatch shape and the DRF URL shape, so there
-is no separate <code>detail=</code> to keep in sync. :attr:<code>SelectorKind.LIST</code> is a
+is no separate <code>detail=</code> to keep in sync. <code>SelectorKind.LIST</code> is a
 collection action (<code>detail=False</code>) whose selector returns an iterable,
 flowing through <code>self.paginate_queryset</code> / <code>self.get_paginated_response</code>
 when pagination is configured and serialized <code>many=True</code> otherwise;
-:attr:<code>SelectorKind.RETRIEVE</code> is a detail action (<code>detail=True</code>) whose
+<code>SelectorKind.RETRIEVE</code> is a detail action (<code>detail=True</code>) whose
 selector returns a single object, or <code>None</code> / raises
-:exc:<code>~django.core.exceptions.ObjectDoesNotExist</code> for a 404. For a URL shape
+<code>ObjectDoesNotExist</code> for a 404. For a URL shape
 that doesn't match the response shape, fall back to DRF's plain <code>@action</code>
 and write the dispatch yourself.</p>
 <p>Output serialization uses <code>spec.output_serializer</code> when set, falling back

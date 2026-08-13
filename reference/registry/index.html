@@ -1813,8 +1813,8 @@ to build their binding tables; nothing consults one per request.</p>
 </span></code></pre></div>
 <p><strong>There is no global registry</strong>: a consumer holds as many of its own
 instances as it likes, with no shared state between them. Registries are
-mutable — :meth:<code>register</code> adds — but every derivation (:meth:<code>by_tag</code>,
-:meth:<code>subset</code>, :meth:<code>merge</code>) returns a <strong>new</strong> registry holding a snapshot
+mutable — <code>register</code> adds — but every derivation (<code>by_tag</code>,
+<code>subset</code>, <code>merge</code>) returns a <strong>new</strong> registry holding a snapshot
 of the selected entries, sharing the spec objects rather than copying them.
 A derived view never mutates its source, and a later <code>register()</code> on the
 source does <strong>not</strong> appear in a view derived earlier.</p>
@@ -2220,26 +2220,38 @@ Mutating the returned dict does not affect the registry.</p>
 
         <p>A spec under its canonical name, with free-form tags.</p>
 <p>The value type held by
-:class:<code>~rest_framework_services.registry.spec_registry.SpecRegistry</code>. It
+<a class="autorefs autorefs-internal" title="SpecRegistry" href="#rest_framework_services.registry.spec_registry.SpecRegistry"><code>SpecRegistry</code></a>. It
 carries only the part of a "tool" that is <strong>invariant across transports</strong> —
 which spec, what it is called, and how it is grouped. Per-transport knobs
 (MCP annotations and output schemas, Pydantic-AI pagination or query-param
 registrations, …) stay at the binding that configures them.</p>
 <p>Fields:</p>
 <ul>
-<li><strong><code>name</code></strong> — the canonical name for this operation. Unique within the
-  registry that holds it; two independent registries are separate
-  namespaces and may reuse a name.</li>
-<li><strong><code>spec</code></strong> — a :class:<code>~rest_framework_services.types.service_spec.ServiceSpec</code>
-  (a mutation) or a :class:<code>~rest_framework_services.types.selector_spec.SelectorSpec</code>
-  (a read). The kind is deliberately <strong>not</strong> stored: it is derived by
-  <code>isinstance</code> wherever it is needed, so a stored discriminator can never
-  drift from the object it describes.</li>
-<li><strong><code>tags</code></strong> — a frozen set of free-form labels used to derive filtered
-  views (<code>registry.by_tag("public")</code>). Tags carry boolean-ish facts —
-  <code>"read"</code>, <code>"admin"</code>, <code>"destructive"</code> — that every transport can
-  interpret in its own vocabulary. Structured, transport-specific payloads
-  do not belong in a tag string; they belong at the binding.</li>
+<li><strong><code>name</code></strong> — the canonical name for this operation. Unique within the registry
+  that holds it; two independent registries are separate namespaces and may reuse a
+  name.</li>
+<li><strong><code>spec</code></strong> — a
+  <a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> (a
+  mutation) or a
+  <a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> (a
+  read). The kind is deliberately <strong>not</strong> stored: it is derived by <code>isinstance</code>
+  wherever it is needed, so a stored discriminator can never drift from the object
+  it describes.</li>
+<li><strong><code>tags</code></strong> — a frozen set of free-form labels used to derive filtered views
+  (<code>registry.by_tag("public")</code>). Tags carry boolean-ish facts — <code>"read"</code>,
+  <code>"admin"</code>, <code>"destructive"</code> — that every transport can interpret in its own
+  vocabulary. Structured, transport-specific payloads do not belong in a tag string;
+  they belong at the binding.</li>
 </ul>
 
 

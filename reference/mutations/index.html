@@ -1653,9 +1653,14 @@
     <div class="doc doc-contents first">
 
         <p>Set attributes from <code>data</code> onto <code>instance</code> without saving.</p>
-<p>Returns a :class:<code>ChangeResult</code> describing fields whose value actually
-changed. Useful when a service wants to inspect what the input would
-change before deciding whether to persist.</p>
+<p>Returns a <a class="autorefs autorefs-internal" title="ChangeResult
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.change_result.ChangeResult"><code>ChangeResult</code></a>
+describing fields whose value actually changed. Useful when a service wants to
+inspect what the input would change before deciding whether to persist.</p>
 
 
     </div>
@@ -1686,27 +1691,36 @@ change before deciding whether to persist.</p>
     <div class="doc doc-contents first">
 
         <p>Build, <code>save()</code>, and return a fresh instance of <code>model</code>.</p>
-<p>Regular fields come from <code>data</code> (a dataclass, dict, or object with
-<code>__dict__</code>); M2M assignments are applied post-save via the <code>m2m</code>
-kwarg, mapping attribute name to the value to <code>set()</code>. That argument
-assigns rows which already exist; writing the target rows <em>from the
-payload</em> is a
-:class:<code>~rest_framework_services.ManyToManySpec</code> in <code>relations</code>. Both
-still ship — they are different jobs — but a relation named by both is
-refused, since it would be written twice and keep whichever ran last.</p>
-<p><code>relations</code> maps a relation name to the spec for its kind; the nested
-payload is read from <code>data[relation]</code> and written in the order the kind
-dictates, not the order the map is spelled in (see
-:class:<code>~rest_framework_services.RelationPhase</code>). <code>children</code> is the
-reverse-FK alias — the same map under the name it shipped as — and a name
-declared in both raises. Keep the whole call inside the service's atomic
+<p>Regular fields come from <code>data</code> (a dataclass, dict, or object with <code>__dict__</code>);
+M2M assignments are applied post-save via the <code>m2m</code> kwarg, mapping attribute name
+to the value to <code>set()</code>. That argument assigns rows which already exist; writing
+the target rows <em>from the payload</em> is a
+<a class="autorefs autorefs-internal" title="ManyToManySpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.many_to_many_spec.ManyToManySpec"><code>ManyToManySpec</code></a>
+in <code>relations</code>. Both still ship — they are different jobs — but a relation named
+by both is refused, since it would be written twice and keep whichever ran last.</p>
+<p><code>relations</code> maps a relation name to the spec for its kind; the nested payload is
+read from <code>data[relation]</code> and written in the order the kind dictates, not the
+order the map is spelled in (see
+<a class="autorefs autorefs-internal" title="RelationPhase" href="../types/#rest_framework_services.types.relation_phase.RelationPhase"><code>RelationPhase</code></a>).
+<code>children</code> is the reverse-FK alias — the same map under the name it shipped as —
+and a name declared in both raises. Keep the whole call inside the service's atomic
 block.</p>
-<p><code>context</code> is an <strong>opaque</strong> mapping forwarded verbatim into the pool of
-any per-child service a :class:<code>~rest_framework_services.ChildSpec</code>
-declares. This helper never reads it — it exists so per-row work
-downstream can see the acting caller. The default model-service factories
-populate it from the framework's kwargs pool automatically; a hand-written
-service opts in with <code>context=kwargs</code>.</p>
+<p><code>context</code> is an <strong>opaque</strong> mapping forwarded verbatim into the pool of any
+per-child service a
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a> declares. This
+helper never reads it — it exists so per-row work downstream can see the acting
+caller. The default model-service factories populate it from the framework's kwargs
+pool automatically; a hand-written service opts in with <code>context=kwargs</code>.</p>
 
 
     </div>
@@ -1745,9 +1759,14 @@ that list so they are refreshed alongside the mutation. Pass <code>False</code> 
 perform a full save, or an explicit list to control exactly which columns
 are written (no auto-injection in that case).</p>
 <p><code>m2m</code> assigns many-to-many rows that already exist;
-:class:<code>~rest_framework_services.ManyToManySpec</code> in <code>relations</code> writes
-the target rows from the payload instead. A relation named by both is
-refused rather than written twice.</p>
+<a class="autorefs autorefs-internal" title="ManyToManySpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.many_to_many_spec.ManyToManySpec"><code>ManyToManySpec</code></a>
+in <code>relations</code> writes the target rows from the payload instead. A relation named
+by both is refused rather than written twice.</p>
 <p><code>relations</code> maps a relation name to the spec for its kind (<code>children</code>
 is the reverse-FK alias). The nested payload from <code>data[relation]</code> is
 reconciled with what is already there — create / update / orphan-remove per
@@ -1756,10 +1775,16 @@ written in the order their class dictates, so a forward foreign key is
 resolved before this instance is saved and the assignment rides the same
 diff and <code>update_fields</code> path as any other column. Keep the call inside
 the service's atomic block.</p>
-<p><code>context</code> is an <strong>opaque</strong> mapping forwarded verbatim into the pool of
-any per-child service a :class:<code>~rest_framework_services.ChildSpec</code>
-declares; this helper never reads it. See
-:func:<code>~rest_framework_services.create_from_input</code>.</p>
+<p><code>context</code> is an <strong>opaque</strong> mapping forwarded verbatim into the pool of any
+per-child service a
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a> declares; this
+helper never reads it. See
+<a class="autorefs autorefs-internal" title="create_from_input" href="#rest_framework_services.mutations.create_from_input.create_from_input"><code>create_from_input</code></a>.</p>
 
 
     </div>
@@ -1794,7 +1819,9 @@ declares; this helper never reads it. See
 
     <div class="doc doc-contents first">
 
-        <p>Async sibling of :func:<code>create_from_input</code> using <code>asave()</code>/<code>aset()</code>.</p>
+        <p>Async sibling of
+<a class="autorefs autorefs-internal" title="create_from_input" href="#rest_framework_services.mutations.create_from_input.create_from_input"><code>create_from_input</code></a>
+using <code>asave()</code>/<code>aset()</code>.</p>
 
 
     </div>
@@ -1829,7 +1856,9 @@ declares; this helper never reads it. See
 
     <div class="doc doc-contents first">
 
-        <p>Async sibling of :func:<code>update_from_input</code> using <code>asave()</code>/<code>aset()</code>.</p>
+        <p>Async sibling of
+<a class="autorefs autorefs-internal" title="update_from_input" href="#rest_framework_services.mutations.update_from_input.update_from_input"><code>update_from_input</code></a>
+using <code>asave()</code>/<code>aset()</code>.</p>
 
 
     </div>

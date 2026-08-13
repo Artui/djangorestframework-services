@@ -1811,7 +1811,12 @@ still describe the tool.</p>
 where the validator accepts omitted fields, so advertising them as required
 would make schema-strict consumers reject calls the service accepts.</p>
 <p><code>registry</code> supplies consumer rules for custom field / Python types — see
-:class:<code>~rest_framework_services.JsonSchemaRegistry</code>.</p>
+<a class="autorefs autorefs-internal" title="JsonSchemaRegistry
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry"><code>JsonSchemaRegistry</code></a>.</p>
 
 
     </div>
@@ -1849,7 +1854,12 @@ what dispatch actually returns:</p>
   <code>{items, page, totalPages, hasNext}</code>.</li>
 </ul>
 <p><code>registry</code> supplies consumer rules for custom field / Python types — see
-:class:<code>~rest_framework_services.JsonSchemaRegistry</code>.</p>
+<a class="autorefs autorefs-internal" title="JsonSchemaRegistry
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry"><code>JsonSchemaRegistry</code></a>.</p>
 
 
     </div>
@@ -1875,12 +1885,12 @@ what dispatch actually returns:</p>
     <div class="doc doc-contents first">
 
         <p>Map a django-filter <code>FilterSet</code> class to JSON Schema properties.</p>
-<p>Returns a dict shaped like the <code>"properties"</code> key of a JSON Schema object,
-ready to merge into a spec's input schema — which is what
-:func:<code>~rest_framework_services.spec_to_json_schema</code> does for a
-<code>SelectorSpec</code> carrying a <code>filter_set</code>. Every filter is optional: a
-filter narrows the queryset but is never required to call the operation, so
-no name is added to a <code>required</code> array.</p>
+<p>Returns a dict shaped like the <code>"properties"</code> key of a JSON Schema object, ready
+to merge into a spec's input schema — which is what
+<a class="autorefs autorefs-internal" title="spec_to_json_schema" href="#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
+does for a <code>SelectorSpec</code> carrying a <code>filter_set</code>. Every filter is optional: a
+filter narrows the queryset but is never required to call the operation, so no name
+is added to a <code>required</code> array.</p>
 <p><code>registry.filters</code> rules are tried first, so a consumer can map a custom
 filter type or override a built-in; common filter classes get accurate
 mappings otherwise, and anything unrecognised falls back to <code>{}</code> (JSON
@@ -1913,27 +1923,53 @@ it is absent — only ever when a <code>filter_set</code> is actually introspect
     <div class="doc doc-contents first">
 
         <p>Derive a JSON Schema from a spec, reading the right serializer off it.</p>
-<p>The convenience an alternate transport (a Pydantic-AI toolset, the MCP
-server) calls instead of reaching into spec internals itself. <code>registry</code>
-supplies consumer rules for custom field / filter / Python types — see
-:class:<code>~rest_framework_services.JsonSchemaRegistry</code>.</p>
+<p>The convenience an alternate transport (a Pydantic-AI toolset, the MCP server) calls
+instead of reaching into spec internals itself. <code>registry</code> supplies consumer rules
+for custom field / filter / Python types — see
+<a class="autorefs autorefs-internal" title="JsonSchemaRegistry
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry"><code>JsonSchemaRegistry</code></a>.</p>
 <p><code>phase="input"</code> (default) returns the input-argument schema:</p>
 <ul>
-<li>:class:<code>ServiceSpec</code> → its <code>input_serializer</code> (<code>spec.partial</code> honoured).</li>
-<li>:class:<code>SelectorSpec</code> → an object whose <code>properties</code> combine the
-  selector callable's own annotated parameters (skipping the <code>request</code> /
-  <code>user</code> / <code>view</code> transport seeds) with its <code>filter_set</code> fields, so
-  <code>get_widget(user, pk)</code> advertises <code>pk</code> instead of leaning on its
-  docstring; a bare <code>{"type": "object"}</code> when it exposes neither. A
-  <code>**kwargs: Unpack[SomeExtras]</code> parameter is <strong>expanded</strong> into one
-  property per <code>TypedDict</code> key, its required keys populating <code>required</code>,
-  so a URL kwarg read from <code>extras</code> is discoverable off-HTTP rather than a
-  hidden <code>KeyError</code>. Introspecting a <code>filter_set</code> needs the <code>[filter]</code>
-  extra.</li>
+<li><a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> → its
+    <code>input_serializer</code> (<code>spec.partial</code> honoured).</li>
+<li><a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> → an
+  object whose <code>properties</code> combine the selector callable's own annotated
+  parameters (skipping the <code>request</code> / <code>user</code> / <code>view</code> transport seeds) with
+  its <code>filter_set</code> fields, so <code>get_widget(user, pk)</code> advertises <code>pk</code> instead
+  of leaning on its docstring; a bare <code>{"type": "object"}</code> when it exposes
+  neither. A <code>**kwargs: Unpack[SomeExtras]</code> parameter is <strong>expanded</strong> into one
+  property per <code>TypedDict</code> key, its required keys populating <code>required</code>, so a
+  URL kwarg read from <code>extras</code> is discoverable off-HTTP rather than a hidden
+  <code>KeyError</code>. Introspecting a <code>filter_set</code> needs the <code>[filter]</code> extra.</li>
 </ul>
-<p><code>phase="output"</code> returns the output schema, or <code>None</code> when undeclared:
-a :class:<code>ServiceSpec</code> supplies its <code>output_selector_spec</code>'s
-<code>output_serializer</code> and <code>kind</code>, a :class:<code>SelectorSpec</code> its own.</p>
+<p><code>phase="output"</code> returns the output schema, or <code>None</code> when undeclared: a
+<a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> supplies its
+<code>output_selector_spec</code>'s <code>output_serializer</code> and <code>kind</code>, a
+<a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> its own.</p>
 
 
     </div>
@@ -1972,11 +2008,16 @@ same name.</p>
 mappings — so a rule both adds support for a custom type and can override a
 built-in. The matched fragment is copied per use, so callers may freely
 mutate the returned schema.</p>
-<p>Immutable: :meth:<code>extend</code> returns a <em>new</em> registry rather than mutating, so
+<p>Immutable: <code>extend</code> returns a <em>new</em> registry rather than mutating, so
 there is no shared global state to leak across callers or tests. Start from
-:data:<code>DEFAULT_JSON_SCHEMA_REGISTRY</code>, the empty base every
+<a class="autorefs autorefs-internal" title="DEFAULT_JSON_SCHEMA_REGISTRY
+
+
+  
+      module-attribute
+  " href="#rest_framework_services.types.json_schema_registry.DEFAULT_JSON_SCHEMA_REGISTRY"><code>DEFAULT_JSON_SCHEMA_REGISTRY</code></a>, the empty base every
 <code>*_to_json_schema</code> helper falls back to, layer rules on, and pass the
-result via the helpers' <code>registry=</code> argument::</p>
+result via the helpers' <code>registry=</code> argument:</p>
 <div class="language-text highlight"><pre><span></span><code>registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
     fields=[(MoneyField, {&quot;type&quot;: &quot;string&quot;, &quot;format&quot;: &quot;money&quot;})],
 )

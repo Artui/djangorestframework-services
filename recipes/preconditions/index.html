@@ -1636,11 +1636,11 @@ been locked. An order already shipped. A reviewer who already has a pending
 request on this object.</p>
 <p><code>preconditions</code> is a declared slot for those, on the spec, so the rule travels
 with the operation to every transport instead of living in one view method.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceError</span><span class="p">,</span> <span class="n">ServiceSpec</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceConflict</span><span class="p">,</span> <span class="n">ServiceSpec</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">BudgetLocked</span><span class="p">(</span><span class="n">ServiceError</span><span class="p">):</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">status_code</span> <span class="o">=</span> <span class="mi">409</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">BudgetLocked</span><span class="p">(</span><span class="n">ServiceConflict</span><span class="p">):</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;A state collision, which over HTTP is a 409.&quot;&quot;&quot;</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">def</span><span class="w"> </span><span class="nf">budget_not_locked</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">):</span>
@@ -1663,12 +1663,49 @@ with the operation to every transport instead of living in one view method.</p>
 <p>— is silently a no-op. Returning <code>False</code> does not block the call; only raising
 does. If you are porting existing <code>-&gt; bool</code> predicates, every one of them needs
 a raise.</p>
-<p><strong>Raise <code>ServiceError</code>, not a DRF exception.</strong></p>
-<p><code>ServiceError</code> (and <code>ServiceValidationError</code>) is the framework-agnostic error
-every transport already maps: to a response over HTTP, to a failed tool result
-over MCP, to a retryable error under an agent toolset. A DRF <code>APIException</code>
-subclass works over HTTP and escapes the mapping everywhere else — the same rule
-lands as a clean 409 for a browser and an unhandled internal error for an agent.</p>
+<p><strong>Raise a <code>ServiceError</code> member, not a DRF exception.</strong></p>
+<p>The <code>ServiceError</code> family is the framework-agnostic error every transport already
+maps: to a response over HTTP, to a failed tool result over MCP, to a retryable
+error under an agent toolset. A DRF <code>APIException</code> subclass works over HTTP and
+escapes the mapping everywhere else — the same rule lands as a clean 409 for a
+browser and an unhandled internal error for an agent.</p>
+<p>Pick the member that says <em>what kind</em> of failure it is, and every transport gets
+the distinction:</p>
+<table>
+<thead>
+<tr>
+<th>Raise</th>
+<th>HTTP</th>
+<th>For</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ServiceConflict</code></td>
+<td><code>409</code></td>
+<td>the state collides — a slot taken, a row moved first</td>
+</tr>
+<tr>
+<td><code>ServiceNotFound</code></td>
+<td><code>404</code></td>
+<td>the target is absent, or not this caller's to see</td>
+</tr>
+<tr>
+<td><code>ServiceValidationError</code></td>
+<td><code>400</code></td>
+<td>it should read as an input error</td>
+</tr>
+<tr>
+<td><code>ServiceError</code></td>
+<td><code>422</code></td>
+<td>understood, and still not allowed</td>
+</tr>
+</tbody>
+</table>
+<p><strong>An HTTP status is not a field on the exception.</strong> Setting <code>status_code = 409</code> on
+a <code>ServiceError</code> subclass does nothing — nothing reads it — and it could not work
+off HTTP anyway, where there is no status to carry. The member <em>is</em> the portable
+form of that intent, which is why the recipe above raises one.</p>
 <h2 id="where-they-fire">Where they fire<a class="headerlink" href="#where-they-fire" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>permissions → target resolution → validation → preconditions → service
 </span></code></pre></div>

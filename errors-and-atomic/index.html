@@ -526,6 +526,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#servicenotfound-and-serviceconflict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ServiceNotFound and ServiceConflict
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#why-not-just-raise-drf-exceptions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1613,6 +1624,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#servicenotfound-and-serviceconflict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ServiceNotFound and ServiceConflict
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#why-not-just-raise-drf-exceptions" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1713,6 +1735,16 @@
 <td><code>400</code></td>
 </tr>
 <tr>
+<td><code>ServiceNotFound</code></td>
+<td><code>rest_framework.exceptions.NotFound</code></td>
+<td><code>404</code></td>
+</tr>
+<tr>
+<td><code>ServiceConflict</code></td>
+<td><code>rest_framework.exceptions.APIException</code></td>
+<td><code>409</code></td>
+</tr>
+<tr>
 <td><code>ServiceError</code></td>
 <td><code>rest_framework.exceptions.APIException</code></td>
 <td><code>422</code></td>
@@ -1724,6 +1756,10 @@
 </tr>
 </tbody>
 </table>
+<p>Specific members first, the generic <code>422</code> last: they are all <code>ServiceError</code>
+subclasses, so the order <strong>is</strong> the mapping. A transport writing its own handler
+inherits that constraint — match the members before the generic one, or the
+subclass check swallows them.</p>
 <h3 id="servicevalidationerror"><code>ServiceValidationError</code><a class="headerlink" href="#servicevalidationerror" title="Permanent link">&para;</a></h3>
 <p>For business-rule violations that should look like input validation
 errors to the client. Accepts the same shapes DRF's <code>ValidationError</code>
@@ -1807,6 +1843,27 @@ this case.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;account is locked&quot;</span><span class="p">)</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;invoice already finalised&quot;</span><span class="p">)</span>
 </span></code></pre></div>
+<h3 id="servicenotfound-and-serviceconflict"><code>ServiceNotFound</code> and <code>ServiceConflict</code><a class="headerlink" href="#servicenotfound-and-serviceconflict" title="Permanent link">&para;</a></h3>
+<p>Two shapes of failure common enough to name, so a transport can tell them apart
+without a status code on the exception:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">raise</span> <span class="n">ServiceNotFound</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No event </span><span class="si">{</span><span class="n">data</span><span class="o">.</span><span class="n">event_id</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>  <span class="c1"># absent, or not yours to see</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">raise</span> <span class="n">ServiceConflict</span><span class="p">(</span><span class="s2">&quot;That slot is already taken.&quot;</span><span class="p">)</span>  <span class="c1"># the state collides</span>
+</span></code></pre></div>
+<p><code>ServiceNotFound</code> answers the same way for <em>absent</em> and for <em>not yours</em> on
+purpose: a <code>403</code> on a row the caller cannot see confirms that the row exists.</p>
+<p><code>ServiceConflict</code> is what a <code>preconditions</code> predicate usually wants, since a state
+rule is normally exactly this kind of collision — see
+<a href="../recipes/preconditions/">State rules with <code>preconditions</code></a>.</p>
+<p><strong>Neither carries an HTTP status, and setting one does nothing.</strong> A
+<code>status_code</code> attribute on a <code>ServiceError</code> subclass is read by nobody, and could
+not be honoured off HTTP where there is no status to carry. The member is the
+portable form of the intent; each transport decides what it means. Over HTTP, this
+package decides: <code>404</code> and <code>409</code>.</p>
+<p>The generated OpenAPI document still declares only the <code>422</code> for spec-driven
+mutations. Advertising a <code>409</code> on every mutation, including those that cannot
+collide, would trade one wrong claim for another — a spec has no field saying
+which failures its service can raise, and inventing one to satisfy the schema is
+not a trade this package makes.</p>
 <h3 id="why-not-just-raise-drf-exceptions">Why not just raise DRF exceptions?<a class="headerlink" href="#why-not-just-raise-drf-exceptions" title="Permanent link">&para;</a></h3>
 <p>Because the mutation can be reused outside a request — from a
 management command, a background job, a test. Coupling business rules
@@ -1817,12 +1874,12 @@ view, you catch <code>ServiceError</code> / <code>ServiceValidationError</code> 
 <h2 id="atomic-transactions">Atomic transactions<a class="headerlink" href="#atomic-transactions" title="Permanent link">&para;</a></h2>
 <p>By default every service call is wrapped in <code>transaction.atomic()</code>.
 Opt out per spec — <code>atomic</code> lives on <code>ServiceSpec</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ImportView</span><span class="p">(</span><span class="n">ServiceCreateView</span><span class="p">):</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>        <span class="n">service</span><span class="o">=</span><span class="n">run_import</span><span class="p">,</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">ImportInput</span><span class="p">,</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="n">atomic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># the import service handles its own savepoints</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ImportView</span><span class="p">(</span><span class="n">ServiceCreateView</span><span class="p">):</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>        <span class="n">service</span><span class="o">=</span><span class="n">run_import</span><span class="p">,</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">ImportInput</span><span class="p">,</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="n">atomic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># the import service handles its own savepoints</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="p">)</span>
 </span></code></pre></div>
 <p>When to opt out:</p>
 <ul>

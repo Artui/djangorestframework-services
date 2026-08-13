@@ -1527,6 +1527,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest.offline_host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        offline_host
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest.build_absolute_uri" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2642,6 +2653,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest.offline_host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        offline_host
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest.build_absolute_uri" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3176,22 +3198,38 @@ one on the same result.</p>
 
     <div class="doc doc-contents first">
 
-        <p>Execute <code>spec</code> without a DRF view, returning a :class:<code>DispatchResult</code>.</p>
-<p>The single transport-neutral execution path: a caller hands the <strong>flat</strong>
-<code>params</code> mapping (the role <code>request.data</code> / <code>query_params</code> / URL
-kwargs play on HTTP) plus the acting <code>user</code>, and gets back the resolved
-domain value to format for its wire. No pagination, ordering, or output
-rendering happens here — those are transport concerns; render the result
-with :func:<code>~rest_framework_services.render_spec_output</code>.</p>
+        <p>Execute <code>spec</code> without a DRF view, returning a
+<a class="autorefs autorefs-internal" title="DispatchResult
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.dispatch_result.DispatchResult"><code>DispatchResult</code></a>.</p>
+<p>The single transport-neutral execution path: a caller hands the <strong>flat</strong> <code>params</code>
+mapping (the role <code>request.data</code> / <code>query_params</code> / URL kwargs play on HTTP)
+plus the acting <code>user</code>, and gets back the resolved domain value to format for its
+wire. No pagination, ordering, or output rendering happens here — those are
+transport concerns; render the result with
+<a class="autorefs autorefs-internal" title="render_spec_output" href="#rest_framework_services.dispatch.render_spec_output.render_spec_output"><code>render_spec_output</code></a>.</p>
 <ul>
-<li>A :class:<code>ServiceSpec</code> runs the mutation flow: resolve the target via
-  <code>instance_selector_spec</code> (from <code>params</code>) → validate <code>input_serializer</code>
-  → run the service → re-fetch through <code>output_selector_spec</code> → result.
-  A missing instance yields <code>kind="not_found"</code>.</li>
-<li>A :class:<code>SelectorSpec</code> runs the read flow: invoke the selector → apply
-  queryset shaping (<code>select_related</code> … <code>filter_set</code>) → for <code>RETRIEVE</code>
-  materialize via <code>.first()</code> and honour <code>allow_none</code> / not-found;
-  <code>LIST</code> returns the shaped + filtered queryset.</li>
+<li>A <a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> runs the
+  mutation flow: resolve the target via <code>instance_selector_spec</code> (from <code>params</code>)
+  → validate <code>input_serializer</code> → run the service → re-fetch through
+  <code>output_selector_spec</code> → result. A missing instance yields <code>kind="not_found"</code>.</li>
+<li>A <a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> runs
+  the read flow: invoke the selector → apply queryset shaping (<code>select_related</code> …
+  <code>filter_set</code>) → for <code>RETRIEVE</code> materialize via <code>.first()</code> and honour
+  <code>allow_none</code> / not-found; <code>LIST</code> returns the shaped + filtered queryset.</li>
 </ul>
 <p>Every argument below the acting user is optional, and the defaults reproduce
 the pre-policy behaviour exactly.</p>
@@ -3227,7 +3265,20 @@ the pre-policy behaviour exactly.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The :class:<code>ServiceSpec</code> or :class:<code>SelectorSpec</code> to execute.</p>
+                <p>The
+<a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> or
+<a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a>
+to execute.</p>
               </div>
             </td>
             <td>
@@ -3275,9 +3326,9 @@ the pre-policy behaviour exactly.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Forwarded only to user callables that declare it
-(<code>extend_queryset</code>, the context providers, <code>kwargs</code>); a pure
-non-HTTP caller passes neither this nor <code>view</code>.</p>
+                <p>Forwarded only to user callables that declare it (<code>extend_queryset</code>,
+the context providers, <code>kwargs</code>); a pure non-HTTP caller passes neither
+this nor <code>view</code>.</p>
               </div>
             </td>
             <td>
@@ -3294,8 +3345,8 @@ non-HTTP caller passes neither this nor <code>view</code>.</p>
             <td>
               <div class="doc-md-description">
                 <p>As <code>request</code>, plus its <code>kwargs</code> (a route's captures, seeded by
-<code>build_offline_context(kwargs=…)</code>) are <strong>spread into the selector /
-target pools</strong> — the off-HTTP counterpart of the HTTP
+<code>build_offline_context(kwargs=…)</code>) are <strong>spread into the selector / target
+pools</strong> — the off-HTTP counterpart of the HTTP
 <code>extra_url_kwargs=view.kwargs</code>, authoritative over <code>params</code> on a
 conflict, below the <code>spec.kwargs</code> provider.</p>
               </div>
@@ -3330,12 +3381,12 @@ conflict, below the <code>spec.kwargs</code> provider.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Whether client input lands as a single <code>data</code> bundle
-or is spread as individual kwargs, and how it ranks against the
-author's <code>kwargs</code>. <code>AUTO</code> resolves per spec type (service →
-bundle, selector → spread). Meaningless on a <code>many=True</code> spec —
-the service receives the whole list as one <code>data</code> argument — where
-a non-default value raises <code>ValueError</code> rather than being ignored.</p>
+                <p>Whether client input lands as a single <code>data</code> bundle or is
+spread as individual kwargs, and how it ranks against the author's
+<code>kwargs</code>. <code>AUTO</code> resolves per spec type (service → bundle, selector →
+spread). Meaningless on a <code>many=True</code> spec — the service receives the
+whole list as one <code>data</code> argument — where a non-default value raises
+<code>ValueError</code> rather than being ignored.</p>
               </div>
             </td>
             <td>
@@ -3351,10 +3402,9 @@ a non-default value raises <code>ValueError</code> rather than being ignored.</p
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Strictness about <code>params</code> keys outside the spec's
-declared set: <code>IGNORE</code> (drop), <code>REJECT</code> (raise), <code>PASSTHROUGH</code>
-(forward to the callable). Honoured <strong>per list element</strong> on a
-<code>many=True</code> spec.</p>
+                <p>Strictness about <code>params</code> keys outside the spec's declared
+set: <code>IGNORE</code> (drop), <code>REJECT</code> (raise), <code>PASSTHROUGH</code> (forward to the
+callable). Honoured <strong>per list element</strong> on a <code>many=True</code> spec.</p>
               </div>
             </td>
             <td>
@@ -3370,10 +3420,10 @@ declared set: <code>IGNORE</code> (drop), <code>REJECT</code> (raise), <code>PAS
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Hook invoked with the resolved mutation target before
-the service runs. Pass
-:func:<code>~rest_framework_services.enforce_permissions</code> directly for
-object-level permissions; the core itself stays authz-agnostic.</p>
+                <p>Hook invoked with the resolved mutation target before the
+service runs. Pass
+<a class="autorefs autorefs-internal" title="enforce_permissions" href="#rest_framework_services.dispatch.enforce_permissions.enforce_permissions"><code>enforce_permissions</code></a>
+directly for object-level permissions; the core itself stays authz-agnostic.</p>
               </div>
             </td>
             <td>
@@ -3428,8 +3478,8 @@ object-level permissions; the core itself stays authz-agnostic.</p>
             <td>
               <div class="doc-md-description">
                 <p>A target the caller resolved itself, skipping
-<code>instance_selector_spec</code>. <code>None</code> is a <em>supplied</em> value (a
-create), which is why the default is a sentinel.</p>
+<code>instance_selector_spec</code>. <code>None</code> is a <em>supplied</em> value (a create), which
+is why the default is a sentinel.</p>
               </div>
             </td>
             <td>
@@ -3446,11 +3496,11 @@ create), which is why the default is a sentinel.</p>
             <td>
               <div class="doc-md-description">
                 <p>The data the <code>filter_set</code> reads, on both spec kinds — a
-selector's own filtering and a service's output-selector re-fetch.
-Only meaningful when <code>params</code> is not the filter source: off HTTP
-one flat mapping is usually both, so this stays <code>None</code>, whereas
-over HTTP the body validates and the <strong>query string</strong> filters, and
-merging them would let a query parameter satisfy a serializer field.</p>
+selector's own filtering and a service's output-selector re-fetch. Only
+meaningful when <code>params</code> is not the filter source: off HTTP one flat
+mapping is usually both, so this stays <code>None</code>, whereas over HTTP the body
+validates and the <strong>query string</strong> filters, and merging them would let a
+query parameter satisfy a serializer field.</p>
               </div>
             </td>
             <td>
@@ -3461,17 +3511,17 @@ merging them would let a query parameter satisfy a serializer field.</p>
     </table>
 
 
-    <p><span class="doc-section-title">Returns:</span></p>
+    <p><span class="doc-section-title">The</span></p>
     <table>
       <thead>
         <tr>
-<th>Name</th>          <th>Type</th>
+          <th>Type</th>
           <th>Description</th>
         </tr>
       </thead>
       <tbody>
           <tr class="doc-section-item">
-<td><code>The</code></td>            <td>
+            <td>
                   <code><a class="autorefs autorefs-internal" title="DispatchResult
 
 
@@ -3481,12 +3531,17 @@ merging them would let a query parameter satisfy a serializer field.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>class:<code>DispatchResult</code> — value, <code>kind</code>, status, and on the</p>
+                <p><a class="autorefs autorefs-internal" title="DispatchResult
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.dispatch_result.DispatchResult"><code>DispatchResult</code></a></p>
               </div>
             </td>
           </tr>
           <tr class="doc-section-item">
-<td></td>            <td>
+            <td>
                   <code><a class="autorefs autorefs-internal" title="DispatchResult
 
 
@@ -3496,7 +3551,22 @@ merging them would let a query parameter satisfy a serializer field.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>mutation path the service's own return, resolved instance and data.</p>
+                <p>— value, <code>kind</code>, status, and on the mutation path the service's own return,</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="DispatchResult
+
+
+  
+      dataclass
+   (rest_framework_services.types.dispatch_result.DispatchResult)" href="#rest_framework_services.types.dispatch_result.DispatchResult">DispatchResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>resolved instance and data.</p>
               </div>
             </td>
           </tr>
@@ -3563,17 +3633,24 @@ merging them would let a query parameter satisfy a serializer field.</p>
 
     <div class="doc doc-contents first">
 
-        <p>Async :func:<code>~rest_framework_services.dispatch_spec</code>.</p>
-<p>Identical contract, arguments, policies and :class:<code>DispatchResult</code> shape —
-see the sync twin. What differs is only the execution model: async selectors
-and services are awaited, and sync ones run in Django's thread-sensitive
-executor so the ORM stays safe off the event loop.</p>
+        <p>Async
+<a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>.</p>
+<p>Identical contract, arguments, policies and
+<a class="autorefs autorefs-internal" title="DispatchResult
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.dispatch_result.DispatchResult"><code>DispatchResult</code></a>
+shape — see the sync twin. What differs is only the execution model: async selectors
+and services are awaited, and sync ones run in Django's thread-sensitive executor so
+the ORM stays safe off the event loop.</p>
 <p>That rule covers <strong>every</strong> callable a spec carries, not just the selector /
 service: <code>kwargs</code> providers, <code>extend_queryset</code>, <code>filter_set</code>,
 <code>input_serializer_context</code>, a callable <code>success_status</code>,
 <code>preconditions</code>, and the <code>on_target_resolved</code> guard all run in the
 executor (see
-:func:<code>~rest_framework_services.dispatch.utils.arun_off_loop</code>). None of them
+<code>arun_off_loop</code>). None of them
 can be <code>async def</code> — a spec is written once for both transports — so any
 that queries would otherwise raise <code>SynchronousOnlyOperation</code> here and
 nowhere else.</p>
@@ -3610,20 +3687,19 @@ transport to materialize / paginate in a thread.</p>
 
         <p>Render <code>value</code> to a JSON-shaped payload using <code>spec</code>'s output serializer.</p>
 <p>The blessed render step that pairs with
-:func:<code>~rest_framework_services.dispatch_spec</code>: every transport renders the
-same way instead of re-implementing serializer + context plumbing. Reads
-the output serializer from <code>spec.output_serializer</code> (selector) or
-<code>spec.output_selector_spec.output_serializer</code> (service); when none is set
-the value passes through (list-coerced when <code>many=True</code> so a queryset
-evaluates).</p>
-<p>The serializer <code>context</code> always carries DRF's baseline — <code>request</code> /
-<code>format</code> / <code>view</code>, from
-:func:<code>~rest_framework_services.base_serializer_context</code> — so a serializer
-that reads <code>self.context["request"]</code> renders identically here and behind
-a DRF view. The spec's <code>output_serializer_context</code> provider, if any, is
-resolved with <code>view</code> / <code>request</code> plus the resolved-data <code>extras</code> it
-declares (<code>page</code> for a list, <code>instance</code> for a retrieve, <code>result</code> for
-a mutation) and merged over that baseline.</p>
+<a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>:
+every transport renders the same way instead of re-implementing serializer + context
+plumbing. Reads the output serializer from <code>spec.output_serializer</code> (selector) or
+<code>spec.output_selector_spec.output_serializer</code> (service); when none is set the
+value passes through (list-coerced when <code>many=True</code> so a queryset evaluates).</p>
+<p>The serializer <code>context</code> always carries DRF's baseline — <code>request</code> / <code>format</code>
+/ <code>view</code>, from
+<a class="autorefs autorefs-internal" title="base_serializer_context" href="#rest_framework_services.dispatch.base_serializer_context.base_serializer_context"><code>base_serializer_context</code></a>
+— so a serializer that reads <code>self.context["request"]</code> renders identically here
+and behind a DRF view. The spec's <code>output_serializer_context</code> provider, if any, is
+resolved with <code>view</code> / <code>request</code> plus the resolved-data <code>extras</code> it declares
+(<code>page</code> for a list, <code>instance</code> for a retrieve, <code>result</code> for a mutation) and
+merged over that baseline.</p>
 <p>Pagination is the caller's job — pass the already-sliced page as <code>value</code>
 (and the same page object under the matching <code>extras</code> key) so an
 id-keyed batched context query reuses the page's result cache.</p>
@@ -3659,7 +3735,8 @@ id-keyed batched context query reuses the page's result cache.</p>
 
     <div class="doc doc-contents first">
 
-        <p>Async :func:<code>~rest_framework_services.render_spec_output</code>.</p>
+        <p>Async
+<a class="autorefs autorefs-internal" title="render_spec_output" href="#rest_framework_services.dispatch.render_spec_output.render_spec_output"><code>render_spec_output</code></a>.</p>
 <p>Identical arguments, identical result — the whole render runs in Django's
 thread-sensitive executor instead of on the event loop, which is what an
 async transport needs. Rendering is <strong>full of</strong> sync ORM work, none of it
@@ -3672,17 +3749,23 @@ optional:</p>
   documented as the place to run one batched query keyed on the page.</li>
 <li>The no-serializer path list-coerces, which evaluates a queryset too.</li>
 </ul>
-<p>So an async caller that awaited :func:<code>~rest_framework_services.adispatch_spec</code>
-— which returns a <code>LIST</code> result as a <strong>lazy</strong> queryset, deliberately —
-cannot render it inline without raising <code>SynchronousOnlyOperation</code>. Pair
-the two:</p>
+<p>So an async caller that awaited
+<a class="autorefs autorefs-internal" title="adispatch_spec
+
+
+  
+      async
+  " href="#rest_framework_services.dispatch.adispatch_spec.adispatch_spec"><code>adispatch_spec</code></a> —
+which returns a <code>LIST</code> result as a <strong>lazy</strong> queryset, deliberately — cannot render
+it inline without raising <code>SynchronousOnlyOperation</code>. Pair the two:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">adispatch_spec</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">)</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">payload</span> <span class="o">=</span> <span class="k">await</span> <span class="n">arender_spec_output</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="n">result</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;list&quot;</span><span class="p">)</span>
 </span></code></pre></div>
-<p>A transport that already does its own thread hop around rendering (to
-paginate or post-process in the same hop) can keep calling
-:func:<code>render_spec_output</code> inside it — this is for the ordinary case, where
-the hop shouldn't have to be the caller's problem to remember.</p>
+<p>A transport that already does its own thread hop around rendering (to paginate or
+post-process in the same hop) can keep calling
+<a class="autorefs autorefs-internal" title="render_spec_output" href="#rest_framework_services.dispatch.render_spec_output.render_spec_output"><code>render_spec_output</code></a>
+inside it — this is for the ordinary case, where the hop shouldn't have to be the
+caller's problem to remember.</p>
 <p>Pagination is still the caller's job; see the sync twin for the <code>extras</code>
 contract and the rest of the semantics.</p>
 
@@ -3712,7 +3795,7 @@ transport builds a serializer outside them. See
 
         <p>Build the baseline serializer <code>context</code> a spec-driven render starts from.</p>
 <p>Over HTTP every serializer DRF builds carries
-:meth:<code>~rest_framework.generics.GenericAPIView.get_serializer_context</code> —
+<code>get_serializer_context</code> —
 <code>{"request", "format", "view"}</code> — so serializers routinely read
 <code>self.context["request"]</code> unguarded (<code>build_absolute_uri</code>,
 <code>request.user</code>, a permission check in a <code>SerializerMethodField</code>). A
@@ -3724,14 +3807,14 @@ over HTTP raises <code>KeyError: 'request'</code> when the spec is dispatched fr
 MCP tool call, a Pydantic-AI toolset, or a management command.</p>
 <p>Two sources, in order:</p>
 <ul>
-<li><code>view.get_serializer_context()</code> when the view has it — a real DRF view
-  (the HTTP bulk path renders through the same helper). It is the view's own
-  documented extension point and may already be overridden, so it wins.</li>
-<li>Otherwise DRF's shape, synthesized from the <code>view</code> / <code>request</code> the
-  caller passed: the synthetic pair from
-  :func:<code>~rest_framework_services.build_offline_context</code> off HTTP, or
-  <code>None</code> when the caller supplied neither. <code>format</code> is always <code>None</code>
-  — content negotiation is an HTTP-only concern.</li>
+<li><code>view.get_serializer_context()</code> when the view has it — a real DRF view (the HTTP
+  bulk path renders through the same helper). It is the view's own documented
+  extension point and may already be overridden, so it wins.</li>
+<li>Otherwise DRF's shape, synthesized from the <code>view</code> / <code>request</code> the caller
+  passed: the synthetic pair from
+  <a class="autorefs autorefs-internal" title="build_offline_context" href="#rest_framework_services.dispatch.build_offline_context.build_offline_context"><code>build_offline_context</code></a>
+  off HTTP, or <code>None</code> when the caller supplied neither. <code>format</code> is always
+  <code>None</code> — content negotiation is an HTTP-only concern.</li>
 </ul>
 <p>The keys are always present, mirroring HTTP: a serializer reading
 <code>self.context["request"]</code> off HTTP sees the synthetic request (and
@@ -3740,8 +3823,8 @@ MCP tool call, a Pydantic-AI toolset, or a management command.</p>
 ambient <code>http_request</code> to <code>build_offline_context</code> when the transport has
 one, as the MCP server does.</p>
 <p>The spec's provider is merged <em>over</em> this by
-:func:<code>~rest_framework_services.dispatch.utils.resolve_output_context</code> /
-:func:<code>~rest_framework_services.dispatch.utils.resolve_input_context</code>, so a
+<code>resolve_output_context</code> /
+<code>resolve_input_context</code>, so a
 provider keeps the final say on every key — including these three.</p>
 
 
@@ -3769,13 +3852,15 @@ provider keeps the final say on every key — including these three.</p>
 
 
 
-        <p>What :func:<code>~rest_framework_services.dispatch_spec</code> resolved, pre-wire.</p>
+        <p>What
+<a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>
+resolved, pre-wire.</p>
 <p>A transport-neutral carrier the caller formats for its own wire (an HTTP
-<code>Response</code>, an MCP <code>ToolResult</code>, …). It holds the <strong>raw</strong> resolved
-domain value — never a paginated page or rendered serializer output —
-because ordering, pagination, and the response envelope are transport
-concerns. Render the value through
-:func:<code>~rest_framework_services.render_spec_output</code>.</p>
+<code>Response</code>, an MCP <code>ToolResult</code>, …). It holds the <strong>raw</strong> resolved domain value
+— never a paginated page or rendered serializer output — because ordering,
+pagination, and the response envelope are transport concerns. Render the value
+through
+<a class="autorefs autorefs-internal" title="render_spec_output" href="#rest_framework_services.dispatch.render_spec_output.render_spec_output"><code>render_spec_output</code></a>.</p>
 <p><code>instance</code> and <code>data</code> are informational: a transport that only renders
 reads <code>value</code> / <code>kind</code> / <code>status</code> and can ignore them.</p>
 
@@ -3964,9 +4049,19 @@ transport-controlled state by naming an argument after one of them.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The default — resolve per spec type: :class:<code>ServiceSpec</code> →
+                <p>The default — resolve per spec type: <a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> →
 <code>BUNDLE</code> (a mutation takes its validated payload as one <code>data</code>
-bundle), :class:<code>SelectorSpec</code> → <code>SPREAD_AUTHOR_WINS</code> (a read
+bundle), <a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> → <code>SPREAD_AUTHOR_WINS</code> (a read
 spreads its params so the selector can declare them as parameters).</p>
               </div>
             </td>
@@ -4060,20 +4155,31 @@ set — drop them, reject them, or pass them through to the callable.</p>
 
 
         <p>How <code>dispatch_spec</code> treats <code>params</code> keys outside a spec's declared set.</p>
-<p>The <em>declared set</em> is derived from the spec without any transport knowledge:
-a :class:<code>ServiceSpec</code>'s <code>input_serializer</code> fields plus the keys its nested
-target selectors consume; a :class:<code>SelectorSpec</code>'s <code>selector</code> parameters.
-When the set cannot be enumerated — a callable that declares <code>**kwargs</code>, or
-a duck-typed <code>filter_set</code> whose fields are opaque to the core — the spec is
-treated as <strong>open</strong> and this policy is a no-op (there is nothing to call
-"unknown").</p>
+<p>The <em>declared set</em> is derived from the spec without any transport knowledge: a
+<a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a>'s
+<code>input_serializer</code> fields plus the keys its nested target selectors consume; a
+<a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a>'s
+<code>selector</code> parameters. When the set cannot be enumerated — a callable that
+declares <code>**kwargs</code>, or a duck-typed <code>filter_set</code> whose fields are opaque to the
+core — the spec is treated as <strong>open</strong> and this policy is a no-op (there is nothing
+to call "unknown").</p>
 <p>Members (internal knob — the value never appears on a wire):</p>
 <ul>
 <li><code>IGNORE</code> — undeclared keys are dropped (DRF serializers already do this
   to a mutation's payload, and a selector simply never receives kwargs it
   doesn't declare). The default, reproducing the pre-policy behaviour.</li>
 <li><code>REJECT</code> — an undeclared key raises
-  :exc:<code>~rest_framework.exceptions.ValidationError</code>, the same surface a
+  <code>ValidationError</code>, the same surface a
   strict serializer produces. Useful when the caller wants a clean
   correction signal (e.g. a model calling a tool with a mistyped argument).</li>
 <li><code>PASSTHROUGH</code> — undeclared keys survive: they are merged onto the
@@ -4138,24 +4244,30 @@ passed directly — by name, not wrapped in a <code>lambda</code>.</p>
         <p>Invoked with the resolved target before a mutation runs; raise to abort.</p>
 <p><code>dispatch_spec</code> deliberately does <strong>not</strong> consult <code>permission_classes</code>
 (authorization is the caller's job — which is why
-:func:<code>~rest_framework_services.enforce_permissions</code> ships separately). But
-object-level checks need the resolved instance, which only <code>dispatch_spec</code>
-sees, <em>before</em> the service runs. So <code>dispatch_spec</code> exposes this hook
-rather than folding authz in: it stays authz-agnostic, only invoking a
+<a class="autorefs autorefs-internal" title="enforce_permissions" href="#rest_framework_services.dispatch.enforce_permissions.enforce_permissions"><code>enforce_permissions</code></a>
+ships separately). But object-level checks need the resolved instance, which only
+<code>dispatch_spec</code> sees, <em>before</em> the service runs. So <code>dispatch_spec</code> exposes this
+hook rather than folding authz in: it stays authz-agnostic, only invoking a
 caller-supplied guard.</p>
 <p>The signature is deliberately <strong>identical to</strong>
-:func:<code>~rest_framework_services.enforce_permissions</code>, so the canonical wiring
-is passing that function directly, by name — not wrapping it in a <code>lambda</code>::</p>
+<a class="autorefs autorefs-internal" title="enforce_permissions" href="#rest_framework_services.dispatch.enforce_permissions.enforce_permissions"><code>enforce_permissions</code></a>, so the canonical wiring
+is passing that function directly, by name — not wrapping it in a <code>lambda</code>:</p>
 <div class="language-text highlight"><pre><span></span><code>dispatch_spec(spec, ..., on_target_resolved=enforce_permissions)
 </code></pre></div>
 <p>A consumer needing custom logic writes a module-level function with the same
 shape and passes it the same way; <code>ty</code> enforces conformance.</p>
-<p><code>dispatch_spec</code> builds the :class:<code>OfflineContext</code> itself (it already holds
-<code>user</code> / <code>request</code> / <code>view</code>) and calls <code>guard(spec, context,
-instance=target)</code>. <code>instance</code> is the resolved row for an update, the
-resolved set for a collection (bulk) mutation, and <code>None</code> for a create — so
-the guard fires uniformly on every resolved target, running the class-level
-check when there is no object.</p>
+<p><code>dispatch_spec</code> builds the
+<a class="autorefs autorefs-internal" title="OfflineContext
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.offline_context.OfflineContext"><code>OfflineContext</code></a>
+itself (it already holds <code>user</code> / <code>request</code> / <code>view</code>) and calls <code>guard(spec,
+context, instance=target)</code>. <code>instance</code> is the resolved row for an update, the
+resolved set for a collection (bulk) mutation, and <code>None</code> for a create — so the
+guard fires uniformly on every resolved target, running the class-level check when
+there is no object.</p>
 
 
 
@@ -4215,12 +4327,12 @@ once no matter who dispatches.</p>
 
         <p>The HTTP view's hook-chain contributions, resolved and passed down.</p>
 <p><code>dispatch_spec</code> is the single execution core, but the view layer owns a
-configuration surface the core knows nothing about: the <code>get_service_kwargs</code>
-/ <code>get_&lt;action&gt;_service_kwargs</code> / <code>get_input_data</code> /
-<code>get_&lt;action&gt;_input_data</code> / <code>get_*_serializer_context</code> chains declared on
-:class:<code>MutationFlowMixin</code> and its viewset mixins. Those are methods on a DRF
-view, so the core cannot resolve them; this carrier is how a caller that has
-resolved them hands them over.</p>
+configuration surface the core knows nothing about: the <code>get_service_kwargs</code> /
+<code>get_&lt;action&gt;_service_kwargs</code> / <code>get_input_data</code> / <code>get_&lt;action&gt;_input_data</code> /
+<code>get_*_serializer_context</code> chains declared on
+<a class="autorefs autorefs-internal" title="MutationFlowMixin" href="../views/#rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin"><code>MutationFlowMixin</code></a>
+and its viewset mixins. Those are methods on a DRF view, so the core cannot resolve
+them; this carrier is how a caller that has resolved them hands them over.</p>
 <p><strong>These are the <em>view</em> layers only — never the spec's own providers.</strong>
 Each chain resolves <code>view.get_&lt;x&gt;</code> → <code>view.get_&lt;action&gt;_&lt;x&gt;</code> →
 <code>spec.&lt;x&gt;</code>, spec winning on overlap. <code>dispatch_spec</code> owns that last
@@ -4277,7 +4389,7 @@ the view-method names differ, not the layering.</p>
             <td>
               <div class="doc-md-description">
                 <p>Layers onto the baseline serializer context
-(:func:<code>base_serializer_context</code>), beneath
+(<a class="autorefs autorefs-internal" title="base_serializer_context" href="#rest_framework_services.dispatch.base_serializer_context.base_serializer_context"><code>base_serializer_context</code></a>), beneath
 <code>spec.input_serializer_context</code>.</p>
               </div>
             </td>
@@ -4400,13 +4512,21 @@ queryset runs only the class-level check, never <code>has_object_permission</cod
 
     <div class="doc doc-contents first">
 
-        <p>Build the :class:<code>OfflineContext</code> for dispatching a spec outside an HTTP request.</p>
-<p>:func:<code>~rest_framework_services.dispatch_spec</code> forwards <code>request</code> / <code>view</code>
-to spec callables (<code>kwargs</code> providers, <code>extend_queryset</code>, context
-providers) that declare them, and :func:<code>~rest_framework_services.enforce_permissions</code>
-needs a request + view to evaluate <code>permission_classes</code>. This synthesizes
-both so a spec written for the HTTP transport keeps working when driven from
-a Pydantic-AI toolset, the MCP server, a management command, or a task runner.</p>
+        <p>Build the
+<a class="autorefs autorefs-internal" title="OfflineContext
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.offline_context.OfflineContext"><code>OfflineContext</code></a> for
+dispatching a spec outside an HTTP request.</p>
+<p><a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>
+forwards <code>request</code> / <code>view</code> to spec callables (<code>kwargs</code> providers,
+<code>extend_queryset</code>, context providers) that declare them, and
+<a class="autorefs autorefs-internal" title="enforce_permissions" href="#rest_framework_services.dispatch.enforce_permissions.enforce_permissions"><code>enforce_permissions</code></a>
+needs a request + view to evaluate <code>permission_classes</code>. This synthesizes both so
+a spec written for the HTTP transport keeps working when driven from a Pydantic-AI
+toolset, the MCP server, a management command, or a task runner.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4429,8 +4549,8 @@ a Pydantic-AI toolset, the MCP server, a management command, or a task runner.</
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Set as <code>request.user</code>, so callables and permissions that read it
-behave as on HTTP.</p>
+                <p>Set as <code>request.user</code>, so callables and permissions that read it behave
+as on HTTP.</p>
               </div>
             </td>
             <td>
@@ -4447,9 +4567,11 @@ behave as on HTTP.</p>
             <td>
               <div class="doc-md-description">
                 <p>Seeds <code>request.data</code>, straight into DRF's parsed-data cache (a
-synthetic request has no stream to parse). It is <em>not</em> validated
-here — that is :func:<code>dispatch_spec</code>'s job, which takes <code>params</code>
-directly and never touches <code>request.data</code>. Pass both the same value.</p>
+synthetic request has no stream to parse). It is <em>not</em> validated here — that
+is
+<a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>'s
+job, which takes <code>params</code> directly and never touches <code>request.data</code>.
+Pass both the same value.</p>
               </div>
             </td>
             <td>
@@ -4465,11 +4587,11 @@ directly and never touches <code>request.data</code>. Pass both the same value.<
             </td>
             <td>
               <div class="doc-md-description">
-                <p>An ambient Django request to wrap, so its headers /
-<code>META</code> are available (the MCP server passes its real one);
-otherwise an :class:<code>~rest_framework_services.OfflineHttpRequest</code> is
-created. Either way the method is forced to <code>POST</code>, because
-mutation callables often branch on it.</p>
+                <p>An ambient Django request to wrap, so its headers / <code>META</code> are
+available (the MCP server passes its real one); otherwise an
+<a class="autorefs autorefs-internal" title="OfflineHttpRequest" href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest"><code>OfflineHttpRequest</code></a>
+is created. Either way the method is forced to <code>POST</code>, because mutation
+callables often branch on it.</p>
               </div>
             </td>
             <td>
@@ -4485,7 +4607,13 @@ mutation callables often branch on it.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The view action name, exposed on the :class:<code>OfflineServiceView</code>.</p>
+                <p>The view action name, exposed on the
+<a class="autorefs autorefs-internal" title="OfflineServiceView
+
+
+  
+      dataclass
+  " href="../views/#rest_framework_services.types.offline_service_view.OfflineServiceView"><code>OfflineServiceView</code></a>.</p>
               </div>
             </td>
             <td>
@@ -4501,13 +4629,13 @@ mutation callables often branch on it.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><strong>The</strong> channel for route-derived values — the off-HTTP
-counterpart of a view's URL captures. :func:<code>dispatch_spec</code> spreads
-it into the selector / target pools exactly where the HTTP path
-spreads <code>extra_url_kwargs=view.kwargs</code>: authoritative over
-<code>params</code> on a key conflict, below a <code>spec.kwargs</code> provider, which
-also sees it as <code>view.kwargs</code>. Pass every route capture a spec
-depends on.</p>
+                <p><strong>The</strong> channel for route-derived values — the off-HTTP counterpart of a
+view's URL captures.
+<a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>
+spreads it into the selector / target pools exactly where the HTTP path
+spreads <code>extra_url_kwargs=view.kwargs</code>: authoritative over <code>params</code> on a
+key conflict, below a <code>spec.kwargs</code> provider, which also sees it as
+<code>view.kwargs</code>. Pass every route capture a spec depends on.</p>
               </div>
             </td>
             <td>
@@ -4523,12 +4651,11 @@ depends on.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Seeds the request's <code>GET</code>
-:class:<code>~django.http.QueryDict</code>, the source <code>request.query_params</code>
-reads — how read-shaping params that are not spec inputs reach the
-serializer offline (<code>SelectorSpec.filter_set</code>, a serializer
-branching on <code>query_params</code>). Values are stringified as on HTTP; a
-list / tuple becomes a multi-valued param. <strong>Replaces</strong> a wrapped
+                <p>Seeds the request's <code>GET</code> <code>QueryDict</code>, the source
+<code>request.query_params</code> reads — how read-shaping params that are not spec
+inputs reach the serializer offline (<code>SelectorSpec.filter_set</code>, a
+serializer branching on <code>query_params</code>). Values are stringified as on
+HTTP; a list / tuple becomes a multi-valued param. <strong>Replaces</strong> a wrapped
 <code>http_request</code>'s <code>GET</code>.</p>
               </div>
             </td>
@@ -4545,17 +4672,15 @@ list / tuple becomes a multi-valued param. <strong>Replaces</strong> a wrapped
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The origin the synthesized request reports, so
-<code>build_absolute_uri</code> — which DRF's <code>FileField</code> /
-<code>HyperlinkedIdentityField</code> call whenever a <code>request</code> is in the
-serializer context — returns real absolute URLs off HTTP. Accepts
-<code>"example.com"</code>, <code>"example.com:8000"</code>, or a full origin whose
-scheme decides whether links are https. There is no default: unset,
-absolute-URI building degrades to the relative URL rather than
-raising (see
-:class:<code>~rest_framework_services.OfflineHttpRequest</code>). <strong>Ignored when
-<code>http_request</code> is supplied</strong>, whose own headers are authoritative,
-so a caller can pass both unconditionally.</p>
+                <p>The origin the synthesized request reports, so <code>build_absolute_uri</code> —
+which DRF's <code>FileField</code> / <code>HyperlinkedIdentityField</code> call whenever a
+<code>request</code> is in the serializer context — returns real absolute URLs off
+HTTP. Accepts <code>"example.com"</code>, <code>"example.com:8000"</code>, or a full origin
+whose scheme decides whether links are https. There is no default: unset,
+absolute-URI building degrades to the relative URL rather than raising (see
+<a class="autorefs autorefs-internal" title="OfflineHttpRequest" href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest"><code>OfflineHttpRequest</code></a>).
+<strong>Ignored when <code>http_request</code> is supplied</strong>, whose own headers are
+authoritative, so a caller can pass both unconditionally.</p>
               </div>
             </td>
             <td>
@@ -4566,17 +4691,17 @@ so a caller can pass both unconditionally.</p>
     </table>
 
 
-    <p><span class="doc-section-title">Returns:</span></p>
+    <p><span class="doc-section-title">The</span></p>
     <table>
       <thead>
         <tr>
-<th>Name</th>          <th>Type</th>
+          <th>Type</th>
           <th>Description</th>
         </tr>
       </thead>
       <tbody>
           <tr class="doc-section-item">
-<td><code>The</code></td>            <td>
+            <td>
                   <code><a class="autorefs autorefs-internal" title="OfflineContext
 
 
@@ -4586,7 +4711,27 @@ so a caller can pass both unconditionally.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>class:<code>OfflineContext</code> to hand to <code>dispatch_spec</code>.</p>
+                <p><a class="autorefs autorefs-internal" title="OfflineContext
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.offline_context.OfflineContext"><code>OfflineContext</code></a></p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="OfflineContext
+
+
+  
+      dataclass
+   (rest_framework_services.types.offline_context.OfflineContext)" href="../types/#rest_framework_services.types.offline_context.OfflineContext">OfflineContext</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>to hand to <code>dispatch_spec</code>.</p>
               </div>
             </td>
           </tr>
@@ -4628,16 +4773,16 @@ the HTTP path — see
 
 
 
-        <p>An :class:<code>~django.http.HttpRequest</code> with no ambient host, made safe to use.</p>
-<p>Built by :func:<code>~rest_framework_services.build_offline_context</code> when the
-caller has no real request to wrap (a Pydantic-AI toolset, a management
-command, a task runner). A bare <code>HttpRequest</code> has an <strong>empty</strong> <code>META</code>,
-and Django resolves the host from <code>HTTP_HOST</code> / <code>SERVER_NAME</code> — so
-<code>get_host()</code> raises <code>KeyError: 'SERVER_NAME'</code> and takes
-<code>build_absolute_uri()</code> down with it. That reaches serializers through the
-most ordinary field there is: DRF's <code>FileField.to_representation</code> calls
-<code>request.build_absolute_uri(value.url)</code> whenever a <code>request</code> is in the
-context.</p>
+        <p>An <code>HttpRequest</code> with no ambient host, made safe to use.</p>
+<p>Built by
+<a class="autorefs autorefs-internal" title="build_offline_context" href="#rest_framework_services.dispatch.build_offline_context.build_offline_context"><code>build_offline_context</code></a>
+when the caller has no real request to wrap (a Pydantic-AI toolset, a management
+command, a task runner). A bare <code>HttpRequest</code> has an <strong>empty</strong> <code>META</code>, and
+Django resolves the host from <code>HTTP_HOST</code> / <code>SERVER_NAME</code> — so <code>get_host()</code>
+raises <code>KeyError: 'SERVER_NAME'</code> and takes <code>build_absolute_uri()</code> down with it.
+That reaches serializers through the most ordinary field there is: DRF's
+<code>FileField.to_representation</code> calls <code>request.build_absolute_uri(value.url)</code>
+whenever a <code>request</code> is in the context.</p>
 <p>Two behaviours, decided by whether the caller configured a host
 (<code>build_offline_context(host=…)</code>, which seeds <code>META</code> — a configured
 request is an ordinary one and none of this applies):</p>
@@ -4672,6 +4817,35 @@ fix, rather than a bare <code>KeyError</code> from Django's internals.</p>
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="rest_framework_services.types.offline_http_request.OfflineHttpRequest.offline_host" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">offline_host</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest.offline_host" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">offline_host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The configured host (<code>"example.com"</code> / <code>"example.com:8000"</code>), or
+<code>None</code> when the caller didn't configure one. Set by
+<a class="autorefs autorefs-internal" title="build_offline_context" href="#rest_framework_services.dispatch.build_offline_context.build_offline_context"><code>build_offline_context</code></a>;
+when it is set, <code>META</code> carries the matching keys and Django's own
+machinery is in charge, so nothing on this class changes behaviour.</p>
+
+    </div>
+
+</div>
 
 
 
@@ -4754,13 +4928,13 @@ equally pass one that is on the list.</p>
     <div class="doc doc-contents first">
 
         <p>Enforce <code>spec.permission_classes</code> against an off-HTTP context.</p>
-<p>Mirrors what a DRF view does on the HTTP path —
-<code>[perm() for perm in spec.permission_classes]</code> then
-<code>perm.has_permission(request, view)</code> — but against the synthetic request
-and view from :func:<code>build_offline_context</code>. <code>dispatch_spec</code> deliberately
-does <strong>not</strong> consult <code>permission_classes</code> (authorization is the view's job
-on HTTP), so an off-HTTP transport must call this itself before dispatching,
-or it would skip authorization entirely.</p>
+<p>Mirrors what a DRF view does on the HTTP path — <code>[perm() for perm in
+spec.permission_classes]</code> then <code>perm.has_permission(request, view)</code> — but against
+the synthetic request and view from
+<a class="autorefs autorefs-internal" title="build_offline_context" href="#rest_framework_services.dispatch.build_offline_context.build_offline_context"><code>build_offline_context</code></a>.
+<code>dispatch_spec</code> deliberately does <strong>not</strong> consult <code>permission_classes</code>
+(authorization is the view's job on HTTP), so an off-HTTP transport must call this
+itself before dispatching, or it would skip authorization entirely.</p>
 <p>When <code>instance</code> is a Django <code>Model</code>, object-level permissions
 (<code>has_object_permission</code>) are also checked — matching the HTTP path's
 <code>check_object_permissions</code> against a resolved instance. (drf-mcp's adapter
@@ -4776,7 +4950,7 @@ per-row), and <code>has_object_permission(request, view, &lt;QuerySet&gt;)</code
 class-level permissions" on HTTP) is a <strong>no-op</strong> off-HTTP: there is no view
 class to inherit from, so the transport owns any default policy. An empty
 sequence is likewise a no-op ("no permissions").</p>
-<p>Raises :exc:<code>~rest_framework.exceptions.PermissionDenied</code> (403) on the first
+<p>Raises <code>PermissionDenied</code> (403) on the first
 failing permission, carrying that permission's <code>message</code> / <code>code</code> when it
 declares them — the same surface a DRF view produces.</p>
 <p>Permission classes that read DRF <code>APIView</code> attributes beyond <code>request</code> /
@@ -4853,16 +5027,22 @@ any callable whose <code>__call__</code> is a coroutine function.</p>
 
         <p>Call <code>fn(**kwargs)</code> from sync code, optionally inside <code>transaction.atomic()</code>.</p>
 <p>An <code>async def</code> service is bridged transparently via <code>async_to_sync</code>,
-mirroring :func:<code>~rest_framework_services.selectors.utils.run_selector</code>. The
+mirroring <code>run_selector</code>. The
 bridge is <strong>not</strong> optional politeness: without it an async service returns its
 coroutine object to the caller un-awaited — no exception, and under
 <code>atomic=True</code> the transaction commits before the body would have run. The
 HTTP path always bridged (its own <code>dispatch_service</code> wrapper did this);
 <code>dispatch_spec</code> reached this leaf directly, so the same spec resolved over
 HTTP and returned a coroutine over MCP.</p>
-<p>Async services under <code>atomic=True</code> route through :func:<code>arun_service</code>, which
-owns the thread-sensitivity rule that keeps the ORM connection holding the
-open transaction the same one the inner async DB calls use.</p>
+<p>Async services under <code>atomic=True</code> route through
+<a class="autorefs autorefs-internal" title="arun_service
+
+
+  
+      async
+  " href="#rest_framework_services.services.arun_service.arun_service"><code>arun_service</code></a>, which
+owns the thread-sensitivity rule that keeps the ORM connection holding the open
+transaction the same one the inner async DB calls use.</p>
 
 
     </div>
@@ -5000,7 +5180,7 @@ subclass, or any other <code>Serializer</code> subclass such as
 constructed, server-provided keys winning on overlap — the seam the
 <code>input_data</code> resolver chain uses to lift URL kwargs into serializer
 input. The merge goes through
-:func:<code>~rest_framework_services.dispatch.apply_input_data.apply_input_data</code>,
+<code>apply_input_data</code>,
 which keeps a form-encoded / multipart <code>QueryDict</code>'s scalars from
 flattening into one-element lists.</p>
               </div>
@@ -5095,11 +5275,13 @@ row) behave as under DRF's own update flow.</p>
     <div class="doc doc-contents first">
 
         <p>Construct + validate the bound input serializer from a raw <code>data</code> dict.</p>
-<p>The transport-neutral core of :func:<code>build_input_serializer</code>: it takes the
-input <code>data</code> directly instead of reaching into a DRF <code>request.data</code>, so a
-non-HTTP caller (<code>dispatch_spec</code>) and the HTTP view path share one
-validation implementation. See :func:<code>build_input_serializer</code> for the
-remaining parameter semantics.</p>
+<p>The transport-neutral core of
+<a class="autorefs autorefs-internal" title="build_input_serializer" href="#rest_framework_services.views.mutation.utils.build_input_serializer"><code>build_input_serializer</code></a>:
+it takes the input <code>data</code> directly instead of reaching into a DRF
+<code>request.data</code>, so a non-HTTP caller (<code>dispatch_spec</code>) and the HTTP view path
+share one validation implementation. See
+<a class="autorefs autorefs-internal" title="build_input_serializer" href="#rest_framework_services.views.mutation.utils.build_input_serializer"><code>build_input_serializer</code></a>
+for the remaining parameter semantics.</p>
 
 
     </div>
@@ -5129,9 +5311,10 @@ remaining parameter semantics.</p>
     <div class="doc doc-contents first">
 
         <p>Validate <code>request.data</code> against <code>input_serializer</code>; <code>None</code> if absent.</p>
-<p>Thin wrapper over :func:<code>build_input_serializer</code> (see there for the parameter
-semantics) returning only <code>validated_data</code>, for callers that don't need the
-bound serializer itself.</p>
+<p>Thin wrapper over
+<a class="autorefs autorefs-internal" title="build_input_serializer" href="#rest_framework_services.views.mutation.utils.build_input_serializer"><code>build_input_serializer</code></a>
+(see there for the parameter semantics) returning only <code>validated_data</code>, for
+callers that don't need the bound serializer itself.</p>
 
 
     </div>
@@ -5155,7 +5338,7 @@ bound serializer itself.</p>
         <p>Resolve the mutation target, or defer to the core.</p>
 
 
-    <p><span class="doc-section-title">Returns:</span></p>
+    <p><span class="doc-section-title">``None`` for a **bulk** spec (``many=True`` or a</span></p>
     <table>
       <thead>
         <tr>
@@ -5164,16 +5347,6 @@ bound serializer itself.</p>
         </tr>
       </thead>
       <tbody>
-          <tr class="doc-section-item">
-<td></td>            <td>
-                  <code><span title="typing.Any">Any</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p><code>None</code> for a <strong>bulk</strong> spec (<code>many=True</code> or a</p>
-              </div>
-            </td>
-          </tr>
           <tr class="doc-section-item">
 <td></td>            <td>
                   <code><span title="typing.Any">Any</span></code>
@@ -5190,7 +5363,7 @@ bound serializer itself.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>get_object()</code> lookup would 404 a body-only bulk endpoint.</p>
+                <p><code>get_object()</code> lookup would 404 a body-only bulk endpoint. <code>UNSET</code> when the</p>
               </div>
             </td>
           </tr>
@@ -5200,7 +5373,7 @@ bound serializer itself.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>data:<code>UNSET</code> when the spec carries an <code>instance_selector_spec</code> — *the</p>
+                <p>spec carries an <code>instance_selector_spec</code> — <em>the core resolves it</em>, with the</p>
               </div>
             </td>
           </tr>
@@ -5210,7 +5383,17 @@ bound serializer itself.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>core resolves it*, with the right kwarg pool, error label, and</p>
+                <p>right kwarg pool, error label, and reserved-seed strip. Object permissions still</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+<td><code>run</code></td>            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the core fires <code>on_target_resolved</code> against the resolved target and the</p>
               </div>
             </td>
           </tr>
@@ -5220,27 +5403,7 @@ bound serializer itself.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>reserved-seed strip. Object permissions still run: the core fires</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-<td></td>            <td>
-                  <code><span title="typing.Any">Any</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p><code>on_target_resolved</code> against the resolved target and the HTTP caller</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-<td><code>passes</code></td>            <td>
-                  <code><span title="typing.Any">Any</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>func:<code>check_view_object_permissions</code>. Otherwise the view's</p>
+                <p>HTTP caller passes <code>check_view_object_permissions</code>. Otherwise the view's</p>
               </div>
             </td>
           </tr>
@@ -5260,7 +5423,7 @@ bound serializer itself.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>class:<code>SelectorRetrieveMixin</code>, else DRF's <code>queryset</code> /</p>
+                <p><a class="autorefs autorefs-internal" title="SelectorRetrieveMixin" href="../viewsets/#rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin"><code>SelectorRetrieveMixin</code></a>,</p>
               </div>
             </td>
           </tr>
@@ -5270,7 +5433,7 @@ bound serializer itself.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>lookup_field</code> lookup, else a user override) — the one branch that is</p>
+                <p>else DRF's <code>queryset</code> / <code>lookup_field</code> lookup, else a user override) — the</p>
               </div>
             </td>
           </tr>
@@ -5280,7 +5443,7 @@ bound serializer itself.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>genuinely HTTP-only and so cannot move.</p>
+                <p>one branch that is genuinely HTTP-only and so cannot move.</p>
               </div>
             </td>
           </tr>
@@ -5576,8 +5739,10 @@ transport and raises a <code>TypeError</code> over the next.</p>
 <p><strong>Every</strong> pool routes through here, HTTP and off-HTTP alike, so a service
 that declares a seed behaves the same whoever dispatched it. Build a pool
 of your own from this rather than restating the seeds.</p>
-<p><code>progress</code> defaults to :func:<code>null_progress</code> rather than to <code>None</code>, so
-a declared reporter is always callable — see :class:<code>ProgressReporter</code>.</p>
+<p><code>progress</code> defaults to
+<a class="autorefs autorefs-internal" title="null_progress" href="#rest_framework_services.dispatch.null_progress.null_progress"><code>null_progress</code></a>
+rather than to <code>None</code>, so a declared reporter is always callable — see
+<a class="autorefs autorefs-internal" title="ProgressReporter" href="../types/#rest_framework_services.types.progress_reporter.ProgressReporter"><code>ProgressReporter</code></a>.</p>
 
 
     </div>
@@ -5603,10 +5768,13 @@ a declared reporter is always callable — see :class:<code>ProgressReporter</co
 
     <div class="doc doc-contents first">
 
-        <p>The :class:<code>ProgressReporter</code> a transport with nowhere to send progress uses.</p>
-<p>Seeded by :func:<code>base_pool</code> whenever the caller supplied no reporter, which
-is every HTTP request, every test, and every off-HTTP dispatch from a
-transport that has no progress channel of its own.</p>
+        <p>The
+<a class="autorefs autorefs-internal" title="ProgressReporter" href="../types/#rest_framework_services.types.progress_reporter.ProgressReporter"><code>ProgressReporter</code></a>
+a transport with nowhere to send progress uses.</p>
+<p>Seeded by <a class="autorefs autorefs-internal" title="base_pool" href="#rest_framework_services.dispatch.base_pool.base_pool"><code>base_pool</code></a>
+whenever the caller supplied no reporter, which is every HTTP request, every test,
+and every off-HTTP dispatch from a transport that has no progress channel of its
+own.</p>
 <p><strong>The default is what makes the seed usable.</strong> Without it, a service
 declaring <code>progress</code> would work over one transport and raise a
 <code>TypeError</code> over the others, so nobody could declare it in code meant to

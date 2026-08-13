@@ -1428,6 +1428,39 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.exceptions.service_not_found.ServiceNotFound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ServiceNotFound
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.exceptions.service_conflict.ServiceConflict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ServiceConflict
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.exceptions.additional_input_required.AdditionalInputRequired" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AdditionalInputRequired
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1486,6 +1519,39 @@
     <span class="md-ellipsis">
       
         ServiceValidationError
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.exceptions.service_not_found.ServiceNotFound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ServiceNotFound
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.exceptions.service_conflict.ServiceConflict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ServiceConflict
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.exceptions.additional_input_required.AdditionalInputRequired" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AdditionalInputRequired
       
     </span>
   </a>
@@ -1591,10 +1657,213 @@ surface a meaningful response without the service depending on DRF.</p>
 
 
         <p>Raised by services to signal invalid input or invalid state.</p>
-<p>Distinct from :class:<code>ServiceError</code> so the view boundary maps it to a DRF
-<code>ValidationError</code> (HTTP 400) where <code>ServiceError</code> maps to 422.
-<code>detail</code> may be a string, a dict (field → error(s)), or a list of errors,
-mirroring DRF's own <code>ValidationError</code> payload shapes.</p>
+<p>Distinct from
+<a class="autorefs autorefs-internal" title="ServiceError" href="#rest_framework_services.exceptions.service_error.ServiceError"><code>ServiceError</code></a> so
+the view boundary maps it to a DRF <code>ValidationError</code> (HTTP 400) where
+<code>ServiceError</code> maps to 422. <code>detail</code> may be a string, a dict (field → error(s)),
+or a list of errors, mirroring DRF's own <code>ValidationError</code> payload shapes.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.exceptions.service_not_found.ServiceNotFound" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ServiceNotFound</span>
+
+
+<a href="#rest_framework_services.exceptions.service_not_found.ServiceNotFound" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="ServiceError (rest_framework_services.exceptions.service_error.ServiceError)" href="#rest_framework_services.exceptions.service_error.ServiceError">ServiceError</a></code></p>
+
+
+
+        <p>The operation's target does not exist, or is not this caller's to see.</p>
+<p>The distinction from a plain
+<a class="autorefs autorefs-internal" title="ServiceError" href="#rest_framework_services.exceptions.service_error.ServiceError"><code>ServiceError</code></a>
+is <em>which</em> thing is wrong: the resource is absent rather than in the wrong
+state, so a client should stop asking rather than try again differently. Over
+HTTP that is a <code>404</code>; a plain <code>ServiceError</code> stays a <code>422</code>.</p>
+<div class="language-text highlight"><pre><span></span><code>def move_event(*, user, data):
+    event = Event.objects.filter(owner=user, pk=data.event_id).first()
+    if event is None:
+        raise ServiceNotFound(f&quot;No event {data.event_id}.&quot;)
+</code></pre></div>
+<p><strong>Say the same thing for "absent" and "not yours."</strong> Answering <code>403</code> to a row
+the caller cannot see confirms that it exists, which is why the owner-scoped
+lookup above raises this either way.</p>
+<p>Off HTTP there is no status code to reach for, which is the point of the type:
+a transport that has never heard of it still handles a <code>ServiceError</code>, and one
+that wants to do better matches on the class. It must match <strong>before</strong> its
+generic <code>ServiceError</code> handler, or the subclass check swallows it.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.exceptions.service_conflict.ServiceConflict" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ServiceConflict</span>
+
+
+<a href="#rest_framework_services.exceptions.service_conflict.ServiceConflict" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="ServiceError (rest_framework_services.exceptions.service_error.ServiceError)" href="#rest_framework_services.exceptions.service_error.ServiceError">ServiceError</a></code></p>
+
+
+
+        <p>The operation collides with the resource's current state.</p>
+<p>A slot already taken, a row someone else moved first, a name already used. The
+resource is there and the request is well-formed; the two are simply
+incompatible right now, and a caller can often resolve it by re-reading and
+trying again. Over HTTP that is a <code>409</code>; a plain
+<a class="autorefs autorefs-internal" title="ServiceError" href="#rest_framework_services.exceptions.service_error.ServiceError"><code>ServiceError</code></a>
+stays a <code>422</code>, which says "understood, and still not doing it".</p>
+<div class="language-text highlight"><pre><span></span><code>def slot_is_free(*, user, data):
+    if Event.objects.filter(owner=user, day=data.day, hour=data.hour).exists():
+        raise ServiceConflict(f&quot;{data.day} at {data.hour}:00 is taken.&quot;)
+</code></pre></div>
+<p>Reaching for this from a <code>preconditions</code> predicate is the common case, since
+a state rule is usually exactly this kind of collision.</p>
+<p>Off HTTP there is no status code to reach for, which is the point of the type:
+a transport that has never heard of it still handles a <code>ServiceError</code>, and one
+that wants to do better matches on the class. It must match <strong>before</strong> its
+generic <code>ServiceError</code> handler, or the subclass check swallows it.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.exceptions.additional_input_required.AdditionalInputRequired" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">AdditionalInputRequired</span>
+
+
+<a href="#rest_framework_services.exceptions.additional_input_required.AdditionalInputRequired" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="ServiceError (rest_framework_services.exceptions.service_error.ServiceError)" href="#rest_framework_services.exceptions.service_error.ServiceError">ServiceError</a></code></p>
+
+
+
+        <p>A service cannot proceed without a value it was not given.</p>
+<p>Not "what you sent is wrong" — that is
+<a class="autorefs autorefs-internal" title="ServiceValidationError" href="#rest_framework_services.exceptions.service_validation_error.ServiceValidationError"><code>ServiceValidationError</code></a>
+— but "I got far enough to discover I need something else", usually
+<em>conditional on what the service found</em>, so it cannot be expressed as a
+required input on the serializer:</p>
+<div class="language-text highlight"><pre><span></span><code>def delete_rows(*, data, confirmed: bool = False):
+    doomed = rows_matching(data)
+    if len(doomed) &gt; 100 and not confirmed:
+        raise AdditionalInputRequired(
+            f&quot;{len(doomed)} rows match. Confirm to proceed.&quot;,
+            schema={&quot;confirmed&quot;: {&quot;type&quot;: &quot;boolean&quot;}},
+        )
+    ...
+</code></pre></div>
+<p><code>schema</code> describes what is missing, keyed by the input name the service
+expects it back under: a transport that can ask renders it, one that cannot
+still has a message worth showing. <strong>The answer comes back as ordinary
+input</strong> on every transport — an HTTP client re-submits with <code>confirmed</code> in
+the body, an MCP client is asked and its answer is merged into the tool
+arguments before dispatch — so raising is the whole of the service's
+involvement; there is no callback to hold and no session to resume.</p>
+<p>A <a class="autorefs autorefs-internal" title="ServiceError" href="#rest_framework_services.exceptions.service_error.ServiceError"><code>ServiceError</code></a>
+subclass deliberately, so a transport that has never heard of it still reports that
+the operation could not be completed and why. One that wants to do better must catch
+it <em>before</em> its generic <code>ServiceError</code> handler.</p>
 
 
 

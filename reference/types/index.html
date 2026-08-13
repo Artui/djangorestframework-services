@@ -3032,15 +3032,20 @@
 
 
 
-        <p>Whether a :class:<code>SelectorSpec</code> returns many objects or a single one.</p>
-<p>The kind is what tells the framework — and any future caller that
-reuses a spec outside an HTTP request — whether to materialize the
-selector's return as a collection (<code>LIST</code>) or as a single instance
-with retrieve-flavoured 404 semantics (<code>RETRIEVE</code>). Mounting a spec
-on a mismatched view (e.g. a <code>LIST</code> spec on a
-:class:<code>SelectorRetrieveView</code>) raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at <code>as_view()</code>
-time.</p>
+        <p>Whether a
+<a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> returns
+many objects or a single one.</p>
+<p>The kind is what tells the framework — and any future caller that reuses a spec
+outside an HTTP request — whether to materialize the selector's return as a
+collection (<code>LIST</code>) or as a single instance with retrieve-flavoured 404 semantics
+(<code>RETRIEVE</code>). Mounting a spec on a mismatched view (e.g. a <code>LIST</code> spec on a
+<a class="autorefs autorefs-internal" title="SelectorRetrieveView" href="../views/#rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView"><code>SelectorRetrieveView</code></a>)
+raises <code>ImproperlyConfigured</code> at <code>as_view()</code> time.</p>
 <p>Inheriting from <code>str</code> keeps the value JSON-serializable and
 print-friendly while still behaving as a proper enum for <code>is</code> /
 <code>==</code> checks.</p>
@@ -3097,10 +3102,18 @@ print-friendly while still behaving as a proper enum for <code>is</code> /
 
 
         <p>All wiring for a single read action in one record.</p>
-<p>Used as a value in <code>action_specs</code> on viewsets, as the <code>spec=</code>
-argument to :class:<code>SelectorListView</code> / :class:<code>SelectorRetrieveView</code>,
-and as the <code>output_selector_spec</code> field on :class:<code>ServiceSpec</code>
-(where it describes the post-mutation re-fetch).</p>
+<p>Used as a value in <code>action_specs</code> on viewsets, as the <code>spec=</code> argument to
+<a class="autorefs autorefs-internal" title="SelectorListView" href="../views/#rest_framework_services.views.query.selector_list_view.SelectorListView"><code>SelectorListView</code></a>
+/
+<a class="autorefs autorefs-internal" title="SelectorRetrieveView" href="../views/#rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView"><code>SelectorRetrieveView</code></a>,
+and as the <code>output_selector_spec</code> field on
+<a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> (where it
+describes the post-mutation re-fetch).</p>
 <p>All fields are keyword-only: <code>SelectorSpec(kind=SelectorKind.LIST,
 selector=fn)</code> rather than positional. <code>kind</code> is required and is the only
 field without a default. Several fields are <strong>providers</strong>: they are
@@ -3113,8 +3126,8 @@ selector's return type and <code>ExtraT</code> a <code>TypedDict</code> of the k
 <p>The five shaping fields (<code>select_related</code> / <code>prefetch_related</code> /
 <code>annotations</code> / <code>extend_queryset</code> / <code>filter_set</code>) require
 <code>selector</code> to be set and the selector to return a Django
-:class:<code>QuerySet</code>. Configuring any of them with no selector raises
-:exc:<code>ImproperlyConfigured</code> at <code>as_view()</code> time; a non-QuerySet return
+<code>QuerySet</code>. Configuring any of them with no selector raises
+<code>ImproperlyConfigured</code> at <code>as_view()</code> time; a non-QuerySet return
 raises at request time.</p>
 
 
@@ -3135,13 +3148,13 @@ raises at request time.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Required :class:<code>SelectorKind</code> discriminator. <code>RETRIEVE</code>
+                <p>Required <a class="autorefs autorefs-internal" title="SelectorKind" href="#rest_framework_services.types.selector_kind.SelectorKind"><code>SelectorKind</code></a> discriminator. <code>RETRIEVE</code>
 materializes a QuerySet via <code>.first()</code> and raises
-:exc:<code>~rest_framework.exceptions.NotFound</code> on a <code>None</code> /
+<code>NotFound</code> on a <code>None</code> /
 missing object; <code>LIST</code> returns whatever the selector returns
 unchanged. It also drives the fail-fast check that the spec is
 mounted on a compatible view — a <code>LIST</code> spec on
-:class:<code>SelectorRetrieveView</code> raises at <code>as_view()</code>. Being
+<a class="autorefs autorefs-internal" title="SelectorRetrieveView" href="../views/#rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView"><code>SelectorRetrieveView</code></a> raises at <code>as_view()</code>. Being
 explicit rather than inferred from the call site, it also carries
 the semantics outside a request, to a management command or any
 other non-DRF caller.</p>
@@ -3169,14 +3182,14 @@ other non-DRF caller.</p>
             <td>
               <div class="doc-md-description">
                 <p>RETRIEVE-only knob for the <code>None</code> / missing-object case.
-<code>False</code> raises :exc:<code>~rest_framework.exceptions.NotFound</code>;
+<code>False</code> raises <code>NotFound</code>;
 <code>True</code> expresses a nullable-resource contract, where the
 standalone retrieve view and the retrieve viewset mixin render
 <code>200</code> with a JSON <code>null</code> body and skip the output serializer.
 <strong>Ignored</strong> when the spec is nested:
-:attr:<code>ServiceSpec.output_selector_spec</code> keeps its
+<code>ServiceSpec.output_selector_spec</code> keeps its
 authoritative-<code>None</code> → 204 contract and
-:attr:<code>ServiceSpec.instance_selector_spec</code> always 404s.</p>
+<code>ServiceSpec.instance_selector_spec</code> always 404s.</p>
               </div>
             </td>
           </tr>
@@ -3235,7 +3248,7 @@ so there is no symmetrical <code>input_serializer_context</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Relation names or :class:<code>Prefetch</code> objects.</p>
+                <p>Relation names or <code>Prefetch</code> objects.</p>
               </div>
             </td>
           </tr>
@@ -3249,7 +3262,7 @@ so there is no symmetrical <code>input_serializer_context</code>.</p>
                 <p>Mapping merged into a single <code>.annotate(**...)</code> call.
 With the two fields above, this is declarative shaping applied to
 the selector's return value before it leaves
-:func:<code>dispatch_selector_for_spec</code> — reach for it whenever the same
+<code>dispatch_selector_for_spec</code> — reach for it whenever the same
 shaping applies every request, since it stays introspectable.</p>
               </div>
             </td>
@@ -3287,13 +3300,13 @@ four shaping fields and <strong>before</strong> the retrieve <code>.first()</cod
 composes with shaping and narrows <code>RETRIEVE</code> selectors too, where
 <code>RetrieveModelMixin</code> runs no filter step. On the list path it
 <strong>replaces</strong>
-:class:<code>~django_filters.rest_framework.DjangoFilterBackend</code> rather
+<code>DjangoFilterBackend</code> rather
 than stacking with it — the values come off the same
 <code>request.query_params</code> — and wiring both for one action raises at
 <code>as_view()</code>. Replacing it means keeping its contract, so
 <strong>invalid filter input is rejected with a 400</strong>: the <code>FilterSet</code>
 is validated via <code>is_valid()</code> and its <code>errors</code> are raised as a
-DRF :exc:<code>~rest_framework.exceptions.ValidationError</code>, where
+DRF <code>ValidationError</code>, where
 reading <code>.qs</code> unvalidated would answer 200 with <em>unfiltered</em> rows
 in django-filter's default non-strict mode. That is enforced only
 when the duck-typed object actually exposes <code>is_valid</code>; a bare
@@ -3342,7 +3355,7 @@ permissions; an empty sequence means none, explicitly. Forwarded
 through DRF's <code>@action(permission_classes=...)</code> for the
 <code>@selector_action</code> decorator and surfaced via <code>get_permissions</code>
 for the viewset mixins and standalone views. Ignored when the spec
-is nested under :attr:<code>ServiceSpec.output_selector_spec</code> — the
+is nested under <code>ServiceSpec.output_selector_spec</code> — the
 surrounding mutation action's permissions apply.</p>
               </div>
             </td>
@@ -3354,7 +3367,7 @@ surrounding mutation action's permissions apply.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Provider returning a :class:<code>ProgressReporter</code> sink,
+                <p>Provider returning a <a class="autorefs autorefs-internal" title="ProgressReporter" href="#rest_framework_services.types.progress_reporter.ProgressReporter"><code>ProgressReporter</code></a> sink,
 fanned together with whatever reporter the transport supplied. For
 sinks that do not care which transport carries the run — a task
 record, an audit trail, metrics.</p>
@@ -3373,7 +3386,12 @@ with <code>instance</code> (RETRIEVE) or <code>collection</code> (LIST). A selec
 has no validation step, so that is the one position available, and
 pool binding does the discrimination — a precondition declaring
 <code>instance</code> cannot be written against a LIST spec. Raise-to-abort:
-the return value is ignored. See :class:<code>ServiceSpec</code> for the raise
+the return value is ignored. See <a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> for the raise
 contract.</p>
               </div>
             </td>
@@ -3389,7 +3407,7 @@ contract.</p>
 never reads it</strong>. No known keys, no per-key validation, no
 defaulting, no effect on the generated JSON Schema or OpenAPI;
 validation is shape-only, and a non-<code>Mapping</code> raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at
+<code>ImproperlyConfigured</code> at
 construction. Use it to attach a project's own per-operation facts
 — read back by its own permission class, scoping helper, or audit
 hook — to the spec describing the operation, rather than to a
@@ -3398,9 +3416,19 @@ reachable wherever the spec is:
 <code>view.action_specs[view.action].metadata</code> inside a permission
 class (which receives <code>(request, view)</code>, so it has the spec but
 knows no registry or name), or <code>entry.spec.metadata</code> from a
-:class:<code>~rest_framework_services.types.registered_spec.RegisteredSpec</code>,
+<a class="autorefs autorefs-internal" title="RegisteredSpec
+
+
+  
+      dataclass
+  " href="../registry/#rest_framework_services.types.registered_spec.RegisteredSpec"><code>RegisteredSpec</code></a>,
 whose <code>tags</code> handles the boolean-ish labels this is <em>not</em> for. It
-never merges or inherits — a :class:<code>ServiceSpec</code> and its
+never merges or inherits — a <a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> and its
 <code>output_selector_spec</code> carry independent metadata — and it is
 stored exactly as given: the spec is frozen, the mapping is not,
 and the library neither copies nor deep-freezes it, so pass
@@ -3464,14 +3492,25 @@ stays distinguishable from a declared empty mapping.</p>
 
 
         <p>All wiring for a single mutation action in one record.</p>
-<p>Used as a value in <code>ServiceViewSet.action_specs</code> and as the <code>spec=</code>
-argument to :func:<code>service_action</code> / :class:<code>ServiceCreateView</code> /
-:class:<code>ServiceUpdateView</code> / :class:<code>ServiceDeleteView</code>.</p>
-<p>Fields group into the service callable itself, the input pipeline
-(<code>input_*</code>), the output pipeline (a nested :class:<code>SelectorSpec</code>), and
-cross-cutting concerns. Several are <strong>providers</strong>: they are resolved
-through the framework keyword pool, declaring any subset of the keywords
-listed for them (or <code>**kwargs</code>) and receiving only what they name.</p>
+<p>Used as a value in <code>ServiceViewSet.action_specs</code> and as the <code>spec=</code> argument to
+<a class="autorefs autorefs-internal" title="service_action" href="../viewsets/#rest_framework_services.viewsets.decorators.service_action.service_action"><code>service_action</code></a>
+/
+<a class="autorefs autorefs-internal" title="ServiceCreateView" href="../views/#rest_framework_services.views.mutation.service_create_view.ServiceCreateView"><code>ServiceCreateView</code></a>
+/
+<a class="autorefs autorefs-internal" title="ServiceUpdateView" href="../views/#rest_framework_services.views.mutation.service_update_view.ServiceUpdateView"><code>ServiceUpdateView</code></a>
+/
+<a class="autorefs autorefs-internal" title="ServiceDeleteView" href="../views/#rest_framework_services.views.mutation.service_delete_view.ServiceDeleteView"><code>ServiceDeleteView</code></a>.</p>
+<p>Fields group into the service callable itself, the input pipeline (<code>input_*</code>), the
+output pipeline (a nested
+<a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a>), and
+cross-cutting concerns. Several are <strong>providers</strong>: they are resolved through the
+framework keyword pool, declaring any subset of the keywords listed for them (or
+<code>**kwargs</code>) and receiving only what they name.</p>
 <p>The generic parameters are optional and purely informational for type
 checkers. <code>InputT</code> is the validated-data type <code>input_serializer</code>
 produces (the dataclass for dataclass-based serializers, usually
@@ -3571,11 +3610,11 @@ and loops itself, so one call does the batch.</p>
             <td>
               <div class="doc-md-description">
                 <p>OpenAPI-only — whether the schema documents the
-422 :class:<code>ServiceError</code> response. No runtime effect; a service may
+422 <a class="autorefs autorefs-internal" title="ServiceError" href="../exceptions/#rest_framework_services.exceptions.service_error.ServiceError"><code>ServiceError</code></a> response. No runtime effect; a service may
 always raise. <code>None</code> gates it on <code>input_serializer is not None</code>,
 so a plain delete carries no spurious 422. Only consulted when the
 <code>[spectacular]</code> extra is enabled through
-:func:<code>~rest_framework_services.openapi.enable_openapi</code>.</p>
+<a class="autorefs autorefs-internal" title="enable_openapi" href="../openapi/#rest_framework_services.openapi.enable_openapi.enable_openapi"><code>enable_openapi</code></a>.</p>
               </div>
             </td>
           </tr>
@@ -3645,7 +3684,7 @@ chain. Its kwarg pool is <code>{request, user}</code> plus the URL kwargs, so
 from the route. Resolution runs <strong>before</strong> input validation: the row
 is handed to the input serializer DRF-style and seeded into the
 service pool as <code>instance</code>. A missing row is always
-:exc:<code>~rest_framework.exceptions.NotFound</code> — the nested
+<code>NotFound</code> — the nested
 <code>allow_none</code> is ignored — and <code>check_object_permissions</code> runs
 against it. Queryset shaping applies; the nested
 <code>permission_classes</code> / <code>output_serializer</code> /
@@ -3711,7 +3750,7 @@ mutation's chains apply.</p>
 into the pool the service receives. Co-locating it with the spec
 lets each action declare its own contract, instead of
 <code>if self.action == ...</code> branching in one catch-all. See
-:class:<code>ServiceView</code> for what the <code>view</code> argument offers.</p>
+<a class="autorefs autorefs-internal" title="ServiceView" href="../views/#rest_framework_services.types.service_view.ServiceView"><code>ServiceView</code></a> for what the <code>view</code> argument offers.</p>
               </div>
             </td>
           </tr>
@@ -3736,7 +3775,7 @@ explicitly. Forwarded through DRF's <code>@action</code> for
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Provider returning a :class:<code>ProgressReporter</code> sink,
+                <p>Provider returning a <a class="autorefs autorefs-internal" title="ProgressReporter" href="#rest_framework_services.types.progress_reporter.ProgressReporter"><code>ProgressReporter</code></a> sink,
 fanned together with whatever reporter the transport supplied. For
 sinks that do not care which transport carries the run — a task
 record, an audit trail, metrics.</p>
@@ -3793,12 +3832,17 @@ and <code>result</code> is the post-output-selector value.</p>
 but <strong>never read</strong>. No known keys, no per-key validation, no
 defaulting, no effect on the generated JSON Schema or OpenAPI;
 validation is shape-only, and a non-<code>Mapping</code> raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at construction.
+<code>ImproperlyConfigured</code> at construction.
 Use it to attach a project's own per-operation facts, read back by
 its own permission class or audit hook, to the spec describing the
 operation rather than to a name-keyed side table that drifts the day
 a spec is renamed. It never merges with a nested spec's metadata and
-is stored exactly as given. See :class:<code>SelectorSpec</code>.</p>
+is stored exactly as given. See <a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a>.</p>
               </div>
             </td>
           </tr>
@@ -3856,11 +3900,16 @@ is stored exactly as given. See :class:<code>SelectorSpec</code>.</p>
 
         <p>A single action that accepts several mutually exclusive payload shapes.</p>
 <p>Each variant has its own input serializer and service, bundled as a full
-:class:<code>ServiceSpec</code> under a string key. A <code>discriminator</code> callable
-inspects the request and returns the key; dispatch then proceeds through the
-chosen spec exactly as a plain <code>ServiceSpec</code> would. Usable anywhere a
-<code>ServiceSpec</code> is: an <code>action_specs</code> entry and the <code>spec=</code> of
-<code>@service_action</code>.</p>
+<a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> under a
+string key. A <code>discriminator</code> callable inspects the request and returns the key;
+dispatch then proceeds through the chosen spec exactly as a plain <code>ServiceSpec</code>
+would. Usable anywhere a <code>ServiceSpec</code> is: an <code>action_specs</code> entry and the
+<code>spec=</code> of <code>@service_action</code>.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">PolymorphicServiceSpec</span><span class="p">(</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">discriminator</span><span class="o">=</span><span class="n">resolve_flow</span><span class="p">,</span>        <span class="c1"># pool: {request, data, user, view} → key</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">specs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;email&quot;</span><span class="p">:</span> <span class="n">email_spec</span><span class="p">,</span> <span class="s2">&quot;token&quot;</span><span class="p">:</span> <span class="n">token_spec</span><span class="p">},</span>
@@ -3900,10 +3949,10 @@ metadata-driven rule per variant, via each variant's own
 any subset of <code>request</code> / <code>data</code> (the <em>raw</em> <code>request.data</code>) /
 <code>user</code> / <code>view</code> (or <code>**kwargs</code>) — and returns a key present in
 <code>specs</code>. For a no-match / rejected payload it should <strong>raise</strong>
-(e.g. :exc:<code>~rest_framework_services.exceptions.service_validation_error.ServiceValidationError</code>,
+(e.g. <a class="autorefs autorefs-internal" title="ServiceValidationError" href="../exceptions/#rest_framework_services.exceptions.service_validation_error.ServiceValidationError"><code>ServiceValidationError</code></a>,
 which the view layer maps to a 400); returning a key absent from
 <code>specs</code> is a configuration error and raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>.</p>
+<code>ImproperlyConfigured</code>.</p>
               </div>
             </td>
           </tr>
@@ -4000,22 +4049,41 @@ at <code>as_view()</code> time to require every variant to declare the same
 
 
         <p>Outcome of a mutation helper call.</p>
-<p><code>instance</code> is the model instance after the mutation. <code>created</code> is True
-iff this came from :func:<code>create_from_input</code> / :func:<code>acreate_from_input</code>.
-<code>changes</code> records every field whose value actually differed from its
-prior value (or from <code>UNSET</code> for creates). <code>children</code> carries one
-:class:<code>ChildCollectionChange</code> per reverse-FK collection written via the
-<code>children=</code> argument — empty for the common no-nested-write case.</p>
-<p><code>relations</code> carries one :class:<code>RelatedObjectChange</code> per <strong>singular</strong>
-relation written via <code>relations=</code> (forward FK / one-to-one, reverse
-one-to-one). The split is by shape, not by keyword: a collection reports
-tuples of pks and a one-row relation reports an outcome, so they are
-different carriers, and a reverse-FK collection declared through
-<code>relations=</code> still reports under <code>children</code> exactly as it does through
-<code>children=</code>. A forward relation shows up <strong>twice</strong> and means two
-different things — here as the row that was created or matched, and in
-<code>changes</code> as the parent's foreign-key column, which only appears if it
-actually changed.</p>
+<p><code>instance</code> is the model instance after the mutation. <code>created</code> is True iff this
+came from
+<a class="autorefs autorefs-internal" title="create_from_input" href="../mutations/#rest_framework_services.mutations.create_from_input.create_from_input"><code>create_from_input</code></a>
+/
+<a class="autorefs autorefs-internal" title="acreate_from_input
+
+
+  
+      async
+  " href="../mutations/#rest_framework_services.mutations.acreate_from_input.acreate_from_input"><code>acreate_from_input</code></a>.
+<code>changes</code> records every field whose value actually differed from its prior value
+(or from <code>UNSET</code> for creates). <code>children</code> carries one
+<a class="autorefs autorefs-internal" title="ChildCollectionChange
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_collection_change.ChildCollectionChange"><code>ChildCollectionChange</code></a>
+per reverse-FK collection written via the <code>children=</code> argument — empty for the
+common no-nested-write case.</p>
+<p><code>relations</code> carries one
+<a class="autorefs autorefs-internal" title="RelatedObjectChange
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.related_object_change.RelatedObjectChange"><code>RelatedObjectChange</code></a>
+per <strong>singular</strong> relation written via <code>relations=</code> (forward FK / one-to-one,
+reverse one-to-one). The split is by shape, not by keyword: a collection reports
+tuples of pks and a one-row relation reports an outcome, so they are different
+carriers, and a reverse-FK collection declared through <code>relations=</code> still reports
+under <code>children</code> exactly as it does through <code>children=</code>. A forward relation
+shows up <strong>twice</strong> and means two different things — here as the row that was created
+or matched, and in <code>changes</code> as the parent's foreign-key column, which only
+appears if it actually changed.</p>
 <p>The class is generic over the concrete model type: callers that pass
 <code>Author</code> into a mutation helper get back a <code>ChangeResult[Author]</code>
 whose <code>.instance</code> is typed as <code>Author</code>. The bare name
@@ -4058,7 +4126,7 @@ keeps working for callers that don't care.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Names of every field present in :attr:<code>changes</code>.</p>
+        <p>Names of every field present in <code>changes</code>.</p>
 
     </div>
 
@@ -4080,7 +4148,14 @@ keeps working for callers that don't care.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Return the :class:<code>FieldChange</code> for <code>field_name</code>, or <code>None</code>.</p>
+        <p>Return the
+<a class="autorefs autorefs-internal" title="FieldChange
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.field_change.FieldChange"><code>FieldChange</code></a> for
+<code>field_name</code>, or <code>None</code>.</p>
 
 
     </div>
@@ -4100,7 +4175,14 @@ keeps working for callers that don't care.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Return the :class:<code>ChildCollectionChange</code> for <code>relation</code>, or <code>None</code>.</p>
+        <p>Return the
+<a class="autorefs autorefs-internal" title="ChildCollectionChange
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_collection_change.ChildCollectionChange"><code>ChildCollectionChange</code></a>
+for <code>relation</code>, or <code>None</code>.</p>
 
 
     </div>
@@ -4120,7 +4202,14 @@ keeps working for callers that don't care.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Return the :class:<code>RelatedObjectChange</code> for <code>relation</code>, or <code>None</code>.</p>
+        <p>Return the
+<a class="autorefs autorefs-internal" title="RelatedObjectChange
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.related_object_change.RelatedObjectChange"><code>RelatedObjectChange</code></a>
+for <code>relation</code>, or <code>None</code>.</p>
 
 
     </div>
@@ -4213,43 +4302,46 @@ keeps working for callers that don't care.</p>
         <p>How to persist one reverse-FK ("one-to-many") child collection.</p>
 <p>The reverse-FK member of the relation taxonomy: it writes rows whose
 foreign key points back at the parent, so it belongs to
-:attr:<code>~rest_framework_services.RelationPhase.REVERSE</code> and is written after
+<code>RelationPhase.REVERSE</code> and is written after
 the parent's <code>save()</code>.</p>
 <p>Passed in the <code>relations={relation_name: ChildSpec(...)}</code> map of
-:func:<code>~rest_framework_services.create_from_input</code> /
-:func:<code>~rest_framework_services.update_from_input</code> (and their async
-siblings) — or in <code>children=</code>, which is the same thing under the name it
-shipped as — and forwarded by the default
-:func:<code>~rest_framework_services.create_model</code> /
-:func:<code>~rest_framework_services.update_model</code> /
-:func:<code>~rest_framework_services.delete_model</code> services. The incoming child
-rows are read from <code>data[relation_name]</code>; each child is persisted by
-running it back through the same mutation helpers, so scalar / m2m / nested
-semantics compose recursively. The whole parent + children write runs
-inside the service's atomic block; field-level validation stays in the
-input serializer / dataclass — the helper owns persistence only.</p>
-<p><strong>Pluggable services — the spec owns reconciliation, the service owns the
-row.</strong> Matching, <code>mode</code> and orphan handling never move into your code;
-a slot is called once per row the loop has already decided about. Each is
-invoked through
-:func:<code>~rest_framework_services.run_service</code> /
-:func:<code>~rest_framework_services.arun_service</code> with <code>atomic=False</code>,
-because the surrounding service's atomic block already wraps the whole
-tree and letting each row open its own would mean a savepoint per row.
-Each receives only the pool keys it declares (the library's usual
-signature-filtering idiom), drawn from the mutation helpers' opaque
-<code>context=</code> plus the loop's own seeds. Those seeds — <code>data</code> /
-<code>instance</code> / <code>parent</code> — are applied <strong>after</strong> the context, so a context
-key of the same name cannot outrank them, the precedence form of the rule
-:data:<code>~rest_framework_services.types.reserved_pool_seeds.RESERVED_POOL_SEEDS</code>
-states for the dispatcher's pools. In the async loops the slot must be an
-<code>async def</code>: the async path is awaited end to end.</p>
+<a class="autorefs autorefs-internal" title="create_from_input" href="../mutations/#rest_framework_services.mutations.create_from_input.create_from_input"><code>create_from_input</code></a>
+/
+<a class="autorefs autorefs-internal" title="update_from_input" href="../mutations/#rest_framework_services.mutations.update_from_input.update_from_input"><code>update_from_input</code></a>
+(and their async siblings) — or in <code>children=</code>, which is the same thing under the
+name it shipped as — and forwarded by the default
+<a class="autorefs autorefs-internal" title="create_model" href="../services/#rest_framework_services.services.create_model.create_model"><code>create_model</code></a> /
+<a class="autorefs autorefs-internal" title="update_model" href="../services/#rest_framework_services.services.update_model.update_model"><code>update_model</code></a> /
+<a class="autorefs autorefs-internal" title="delete_model" href="../services/#rest_framework_services.services.delete_model.delete_model"><code>delete_model</code></a>
+services. The incoming child rows are read from <code>data[relation_name]</code>; each child
+is persisted by running it back through the same mutation helpers, so scalar / m2m /
+nested semantics compose recursively. The whole parent + children write runs inside
+the service's atomic block; field-level validation stays in the input serializer /
+dataclass — the helper owns persistence only.</p>
+<p><strong>Pluggable services — the spec owns reconciliation, the service owns the row.</strong>
+Matching, <code>mode</code> and orphan handling never move into your code; a slot is called
+once per row the loop has already decided about. Each is invoked through
+<a class="autorefs autorefs-internal" title="run_service" href="../dispatch/#rest_framework_services.services.run_service.run_service"><code>run_service</code></a> /
+<a class="autorefs autorefs-internal" title="arun_service
+
+
+  
+      async
+  " href="../dispatch/#rest_framework_services.services.arun_service.arun_service"><code>arun_service</code></a> with
+<code>atomic=False</code>, because the surrounding service's atomic block already wraps the
+whole tree and letting each row open its own would mean a savepoint per row. Each
+receives only the pool keys it declares (the library's usual signature-filtering
+idiom), drawn from the mutation helpers' opaque <code>context=</code> plus the loop's own
+seeds. Those seeds — <code>data</code> / <code>instance</code> / <code>parent</code> — are applied <strong>after</strong>
+the context, so a context key of the same name cannot outrank them, the precedence
+form of the rule <code>RESERVED_POOL_SEEDS</code> states for the dispatcher's pools. In the
+async loops the slot must be an <code>async def</code>: the async path is awaited end to end.</p>
 <p>A declared slot owns that row <strong>entirely</strong>: <code>field_map</code>,
 <code>exclude_fields</code>, <code>m2m</code> and the nested <code>children</code> / <code>relations</code>
 maps configure the default mutation-helper call, so a <code>create_service</code> /
 <code>update_service</code> standing in for it makes them dead configuration.
 Declaring both raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at construction rather
+<code>ImproperlyConfigured</code> at construction rather
 than dropping them quietly. <code>delete_service</code> is exempt — it replaces the
 unlink-or-delete rule, not the helper call, so the cascade still removes a
 row's grandchildren before handing the row over. The spec keeps only what
@@ -4352,7 +4444,7 @@ incoming set); <code>"merge"</code> upserts only and never removes.</p>
               <div class="doc-md-description">
                 <p>Callable <code>(child_row) -&gt; mapping</code> deriving the child's
 many-to-many assignments from its incoming row — the per-child
-analogue of :func:<code>~rest_framework_services.create_model</code>'s <code>m2m</code>.</p>
+analogue of <a class="autorefs autorefs-internal" title="create_model" href="../services/#rest_framework_services.services.create_model.create_model"><code>create_model</code></a>'s <code>m2m</code>.</p>
               </div>
             </td>
           </tr>
@@ -4428,10 +4520,10 @@ existing convention.</p>
                 <p>Called as
 <code>delete_service(*, instance, parent, **extras)</code>, replacing the
 unlink-or-delete rule for that row — both for orphan removal and
-for the :func:<code>~rest_framework_services.delete_model</code> cascade. The
+for the <a class="autorefs autorefs-internal" title="delete_model" href="../services/#rest_framework_services.services.delete_model.delete_model"><code>delete_model</code></a> cascade. The
 loop can no longer tell an unlink from a delete, so the pk is
 reported under
-:attr:<code>~rest_framework_services.ChildCollectionChange.removed</code>
+<code>ChildCollectionChange.removed</code>
 rather than guessed into one of the two. It <em>is</em> the disposal, so
 declaring it beside an explicit <code>orphan</code> raises at construction:
 the flag would decide nothing.</p>
@@ -4454,9 +4546,9 @@ one of them rather than whichever the column happens to allow — a
 later migration adding <code>null=True</code> would otherwise turn a
 destructive <code>"replace"</code> into a non-destructive one with nothing in
 the spec changing. <code>"unlink"</code> against a non-nullable FK raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> when the
+<code>ImproperlyConfigured</code> when the
 relation is written, since there is no link to blank. The same rule
-governs the :func:<code>~rest_framework_services.delete_model</code> cascade,
+governs the <a class="autorefs autorefs-internal" title="delete_model" href="../services/#rest_framework_services.services.delete_model.delete_model"><code>delete_model</code></a> cascade,
 which disposes of the same rows.</p>
               </div>
             </td>
@@ -4514,12 +4606,17 @@ which disposes of the same rows.</p>
 
 
         <p>What a nested write did to one reverse-FK child collection.</p>
-<p>Carried in :attr:<code>~rest_framework_services.ChangeResult.children</code>, one
+<p>Carried in <code>ChangeResult.children</code>, one
 entry per <code>children=</code> relation. The tuples hold child <strong>primary keys</strong>:</p>
 <ul>
 <li><strong><code>created</code></strong> — children inserted.</li>
 <li><strong><code>updated</code></strong> — existing children whose row was updated (matched by the
-  :class:<code>~rest_framework_services.ChildSpec</code>'s <code>match_key</code>).</li>
+  <a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a>'s <code>match_key</code>).</li>
 <li><strong><code>deleted</code></strong> — orphaned children removed because their FK is
   non-nullable.</li>
 <li><strong><code>unlinked</code></strong> — orphaned children detached (FK set to <code>None</code>) because
@@ -4589,10 +4686,11 @@ when to write each one</strong>, and that answer belongs to the class rather tha
 to the instance: every forward foreign key is written before the parent's
 <code>save()</code> because it is a forward foreign key, not because a particular
 spec asked to be.</p>
-<p>So each concrete spec declares :attr:<code>write_phase</code> as a class attribute and
-the driver orders by it (see :class:<code>RelationPhase</code> for the sequence). A
-spec author never sets it per-instance, and the mapping's insertion order
-cannot reorder the phases — only the relations <em>within</em> one.</p>
+<p>So each concrete spec declares <code>write_phase</code> as a class attribute and the driver
+orders by it (see
+<a class="autorefs autorefs-internal" title="RelationPhase" href="#rest_framework_services.types.relation_phase.RelationPhase"><code>RelationPhase</code></a> for
+the sequence). A spec author never sets it per-instance, and the mapping's insertion
+order cannot reorder the phases — only the relations <em>within</em> one.</p>
 <p>Subclasses are frozen dataclasses; this base deliberately declares no
 fields, so each kind spells out its own and no kind inherits a knob that
 means nothing for it.</p>
@@ -4650,21 +4748,21 @@ to be spelled in: a forward foreign key has to be resolved <em>before</em> the
 parent row exists, and a many-to-many has to be assigned <em>after</em> it does.
 So the order is a property of the relation <strong>kind</strong> — each spec class
 declares its phase as a <code>write_phase</code> class attribute (see
-:class:<code>~rest_framework_services.types.relation_spec.RelationSpec</code>) and the
+<a class="autorefs autorefs-internal" title="RelationSpec" href="#rest_framework_services.types.relation_spec.RelationSpec"><code>RelationSpec</code></a>) and the
 driver walks the phases in this enum's order, never the mapping's:</p>
 <ol>
-<li>:attr:<code>FORWARD</code> — the FK column lives on the parent, so the target row
+<li><code>FORWARD</code> — the FK column lives on the parent, so the target row
    must exist before the parent is saved. Writing it first also means the
    assignment is an ordinary column change, picked up by the same diff and
    <code>update_fields</code> machinery as any other field.</li>
 <li><em>the parent's</em> <code>save()</code> — not a phase; the boundary the phases are
    named around.</li>
-<li>:attr:<code>REVERSE</code> — the FK column lives on the other row (reverse FK
+<li><code>REVERSE</code> — the FK column lives on the other row (reverse FK
    collections and reverse one-to-ones), so the parent must have a primary
    key to point at.</li>
-<li>:attr:<code>GENERIC</code> — generic relations, which need the saved parent's
+<li><code>GENERIC</code> — generic relations, which need the saved parent's
    content type <em>and</em> primary key.</li>
-<li>:attr:<code>M2M</code> — through-table writes, which need both rows saved.</li>
+<li><code>M2M</code> — through-table writes, which need both rows saved.</li>
 </ol>
 <p>Declaration order still decides everything the phases leave open: two
 relations in the same phase are written in the order they were declared.</p>
@@ -4722,7 +4820,7 @@ the members, never by the numbers.</p>
 <p>Shared by the kinds that own their rows — a reverse-FK collection, a
 generic relation, a reverse one-to-one — so the word means the same thing on
 all three. It answers <em>what</em> happens to a row that is let go;
-:class:<code>RelationMode</code> answers <em>when</em> a row is let go at all, and the two are
+<code>RelationMode</code> answers <em>when</em> a row is let go at all, and the two are
 independent knobs on purpose.</p>
 <p>The default derives the answer from the schema, as it always has. The other
 two exist because a derived answer is not a stated one: whether the link can
@@ -4731,8 +4829,8 @@ later would silently turn a <code>replace</code> that deleted into one that unli
 with nothing in the spec — or in its tests — changing to say so. A spec that
 means to delete says so.</p>
 <p>Inheriting from <code>str</code> keeps the value JSON-serializable and means a plain
-string works wherever the member does, matching :class:<code>RelationMode</code> and
-:class:<code>RelationOutcome</code>.</p>
+string works wherever the member does, matching <code>RelationMode</code> and
+<code>RelationOutcome</code>.</p>
 
 
 
@@ -4873,7 +4971,7 @@ mutation helpers, where the name is the parent's own field
 (<code>relations={"author": ...}</code> for <code>Post.author</code>). The nested payload is
 read from <code>data[field_name]</code> and the resolved row is assigned to that
 field <strong>before</strong> the parent is saved
-(:attr:<code>~rest_framework_services.RelationPhase.FORWARD</code>) — an ordinary
+(<code>RelationPhase.FORWARD</code>) — an ordinary
 column assignment, reported by <code>diff_attrs</code> and persisted by the same
 minimal <code>update_fields</code> save as any other field.</p>
 <p>The value reads three ways. <strong>Omitted</strong> leaves the relation untouched.
@@ -4923,9 +5021,14 @@ collection to reconcile and no orphans to dispose of. Clearing it is the
 and the queryset (<code>filter(**{match_key: key})</code>). It <em>identifies</em> a
 row rather than describing one, so a key matching nothing in
 <code>scope</code> raises
-:exc:<code>~rest_framework_services.ServiceValidationError</code> (a 400)
+<a class="autorefs autorefs-internal" title="ServiceValidationError" href="../exceptions/#rest_framework_services.exceptions.service_validation_error.ServiceValidationError"><code>ServiceValidationError</code></a> (a 400)
 instead of falling through to a create — unlike
-:class:<code>~rest_framework_services.ChildSpec</code>, which matches inside
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a>, which matches inside
 the parent's own manager, where a miss really does mean "a new
 child".</p>
               </div>
@@ -4943,7 +5046,7 @@ resolved from the caller's <code>context</code> pool by signature
 (<code>lambda user: Author.objects.filter(owner=user)</code>), the library's
 usual idiom. <strong>Without it the spec is create-only</strong>, and a payload
 carrying a <code>match_key</code> raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> rather than
+<code>ImproperlyConfigured</code> rather than
 quietly creating a duplicate: a forward target has no owning manager
 to match within, so an unscoped by-key match would mean "any caller
 may write any row of that model by guessing a key".</p>
@@ -5024,7 +5127,12 @@ context — but <strong>no <code>parent</code></strong>: a forward target is wri
 the parent row exists, which is the whole point of the phase.
 Declaring it alongside the row-shaping fields above raises at
 construction, for the reason given on
-:class:<code>~rest_framework_services.ChildSpec</code>.</p>
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a>.</p>
               </div>
             </td>
           </tr>
@@ -5095,11 +5203,16 @@ construction, for the reason given on
 
         <p>How to persist a <strong>reverse</strong> one-to-one — the row that points <em>back</em>.</p>
 <p>The other side of a <code>OneToOneField</code>: the column lives on the related row
-(<code>Profile.author</code>) and the parent (<code>Author</code>) reaches at most one of them
-through the reverse accessor. So it is the
-:class:<code>~rest_framework_services.ChildSpec</code> loop minus the collection,
-written in :attr:<code>~rest_framework_services.RelationPhase.REVERSE</code> once the
-parent has a primary key to point at.</p>
+(<code>Profile.author</code>) and the parent (<code>Author</code>) reaches at most one of them through
+the reverse accessor. So it is the
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a> loop minus the
+collection, written in <code>RelationPhase.REVERSE</code> once the parent has a primary key
+to point at.</p>
 <p>Declared in <code>relations={accessor_name: ReverseOneToOneSpec(...)}</code>, where
 the name is the parent's reverse accessor (<code>relations={"profile": ...}</code>
 for <code>Author.profile</code>). The value at <code>data[accessor_name]</code> reads three
@@ -5216,7 +5329,12 @@ field whose nullability decides unlink-versus-delete by default.</p>
             <td>
               <div class="doc-md-description">
                 <p>Optional service replacing that call for the row, with
-the contract :class:<code>~rest_framework_services.ChildSpec</code> states: it
+the contract <a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a> states: it
 receives <code>parent</code>, and its <code>data</code> already carries the <code>fk</code>.
 Declaring it alongside the row-shaping fields above raises at
 construction.</p>
@@ -5256,14 +5374,19 @@ explicit <code>orphan</code> beside it raises.</p>
             <td>
               <div class="doc-md-description">
                 <p>What removing the row <em>does</em>, by
-:class:<code>~rest_framework_services.ChildSpec</code>'s rule: <code>"auto"</code> (the
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a>'s rule: <code>"auto"</code> (the
 default) derives it from <code>fk</code> — <strong>unlinked</strong> when that field is
 nullable (like <code>on_delete=SET_NULL</code>), <strong>deleted</strong> when it is not
 (like <code>CASCADE</code>) — while <code>"unlink"</code> / <code>"delete"</code> state it
 instead, and <code>"unlink"</code> against a non-nullable <code>fk</code> raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> at write time.
+<code>ImproperlyConfigured</code> at write time.
 It covers both removals there are: the <code>None</code> case above and the
-:func:<code>~rest_framework_services.delete_model</code> cascade.</p>
+<a class="autorefs autorefs-internal" title="delete_model" href="../services/#rest_framework_services.services.delete_model.delete_model"><code>delete_model</code></a> cascade.</p>
               </div>
             </td>
           </tr>
@@ -5322,13 +5445,18 @@ It covers both removals there are: the <code>None</code> case above and the
 
 
         <p>How to persist a <code>GenericRelation</code> — a collection linked by content type.</p>
-<p>The reverse-FK collection with the foreign key replaced by a pair of
-columns: a <code>ForeignKey</code> to <code>ContentType</code> saying <em>which model</em> the row
-belongs to, and an id column saying <em>which row</em>. It reconciles exactly as
-:class:<code>~rest_framework_services.ChildSpec</code> does — matched inside the
-parent's own accessor, so no <code>scope=</code> is needed or accepted — and is
-written in :attr:<code>~rest_framework_services.RelationPhase.GENERIC</code>, once the
-parent's <code>save()</code> has given it both a content type and a primary key.</p>
+<p>The reverse-FK collection with the foreign key replaced by a pair of columns: a
+<code>ForeignKey</code> to <code>ContentType</code> saying <em>which model</em> the row belongs to, and an id
+column saying <em>which row</em>. It reconciles exactly as
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a> does — matched
+inside the parent's own accessor, so no <code>scope=</code> is needed or accepted — and is
+written in <code>RelationPhase.GENERIC</code>, once the parent's <code>save()</code> has given it both
+a content type and a primary key.</p>
 <p>Declared in <code>relations={accessor_name: GenericRelationSpec(...)}</code>, where
 the name is the <code>GenericRelation</code> declared on the parent
 (<code>relations={"attachments": ...}</code> for <code>Catalog.attachments</code>). A
@@ -5337,7 +5465,7 @@ mode empties it.</p>
 <p><strong>This kind needs <code>django.contrib.contenttypes</code> in <code>INSTALLED_APPS</code></strong>,
 and nothing else in the library does. Declaring the spec is always safe;
 <em>writing</em> one without the app installed raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code> naming the remedy.</p>
+<code>ImproperlyConfigured</code> naming the remedy.</p>
 
 
 <p><span class="doc-section-title">Attributes:</span></p>
@@ -5480,7 +5608,12 @@ leaves out, <code>"merge"</code> upserts only.</p>
             <td>
               <div class="doc-md-description">
                 <p>Optional service replacing that call, with the contract
-:class:<code>~rest_framework_services.ChildSpec</code> states; its <code>data</code>
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a> states; its <code>data</code>
 already carries both link columns. Declaring it alongside the
 row-shaping fields above raises at construction.</p>
               </div>
@@ -5519,14 +5652,19 @@ raises.</p>
             <td>
               <div class="doc-md-description">
                 <p>What removing a row <em>does</em> —
-:class:<code>~rest_framework_services.ChildSpec</code>'s rule applied to the
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a>'s rule applied to the
 pair of link columns rather than to one, since half a link is not a
 state the relation has a meaning for. <code>"auto"</code> (the default)
 <strong>unlinks</strong> (both columns set to <code>None</code>) when both are nullable
 and <strong>deletes</strong> otherwise; <code>"unlink"</code> and <code>"delete"</code> state it
 instead of deriving it, and <code>"unlink"</code> raises at write time unless
 both columns can hold <code>NULL</code>. The rule also governs the
-:func:<code>~rest_framework_services.delete_model</code> cascade.</p>
+<a class="autorefs autorefs-internal" title="delete_model" href="../services/#rest_framework_services.services.delete_model.delete_model"><code>delete_model</code></a> cascade.</p>
               </div>
             </td>
           </tr>
@@ -5592,7 +5730,7 @@ the other model (<code>Tag.posts</code>). Either works; Django hands back the sa
 related manager.</p>
 <p>Each row in <code>data[accessor_name]</code> is a <strong>payload</strong>, not a key: the target
 row is created or updated first, and only then is the membership written
-(:attr:<code>~rest_framework_services.RelationPhase.M2M</code>, after the parent has a
+(<code>RelationPhase.M2M</code>, after the parent has a
 primary key). That is the difference from the mutation helpers' <code>m2m=</code>
 argument, which assigns rows that already exist and creates nothing. A
 relation named by both is refused: it would be written twice and keep
@@ -5602,7 +5740,7 @@ in <code>"replace"</code> mode; a list of mappings writes every target and then 
 the membership (or adds to it, in <code>"merge"</code> mode).</p>
 <p>There is no <code>delete_service</code>: the row is shared, so a target dropped from
 the relation loses only its membership and is reported under
-:attr:<code>~rest_framework_services.ChildCollectionChange.unlinked</code>, leaving
+<code>ChildCollectionChange.unlinked</code>, leaving
 <code>deleted</code> empty for this kind.</p>
 <p>A many-to-many with an explicit <code>through</code> model is <strong>not</strong> covered. The
 loop writes target rows and lets Django write the through row, which cannot
@@ -5650,10 +5788,15 @@ row (default <code>"pk"</code>).</p>
             <td>
               <div class="doc-md-description">
                 <p>The rows this caller may update, on the terms
-:class:<code>~rest_framework_services.ForwardRelationSpec</code> states:
+<a class="autorefs autorefs-internal" title="ForwardRelationSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.forward_relation_spec.ForwardRelationSpec"><code>ForwardRelationSpec</code></a> states:
 without it the spec is create-only, and a payload carrying a
 <code>match_key</code> raises
-:exc:<code>~django.core.exceptions.ImproperlyConfigured</code>. Matching runs
+<code>ImproperlyConfigured</code>. Matching runs
 against <code>scope</code>, not against the parent's current membership — the
 payload names rows to link, which is exactly the set that is not
 linked yet.</p>
@@ -5749,7 +5892,12 @@ carries no link to the parent: the link is a through-table row the
 loop writes afterwards, which a service could not write by returning
 one. Declaring it alongside the row-shaping fields above raises at
 construction, for the reason given on
-:class:<code>~rest_framework_services.ChildSpec</code>.</p>
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a>.</p>
               </div>
             </td>
           </tr>
@@ -5817,17 +5965,21 @@ construction, for the reason given on
 
 
         <p>The delta for a relation that holds <strong>one</strong> row, not a collection.</p>
-<p>Carried in :attr:<code>~rest_framework_services.ChangeResult.relations</code>, one
-entry per singular relation declared in <code>relations=</code> — a forward
-foreign key / one-to-one, or a reverse one-to-one.
-:class:<code>~rest_framework_services.ChildCollectionChange</code>'s four pk <em>tuples</em>
-cannot report a one-row relation honestly: every one of them would be
-either empty or a one-tuple, and "which of the four is non-empty" is a
-worse way to say "what happened" than saying it. So a singular relation
-reports one :attr:<code>outcome</code> and one :attr:<code>pk</code>.</p>
-<p>:attr:<code>outcome</code> is a :class:<code>~rest_framework_services.RelationOutcome</code>,
+<p>Carried in <code>ChangeResult.relations</code>, one entry per singular relation declared in
+<code>relations=</code> — a forward foreign key / one-to-one, or a reverse one-to-one.
+<a class="autorefs autorefs-internal" title="ChildCollectionChange
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_collection_change.ChildCollectionChange"><code>ChildCollectionChange</code></a>'s
+four pk <em>tuples</em> cannot report a one-row relation honestly: every one of them would
+be either empty or a one-tuple, and "which of the four is non-empty" is a worse way
+to say "what happened" than saying it. So a singular relation reports one
+<code>outcome</code> and one <code>pk</code>.</p>
+<p><code>outcome</code> is a <code>RelationOutcome</code>,
 which documents what each value means.</p>
-<p>:attr:<code>pk</code> is the primary key of the row the outcome is about, read
+<p><code>pk</code> is the primary key of the row the outcome is about, read
 <em>before</em> any delete (Django clears <code>instance.pk</code> afterwards), and
 <code>None</code> when no row was touched (<code>"untouched"</code> / <code>"cleared"</code>).</p>
 
@@ -5975,7 +6127,7 @@ you compare against and <code>UnsetType</code> is only useful as a type annotati
 
 
         <p>Sentinel type for the <code>InputT</code> slot when a service expects no body.</p>
-<p>Pair with :class:<code>DeleteService</code> when the spec has no <code>input_serializer</code>::</p>
+<p>Pair with <a class="autorefs autorefs-internal" title="DeleteService" href="../services/#rest_framework_services.services.delete_service.DeleteService"><code>DeleteService</code></a> when the spec has no <code>input_serializer</code>:</p>
 <div class="language-text highlight"><pre><span></span><code>@implements(DeleteService[NoInput, Author, None])
 def delete_author(
     *,
@@ -6066,17 +6218,26 @@ def delete_author(
 
 
         <p>The HTTP-surrogate a spec needs when dispatched off the HTTP path.</p>
-<p>Produced by :func:<code>~rest_framework_services.dispatch.build_offline_context</code>.
-Its <code>request</code> / <code>view</code> feed the optional <code>request=</code> / <code>view=</code>
-arguments of :func:<code>~rest_framework_services.dispatch_spec</code>, and the whole
-value is consumed by :func:<code>~rest_framework_services.enforce_permissions</code>.</p>
+<p>Produced by
+<a class="autorefs autorefs-internal" title="build_offline_context" href="../dispatch/#rest_framework_services.dispatch.build_offline_context.build_offline_context"><code>build_offline_context</code></a>.
+Its <code>request</code> / <code>view</code> feed the optional <code>request=</code> / <code>view=</code> arguments of
+<a class="autorefs autorefs-internal" title="dispatch_spec" href="../dispatch/#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>, and
+the whole value is consumed by
+<a class="autorefs autorefs-internal" title="enforce_permissions" href="../dispatch/#rest_framework_services.dispatch.enforce_permissions.enforce_permissions"><code>enforce_permissions</code></a>.</p>
 <ul>
-<li><code>user</code> — the acting principal (<code>request.user</code> is set to the same
-  value); <code>Any</code> because the user model is project-defined.</li>
-<li><code>request</code> — the synthetic DRF Request (<code>.user</code> set, <code>.data</code> carrying
-  the params), forwarded to spec callables that declare <code>request</code>.</li>
-<li><code>view</code> — the :class:<code>OfflineServiceView</code> forwarded to callables that
-  declare <code>view</code> and used as the <code>view</code> argument of permission checks.</li>
+<li><code>user</code> — the acting principal (<code>request.user</code> is set to the same value);
+  <code>Any</code> because the user model is project-defined.</li>
+<li><code>request</code> — the synthetic DRF Request (<code>.user</code> set, <code>.data</code> carrying the
+  params), forwarded to spec callables that declare <code>request</code>.</li>
+<li><code>view</code> — the
+  <a class="autorefs autorefs-internal" title="OfflineServiceView
+
+
+  
+      dataclass
+  " href="../views/#rest_framework_services.types.offline_service_view.OfflineServiceView"><code>OfflineServiceView</code></a>
+  forwarded to callables that declare <code>view</code> and used as the <code>view</code> argument of
+  permission checks.</li>
 </ul>
 
 
@@ -6124,7 +6285,7 @@ value is consumed by :func:<code>~rest_framework_services.enforce_permissions</c
         <p>The <code>InputRequired</code> schema marker and its type.</p>
 <p>Marks a declared input as <strong>required in the generated schema</strong> without making it
 required in the <em>type system</em>. Use it inside <code>Annotated[...]</code> on an extras
-<code>TypedDict</code> key (or an ordinary parameter) of a service / selector::</p>
+<code>TypedDict</code> key (or an ordinary parameter) of a service / selector:</p>
 <div class="language-text highlight"><pre><span></span><code>class WidgetExtras(HttpExtras[MyUser], total=False):
     project_pk: Annotated[int, InputRequired]
 
@@ -6132,22 +6293,24 @@ required in the <em>type system</em>. Use it inside <code>Annotated[...]</code> 
 def list_widgets(**extras: Unpack[WidgetExtras]) -&gt; list[Widget]:
     return Widget.objects.filter(project_id=extras[&quot;project_pk&quot;])
 </code></pre></div>
-<p>A required <code>TypedDict</code> key will not do: under PEP 692 it makes the function
-reject callers that omit it, which breaks assignability to
-:class:<code>~rest_framework_services.ListSelector</code> /
-:class:<code>~rest_framework_services.RetrieveSelector</code> / the service Protocols — the
-very reason :class:<code>~rest_framework_services.HttpExtras</code> mandates <code>total=False</code>.
-<code>Annotated</code> metadata carries no typing weight, so the key stays <code>NotRequired</code>
-to the type checker while :func:<code>spec_to_json_schema</code> lists it in <code>required</code>.</p>
-<p>The marker is <strong>advertisement plus enforcement</strong>, never delivery: it does not
-change the kwargs pool, the <code>view.kwargs</code>-over-<code>params</code> precedence, or the
-<code>SPREAD_AUTHOR_WINS</code> author-beats-client rule. It tells a schema-driven caller
-(an MCP client, an LLM tool call) that the input is mandatory, and makes
-<code>dispatch_spec</code> raise
-:class:<code>~rest_framework_services.ServiceValidationError</code> when it is absent —
-instead of the bare <code>KeyError</code> the callable would otherwise raise from deep
-inside dispatch, which no transport maps to a useful error.</p>
-<p>Its counterpart is :data:<code>~rest_framework_services.NotClientInput</code>, which hides a
+<p>A required <code>TypedDict</code> key will not do: under PEP 692 it makes the function reject
+callers that omit it, which breaks assignability to
+<a class="autorefs autorefs-internal" title="ListSelector" href="../selectors/#rest_framework_services.selectors.list_selector.ListSelector"><code>ListSelector</code></a> /
+<a class="autorefs autorefs-internal" title="RetrieveSelector" href="../selectors/#rest_framework_services.selectors.retrieve_selector.RetrieveSelector"><code>RetrieveSelector</code></a>
+/ the service Protocols — the very reason
+<a class="autorefs autorefs-internal" title="HttpExtras" href="#rest_framework_services.types.http_extras.HttpExtras"><code>HttpExtras</code></a> mandates
+<code>total=False</code>. <code>Annotated</code> metadata carries no typing weight, so the key stays
+<code>NotRequired</code> to the type checker while
+<a class="autorefs autorefs-internal" title="spec_to_json_schema" href="../jsonschema/#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
+lists it in <code>required</code>.</p>
+<p>The marker is <strong>advertisement plus enforcement</strong>, never delivery: it does not change the
+kwargs pool, the <code>view.kwargs</code>-over-<code>params</code> precedence, or the
+<code>SPREAD_AUTHOR_WINS</code> author-beats-client rule. It tells a schema-driven caller (an MCP
+client, an LLM tool call) that the input is mandatory, and makes <code>dispatch_spec</code> raise
+<a class="autorefs autorefs-internal" title="ServiceValidationError" href="../exceptions/#rest_framework_services.exceptions.service_validation_error.ServiceValidationError"><code>ServiceValidationError</code></a>
+when it is absent — instead of the bare <code>KeyError</code> the callable would otherwise raise
+from deep inside dispatch, which no transport maps to a useful error.</p>
+<p>Its counterpart is <code>NotClientInput</code>, which hides a
 key from the schema entirely. A key marked with both is a contradiction and
 raises at schema-generation time.</p>
 <p><code>InputRequired</code> is the singleton you place in the annotation;
@@ -6247,7 +6410,7 @@ singleton. <code>InputRequiredType()</code> returns that same instance.</p>
 <p>Marks a declared input as <strong>provider-owned</strong>: it is dropped from the generated
 schema entirely, so a schema-driven caller never learns it exists and never
 supplies it. Use it inside <code>Annotated[...]</code> on an extras <code>TypedDict</code> key (or
-an ordinary parameter) of a service / selector::</p>
+an ordinary parameter) of a service / selector:</p>
 <div class="language-text highlight"><pre><span></span><code>class WidgetExtras(HttpExtras[MyUser], total=False):
     project_pk: Annotated[int, InputRequired]
     team_role: Annotated[str, NotClientInput]  # resolved by spec.kwargs
@@ -6267,9 +6430,9 @@ Marking a key hidden while opting into <code>SPREAD_CALLER_WINS</code> on a scop
 voids that guarantee just as it did before, and a provider owning a scoping key
 must still never decline via <code>UNSET</code>.</p>
 <p>A key marked <code>NotClientInput</code> is also excluded from
-:func:<code>declared_input_keys</code>, so <code>UnknownArguments.REJECT</code> treats a caller that
+<code>declared_input_keys</code>, so <code>UnknownArguments.REJECT</code> treats a caller that
 supplies it as passing an unknown argument — which is exactly what it is.</p>
-<p>Its counterpart is :data:<code>~rest_framework_services.InputRequired</code>, which marks a
+<p>Its counterpart is <code>InputRequired</code>, which marks a
 key mandatory. A key marked with both is a contradiction and raises at
 schema-generation time.</p>
 <p><code>NotClientInput</code> is the singleton you place in the annotation.
@@ -6375,15 +6538,16 @@ singleton. <code>NotClientInputType()</code> returns that same instance.</p>
         <p>A URL route capture exposed as a caller-supplied argument off-HTTP.</p>
 <p>Over HTTP a nested route's captures (the <code>project_pk</code> of
 <code>/projects/{project_pk}/widgets/</code>) reach a spec through <code>view.kwargs</code> —
-directly, or through a <code>spec.kwargs</code> provider that scopes by them.
-Off-HTTP there is no route, so the caller supplies the value as an ordinary
-argument: the transport advertises it in the tool / operation schema, pops it
-out of the arguments, and hands it to <code>build_offline_context(kwargs=…)</code>,
-from where :func:<code>~rest_framework_services.dispatch_spec</code> spreads it into the
-selector / target pools — authoritative over the spec params, below a
-<code>spec.kwargs</code> provider. It never reaches the spec as an ordinary input, so
-the unknown-argument policy never flags it. Adapters import this declaration
-and pair it with :func:<code>~rest_framework_services.validate_channel_names</code>.</p>
+directly, or through a <code>spec.kwargs</code> provider that scopes by them. Off-HTTP there
+is no route, so the caller supplies the value as an ordinary argument: the transport
+advertises it in the tool / operation schema, pops it out of the arguments, and
+hands it to <code>build_offline_context(kwargs=…)</code>, from where
+<a class="autorefs autorefs-internal" title="dispatch_spec" href="../dispatch/#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>
+spreads it into the selector / target pools — authoritative over the spec params,
+below a <code>spec.kwargs</code> provider. It never reaches the spec as an ordinary input, so
+the unknown-argument policy never flags it. Adapters import this declaration and
+pair it with
+<a class="autorefs autorefs-internal" title="validate_channel_names" href="#rest_framework_services.types.validate_channel_names.validate_channel_names"><code>validate_channel_names</code></a>.</p>
 <p>Reach for one when the value is a URL-derived input a spec depends on that is
 <strong>not</strong> already an ordinary argument — most commonly a scoping <code>spec.kwargs</code>
 provider reading <code>view.kwargs</code> (off-HTTP that mapping is otherwise empty, so
@@ -6415,7 +6579,7 @@ spread still delivers it to the selector pool, so both readers see it.</p>
               <div class="doc-md-description">
                 <p>The argument / view-kwarg key. Must not collide with a reserved
 transport key; see
-:func:<code>~rest_framework_services.validate_channel_names</code>.</p>
+<a class="autorefs autorefs-internal" title="validate_channel_names" href="#rest_framework_services.types.validate_channel_names.validate_channel_names"><code>validate_channel_names</code></a>.</p>
               </div>
             </td>
           </tr>
@@ -6465,9 +6629,9 @@ surfaced as the schema <code>default</code>.</p>
 a route capture the spec genuinely cannot run without, so a caller is
 told up front instead of failing mid-dispatch. Setting both
 <code>required</code> and a <code>default</code> is contradictory and raises in
-:func:<code>~rest_framework_services.validate_channel_names</code>. It is the
+<a class="autorefs autorefs-internal" title="validate_channel_names" href="#rest_framework_services.types.validate_channel_names.validate_channel_names"><code>validate_channel_names</code></a>. It is the
 registered-declaration counterpart of
-:data:<code>~rest_framework_services.InputRequired</code>, which does the same job
+<code>InputRequired</code>, which does the same job
 for a key the callable's own <code>TypedDict</code> declares; both end up in the
 schema's <code>required</code>.</p>
               </div>
@@ -6553,28 +6717,43 @@ arguments to any read-shaping param a serializer reads off
 transport advertises it, pops it from the arguments, and hands it to
 <code>build_offline_context(query_params=…)</code>; it never reaches the spec as an
 input, so the unknown-argument policy never flags it.</p>
-<p>A :class:<code>~rest_framework_services.SelectorSpec</code> <code>filter_set</code> does <strong>not</strong>
-need this — its fields are already generated into the schema and flow through
-as ordinary <code>params</code>.</p>
+<p>A <a class="autorefs autorefs-internal" title="SelectorSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a>
+<code>filter_set</code> does <strong>not</strong> need this — its fields are already generated into the
+schema and flow through as ordinary <code>params</code>.</p>
 <p>Declared here rather than in each adapter for the same reason as
-:class:<code>~rest_framework_services.UrlKwarg</code>: it is the same declaration
-whichever transport carries it. Pair it with
-:func:<code>~rest_framework_services.validate_channel_names</code>.</p>
+<a class="autorefs autorefs-internal" title="UrlKwarg
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.url_kwarg.UrlKwarg"><code>UrlKwarg</code></a>: it is the same
+declaration whichever transport carries it. Pair it with
+<a class="autorefs autorefs-internal" title="validate_channel_names" href="#rest_framework_services.types.validate_channel_names.validate_channel_names"><code>validate_channel_names</code></a>.</p>
 <ul>
-<li><code>name</code> — the argument / query-string key. Must not collide with a
-  reserved transport key; see
-  :func:<code>~rest_framework_services.validate_channel_names</code>.</li>
-<li><code>type</code> — the JSON-Schema type advertised to the caller (<code>"string"</code> by
-  default; <code>"integer"</code> / <code>"number"</code> / <code>"boolean"</code> / <code>"array"</code> …).</li>
+<li><code>name</code> — the argument / query-string key. Must not collide with a reserved
+  transport key; see
+  <a class="autorefs autorefs-internal" title="validate_channel_names" href="#rest_framework_services.types.validate_channel_names.validate_channel_names"><code>validate_channel_names</code></a>.</li>
+<li><code>type</code> — the JSON-Schema type advertised to the caller (<code>"string"</code> by default;
+  <code>"integer"</code> / <code>"number"</code> / <code>"boolean"</code> / <code>"array"</code> …).</li>
 <li><code>description</code> — optional help text shown to the caller.</li>
-<li><code>default</code> — optional value seeded when the caller omits the argument;
-  also surfaced as the schema <code>default</code>.</li>
+<li><code>default</code> — optional value seeded when the caller omits the argument; also
+  surfaced as the schema <code>default</code>.</li>
 </ul>
 <p><strong>No <code>required</code> flag, deliberately.</strong> A query param is <em>read-shaping</em> —
 omitting one is legitimate by construction, and the spec runs correctly
 without it. Requiredness belongs to inputs the spec cannot run without, which
-is :class:<code>~rest_framework_services.UrlKwarg</code> and the
-:data:<code>~rest_framework_services.InputRequired</code> marker.</p>
+is <a class="autorefs autorefs-internal" title="UrlKwarg
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.url_kwarg.UrlKwarg"><code>UrlKwarg</code></a> and the
+<code>InputRequired</code> marker.</p>
 
 
 
@@ -6646,13 +6825,23 @@ is :class:<code>~rest_framework_services.UrlKwarg</code> and the
     <div class="doc doc-contents first">
 
         <p>Raise <code>ImproperlyConfigured</code> on a bad channel declaration set.</p>
-<p>A :class:<code>~rest_framework_services.UrlKwarg</code> /
-:class:<code>~rest_framework_services.QueryParam</code> is popped out of the caller's
-arguments and routed to a side channel, so its name must not collide with a
-key the transport controls, and must not be declared twice.</p>
+<p>A <a class="autorefs autorefs-internal" title="UrlKwarg
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.url_kwarg.UrlKwarg"><code>UrlKwarg</code></a> /
+<a class="autorefs autorefs-internal" title="QueryParam
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.query_param.QueryParam"><code>QueryParam</code></a> is popped out
+of the caller's arguments and routed to a side channel, so its name must not collide
+with a key the transport controls, and must not be declared twice.</p>
 <p>Three failure modes, all caught at registration time rather than on a call:</p>
 <ul>
-<li><strong>Reserved-name collision.</strong> :data:<code>RESERVED_POOL_SEEDS</code> is always
+<li><strong>Reserved-name collision.</strong> <code>RESERVED_POOL_SEEDS</code> is always
   included — those are the dispatcher's authoritative seeds, and letting a
   caller route a value onto one is the spoofing footgun the spread modes
   strip. <code>reserved</code> adds the transport's own keys on top; pass the
@@ -6697,7 +6886,7 @@ message points at something the consumer can act on.</p>
         <p>How a long-running service reports how far it has got.</p>
 <p>A dispatched callable receives one under the reserved pool seed
 <code>progress</code>, exactly as it receives <code>request</code> and <code>user</code> — declare the
-parameter and it arrives::</p>
+parameter and it arrives:</p>
 <div class="language-text highlight"><pre><span></span><code>def export_invoices(*, data, progress: ProgressReporter):
     rows = list(build_rows(data))
     for index, row in enumerate(rows):
