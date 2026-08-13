@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`ServiceNotFound` and `ServiceConflict`** — two shapes of service failure
+  common enough to name, mapped to `404` and `409` at the view boundary while a
+  plain `ServiceError` stays `422`. They exist because there was **no
+  transport-agnostic way to say either one**: the only lever was an HTTP status on
+  the exception, which nothing reads and which cannot mean anything off HTTP.
+  Being `ServiceError` subclasses, a transport that has never heard of them still
+  handles them, and one that wants to do better matches on the class — before its
+  generic handler, since the subclass check would otherwise swallow them. The
+  mapper's own branch order says the same thing.
+
+  `ServiceNotFound` answers identically for *absent* and for *not yours to see*,
+  on purpose: a `403` on a row the caller cannot see confirms that the row exists.
+
+  The generated OpenAPI document still declares only the `422` for spec-driven
+  mutations. Advertising a `409` on every mutation, including those that cannot
+  collide, trades one wrong claim for another — a spec has no field saying which
+  failures its service raises, and inventing one to satisfy the schema is not a
+  trade this package makes.
+
+### Documentation
+
+- **The preconditions recipe no longer teaches a line that does nothing.** It
+  opened with `class BudgetLocked(ServiceError): status_code = 409` and promised
+  "a clean 409 for a browser", while every non-validation `ServiceError` mapped to
+  a fixed `422` — which the errors reference documented correctly, so two pages
+  contradicted each other and the more inviting one was wrong. The recipe raises
+  `ServiceConflict` now, and both pages say outright that a `status_code`
+  attribute is read by nobody and could not be honoured off HTTP anyway. Found by
+  writing that line from outside the package and watching a 422 come back.
+- **The exceptions reference lists the whole family.** `ServiceNotFound`,
+  `ServiceConflict` and — already missing — `AdditionalInputRequired` now render
+  alongside the other two.
+
 ### Fixed
 
 - **`OfflineHttpRequest.offline_host`'s description now reaches the page at all.**

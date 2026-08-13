@@ -9,11 +9,11 @@ request on this object.
 with the operation to every transport instead of living in one view method.
 
 ```python
-from rest_framework_services import ServiceError, ServiceSpec
+from rest_framework_services import ServiceConflict, ServiceSpec
 
 
-class BudgetLocked(ServiceError):
-    status_code = 409
+class BudgetLocked(ServiceConflict):
+    """A state collision, which over HTTP is a 409."""
 
 
 def budget_not_locked(*, instance):
@@ -43,13 +43,28 @@ def budget_not_locked(*, instance) -> bool:
 does. If you are porting existing `-> bool` predicates, every one of them needs
 a raise.
 
-**Raise `ServiceError`, not a DRF exception.**
+**Raise a `ServiceError` member, not a DRF exception.**
 
-`ServiceError` (and `ServiceValidationError`) is the framework-agnostic error
-every transport already maps: to a response over HTTP, to a failed tool result
-over MCP, to a retryable error under an agent toolset. A DRF `APIException`
-subclass works over HTTP and escapes the mapping everywhere else — the same rule
-lands as a clean 409 for a browser and an unhandled internal error for an agent.
+The `ServiceError` family is the framework-agnostic error every transport already
+maps: to a response over HTTP, to a failed tool result over MCP, to a retryable
+error under an agent toolset. A DRF `APIException` subclass works over HTTP and
+escapes the mapping everywhere else — the same rule lands as a clean 409 for a
+browser and an unhandled internal error for an agent.
+
+Pick the member that says *what kind* of failure it is, and every transport gets
+the distinction:
+
+| Raise | HTTP | For |
+| --- | --- | --- |
+| `ServiceConflict` | `409` | the state collides — a slot taken, a row moved first |
+| `ServiceNotFound` | `404` | the target is absent, or not this caller's to see |
+| `ServiceValidationError` | `400` | it should read as an input error |
+| `ServiceError` | `422` | understood, and still not allowed |
+
+**An HTTP status is not a field on the exception.** Setting `status_code = 409` on
+a `ServiceError` subclass does nothing — nothing reads it — and it could not work
+off HTTP anyway, where there is no status to carry. The member *is* the portable
+form of that intent, which is why the recipe above raises one.
 
 ## Where they fire
 

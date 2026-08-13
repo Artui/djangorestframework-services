@@ -450,6 +450,39 @@ class TestServiceViewSetEdgeCases:
         response = view(factory.post("/", {"name": "x"}, format="json"))
         assert response.status_code == 422
 
+    @pytest.mark.parametrize(
+        ("error", "expected", "detail"),
+        [
+            ("ServiceNotFound", 404, "No author 7."),
+            ("ServiceConflict", 409, "That name is taken."),
+        ],
+    )
+    def test_a_typed_member_reaches_the_response_with_its_own_status(
+        self, error: str, expected: int, detail: str
+    ) -> None:
+        """Through the real view, because the status is what a client sees.
+
+        The mapper is unit-tested next door; this is the half that proves nothing
+        between the service and the response flattens it back to 422.
+        """
+        import rest_framework_services
+
+        raised = getattr(rest_framework_services, error)
+
+        def boom(*, data: _AuthorIn) -> None:
+            raise raised(detail)
+
+        class _View(ServiceViewSet):
+            action_specs = {
+                "create": ServiceSpec(service=boom, input_serializer=_AuthorIn, atomic=False),
+            }
+
+        view = _View.as_view({"post": "create"})
+        response = view(factory.post("/", {"name": "x"}, format="json"))
+
+        assert response.status_code == expected
+        assert response.data["detail"] == detail
+
     def test_create_with_output_selector(self) -> None:
         def fn(*, data: _AuthorIn) -> str:
             return data.name

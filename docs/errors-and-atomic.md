@@ -29,8 +29,15 @@ The view maps them to DRF responses:
 | Raised | Becomes | HTTP |
 |---|---|---|
 | `ServiceValidationError` | `rest_framework.exceptions.ValidationError` | `400` |
+| `ServiceNotFound` | `rest_framework.exceptions.NotFound` | `404` |
+| `ServiceConflict` | `rest_framework.exceptions.APIException` | `409` |
 | `ServiceError` | `rest_framework.exceptions.APIException` | `422` |
 | `AdditionalInputRequired` | `rest_framework.exceptions.APIException` | `422` |
+
+Specific members first, the generic `422` last: they are all `ServiceError`
+subclasses, so the order **is** the mapping. A transport writing its own handler
+inherits that constraint — match the members before the generic one, or the
+subclass check swallows them.
 
 ### `ServiceValidationError`
 
@@ -136,6 +143,35 @@ this case.
 raise ServiceError("account is locked")
 raise ServiceError("invoice already finalised")
 ```
+
+### `ServiceNotFound` and `ServiceConflict`
+
+Two shapes of failure common enough to name, so a transport can tell them apart
+without a status code on the exception:
+
+```python
+raise ServiceNotFound(f"No event {data.event_id}.")  # absent, or not yours to see
+raise ServiceConflict("That slot is already taken.")  # the state collides
+```
+
+`ServiceNotFound` answers the same way for *absent* and for *not yours* on
+purpose: a `403` on a row the caller cannot see confirms that the row exists.
+
+`ServiceConflict` is what a `preconditions` predicate usually wants, since a state
+rule is normally exactly this kind of collision — see
+[State rules with `preconditions`](recipes/preconditions.md).
+
+**Neither carries an HTTP status, and setting one does nothing.** A
+`status_code` attribute on a `ServiceError` subclass is read by nobody, and could
+not be honoured off HTTP where there is no status to carry. The member is the
+portable form of the intent; each transport decides what it means. Over HTTP, this
+package decides: `404` and `409`.
+
+The generated OpenAPI document still declares only the `422` for spec-driven
+mutations. Advertising a `409` on every mutation, including those that cannot
+collide, would trade one wrong claim for another — a spec has no field saying
+which failures its service can raise, and inventing one to satisfy the schema is
+not a trade this package makes.
 
 ### Why not just raise DRF exceptions?
 
