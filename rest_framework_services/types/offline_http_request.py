@@ -36,12 +36,12 @@ class OfflineHttpRequest(HttpRequest):
     fix, rather than a bare ``KeyError`` from Django's internals.
     """
 
-    #: The configured host (``"example.com"`` / ``"example.com:8000"``), or
-    #: ``None`` when the caller didn't configure one. Set by
-    #: [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context]; when it is set,
-    #: ``META`` carries the matching keys and Django's own machinery is in
-    #: charge, so nothing on this class changes behaviour.
     offline_host: str | None = None
+    """The configured host (``"example.com"`` / ``"example.com:8000"``), or
+    ``None`` when the caller didn't configure one. Set by
+    [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context];
+    when it is set, ``META`` carries the matching keys and Django's own
+    machinery is in charge, so nothing on this class changes behaviour."""
 
     def build_absolute_uri(self, location: str | None = None) -> str:
         """Absolute URI when a host is configured; the location itself when not.

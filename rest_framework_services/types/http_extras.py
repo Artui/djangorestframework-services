@@ -3,7 +3,7 @@
 Use when a service / selector wants the ``request`` and ``user`` keys
 the framework injects from a view, without re-declaring them in every
 extras ``TypedDict``. Subclass with ``total=False`` (or annotate each new
-field as ``NotRequired``) to add per-action extras::
+field as ``NotRequired``) to add per-action extras:
 
     class CreateAuthorKwargs(HttpExtras[MyUser], total=False):
         tenant_id: int

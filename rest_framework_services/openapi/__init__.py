@@ -11,7 +11,7 @@ The actual ``drf-spectacular`` integration lives in
 imports ``drf-spectacular`` at the top and is loaded only via
 [`enable_openapi`][rest_framework_services.openapi.enable_openapi.enable_openapi].
 
-Install the optional dependency with::
+Install the optional dependency with:
 
     pip install djangorestframework-services[spectacular]
 

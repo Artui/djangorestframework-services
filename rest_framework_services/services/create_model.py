@@ -23,7 +23,7 @@ def create_model(
 ) -> Callable[..., ModelT]:
     """Return a service callable that builds ``model`` from validated input.
 
-    Equivalent to writing the canonical glue stub by hand::
+    Equivalent to writing the canonical glue stub by hand:
 
         def create_author(*, data: AuthorIn, **_: Any) -> Author:
             return create_from_input(Author, data).instance
@@ -34,7 +34,7 @@ def create_model(
     ``m2m`` accepts either a static mapping (passed straight through) or a
     callable that receives the validated ``data`` and returns the mapping —
     the common case where M2M values live on the input dataclass / dict
-    itself::
+    itself:
 
         create_model(
             Post,
@@ -43,7 +43,7 @@ def create_model(
 
     ``relations`` (and its reverse-FK alias ``children``) is forwarded to
     [`create_from_input`][rest_framework_services.mutations.create_from_input.create_from_input] to write
-    nested relations declaratively (no hand-written service)::
+    nested relations declaratively (no hand-written service):
 
         create_model(
             Author,

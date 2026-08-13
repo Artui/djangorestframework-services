@@ -9,7 +9,7 @@ class ProgressReporter(Protocol):
 
     A dispatched callable receives one under the reserved pool seed
     ``progress``, exactly as it receives ``request`` and ``user`` — declare the
-    parameter and it arrives::
+    parameter and it arrives:
 
         def export_invoices(*, data, progress: ProgressReporter):
             rows = list(build_rows(data))

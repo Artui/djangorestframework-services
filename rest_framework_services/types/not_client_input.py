@@ -3,7 +3,7 @@
 Marks a declared input as **provider-owned**: it is dropped from the generated
 schema entirely, so a schema-driven caller never learns it exists and never
 supplies it. Use it inside ``Annotated[...]`` on an extras ``TypedDict`` key (or
-an ordinary parameter) of a service / selector::
+an ordinary parameter) of a service / selector:
 
     class WidgetExtras(HttpExtras[MyUser], total=False):
         project_pk: Annotated[int, InputRequired]

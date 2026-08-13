@@ -25,7 +25,7 @@ def unguarded_specs(specs: Mapping[str, Spec]) -> list[str]:
     This **raises nothing and defaults nothing, deliberately**: whether an
     unguarded spec is a hard error, a warning, or acceptable is the transport's
     call, exactly as ``dispatch_spec`` stays authorization-agnostic. A transport
-    fails its own way::
+    fails its own way:
 
         missing = unguarded_specs(registry.specs)
         if missing and self.require_permissions:

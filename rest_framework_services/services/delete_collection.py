@@ -16,7 +16,7 @@ def delete_collection(
     """Return a service that deletes the resolved ``collection`` (bulk).
 
     Pairs with ``ServiceSpec.collection_selector_spec``, which seeds the
-    target set into the pool as ``collection``. Equivalent to::
+    target set into the pool as ``collection``. Equivalent to:
 
         def delete_books(*, collection, **_: Any) -> None:
             collection.delete()

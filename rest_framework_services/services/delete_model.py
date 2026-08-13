@@ -20,7 +20,7 @@ def delete_model(
 ) -> Callable[..., None]:
     """Return a service callable that deletes the resolved instance.
 
-    Equivalent to::
+    Equivalent to:
 
         def delete_author(*, instance: Author, **_: Any) -> None:
             instance.delete()
@@ -29,7 +29,7 @@ def delete_model(
     from the view's ``get_object()``.
 
     ``soft_delete`` is an optional hook called *instead of*
-    ``instance.delete()`` — covers the common archive case::
+    ``instance.delete()`` — covers the common archive case:
 
         def _archive(instance: Author) -> None:
             instance.is_archived = True
