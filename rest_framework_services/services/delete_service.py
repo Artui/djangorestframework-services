@@ -23,8 +23,8 @@ class DeleteService(Protocol[InputT, InstanceT, ResultT]):
     so services that don't read a body can still match the shape by binding
     ``InputT`` to [`NoInput`][rest_framework_services.types.no_input.NoInput].
 
-    See [`CreateService`][rest_framework_services.services.create_service.CreateService] for the extras-typing notes.
-    """
+    See [`CreateService`][rest_framework_services.services.create_service.CreateService]
+    for the extras-typing notes."""
 
     def __call__(
         self,

@@ -14,13 +14,13 @@ Spec = ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]
 def unguarded_specs(specs: Mapping[str, Spec]) -> list[str]:
     """Return the names of every spec with **nothing to inherit off HTTP**.
 
-    A spec whose ``permission_classes`` is ``None`` is not misconfigured — on
-    HTTP it means *inherit*, and the view's own ``permission_classes`` and
-    ``DEFAULT_PERMISSION_CLASSES`` supply the answer. **Off HTTP neither
-    exists**, so the same spec becomes an unguarded operation the moment a
-    toolset or an MCP server exposes it, and
-    [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions] returns early with
-    nothing to enforce.
+    A spec whose ``permission_classes`` is ``None`` is not misconfigured — on HTTP it
+    means *inherit*, and the view's own ``permission_classes`` and
+    ``DEFAULT_PERMISSION_CLASSES`` supply the answer. **Off HTTP neither exists**, so
+    the same spec becomes an unguarded operation the moment a toolset or an MCP server
+    exposes it, and
+    [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions]
+    returns early with nothing to enforce.
 
     This **raises nothing and defaults nothing, deliberately**: whether an
     unguarded spec is a hard error, a warning, or acceptable is the transport's

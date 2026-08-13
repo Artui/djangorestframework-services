@@ -14,10 +14,10 @@ class TargetGuard(Protocol):
 
     ``dispatch_spec`` deliberately does **not** consult ``permission_classes``
     (authorization is the caller's job — which is why
-    [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions] ships separately). But
-    object-level checks need the resolved instance, which only ``dispatch_spec``
-    sees, *before* the service runs. So ``dispatch_spec`` exposes this hook
-    rather than folding authz in: it stays authz-agnostic, only invoking a
+    [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions]
+    ships separately). But object-level checks need the resolved instance, which only
+    ``dispatch_spec`` sees, *before* the service runs. So ``dispatch_spec`` exposes this
+    hook rather than folding authz in: it stays authz-agnostic, only invoking a
     caller-supplied guard.
 
     The signature is deliberately **identical to**
@@ -29,13 +29,13 @@ class TargetGuard(Protocol):
     A consumer needing custom logic writes a module-level function with the same
     shape and passes it the same way; ``ty`` enforces conformance.
 
-    ``dispatch_spec`` builds the [`OfflineContext`][rest_framework_services.types.offline_context.OfflineContext] itself (it already holds
-    ``user`` / ``request`` / ``view``) and calls ``guard(spec, context,
-    instance=target)``. ``instance`` is the resolved row for an update, the
-    resolved set for a collection (bulk) mutation, and ``None`` for a create — so
-    the guard fires uniformly on every resolved target, running the class-level
-    check when there is no object.
-    """
+    ``dispatch_spec`` builds the
+    [`OfflineContext`][rest_framework_services.types.offline_context.OfflineContext]
+    itself (it already holds ``user`` / ``request`` / ``view``) and calls ``guard(spec,
+    context, instance=target)``. ``instance`` is the resolved row for an update, the
+    resolved set for a collection (bulk) mutation, and ``None`` for a create — so the
+    guard fires uniformly on every resolved target, running the class-level check when
+    there is no object."""
 
     def __call__(
         self,

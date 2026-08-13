@@ -12,12 +12,12 @@ class ViewHooks:
     """The HTTP view's hook-chain contributions, resolved and passed down.
 
     ``dispatch_spec`` is the single execution core, but the view layer owns a
-    configuration surface the core knows nothing about: the ``get_service_kwargs``
-    / ``get_<action>_service_kwargs`` / ``get_input_data`` /
-    ``get_<action>_input_data`` / ``get_*_serializer_context`` chains declared on
-    [`MutationFlowMixin`][rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin] and its viewset mixins. Those are methods on a DRF
-    view, so the core cannot resolve them; this carrier is how a caller that has
-    resolved them hands them over.
+    configuration surface the core knows nothing about: the ``get_service_kwargs`` /
+    ``get_<action>_service_kwargs`` / ``get_input_data`` / ``get_<action>_input_data`` /
+    ``get_*_serializer_context`` chains declared on
+    [`MutationFlowMixin`][rest_framework_services.views.mutation.mutation_flow_mixin.MutationFlowMixin]
+    and its viewset mixins. Those are methods on a DRF view, so the core cannot resolve
+    them; this carrier is how a caller that has resolved them hands them over.
 
     **These are the *view* layers only — never the spec's own providers.**
     Each chain resolves ``view.get_<x>`` → ``view.get_<action>_<x>`` →

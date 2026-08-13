@@ -66,71 +66,75 @@ def dispatch_spec(
     instance: Any = UNSET,
     filter_data: Mapping[str, Any] | None = None,
 ) -> DispatchResult:
-    """Execute ``spec`` without a DRF view, returning a [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult].
+    """Execute ``spec`` without a DRF view, returning a
+    [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult].
 
-    The single transport-neutral execution path: a caller hands the **flat**
-    ``params`` mapping (the role ``request.data`` / ``query_params`` / URL
-    kwargs play on HTTP) plus the acting ``user``, and gets back the resolved
-    domain value to format for its wire. No pagination, ordering, or output
-    rendering happens here — those are transport concerns; render the result
-    with [`render_spec_output`][rest_framework_services.dispatch.render_spec_output.render_spec_output].
+    The single transport-neutral execution path: a caller hands the **flat** ``params``
+    mapping (the role ``request.data`` / ``query_params`` / URL kwargs play on HTTP)
+    plus the acting ``user``, and gets back the resolved domain value to format for its
+    wire. No pagination, ordering, or output rendering happens here — those are
+    transport concerns; render the result with
+    [`render_spec_output`][rest_framework_services.dispatch.render_spec_output.render_spec_output].
 
-    - A [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] runs the mutation flow: resolve the target via
-      ``instance_selector_spec`` (from ``params``) → validate ``input_serializer``
-      → run the service → re-fetch through ``output_selector_spec`` → result.
-      A missing instance yields ``kind="not_found"``.
-    - A [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] runs the read flow: invoke the selector → apply
-      queryset shaping (``select_related`` … ``filter_set``) → for ``RETRIEVE``
-      materialize via ``.first()`` and honour ``allow_none`` / not-found;
-      ``LIST`` returns the shaped + filtered queryset.
+    - A [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] runs the
+      mutation flow: resolve the target via ``instance_selector_spec`` (from ``params``)
+      → validate ``input_serializer`` → run the service → re-fetch through
+      ``output_selector_spec`` → result. A missing instance yields ``kind="not_found"``.
+    - A [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] runs
+      the read flow: invoke the selector → apply queryset shaping (``select_related`` …
+      ``filter_set``) → for ``RETRIEVE`` materialize via ``.first()`` and honour
+      ``allow_none`` / not-found; ``LIST`` returns the shaped + filtered queryset.
 
     Every argument below the acting user is optional, and the defaults reproduce
     the pre-policy behaviour exactly.
 
     Args:
-        spec: The [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] or [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] to execute.
+        spec: The
+            [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] or
+            [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec]
+            to execute.
         user: The acting user, seeded into every callable's pool.
         params: The flat client input — a list on a ``many=True`` spec.
-        request: Forwarded only to user callables that declare it
-            (``extend_queryset``, the context providers, ``kwargs``); a pure
-            non-HTTP caller passes neither this nor ``view``.
+        request: Forwarded only to user callables that declare it (``extend_queryset``,
+            the context providers, ``kwargs``); a pure non-HTTP caller passes neither
+            this nor ``view``.
         view: As ``request``, plus its ``kwargs`` (a route's captures, seeded by
-            ``build_offline_context(kwargs=…)``) are **spread into the selector /
-            target pools** — the off-HTTP counterpart of the HTTP
+            ``build_offline_context(kwargs=…)``) are **spread into the selector / target
+            pools** — the off-HTTP counterpart of the HTTP
             ``extra_url_kwargs=view.kwargs``, authoritative over ``params`` on a
             conflict, below the ``spec.kwargs`` provider.
         success_status: Overrides the mutation status hint (else
             ``spec.success_status``, else ``200``).
-        argument_binding: Whether client input lands as a single ``data`` bundle
-            or is spread as individual kwargs, and how it ranks against the
-            author's ``kwargs``. ``AUTO`` resolves per spec type (service →
-            bundle, selector → spread). Meaningless on a ``many=True`` spec —
-            the service receives the whole list as one ``data`` argument — where
-            a non-default value raises ``ValueError`` rather than being ignored.
-        unknown_arguments: Strictness about ``params`` keys outside the spec's
-            declared set: ``IGNORE`` (drop), ``REJECT`` (raise), ``PASSTHROUGH``
-            (forward to the callable). Honoured **per list element** on a
-            ``many=True`` spec.
-        on_target_resolved: Hook invoked with the resolved mutation target before
-            the service runs. Pass
-            [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions] directly for
-            object-level permissions; the core itself stays authz-agnostic.
+        argument_binding: Whether client input lands as a single ``data`` bundle or is
+            spread as individual kwargs, and how it ranks against the author's
+            ``kwargs``. ``AUTO`` resolves per spec type (service → bundle, selector →
+            spread). Meaningless on a ``many=True`` spec — the service receives the
+            whole list as one ``data`` argument — where a non-default value raises
+            ``ValueError`` rather than being ignored.
+        unknown_arguments: Strictness about ``params`` keys outside the spec's declared
+            set: ``IGNORE`` (drop), ``REJECT`` (raise), ``PASSTHROUGH`` (forward to the
+            callable). Honoured **per list element** on a ``many=True`` spec.
+        on_target_resolved: Hook invoked with the resolved mutation target before the
+            service runs. Pass
+            [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions]
+            directly for object-level permissions; the core itself stays authz-agnostic.
         progress: The transport's own progress sink, fanned together with the one
             ``spec.progress_reporter`` declares.
         view_hooks: The calling DRF view's resolved hook-chain layers. HTTP-only.
         instance: A target the caller resolved itself, skipping
-            ``instance_selector_spec``. ``None`` is a *supplied* value (a
-            create), which is why the default is a sentinel.
+            ``instance_selector_spec``. ``None`` is a *supplied* value (a create), which
+            is why the default is a sentinel.
         filter_data: The data the ``filter_set`` reads, on both spec kinds — a
-            selector's own filtering and a service's output-selector re-fetch.
-            Only meaningful when ``params`` is not the filter source: off HTTP
-            one flat mapping is usually both, so this stays ``None``, whereas
-            over HTTP the body validates and the **query string** filters, and
-            merging them would let a query parameter satisfy a serializer field.
+            selector's own filtering and a service's output-selector re-fetch. Only
+            meaningful when ``params`` is not the filter source: off HTTP one flat
+            mapping is usually both, so this stays ``None``, whereas over HTTP the body
+            validates and the **query string** filters, and merging them would let a
+            query parameter satisfy a serializer field.
 
-    Returns:
-        The [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult] — value, ``kind``, status, and on the
-        mutation path the service's own return, resolved instance and data.
+    Returns: The
+        [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult]
+        — value, ``kind``, status, and on the mutation path the service's own return,
+        resolved instance and data.
 
     Raises:
         TypeError: ``spec`` is neither a ``ServiceSpec`` nor a ``SelectorSpec``.

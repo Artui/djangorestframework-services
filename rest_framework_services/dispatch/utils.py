@@ -57,10 +57,11 @@ def view_url_kwargs(view: Any) -> dict[str, Any]:
     """Route-capture kwargs carried by the (offline) view, reserved seeds stripped.
 
     On HTTP the selector pool picks these up as ``extra_url_kwargs=view.kwargs``;
-    off-HTTP the [`OfflineServiceView`][rest_framework_services.types.offline_service_view.OfflineServiceView] carries the same mapping but
-    ``dispatch_spec`` has to read it explicitly. Stripping the reserved seeds
-    stops a capture named after one clobbering the dispatcher's own value.
-    """
+    off-HTTP the
+    [`OfflineServiceView`][rest_framework_services.types.offline_service_view.OfflineServiceView]
+    carries the same mapping but ``dispatch_spec`` has to read it explicitly. Stripping
+    the reserved seeds stops a capture named after one clobbering the dispatcher's own
+    value."""
     kwargs = getattr(view, "kwargs", None)
     if not kwargs:
         return {}
@@ -215,9 +216,10 @@ def resolve_dispatch_kwargs(fn: Callable[..., Any], pool: dict[str, Any]) -> dic
     URL kwargs, the ``spec.kwargs`` provider) satisfies the marker, which says
     the value must arrive, not where from.
 
-    Raises [`ServiceValidationError`][rest_framework_services.exceptions.service_validation_error.ServiceValidationError] rather than letting the callable raise
-    ``KeyError``, because every transport maps the former to a caller-visible
-    validation failure and none maps the latter.
+    Raises
+    [`ServiceValidationError`][rest_framework_services.exceptions.service_validation_error.ServiceValidationError]
+    rather than letting the callable raise ``KeyError``, because every transport maps
+    the former to a caller-visible validation failure and none maps the latter.
 
     Off-HTTP only, deliberately: the HTTP path assembles its pools in
     ``selectors.utils`` / ``views.mutation.utils``, where the route is the

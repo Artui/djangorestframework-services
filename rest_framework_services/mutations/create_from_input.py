@@ -35,30 +35,28 @@ def create_from_input(
 ) -> ChangeResult[ModelT]:
     """Build, ``save()``, and return a fresh instance of ``model``.
 
-    Regular fields come from ``data`` (a dataclass, dict, or object with
-    ``__dict__``); M2M assignments are applied post-save via the ``m2m``
-    kwarg, mapping attribute name to the value to ``set()``. That argument
-    assigns rows which already exist; writing the target rows *from the
-    payload* is a
-    [`ManyToManySpec`][rest_framework_services.types.many_to_many_spec.ManyToManySpec] in ``relations``. Both
-    still ship — they are different jobs — but a relation named by both is
-    refused, since it would be written twice and keep whichever ran last.
+    Regular fields come from ``data`` (a dataclass, dict, or object with ``__dict__``);
+    M2M assignments are applied post-save via the ``m2m`` kwarg, mapping attribute name
+    to the value to ``set()``. That argument assigns rows which already exist; writing
+    the target rows *from the payload* is a
+    [`ManyToManySpec`][rest_framework_services.types.many_to_many_spec.ManyToManySpec]
+    in ``relations``. Both still ship — they are different jobs — but a relation named
+    by both is refused, since it would be written twice and keep whichever ran last.
 
-    ``relations`` maps a relation name to the spec for its kind; the nested
-    payload is read from ``data[relation]`` and written in the order the kind
-    dictates, not the order the map is spelled in (see
-    [`RelationPhase`][rest_framework_services.types.relation_phase.RelationPhase]). ``children`` is the
-    reverse-FK alias — the same map under the name it shipped as — and a name
-    declared in both raises. Keep the whole call inside the service's atomic
+    ``relations`` maps a relation name to the spec for its kind; the nested payload is
+    read from ``data[relation]`` and written in the order the kind dictates, not the
+    order the map is spelled in (see
+    [`RelationPhase`][rest_framework_services.types.relation_phase.RelationPhase]).
+    ``children`` is the reverse-FK alias — the same map under the name it shipped as —
+    and a name declared in both raises. Keep the whole call inside the service's atomic
     block.
 
-    ``context`` is an **opaque** mapping forwarded verbatim into the pool of
-    any per-child service a [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec]
-    declares. This helper never reads it — it exists so per-row work
-    downstream can see the acting caller. The default model-service factories
-    populate it from the framework's kwargs pool automatically; a hand-written
-    service opts in with ``context=kwargs``.
-    """
+    ``context`` is an **opaque** mapping forwarded verbatim into the pool of any
+    per-child service a
+    [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] declares. This
+    helper never reads it — it exists so per-row work downstream can see the acting
+    caller. The default model-service factories populate it from the framework's kwargs
+    pool automatically; a hand-written service opts in with ``context=kwargs``."""
     relation_specs = merge_relations(children, relations)
     reject_m2m_overlap(m2m, relation_specs)
     raw: dict[str, Any] = coerce_to_dict(data)

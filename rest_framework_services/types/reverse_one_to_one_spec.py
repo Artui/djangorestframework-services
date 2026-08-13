@@ -23,11 +23,11 @@ class ReverseOneToOneSpec(RelationSpec):
     """How to persist a **reverse** one-to-one — the row that points *back*.
 
     The other side of a ``OneToOneField``: the column lives on the related row
-    (``Profile.author``) and the parent (``Author``) reaches at most one of them
-    through the reverse accessor. So it is the
-    [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] loop minus the collection,
-    written in ``RelationPhase.REVERSE`` once the
-    parent has a primary key to point at.
+    (``Profile.author``) and the parent (``Author``) reaches at most one of them through
+    the reverse accessor. So it is the
+    [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] loop minus the
+    collection, written in ``RelationPhase.REVERSE`` once the parent has a primary key
+    to point at.
 
     Declared in ``relations={accessor_name: ReverseOneToOneSpec(...)}``, where
     the name is the parent's reverse accessor (``relations={"profile": ...}``

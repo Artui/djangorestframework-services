@@ -29,35 +29,33 @@ class ChildSpec(RelationSpec):
     the parent's ``save()``.
 
     Passed in the ``relations={relation_name: ChildSpec(...)}`` map of
-    [`create_from_input`][rest_framework_services.mutations.create_from_input.create_from_input] /
-    [`update_from_input`][rest_framework_services.mutations.update_from_input.update_from_input] (and their async
-    siblings) — or in ``children=``, which is the same thing under the name it
-    shipped as — and forwarded by the default
+    [`create_from_input`][rest_framework_services.mutations.create_from_input.create_from_input]
+    /
+    [`update_from_input`][rest_framework_services.mutations.update_from_input.update_from_input]
+    (and their async siblings) — or in ``children=``, which is the same thing under the
+    name it shipped as — and forwarded by the default
     [`create_model`][rest_framework_services.services.create_model.create_model] /
     [`update_model`][rest_framework_services.services.update_model.update_model] /
-    [`delete_model`][rest_framework_services.services.delete_model.delete_model] services. The incoming child
-    rows are read from ``data[relation_name]``; each child is persisted by
-    running it back through the same mutation helpers, so scalar / m2m / nested
-    semantics compose recursively. The whole parent + children write runs
-    inside the service's atomic block; field-level validation stays in the
-    input serializer / dataclass — the helper owns persistence only.
+    [`delete_model`][rest_framework_services.services.delete_model.delete_model]
+    services. The incoming child rows are read from ``data[relation_name]``; each child
+    is persisted by running it back through the same mutation helpers, so scalar / m2m /
+    nested semantics compose recursively. The whole parent + children write runs inside
+    the service's atomic block; field-level validation stays in the input serializer /
+    dataclass — the helper owns persistence only.
 
-    **Pluggable services — the spec owns reconciliation, the service owns the
-    row.** Matching, ``mode`` and orphan handling never move into your code;
-    a slot is called once per row the loop has already decided about. Each is
-    invoked through
+    **Pluggable services — the spec owns reconciliation, the service owns the row.**
+    Matching, ``mode`` and orphan handling never move into your code; a slot is called
+    once per row the loop has already decided about. Each is invoked through
     [`run_service`][rest_framework_services.services.run_service.run_service] /
-    [`arun_service`][rest_framework_services.services.arun_service.arun_service] with ``atomic=False``,
-    because the surrounding service's atomic block already wraps the whole
-    tree and letting each row open its own would mean a savepoint per row.
-    Each receives only the pool keys it declares (the library's usual
-    signature-filtering idiom), drawn from the mutation helpers' opaque
-    ``context=`` plus the loop's own seeds. Those seeds — ``data`` /
-    ``instance`` / ``parent`` — are applied **after** the context, so a context
-    key of the same name cannot outrank them, the precedence form of the rule
-    ``RESERVED_POOL_SEEDS``
-    states for the dispatcher's pools. In the async loops the slot must be an
-    ``async def``: the async path is awaited end to end.
+    [`arun_service`][rest_framework_services.services.arun_service.arun_service] with
+    ``atomic=False``, because the surrounding service's atomic block already wraps the
+    whole tree and letting each row open its own would mean a savepoint per row. Each
+    receives only the pool keys it declares (the library's usual signature-filtering
+    idiom), drawn from the mutation helpers' opaque ``context=`` plus the loop's own
+    seeds. Those seeds — ``data`` / ``instance`` / ``parent`` — are applied **after**
+    the context, so a context key of the same name cannot outrank them, the precedence
+    form of the rule ``RESERVED_POOL_SEEDS`` states for the dispatcher's pools. In the
+    async loops the slot must be an ``async def``: the async path is awaited end to end.
 
     A declared slot owns that row **entirely**: ``field_map``,
     ``exclude_fields``, ``m2m`` and the nested ``children`` / ``relations``

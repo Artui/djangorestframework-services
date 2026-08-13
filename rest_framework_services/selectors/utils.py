@@ -196,13 +196,15 @@ def check_view_object_permissions(
     *,
     instance: Any = None,
 ) -> None:
-    """[`TargetGuard`][rest_framework_services.types.target_guard.TargetGuard] running DRF's object-permission check for an HTTP view.
+    """[`TargetGuard`][rest_framework_services.types.target_guard.TargetGuard] running
+    DRF's object-permission check for an HTTP view.
 
-    The HTTP counterpart of [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions]:
-    off HTTP a transport enforces ``spec.permission_classes`` itself, while a DRF
-    view has already instantiated them and exposes ``check_object_permissions``.
-    Both plug into the same ``on_target_resolved`` seam, so the core stays
-    authz-agnostic on every transport.
+    The HTTP counterpart of
+    [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions]:
+    off HTTP a transport enforces ``spec.permission_classes`` itself, while a DRF view
+    has already instantiated them and exposes ``check_object_permissions``. Both plug
+    into the same ``on_target_resolved`` seam, so the core stays authz-agnostic on every
+    transport.
 
     Gated on ``Model``, like ``enforce_permissions``: the core fires this hook on
     the LIST branch too, with the resolved **queryset**, and object permissions
@@ -215,13 +217,15 @@ def check_view_object_permissions(
 def dispatch_selector_for_spec(view: Any, spec: SelectorSpec[Any, Any]) -> Any:
     """End-to-end dispatch for one ``SelectorSpec`` call from a DRF view.
 
-    Resolves the view's ``get_selector_kwargs`` / ``get_<action>_selector_kwargs``
-    chain into a [`ViewHooks`][rest_framework_services.types.view_hooks.ViewHooks] carrier, hands off to the one
-    [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec] core, and translates the
-    neutral [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult] into the view-layer contract: a RETRIEVE that
-    resolved nothing raises ``NotFound``, unless the
-    spec sets ``allow_none=True`` (then ``None``, and the retrieve views render
-    200 + JSON ``null``). ``SelectorKind.LIST`` returns the shaped queryset.
+    Resolves the view's ``get_selector_kwargs`` / ``get_<action>_selector_kwargs`` chain
+    into a [`ViewHooks`][rest_framework_services.types.view_hooks.ViewHooks] carrier,
+    hands off to the one
+    [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec]
+    core, and translates the neutral
+    [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult]
+    into the view-layer contract: a RETRIEVE that resolved nothing raises ``NotFound``,
+    unless the spec sets ``allow_none=True`` (then ``None``, and the retrieve views
+    render 200 + JSON ``null``). ``SelectorKind.LIST`` returns the shaped queryset.
 
     **``argument_binding=BUNDLE`` is what keeps HTTP semantics.** Off HTTP the
     flat ``params`` mapping *is* the argument channel; over HTTP a selector's

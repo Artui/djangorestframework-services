@@ -15,8 +15,10 @@ def base_pool(
     that declares a seed behaves the same whoever dispatched it. Build a pool
     of your own from this rather than restating the seeds.
 
-    ``progress`` defaults to [`null_progress`][rest_framework_services.dispatch.null_progress.null_progress] rather than to ``None``, so
-    a declared reporter is always callable — see [`ProgressReporter`][rest_framework_services.types.progress_reporter.ProgressReporter].
+    ``progress`` defaults to
+    [`null_progress`][rest_framework_services.dispatch.null_progress.null_progress]
+    rather than to ``None``, so a declared reporter is always callable — see
+    [`ProgressReporter`][rest_framework_services.types.progress_reporter.ProgressReporter].
     """
     return {"request": request, "user": user, "progress": progress or null_progress}
 

@@ -21,7 +21,8 @@ from rest_framework_services.exceptions.service_validation_error import (
 
 
 class _ServiceAPIException(drf_exceptions.APIException):
-    """Default DRF mapping for non-validation [`ServiceError`][rest_framework_services.exceptions.service_error.ServiceError]."""
+    """Default DRF mapping for non-validation
+    [`ServiceError`][rest_framework_services.exceptions.service_error.ServiceError]."""
 
     status_code = drf_status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "Service error."

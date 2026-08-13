@@ -1,4 +1,5 @@
-"""Async equivalent of [`create_from_input`][rest_framework_services.mutations.create_from_input.create_from_input]."""
+"""Async equivalent of
+[`create_from_input`][rest_framework_services.mutations.create_from_input.create_from_input]."""
 
 from __future__ import annotations
 
@@ -33,7 +34,9 @@ async def acreate_from_input(
     relations: Mapping[str, RelationSpec] | None = None,
     context: Mapping[str, Any] | None = None,
 ) -> ChangeResult[ModelT]:
-    """Async sibling of [`create_from_input`][rest_framework_services.mutations.create_from_input.create_from_input] using ``asave()``/``aset()``."""
+    """Async sibling of
+    [`create_from_input`][rest_framework_services.mutations.create_from_input.create_from_input]
+    using ``asave()``/``aset()``."""
     relation_specs = merge_relations(children, relations)
     reject_m2m_overlap(m2m, relation_specs)
     raw: dict[str, Any] = coerce_to_dict(data)

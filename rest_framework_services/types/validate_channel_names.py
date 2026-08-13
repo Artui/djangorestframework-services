@@ -11,7 +11,9 @@ from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEED
 
 
 class _ChannelDeclaration(Protocol):
-    """The shape shared by [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg] and [`QueryParam`][rest_framework_services.types.query_param.QueryParam].
+    """The shape shared by
+    [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg] and
+    [`QueryParam`][rest_framework_services.types.query_param.QueryParam].
 
     Members are **read-only properties**, not bare attributes. Both concrete
     types are ``@dataclass(frozen=True)``, whose fields are read-only — a bare
@@ -37,9 +39,9 @@ def validate_channel_names(
     """Raise ``ImproperlyConfigured`` on a bad channel declaration set.
 
     A [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg] /
-    [`QueryParam`][rest_framework_services.types.query_param.QueryParam] is popped out of the caller's
-    arguments and routed to a side channel, so its name must not collide with a
-    key the transport controls, and must not be declared twice.
+    [`QueryParam`][rest_framework_services.types.query_param.QueryParam] is popped out
+    of the caller's arguments and routed to a side channel, so its name must not collide
+    with a key the transport controls, and must not be declared twice.
 
     Three failure modes, all caught at registration time rather than on a call:
 

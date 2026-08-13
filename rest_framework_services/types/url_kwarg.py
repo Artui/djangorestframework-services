@@ -12,15 +12,16 @@ class UrlKwarg:
 
     Over HTTP a nested route's captures (the ``project_pk`` of
     ``/projects/{project_pk}/widgets/``) reach a spec through ``view.kwargs`` —
-    directly, or through a ``spec.kwargs`` provider that scopes by them.
-    Off-HTTP there is no route, so the caller supplies the value as an ordinary
-    argument: the transport advertises it in the tool / operation schema, pops it
-    out of the arguments, and hands it to ``build_offline_context(kwargs=…)``,
-    from where [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec] spreads it into the
-    selector / target pools — authoritative over the spec params, below a
-    ``spec.kwargs`` provider. It never reaches the spec as an ordinary input, so
-    the unknown-argument policy never flags it. Adapters import this declaration
-    and pair it with [`validate_channel_names`][rest_framework_services.types.validate_channel_names.validate_channel_names].
+    directly, or through a ``spec.kwargs`` provider that scopes by them. Off-HTTP there
+    is no route, so the caller supplies the value as an ordinary argument: the transport
+    advertises it in the tool / operation schema, pops it out of the arguments, and
+    hands it to ``build_offline_context(kwargs=…)``, from where
+    [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec]
+    spreads it into the selector / target pools — authoritative over the spec params,
+    below a ``spec.kwargs`` provider. It never reaches the spec as an ordinary input, so
+    the unknown-argument policy never flags it. Adapters import this declaration and
+    pair it with
+    [`validate_channel_names`][rest_framework_services.types.validate_channel_names.validate_channel_names].
 
     Reach for one when the value is a URL-derived input a spec depends on that is
     **not** already an ordinary argument — most commonly a scoping ``spec.kwargs``

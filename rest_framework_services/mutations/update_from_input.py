@@ -46,9 +46,9 @@ def update_from_input(
     are written (no auto-injection in that case).
 
     ``m2m`` assigns many-to-many rows that already exist;
-    [`ManyToManySpec`][rest_framework_services.types.many_to_many_spec.ManyToManySpec] in ``relations`` writes
-    the target rows from the payload instead. A relation named by both is
-    refused rather than written twice.
+    [`ManyToManySpec`][rest_framework_services.types.many_to_many_spec.ManyToManySpec]
+    in ``relations`` writes the target rows from the payload instead. A relation named
+    by both is refused rather than written twice.
 
     ``relations`` maps a relation name to the spec for its kind (``children``
     is the reverse-FK alias). The nested payload from ``data[relation]`` is
@@ -59,9 +59,10 @@ def update_from_input(
     diff and ``update_fields`` path as any other column. Keep the call inside
     the service's atomic block.
 
-    ``context`` is an **opaque** mapping forwarded verbatim into the pool of
-    any per-child service a [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec]
-    declares; this helper never reads it. See
+    ``context`` is an **opaque** mapping forwarded verbatim into the pool of any
+    per-child service a
+    [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] declares; this
+    helper never reads it. See
     [`create_from_input`][rest_framework_services.mutations.create_from_input.create_from_input].
     """
     relation_specs = merge_relations(children, relations)

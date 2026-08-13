@@ -24,13 +24,13 @@ from rest_framework_services.types.utils import (
 class GenericRelationSpec(RelationSpec):
     """How to persist a ``GenericRelation`` — a collection linked by content type.
 
-    The reverse-FK collection with the foreign key replaced by a pair of
-    columns: a ``ForeignKey`` to ``ContentType`` saying *which model* the row
-    belongs to, and an id column saying *which row*. It reconciles exactly as
-    [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] does — matched inside the
-    parent's own accessor, so no ``scope=`` is needed or accepted — and is
-    written in ``RelationPhase.GENERIC``, once the
-    parent's ``save()`` has given it both a content type and a primary key.
+    The reverse-FK collection with the foreign key replaced by a pair of columns: a
+    ``ForeignKey`` to ``ContentType`` saying *which model* the row belongs to, and an id
+    column saying *which row*. It reconciles exactly as
+    [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] does — matched
+    inside the parent's own accessor, so no ``scope=`` is needed or accepted — and is
+    written in ``RelationPhase.GENERIC``, once the parent's ``save()`` has given it both
+    a content type and a primary key.
 
     Declared in ``relations={accessor_name: GenericRelationSpec(...)}``, where
     the name is the ``GenericRelation`` declared on the parent

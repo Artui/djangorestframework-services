@@ -17,12 +17,12 @@ def filterset_to_json_schema(
 ) -> dict[str, dict[str, Any]]:
     """Map a django-filter ``FilterSet`` class to JSON Schema properties.
 
-    Returns a dict shaped like the ``"properties"`` key of a JSON Schema object,
-    ready to merge into a spec's input schema — which is what
-    [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema] does for a
-    ``SelectorSpec`` carrying a ``filter_set``. Every filter is optional: a
-    filter narrows the queryset but is never required to call the operation, so
-    no name is added to a ``required`` array.
+    Returns a dict shaped like the ``"properties"`` key of a JSON Schema object, ready
+    to merge into a spec's input schema — which is what
+    [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
+    does for a ``SelectorSpec`` carrying a ``filter_set``. Every filter is optional: a
+    filter narrows the queryset but is never required to call the operation, so no name
+    is added to a ``required`` array.
 
     ``registry.filters`` rules are tried first, so a consumer can map a custom
     filter type or override a built-in; common filter classes get accurate

@@ -20,8 +20,9 @@ from rest_framework_services.views.utils import get_class_attr, layer_serializer
 class SelectorListView(ListModelMixin, GenericAPIView):
     """``GET`` endpoint that delegates to a selector or to ``get_queryset()``.
 
-    Set ``spec`` to a [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] to configure the selector and/or
-    the output serializer. Both fields are optional:
+    Set ``spec`` to a
+    [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] to
+    configure the selector and/or the output serializer. Both fields are optional:
 
     - ``spec.selector`` overrides ``get_queryset()``; ``None`` falls back to
       the inherited ``queryset`` attribute.

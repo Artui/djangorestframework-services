@@ -1,4 +1,5 @@
-"""Async equivalent of [`update_from_input`][rest_framework_services.mutations.update_from_input.update_from_input]."""
+"""Async equivalent of
+[`update_from_input`][rest_framework_services.mutations.update_from_input.update_from_input]."""
 
 from __future__ import annotations
 
@@ -36,7 +37,9 @@ async def aupdate_from_input(
     relations: Mapping[str, RelationSpec] | None = None,
     context: Mapping[str, Any] | None = None,
 ) -> ChangeResult[ModelT]:
-    """Async sibling of [`update_from_input`][rest_framework_services.mutations.update_from_input.update_from_input] using ``asave()``/``aset()``."""
+    """Async sibling of
+    [`update_from_input`][rest_framework_services.mutations.update_from_input.update_from_input]
+    using ``asave()``/``aset()``."""
     relation_specs = merge_relations(children, relations)
     reject_m2m_overlap(m2m, relation_specs)
     raw: dict[str, Any] = coerce_to_dict(data)

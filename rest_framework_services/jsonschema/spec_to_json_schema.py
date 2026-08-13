@@ -31,28 +31,29 @@ def spec_to_json_schema(
 ) -> dict[str, Any] | None:
     """Derive a JSON Schema from a spec, reading the right serializer off it.
 
-    The convenience an alternate transport (a Pydantic-AI toolset, the MCP
-    server) calls instead of reaching into spec internals itself. ``registry``
-    supplies consumer rules for custom field / filter / Python types — see
+    The convenience an alternate transport (a Pydantic-AI toolset, the MCP server) calls
+    instead of reaching into spec internals itself. ``registry`` supplies consumer rules
+    for custom field / filter / Python types — see
     [`JsonSchemaRegistry`][rest_framework_services.types.json_schema_registry.JsonSchemaRegistry].
 
     ``phase="input"`` (default) returns the input-argument schema:
 
-    - [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] → its ``input_serializer`` (``spec.partial`` honoured).
-    - [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] → an object whose ``properties`` combine the
-      selector callable's own annotated parameters (skipping the ``request`` /
-      ``user`` / ``view`` transport seeds) with its ``filter_set`` fields, so
-      ``get_widget(user, pk)`` advertises ``pk`` instead of leaning on its
-      docstring; a bare ``{"type": "object"}`` when it exposes neither. A
-      ``**kwargs: Unpack[SomeExtras]`` parameter is **expanded** into one
-      property per ``TypedDict`` key, its required keys populating ``required``,
-      so a URL kwarg read from ``extras`` is discoverable off-HTTP rather than a
-      hidden ``KeyError``. Introspecting a ``filter_set`` needs the ``[filter]``
-      extra.
+    - [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] → its
+        ``input_serializer`` (``spec.partial`` honoured).
+    - [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] → an
+      object whose ``properties`` combine the selector callable's own annotated
+      parameters (skipping the ``request`` / ``user`` / ``view`` transport seeds) with
+      its ``filter_set`` fields, so ``get_widget(user, pk)`` advertises ``pk`` instead
+      of leaning on its docstring; a bare ``{"type": "object"}`` when it exposes
+      neither. A ``**kwargs: Unpack[SomeExtras]`` parameter is **expanded** into one
+      property per ``TypedDict`` key, its required keys populating ``required``, so a
+      URL kwarg read from ``extras`` is discoverable off-HTTP rather than a hidden
+      ``KeyError``. Introspecting a ``filter_set`` needs the ``[filter]`` extra.
 
-    ``phase="output"`` returns the output schema, or ``None`` when undeclared:
-    a [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] supplies its ``output_selector_spec``'s
-    ``output_serializer`` and ``kind``, a [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] its own.
+    ``phase="output"`` returns the output schema, or ``None`` when undeclared: a
+    [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] supplies its
+    ``output_selector_spec``'s ``output_serializer`` and ``kind``, a
+    [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] its own.
     """
     if phase == "input":
         return _input_schema(spec, registry)

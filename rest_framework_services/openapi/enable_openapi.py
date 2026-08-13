@@ -1,10 +1,14 @@
-"""Opt-in helper that wires [`ServiceAutoSchema`][rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema] onto every library view."""
+"""Opt-in helper that wires
+[`ServiceAutoSchema`][rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema]
+onto every library view."""
 
 from __future__ import annotations
 
 
 def enable_openapi() -> None:
-    """Set [`ServiceAutoSchema`][rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema] as the schema on every library view class.
+    """Set
+    [`ServiceAutoSchema`][rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema]
+    as the schema on every library view class.
 
     Call once from ``AppConfig.ready()`` (or anywhere after Django apps are
     loaded) to make ``drf-spectacular`` see ``ServiceSpec`` request bodies,

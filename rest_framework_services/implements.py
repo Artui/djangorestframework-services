@@ -21,10 +21,11 @@ def implements(proto: type[F]) -> Callable[[F], F]:
         ) -> Author: ...
 
     Strict-typed extras stay on your function: declare a ``TypedDict`` with
-    ``NotRequired`` keys (so the function still conforms to a Protocol whose
-    caller may not supply those keys) and annotate
-    ``**extras: Unpack[YourKw]``. The Protocol itself does not carry an
-    extras-shape parameter — see [`CreateService`][rest_framework_services.services.create_service.CreateService] for the rationale.
+    ``NotRequired`` keys (so the function still conforms to a Protocol whose caller may
+    not supply those keys) and annotate ``**extras: Unpack[YourKw]``. The Protocol
+    itself does not carry an extras-shape parameter — see
+    [`CreateService`][rest_framework_services.services.create_service.CreateService] for
+    the rationale.
 
     Drift between the decorated function and ``proto`` is reported at the
     decorator line by ``ty``. mypy refuses ``type[Protocol]`` arguments (the

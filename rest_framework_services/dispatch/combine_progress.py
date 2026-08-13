@@ -10,7 +10,9 @@ from rest_framework_services.types.progress_reporter import ProgressReporter
 
 
 def combine_progress(*reporters: ProgressReporter | None) -> ProgressReporter:
-    """Return one [`ProgressReporter`][rest_framework_services.types.progress_reporter.ProgressReporter] that forwards to all of ``reporters``.
+    """Return one
+    [`ProgressReporter`][rest_framework_services.types.progress_reporter.ProgressReporter]
+    that forwards to all of ``reporters``.
 
     The merge point for the two kinds of sink a dispatch can have: the
     **transport-native** one the caller supplies (MCP notifications, a websocket
@@ -28,11 +30,10 @@ def combine_progress(*reporters: ProgressReporter | None) -> ProgressReporter:
         *reporters: The sinks to fan out to, in call order. ``None`` entries are
             dropped, so an optional reporter can be passed straight through.
 
-    Returns:
-        A reporter forwarding to every non-``None`` sink, in the order given;
-        [`null_progress`][rest_framework_services.dispatch.null_progress.null_progress] when none are left, so the pool seed stays
-        callable. No sink may *depend* on the order — none can observe whether
-        an earlier one succeeded.
+    Returns: A reporter forwarding to every non-``None`` sink, in the order given;
+        [`null_progress`][rest_framework_services.dispatch.null_progress.null_progress]
+        when none are left, so the pool seed stays callable. No sink may *depend* on the
+        order — none can observe whether an earlier one succeeded.
     """
     sinks: tuple[ProgressReporter, ...] = tuple(r for r in reporters if r is not None)
     if not sinks:

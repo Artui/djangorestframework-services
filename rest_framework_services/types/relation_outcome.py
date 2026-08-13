@@ -6,7 +6,9 @@ from enum import Enum
 
 
 class RelationOutcome(str, Enum):
-    """The single fact a [`RelatedObjectChange`][rest_framework_services.types.related_object_change.RelatedObjectChange] reports.
+    """The single fact a
+    [`RelatedObjectChange`][rest_framework_services.types.related_object_change.RelatedObjectChange]
+    reports.
 
     A collection reports four tuples of primary keys, which is the honest shape
     for many rows and a poor one for a relation that holds exactly one: every

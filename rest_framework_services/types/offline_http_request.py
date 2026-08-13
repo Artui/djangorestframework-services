@@ -8,15 +8,15 @@ from django.http import HttpRequest
 class OfflineHttpRequest(HttpRequest):
     """An ``HttpRequest`` with no ambient host, made safe to use.
 
-    Built by [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context] when the
-    caller has no real request to wrap (a Pydantic-AI toolset, a management
-    command, a task runner). A bare ``HttpRequest`` has an **empty** ``META``,
-    and Django resolves the host from ``HTTP_HOST`` / ``SERVER_NAME`` — so
-    ``get_host()`` raises ``KeyError: 'SERVER_NAME'`` and takes
-    ``build_absolute_uri()`` down with it. That reaches serializers through the
-    most ordinary field there is: DRF's ``FileField.to_representation`` calls
-    ``request.build_absolute_uri(value.url)`` whenever a ``request`` is in the
-    context.
+    Built by
+    [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context]
+    when the caller has no real request to wrap (a Pydantic-AI toolset, a management
+    command, a task runner). A bare ``HttpRequest`` has an **empty** ``META``, and
+    Django resolves the host from ``HTTP_HOST`` / ``SERVER_NAME`` — so ``get_host()``
+    raises ``KeyError: 'SERVER_NAME'`` and takes ``build_absolute_uri()`` down with it.
+    That reaches serializers through the most ordinary field there is: DRF's
+    ``FileField.to_representation`` calls ``request.build_absolute_uri(value.url)``
+    whenever a ``request`` is in the context.
 
     Two behaviours, decided by whether the caller configured a host
     (``build_offline_context(host=…)``, which seeds ``META`` — a configured

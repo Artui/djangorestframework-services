@@ -22,14 +22,14 @@ def base_serializer_context(*, view: Any, request: Any) -> dict[str, Any]:
 
     Two sources, in order:
 
-    - ``view.get_serializer_context()`` when the view has it — a real DRF view
-      (the HTTP bulk path renders through the same helper). It is the view's own
-      documented extension point and may already be overridden, so it wins.
-    - Otherwise DRF's shape, synthesized from the ``view`` / ``request`` the
-      caller passed: the synthetic pair from
-      [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context] off HTTP, or
-      ``None`` when the caller supplied neither. ``format`` is always ``None``
-      — content negotiation is an HTTP-only concern.
+    - ``view.get_serializer_context()`` when the view has it — a real DRF view (the HTTP
+      bulk path renders through the same helper). It is the view's own documented
+      extension point and may already be overridden, so it wins.
+    - Otherwise DRF's shape, synthesized from the ``view`` / ``request`` the caller
+      passed: the synthetic pair from
+      [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context]
+      off HTTP, or ``None`` when the caller supplied neither. ``format`` is always
+      ``None`` — content negotiation is an HTTP-only concern.
 
     The keys are always present, mirroring HTTP: a serializer reading
     ``self.context["request"]`` off HTTP sees the synthetic request (and

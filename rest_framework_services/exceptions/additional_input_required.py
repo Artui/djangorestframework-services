@@ -32,11 +32,10 @@ class AdditionalInputRequired(ServiceError):
     arguments before dispatch — so raising is the whole of the service's
     involvement; there is no callback to hold and no session to resume.
 
-    A [`ServiceError`][rest_framework_services.exceptions.service_error.ServiceError] subclass deliberately, so a transport that has never
-    heard of it still reports that the operation could not be completed and why.
-    One that wants to do better must catch it *before* its generic
-    ``ServiceError`` handler.
-    """
+    A [`ServiceError`][rest_framework_services.exceptions.service_error.ServiceError]
+    subclass deliberately, so a transport that has never heard of it still reports that
+    the operation could not be completed and why. One that wants to do better must catch
+    it *before* its generic ``ServiceError`` handler."""
 
     def __init__(self, message: str, *, schema: Mapping[str, Any] | None = None) -> None:
         super().__init__(message)
