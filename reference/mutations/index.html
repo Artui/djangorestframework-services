@@ -1775,6 +1775,10 @@ written in the order their class dictates, so a forward foreign key is
 resolved before this instance is saved and the assignment rides the same
 diff and <code>update_fields</code> path as any other column. Keep the call inside
 the service's atomic block.</p>
+<p>A relation that was written stays readable off the returned instance. The
+one-row kinds resolve their row by re-querying, so the parent's cached
+related object is replaced with the row that was written — and dropped where
+the write removed it — rather than left holding pre-write values.</p>
 <p><code>context</code> is an <strong>opaque</strong> mapping forwarded verbatim into the pool of any
 per-child service a
 <a class="autorefs autorefs-internal" title="ChildSpec

@@ -4974,6 +4974,12 @@ field <strong>before</strong> the parent is saved
 (<code>RelationPhase.FORWARD</code>) — an ordinary
 column assignment, reported by <code>diff_attrs</code> and persisted by the same
 minimal <code>update_fields</code> save as any other field.</p>
+<p>The resolved row is assigned onto the parent in memory whether or not the
+column moved, so a caller who read the relation <em>before</em> the write does not
+read the pre-write row back off the returned instance. A row re-matched
+against <code>scope</code> is a different Python object from the one the parent had
+cached, and two rows sharing a primary key are equal, so the diff correctly
+reports no column change and would otherwise leave the stale object behind.</p>
 <p>The value reads three ways. <strong>Omitted</strong> leaves the relation untouched.
 <strong><code>None</code></strong> sets the parent's foreign key to <code>None</code> without removing the
 row it used to point at — a forward target is not owned by the parent and
@@ -5221,6 +5227,11 @@ existing row, if any, by the <code>orphan</code> rule below — unlike a forward
 relation, this row <em>is</em> the parent's, so clearing the relation has to do
 something about it. <strong>A mapping</strong> updates the row when the parent already
 has one, and creates and links one when it does not.</p>
+<p>The existing row is found by querying <code>fk</code> rather than through the reverse
+accessor, so whatever the accessor had cached is a different Python object
+from the one that gets written. Each of the three cases leaves the parent
+agreeing with the write — pointed at the written row, or cleared where the
+row was removed — so the returned instance does not read a pre-write row.</p>
 <p>There is no <code>match_key</code> and no <code>scope</code> — the parent owns at most one row
 here, so the relation itself is the match — and no <code>mode</code>: a one-row
 relation has no orphans beyond the <code>None</code> case, which is explicit.</p>

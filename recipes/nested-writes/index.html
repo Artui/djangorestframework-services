@@ -1048,6 +1048,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What changed in the response">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-returned-instance-reads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the returned instance reads
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1874,6 +1891,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What changed in the response">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-returned-instance-reads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the returned instance reads
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2386,31 +2420,85 @@ by keyword:</p>
 <p>A forward relation shows up <strong>twice</strong> and means two different things: in
 <code>relations</code> as the row that was created or matched, and in <code>changes</code> as the
 parent's foreign-key column — which only appears if it actually changed.</p>
+<h3 id="what-the-returned-instance-reads">What the returned instance reads<a class="headerlink" href="#what-the-returned-instance-reads" title="Permanent link">&para;</a></h3>
+<p><code>ChangeResult.instance</code> is the same object you passed in, and the one-row
+relations on it agree with the write:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">previous</span> <span class="o">=</span> <span class="n">post</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">name</span>  <span class="c1"># a validator, or a before/after comparison</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="n">result</span> <span class="o">=</span> <span class="n">update_from_input</span><span class="p">(</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>    <span class="n">post</span><span class="p">,</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>    <span class="p">{</span><span class="s2">&quot;author&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;pk&quot;</span><span class="p">:</span> <span class="n">post</span><span class="o">.</span><span class="n">author_id</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Ursula K.&quot;</span><span class="p">}},</span>
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>    <span class="n">relations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;author&quot;</span><span class="p">:</span> <span class="n">ForwardRelationSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Author</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">())},</span>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="p">)</span>
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="n">result</span><span class="o">.</span><span class="n">instance</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">name</span>  <span class="c1"># &quot;Ursula K.&quot; -- the row that was written</span>
+</span></code></pre></div>
+<p>That is worth stating because reading the relation first is the ordinary shape,
+and the write does not go through the object it cached: a forward target is
+re-matched inside <code>scope</code>, and a reverse one-to-one is found through its <code>fk</code>, so
+each saves a <strong>different Python object</strong>. The forward case slips past the diff
+too — two rows sharing a primary key are equal, so the column is correctly left
+alone. The written row is therefore assigned back onto the parent, and the cache
+is dropped where the write cleared or removed the relation, so the next read says
+what the database says. Both are in-memory, and neither costs a query.</p>
+<p><strong>This is not a reload, and it does not replace one.</strong> Nothing here re-reads the
+parent, so a value the <em>database</em> computed during the save — an <code>F()</code> expression,
+a <code>GeneratedField</code>, a database-side default — is still whatever your code left in
+memory, and needs <code>refresh_from_db()</code>. A value the <em>query</em> computed — an
+<code>annotations=</code> counter, <code>select_related</code> shaping — needs neither: only re-running
+the query produces it, which is what <code>output_selector_spec</code> is for. A stale
+counter survives <code>refresh_from_db()</code> untouched. The three cases and which tool
+each one takes are laid out in <a href="../../concepts/#reloading-and-re-fetching-are-not-the-same-tool">Reloading and re-fetching are not the same
+tool</a>.</p>
+<p><strong>A prefetched collection is held to the same contract</strong>, by dropping rather
+than by assigning: no amount of in-memory work can reproduce what the database
+would now return, because the cached queryset carries its own ordering, its own
+filtering and any nested prefetches, and only running it again applies them.</p>
+<p>Which writes drop it follows the same question as above — did the library write
+the object the parent already had?</p>
+<ul>
+<li>Rows the write <strong>added or removed</strong> always drop it. A cache built beforehand
+  cannot know about them.</li>
+<li>A row the write merely <strong>updated</strong> keeps it, for reverse-FK and generic
+  collections only. Those are reconciled <em>inside the parent's own accessor</em>, so
+  the update wrote the very object the cache is holding, and dropping it would
+  cost a query to re-read what it already has.</li>
+<li>A <strong>many-to-many</strong> drops on any write: it matches in <code>scope=</code>, never in the
+  parent's membership, so it writes a different object than the cache holds —
+  exactly as a forward target does.</li>
+<li>A per-row <strong><code>update_service</code></strong> drops on any write, because the library did not
+  do the writing and cannot vouch for which object the service touched.</li>
+</ul>
+<p><code>delete_relations</code> invalidates on the same rule, which matters for a
+<a href="../../default-model-services/#soft_delete-delete-only"><code>soft_delete</code></a> parent: it outlives its own
+cascade, and is exactly the row a response then renders.</p>
+<p>Over HTTP none of this was ever visible — the view layer drops
+<code>_prefetched_objects_cache</code> on the mutation target wholesale, as DRF's own
+<code>UpdateModelMixin</code> does. What it changes is a direct call to the helpers.</p>
 <p><code>removed</code> is the fifth collection bucket, and only a <code>delete_service</code> fills it:
 once a service owns the row, "deleted" and "unlinked" are no longer things the
 loop knows.</p>
 <h2 id="migrating-off-a-writable-nested-serializer">Migrating off a writable-nested serializer<a class="headerlink" href="#migrating-off-a-writable-nested-serializer" title="Permanent link">&para;</a></h2>
 <p><strong>Before</strong> — persistence lives in the serializer, and the service delegates to it:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">WritableNestedModelSerializer</span><span class="p">):</span>  <span class="c1"># drf-writable-nested / drf-nested</span>
-</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
-</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>
-</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">serializer</span><span class="p">):</span>
-</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>    <span class="k">return</span> <span class="n">serializer</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>  <span class="c1"># the coupling we&#39;re removing</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">WritableNestedModelSerializer</span><span class="p">):</span>  <span class="c1"># drf-writable-nested / drf-nested</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">serializer</span><span class="p">):</span>
+</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>    <span class="k">return</span> <span class="n">serializer</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>  <span class="c1"># the coupling we&#39;re removing</span>
 </span></code></pre></div>
 <p><strong>After</strong> — the serializer only validates; the service owns persistence:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
-</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># plain nested serializer, validation only</span>
-</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
-</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
-</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">Author</span>
-</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;books&quot;</span><span class="p">]</span>
-</span><span id="__span-18-7"><a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>
-</span><span id="__span-18-8"><a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>
-</span><span id="__span-18-9"><a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
-</span><span id="__span-18-10"><a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>    <span class="k">return</span> <span class="n">update_from_input</span><span class="p">(</span>
-</span><span id="__span-18-11"><a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>        <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">relations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}</span>
-</span><span id="__span-18-12"><a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>    <span class="p">)</span><span class="o">.</span><span class="n">instance</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># plain nested serializer, validation only</span>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">Author</span>
+</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;books&quot;</span><span class="p">]</span>
+</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>
+</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>
+</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+</span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>    <span class="k">return</span> <span class="n">update_from_input</span><span class="p">(</span>
+</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>        <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">relations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}</span>
+</span><span id="__span-19-12"><a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>    <span class="p">)</span><span class="o">.</span><span class="n">instance</span>
 </span></code></pre></div>
 <p>Field-level validation stays in the serializer / dataclass; the helper owns the
 writes, inside the service's atomic block. The nested serializer no longer needs
@@ -2457,6 +2545,15 @@ relation name, aligned against the incoming list for a collection — the same
 shape a writable-nested serializer produced, so a client (and any error handling
 written against it) needs no change. See <a href="#when-a-rows-write-is-refused">When a row's write is
 refused</a>.</p>
+<p><strong>Nor does what the response can render.</strong> <code>drf-nested</code>'s <code>UpdateNestedMixin</code>
+ended its <code>update()</code> with a <code>refresh_from_db()</code>. There is no equivalent here and
+none is needed for the relations: those are made to agree with the write in
+memory, which the blanket reload was paying a query for — and would in fact
+<em>undo</em>, since a reload drops every cached relation. What that line never gave you
+either way is a fresh annotation, which no reload can restore. If you were
+relying on it for a counter in the response, the answer is an
+<code>output_selector_spec</code>, not a reload; see <a href="#what-the-returned-instance-reads">What the returned instance
+reads</a> for both halves.</p>
 <p>Also deliberately absent: <code>drf-nested</code>'s per-relation <code>allow_create</code> /
 <code>allow_update</code> / <code>preserve_provided</code> / <code>forbidden_on_create</code> knobs. They exist
 because that facility is serializer-declarative and needs override points. Here

@@ -552,6 +552,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Result rendering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reloading-and-re-fetching-are-not-the-same-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reloading and re-fetching are not the same tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1847,6 +1864,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Result rendering">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reloading-and-re-fetching-are-not-the-same-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reloading and re-fetching are not the same tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2569,6 +2603,52 @@ whether <code>success_status</code> is set explicitly. The full matrix:</p>
 </span><span id="__span-19-13"><a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>    <span class="p">),</span>
 </span><span id="__span-19-14"><a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="p">)</span>
 </span></code></pre></div>
+<h3 id="reloading-and-re-fetching-are-not-the-same-tool">Reloading and re-fetching are not the same tool<a class="headerlink" href="#reloading-and-re-fetching-are-not-the-same-tool" title="Permanent link">&para;</a></h3>
+<p>That re-fetch is often reached for as "the way to get fresh data", and a
+<code>refresh_from_db()</code> inside the service is often reached for instead. They fix
+<strong>different</strong> kinds of staleness, and neither is a superset of the other. Which
+one a response needs depends on <em>who computed</em> the value it is missing:</p>
+<table>
+<thead>
+<tr>
+<th>What is stale on the in-memory instance</th>
+<th>Who computed it</th>
+<th>What fixes it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Columns the write assigned; <code>auto_now</code> timestamps; the related row a one-row relation resolved; a prefetched collection the write changed</td>
+<td>your code, before the save</td>
+<td><strong>nothing</strong> — the mutation helpers already settle these</td>
+</tr>
+<tr>
+<td>A value the <strong>database</strong> produced: an <code>F()</code> expression, a <code>GeneratedField</code>, a database-side default, a trigger</td>
+<td>the database, during the save</td>
+<td>a <strong>reload</strong> — <code>refresh_from_db()</code>, or a re-fetch</td>
+</tr>
+<tr>
+<td>A value the <strong>query</strong> produced: an <code>annotations=</code> counter, <code>select_related</code> / <code>prefetch_related</code> shaping</td>
+<td>the queryset that fetched the row</td>
+<td>only a <strong>re-fetch</strong> — <code>output_selector_spec</code></td>
+</tr>
+</tbody>
+</table>
+<p>The bottom row is the one that catches people: <code>refresh_from_db()</code> reloads
+concrete columns and cannot restore an annotation, so a stale counter survives it
+untouched. Only running the query again, with the shaping re-applied, produces it
+— which is what <code>output_selector_spec</code> exists for.</p>
+<p>The top row is worth knowing for the opposite reason. Assigning <code>views=F("views")
++ 1</code> leaves <code>instance.views</code> holding the <em>expression object</em>, not the number, so a
+serializer rendering that instance needs the reload; assigning a plain value, or
+letting <code>auto_now</code> fire, does not. Nor do the relations the mutation helpers
+write — a one-row relation is pointed at the row that was written, and a
+prefetched collection is dropped when the write changed which rows belong to it.
+See <a href="../recipes/nested-writes/#what-the-returned-instance-reads">What the returned instance
+reads</a>. A blanket
+<code>refresh_from_db()</code> there is not merely redundant: it <em>discards</em> that agreement
+along with every other cached relation, so the next read pays a query to learn
+what the instance already knew.</p>
 <h2 id="views">Views<a class="headerlink" href="#views" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
