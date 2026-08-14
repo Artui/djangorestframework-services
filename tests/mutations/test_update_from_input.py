@@ -171,3 +171,16 @@ class TestUpdateFromInput:
         update_from_input(obj, {"title": "new"})
         obj.refresh_from_db()
         assert obj.updated_at > old_ts
+
+    def test_the_new_auto_now_value_needs_no_reload_to_be_read(self) -> None:
+        # Django's pre_save puts the new timestamp on the instance, so the
+        # returned one already carries it. The docs draw the line between
+        # values like this and the ones only a reload or a re-fetch produces
+        # (an F() expression, a fetch-time annotation), so pin this end of it.
+        obj = Timestamped.objects.create(title="orig")
+        Timestamped.objects.filter(pk=obj.pk).update(updated_at=timezone.now() - timedelta(hours=1))
+        obj.refresh_from_db()
+
+        result = update_from_input(obj, {"title": "new"})
+
+        assert result.instance.updated_at == Timestamped.objects.get(pk=obj.pk).updated_at

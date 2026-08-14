@@ -523,6 +523,16 @@ alone. The written row is therefore assigned back onto the parent, and the cache
 is dropped where the write cleared or removed the relation, so the next read says
 what the database says. Both are in-memory, and neither costs a query.
 
+**This is not a reload, and it does not replace one.** Nothing here re-reads the
+parent, so a value the *database* computed during the save — an `F()` expression,
+a `GeneratedField`, a database-side default — is still whatever your code left in
+memory, and needs `refresh_from_db()`. A value the *query* computed — an
+`annotations=` counter, `select_related` shaping — needs neither: only re-running
+the query produces it, which is what `output_selector_spec` is for. A stale
+counter survives `refresh_from_db()` untouched. The three cases and which tool
+each one takes are laid out in [Reloading and re-fetching are not the same
+tool](../concepts.md#reloading-and-re-fetching-are-not-the-same-tool).
+
 **A collection is not covered by this, and does not need to be.** Reverse-FK,
 generic and many-to-many rows are matched *inside the parent's own accessor*, so
 an update writes the very objects a `prefetch_related` cache holds. Rows the
@@ -624,9 +634,13 @@ refused](#when-a-rows-write-is-refused).
 
 **Nor does what the response can render.** `drf-nested`'s `UpdateNestedMixin`
 ended its `update()` with a `refresh_from_db()`. There is no equivalent here and
-none is needed: the relations a write resolved are made to agree with it in
-memory, which the blanket re-fetch was paying a query for. See [What the returned
-instance reads](#what-the-returned-instance-reads).
+none is needed for the relations: those are made to agree with the write in
+memory, which the blanket reload was paying a query for — and would in fact
+*undo*, since a reload drops every cached relation. What that line never gave you
+either way is a fresh annotation, which no reload can restore. If you were
+relying on it for a counter in the response, the answer is an
+`output_selector_spec`, not a reload; see [What the returned instance
+reads](#what-the-returned-instance-reads) for both halves.
 
 Also deliberately absent: `drf-nested`'s per-relation `allow_create` /
 `allow_update` / `preserve_provided` / `forbidden_on_create` knobs. They exist

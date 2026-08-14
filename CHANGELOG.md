@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **Reloading and re-fetching are now documented as the different tools they
+  are.** Two pages each held half of this and neither pointed at the other:
+  concepts prescribed an `output_selector_spec` re-fetch for a stale fetch-time
+  annotation, while the nested-writes recipe said the relations a write resolved
+  need no reload. A reader with a stale value in a response had no way to tell
+  which lever was theirs, and the intuitive guess — that a `refresh_from_db()` is
+  the cheaper version of a re-fetch — is wrong in both directions.
+
+  There is now one table, keyed on **who computed the value** the response is
+  missing. Your code before the save (plain columns, `auto_now`, the row a
+  one-row relation resolved) needs nothing; the database during the save (an
+  `F()` expression, a `GeneratedField`, a database-side default) needs a reload;
+  the queryset that fetched the row (`annotations=`, `select_related`) needs a
+  re-fetch and *only* a re-fetch, because reloading concrete columns cannot
+  restore an annotation. The recipe and the migration note link to it rather than
+  restating it.
+
+  Two consequences are called out because they surprise: `views=F("views") + 1`
+  leaves the *expression object* on the instance, so a serializer rendering it
+  needs the reload; and a blanket `refresh_from_db()` after a nested write is not
+  merely redundant but actively discards the relation agreement, since a reload
+  drops every cached relation. A test now pins the `auto_now` end of the table,
+  which was previously asserted only against the database.
+
 ### Fixed
 
 - **A written one-row relation no longer leaves the pre-write row on the parent.**
