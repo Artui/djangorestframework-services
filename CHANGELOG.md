@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.41.0] — 2026-08-14
+
+### Upgrade notes
+
+**Two observable changes, both of them the point of the release.** A mutation's
+returned instance now reads back what the write actually did, where before it
+could still hold pre-write related data. Nothing about what reaches the database
+changes; what changes is what a response rendered from that instance says.
+
+- **Response bodies.** A serializer rendering the mutated instance now shows the
+  written values for a forward relation and a reverse one-to-one, and the current
+  membership for a prefetched collection. If you asserted the *old* values —
+  deliberately or, far more likely, because that is what the library returned —
+  those assertions now fail, and the new value is the correct one. Specs whose
+  output comes from an `output_selector_spec` re-fetch were never affected either
+  way.
+- **Query counts.** They move in both directions. A re-matched forward relation
+  now costs **one query fewer**, because reading it back no longer falls through
+  to the database. A prefetched collection whose membership the write changed
+  costs **one more**, because the stale cache is dropped rather than served. Test
+  suites that pin exact counts with `assertNumQueries` are where this shows up.
+
+Nothing needs configuring, and there is no flag to restore the old behaviour: the
+old behaviour was a response reporting values the same request had already
+replaced.
+
 ### Documentation
 
 - **Reloading and re-fetching are now documented as the different tools they
@@ -2556,7 +2582,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.40.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.41.0...HEAD
+[0.41.0]: https://github.com/Artui/djangorestframework-services/compare/v0.40.0...v0.41.0
 [0.40.0]: https://github.com/Artui/djangorestframework-services/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/Artui/djangorestframework-services/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/Artui/djangorestframework-services/compare/v0.37.0...v0.38.0
