@@ -654,7 +654,7 @@ one a response needs depends on *who computed* the value it is missing:
 
 | What is stale on the in-memory instance | Who computed it | What fixes it |
 |---|---|---|
-| Columns the write assigned; `auto_now` timestamps; the related row a one-row relation resolved | your code, before the save | **nothing** — already correct in memory |
+| Columns the write assigned; `auto_now` timestamps; the related row a one-row relation resolved; a prefetched collection the write changed | your code, before the save | **nothing** — the mutation helpers already settle these |
 | A value the **database** produced: an `F()` expression, a `GeneratedField`, a database-side default, a trigger | the database, during the save | a **reload** — `refresh_from_db()`, or a re-fetch |
 | A value the **query** produced: an `annotations=` counter, `select_related` / `prefetch_related` shaping | the queryset that fetched the row | only a **re-fetch** — `output_selector_spec` |
 
@@ -666,12 +666,14 @@ untouched. Only running the query again, with the shaping re-applied, produces i
 The top row is worth knowing for the opposite reason. Assigning `views=F("views")
 + 1` leaves `instance.views` holding the *expression object*, not the number, so a
 serializer rendering that instance needs the reload; assigning a plain value, or
-letting `auto_now` fire, does not. Nor do the one-row relations the mutation
-helpers write, which are made to agree with the write in memory — see [What the
-returned instance reads](recipes/nested-writes.md#what-the-returned-instance-reads).
-A blanket `refresh_from_db()` there is not merely redundant: it *discards* that
-agreement along with every other cached relation, so the next read pays a query
-to learn what the instance already knew.
+letting `auto_now` fire, does not. Nor do the relations the mutation helpers
+write — a one-row relation is pointed at the row that was written, and a
+prefetched collection is dropped when the write changed which rows belong to it.
+See [What the returned instance
+reads](recipes/nested-writes.md#what-the-returned-instance-reads). A blanket
+`refresh_from_db()` there is not merely redundant: it *discards* that agreement
+along with every other cached relation, so the next read pays a query to learn
+what the instance already knew.
 
 ## Views
 

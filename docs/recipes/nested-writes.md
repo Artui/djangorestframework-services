@@ -533,14 +533,33 @@ counter survives `refresh_from_db()` untouched. The three cases and which tool
 each one takes are laid out in [Reloading and re-fetching are not the same
 tool](../concepts.md#reloading-and-re-fetching-are-not-the-same-tool).
 
-**A collection is not covered by this, and does not need to be.** Reverse-FK,
-generic and many-to-many rows are matched *inside the parent's own accessor*, so
-an update writes the very objects a `prefetch_related` cache holds. Rows the
-write adds or removes do change that collection's membership, which a prefetch
-cache built before the write cannot know; the view layer drops
-`_prefetched_objects_cache` on the mutation target for exactly that reason, as
-DRF's own `UpdateModelMixin` does. Calling a helper directly, re-read the
-collection rather than the cache.
+**A prefetched collection is held to the same contract**, by dropping rather
+than by assigning: no amount of in-memory work can reproduce what the database
+would now return, because the cached queryset carries its own ordering, its own
+filtering and any nested prefetches, and only running it again applies them.
+
+Which writes drop it follows the same question as above — did the library write
+the object the parent already had?
+
+- Rows the write **added or removed** always drop it. A cache built beforehand
+  cannot know about them.
+- A row the write merely **updated** keeps it, for reverse-FK and generic
+  collections only. Those are reconciled *inside the parent's own accessor*, so
+  the update wrote the very object the cache is holding, and dropping it would
+  cost a query to re-read what it already has.
+- A **many-to-many** drops on any write: it matches in `scope=`, never in the
+  parent's membership, so it writes a different object than the cache holds —
+  exactly as a forward target does.
+- A per-row **`update_service`** drops on any write, because the library did not
+  do the writing and cannot vouch for which object the service touched.
+
+`delete_relations` invalidates on the same rule, which matters for a
+[`soft_delete`](../default-model-services.md#soft_delete-delete-only) parent: it outlives its own
+cascade, and is exactly the row a response then renders.
+
+Over HTTP none of this was ever visible — the view layer drops
+`_prefetched_objects_cache` on the mutation target wholesale, as DRF's own
+`UpdateModelMixin` does. What it changes is a direct call to the helpers.
 
 `removed` is the fifth collection bucket, and only a `delete_service` fills it:
 once a service owns the row, "deleted" and "unlinked" are no longer things the

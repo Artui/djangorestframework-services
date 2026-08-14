@@ -65,11 +65,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own link in memory, which a `delete_service` that kept the row linked never
   asked for.
 
-  Collections are unaffected and were never wrong in this way: reverse-FK,
-  generic and many-to-many rows are matched *inside the parent's accessor*, so an
-  update writes the very objects a prefetch cache holds. Membership changes still
-  invalidate such a cache, which the view layer already handles by dropping
-  `_prefetched_objects_cache` on the mutation target.
+- **A prefetched collection no longer reports the membership it had before the
+  write.** Rows a nested write added or removed were invisible to a
+  `prefetch_related` cache built beforehand, so the returned instance rendered the
+  old collection. Over HTTP this was already covered — the view layer drops
+  `_prefetched_objects_cache` on the mutation target wholesale, as DRF's
+  `UpdateModelMixin` does — so what this reaches is a direct call to the mutation
+  helpers, and `delete_relations` under a `soft_delete` parent, which outlives its
+  own cascade and is exactly the row a response then renders.
+
+  Dropping rather than rebuilding is the only honest option: the cached queryset
+  carries its own ordering, its own filtering and any nested prefetches, so
+  nothing assembled in memory can stand in for what the database would now return.
+
+  Which writes drop it follows the same question as the fix above — did the
+  library write the object the parent already had? Rows **added or removed**
+  always drop it. A row merely **updated** keeps it for reverse-FK and generic
+  collections, which are reconciled inside the parent's own accessor and so wrote
+  the very object the cache holds; dropping there would cost a query to re-read
+  what it already has. A **many-to-many** drops on any write, since it matches in
+  `scope=` rather than in the membership and therefore writes a different object.
+  A per-row **`update_service`** drops on any write, because the library did not
+  do the writing and cannot vouch for what the service touched.
 
 ## [0.40.0] — 2026-08-13
 

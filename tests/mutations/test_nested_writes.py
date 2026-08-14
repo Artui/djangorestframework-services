@@ -8,6 +8,7 @@ import pytest
 
 from rest_framework_services import (
     ChildSpec,
+    ManyToManySpec,
     acreate_from_input,
     aupdate_from_input,
     create_from_input,
@@ -206,6 +207,127 @@ class TestDeleteChildren:
         assert by_relation["notes"].unlinked == (note.pk,)
 
 
+@pytest.mark.django_db
+class TestWhatAPrefetchedCollectionReads:
+    """A `prefetch_related` cache must not outlive the membership it recorded.
+
+    The singular twin of this is
+    ``test_singular_relations.TestTheInstanceReadsWhatWasWritten``. Collections
+    differ in that they are reconciled *inside the parent's own accessor*, so an
+    update writes the very objects the cache is holding -- which is why the rule
+    here is keyed on membership rather than on the relation having been written.
+    """
+
+    def test_a_created_row_invalidates_the_cache(self) -> None:
+        catalog = Catalog.objects.create(name="c")
+        Section.objects.create(catalog=catalog, title="old")
+        catalog = Catalog.objects.prefetch_related(_SECTIONS).get()
+        assert [s.title for s in catalog.sections.all()] == ["old"]
+
+        result = update_from_input(
+            catalog, {"sections": [{"title": "new"}]}, children=_spec(mode="merge")
+        )
+
+        assert sorted(s.title for s in result.instance.sections.all()) == ["new", "old"]
+
+    def test_a_removed_row_invalidates_the_cache(self) -> None:
+        catalog = Catalog.objects.create(name="c")
+        keep = Section.objects.create(catalog=catalog, title="keep")
+        Section.objects.create(catalog=catalog, title="orphan")
+        catalog = Catalog.objects.prefetch_related(_SECTIONS).get()
+        assert catalog.sections.count() == 2
+
+        result = update_from_input(
+            catalog, {"sections": [{"pk": keep.pk, "title": "keep"}]}, children=_spec()
+        )
+
+        assert [s.title for s in result.instance.sections.all()] == ["keep"]
+
+    def test_an_update_in_place_keeps_the_cache_and_its_query(
+        self, django_assert_num_queries: Any
+    ) -> None:
+        # The rows were matched inside the accessor, so the write mutated the
+        # cached objects themselves. Dropping the cache here would cost a query
+        # to re-read what it already holds.
+        catalog = Catalog.objects.create(name="c")
+        section = Section.objects.create(catalog=catalog, title="old")
+        catalog = Catalog.objects.prefetch_related(_SECTIONS).get()
+        assert [s.title for s in catalog.sections.all()] == ["old"]
+
+        result = update_from_input(
+            catalog, {"sections": [{"pk": section.pk, "title": "new"}]}, children=_spec()
+        )
+
+        with django_assert_num_queries(0):
+            assert [s.title for s in result.instance.sections.all()] == ["new"]
+
+    def test_an_omitted_relation_keeps_the_cache(self, django_assert_num_queries: Any) -> None:
+        catalog = Catalog.objects.create(name="c")
+        Section.objects.create(catalog=catalog, title="old")
+        catalog = Catalog.objects.prefetch_related(_SECTIONS).get()
+        assert [s.title for s in catalog.sections.all()] == ["old"]
+
+        result = update_from_input(catalog, {"name": "c2"}, children=_spec())
+
+        with django_assert_num_queries(0):
+            assert [s.title for s in result.instance.sections.all()] == ["old"]
+
+    def test_an_update_service_invalidates_the_cache(self) -> None:
+        # The library did not do the writing, so it cannot vouch for which
+        # object the service touched.
+        catalog = Catalog.objects.create(name="c")
+        section = Section.objects.create(catalog=catalog, title="old")
+        catalog = Catalog.objects.prefetch_related(_SECTIONS).get()
+        assert [s.title for s in catalog.sections.all()] == ["old"]
+
+        def rename(*, instance: Section, data: Any, **_: Any) -> Section:
+            # Deliberately writes a row object the cache is not holding.
+            fresh = Section.objects.get(pk=instance.pk)
+            fresh.title = data["title"]
+            fresh.save(update_fields=["title"])
+            return fresh
+
+        result = update_from_input(
+            catalog,
+            {"sections": [{"pk": section.pk, "title": "new"}]},
+            children=_spec(update_service=rename),
+        )
+
+        assert [s.title for s in result.instance.sections.all()] == ["new"]
+
+    def test_a_many_to_many_invalidates_on_any_write(self) -> None:
+        # Matched in scope=, never in the parent's membership, so even a pure
+        # field update writes a different object than the cache is holding.
+        # This one guards the contract rather than this library's arm of the
+        # rule: writing an m2m goes through manager.set(), and Django drops the
+        # prefetch cache on its own way through.
+        tag = Tag.objects.create(name="old")
+        section = Section.objects.create(catalog=Catalog.objects.create(name="c"), title="s")
+        section.tags.add(tag)
+        section = Section.objects.prefetch_related("tags").get()
+        assert [t.name for t in section.tags.all()] == ["old"]
+
+        result = update_from_input(
+            section,
+            {"tags": [{"pk": tag.pk, "name": "new"}]},
+            relations={"tags": ManyToManySpec(model=Tag, scope=Tag.objects.all())},
+        )
+
+        assert [t.name for t in result.instance.tags.all()] == ["new"]
+
+    def test_a_soft_deleted_parent_outlives_its_own_cascade(self) -> None:
+        # delete_relations does not delete the parent, and a soft_delete flow
+        # renders exactly that row afterwards.
+        catalog = Catalog.objects.create(name="c")
+        Section.objects.create(catalog=catalog, title="s")
+        catalog = Catalog.objects.prefetch_related(_SECTIONS).get()
+        assert catalog.sections.count() == 1
+
+        delete_relations(catalog, _spec())
+
+        assert list(catalog.sections.all()) == []
+
+
 @pytest.mark.django_db(transaction=True)
 class TestAsyncChildren:
     async def test_acreate_with_children_and_m2m(self) -> None:
@@ -270,6 +392,29 @@ class TestAsyncChildren:
         await Section.objects.acreate(catalog=catalog, title="a")
         await aupdate_from_input(catalog, {"name": "c2"}, children=_spec())
         assert await catalog.sections.acount() == 1
+
+    async def test_a_prefetched_collection_reads_what_was_written(self) -> None:
+        # The sync twin is TestWhatAPrefetchedCollectionReads; the async path
+        # reconciles the same way, so it goes stale the same way.
+        catalog = await Catalog.objects.acreate(name="c")
+        section = await Section.objects.acreate(catalog=catalog, title="old")
+        catalog = await Catalog.objects.prefetch_related(_SECTIONS).aget()
+        assert [s.title async for s in catalog.sections.all()] == ["old"]
+
+        added = await aupdate_from_input(
+            catalog, {"sections": [{"title": "new"}]}, children=_spec(mode="merge")
+        )
+        assert sorted([s.title async for s in added.instance.sections.all()]) == ["new", "old"]
+
+        # An update in place keeps the prefetch, exactly as on the sync path.
+        catalog = await Catalog.objects.prefetch_related(_SECTIONS).aget()
+        assert len([s async for s in catalog.sections.all()]) == 2
+        updated = await aupdate_from_input(
+            catalog,
+            {"sections": [{"pk": section.pk, "title": "renamed"}]},
+            children=_spec(mode="merge"),
+        )
+        assert "renamed" in [s.title async for s in updated.instance.sections.all()]
 
     async def test_adelete_relations_recursive(self) -> None:
         catalog = await Catalog.objects.acreate(name="c")
