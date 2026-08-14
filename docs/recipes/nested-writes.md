@@ -498,6 +498,40 @@ A forward relation shows up **twice** and means two different things: in
 `relations` as the row that was created or matched, and in `changes` as the
 parent's foreign-key column — which only appears if it actually changed.
 
+### What the returned instance reads
+
+`ChangeResult.instance` is the same object you passed in, and the one-row
+relations on it agree with the write:
+
+```python
+previous = post.author.name  # a validator, or a before/after comparison
+
+result = update_from_input(
+    post,
+    {"author": {"pk": post.author_id, "name": "Ursula K."}},
+    relations={"author": ForwardRelationSpec(model=Author, scope=Author.objects.all())},
+)
+result.instance.author.name  # "Ursula K." -- the row that was written
+```
+
+That is worth stating because reading the relation first is the ordinary shape,
+and the write does not go through the object it cached: a forward target is
+re-matched inside `scope`, and a reverse one-to-one is found through its `fk`, so
+each saves a **different Python object**. The forward case slips past the diff
+too — two rows sharing a primary key are equal, so the column is correctly left
+alone. The written row is therefore assigned back onto the parent, and the cache
+is dropped where the write cleared or removed the relation, so the next read says
+what the database says. Both are in-memory, and neither costs a query.
+
+**A collection is not covered by this, and does not need to be.** Reverse-FK,
+generic and many-to-many rows are matched *inside the parent's own accessor*, so
+an update writes the very objects a `prefetch_related` cache holds. Rows the
+write adds or removes do change that collection's membership, which a prefetch
+cache built before the write cannot know; the view layer drops
+`_prefetched_objects_cache` on the mutation target for exactly that reason, as
+DRF's own `UpdateModelMixin` does. Calling a helper directly, re-read the
+collection rather than the cache.
+
 `removed` is the fifth collection bucket, and only a `delete_service` fills it:
 once a service owns the row, "deleted" and "unlinked" are no longer things the
 loop knows.
@@ -587,6 +621,12 @@ relation name, aligned against the incoming list for a collection — the same
 shape a writable-nested serializer produced, so a client (and any error handling
 written against it) needs no change. See [When a row's write is
 refused](#when-a-rows-write-is-refused).
+
+**Nor does what the response can render.** `drf-nested`'s `UpdateNestedMixin`
+ended its `update()` with a `refresh_from_db()`. There is no equivalent here and
+none is needed: the relations a write resolved are made to agree with it in
+memory, which the blanket re-fetch was paying a query for. See [What the returned
+instance reads](#what-the-returned-instance-reads).
 
 Also deliberately absent: `drf-nested`'s per-relation `allow_create` /
 `allow_update` / `preserve_provided` / `forbidden_on_create` knobs. They exist

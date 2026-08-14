@@ -12,6 +12,7 @@ import json
 from typing import Any
 
 import pytest
+from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models.signals import post_save
 
@@ -469,6 +470,142 @@ class TestEveryKindTogether:
         assert result.get_relation_change("notes") is None
 
 
+@pytest.mark.django_db
+class TestTheInstanceReadsWhatWasWritten:
+    """The returned instance must not still hold the pre-write related row.
+
+    Both singular kinds find their row by re-querying, so what gets saved is a
+    different Python object from whatever the parent had cached. Nothing about
+    the write invalidates that cache, and for a forward relation the diff cannot:
+    two rows sharing a primary key are equal, so the column is correctly left
+    alone and the stale object would be left with it.
+    """
+
+    def test_a_forward_target_updated_in_place_replaces_the_cached_row(self) -> None:
+        author = Author.objects.create(name="Ursula")
+        post = Post.objects.get(pk=Post.objects.create(title="t", author=author).pk)
+        # Something reads the relation before the write -- a validator, or the
+        # service comparing a before/after value. This caches the old row.
+        previous_name = post.author.name
+
+        result = update_from_input(
+            post,
+            {"title": "t2", "author": {"pk": author.pk, "name": "Ursula K."}},
+            relations={"author": ForwardRelationSpec(model=Author, scope=Author.objects.all())},
+        )
+
+        assert previous_name == "Ursula"
+        assert result.instance.author.name == "Ursula K."
+        # The column never changed, so the save must not have carried it.
+        assert result.get_field_change("author") is None
+        assert result.get_relation_change("author").outcome == "updated"
+
+    def test_reading_the_relation_back_costs_no_query(self, django_assert_num_queries: Any) -> None:
+        author = Author.objects.create(name="Ursula")
+        post = Post.objects.get(pk=Post.objects.create(title="t", author=author).pk)
+        _ = post.author
+
+        result = update_from_input(
+            post,
+            {"author": {"pk": author.pk, "name": "Ursula K."}},
+            relations={"author": ForwardRelationSpec(model=Author, scope=Author.objects.all())},
+        )
+
+        # The written row is assigned through the descriptor, not re-fetched.
+        with django_assert_num_queries(0):
+            assert result.instance.author.name == "Ursula K."
+
+    def test_a_forward_target_swapped_for_another_row_still_wins(self) -> None:
+        ursula = Author.objects.create(name="Ursula")
+        octavia = Author.objects.create(name="Octavia")
+        post = Post.objects.get(pk=Post.objects.create(title="t", author=ursula).pk)
+        _ = post.author
+
+        result = update_from_input(
+            post,
+            {"author": {"pk": octavia.pk, "name": "Octavia E."}},
+            relations={"author": ForwardRelationSpec(model=Author, scope=Author.objects.all())},
+        )
+
+        assert (result.instance.author_id, result.instance.author.name) == (
+            octavia.pk,
+            "Octavia E.",
+        )
+        assert result.get_field_change("author").old == ursula
+
+    def test_clearing_a_forward_relation_drops_the_cached_row(self) -> None:
+        author = Author.objects.create(name="Ursula")
+        post = Post.objects.get(pk=Post.objects.create(title="t", author=author).pk)
+        _ = post.author
+
+        result = update_from_input(
+            post, {"author": None}, relations={"author": ForwardRelationSpec(model=Author)}
+        )
+
+        assert result.instance.author is None
+
+    def test_a_reverse_one_to_one_updated_in_place_replaces_the_cached_row(
+        self, django_assert_num_queries: Any
+    ) -> None:
+        author = Author.objects.get(pk=Author.objects.create(name="Ursula").pk)
+        Profile.objects.create(author=author, bio="first")
+        _ = author.profile
+
+        result = update_from_input(
+            author,
+            {"profile": {"bio": "second"}},
+            relations={"profile": ReverseOneToOneSpec(model=Profile, fk="author")},
+        )
+
+        with django_assert_num_queries(0):
+            assert result.instance.profile.bio == "second"
+
+    def test_a_reverse_one_to_one_created_by_the_update_is_readable(self) -> None:
+        author = Author.objects.create(name="Ursula")
+
+        result = update_from_input(
+            author,
+            {"profile": {"bio": "b"}},
+            relations={"profile": ReverseOneToOneSpec(model=Profile, fk="author")},
+        )
+
+        assert result.instance.profile == Profile.objects.get()
+
+    def test_a_removed_reverse_one_to_one_stops_being_readable(self) -> None:
+        author = Author.objects.create(name="Ursula")
+        profile = Profile.objects.create(author=author, bio="b")
+        assert author.profile == profile  # cached by the create above either way
+
+        result = update_from_input(
+            author,
+            {"profile": None},
+            relations={"profile": ReverseOneToOneSpec(model=Profile, fk="author")},
+        )
+
+        with pytest.raises(Profile.DoesNotExist):
+            _ = result.instance.profile
+
+    def test_a_delete_service_that_kept_the_row_linked_keeps_the_row_intact(self) -> None:
+        # The cleared case drops the cache rather than assigning None through the
+        # descriptor, which would have blanked this row's own link in memory
+        # while the database still holds it.
+        author = Author.objects.create(name="Ursula")
+        profile = Profile.objects.create(author=author, bio="b")
+
+        result = update_from_input(
+            author,
+            {"profile": None},
+            relations={
+                "profile": ReverseOneToOneSpec(
+                    model=Profile, fk="author", delete_service=lambda **_: None
+                )
+            },
+        )
+
+        assert profile.author_id == author.pk
+        assert result.instance.profile == profile  # re-read, and still there
+
+
 @pytest.mark.django_db(transaction=True)
 class TestAsyncSingularRelations:
     async def test_forward_create_and_scoped_update(self) -> None:
@@ -638,6 +775,33 @@ class TestAsyncSingularRelations:
             },
         )
         assert updated.get_relation_change("profile").pk == replacement.pk
+
+    async def test_the_instance_reads_what_was_written(self) -> None:
+        # The sync twin of this is TestTheInstanceReadsWhatWasWritten; the async
+        # path resolves its rows the same way, so it can go stale the same way.
+        author = await Author.objects.acreate(name="Ursula")
+        post = await Post.objects.aget(pk=(await Post.objects.acreate(title="t", author=author)).pk)
+        _ = await sync_to_async(lambda: post.author.name)()  # caches the old row
+
+        forward = await aupdate_from_input(
+            post,
+            {"author": {"pk": author.pk, "name": "Ursula K."}},
+            relations={"author": ForwardRelationSpec(model=Author, scope=Author.objects.all())},
+        )
+        assert forward.instance.author.name == "Ursula K."
+        assert forward.get_field_change("author") is None  # the column never moved
+
+        profile = await Profile.objects.acreate(author=author, bio="first")
+        spec = {"profile": ReverseOneToOneSpec(model=Profile, fk="author")}
+
+        reverse = await aupdate_from_input(author, {"profile": {"bio": "second"}}, relations=spec)
+        assert reverse.instance.profile.bio == "second"
+
+        unlinked = await aupdate_from_input(author, {"profile": None}, relations=spec)
+        with pytest.raises(Profile.DoesNotExist):
+            await sync_to_async(lambda: unlinked.instance.profile)()
+        await profile.arefresh_from_db()
+        assert profile.author_id is None
 
 
 @pytest.mark.django_db

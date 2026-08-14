@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A written one-row relation no longer leaves the pre-write row on the parent.**
+  After `update_from_input` wrote a forward relation or a reverse one-to-one, the
+  instance it returned could still hold the related object as it was *before* the
+  write, so anything rendering from that instance — a response serializer, most
+  obviously — reported values the write had already replaced. The write itself was
+  always correct, and a follow-up read showed the new value, which is what made it
+  expensive to find: only an assertion on the response body of the request that
+  did the write could see it.
+
+  Both kinds find their row by **re-querying** — a forward target inside `scope=`,
+  a reverse one-to-one through its `fk` — so what gets saved is a different Python
+  object from the one the parent had cached, and nothing invalidated that cache.
+  The forward case slipped past the diff as well: two rows sharing a primary key
+  are equal, so the column was correctly left alone and the stale object was left
+  with it. Any caller that read the relation before the write was exposed, and
+  reading it first is the ordinary shape — a validator reaching through the
+  relation, a before/after comparison, a `scope=` callable.
+
+  The written row is now assigned back onto the parent, and the cached entry is
+  dropped where the write cleared or removed the relation, so the next read says
+  what the database says. Both are in-memory descriptor work: **no extra query**,
+  which is why this is not `drf-nested`'s blanket `refresh_from_db()` — that pays
+  a query even when nothing read the relation, or when the caller re-fetches
+  anyway, as a spec whose output comes from a selector does.
+
+  Dropping the entry rather than assigning `None` through the descriptor is
+  deliberate for the removal case: assigning would also blank the removed row's
+  own link in memory, which a `delete_service` that kept the row linked never
+  asked for.
+
+  Collections are unaffected and were never wrong in this way: reverse-FK,
+  generic and many-to-many rows are matched *inside the parent's accessor*, so an
+  update writes the very objects a prefetch cache holds. Membership changes still
+  invalidate such a cache, which the view layer already handles by dropping
+  `_prefetched_objects_cache` on the mutation target.
+
 ## [0.40.0] — 2026-08-13
 
 ### Added

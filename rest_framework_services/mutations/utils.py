@@ -698,6 +698,41 @@ async def aapply_forward_relations(
     return (assignments, tuple(changes))
 
 
+def sync_relation_cache(parent: Model, relation: str, row: Any) -> None:
+    """Make ``parent``'s cached related object agree with what the write left.
+
+    The two singular kinds are matched by **re-querying** — a forward target
+    inside ``scope=``, a reverse one-to-one found through its foreign key — so
+    the row that gets saved is a different Python object from the one the parent
+    has cached, and nothing else invalidates that cache. A caller who read the
+    relation before the write then reads pre-write values back off the instance
+    the helper returns, which is what a response serializer renders. Reading it
+    first is the ordinary shape: a validator reaching through the relation, a
+    before/after comparison, a ``scope=`` callable.
+
+    The diff does not catch the forward case either. Two rows sharing a primary
+    key are equal, so the column is correctly left alone — and the stale object
+    is left with it.
+
+    ``row`` is ``None`` where the write cleared or removed the relation, and that
+    case *drops* the cached entry rather than assigning ``None`` through the
+    descriptor: assigning would also blank the removed row's own link in memory,
+    which a ``delete_service`` that deliberately kept the row linked never asked
+    for. Dropping it lets the next read say what the database says. The entry is
+    keyed by the relation name for both kinds — a forward field caches under its
+    own name, a reverse one-to-one under its accessor — which is the name the
+    spec is declared with either way.
+
+    Assigning is the descriptor's own work, so this costs no query, and it stays
+    narrower than the blanket ``refresh_from_db()`` it removes the need for: only
+    a relation this write resolved is touched, and only in memory.
+    """
+    if row is None:
+        parent._state.fields_cache.pop(relation, None)
+        return
+    setattr(parent, relation, row)
+
+
 def _write_forward_relation(
     value: Any,
     spec: ForwardRelationSpec,
@@ -914,7 +949,9 @@ def _write_reverse_one_to_one(
     The relation itself is the match, so nothing is matched by key and nothing
     is scoped. The existing row is fetched by querying the ``fk`` rather than
     through the reverse accessor, which caches, raises its own
-    ``DoesNotExist``, and has no async form.
+    ``DoesNotExist``, and has no async form. That the fetch bypasses the
+    accessor is exactly why the result has to be handed back to it — see
+    ``sync_relation_cache``.
     """
     if value is UNSET:
         return RelatedObjectChange(relation=relation)
@@ -929,6 +966,7 @@ def _write_reverse_one_to_one(
             context=context,
             unlink=_unlinks_orphans(spec, relation=relation),
         )
+        sync_relation_cache(parent, relation, None)
         return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
@@ -942,11 +980,14 @@ def _write_reverse_one_to_one(
             context=context,
             m2m=row_m2m,
         )
-        return RelatedObjectChange(relation=relation, outcome=RelationOutcome.CREATED, pk=row.pk)
-    row = _update_row(
-        existing, item, spec, path=path, seeds={"parent": parent}, context=context, m2m=row_m2m
-    )
-    return RelatedObjectChange(relation=relation, outcome=RelationOutcome.UPDATED, pk=row.pk)
+        outcome = RelationOutcome.CREATED
+    else:
+        row = _update_row(
+            existing, item, spec, path=path, seeds={"parent": parent}, context=context, m2m=row_m2m
+        )
+        outcome = RelationOutcome.UPDATED
+    sync_relation_cache(parent, relation, row)
+    return RelatedObjectChange(relation=relation, outcome=outcome, pk=row.pk)
 
 
 async def _awrite_reverse_one_to_one(
@@ -972,6 +1013,7 @@ async def _awrite_reverse_one_to_one(
             context=context,
             unlink=_unlinks_orphans(spec, relation=relation),
         )
+        sync_relation_cache(parent, relation, None)
         return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
@@ -985,11 +1027,14 @@ async def _awrite_reverse_one_to_one(
             context=context,
             m2m=row_m2m,
         )
-        return RelatedObjectChange(relation=relation, outcome=RelationOutcome.CREATED, pk=row.pk)
-    row = await _aupdate_row(
-        existing, item, spec, path=path, seeds={"parent": parent}, context=context, m2m=row_m2m
-    )
-    return RelatedObjectChange(relation=relation, outcome=RelationOutcome.UPDATED, pk=row.pk)
+        outcome = RelationOutcome.CREATED
+    else:
+        row = await _aupdate_row(
+            existing, item, spec, path=path, seeds={"parent": parent}, context=context, m2m=row_m2m
+        )
+        outcome = RelationOutcome.UPDATED
+    sync_relation_cache(parent, relation, row)
+    return RelatedObjectChange(relation=relation, outcome=outcome, pk=row.pk)
 
 
 def _write_owned_collection(
