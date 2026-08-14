@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrade notes
+
+**Two observable changes, both of them the point of the release.** A mutation's
+returned instance now reads back what the write actually did, where before it
+could still hold pre-write related data. Nothing about what reaches the database
+changes; what changes is what a response rendered from that instance says.
+
+- **Response bodies.** A serializer rendering the mutated instance now shows the
+  written values for a forward relation and a reverse one-to-one, and the current
+  membership for a prefetched collection. If you asserted the *old* values —
+  deliberately or, far more likely, because that is what the library returned —
+  those assertions now fail, and the new value is the correct one. Specs whose
+  output comes from an `output_selector_spec` re-fetch were never affected either
+  way.
+- **Query counts.** They move in both directions. A re-matched forward relation
+  now costs **one query fewer**, because reading it back no longer falls through
+  to the database. A prefetched collection whose membership the write changed
+  costs **one more**, because the stale cache is dropped rather than served. Test
+  suites that pin exact counts with `assertNumQueries` are where this shows up.
+
+Nothing needs configuring, and there is no flag to restore the old behaviour: the
+old behaviour was a response reporting values the same request had already
+replaced.
+
 ### Documentation
 
 - **Reloading and re-fetching are now documented as the different tools they
