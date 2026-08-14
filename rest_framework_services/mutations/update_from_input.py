@@ -18,6 +18,7 @@ from rest_framework_services.mutations.utils import (
     merge_relations,
     reject_m2m_overlap,
     resolve_update_fields,
+    sync_relation_cache,
 )
 from rest_framework_services.types.change_result import ChangeResult, ModelT
 from rest_framework_services.types.child_spec import ChildSpec
@@ -59,6 +60,11 @@ def update_from_input(
     diff and ``update_fields`` path as any other column. Keep the call inside
     the service's atomic block.
 
+    A relation that was written stays readable off the returned instance. The
+    one-row kinds resolve their row by re-querying, so the parent's cached
+    related object is replaced with the row that was written — and dropped where
+    the write removed it — rather than left holding pre-write values.
+
     ``context`` is an **opaque** mapping forwarded verbatim into the pool of any
     per-child service a
     [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] declares; this
@@ -81,6 +87,8 @@ def update_from_input(
     field_changes = diff_attrs(instance, new_values)
     for change in field_changes:
         setattr(instance, change.field, change.new)
+    for relation, target in forward_values.items():
+        sync_relation_cache(instance, relation, target)
     m2m_field_changes, to_apply = m2m_changes(instance, m2m, created=False)
     changed_field_names: tuple[str, ...] = tuple(change.field for change in field_changes)
     save_fields: list[str] | None = resolve_update_fields(

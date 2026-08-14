@@ -7,6 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **Reloading and re-fetching are now documented as the different tools they
+  are.** Two pages each held half of this and neither pointed at the other:
+  concepts prescribed an `output_selector_spec` re-fetch for a stale fetch-time
+  annotation, while the nested-writes recipe said the relations a write resolved
+  need no reload. A reader with a stale value in a response had no way to tell
+  which lever was theirs, and the intuitive guess — that a `refresh_from_db()` is
+  the cheaper version of a re-fetch — is wrong in both directions.
+
+  There is now one table, keyed on **who computed the value** the response is
+  missing. Your code before the save (plain columns, `auto_now`, the row a
+  one-row relation resolved) needs nothing; the database during the save (an
+  `F()` expression, a `GeneratedField`, a database-side default) needs a reload;
+  the queryset that fetched the row (`annotations=`, `select_related`) needs a
+  re-fetch and *only* a re-fetch, because reloading concrete columns cannot
+  restore an annotation. The recipe and the migration note link to it rather than
+  restating it.
+
+  Two consequences are called out because they surprise: `views=F("views") + 1`
+  leaves the *expression object* on the instance, so a serializer rendering it
+  needs the reload; and a blanket `refresh_from_db()` after a nested write is not
+  merely redundant but actively discards the relation agreement, since a reload
+  drops every cached relation. A test now pins the `auto_now` end of the table,
+  which was previously asserted only against the database.
+
+### Fixed
+
+- **A written one-row relation no longer leaves the pre-write row on the parent.**
+  After `update_from_input` wrote a forward relation or a reverse one-to-one, the
+  instance it returned could still hold the related object as it was *before* the
+  write, so anything rendering from that instance — a response serializer, most
+  obviously — reported values the write had already replaced. The write itself was
+  always correct, and a follow-up read showed the new value, which is what made it
+  expensive to find: only an assertion on the response body of the request that
+  did the write could see it.
+
+  Both kinds find their row by **re-querying** — a forward target inside `scope=`,
+  a reverse one-to-one through its `fk` — so what gets saved is a different Python
+  object from the one the parent had cached, and nothing invalidated that cache.
+  The forward case slipped past the diff as well: two rows sharing a primary key
+  are equal, so the column was correctly left alone and the stale object was left
+  with it. Any caller that read the relation before the write was exposed, and
+  reading it first is the ordinary shape — a validator reaching through the
+  relation, a before/after comparison, a `scope=` callable.
+
+  The written row is now assigned back onto the parent, and the cached entry is
+  dropped where the write cleared or removed the relation, so the next read says
+  what the database says. Both are in-memory descriptor work: **no extra query**,
+  which is why this is not `drf-nested`'s blanket `refresh_from_db()` — that pays
+  a query even when nothing read the relation, or when the caller re-fetches
+  anyway, as a spec whose output comes from a selector does.
+
+  Dropping the entry rather than assigning `None` through the descriptor is
+  deliberate for the removal case: assigning would also blank the removed row's
+  own link in memory, which a `delete_service` that kept the row linked never
+  asked for.
+
+- **A prefetched collection no longer reports the membership it had before the
+  write.** Rows a nested write added or removed were invisible to a
+  `prefetch_related` cache built beforehand, so the returned instance rendered the
+  old collection. Over HTTP this was already covered — the view layer drops
+  `_prefetched_objects_cache` on the mutation target wholesale, as DRF's
+  `UpdateModelMixin` does — so what this reaches is a direct call to the mutation
+  helpers, and `delete_relations` under a `soft_delete` parent, which outlives its
+  own cascade and is exactly the row a response then renders.
+
+  Dropping rather than rebuilding is the only honest option: the cached queryset
+  carries its own ordering, its own filtering and any nested prefetches, so
+  nothing assembled in memory can stand in for what the database would now return.
+
+  Which writes drop it follows the same question as the fix above — did the
+  library write the object the parent already had? Rows **added or removed**
+  always drop it. A row merely **updated** keeps it for reverse-FK and generic
+  collections, which are reconciled inside the parent's own accessor and so wrote
+  the very object the cache holds; dropping there would cost a query to re-read
+  what it already has. A **many-to-many** drops on any write, since it matches in
+  `scope=` rather than in the membership and therefore writes a different object.
+  A per-row **`update_service`** drops on any write, because the library did not
+  do the writing and cannot vouch for what the service touched.
+
 ## [0.40.0] — 2026-08-13
 
 ### Added

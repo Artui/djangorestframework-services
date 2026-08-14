@@ -31,6 +31,13 @@ class ForwardRelationSpec(RelationSpec):
     column assignment, reported by ``diff_attrs`` and persisted by the same
     minimal ``update_fields`` save as any other field.
 
+    The resolved row is assigned onto the parent in memory whether or not the
+    column moved, so a caller who read the relation *before* the write does not
+    read the pre-write row back off the returned instance. A row re-matched
+    against ``scope`` is a different Python object from the one the parent had
+    cached, and two rows sharing a primary key are equal, so the diff correctly
+    reports no column change and would otherwise leave the stale object behind.
+
     The value reads three ways. **Omitted** leaves the relation untouched.
     **``None``** sets the parent's foreign key to ``None`` without removing the
     row it used to point at — a forward target is not owned by the parent and
