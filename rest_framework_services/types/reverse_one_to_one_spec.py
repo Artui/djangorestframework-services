@@ -38,6 +38,12 @@ class ReverseOneToOneSpec(RelationSpec):
     something about it. **A mapping** updates the row when the parent already
     has one, and creates and links one when it does not.
 
+    The existing row is found by querying ``fk`` rather than through the reverse
+    accessor, so whatever the accessor had cached is a different Python object
+    from the one that gets written. Each of the three cases leaves the parent
+    agreeing with the write — pointed at the written row, or cleared where the
+    row was removed — so the returned instance does not read a pre-write row.
+
     There is no ``match_key`` and no ``scope`` — the parent owns at most one row
     here, so the relation itself is the match — and no ``mode``: a one-row
     relation has no orphans beyond the ``None`` case, which is explicit.

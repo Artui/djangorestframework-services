@@ -698,6 +698,85 @@ async def aapply_forward_relations(
     return (assignments, tuple(changes))
 
 
+def sync_relation_cache(parent: Model, relation: str, row: Any) -> None:
+    """Make ``parent``'s cached related object agree with what the write left.
+
+    The two singular kinds are matched by **re-querying** — a forward target
+    inside ``scope=``, a reverse one-to-one found through its foreign key — so
+    the row that gets saved is a different Python object from the one the parent
+    has cached, and nothing else invalidates that cache. A caller who read the
+    relation before the write then reads pre-write values back off the instance
+    the helper returns, which is what a response serializer renders. Reading it
+    first is the ordinary shape: a validator reaching through the relation, a
+    before/after comparison, a ``scope=`` callable.
+
+    The diff does not catch the forward case either. Two rows sharing a primary
+    key are equal, so the column is correctly left alone — and the stale object
+    is left with it.
+
+    ``row`` is ``None`` where the write cleared or removed the relation, and that
+    case *drops* the cached entry rather than assigning ``None`` through the
+    descriptor: assigning would also blank the removed row's own link in memory,
+    which a ``delete_service`` that deliberately kept the row linked never asked
+    for. Dropping it lets the next read say what the database says. The entry is
+    keyed by the relation name for both kinds — a forward field caches under its
+    own name, a reverse one-to-one under its accessor — which is the name the
+    spec is declared with either way.
+
+    Assigning is the descriptor's own work, so this costs no query, and it stays
+    narrower than the blanket ``refresh_from_db()`` it removes the need for: only
+    a relation this write resolved is touched, and only in memory.
+    """
+    if row is None:
+        parent._state.fields_cache.pop(relation, None)
+        return
+    setattr(parent, relation, row)
+
+
+def sync_collection_cache(parent: Model, change: ChildCollectionChange, spec: RelationSpec) -> None:
+    """Drop a prefetched collection this write left inaccurate.
+
+    Rows the write **added or removed** are the plain case: a cache built before
+    the write cannot know about them, and nothing done in memory can reproduce
+    what the database would now return — the cached queryset carries its own
+    ordering, its own filtering and any nested prefetches, and only running it
+    again applies them. So the entry goes and the next read re-queries.
+
+    An *updated* row turns on the same question this module asks everywhere:
+    did the library write the object the parent already had, or a re-queried one?
+    A reverse-FK or generic collection is reconciled **inside the parent's own
+    accessor**, so an update writes the very object the cache is holding and the
+    cache stays accurate — that collection keeps its prefetch, and its query. A
+    many-to-many is matched in ``scope=`` instead, so it writes a different
+    object and leaves the cached one stale, exactly as a forward target would. A
+    per-row ``update_service`` reads the same way: the library did not do the
+    writing and cannot vouch for which object the service touched.
+
+    The many-to-many arm is belt-and-braces: writing one goes through
+    ``manager.set()`` / ``.add()``, and Django drops the prefetch cache itself on
+    the way through. Deleting this arm therefore breaks no test today. It is
+    stated anyway so the rule stands on where the row came from rather than on
+    another library's internals.
+
+    Dropping costs a query, and only for a caller who prefetched this relation
+    and then wrote it. The view layer already does the blunter version of this —
+    the whole cache on the mutation target, as DRF's ``UpdateModelMixin`` does —
+    so a request over HTTP was never exposed to this; a direct call to the
+    mutation helpers was.
+    """
+    if not change:
+        return
+    updates_wrote_the_cached_rows = (
+        isinstance(spec, ChildSpec | GenericRelationSpec) and spec.update_service is None
+    )
+    membership_changed = bool(change.created or change.deleted or change.unlinked or change.removed)
+    if updates_wrote_the_cached_rows and not membership_changed:
+        return
+    cache: dict[str, Any] | None = getattr(parent, "_prefetched_objects_cache", None)
+    if cache is not None:
+        cache.pop(change.relation, None)
+
+
 def _write_forward_relation(
     value: Any,
     spec: ForwardRelationSpec,
@@ -868,26 +947,27 @@ def apply_relations(
     singular: list[RelatedObjectChange] = []
     for relation, spec in post_save_relations(relations):
         value = relation_data.get(relation, UNSET)
-        if isinstance(spec, ChildSpec | GenericRelationSpec):
-            collections.append(
-                _write_owned_collection(
-                    parent, value, spec, relation=relation, created=created, context=context
-                )
-            )
-        elif isinstance(spec, ManyToManySpec):
-            collections.append(
-                _write_m2m_relation(
-                    parent, value, spec, relation=relation, created=created, context=context
-                )
-            )
-        elif isinstance(spec, ReverseOneToOneSpec):
+        if isinstance(spec, ReverseOneToOneSpec):
             singular.append(
                 _write_reverse_one_to_one(
                     parent, value, spec, relation=relation, created=created, context=context
                 )
             )
+            continue
+        if isinstance(spec, ChildSpec | GenericRelationSpec):
+            collection = _write_owned_collection(
+                parent, value, spec, relation=relation, created=created, context=context
+            )
+        elif isinstance(spec, ManyToManySpec):
+            collection = _write_m2m_relation(
+                parent, value, spec, relation=relation, created=created, context=context
+            )
         else:
             raise _unknown_relation_kind(relation, spec)
+        collections.append(collection)
+        # Per relation, and before the next one is written: a service declared
+        # further down the map may read a sibling collection off the parent.
+        sync_collection_cache(parent, collection, spec)
     return (tuple(collections), tuple(singular))
 
 
@@ -914,7 +994,9 @@ def _write_reverse_one_to_one(
     The relation itself is the match, so nothing is matched by key and nothing
     is scoped. The existing row is fetched by querying the ``fk`` rather than
     through the reverse accessor, which caches, raises its own
-    ``DoesNotExist``, and has no async form.
+    ``DoesNotExist``, and has no async form. That the fetch bypasses the
+    accessor is exactly why the result has to be handed back to it — see
+    ``sync_relation_cache``.
     """
     if value is UNSET:
         return RelatedObjectChange(relation=relation)
@@ -929,6 +1011,7 @@ def _write_reverse_one_to_one(
             context=context,
             unlink=_unlinks_orphans(spec, relation=relation),
         )
+        sync_relation_cache(parent, relation, None)
         return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
@@ -942,11 +1025,14 @@ def _write_reverse_one_to_one(
             context=context,
             m2m=row_m2m,
         )
-        return RelatedObjectChange(relation=relation, outcome=RelationOutcome.CREATED, pk=row.pk)
-    row = _update_row(
-        existing, item, spec, path=path, seeds={"parent": parent}, context=context, m2m=row_m2m
-    )
-    return RelatedObjectChange(relation=relation, outcome=RelationOutcome.UPDATED, pk=row.pk)
+        outcome = RelationOutcome.CREATED
+    else:
+        row = _update_row(
+            existing, item, spec, path=path, seeds={"parent": parent}, context=context, m2m=row_m2m
+        )
+        outcome = RelationOutcome.UPDATED
+    sync_relation_cache(parent, relation, row)
+    return RelatedObjectChange(relation=relation, outcome=outcome, pk=row.pk)
 
 
 async def _awrite_reverse_one_to_one(
@@ -972,6 +1058,7 @@ async def _awrite_reverse_one_to_one(
             context=context,
             unlink=_unlinks_orphans(spec, relation=relation),
         )
+        sync_relation_cache(parent, relation, None)
         return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
     item = coerce_to_dict(value)
     row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
@@ -985,11 +1072,14 @@ async def _awrite_reverse_one_to_one(
             context=context,
             m2m=row_m2m,
         )
-        return RelatedObjectChange(relation=relation, outcome=RelationOutcome.CREATED, pk=row.pk)
-    row = await _aupdate_row(
-        existing, item, spec, path=path, seeds={"parent": parent}, context=context, m2m=row_m2m
-    )
-    return RelatedObjectChange(relation=relation, outcome=RelationOutcome.UPDATED, pk=row.pk)
+        outcome = RelationOutcome.CREATED
+    else:
+        row = await _aupdate_row(
+            existing, item, spec, path=path, seeds={"parent": parent}, context=context, m2m=row_m2m
+        )
+        outcome = RelationOutcome.UPDATED
+    sync_relation_cache(parent, relation, row)
+    return RelatedObjectChange(relation=relation, outcome=outcome, pk=row.pk)
 
 
 def _write_owned_collection(
@@ -1321,26 +1411,27 @@ async def aapply_relations(
     singular: list[RelatedObjectChange] = []
     for relation, spec in post_save_relations(relations):
         value = relation_data.get(relation, UNSET)
-        if isinstance(spec, ChildSpec | GenericRelationSpec):
-            collections.append(
-                await _awrite_owned_collection(
-                    parent, value, spec, relation=relation, created=created, context=context
-                )
-            )
-        elif isinstance(spec, ManyToManySpec):
-            collections.append(
-                await _awrite_m2m_relation(
-                    parent, value, spec, relation=relation, created=created, context=context
-                )
-            )
-        elif isinstance(spec, ReverseOneToOneSpec):
+        if isinstance(spec, ReverseOneToOneSpec):
             singular.append(
                 await _awrite_reverse_one_to_one(
                     parent, value, spec, relation=relation, created=created, context=context
                 )
             )
+            continue
+        if isinstance(spec, ChildSpec | GenericRelationSpec):
+            collection = await _awrite_owned_collection(
+                parent, value, spec, relation=relation, created=created, context=context
+            )
+        elif isinstance(spec, ManyToManySpec):
+            collection = await _awrite_m2m_relation(
+                parent, value, spec, relation=relation, created=created, context=context
+            )
         else:
             raise _unknown_relation_kind(relation, spec)
+        collections.append(collection)
+        # Per relation, and before the next one is written, for the reason
+        # ``apply_relations`` gives.
+        sync_collection_cache(parent, collection, spec)
     return (tuple(collections), tuple(singular))
 
 
@@ -1501,18 +1592,27 @@ def delete_relations(
     collections: list[ChildCollectionChange] = []
     singular: list[RelatedObjectChange] = []
     for relation, spec in relations.items():
-        if isinstance(spec, ChildSpec | GenericRelationSpec):
-            collections.append(
-                _delete_owned_collection(parent, spec, relation=relation, context=context)
-            )
-        elif isinstance(spec, ManyToManySpec):
-            collections.append(_clear_m2m_membership(parent, relation=relation))
-        elif isinstance(spec, ReverseOneToOneSpec):
-            singular.append(_delete_owned_row(parent, spec, relation=relation, context=context))
-        elif isinstance(spec, ForwardRelationSpec):
+        if isinstance(spec, ReverseOneToOneSpec):
+            removal = _delete_owned_row(parent, spec, relation=relation, context=context)
+            if removal:
+                sync_relation_cache(parent, relation, None)
+            singular.append(removal)
+            continue
+        if isinstance(spec, ForwardRelationSpec):
+            # The column goes with the parent, and the row it points at is not
+            # the parent's to remove, so nothing here is stale either.
             singular.append(RelatedObjectChange(relation=relation))
+            continue
+        if isinstance(spec, ChildSpec | GenericRelationSpec):
+            collection = _delete_owned_collection(parent, spec, relation=relation, context=context)
+        elif isinstance(spec, ManyToManySpec):
+            collection = _clear_m2m_membership(parent, relation=relation)
         else:
             raise _unknown_relation_kind(relation, spec)
+        collections.append(collection)
+        # A ``soft_delete`` parent outlives its own cascade, and is exactly the
+        # kind of row a response then renders.
+        sync_collection_cache(parent, collection, spec)
     return (tuple(collections), tuple(singular))
 
 
@@ -1526,20 +1626,26 @@ async def adelete_relations(
     collections: list[ChildCollectionChange] = []
     singular: list[RelatedObjectChange] = []
     for relation, spec in relations.items():
+        if isinstance(spec, ReverseOneToOneSpec):
+            removal = await _adelete_owned_row(parent, spec, relation=relation, context=context)
+            if removal:
+                sync_relation_cache(parent, relation, None)
+            singular.append(removal)
+            continue
+        if isinstance(spec, ForwardRelationSpec):
+            singular.append(RelatedObjectChange(relation=relation))
+            continue
         if isinstance(spec, ChildSpec | GenericRelationSpec):
-            collections.append(
-                await _adelete_owned_collection(parent, spec, relation=relation, context=context)
+            collection = await _adelete_owned_collection(
+                parent, spec, relation=relation, context=context
             )
         elif isinstance(spec, ManyToManySpec):
-            collections.append(await _aclear_m2m_membership(parent, relation=relation))
-        elif isinstance(spec, ReverseOneToOneSpec):
-            singular.append(
-                await _adelete_owned_row(parent, spec, relation=relation, context=context)
-            )
-        elif isinstance(spec, ForwardRelationSpec):
-            singular.append(RelatedObjectChange(relation=relation))
+            collection = await _aclear_m2m_membership(parent, relation=relation)
         else:
             raise _unknown_relation_kind(relation, spec)
+        collections.append(collection)
+        # For the reason ``delete_relations`` gives.
+        sync_collection_cache(parent, collection, spec)
     return (tuple(collections), tuple(singular))
 
 

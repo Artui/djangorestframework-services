@@ -19,6 +19,7 @@ from rest_framework_services.mutations.utils import (
     merge_relations,
     reject_m2m_overlap,
     resolve_update_fields,
+    sync_relation_cache,
 )
 from rest_framework_services.types.change_result import ChangeResult, ModelT
 from rest_framework_services.types.child_spec import ChildSpec
@@ -56,6 +57,8 @@ async def aupdate_from_input(
     field_changes = diff_attrs(instance, new_values)
     for change in field_changes:
         setattr(instance, change.field, change.new)
+    for relation, target in forward_values.items():
+        sync_relation_cache(instance, relation, target)
     m2m_field_changes, to_apply = await am2m_changes(instance, m2m, created=False)
     changed_field_names: tuple[str, ...] = tuple(change.field for change in field_changes)
     save_fields: list[str] | None = resolve_update_fields(

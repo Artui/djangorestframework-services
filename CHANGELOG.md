@@ -7,6 +7,150 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.41.0] — 2026-08-14
+
+### Upgrade notes
+
+**Two observable changes, both of them the point of the release.** A mutation's
+returned instance now reads back what the write actually did, where before it
+could still hold pre-write related data. Nothing about what reaches the database
+changes; what changes is what a response rendered from that instance says.
+
+- **Response bodies.** A serializer rendering the mutated instance now shows the
+  written values for a forward relation and a reverse one-to-one, and the current
+  membership for a prefetched collection. If you asserted the *old* values —
+  deliberately or, far more likely, because that is what the library returned —
+  those assertions now fail, and the new value is the correct one. Specs whose
+  output comes from an `output_selector_spec` re-fetch were never affected either
+  way.
+- **Query counts.** They move in both directions. A re-matched forward relation
+  now costs **one query fewer**, because reading it back no longer falls through
+  to the database. A prefetched collection whose membership the write changed
+  costs **one more**, because the stale cache is dropped rather than served. Test
+  suites that pin exact counts with `assertNumQueries` are where this shows up.
+
+Nothing needs configuring, and there is no flag to restore the old behaviour: the
+old behaviour was a response reporting values the same request had already
+replaced.
+
+### Documentation
+
+- **Reloading and re-fetching are now documented as the different tools they
+  are.** Two pages each held half of this and neither pointed at the other:
+  concepts prescribed an `output_selector_spec` re-fetch for a stale fetch-time
+  annotation, while the nested-writes recipe said the relations a write resolved
+  need no reload. A reader with a stale value in a response had no way to tell
+  which lever was theirs, and the intuitive guess — that a `refresh_from_db()` is
+  the cheaper version of a re-fetch — is wrong in both directions.
+
+  There is now one table, keyed on **who computed the value** the response is
+  missing. Your code before the save (plain columns, `auto_now`, the row a
+  one-row relation resolved) needs nothing; the database during the save (an
+  `F()` expression, a `GeneratedField`, a database-side default) needs a reload;
+  the queryset that fetched the row (`annotations=`, `select_related`) needs a
+  re-fetch and *only* a re-fetch, because reloading concrete columns cannot
+  restore an annotation. The recipe and the migration note link to it rather than
+  restating it.
+
+  Two consequences are called out because they surprise: `views=F("views") + 1`
+  leaves the *expression object* on the instance, so a serializer rendering it
+  needs the reload; and a blanket `refresh_from_db()` after a nested write is not
+  merely redundant but actively discards the relation agreement, since a reload
+  drops every cached relation. A test now pins the `auto_now` end of the table,
+  which was previously asserted only against the database.
+
+### Fixed
+
+- **A written one-row relation no longer leaves the pre-write row on the parent.**
+  After `update_from_input` wrote a forward relation or a reverse one-to-one, the
+  instance it returned could still hold the related object as it was *before* the
+  write, so anything rendering from that instance — a response serializer, most
+  obviously — reported values the write had already replaced. The write itself was
+  always correct, and a follow-up read showed the new value, which is what made it
+  expensive to find: only an assertion on the response body of the request that
+  did the write could see it.
+
+  Both kinds find their row by **re-querying** — a forward target inside `scope=`,
+  a reverse one-to-one through its `fk` — so what gets saved is a different Python
+  object from the one the parent had cached, and nothing invalidated that cache.
+  The forward case slipped past the diff as well: two rows sharing a primary key
+  are equal, so the column was correctly left alone and the stale object was left
+  with it. Any caller that read the relation before the write was exposed, and
+  reading it first is the ordinary shape — a validator reaching through the
+  relation, a before/after comparison, a `scope=` callable.
+
+  The written row is now assigned back onto the parent, and the cached entry is
+  dropped where the write cleared or removed the relation, so the next read says
+  what the database says. Both are in-memory descriptor work: **no extra query**,
+  which is why this is not `drf-nested`'s blanket `refresh_from_db()` — that pays
+  a query even when nothing read the relation, or when the caller re-fetches
+  anyway, as a spec whose output comes from a selector does.
+
+  Dropping the entry rather than assigning `None` through the descriptor is
+  deliberate for the removal case: assigning would also blank the removed row's
+  own link in memory, which a `delete_service` that kept the row linked never
+  asked for.
+
+- **A prefetched collection no longer reports the membership it had before the
+  write.** Rows a nested write added or removed were invisible to a
+  `prefetch_related` cache built beforehand, so the returned instance rendered the
+  old collection. Over HTTP this was already covered — the view layer drops
+  `_prefetched_objects_cache` on the mutation target wholesale, as DRF's
+  `UpdateModelMixin` does — so what this reaches is a direct call to the mutation
+  helpers, and `delete_relations` under a `soft_delete` parent, which outlives its
+  own cascade and is exactly the row a response then renders.
+
+  Dropping rather than rebuilding is the only honest option: the cached queryset
+  carries its own ordering, its own filtering and any nested prefetches, so
+  nothing assembled in memory can stand in for what the database would now return.
+
+  Which writes drop it follows the same question as the fix above — did the
+  library write the object the parent already had? Rows **added or removed**
+  always drop it. A row merely **updated** keeps it for reverse-FK and generic
+  collections, which are reconciled inside the parent's own accessor and so wrote
+  the very object the cache holds; dropping there would cost a query to re-read
+  what it already has. A **many-to-many** drops on any write, since it matches in
+  `scope=` rather than in the membership and therefore writes a different object.
+  A per-row **`update_service`** drops on any write, because the library did not
+  do the writing and cannot vouch for what the service touched.
+
+## [0.40.0] — 2026-08-13
+
+### Added
+
+- **`ServiceNotFound` and `ServiceConflict`** — two shapes of service failure
+  common enough to name, mapped to `404` and `409` at the view boundary while a
+  plain `ServiceError` stays `422`. They exist because there was **no
+  transport-agnostic way to say either one**: the only lever was an HTTP status on
+  the exception, which nothing reads and which cannot mean anything off HTTP.
+  Being `ServiceError` subclasses, a transport that has never heard of them still
+  handles them, and one that wants to do better matches on the class — before its
+  generic handler, since the subclass check would otherwise swallow them. The
+  mapper's own branch order says the same thing.
+
+  `ServiceNotFound` answers identically for *absent* and for *not yours to see*,
+  on purpose: a `403` on a row the caller cannot see confirms that the row exists.
+
+  The generated OpenAPI document still declares only the `422` for spec-driven
+  mutations. Advertising a `409` on every mutation, including those that cannot
+  collide, trades one wrong claim for another — a spec has no field saying which
+  failures its service raises, and inventing one to satisfy the schema is not a
+  trade this package makes.
+
+### Documentation
+
+- **The preconditions recipe no longer teaches a line that does nothing.** It
+  opened with `class BudgetLocked(ServiceError): status_code = 409` and promised
+  "a clean 409 for a browser", while every non-validation `ServiceError` mapped to
+  a fixed `422` — which the errors reference documented correctly, so two pages
+  contradicted each other and the more inviting one was wrong. The recipe raises
+  `ServiceConflict` now, and both pages say outright that a `status_code`
+  attribute is read by nobody and could not be honoured off HTTP anyway. Found by
+  writing that line from outside the package and watching a 422 come back.
+- **The exceptions reference lists the whole family.** `ServiceNotFound`,
+  `ServiceConflict` and — already missing — `AdditionalInputRequired` now render
+  alongside the other two.
+
 ### Fixed
 
 - **`OfflineHttpRequest.offline_host`'s description now reaches the page at all.**
@@ -2438,7 +2582,9 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.39.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.41.0...HEAD
+[0.41.0]: https://github.com/Artui/djangorestframework-services/compare/v0.40.0...v0.41.0
+[0.40.0]: https://github.com/Artui/djangorestframework-services/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/Artui/djangorestframework-services/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/Artui/djangorestframework-services/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/Artui/djangorestframework-services/compare/v0.36.1...v0.37.0

@@ -22,7 +22,9 @@ from rest_framework_services.dispatch import (
 )
 from rest_framework_services.exceptions import (
     AdditionalInputRequired,
+    ServiceConflict,
     ServiceError,
+    ServiceNotFound,
     ServiceValidationError,
 )
 from rest_framework_services.implements import implements
@@ -195,7 +197,9 @@ __all__ = [
     "ServiceDeleteView",
     "ServiceDestroyMixin",
     "AdditionalInputRequired",
+    "ServiceConflict",
     "ServiceError",
+    "ServiceNotFound",
     "ServiceSpec",
     "ServiceUpdateMixin",
     "ServiceUpdateView",

@@ -7,13 +7,17 @@ translating them into HTTP responses.
 from rest_framework_services.exceptions.additional_input_required import (
     AdditionalInputRequired,
 )
+from rest_framework_services.exceptions.service_conflict import ServiceConflict
 from rest_framework_services.exceptions.service_error import ServiceError
+from rest_framework_services.exceptions.service_not_found import ServiceNotFound
 from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
 
 __all__ = [
     "AdditionalInputRequired",
+    "ServiceConflict",
     "ServiceError",
+    "ServiceNotFound",
     "ServiceValidationError",
 ]
