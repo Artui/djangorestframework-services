@@ -4395,7 +4395,12 @@ An incoming row whose <code>match_key</code> matches an existing child
 updates it; one with no match, or no key, is created. The same name
 is read off both the incoming mapping (<code>item[match_key]</code>) and the
 existing instance (<code>getattr(child, match_key)</code>), so serializers
-emitting <code>"id"</code> should set <code>match_key="id"</code>.</p>
+emitting <code>"id"</code> should set <code>match_key="id"</code>.
+The one name does two jobs — an <strong>input</strong> key on the mapping side,
+a <strong>model field</strong> on the lookup side — which is fine while the two
+agree and is why <code>field_map</code> may not rename anything onto the
+primary key while <code>match_key</code> matches on it: there would be no
+single name left to read. That combination raises at construction.</p>
               </div>
             </td>
           </tr>
@@ -4420,7 +4425,10 @@ incoming set); <code>"merge"</code> upserts only and never removes.</p>
             <td>
               <div class="doc-md-description">
                 <p>Forwarded to the per-child <code>create_from_input</code> /
-<code>update_from_input</code> call, exactly as for the parent.</p>
+<code>update_from_input</code> call, exactly as for the parent. It shapes that <strong>write</strong> and nothing else: matching, the
+primary-key guard and the parent link all read the row exactly as
+it arrived, so renaming a key here does not change which row the
+payload matches.</p>
               </div>
             </td>
           </tr>
@@ -4431,14 +4439,16 @@ incoming set); <code>"merge"</code> upserts only and never removes.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Forwarded to the per-child call, as <code>field_map</code> is.</p>
+                <p>Forwarded to the per-child call, as <code>field_map</code> is. Excluding the <code>match_key</code> does not stop the row
+matching on it, and a matched row's primary key is dropped from
+the write for you, so there is no need to name it here.</p>
               </div>
             </td>
           </tr>
           <tr class="doc-section-item">
             <td><code><span title="rest_framework_services.types.child_spec.ChildSpec.m2m">m2m</span></code></td>
             <td>
-                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | <span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -5036,7 +5046,12 @@ instead of falling through to a create — unlike
       dataclass
   " href="#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a>, which matches inside
 the parent's own manager, where a miss really does mean "a new
-child".</p>
+child".
+The one name does two jobs — an <strong>input</strong> key on the mapping side,
+a <strong>model field</strong> on the queryset side — which is fine while the two
+agree and is why <code>field_map</code> may not rename anything onto the
+primary key while <code>match_key</code> matches on it: there would be no
+single name left to read. That combination raises at construction.</p>
               </div>
             </td>
           </tr>
@@ -5067,7 +5082,10 @@ may write any row of that model by guessing a key".</p>
             <td>
               <div class="doc-md-description">
                 <p>Forwarded to the target row's own <code>create_from_input</code> /
-<code>update_from_input</code> call, exactly as for the parent.</p>
+<code>update_from_input</code> call, exactly as for the parent. It shapes that <strong>write</strong> and nothing else: matching and the primary-key
+guard both read the row exactly as
+it arrived, so renaming a key here does not change which row the
+payload matches.</p>
               </div>
             </td>
           </tr>
@@ -5078,14 +5096,16 @@ may write any row of that model by guessing a key".</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Forwarded likewise.</p>
+                <p>Forwarded likewise. Excluding the <code>match_key</code> does not stop the row
+matching on it, and a matched row's primary key is dropped from
+the write for you, so there is no need to name it here.</p>
               </div>
             </td>
           </tr>
           <tr class="doc-section-item">
             <td><code><span title="rest_framework_services.types.forward_relation_spec.ForwardRelationSpec.m2m">m2m</span></code></td>
             <td>
-                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | <span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -5279,7 +5299,9 @@ field whose nullability decides unlink-versus-delete by default.</p>
             <td>
               <div class="doc-md-description">
                 <p>Forwarded to the row's own <code>create_from_input</code> /
-<code>update_from_input</code> call.</p>
+<code>update_from_input</code> call. It shapes that <strong>write</strong> and nothing
+else: the row is found through <code>fk</code> and the parent link is
+written onto it raw, neither of them reading this map.</p>
               </div>
             </td>
           </tr>
@@ -5290,14 +5312,16 @@ field whose nullability decides unlink-versus-delete by default.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Forwarded likewise.</p>
+                <p>Forwarded likewise. Shaping configures the row's
+<strong>write</strong> only; the row itself is found through <code>fk</code>, and a
+matched row's primary key is dropped from the write for you.</p>
               </div>
             </td>
           </tr>
           <tr class="doc-section-item">
             <td><code><span title="rest_framework_services.types.reverse_one_to_one_spec.ReverseOneToOneSpec.m2m">m2m</span></code></td>
             <td>
-                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | <span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -5534,7 +5558,16 @@ them when the model spells the columns differently.</p>
             <td>
               <div class="doc-md-description">
                 <p>The field pairing an incoming row with an existing one
-(default <code>"pk"</code>), read inside the parent's own accessor.</p>
+(default <code>"pk"</code>), read inside the parent's own accessor. Read off the incoming row as an input key
+and off the lookup as a model field, so <code>field_map</code> may not
+rename anything onto the primary key while <code>match_key</code> matches
+on it — that combination raises at construction, on the terms
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a> states.</p>
               </div>
             </td>
           </tr>
@@ -5558,7 +5591,10 @@ leaves out, <code>"merge"</code> upserts only.</p>
             <td>
               <div class="doc-md-description">
                 <p>Forwarded to the row's own <code>create_from_input</code> /
-<code>update_from_input</code> call.</p>
+<code>update_from_input</code> call. It shapes that <strong>write</strong> and nothing
+else: matching and the primary-key guard both read the row
+exactly as it arrived, so renaming a key here does not change
+which row the payload matches.</p>
               </div>
             </td>
           </tr>
@@ -5569,14 +5605,16 @@ leaves out, <code>"merge"</code> upserts only.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Forwarded likewise.</p>
+                <p>Forwarded likewise. Excluding the <code>match_key</code> does not stop the row
+matching on it, and a matched row's primary key is dropped from
+the write for you, so there is no need to name it here.</p>
               </div>
             </td>
           </tr>
           <tr class="doc-section-item">
             <td><code><span title="rest_framework_services.types.generic_relation_spec.GenericRelationSpec.m2m">m2m</span></code></td>
             <td>
-                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | <span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -5787,7 +5825,16 @@ carry the extra columns a custom through model exists for.</p>
             <td>
               <div class="doc-md-description">
                 <p>The field pairing an incoming payload with an existing target
-row (default <code>"pk"</code>).</p>
+row (default <code>"pk"</code>). Read off the incoming row as an input key
+and off the lookup as a model field, so <code>field_map</code> may not
+rename anything onto the primary key while <code>match_key</code> matches
+on it — that combination raises at construction, on the terms
+<a class="autorefs autorefs-internal" title="ChildSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a> states.</p>
               </div>
             </td>
           </tr>
@@ -5835,7 +5882,10 @@ drops.</p>
             <td>
               <div class="doc-md-description">
                 <p>Forwarded to the <em>target row's</em> own <code>create_from_input</code> /
-<code>update_from_input</code> call.</p>
+<code>update_from_input</code> call. It shapes that <strong>write</strong> and nothing
+else: matching and the primary-key guard both read the row
+exactly as it arrived, so renaming a key here does not change
+which row the payload matches.</p>
               </div>
             </td>
           </tr>
@@ -5846,14 +5896,16 @@ drops.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Forwarded likewise.</p>
+                <p>Forwarded likewise. Excluding the <code>match_key</code> does not stop the row
+matching on it, and a matched row's primary key is dropped from
+the write for you, so there is no need to name it here.</p>
               </div>
             </td>
           </tr>
           <tr class="doc-section-item">
             <td><code><span title="rest_framework_services.types.many_to_many_spec.ManyToManySpec.m2m">m2m</span></code></td>
             <td>
-                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | <span title="collections.abc.Callable">Callable</span>[[<span title="typing.Any">Any</span>], <span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]] | None</code>
             </td>
             <td>
               <div class="doc-md-description">

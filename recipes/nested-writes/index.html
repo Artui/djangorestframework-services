@@ -996,6 +996,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#row-shaping-configures-the-write-not-the-match" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Row shaping configures the write, not the match
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-a-rows-write-has-behaviour-of-its-own" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1839,6 +1850,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#row-shaping-configures-the-write-not-the-match" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Row shaping configures the write, not the match
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-a-rows-write-has-behaviour-of-its-own" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2269,17 +2291,38 @@ caller left alone.</p>
 </span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Creates. The row named no primary key, so there is none to guard against.</span>
 </span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="n">update_from_input</span><span class="p">(</span><span class="n">author</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">BookIn</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)]},</span> <span class="n">children</span><span class="o">=</span><span class="n">BOOKS</span><span class="p">)</span>
 </span></code></pre></div>
+<h2 id="row-shaping-configures-the-write-not-the-match">Row shaping configures the write, not the match<a class="headerlink" href="#row-shaping-configures-the-write-not-the-match" title="Permanent link">&para;</a></h2>
+<p><code>field_map</code>, <code>exclude_fields</code>, <code>m2m</code>, <code>children</code> and <code>relations</code> are forwarded to
+the row's own <code>create_from_input</code> / <code>update_from_input</code> call. That call is
+<strong>all</strong> they configure. Matching, the primary-key guard above and the parent
+link each read the row exactly as it arrived:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># match_key reads item[&quot;pk&quot;] whatever field_map says; the write sees &quot;ref&quot;.</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">ForwardRelationSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Author</span><span class="p">,</span> <span class="n">scope</span><span class="o">=...</span><span class="p">,</span> <span class="n">field_map</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;pk&quot;</span><span class="p">:</span> <span class="s2">&quot;ref&quot;</span><span class="p">})</span>
+</span></code></pre></div>
+<p>So excluding a key does not stop the row matching on it, and renaming one does
+not change which row the payload finds. The one combination this makes
+unusable — <code>field_map</code> renaming an input key <strong>onto</strong> the primary key while
+<code>match_key</code> also matches on it — raises <code>ImproperlyConfigured</code> at construction
+rather than refusing every payload at request time: the matcher would look for
+one name and the guard for another, leaving no payload that can match.</p>
+<p><strong>A matched row's primary key is dropped from its write for you.</strong> Matching is
+what established that the key is already the row's own, so it is never
+information the update needs, and passing it through is how a string <code>"5"</code> that
+the ORM happily matched against pk <code>5</code> ends up in <code>update_fields</code> — which
+Django refuses. There is no need to write <code>exclude_fields=["pk"]</code> by hand. Only
+primary-key spellings are dropped: a natural <code>match_key</code> describes the row as
+well as identifying it, so changing it still renames the row it matched.</p>
 <h2 id="when-a-rows-write-has-behaviour-of-its-own">When a row's write has behaviour of its own<a class="headerlink" href="#when-a-rows-write-has-behaviour-of-its-own" title="Permanent link">&para;</a></h2>
 <p>A row that needs side effects, derived columns, an event or an external call
 doesn't fit a plain helper call. Rather than abandon the facility and hand-write
 the reconciliation loop, put a service in the slot for that operation:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">ChildSpec</span><span class="p">(</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    <span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">,</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="n">create_service</span><span class="o">=</span><span class="n">publish_book</span><span class="p">,</span>  <span class="c1"># (*, data, parent, **extras) -&gt; Book</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    <span class="n">update_service</span><span class="o">=</span><span class="n">revise_book</span><span class="p">,</span>  <span class="c1"># (*, instance, data, parent, **extras) -&gt; Book | None</span>
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="n">delete_service</span><span class="o">=</span><span class="n">archive_book</span><span class="p">,</span>  <span class="c1"># (*, instance, parent, **extras) -&gt; None</span>
-</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">ChildSpec</span><span class="p">(</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>    <span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>    <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">,</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>    <span class="n">create_service</span><span class="o">=</span><span class="n">publish_book</span><span class="p">,</span>  <span class="c1"># (*, data, parent, **extras) -&gt; Book</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="n">update_service</span><span class="o">=</span><span class="n">revise_book</span><span class="p">,</span>  <span class="c1"># (*, instance, data, parent, **extras) -&gt; Book | None</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="n">delete_service</span><span class="o">=</span><span class="n">archive_book</span><span class="p">,</span>  <span class="c1"># (*, instance, parent, **extras) -&gt; None</span>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="p">)</span>
 </span></code></pre></div>
 <p><strong>The spec owns reconciliation; the service owns the row.</strong> Matching, <code>mode</code>
 and orphan handling never move into your code — a slot is called once per row
@@ -2321,11 +2364,11 @@ end, and a sync callable there fails on an un-awaitable return.</p>
 <h2 id="when-a-rows-write-is-refused">When a row's write is refused<a class="headerlink" href="#when-a-rows-write-is-refused" title="Permanent link">&para;</a></h2>
 <p>An error a row's write raises arrives under the relation that carried it, in the
 shape DRF's <code>ListSerializer</code> uses:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># a collection: a list as long as the one you sent, {} against the rows that passed</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="p">{</span><span class="s2">&quot;posts&quot;</span><span class="p">:</span> <span class="p">[{},</span> <span class="p">{</span><span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Too rude.&quot;</span><span class="p">]}]}</span>
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1"># a relation holding one row: the payload under the name</span>
-</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="p">{</span><span class="s2">&quot;profile&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;bio&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Too long.&quot;</span><span class="p">]}}</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># a collection: a list as long as the one you sent, {} against the rows that passed</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="p">{</span><span class="s2">&quot;posts&quot;</span><span class="p">:</span> <span class="p">[{},</span> <span class="p">{</span><span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Too rude.&quot;</span><span class="p">]}]}</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># a relation holding one row: the payload under the name</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="p">{</span><span class="s2">&quot;profile&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;bio&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;Too long.&quot;</span><span class="p">]}}</span>
 </span></code></pre></div>
 <p>Namespacing it is not decoration. A row shares field names with its parent — an
 <code>Author</code> with a <code>title</code> of its own is indistinguishable from its post's — and a
@@ -2356,12 +2399,12 @@ Nothing is needed on the spec.</p>
 <h2 id="declarative-no-service-body">Declarative — no service body<a class="headerlink" href="#declarative-no-service-body" title="Permanent link">&para;</a></h2>
 <p>The default model services forward <code>relations=</code> / <code>children=</code>, so a
 parent-with-relations resource needs no hand-written service:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceSpec</span><span class="p">,</span> <span class="n">create_model</span>
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    <span class="n">service</span><span class="o">=</span><span class="n">create_model</span><span class="p">(</span><span class="n">Author</span><span class="p">,</span> <span class="n">relations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}),</span>
-</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">AuthorInput</span><span class="p">,</span>  <span class="c1"># validates name + the books list</span>
-</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceSpec</span><span class="p">,</span> <span class="n">create_model</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>    <span class="n">service</span><span class="o">=</span><span class="n">create_model</span><span class="p">(</span><span class="n">Author</span><span class="p">,</span> <span class="n">relations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}),</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">AuthorInput</span><span class="p">,</span>  <span class="c1"># validates name + the books list</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="p">)</span>
 </span></code></pre></div>
 <p><code>relations</code> lives on the <strong>helper</strong>, never on <code>ServiceSpec</code> — the dispatch
 surface stays about transport, not persistence shape.</p>
@@ -2369,14 +2412,14 @@ surface stays about transport, not persistence shape.</p>
 <p><code>delete_model</code> accepts the same map, to cascade explicitly where the database
 will not: a <code>PROTECT</code> relation, or a <code>soft_delete</code> Django never cascades through
 because no row is deleted.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">delete_model</span><span class="p">(</span>
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    <span class="n">Catalog</span><span class="p">,</span>
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    <span class="n">relations</span><span class="o">=</span><span class="p">{</span>
-</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>        <span class="s2">&quot;sections&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Section</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;catalog&quot;</span><span class="p">),</span>
-</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>        <span class="s2">&quot;attachments&quot;</span><span class="p">:</span> <span class="n">GenericRelationSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Attachment</span><span class="p">),</span>
-</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>        <span class="s2">&quot;tags&quot;</span><span class="p">:</span> <span class="n">ManyToManySpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Tag</span><span class="p">),</span>
-</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>    <span class="p">},</span>
-</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">delete_model</span><span class="p">(</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>    <span class="n">Catalog</span><span class="p">,</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    <span class="n">relations</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>        <span class="s2">&quot;sections&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Section</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;catalog&quot;</span><span class="p">),</span>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>        <span class="s2">&quot;attachments&quot;</span><span class="p">:</span> <span class="n">GenericRelationSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Attachment</span><span class="p">),</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>        <span class="s2">&quot;tags&quot;</span><span class="p">:</span> <span class="n">ManyToManySpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Tag</span><span class="p">),</span>
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>    <span class="p">},</span>
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="p">)</span>
 </span></code></pre></div>
 <p><strong>One rule covers every kind: the cascade removes the rows the parent owns and
 leaves alone the rows it merely points at.</strong></p>
@@ -2413,9 +2456,9 @@ by keyword:</p>
   every one of them would be empty or a one-tuple, and "which of the four is
   non-empty" is a worse way to say what happened than saying it.</li>
 </ul>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">update_from_input</span><span class="p">(</span><span class="n">author</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">relations</span><span class="o">=</span><span class="n">RELATIONS</span><span class="p">)</span>
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="n">result</span><span class="o">.</span><span class="n">get_child_change</span><span class="p">(</span><span class="s2">&quot;books&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">created</span>
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="n">result</span><span class="o">.</span><span class="n">get_relation_change</span><span class="p">(</span><span class="s2">&quot;profile&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">outcome</span>  <span class="c1"># &quot;created&quot; | &quot;updated&quot; | &quot;unlinked&quot; | ...</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">update_from_input</span><span class="p">(</span><span class="n">author</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">relations</span><span class="o">=</span><span class="n">RELATIONS</span><span class="p">)</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="n">result</span><span class="o">.</span><span class="n">get_child_change</span><span class="p">(</span><span class="s2">&quot;books&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">created</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="n">result</span><span class="o">.</span><span class="n">get_relation_change</span><span class="p">(</span><span class="s2">&quot;profile&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">outcome</span>  <span class="c1"># &quot;created&quot; | &quot;updated&quot; | &quot;unlinked&quot; | ...</span>
 </span></code></pre></div>
 <p>A forward relation shows up <strong>twice</strong> and means two different things: in
 <code>relations</code> as the row that was created or matched, and in <code>changes</code> as the
@@ -2423,14 +2466,14 @@ parent's foreign-key column — which only appears if it actually changed.</p>
 <h3 id="what-the-returned-instance-reads">What the returned instance reads<a class="headerlink" href="#what-the-returned-instance-reads" title="Permanent link">&para;</a></h3>
 <p><code>ChangeResult.instance</code> is the same object you passed in, and the one-row
 relations on it agree with the write:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">previous</span> <span class="o">=</span> <span class="n">post</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">name</span>  <span class="c1"># a validator, or a before/after comparison</span>
-</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>
-</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="n">result</span> <span class="o">=</span> <span class="n">update_from_input</span><span class="p">(</span>
-</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>    <span class="n">post</span><span class="p">,</span>
-</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>    <span class="p">{</span><span class="s2">&quot;author&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;pk&quot;</span><span class="p">:</span> <span class="n">post</span><span class="o">.</span><span class="n">author_id</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Ursula K.&quot;</span><span class="p">}},</span>
-</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>    <span class="n">relations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;author&quot;</span><span class="p">:</span> <span class="n">ForwardRelationSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Author</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">())},</span>
-</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="p">)</span>
-</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="n">result</span><span class="o">.</span><span class="n">instance</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">name</span>  <span class="c1"># &quot;Ursula K.&quot; -- the row that was written</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="n">previous</span> <span class="o">=</span> <span class="n">post</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">name</span>  <span class="c1"># a validator, or a before/after comparison</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="n">result</span> <span class="o">=</span> <span class="n">update_from_input</span><span class="p">(</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    <span class="n">post</span><span class="p">,</span>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>    <span class="p">{</span><span class="s2">&quot;author&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;pk&quot;</span><span class="p">:</span> <span class="n">post</span><span class="o">.</span><span class="n">author_id</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Ursula K.&quot;</span><span class="p">}},</span>
+</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>    <span class="n">relations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;author&quot;</span><span class="p">:</span> <span class="n">ForwardRelationSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Author</span><span class="p">,</span> <span class="n">scope</span><span class="o">=</span><span class="n">Author</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">())},</span>
+</span><span id="__span-18-7"><a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="p">)</span>
+</span><span id="__span-18-8"><a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="n">result</span><span class="o">.</span><span class="n">instance</span><span class="o">.</span><span class="n">author</span><span class="o">.</span><span class="n">name</span>  <span class="c1"># &quot;Ursula K.&quot; -- the row that was written</span>
 </span></code></pre></div>
 <p>That is worth stating because reading the relation first is the ordinary shape,
 and the write does not go through the object it cached: a forward target is
@@ -2479,26 +2522,26 @@ once a service owns the row, "deleted" and "unlinked" are no longer things the
 loop knows.</p>
 <h2 id="migrating-off-a-writable-nested-serializer">Migrating off a writable-nested serializer<a class="headerlink" href="#migrating-off-a-writable-nested-serializer" title="Permanent link">&para;</a></h2>
 <p><strong>Before</strong> — persistence lives in the serializer, and the service delegates to it:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">WritableNestedModelSerializer</span><span class="p">):</span>  <span class="c1"># drf-writable-nested / drf-nested</span>
-</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
-</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>
-</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">serializer</span><span class="p">):</span>
-</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>    <span class="k">return</span> <span class="n">serializer</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>  <span class="c1"># the coupling we&#39;re removing</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">WritableNestedModelSerializer</span><span class="p">):</span>  <span class="c1"># drf-writable-nested / drf-nested</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">serializer</span><span class="p">):</span>
+</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>    <span class="k">return</span> <span class="n">serializer</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>  <span class="c1"># the coupling we&#39;re removing</span>
 </span></code></pre></div>
 <p><strong>After</strong> — the serializer only validates; the service owns persistence:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># plain nested serializer, validation only</span>
-</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
-</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
-</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">Author</span>
-</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;books&quot;</span><span class="p">]</span>
-</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>
-</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>
-</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
-</span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>    <span class="k">return</span> <span class="n">update_from_input</span><span class="p">(</span>
-</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>        <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">relations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}</span>
-</span><span id="__span-19-12"><a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>    <span class="p">)</span><span class="o">.</span><span class="n">instance</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AuthorSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>    <span class="n">books</span> <span class="o">=</span> <span class="n">BookSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># plain nested serializer, validation only</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">Author</span>
+</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;books&quot;</span><span class="p">]</span>
+</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a>
+</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>
+</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">update_author</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+</span><span id="__span-20-10"><a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a>    <span class="k">return</span> <span class="n">update_from_input</span><span class="p">(</span>
+</span><span id="__span-20-11"><a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a>        <span class="n">instance</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">relations</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;books&quot;</span><span class="p">:</span> <span class="n">ChildSpec</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">Book</span><span class="p">,</span> <span class="n">fk</span><span class="o">=</span><span class="s2">&quot;author&quot;</span><span class="p">)}</span>
+</span><span id="__span-20-12"><a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a>    <span class="p">)</span><span class="o">.</span><span class="n">instance</span>
 </span></code></pre></div>
 <p>Field-level validation stays in the serializer / dataclass; the helper owns the
 writes, inside the service's atomic block. The nested serializer no longer needs
