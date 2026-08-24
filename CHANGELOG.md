@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0] — 2026-08-24
+
+### Upgrade notes
+
+**One way this can bite on upgrade, and it fails loudly at startup rather than
+quietly in production.** A relation spec declaring `field_map` that renames an
+input key **onto the primary key**, while `match_key` also matches on that key,
+now raises `ImproperlyConfigured` where it previously constructed fine:
+
+```python
+# Now refused at construction.
+ForwardRelationSpec(model=Author, scope=..., field_map={"ident": "pk"})
+```
+
+Nothing working breaks. That declaration could never do anything: the matcher
+read `"pk"` off the row and found nothing, so the row fell through to create,
+where the primary-key guard read `"ident"` and refused it — every payload using
+the mapped name rejected, and none able to match. The error simply moved from
+every request to the one place that can fix it. Send the key under a name
+`match_key` reads, or match on a field the mapping does not rename. Mapped onto
+a **natural** `match_key` the same declaration is coherent and still allowed.
+
+Everything else is a bug fix or additive. A matched row that sends its own
+primary key now writes without it — behaviourally identical for an integer key,
+which already diffed to nothing, and a fix for a string key, which was a 500.
+
 ### Fixed
 
 - **A matched nested row no longer carries its own primary key into the write.**
@@ -2637,7 +2663,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.41.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.42.0...HEAD
+[0.42.0]: https://github.com/Artui/djangorestframework-services/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/Artui/djangorestframework-services/compare/v0.40.0...v0.41.0
 [0.40.0]: https://github.com/Artui/djangorestframework-services/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/Artui/djangorestframework-services/compare/v0.38.0...v0.39.0
