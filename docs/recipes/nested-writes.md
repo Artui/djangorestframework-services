@@ -322,6 +322,33 @@ class BookIn:
 update_from_input(author, {"books": [BookIn(title="...")]}, children=BOOKS)
 ```
 
+## Row shaping configures the write, not the match
+
+`field_map`, `exclude_fields`, `m2m`, `children` and `relations` are forwarded to
+the row's own `create_from_input` / `update_from_input` call. That call is
+**all** they configure. Matching, the primary-key guard above and the parent
+link each read the row exactly as it arrived:
+
+```python
+# match_key reads item["pk"] whatever field_map says; the write sees "ref".
+ForwardRelationSpec(model=Author, scope=..., field_map={"pk": "ref"})
+```
+
+So excluding a key does not stop the row matching on it, and renaming one does
+not change which row the payload finds. The one combination this makes
+unusable — `field_map` renaming an input key **onto** the primary key while
+`match_key` also matches on it — raises `ImproperlyConfigured` at construction
+rather than refusing every payload at request time: the matcher would look for
+one name and the guard for another, leaving no payload that can match.
+
+**A matched row's primary key is dropped from its write for you.** Matching is
+what established that the key is already the row's own, so it is never
+information the update needs, and passing it through is how a string `"5"` that
+the ORM happily matched against pk `5` ends up in `update_fields` — which
+Django refuses. There is no need to write `exclude_fields=["pk"]` by hand. Only
+primary-key spellings are dropped: a natural `match_key` describes the row as
+well as identifying it, so changing it still renames the row it matched.
+
 ## When a row's write has behaviour of its own
 
 A row that needs side effects, derived columns, an event or an external call

@@ -8,7 +8,13 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 
 from rest_framework_services import RelationOrphan
-from rest_framework_services.types.utils import validate_metadata, validate_relation_orphan
+from rest_framework_services.types.utils import (
+    pk_input_targets,
+    validate_metadata,
+    validate_pk_field_map,
+    validate_relation_orphan,
+)
+from tests.testapp.models import Author, Profile
 
 
 def _service(**_: object) -> None: ...
@@ -56,3 +62,48 @@ class TestValidateRelationOrphan:
         # The remedy names both directions.
         assert "Dispose of the row in the service" in message
         assert "drop the service" in message
+
+
+class TestPkInputTargets:
+    def test_every_spelling_of_an_implicit_key(self) -> None:
+        assert pk_input_targets(Author) == frozenset({"pk", "id"})
+
+    def test_the_name_and_attname_collapse_for_an_implicit_key(self) -> None:
+        # ``name`` and ``attname`` are both ``id`` here; they diverge only where
+        # a relation *is* the key, which is why both are read rather than one.
+        assert pk_input_targets(Profile) == frozenset({"pk", "id"})
+
+
+class TestValidatePkFieldMap:
+    def test_no_field_map_is_allowed(self) -> None:
+        validate_pk_field_map(label="ChildSpec", model=Author, match_key="pk", field_map=None)
+
+    def test_a_field_map_leaving_the_key_alone_is_allowed(self) -> None:
+        validate_pk_field_map(
+            label="ChildSpec", model=Author, match_key="pk", field_map={"full_name": "name"}
+        )
+
+    def test_renaming_onto_the_key_is_refused_when_the_match_is_the_key(self) -> None:
+        with pytest.raises(ImproperlyConfigured) as excinfo:
+            validate_pk_field_map(
+                label="ChildSpec", model=Author, match_key="pk", field_map={"ident": "pk"}
+            )
+        message = str(excinfo.value)
+        assert "ChildSpec: field_map renames 'ident' onto the primary key of Author" in message
+        assert "match_key='pk'" in message
+        # The remedy names both directions.
+        assert "Send the key under a name match_key reads" in message
+        assert "match on a field the mapping does not rename" in message
+
+    def test_every_spelling_of_the_key_is_seen_on_both_sides(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="renames 'ident'"):
+            validate_pk_field_map(
+                label="ChildSpec", model=Author, match_key="id", field_map={"ident": "id"}
+            )
+
+    def test_a_natural_match_key_makes_the_same_mapping_coherent(self) -> None:
+        # Nothing is unreachable here: the row matches on its natural key and
+        # the alias goes on guarding creates, exactly as a plain ``pk`` would.
+        validate_pk_field_map(
+            label="ChildSpec", model=Author, match_key="name", field_map={"ident": "pk"}
+        )

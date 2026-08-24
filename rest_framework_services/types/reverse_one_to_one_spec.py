@@ -54,8 +54,12 @@ class ReverseOneToOneSpec(RelationSpec):
             for ``Profile.author``). Set automatically on creation, and the
             field whose nullability decides unlink-versus-delete by default.
         field_map: Forwarded to the row's own ``create_from_input`` /
-            ``update_from_input`` call.
-        exclude_fields: Forwarded likewise.
+            ``update_from_input`` call. It shapes that **write** and nothing
+            else: the row is found through ``fk`` and the parent link is
+            written onto it raw, neither of them reading this map.
+        exclude_fields: Forwarded likewise. Shaping configures the row's
+            **write** only; the row itself is found through ``fk``, and a
+            matched row's primary key is dropped from the write for you.
         m2m: Forwarded likewise.
         children: Forwarded likewise.
         relations: Forwarded likewise.
@@ -86,7 +90,7 @@ class ReverseOneToOneSpec(RelationSpec):
     fk: str
     field_map: dict[str, str] | None = None
     exclude_fields: list[str] | None = None
-    m2m: Callable[[Any], Mapping[str, Any]] | None = None
+    m2m: Mapping[str, Any] | Callable[[Any], Mapping[str, Any]] | None = None
     children: Mapping[str, ChildSpec] | None = None
     relations: Mapping[str, RelationSpec] | None = None
     create_service: Callable[..., Any] | None = None

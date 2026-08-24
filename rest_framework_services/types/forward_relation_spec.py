@@ -11,7 +11,10 @@ from django.db.models import Model, QuerySet
 from rest_framework_services.types.child_spec import ChildSpec
 from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
-from rest_framework_services.types.utils import validate_relation_services
+from rest_framework_services.types.utils import (
+    validate_pk_field_map,
+    validate_relation_services,
+)
 
 
 @dataclass(frozen=True)
@@ -65,6 +68,11 @@ class ForwardRelationSpec(RelationSpec):
             [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec], which matches inside
             the parent's own manager, where a miss really does mean "a new
             child".
+            The one name does two jobs — an **input** key on the mapping side,
+            a **model field** on the queryset side — which is fine while the two
+            agree and is why ``field_map`` may not rename anything onto the
+            primary key while ``match_key`` matches on it: there would be no
+            single name left to read. That combination raises at construction.
         scope: The rows this caller may update — a queryset, or a callable
             resolved from the caller's ``context`` pool by signature
             (``lambda user: Author.objects.filter(owner=user)``), the library's
@@ -75,8 +83,13 @@ class ForwardRelationSpec(RelationSpec):
             to match within, so an unscoped by-key match would mean "any caller
             may write any row of that model by guessing a key".
         field_map: Forwarded to the target row's own ``create_from_input`` /
-            ``update_from_input`` call, exactly as for the parent.
-        exclude_fields: Forwarded likewise.
+            ``update_from_input`` call, exactly as for the parent. It shapes that **write** and nothing else: matching and the primary-key
+            guard both read the row exactly as
+            it arrived, so renaming a key here does not change which row the
+            payload matches.
+        exclude_fields: Forwarded likewise. Excluding the ``match_key`` does not stop the row
+            matching on it, and a matched row's primary key is dropped from
+            the write for you, so there is no need to name it here.
         m2m: Forwarded likewise — the target's own many-to-many assignments.
         children: Forwarded likewise.
         relations: Forwarded likewise.
@@ -97,13 +110,19 @@ class ForwardRelationSpec(RelationSpec):
     scope: QuerySet[Any] | Callable[..., QuerySet[Any]] | None = None
     field_map: dict[str, str] | None = None
     exclude_fields: list[str] | None = None
-    m2m: Callable[[Any], Mapping[str, Any]] | None = None
+    m2m: Mapping[str, Any] | Callable[[Any], Mapping[str, Any]] | None = None
     children: Mapping[str, ChildSpec] | None = None
     relations: Mapping[str, RelationSpec] | None = None
     create_service: Callable[..., Any] | None = None
     update_service: Callable[..., Any] | None = None
 
     def __post_init__(self) -> None:
+        validate_pk_field_map(
+            label="ForwardRelationSpec",
+            model=self.model,
+            match_key=self.match_key,
+            field_map=self.field_map,
+        )
         validate_relation_services(
             label="ForwardRelationSpec",
             services={
