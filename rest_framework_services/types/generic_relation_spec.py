@@ -14,6 +14,7 @@ from rest_framework_services.types.relation_orphan import RelationOrphan
 from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
 from rest_framework_services.types.utils import (
+    validate_pk_field_map,
     validate_relation_mode,
     validate_relation_orphan,
     validate_relation_services,
@@ -52,12 +53,21 @@ class GenericRelationSpec(RelationSpec):
             Both mirror the ``GenericRelation`` arguments of the same name; set
             them when the model spells the columns differently.
         match_key: The field pairing an incoming row with an existing one
-            (default ``"pk"``), read inside the parent's own accessor.
+            (default ``"pk"``), read inside the parent's own accessor. Read off the incoming row as an input key
+            and off the lookup as a model field, so ``field_map`` may not
+            rename anything onto the primary key while ``match_key`` matches
+            on it — that combination raises at construction, on the terms
+            [`ChildSpec`][rest_framework_services.types.child_spec.ChildSpec] states.
         mode: ``"replace"`` (the default) removes the rows the incoming set
             leaves out, ``"merge"`` upserts only.
         field_map: Forwarded to the row's own ``create_from_input`` /
-            ``update_from_input`` call.
-        exclude_fields: Forwarded likewise.
+            ``update_from_input`` call. It shapes that **write** and nothing
+            else: matching and the primary-key guard both read the row
+            exactly as it arrived, so renaming a key here does not change
+            which row the payload matches.
+        exclude_fields: Forwarded likewise. Excluding the ``match_key`` does not stop the row
+            matching on it, and a matched row's primary key is dropped from
+            the write for you, so there is no need to name it here.
         m2m: Forwarded likewise.
         children: Forwarded likewise.
         relations: Forwarded likewise.
@@ -90,7 +100,7 @@ class GenericRelationSpec(RelationSpec):
     mode: RelationMode | str = RelationMode.REPLACE
     field_map: dict[str, str] | None = None
     exclude_fields: list[str] | None = None
-    m2m: Callable[[Any], Mapping[str, Any]] | None = None
+    m2m: Mapping[str, Any] | Callable[[Any], Mapping[str, Any]] | None = None
     children: Mapping[str, ChildSpec] | None = None
     relations: Mapping[str, RelationSpec] | None = None
     create_service: Callable[..., Any] | None = None
@@ -100,6 +110,12 @@ class GenericRelationSpec(RelationSpec):
     orphan: RelationOrphan | str = RelationOrphan.AUTO
 
     def __post_init__(self) -> None:
+        validate_pk_field_map(
+            label="GenericRelationSpec",
+            model=self.model,
+            match_key=self.match_key,
+            field_map=self.field_map,
+        )
         validate_relation_mode(self.mode, label="GenericRelationSpec")
         validate_relation_orphan(
             self.orphan, delete_service=self.delete_service, label="GenericRelationSpec"

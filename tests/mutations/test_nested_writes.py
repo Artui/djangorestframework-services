@@ -69,6 +69,35 @@ class TestCreateChildren:
         )
         assert list(result.instance.sections.get().tags.all()) == [tag]
 
+    def test_child_m2m_via_mapping(self) -> None:
+        # The factories have always taken a mapping as well as a callable; the
+        # specs took the callable only, so lifting a working ``create_model(...,
+        # m2m={...})`` into a ChildSpec used to fail on ``spec.m2m(item)``.
+        tag = Tag.objects.create(name="t")
+        result = create_from_input(
+            Catalog,
+            {"name": "c", "sections": [{"title": "s"}]},
+            children={
+                _SECTIONS: ChildSpec(model=Section, fk="catalog", m2m={"tags": [tag]}),
+            },
+        )
+        assert list(result.instance.sections.get().tags.all()) == [tag]
+
+    def test_child_m2m_via_mapping_on_a_matched_row(self) -> None:
+        tag = Tag.objects.create(name="t")
+        catalog = Catalog.objects.create(name="c")
+        section = Section.objects.create(catalog=catalog, title="s")
+
+        update_from_input(
+            catalog,
+            {"sections": [{"pk": section.pk, "title": "renamed"}]},
+            children={
+                _SECTIONS: ChildSpec(model=Section, fk="catalog", m2m={"tags": [tag]}),
+            },
+        )
+
+        assert list(section.tags.all()) == [tag]
+
     def test_omitted_relation_creates_nothing(self) -> None:
         result = create_from_input(Catalog, {"name": "c"}, children=_spec())
         assert result.instance.sections.count() == 0

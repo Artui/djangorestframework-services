@@ -16,6 +16,7 @@ from django.db.models import Model
 from rest_framework.exceptions import ValidationError
 
 from rest_framework_services.exceptions.service_validation_error import ServiceValidationError
+from rest_framework_services.services._resolve_m2m import resolve_m2m
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.child_collection_change import ChildCollectionChange
@@ -31,6 +32,7 @@ from rest_framework_services.types.relation_phase import RelationPhase
 from rest_framework_services.types.relation_spec import RelationSpec
 from rest_framework_services.types.reverse_one_to_one_spec import ReverseOneToOneSpec
 from rest_framework_services.types.unset import UNSET
+from rest_framework_services.types.utils import pk_input_targets
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
 # The kinds whose row the parent owns through a link stored on that row. "Child"
@@ -468,9 +470,9 @@ async def aremove_child(
 
 def _pk_input_names(model: type[Model], field_map: dict[str, str] | None) -> frozenset[str]:
     """Input keys landing on ``model``'s pk — every spelling, plus ``field_map``."""
-    targets: set[str] = {"pk", model._meta.pk.name, model._meta.pk.attname}
+    targets: frozenset[str] = pk_input_targets(model)
     mapped: set[str] = {src for src, dest in (field_map or {}).items() if dest in targets}
-    return frozenset(targets | mapped)
+    return targets | mapped
 
 
 def _omitted(value: Any) -> bool:
@@ -524,6 +526,31 @@ def _reject_unmatched_reference(
     )
 
 
+def _matched_row_exclude_fields(spec: _RowSpec) -> list[str]:
+    """``spec.exclude_fields`` plus every input spelling of the matched row's pk.
+
+    The update-side mirror of ``_reject_unmatched_reference``. A matched row's
+    primary key is *by construction* already the key the payload named --
+    matching is what established that -- so it is never information the write
+    needs, and carrying it through costs a crash. The two sides coerce
+    differently: ``queryset.filter(pk="5")`` matches because the ORM coerces the
+    string, then ``"5" != 5`` in Python, so ``pk`` reaches ``update_fields`` and
+    Django refuses to update a primary key. This is the general form of the
+    ``exclude_fields=[match_key]`` line a caller would otherwise write by hand.
+
+    Primary-key spellings only, not the ``match_key`` whatever it is: a natural
+    key such as ``match_key="title"`` describes the row as well as identifying
+    it, so a caller sending a different one is asking for a rename, not making a
+    mistake.
+
+    Extends the shaping knobs, so it lands where they land -- the helper call
+    only. A declared ``update_service`` stands in for that call and is handed
+    the row as it arrived, which is the rule ``validate_relation_services``
+    exists to keep consumers from tripping over.
+    """
+    return [*(spec.exclude_fields or ()), *sorted(_pk_input_names(spec.model, spec.field_map))]
+
+
 # --- where a row's error lands -------------------------------------------
 
 
@@ -558,16 +585,30 @@ class _RowPath:
 # out rather than one being blessed.
 _ROW_WRITE_ERRORS = (ServiceValidationError, ValidationError)
 
+# The same, plus the backstop the *helper* path needs. Django raises a bare
+# ``ValueError`` when a row's own data cannot be written at all -- a key that
+# does not belong in ``update_fields``, a value the field cannot coerce -- and
+# it carries no ``detail``, so escaping untranslated turns one bad nested row
+# into a 500 with nothing naming the row. Deliberately **not** extended to a
+# declared row service: that is opaque caller code, and reading its
+# ``ValueError`` as a 400 would report the caller's own bug as the client's
+# mistake.
+_HELPER_WRITE_ERRORS = (*_ROW_WRITE_ERRORS, ValueError)
+
 
 def _namespaced_row_error(
-    exc: ServiceValidationError | ValidationError,
+    exc: ServiceValidationError | ValidationError | ValueError,
     path: _RowPath,
 ) -> ServiceValidationError | ValidationError:
     """The same error, with the relation (and row) that carried it named.
 
     The exception class is preserved: a service that reached for DRF's error
-    chose its status mapping with it.
+    chose its status mapping with it. A bare ``ValueError`` has no class to
+    preserve and no ``detail`` to namespace, so it becomes the library's own
+    error carrying Django's message as the row's single complaint.
     """
+    if not isinstance(exc, ServiceValidationError | ValidationError):
+        return ServiceValidationError(path.namespace([str(exc)]))
     detail: dict[str, Any] = path.namespace(exc.detail)
     if isinstance(exc, ServiceValidationError):
         return ServiceValidationError(detail)
@@ -792,7 +833,7 @@ def _write_forward_relation(
     if value is None:
         return (None, RelatedObjectChange(relation=relation, outcome=RelationOutcome.CLEARED))
     item = coerce_to_dict(value)
-    row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+    row_m2m = resolve_m2m(spec.m2m, item)
     path = _RowPath(relation)
     target = _match_scoped_target(item, spec, relation=relation, context=context)
     if target is None:
@@ -816,7 +857,7 @@ async def _awrite_forward_relation(
     if value is None:
         return (None, RelatedObjectChange(relation=relation, outcome=RelationOutcome.CLEARED))
     item = coerce_to_dict(value)
-    row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+    row_m2m = resolve_m2m(spec.m2m, item)
     path = _RowPath(relation)
     target = await _amatch_scoped_target(item, spec, relation=relation, context=context)
     if target is None:
@@ -1014,7 +1055,7 @@ def _write_reverse_one_to_one(
         sync_relation_cache(parent, relation, None)
         return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
     item = coerce_to_dict(value)
-    row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+    row_m2m = resolve_m2m(spec.m2m, item)
     path = _RowPath(relation)
     if existing is None:
         row = _create_row(
@@ -1061,7 +1102,7 @@ async def _awrite_reverse_one_to_one(
         sync_relation_cache(parent, relation, None)
         return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
     item = coerce_to_dict(value)
-    row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+    row_m2m = resolve_m2m(spec.m2m, item)
     path = _RowPath(relation)
     if existing is None:
         row = await _acreate_row(
@@ -1111,7 +1152,7 @@ def _write_owned_collection(
     # incoming set, so the set needs a length before the first write.
     rows: list[dict[str, Any]] = [coerce_to_dict(i) for i in (items or [])]
     for index, item in enumerate(rows):
-        child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+        child_m2m = resolve_m2m(spec.m2m, item)
         path = _RowPath(relation, index, len(rows))
         key = item.get(spec.match_key)
         if not _omitted(key) and key in existing_by_key:
@@ -1174,7 +1215,7 @@ def _write_m2m_relation(
     # Materialized for the reason ``_write_owned_collection`` gives.
     rows: list[dict[str, Any]] = [coerce_to_dict(i) for i in (items or [])]
     for index, item in enumerate(rows):
-        row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+        row_m2m = resolve_m2m(spec.m2m, item)
         path = _RowPath(relation, index, len(rows))
         match = _match_scoped_target(item, spec, relation=relation, context=context)
         if match is None:
@@ -1244,9 +1285,12 @@ def _create_row(
     from rest_framework_services.mutations.create_from_input import create_from_input
 
     _reject_unmatched_reference(data, spec, path.relation)
-    try:
-        if spec.create_service is not None:
+    if spec.create_service is not None:
+        try:
             return _run_child_service(spec.create_service, _child_pool(context, data=data, **seeds))
+        except _ROW_WRITE_ERRORS as exc:
+            raise _namespaced_row_error(exc, path) from exc
+    try:
         return create_from_input(
             spec.model,
             data,
@@ -1257,7 +1301,7 @@ def _create_row(
             relations=spec.relations,
             context=context,
         ).instance
-    except _ROW_WRITE_ERRORS as exc:
+    except _HELPER_WRITE_ERRORS as exc:
         raise _namespaced_row_error(exc, path) from exc
 
 
@@ -1275,11 +1319,14 @@ async def _acreate_row(
     from rest_framework_services.mutations.acreate_from_input import acreate_from_input
 
     _reject_unmatched_reference(data, spec, path.relation)
-    try:
-        if spec.create_service is not None:
+    if spec.create_service is not None:
+        try:
             return await _arun_child_service(
                 spec.create_service, _child_pool(context, data=data, **seeds)
             )
+        except _ROW_WRITE_ERRORS as exc:
+            raise _namespaced_row_error(exc, path) from exc
+    try:
         result = await acreate_from_input(
             spec.model,
             data,
@@ -1290,7 +1337,7 @@ async def _acreate_row(
             relations=spec.relations,
             context=context,
         )
-    except _ROW_WRITE_ERRORS as exc:
+    except _HELPER_WRITE_ERRORS as exc:
         raise _namespaced_row_error(exc, path) from exc
     return result.instance
 
@@ -1312,24 +1359,27 @@ def _update_row(
     # Lazy import: genuine recursion cycle — see ``_create_row``.
     from rest_framework_services.mutations.update_from_input import update_from_input
 
-    try:
-        if spec.update_service is not None:
+    if spec.update_service is not None:
+        try:
             returned = _run_child_service(
                 spec.update_service,
                 _child_pool(context, data=data, instance=instance, **seeds),
             )
-            return instance if returned is None else returned
+        except _ROW_WRITE_ERRORS as exc:
+            raise _namespaced_row_error(exc, path) from exc
+        return instance if returned is None else returned
+    try:
         update_from_input(
             instance,
             data,
             field_map=spec.field_map,
-            exclude_fields=spec.exclude_fields,
+            exclude_fields=_matched_row_exclude_fields(spec),
             m2m=m2m,
             children=spec.children,
             relations=spec.relations,
             context=context,
         )
-    except _ROW_WRITE_ERRORS as exc:
+    except _HELPER_WRITE_ERRORS as exc:
         raise _namespaced_row_error(exc, path) from exc
     return instance
 
@@ -1348,24 +1398,27 @@ async def _aupdate_row(
     # Lazy import: genuine recursion cycle — see ``_create_row``.
     from rest_framework_services.mutations.aupdate_from_input import aupdate_from_input
 
-    try:
-        if spec.update_service is not None:
+    if spec.update_service is not None:
+        try:
             returned = await _arun_child_service(
                 spec.update_service,
                 _child_pool(context, data=data, instance=instance, **seeds),
             )
-            return instance if returned is None else returned
+        except _ROW_WRITE_ERRORS as exc:
+            raise _namespaced_row_error(exc, path) from exc
+        return instance if returned is None else returned
+    try:
         await aupdate_from_input(
             instance,
             data,
             field_map=spec.field_map,
-            exclude_fields=spec.exclude_fields,
+            exclude_fields=_matched_row_exclude_fields(spec),
             m2m=m2m,
             children=spec.children,
             relations=spec.relations,
             context=context,
         )
-    except _ROW_WRITE_ERRORS as exc:
+    except _HELPER_WRITE_ERRORS as exc:
         raise _namespaced_row_error(exc, path) from exc
     return instance
 
@@ -1458,7 +1511,7 @@ async def _awrite_owned_collection(
     # Materialized for the reason ``_write_owned_collection`` gives.
     rows: list[dict[str, Any]] = [coerce_to_dict(i) for i in (items or [])]
     for index, item in enumerate(rows):
-        child_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+        child_m2m = resolve_m2m(spec.m2m, item)
         path = _RowPath(relation, index, len(rows))
         key = item.get(spec.match_key)
         if not _omitted(key) and key in existing_by_key:
@@ -1514,7 +1567,7 @@ async def _awrite_m2m_relation(
     # Materialized for the reason ``_write_owned_collection`` gives.
     rows: list[dict[str, Any]] = [coerce_to_dict(i) for i in (items or [])]
     for index, item in enumerate(rows):
-        row_m2m = dict(spec.m2m(item)) if spec.m2m is not None else None
+        row_m2m = resolve_m2m(spec.m2m, item)
         path = _RowPath(relation, index, len(rows))
         match = await _amatch_scoped_target(item, spec, relation=relation, context=context)
         if match is None:

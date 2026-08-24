@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A matched nested row no longer carries its own primary key into the write.**
+  `ForwardRelationSpec` and `ManyToManySpec` match through the ORM, which coerces
+  `"5"` to pk `5`; Python then does not, so `pk` landed in `update_fields` and
+  Django's `ValueError` escaped the service untranslated — a **500** for a
+  payload the library had already matched. Any un-coerced input reaches it: a
+  JSON body straight to a dataclass, a URL kwarg, an `input_serializer`
+  declaring the nested payload as a plain `DictField`. A matched row's key is by
+  construction already that row's, so it is now dropped from the write, and
+  `exclude_fields=["pk"]` is no longer a line anyone needs to write. Only
+  primary-key spellings are dropped: a natural `match_key` describes the row as
+  well as identifying it, so changing it still renames the row it matched.
+  `ChildSpec`, `GenericRelationSpec` and `ReverseOneToOneSpec` match through the
+  parent's own manager, which does not coerce, and were never exposed to the
+  crash.
+- **A row whose write fails with a bare `ValueError` is now reported as that
+  row.** Django raises one when a row's own data cannot be written at all, and
+  with no `detail` to namespace it left the service as a 500 naming nothing. It
+  now arrives as a `ServiceValidationError` against the relation and the row's
+  position, like every other row error. Scoped to the mutation-helper call — a
+  declared `create_service` / `update_service` is opaque caller code, and reading
+  its `ValueError` as a 400 would report its own bug as the client's mistake.
+- **`field_map` renaming an input key onto the primary key is refused at
+  construction** when `match_key` matches on that key, rather than rejecting
+  every payload at request time. Matching reads the row exactly as it arrived
+  and does not apply `field_map`, while the primary-key guard does — so the
+  matcher looked for one name and the guard refused the other, and no payload
+  could ever match. Raises `ImproperlyConfigured` from `ChildSpec`,
+  `ForwardRelationSpec`, `ManyToManySpec` and `GenericRelationSpec`. Mapped onto
+  a *natural* `match_key` the same declaration is coherent and still allowed;
+  `ReverseOneToOneSpec` finds its row through `fk` and has no match key to
+  collide with.
+
+### Changed
+
+- **The relation specs' `m2m=` now accepts a plain mapping**, not only a callable
+  — `Mapping[str, Any] | Callable[[Any], Mapping[str, Any]]`, matching what
+  `create_model` / `update_model` have always taken. Lifting a working
+  `create_model(Post, m2m={"tags": …})` into a `ChildSpec` previously failed
+  under `ty` and raised `TypeError` at runtime. Additive; the callable form is
+  unchanged.
+
+### Documentation
+
+- **The shaping knobs now say what they shape.** `field_map`, `exclude_fields`,
+  `m2m`, `children` and `relations` configure the row's **write** and nothing
+  else — matching, the primary-key guard and the parent link all read the row as
+  it arrived. Four specs described the knob as "Forwarded likewise" and none
+  said this, which is what sent a consumer asking why `exclude_fields=["id"]`
+  excludes the very key that finds the row. Stated on all five specs and in
+  [Nested writes](https://artui.github.io/djangorestframework-services/recipes/nested-writes/),
+  along with the note that `match_key` is an input key on one side and a model
+  field on the other.
+
 ## [0.41.0] — 2026-08-14
 
 ### Upgrade notes
