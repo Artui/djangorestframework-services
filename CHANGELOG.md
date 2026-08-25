@@ -46,9 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   belong to no serializer.
 
   New public API: `AGENT`, `AgentField`, `AgentProjection`, `FieldAudience`,
-  `build_agent_projection`, `project_payload`, `annotate_output_schema`,
-  `HANDLE_DESCRIPTION`, and `render_for_agent` / `arender_for_agent` on the
-  dispatch surface. The last of those is the one an alternate transport calls
+  `build_agent_projection`, `agent_projection_for_spec`, `project_payload`,
+  `annotate_output_schema`, `HANDLE_DESCRIPTION`, and `render_for_agent` /
+  `arender_for_agent` on the dispatch surface. The last of those is the one an alternate transport calls
   instead of `render_spec_output`, so every agent transport shapes payloads
   identically rather than each growing its own post-processor.
 

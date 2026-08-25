@@ -9,6 +9,7 @@ for typical usage; deeper imports (``rest_framework_services.mutations``,
 
 from rest_framework_services.audience import (
     HANDLE_DESCRIPTION,
+    agent_projection_for_spec,
     annotate_output_schema,
     build_agent_projection,
     project_payload,
@@ -238,6 +239,7 @@ __all__ = [
     "adelete_collection",
     "adelete_model",
     "adispatch_spec",
+    "agent_projection_for_spec",
     "annotate_output_schema",
     "apply_input",
     "apply_queryset_shaping",

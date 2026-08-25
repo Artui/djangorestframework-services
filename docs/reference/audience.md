@@ -14,6 +14,10 @@ documented under [Types](types.md); the render entry points
 (`render_for_agent` / `arender_for_agent`) under
 [Dispatch](dispatch.md).
 
+## `agent_projection_for_spec`
+
+::: rest_framework_services.audience.agent_projection_for_spec.agent_projection_for_spec
+
 ## `build_agent_projection`
 
 ::: rest_framework_services.audience.build_agent_projection.build_agent_projection
