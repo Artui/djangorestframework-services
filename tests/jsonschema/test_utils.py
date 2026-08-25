@@ -359,3 +359,110 @@ def test_callable_input_schema_bare_var_keyword_reflects_nothing() -> None:
     props, required = callable_input_schema(selector)
     assert props == {"pk": {"type": "integer"}}
     assert required == []
+
+
+class _OutputInner(serializers.Serializer):
+    ro_inner = serializers.CharField(read_only=True)
+    wo_inner = serializers.CharField(write_only=True)
+
+
+class _OutputSample(serializers.Serializer):
+    name = serializers.CharField()
+    generated = serializers.CharField(read_only=True)
+    secret = serializers.CharField(write_only=True)
+    nested = _OutputInner()
+    tags = serializers.ListField(child=_OutputInner())
+
+
+class TestOutputDirection:
+    """``for_output=True`` describes what DRF renders, not what it accepts."""
+
+    def test_read_only_survives_and_write_only_drops(self) -> None:
+        schema = serializer_to_schema(_OutputSample(), for_output=True)
+
+        assert "generated" in schema["properties"]
+        assert "secret" not in schema["properties"]
+
+    def test_every_rendered_field_is_required(self) -> None:
+        """``required`` means the key is present; DRF emits every field's key."""
+        schema = serializer_to_schema(_OutputSample(), for_output=True)
+
+        assert schema["required"] == ["name", "generated", "nested", "tags"]
+
+    def test_input_direction_is_unchanged(self) -> None:
+        schema = serializer_to_schema(_OutputSample())
+
+        assert "generated" not in schema["properties"]
+        assert "secret" in schema["properties"]
+
+    def test_direction_reaches_nested_serializers(self) -> None:
+        schema = serializer_to_schema(_OutputSample(), for_output=True)
+
+        assert "ro_inner" in schema["properties"]["nested"]["properties"]
+        assert "wo_inner" not in schema["properties"]["nested"]["properties"]
+
+    def test_direction_reaches_list_children(self) -> None:
+        schema = serializer_to_schema(_OutputSample(), for_output=True)
+
+        assert "ro_inner" in schema["properties"]["tags"]["items"]["properties"]
+
+
+class TestChoiceSchema:
+    def test_labels_that_repeat_their_value_stay_a_bare_enum(self) -> None:
+        field = serializers.ChoiceField(choices=["a", "b"])
+
+        assert field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY) == {"enum": ["a", "b"]}
+
+    def test_distinct_labels_become_oneof_with_titles(self) -> None:
+        field = serializers.ChoiceField(choices=[("P", "Pending"), ("D", "Done")])
+
+        assert field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY) == {
+            "oneOf": [{"const": "P", "title": "Pending"}, {"const": "D", "title": "Done"}]
+        }
+
+    def test_allow_blank_and_allow_null_widen_the_enum(self) -> None:
+        field = serializers.ChoiceField(choices=["a"], allow_blank=True, allow_null=True)
+
+        assert field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY) == {"enum": ["a", "", None]}
+
+    def test_allow_blank_and_allow_null_widen_the_oneof(self) -> None:
+        field = serializers.ChoiceField(
+            choices=[("P", "Pending")], allow_blank=True, allow_null=True
+        )
+
+        assert field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY) == {
+            "oneOf": [{"const": "P", "title": "Pending"}, {"const": ""}, {"const": None}]
+        }
+
+
+class TestMultipleChoiceField:
+    """It subclasses ``ChoiceField`` but accepts a *set*, so it needs an array."""
+
+    def test_becomes_a_unique_array_of_the_choices(self) -> None:
+        field = serializers.MultipleChoiceField(choices=[("P", "Pending")])
+
+        assert field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY) == {
+            "type": "array",
+            "items": {"oneOf": [{"const": "P", "title": "Pending"}]},
+            "uniqueItems": True,
+        }
+
+    def test_disallowing_empty_sets_min_items(self) -> None:
+        field = serializers.MultipleChoiceField(choices=["a"], allow_empty=False)
+
+        assert field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY)["minItems"] == 1
+
+    def test_member_schema_is_not_widened_by_the_field_s_own_nullability(self) -> None:
+        """``allow_null`` is about the array, not about a member value."""
+        field = serializers.MultipleChoiceField(choices=["a"], allow_null=True)
+
+        assert field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY)["items"] == {"enum": ["a"]}
+
+    def test_file_path_field_keeps_the_single_valued_branch(self, tmp_path: Any) -> None:
+        """It subclasses ``ChoiceField`` too, but picks one path, not a set."""
+        (tmp_path / "one.txt").write_text("")
+        field = serializers.FilePathField(path=str(tmp_path))
+        schema = field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY)
+
+        assert schema.get("type") != "array"
+        assert [entry["title"] for entry in schema["oneOf"]] == ["---------", "one.txt"]

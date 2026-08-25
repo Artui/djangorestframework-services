@@ -64,7 +64,7 @@ def _item_schema(
     if isinstance(output_serializer, type) and issubclass(
         output_serializer, serializers.Serializer
     ):
-        return serializer_to_schema(output_serializer(), registry)
+        return serializer_to_schema(output_serializer(), registry, for_output=True)
     if isinstance(output_serializer, type) and dataclasses.is_dataclass(output_serializer):
         return dataclass_to_schema(output_serializer, registry)
     return None

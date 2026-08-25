@@ -94,6 +94,7 @@ nav:
       - Bulk & collection mutations: recipes/bulk-mutations.md
       - Customise serializer context: recipes/serializer-context.md
       - Declare specs once for many transports: recipes/spec-registry.md
+      - Mark fields for an agent audience: recipes/agent-audience.md
       - URL-derived & required inputs off-HTTP: recipes/off-http-inputs.md
       - Scaffold a service app: recipes/scaffold-app.md
   - Reference:
@@ -107,5 +108,6 @@ nav:
       - Types: reference/types.md
       - Spec registry: reference/registry.md
       - JSON Schema: reference/jsonschema.md
+      - Audience projection: reference/audience.md
       - OpenAPI: reference/openapi.md
       - Exceptions: reference/exceptions.md

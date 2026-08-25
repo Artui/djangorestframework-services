@@ -45,25 +45,32 @@ _DRF_FIELD_TO_SCHEMA: list[tuple[type[serializers.Field], dict[str, Any]]] = [
 def field_to_schema(
     field: serializers.Field,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+    *,
+    for_output: bool = False,
 ) -> dict[str, Any]:
     """Convert a single DRF field into a JSON Schema fragment.
 
     ``registry.fields`` rules win over the built-in mapping; an unrecognised
     field falls back to ``{}`` rather than failing generation.
+
+    ``for_output`` is threaded through nested serializers so a nested block
+    describes the same direction as the block containing it.
     """
-    default: dict[str, Any] = _field_to_schema_default(field, registry)
+    default: dict[str, Any] = _field_to_schema_default(field, registry, for_output)
     return apply_field_override(field, default)
 
 
 def _field_to_schema_default(
-    field: serializers.Field, registry: JsonSchemaRegistry
+    field: serializers.Field, registry: JsonSchemaRegistry, for_output: bool
 ) -> dict[str, Any]:
     for rule_type, rule_schema in registry.fields:
         if isinstance(field, rule_type):
             return dict(rule_schema)
     if isinstance(field, serializers.ListField):
         child: serializers.Field | None = field.child
-        item_schema: dict[str, Any] = field_to_schema(child, registry) if child is not None else {}
+        item_schema: dict[str, Any] = (
+            field_to_schema(child, registry, for_output=for_output) if child is not None else {}
+        )
         return {"type": "array", "items": item_schema}
     if isinstance(field, serializers.ListSerializer):
         # The DRF stubs type ``ListSerializer.child`` as ``Field``; at runtime
@@ -71,34 +78,95 @@ def _field_to_schema_default(
         list_child: serializers.Serializer | None = field.child  # ty: ignore[invalid-assignment]
         if list_child is None:
             return {"type": "array", "items": {}}
-        return {"type": "array", "items": serializer_to_schema(list_child, registry)}
+        return {
+            "type": "array",
+            "items": serializer_to_schema(list_child, registry, for_output=for_output),
+        }
     if isinstance(field, serializers.Serializer):
-        return serializer_to_schema(field, registry)
+        return serializer_to_schema(field, registry, for_output=for_output)
+    if isinstance(field, serializers.MultipleChoiceField):
+        # Checked before ChoiceField, which it subclasses: this field accepts a
+        # *set* of the choices, not one of them. FilePathField subclasses
+        # ChoiceField too, but is single-valued, so the plain branch suits it.
+        multiple: dict[str, Any] = {
+            "type": "array",
+            "items": _choice_schema(field, widen=False),
+            "uniqueItems": True,
+        }
+        if not field.allow_empty:
+            multiple["minItems"] = 1
+        return multiple
     if isinstance(field, serializers.ChoiceField):
-        return {"enum": list(field.choices.keys())}
+        return _choice_schema(field)
     for cls, schema in _DRF_FIELD_TO_SCHEMA:
         if isinstance(field, cls):
             return dict(schema)
     return {}
 
 
+def _choice_schema(field: serializers.ChoiceField, *, widen: bool = True) -> dict[str, Any]:
+    """``enum`` when the labels add nothing, ``oneOf`` + ``title`` when they do.
+
+    DRF holds ``{value: display}`` and only the values used to survive here. A
+    consumer picking a constant does better when the human phrasing travels with
+    it, and ``title`` is an annotation keyword — it constrains nothing, so the
+    accepted set stays exactly the ``const``s. Labels that merely repeat their
+    value are dropped: a title restating the constant teaches nothing.
+
+    ``allow_blank`` / ``allow_null`` widen what DRF accepts without appearing in
+    ``field.choices``, so they are declared rather than left implicit. This is
+    narrower than general nullability — an enum-like schema claims an exhaustive
+    value set, so omitting an accepted value is a concrete falsehood, where
+    ``{"type": "string"}`` for a nullable ``CharField`` is merely incomplete.
+
+    ``widen`` is off for the element schema of a ``MultipleChoiceField``, whose
+    emptiness rule is ``allow_empty`` on the array rather than a member value.
+    """
+    choices: dict[Any, Any] = dict(field.choices)
+    extra: list[Any] = []
+    if widen:
+        if getattr(field, "allow_blank", False):
+            extra.append("")
+        if field.allow_null:
+            extra.append(None)
+    if all(str(label) == str(value) for value, label in choices.items()):
+        return {"enum": [*choices, *extra]}
+    return {
+        "oneOf": [
+            *({"const": value, "title": str(label)} for value, label in choices.items()),
+            *({"const": value} for value in extra),
+        ]
+    }
+
+
 def serializer_to_schema(
     serializer: serializers.Serializer,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+    *,
+    for_output: bool = False,
 ) -> dict[str, Any]:
     """Convert a DRF serializer instance into a JSON Schema object.
 
-    ``read_only`` fields are skipped: the schema describes input.
+    ``for_output=False`` describes *input*: ``read_only`` fields are skipped and
+    ``required`` mirrors ``field.required``.
+
+    ``for_output=True`` describes what DRF actually renders. ``write_only``
+    fields drop out instead, and every remaining field joins ``required``:
+    ``required`` means the key is present, not that its value is non-null, and
+    DRF emits every field's key either way. Skipping ``read_only`` here — as the
+    input direction must — left an output schema silently missing its primary
+    key, its ETag, and every ``SerializerMethodField``, none of which stopped
+    being rendered.
     """
     properties: dict[str, Any] = {}
     required: list[str] = []
     for name, field in serializer.fields.items():
-        if field.read_only:
+        if field.write_only if for_output else field.read_only:
             continue
-        properties[name] = field_to_schema(field, registry)
+        properties[name] = field_to_schema(field, registry, for_output=for_output)
         if field.help_text:
             properties[name]["description"] = str(field.help_text)
-        if field.required:
+        if for_output or field.required:
             required.append(name)
     schema: dict[str, Any] = {"type": "object", "properties": properties}
     if required:

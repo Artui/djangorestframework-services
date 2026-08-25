@@ -107,3 +107,19 @@
 ## `RESERVED_POOL_SEEDS`
 
 ::: rest_framework_services.types.reserved_pool_seeds
+
+## `FieldAudience`
+
+::: rest_framework_services.types.field_audience.FieldAudience
+
+## `AGENT`
+
+::: rest_framework_services.types.agent_field.AGENT
+
+## `AgentField`
+
+::: rest_framework_services.types.agent_field.AgentField
+
+## `AgentProjection`
+
+::: rest_framework_services.types.agent_projection.AgentProjection

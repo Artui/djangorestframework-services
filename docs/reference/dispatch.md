@@ -48,6 +48,22 @@ one on the same result.
 
 ::: rest_framework_services.dispatch.arender_spec_output.arender_spec_output
 
+### `render_for_agent`
+
+The agent-audience twin of `render_spec_output`: it renders through the same
+path, then applies the serializer's
+[`AgentField`](types.md#agentfield) markings. An alternate transport whose
+consumer is a model calls this instead, so every such transport shapes payloads
+identically. Not for a pipeline that feeds one spec's output into the next —
+that still wants `render_spec_output`, or the handles the next step reads by
+will have been projected away.
+
+::: rest_framework_services.dispatch.render_for_agent.render_for_agent
+
+### `arender_for_agent`
+
+::: rest_framework_services.dispatch.arender_for_agent.arender_for_agent
+
 ### `base_serializer_context`
 
 The DRF baseline (`request` / `format` / `view`) that every serializer gets for
