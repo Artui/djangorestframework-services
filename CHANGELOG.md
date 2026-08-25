@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0] — 2026-08-25
+
 ### Added
 
 - **Agent field audience — one serializer, more than one kind of reader.** A
@@ -2742,7 +2744,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.42.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.43.0...HEAD
+[0.43.0]: https://github.com/Artui/djangorestframework-services/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/Artui/djangorestframework-services/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/Artui/djangorestframework-services/compare/v0.40.0...v0.41.0
 [0.40.0]: https://github.com/Artui/djangorestframework-services/compare/v0.39.0...v0.40.0
