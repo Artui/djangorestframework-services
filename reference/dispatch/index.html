@@ -544,6 +544,8 @@
       
         
       
+        
+      
     
     
     
@@ -915,6 +917,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../recipes/agent-audience/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mark fields for an agent audience
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../recipes/off-http-inputs/" class="md-nav__link">
         
   
@@ -984,6 +1014,8 @@
       
         
           
+        
+      
         
       
         
@@ -1278,6 +1310,62 @@
   </a>
   
     <nav class="md-nav" aria-label="arender_spec_output">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#render_for_agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        render_for_agent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.render_for_agent.render_for_agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        render_for_agent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="render_for_agent">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arender_for_agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arender_for_agent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.arender_for_agent.arender_for_agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arender_for_agent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="arender_for_agent">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2200,6 +2288,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../audience/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audience projection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../openapi/" class="md-nav__link">
         
   
@@ -2404,6 +2520,62 @@
   </a>
   
     <nav class="md-nav" aria-label="arender_spec_output">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#render_for_agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        render_for_agent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.render_for_agent.render_for_agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        render_for_agent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="render_for_agent">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arender_for_agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arender_for_agent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.arender_for_agent.arender_for_agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arender_for_agent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="arender_for_agent">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -3768,6 +3940,106 @@ inside it — this is for the ordinary case, where the hop shouldn't have to be 
 caller's problem to remember.</p>
 <p>Pagination is still the caller's job; see the sync twin for the <code>extras</code>
 contract and the rest of the semantics.</p>
+
+
+    </div>
+
+</div><h3 id="render_for_agent"><code>render_for_agent</code><a class="headerlink" href="#render_for_agent" title="Permanent link">&para;</a></h3>
+<p>The agent-audience twin of <code>render_spec_output</code>: it renders through the same
+path, then applies the serializer's
+<a href="../types/#agentfield"><code>AgentField</code></a> markings. An alternate transport whose
+consumer is a model calls this instead, so every such transport shapes payloads
+identically. Not for a pipeline that feeds one spec's output into the next —
+that still wants <code>render_spec_output</code>, or the handles the next step reads by
+will have been projected away.</p>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.render_for_agent.render_for_agent" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">render_for_agent</span>
+
+
+<a href="#rest_framework_services.dispatch.render_for_agent.render_for_agent" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">render_for_agent</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">projection</span><span class="p">:</span> <span class="n">AgentProjection</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">many</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">extras</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">view_hooks</span><span class="p">:</span> <span class="n">ViewHooks</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p><a class="autorefs autorefs-internal" title="render_spec_output" href="#rest_framework_services.dispatch.render_spec_output.render_spec_output"><code>render_spec_output</code></a>
+plus the agent projection.</p>
+<p>The single call an agent transport makes instead of <code>render_spec_output</code>,
+so an MCP server, an in-process toolset, and anything added later shape
+payloads identically rather than each growing its own post-processor. Two
+copies of the render path have drifted in this stack before; this exists so
+a third does not.</p>
+<p>Every argument other than <code>projection</code> is passed straight through and means
+exactly what it means there, pagination included.</p>
+<p><code>projection</code> is the serializer's resolved markings. Omit it and one is
+derived from the spec, which costs a serializer instantiation per call — a
+transport that registers its tools up front should build it once with
+<a class="autorefs autorefs-internal" title="agent_projection_for_spec" href="../audience/#rest_framework_services.audience.agent_projection_for_spec.agent_projection_for_spec"><code>agent_projection_for_spec</code></a>
+and pass it in.</p>
+<p>Render the agent's <strong>answer</strong> with this. A pipeline that feeds one spec's
+output into the next must keep rendering with <code>render_spec_output</code>, or the
+handles the next step reads by will have been projected away.</p>
+
+
+    </div>
+
+</div><h3 id="arender_for_agent"><code>arender_for_agent</code><a class="headerlink" href="#arender_for_agent" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.arender_for_agent.arender_for_agent" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">arender_for_agent</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#rest_framework_services.dispatch.arender_for_agent.arender_for_agent" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">arender_for_agent</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">projection</span><span class="p">:</span> <span class="n">AgentProjection</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">many</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">extras</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Async
+<a class="autorefs autorefs-internal" title="render_for_agent" href="#rest_framework_services.dispatch.render_for_agent.render_for_agent"><code>render_for_agent</code></a>.</p>
+<p>Identical arguments, identical result. The whole render — and the projection
+that follows it — runs in Django's thread-sensitive executor, for the same
+reason
+<a class="autorefs autorefs-internal" title="arender_spec_output
+
+
+  
+      async
+  " href="#rest_framework_services.dispatch.arender_spec_output.arender_spec_output"><code>arender_spec_output</code></a>
+exists: rendering evaluates querysets and traverses relations, so an async
+caller cannot do it inline without <code>SynchronousOnlyOperation</code>.</p>
 
 
     </div>

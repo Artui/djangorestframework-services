@@ -16,7 +16,7 @@
         <link rel="prev" href="../registry/">
       
       
-        <link rel="next" href="../openapi/">
+        <link rel="next" href="../audience/">
       
       
         
@@ -544,6 +544,8 @@
       
         
       
+        
+      
     
     
     
@@ -915,6 +917,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../recipes/agent-audience/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mark fields for an agent audience
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../recipes/off-http-inputs/" class="md-nav__link">
         
   
@@ -984,6 +1014,8 @@
       
         
           
+        
+      
         
       
         
@@ -1517,6 +1549,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../audience/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audience projection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../openapi/" class="md-nav__link">
         
   
@@ -1837,8 +1897,10 @@ would make schema-strict consumers reject calls the service accepts.</p>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">kind</span><span class="p">:</span> <span class="n">SelectorKind</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">paginate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">projection</span><span class="p">:</span> <span class="n">AgentProjection</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">handle_description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -1853,6 +1915,17 @@ what dispatch actually returns:</p>
 <li><code>kind=LIST, paginate=True</code> — the pagination envelope
   <code>{items, page, totalPages, hasNext}</code>.</li>
 </ul>
+<p><code>projection</code> applies the serializer's agent markings, mirroring what
+<a class="autorefs autorefs-internal" title="project_payload" href="../audience/#rest_framework_services.audience.project_payload.project_payload"><code>project_payload</code></a>
+does to the payload. It lands on the <strong>item</strong>, wherever the item sits for this
+<code>kind</code> — the array wrapper and the pagination envelope are this function's
+own shapes and belong to no serializer, so a projection walking them would
+look for markings that cannot exist and silently annotate nothing.</p>
+<p><code>handle_description</code> is passed through to
+<a class="autorefs autorefs-internal" title="annotate_output_schema" href="../audience/#rest_framework_services.audience.annotate_output_schema.annotate_output_schema"><code>annotate_output_schema</code></a>
+as the fallback wording for an unlabelled handle. It defaults to nothing:
+what a reader should <em>do</em> with an identifier depends on the reader, and the
+transport is what knows.</p>
 <p><code>registry</code> supplies consumer rules for custom field / Python types — see
 <a class="autorefs autorefs-internal" title="JsonSchemaRegistry
 

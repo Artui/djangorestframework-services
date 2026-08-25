@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/reference/openapi/">
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/recipes/agent-audience/">
       
       
-        <link rel="prev" href="../audience/">
+        <link rel="prev" href="../spec-registry/">
       
       
-        <link rel="next" href="../exceptions/">
+        <link rel="next" href="../off-http-inputs/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>OpenAPI - djangorestframework-services</title>
+        <title>Mark fields for an agent audience - djangorestframework-services</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#openapi" class="md-skip">
+        <a href="#mark-fields-for-an-agent-audience" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              OpenAPI
+              Mark fields for an agent audience
             
           </span>
         </div>
@@ -509,6 +509,8 @@
       
   
   
+    
+  
   
   
     
@@ -520,6 +522,598 @@
       
         
       
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipes
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Recipes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../service-action/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom action with @service_action
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../compose-viewset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compose your own viewset
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extra-kwargs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-action permissions on the spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../preconditions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    State rules with preconditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../queryset-shaping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-spec queryset shaping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../selector-filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filter a selector with filter_set
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nested-writes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested writes for every relation kind
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bulk-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk & collection mutations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../serializer-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customise serializer context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Declare specs once for many transports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mark fields for an agent audience
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mark fields for an agent audience
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#declare-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declare it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#apply-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Apply it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nesting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nesting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#two-mistakes-that-raise-rather-than-pass-quietly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two mistakes that raise rather than pass quietly
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-deliberately-does-not-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this deliberately does not do
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../off-http-inputs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    URL-derived & required inputs off-HTTP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scaffold-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaffold a service app
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
         
       
         
@@ -561,503 +1155,11 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_11" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../recipes/" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Recipes
-  
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_10">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Recipes
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/service-action/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Custom action with @service_action
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/compose-viewset/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Compose your own viewset
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/extra-kwargs/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Pass extra kwargs to services
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/permissions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Per-action permissions on the spec
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/preconditions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    State rules with preconditions
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/queryset-shaping/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Per-spec queryset shaping
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/selector-filtering/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Filter a selector with filter_set
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/nested-writes/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Nested writes for every relation kind
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/bulk-mutations/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Bulk & collection mutations
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/serializer-context/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Customise serializer context
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/spec-registry/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Declare specs once for many transports
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/agent-audience/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Mark fields for an agent audience
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/off-http-inputs/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    URL-derived & required inputs off-HTTP
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../recipes/scaffold-app/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Scaffold a service app
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-    
-  
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-        
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../" class="md-nav__link ">
+            <a href="../../reference/" class="md-nav__link ">
               
   
   
@@ -1081,7 +1183,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_11">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1101,7 +1203,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../views/" class="md-nav__link">
+      <a href="../../reference/views/" class="md-nav__link">
         
   
   
@@ -1129,7 +1231,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dispatch/" class="md-nav__link">
+      <a href="../../reference/dispatch/" class="md-nav__link">
         
   
   
@@ -1157,7 +1259,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../viewsets/" class="md-nav__link">
+      <a href="../../reference/viewsets/" class="md-nav__link">
         
   
   
@@ -1185,7 +1287,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../mutations/" class="md-nav__link">
+      <a href="../../reference/mutations/" class="md-nav__link">
         
   
   
@@ -1213,7 +1315,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../services/" class="md-nav__link">
+      <a href="../../reference/services/" class="md-nav__link">
         
   
   
@@ -1241,7 +1343,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../selectors/" class="md-nav__link">
+      <a href="../../reference/selectors/" class="md-nav__link">
         
   
   
@@ -1269,7 +1371,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../types/" class="md-nav__link">
+      <a href="../../reference/types/" class="md-nav__link">
         
   
   
@@ -1297,7 +1399,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../registry/" class="md-nav__link">
+      <a href="../../reference/registry/" class="md-nav__link">
         
   
   
@@ -1325,7 +1427,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../jsonschema/" class="md-nav__link">
+      <a href="../../reference/jsonschema/" class="md-nav__link">
         
   
   
@@ -1353,7 +1455,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../audience/" class="md-nav__link">
+      <a href="../../reference/audience/" class="md-nav__link">
         
   
   
@@ -1378,37 +1480,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    OpenAPI
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../reference/openapi/" class="md-nav__link">
         
   
   
@@ -1424,59 +1499,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.openapi.enable_openapi.enable_openapi" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        enable_openapi
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ServiceAutoSchema
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ServiceErrorSerializer
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1489,7 +1511,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../exceptions/" class="md-nav__link">
+      <a href="../../reference/exceptions/" class="md-nav__link">
         
   
   
@@ -1544,10 +1566,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.openapi.enable_openapi.enable_openapi" class="md-nav__link">
+  <a href="#declare-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        enable_openapi
+        Declare it
       
     </span>
   </a>
@@ -1555,10 +1577,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema" class="md-nav__link">
+  <a href="#apply-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ServiceAutoSchema
+        Apply it
       
     </span>
   </a>
@@ -1566,10 +1588,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer" class="md-nav__link">
+  <a href="#nesting" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ServiceErrorSerializer
+        Nesting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#two-mistakes-that-raise-rather-than-pass-quietly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two mistakes that raise rather than pass quietly
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-deliberately-does-not-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this deliberately does not do
       
     </span>
   </a>
@@ -1593,7 +1637,7 @@
 
 
   
-    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/reference/openapi.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/recipes/agent-audience.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1601,168 +1645,148 @@
   
 
 
-<h1 id="openapi">OpenAPI<a class="headerlink" href="#openapi" title="Permanent link">&para;</a></h1>
+<h1 id="mark-fields-for-an-agent-audience">Mark fields for an agent audience<a class="headerlink" href="#mark-fields-for-an-agent-audience" title="Permanent link">&para;</a></h1>
+<p>One serializer often has more than one kind of reader. A frontend needs the
+primary key to route on and ignores the rest of the plumbing. A model exposed to
+the same spec as a tool has no way to tell which fields are for it and which are
+for the person it is talking to — so it reads records out by UUID, says
+<code>PENDING_REVIEW</code> where a person would say "Awaiting review", and narrates an
+ETag as if it were content.</p>
+<p>That is not a prompting problem on the client. The agent mirrors the shape it
+was handed. Declare the difference on the server, once, on the field.</p>
+<h2 id="declare-it">Declare it<a class="headerlink" href="#declare-it" title="Permanent link">&para;</a></h2>
+<p>The marking is an
+<a class="autorefs autorefs-internal" title="AgentField
 
 
-<div class="doc doc-object doc-function">
+  
+      dataclass
+  " href="../../reference/types/#rest_framework_services.types.agent_field.AgentField"><code>AgentField</code></a> in DRF's
+per-field <code>style</code> bag, under the
+<a class="autorefs autorefs-internal" title="AGENT
 
 
-<h2 id="rest_framework_services.openapi.enable_openapi.enable_openapi" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">enable_openapi</span>
-
-
-<a href="#rest_framework_services.openapi.enable_openapi.enable_openapi" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">enable_openapi</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+  
+      module-attribute
+  " href="../../reference/types/#rest_framework_services.types.agent_field.AGENT"><code>AGENT</code></a> key:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework</span><span class="w"> </span><span class="kn">import</span> <span class="n">serializers</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGENT</span><span class="p">,</span> <span class="n">AgentField</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">InvoiceSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">Invoice</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;number&quot;</span><span class="p">,</span> <span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;customer&quot;</span><span class="p">,</span> <span class="s2">&quot;etag&quot;</span><span class="p">,</span> <span class="s2">&quot;amount&quot;</span><span class="p">]</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        <span class="n">extra_kwargs</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>            <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;style&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">AGENT</span><span class="p">:</span> <span class="n">AgentField</span><span class="o">.</span><span class="n">handle</span><span class="p">(</span><span class="s2">&quot;Invoice handle for other tools.&quot;</span><span class="p">)}},</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>            <span class="s2">&quot;customer&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;style&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">AGENT</span><span class="p">:</span> <span class="n">AgentField</span><span class="o">.</span><span class="n">handle</span><span class="p">()}},</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>            <span class="s2">&quot;etag&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;style&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">AGENT</span><span class="p">:</span> <span class="n">AgentField</span><span class="o">.</span><span class="n">hidden</span><span class="p">()}},</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>            <span class="s2">&quot;number&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;style&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">AGENT</span><span class="p">:</span> <span class="n">AgentField</span><span class="o">.</span><span class="n">label</span><span class="p">()}},</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>        <span class="p">}</span>
 </span></code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>Set
-<a class="autorefs autorefs-internal" title="ServiceAutoSchema" href="#rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema"><code>ServiceAutoSchema</code></a>
-as the schema on every library view class.</p>
-<p>Call once from <code>AppConfig.ready()</code> (or anywhere after Django apps are
-loaded) to make <code>drf-spectacular</code> see <code>ServiceSpec</code> request bodies,
-response bodies, success statuses, and 422 contracts on:</p>
+<p>Four audiences, and the default is "content":</p>
+<table>
+<thead>
+<tr>
+<th>Marking</th>
+<th>Meaning</th>
+<th>Agent payload</th>
+<th>Agent schema</th>
+<th>REST</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>(unmarked)</em></td>
+<td>content</td>
+<td>included</td>
+<td>included</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td><code>AgentField.label()</code></td>
+<td>names this record for a human</td>
+<td>included</td>
+<td>its <code>description</code>, if given</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td><code>AgentField.handle()</code></td>
+<td>opaque; passed to tools, never spoken</td>
+<td>verbatim</td>
+<td>its <code>description</code>, if given</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td><code>AgentField.hidden()</code></td>
+<td>plumbing</td>
+<td><strong>dropped</strong></td>
+<td>dropped</td>
+<td>unchanged</td>
+</tr>
+</tbody>
+</table>
+<p><code>style</code> is used because it is the only door <code>Meta.extra_kwargs</code> opens onto a
+field constructor — anything else would mean subclassing every field type and
+losing <code>ModelSerializer</code>'s auto-generation, which is the whole point of keeping
+one serializer. DRF consults <code>style</code> only in <code>HTMLFormRenderer</code>, and only for
+its own keys, so <strong>your REST responses do not change</strong>.</p>
+<h2 id="apply-it">Apply it<a class="headerlink" href="#apply-it" title="Permanent link">&para;</a></h2>
+<p>An agent transport renders with
+<a class="autorefs autorefs-internal" title="render_for_agent" href="../../reference/dispatch/#rest_framework_services.dispatch.render_for_agent.render_for_agent"><code>render_for_agent</code></a>
+instead of <code>render_spec_output</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">payload</span> <span class="o">=</span> <span class="n">render_for_agent</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span></code></pre></div>
+<p><code>etag</code> is gone, <code>status</code> reads <code>"Awaiting review"</code>, and <code>id</code> is untouched — a
+handle is somebody else's input, so its constant is never re-spelled.</p>
+<p>For the schema side, hand the same projection to
+<a class="autorefs autorefs-internal" title="output_to_json_schema" href="../../reference/jsonschema/#rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema"><code>output_to_json_schema</code></a>
+so both sides come from the one declaration:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">projection</span> <span class="o">=</span> <span class="n">build_agent_projection</span><span class="p">(</span><span class="n">InvoiceSerializer</span><span class="p">)</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">output_to_json_schema</span><span class="p">(</span><span class="n">InvoiceSerializer</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="n">projection</span><span class="p">)</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">payload</span> <span class="o">=</span> <span class="n">render_for_agent</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="n">projection</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Pass the same <code>kind</code> / <code>paginate</code> you dispatch with, or the schema describes the
+wrong cardinality. The projection lands on the <strong>item</strong> wherever the item sits:
+inside the array for a list, inside <code>items</code> for a paginated envelope. Those
+wrappers are the generator's own shapes and belong to no serializer.</p>
+<p>Building the projection instantiates the serializer, so a transport that
+registers its tools up front should build it <strong>once at registration</strong> and pass
+it to every render, as above.</p>
+<p>A substituted choice field is re-declared in the schema in its <em>display</em> values,
+because that is what the payload now carries. If another tool takes that field
+as input, mark it <code>AgentField.handle()</code> — that suppresses the substitution on
+both sides and keeps the constant.</p>
+<h2 id="nesting">Nesting<a class="headerlink" href="#nesting" title="Permanent link">&para;</a></h2>
+<p>The marking lives on the field object, not in a list on <code>Meta</code>. A nested
+serializer's fields carry their own audience wherever that serializer appears,
+so there is no hoisting rule to learn and nothing to keep in sync when a field
+is renamed:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">LineSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">Serializer</span><span class="p">):</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">sku</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">style</span><span class="o">=</span><span class="p">{</span><span class="n">AGENT</span><span class="p">:</span> <span class="n">AgentField</span><span class="o">.</span><span class="n">handle</span><span class="p">()})</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">description</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">()</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">InvoiceSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">Serializer</span><span class="p">):</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">number</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">style</span><span class="o">=</span><span class="p">{</span><span class="n">AGENT</span><span class="p">:</span> <span class="n">AgentField</span><span class="o">.</span><span class="n">label</span><span class="p">()})</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">lines</span> <span class="o">=</span> <span class="n">LineSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span></code></pre></div>
+<h2 id="two-mistakes-that-raise-rather-than-pass-quietly">Two mistakes that raise rather than pass quietly<a class="headerlink" href="#two-mistakes-that-raise-rather-than-pass-quietly" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>ServiceCreateView</code>, <code>ServiceUpdateView</code>, <code>ServiceDeleteView</code></li>
-<li><code>SelectorListView</code>, <code>SelectorRetrieveView</code></li>
-<li><code>ServiceViewSet</code>, <code>SelectorViewSet</code></li>
+<li>A value under <code>AGENT</code> that is not an <code>AgentField</code> — the shape a half-finished
+  migration leaves behind (<code>{"style": {AGENT: "handle"}}</code>). It would otherwise
+  do nothing at all.</li>
+<li>Two fields both marked <code>AgentField.label()</code>. A record has one name; silently
+  picking the first is the kind of thing you find in a transcript weeks later.</li>
 </ul>
-<p>The function-local imports keep <code>drf-spectacular</code> an optional
-dependency: importing
-<code>rest_framework_services.openapi</code> does not require it, and only
-this call brings in the schema-generator code.</p>
-<p>User subclasses inherit <code>schema = ServiceAutoSchema()</code> automatically;
-classes that set <code>schema = ...</code> explicitly keep their own choice.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">ServiceAutoSchema</span>
-
-
-<a href="#rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="drf_spectacular.openapi.AutoSchema">AutoSchema</span></code></p>
-
-
-
-        <p><code>AutoSchema</code> that derives its request / response from a <code>ServiceSpec</code>.</p>
-<p>On mutation surfaces (standalone <code>Service*View</code> classes, the
-<code>ServiceViewSet</code> action mixins, and <code>@service_action</code>):</p>
-<ul>
-<li>Request body from <code>spec.input_serializer</code>, a bare dataclass being auto-wrapped
-  in <code>DataclassSerializer</code>, built with whatever partial flag <code>spec.partial</code>
-  resolves to so the documented body matches what actually validates.</li>
-<li>Success response from <code>spec.output_selector_spec.output_serializer</code>, or a
-  no-content response when that is unset and the action's default status is 204.</li>
-<li>A <code>422</code> documenting
-  <a class="autorefs autorefs-internal" title="ServiceErrorSerializer" href="#rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer"><code>ServiceErrorSerializer</code></a>,
-  as <code>spec.document_service_error</code> gates it.</li>
-</ul>
-<p>Read surfaces (<code>Selector*View</code> and the read-side action mixins) lean on
-the base <code>AutoSchema</code> for their body: <code>output_serializer</code> is already
-wired through <code>get_serializer_class()</code>, which is what drf-spectacular
-reads natively. The one addition is <code>_get_filter_parameters</code>,
-contributing the query parameters for a <code>SelectorSpec.filter_set</code>, so
-moving a FilterSet from a view-level <code>filterset_class</code> +
-<code>DjangoFilterBackend</code> onto <code>spec.filter_set</code> leaves the generated
-OpenAPI unchanged.</p>
-<p>User-supplied <code>@extend_schema</code> annotations always win, and
-<code>@extend_schema(parameters=...)</code> merges over the filter parameters exactly
-as it does for a view-level FilterSet.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">ServiceErrorSerializer</span>
-
-
-<a href="#rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="rest_framework.serializers.Serializer">Serializer</span></code></p>
-
-
-
-        <p>Single-field <code>detail</code> serializer that mirrors <code>_ServiceAPIException</code>.</p>
-<p>Used by
-<a class="autorefs autorefs-internal" title="ServiceAutoSchema" href="#rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema"><code>ServiceAutoSchema</code></a>
-to attach a <code>422</code> response to every spec-driven mutation in the generated OpenAPI
-document. It is <em>only</em> used for schema generation; runtime 422 bodies are produced
-by DRF's exception handler from <code>_ServiceAPIException</code>.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
+<p>Both raise <code>ImproperlyConfigured</code> naming the serializer and the field.</p>
+<h2 id="what-this-deliberately-does-not-do">What this deliberately does not do<a class="headerlink" href="#what-this-deliberately-does-not-do" title="Permanent link">&para;</a></h2>
+<p>It does not relocate internal fields into a reserved subtree. A payload that a
+transport also emits as text is read in full either way, so moving a field costs
+its keys a second time and hides nothing. What an agent must never use is
+dropped; what it must pass on but never speak stays where it is and says so in
+the schema.</p>
 
 
 

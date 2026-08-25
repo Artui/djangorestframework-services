@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/reference/openapi/">
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/reference/audience/">
       
       
-        <link rel="prev" href="../audience/">
+        <link rel="prev" href="../jsonschema/">
       
       
-        <link rel="next" href="../exceptions/">
+        <link rel="next" href="../openapi/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>OpenAPI - djangorestframework-services</title>
+        <title>Audience projection - djangorestframework-services</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#openapi" class="md-skip">
+        <a href="#audience-projection" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              OpenAPI
+              Audience projection
             
           </span>
         </div>
@@ -1350,34 +1350,6 @@
                 
   
   
-  
-  
-    <li class="md-nav__item">
-      <a href="../audience/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Audience projection
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
     
   
   
@@ -1397,7 +1369,7 @@
   <span class="md-ellipsis">
     
   
-    OpenAPI
+    Audience projection
   
 
     
@@ -1415,7 +1387,7 @@
   <span class="md-ellipsis">
     
   
-    OpenAPI
+    Audience projection
   
 
     
@@ -1441,10 +1413,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.openapi.enable_openapi.enable_openapi" class="md-nav__link">
+  <a href="#agent_projection_for_spec" class="md-nav__link">
     <span class="md-ellipsis">
       
-        enable_openapi
+        agent_projection_for_spec
       
     </span>
   </a>
@@ -1452,10 +1424,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema" class="md-nav__link">
+  <a href="#rest_framework_services.audience.agent_projection_for_spec.agent_projection_for_spec" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ServiceAutoSchema
+        agent_projection_for_spec
       
     </span>
   </a>
@@ -1463,10 +1435,65 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer" class="md-nav__link">
+  <a href="#build_agent_projection" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ServiceErrorSerializer
+        build_agent_projection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.audience.build_agent_projection.build_agent_projection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_agent_projection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#project_payload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        project_payload
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.audience.project_payload.project_payload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        project_payload
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#annotate_output_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_output_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.audience.annotate_output_schema.annotate_output_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_output_schema
       
     </span>
   </a>
@@ -1477,6 +1504,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenAPI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1544,10 +1599,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.openapi.enable_openapi.enable_openapi" class="md-nav__link">
+  <a href="#agent_projection_for_spec" class="md-nav__link">
     <span class="md-ellipsis">
       
-        enable_openapi
+        agent_projection_for_spec
       
     </span>
   </a>
@@ -1555,10 +1610,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema" class="md-nav__link">
+  <a href="#rest_framework_services.audience.agent_projection_for_spec.agent_projection_for_spec" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ServiceAutoSchema
+        agent_projection_for_spec
       
     </span>
   </a>
@@ -1566,10 +1621,65 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer" class="md-nav__link">
+  <a href="#build_agent_projection" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ServiceErrorSerializer
+        build_agent_projection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.audience.build_agent_projection.build_agent_projection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_agent_projection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#project_payload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        project_payload
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.audience.project_payload.project_payload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        project_payload
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#annotate_output_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_output_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.audience.annotate_output_schema.annotate_output_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_output_schema
       
     </span>
   </a>
@@ -1593,7 +1703,7 @@
 
 
   
-    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/reference/openapi.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/reference/audience.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1601,164 +1711,202 @@
   
 
 
-<h1 id="openapi">OpenAPI<a class="headerlink" href="#openapi" title="Permanent link">&para;</a></h1>
+<h1 id="audience-projection">Audience projection<a class="headerlink" href="#audience-projection" title="Permanent link">&para;</a></h1>
+<p>One serializer, more than one kind of reader. These helpers let a field say
+who it is written for — see the
+<a href="../../recipes/agent-audience/">recipe</a> for the task-shaped version — and let an
+agent transport apply that declaration to payloads and schemas from the same
+source, so the two cannot disagree.</p>
+<p>Nothing here is read by the DRF view path. A serializer marked up for an agent
+renders byte-identically behind a viewset.</p>
+<p>Nor is there any wording for a model here. The markings say what a field <em>is</em>;
+what a reader should do about it depends on the reader, and the transport is
+what knows — so <code>annotate_output_schema</code> takes the sentence rather than
+supplying one.</p>
+<p>The value types (<code>FieldAudience</code>, <code>AgentField</code>, <code>AgentProjection</code>, <code>AGENT</code>) are
+documented under <a href="../types/">Types</a>; the render entry points
+(<code>render_for_agent</code> / <code>arender_for_agent</code>) under
+<a href="../dispatch/">Dispatch</a>.</p>
+<h2 id="agent_projection_for_spec"><code>agent_projection_for_spec</code><a class="headerlink" href="#agent_projection_for_spec" title="Permanent link">&para;</a></h2>
 
 
 <div class="doc doc-object doc-function">
 
 
-<h2 id="rest_framework_services.openapi.enable_openapi.enable_openapi" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">enable_openapi</span>
+<h2 id="rest_framework_services.audience.agent_projection_for_spec.agent_projection_for_spec" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">agent_projection_for_spec</span>
 
 
-<a href="#rest_framework_services.openapi.enable_openapi.enable_openapi" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">enable_openapi</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<a href="#rest_framework_services.audience.agent_projection_for_spec.agent_projection_for_spec" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">agent_projection_for_spec</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AgentProjection</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p>Set
-<a class="autorefs autorefs-internal" title="ServiceAutoSchema" href="#rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema"><code>ServiceAutoSchema</code></a>
-as the schema on every library view class.</p>
-<p>Call once from <code>AppConfig.ready()</code> (or anywhere after Django apps are
-loaded) to make <code>drf-spectacular</code> see <code>ServiceSpec</code> request bodies,
-response bodies, success statuses, and 422 contracts on:</p>
-<ul>
-<li><code>ServiceCreateView</code>, <code>ServiceUpdateView</code>, <code>ServiceDeleteView</code></li>
-<li><code>SelectorListView</code>, <code>SelectorRetrieveView</code></li>
-<li><code>ServiceViewSet</code>, <code>SelectorViewSet</code></li>
-</ul>
-<p>The function-local imports keep <code>drf-spectacular</code> an optional
-dependency: importing
-<code>rest_framework_services.openapi</code> does not require it, and only
-this call brings in the schema-generator code.</p>
-<p>User subclasses inherit <code>schema = ServiceAutoSchema()</code> automatically;
-classes that set <code>schema = ...</code> explicitly keep their own choice.</p>
+        <p>Resolve the agent markings on whatever serializer <code>spec</code> renders through.</p>
+<p>A selector keeps it on <code>output_serializer</code>; a service keeps it one level
+down, on <code>output_selector_spec</code>. A transport that registers its tools up
+front calls this once per spec and hands the result to
+<a class="autorefs autorefs-internal" title="render_for_agent" href="../dispatch/#rest_framework_services.dispatch.render_for_agent.render_for_agent"><code>render_for_agent</code></a>,
+rather than paying a serializer instantiation on every call — and rather than
+each transport re-deriving where a spec keeps its output serializer.</p>
 
 
     </div>
 
-</div>
-
-<div class="doc doc-object doc-class">
+</div><h2 id="build_agent_projection"><code>build_agent_projection</code><a class="headerlink" href="#build_agent_projection" title="Permanent link">&para;</a></h2>
 
 
-
-<h2 id="rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">ServiceAutoSchema</span>
+<div class="doc doc-object doc-function">
 
 
-<a href="#rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema" class="headerlink" title="Permanent link">&para;</a></h2>
+<h2 id="rest_framework_services.audience.build_agent_projection.build_agent_projection" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">build_agent_projection</span>
 
+
+<a href="#rest_framework_services.audience.build_agent_projection.build_agent_projection" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_agent_projection</span><span class="p">(</span><span class="n">serializer_cls</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AgentProjection</span>
+</span></code></pre></div>
 
     <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="drf_spectacular.openapi.AutoSchema">AutoSchema</span></code></p>
+
+        <p>Resolve one serializer class's agent presentation, recursing into children.</p>
+<p>Reads
+<a class="autorefs autorefs-internal" title="AgentField
 
 
-
-        <p><code>AutoSchema</code> that derives its request / response from a <code>ServiceSpec</code>.</p>
-<p>On mutation surfaces (standalone <code>Service*View</code> classes, the
-<code>ServiceViewSet</code> action mixins, and <code>@service_action</code>):</p>
-<ul>
-<li>Request body from <code>spec.input_serializer</code>, a bare dataclass being auto-wrapped
-  in <code>DataclassSerializer</code>, built with whatever partial flag <code>spec.partial</code>
-  resolves to so the documented body matches what actually validates.</li>
-<li>Success response from <code>spec.output_selector_spec.output_serializer</code>, or a
-  no-content response when that is unset and the action's default status is 204.</li>
-<li>A <code>422</code> documenting
-  <a class="autorefs autorefs-internal" title="ServiceErrorSerializer" href="#rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer"><code>ServiceErrorSerializer</code></a>,
-  as <code>spec.document_service_error</code> gates it.</li>
-</ul>
-<p>Read surfaces (<code>Selector*View</code> and the read-side action mixins) lean on
-the base <code>AutoSchema</code> for their body: <code>output_serializer</code> is already
-wired through <code>get_serializer_class()</code>, which is what drf-spectacular
-reads natively. The one addition is <code>_get_filter_parameters</code>,
-contributing the query parameters for a <code>SelectorSpec.filter_set</code>, so
-moving a FilterSet from a view-level <code>filterset_class</code> +
-<code>DjangoFilterBackend</code> onto <code>spec.filter_set</code> leaves the generated
-OpenAPI unchanged.</p>
-<p>User-supplied <code>@extend_schema</code> annotations always win, and
-<code>@extend_schema(parameters=...)</code> merges over the filter parameters exactly
-as it does for a view-level FilterSet.</p>
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.agent_field.AgentField"><code>AgentField</code></a> markings
+out of each field's <code>style</code> bag and collects the <code>ChoiceField</code> labels DRF
+already holds. Pure in the serializer class, so the result is built once and
+reused — see
+<a class="autorefs autorefs-internal" title="AgentProjection
 
 
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.agent_projection.AgentProjection"><code>AgentProjection</code></a>.</p>
+<p>A class that is not a DRF serializer (a plain <code>@dataclass</code> output, or
+<code>None</code>) yields an empty projection rather than an error: not every spec
+renders through a serializer, and nothing is marked up in those that don't.</p>
 
 
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="django.core.exceptions.ImproperlyConfigured">ImproperlyConfigured</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If a field carries
+something other than an <code>AgentField</code> under <code>AGENT</code>, or if two
+fields both claim <code>LABEL</code>. Neither can be caught later — the first
+would silently do nothing, and the second would silently pick one.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
 
     </div>
 
-</div>
-
-<div class="doc doc-object doc-class">
+</div><h2 id="project_payload"><code>project_payload</code><a class="headerlink" href="#project_payload" title="Permanent link">&para;</a></h2>
 
 
-
-<h2 id="rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">ServiceErrorSerializer</span>
+<div class="doc doc-object doc-function">
 
 
-<a href="#rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer" class="headerlink" title="Permanent link">&para;</a></h2>
+<h2 id="rest_framework_services.audience.project_payload.project_payload" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">project_payload</span>
 
+
+<a href="#rest_framework_services.audience.project_payload.project_payload" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">project_payload</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">projection</span><span class="p">:</span> <span class="n">AgentProjection</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
 
     <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="rest_framework.serializers.Serializer">Serializer</span></code></p>
+
+        <p>Drop plumbing and speak enum labels, at any depth.</p>
+<p>Two changes, both driven by the same declaration that shapes the schema so
+the two cannot disagree:</p>
+<ul>
+<li>fields marked <code>HIDDEN</code> are <strong>removed</strong>. Removed rather than nested under
+  some reserved subtree: a payload that is also emitted as text is read in
+  full either way, so relocating a field costs its keys again and hides
+  nothing. What an agent must never use should not be there.</li>
+<li>a <code>ChoiceField</code>'s constant is replaced by its display value, so the enum
+  does not have to be spelled out to a person as <code>PENDING_REVIEW</code>. <strong>Not</strong>
+  on a <code>HANDLE</code>, which some other tool takes as input. A
+  <code>MultipleChoiceField</code> renders a <em>collection</em> of constants, so each
+  member is substituted rather than the collection looked up whole.</li>
+</ul>
+<p>Apply this where a payload becomes the agent's <em>answer</em>. Not where it feeds
+the next step of a chain, which still needs the handles.</p>
 
 
+    </div>
 
-        <p>Single-field <code>detail</code> serializer that mirrors <code>_ServiceAPIException</code>.</p>
-<p>Used by
-<a class="autorefs autorefs-internal" title="ServiceAutoSchema" href="#rest_framework_services.openapi.service_auto_schema.ServiceAutoSchema"><code>ServiceAutoSchema</code></a>
-to attach a <code>422</code> response to every spec-driven mutation in the generated OpenAPI
-document. It is <em>only</em> used for schema generation; runtime 422 bodies are produced
-by DRF's exception handler from <code>_ServiceAPIException</code>.</p>
+</div><h2 id="annotate_output_schema"><code>annotate_output_schema</code><a class="headerlink" href="#annotate_output_schema" title="Permanent link">&para;</a></h2>
 
 
+<div class="doc doc-object doc-function">
 
 
+<h2 id="rest_framework_services.audience.annotate_output_schema.annotate_output_schema" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">annotate_output_schema</span>
 
 
+<a href="#rest_framework_services.audience.annotate_output_schema.annotate_output_schema" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">annotate_output_schema</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">schema</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">projection</span><span class="p">:</span> <span class="n">AgentProjection</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">handle_description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
 
+    <div class="doc doc-contents first">
 
+        <p>Apply the same projection to a schema that
+<a class="autorefs autorefs-internal" title="project_payload" href="#rest_framework_services.audience.project_payload.project_payload"><code>project_payload</code></a>
+applies to the payload.</p>
+<p>Three changes, each the mirror of one the payload undergoes:</p>
+<ul>
+<li>hidden properties are removed, and dropped from <code>required</code>;</li>
+<li>a marked field's <code>description</code> replaces the <code>help_text</code> one, so a handle
+  says what it is for in the schema a model reads without that wording
+  leaking into the browsable API;</li>
+<li>a substituted choice field is re-declared in terms of its <strong>display</strong>
+  values, because that is what the projected payload now carries. The
+  constant is gone from the response by design — a field another tool takes
+  as input should be marked <code>HANDLE</code>, which suppresses the substitution on
+  both sides.</li>
+</ul>
+<p>Generating both sides from one declaration is the point: a schema that
+advertises a field the payload no longer carries is worse than either
+behaviour on its own.</p>
+<p><code>handle_description</code> is the fallback wording for a <code>HANDLE</code> that
+declares none of its own, and defaults to <strong>nothing</strong>. Telling a reader what
+to do with an identifier is advice for one kind of reader, and this package
+does not know which kind is reading — a CSV export has no use for it, and
+"do not read this out" only means something to a consumer that reads things
+out. The transport that knows its audience supplies the sentence.</p>
+<p>Takes the <strong>item</strong> schema. Callers that wrap items in an envelope of their
+own — an array, or a pagination object — annotate the item and wrap
+afterwards; <code>output_to_json_schema(projection=...)</code> does exactly that.</p>
 
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
 
     </div>
 
