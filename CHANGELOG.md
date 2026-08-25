@@ -7,7 +7,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0] — 2026-08-25
+
+### Added
+
+- **Agent field audience — one serializer, more than one kind of reader.** A
+  serializer written for a frontend is read verbatim by a model when the same
+  spec is exposed as an agent tool, and the two want different subsets of it:
+  a frontend needs the primary key to route on, where a model will read it out
+  loud as if it were content. Declare the difference once, on the field, with
+  `AgentField` in DRF's per-field `style` bag under `AGENT`:
+
+  ```python
+  class Meta:
+      model = Invoice
+      fields = ["id", "number", "status", "etag"]
+      extra_kwargs = {
+          "id": {"style": {AGENT: AgentField.handle("Invoice handle.")}},
+          "etag": {"style": {AGENT: AgentField.hidden()}},
+          "number": {"style": {AGENT: AgentField.label()}},
+      }
+  ```
+
+  `style` is used because it is the only door `Meta.extra_kwargs` opens onto a
+  field constructor, so a `ModelSerializer` keeps auto-generating its fields.
+  Being **on the field** rather than in a list on `Meta` is what lets the
+  marking travel into nested serializers with no hoisting rule, and what stops
+  a rename from silently desyncing it. The DRF view path reads none of this —
+  `style` is consulted only by `HTMLFormRenderer`, and only for its own keys —
+  so REST responses are byte-identical whether or not a serializer is marked up.
+
+  The payload and the schema are generated from that one declaration, so they
+  cannot disagree about what a caller receives: hidden fields leave both,
+  and a substituted choice field is re-declared in the schema in its display
+  values. `output_to_json_schema` takes a `projection=` and applies it to the
+  **item**, wherever the item sits for the requested `kind` — the array
+  wrapper and the pagination envelope are the generator's own shapes and
+  belong to no serializer.
+
+  New public API: `AGENT`, `AgentField`, `AgentProjection`, `FieldAudience`,
+  `build_agent_projection`, `agent_projection_for_spec`, `project_payload`,
+  `annotate_output_schema`, and `render_for_agent` / `arender_for_agent` on the
+  dispatch surface.
+
+  **No wording for a model lives here.** The markings say what a field *is*;
+  what a reader should do about it depends on the reader, and only the
+  transport knows which kind is reading. `annotate_output_schema` and
+  `output_to_json_schema` take a `handle_description=` and default to emitting
+  nothing. The last of those is the one an alternate transport calls
+  instead of `render_spec_output`, so every agent transport shapes payloads
+  identically rather than each growing its own post-processor.
+
+- **Choice fields carry their labels into the schema.** DRF holds
+  `{value: display}` and only the values used to survive. A field whose labels
+  say something its constants do not now emits
+  `{"oneOf": [{"const": "PENDING_REVIEW", "title": "Awaiting review"}, ...]}`.
+  `title` is an annotation keyword, so the accepted values are exactly the
+  `const`s — identical to the `enum` form it replaces. Labels that merely repeat
+  their value stay a bare `enum`.
+
 ### Fixed
+
+- **A choice field's schema could reject a value the serializer accepts.**
+  `allow_blank` / `allow_null` were widened in unconditionally, so a field
+  already declaring `""` or `None` among its choices — Django prepends an
+  empty choice to every `FilePathField` — emitted that `const` twice. `oneOf`
+  requires *exactly* one match, so the widening meant to admit the value
+  rejected it instead.
+
+- **Output schemas dropped every `read_only` field.** `serializer_to_schema`
+  skips them by design — it was written for input — and `output_to_json_schema`
+  reused the same walker, so an output schema was silently missing its primary
+  key, its ETag, and every `SerializerMethodField`, none of which had stopped
+  being rendered. A consumer generating an `outputSchema` from a spec advertised
+  a shape its own payloads did not match. `serializer_to_schema` now takes
+  `for_output`, which the output path passes: `write_only` fields drop out
+  instead. `required` on an output schema means the key is present, not that
+  its value is non-null, and is claimed only where DRF cannot omit it —
+  `Field.get_attribute` raises `SkipField` and drops the key entirely when the
+  source attribute is missing and the field has no default, does not allow
+  null, and is not required. **This changes the shape of every generated
+  output schema.**
+
+- **`MultipleChoiceField` was described as accepting a single value.** It
+  subclasses `ChoiceField`, so the walk caught it first and emitted a plain
+  `enum` for a field that accepts a *set*. It now produces a `uniqueItems` array
+  of the choices, with `minItems: 1` when `allow_empty=False`. `FilePathField`
+  subclasses `ChoiceField` too but is single-valued, so it keeps the plain
+  branch.
+
+- **`allow_blank` / `allow_null` never reached a choice field's schema.** Both
+  widen what DRF accepts and neither appears in `field.choices`, so the schema
+  claimed an exhaustive value set that rejected input the serializer takes.
 
 - **The floor-resolution CI gate could resolve against a stale package index.**
   Its purpose is to answer "what would a consumer installing from scratch get" —
@@ -2677,7 +2768,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.42.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.43.0...HEAD
+[0.43.0]: https://github.com/Artui/djangorestframework-services/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/Artui/djangorestframework-services/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/Artui/djangorestframework-services/compare/v0.40.0...v0.41.0
 [0.40.0]: https://github.com/Artui/djangorestframework-services/compare/v0.39.0...v0.40.0

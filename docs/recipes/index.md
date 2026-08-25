@@ -40,3 +40,7 @@ the [Quickstart](../quickstart.md) and [Concepts](../concepts.md).
   source; tags, filtered views, and several registries per project.
 - **[Scaffold a service app](scaffold-app.md)** — `startserviceapp` and
   the convention behind `services/`, `selectors/`, `validators/`.
+- **[Mark fields for an agent audience](agent-audience.md)** — keep one
+  serializer for your API and your agent tools, and declare per field which
+  are content, which are opaque handles, and which are plumbing a model
+  should never read out.
