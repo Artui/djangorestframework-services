@@ -8,14 +8,12 @@ from typing import Any
 from rest_framework_services.types.agent_projection import AgentProjection
 from rest_framework_services.types.field_audience import FieldAudience
 
-HANDLE_DESCRIPTION = (
-    "Opaque identifier. Pass it to other tools that ask for one; do not read it out."
-)
-"""Fallback wording for a ``HANDLE`` that declares no ``description`` of its own."""
-
 
 def annotate_output_schema(
-    schema: dict[str, Any] | None, projection: AgentProjection
+    schema: dict[str, Any] | None,
+    projection: AgentProjection,
+    *,
+    handle_description: str | None = None,
 ) -> dict[str, Any] | None:
     """Apply the same projection to a schema that
     [`project_payload`][rest_framework_services.audience.project_payload.project_payload]
@@ -37,20 +35,29 @@ def annotate_output_schema(
     advertises a field the payload no longer carries is worse than either
     behaviour on its own.
 
+    ``handle_description`` is the fallback wording for a ``HANDLE`` that
+    declares none of its own, and defaults to **nothing**. Telling a reader what
+    to do with an identifier is advice for one kind of reader, and this package
+    does not know which kind is reading — a CSV export has no use for it, and
+    "do not read this out" only means something to a consumer that reads things
+    out. The transport that knows its audience supplies the sentence.
+
     Takes the **item** schema. Callers that wrap items in an envelope of their
     own — an array, or a pagination object — annotate the item and wrap
     afterwards; ``output_to_json_schema(projection=...)`` does exactly that.
     """
     if schema is None or projection.is_empty():
         return schema
-    return _annotate(schema, projection)
+    return _annotate(schema, projection, handle_description)
 
 
-def _annotate(schema: dict[str, Any], projection: AgentProjection) -> dict[str, Any]:
+def _annotate(
+    schema: dict[str, Any], projection: AgentProjection, handle_description: str | None
+) -> dict[str, Any]:
     # A list schema wraps the item schema; project the items and keep the array.
     items = schema.get("items")
     if isinstance(items, dict):
-        return {**schema, "items": _annotate(items, projection)}
+        return {**schema, "items": _annotate(items, projection, handle_description)}
     properties = schema.get("properties")
     if not isinstance(properties, dict):
         return schema
@@ -60,10 +67,12 @@ def _annotate(schema: dict[str, Any], projection: AgentProjection) -> dict[str, 
         if audience is FieldAudience.HIDDEN:
             continue
         child = projection.nested.get(name)
-        resolved = _annotate(subschema, child) if child is not None else subschema
+        resolved = (
+            _annotate(subschema, child, handle_description) if child is not None else subschema
+        )
         if audience is not FieldAudience.HANDLE and name in projection.choice_labels:
             resolved = _spoken_schema(resolved, projection.choice_labels[name])
-        description = _description(projection, name, audience)
+        description = _description(projection, name, audience, handle_description)
         annotated[name] = {**resolved, "description": description} if description else resolved
     result: dict[str, Any] = {**schema, "properties": annotated}
     required = [name for name in schema.get("required", []) if name in annotated]
@@ -101,8 +110,13 @@ def _spoken_schema(schema: dict[str, Any], labels: Mapping[Any, str]) -> dict[st
     return schema
 
 
-def _description(projection: AgentProjection, name: str, audience: FieldAudience) -> str | None:
+def _description(
+    projection: AgentProjection,
+    name: str,
+    audience: FieldAudience,
+    handle_description: str | None,
+) -> str | None:
     marking = projection.fields.get(name)
     if marking is not None and marking.description:
         return marking.description
-    return HANDLE_DESCRIPTION if audience is FieldAudience.HANDLE else None
+    return handle_description if audience is FieldAudience.HANDLE else None

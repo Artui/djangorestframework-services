@@ -47,8 +47,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   New public API: `AGENT`, `AgentField`, `AgentProjection`, `FieldAudience`,
   `build_agent_projection`, `agent_projection_for_spec`, `project_payload`,
-  `annotate_output_schema`, `HANDLE_DESCRIPTION`, and `render_for_agent` /
-  `arender_for_agent` on the dispatch surface. The last of those is the one an alternate transport calls
+  `annotate_output_schema`, and `render_for_agent` / `arender_for_agent` on the
+  dispatch surface.
+
+  **No wording for a model lives here.** The markings say what a field *is*;
+  what a reader should do about it depends on the reader, and only the
+  transport knows which kind is reading. `annotate_output_schema` and
+  `output_to_json_schema` take a `handle_description=` and default to emitting
+  nothing. The last of those is the one an alternate transport calls
   instead of `render_spec_output`, so every agent transport shapes payloads
   identically rather than each growing its own post-processor.
 

@@ -23,6 +23,7 @@ def output_to_json_schema(
     kind: SelectorKind | None = None,
     paginate: bool = False,
     projection: AgentProjection | None = None,
+    handle_description: str | None = None,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
 ) -> dict[str, Any] | None:
     """Build a JSON Schema for an output serializer, or ``None`` when undeclared.
@@ -43,6 +44,12 @@ def output_to_json_schema(
     own shapes and belong to no serializer, so a projection walking them would
     look for markings that cannot exist and silently annotate nothing.
 
+    ``handle_description`` is passed through to
+    [`annotate_output_schema`][rest_framework_services.audience.annotate_output_schema.annotate_output_schema]
+    as the fallback wording for an unlabelled handle. It defaults to nothing:
+    what a reader should *do* with an identifier depends on the reader, and the
+    transport is what knows.
+
     ``registry`` supplies consumer rules for custom field / Python types — see
     [`JsonSchemaRegistry`][rest_framework_services.types.json_schema_registry.JsonSchemaRegistry].
     """
@@ -50,7 +57,10 @@ def output_to_json_schema(
     if item_schema is None:
         return None
     if projection is not None:
-        item_schema = annotate_output_schema(item_schema, projection) or item_schema
+        item_schema = (
+            annotate_output_schema(item_schema, projection, handle_description=handle_description)
+            or item_schema
+        )
     if kind is not SelectorKind.LIST:
         return item_schema
     array_schema: dict[str, Any] = {"type": "array", "items": item_schema}

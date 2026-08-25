@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from rest_framework_services.audience.annotate_output_schema import (
-    HANDLE_DESCRIPTION,
-    annotate_output_schema,
-)
+from rest_framework_services.audience.annotate_output_schema import annotate_output_schema
 from rest_framework_services.audience.build_agent_projection import build_agent_projection
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
 from rest_framework_services.types.agent_field import AGENT, AgentField
@@ -28,9 +25,14 @@ class _Invoice(serializers.Serializer):
     lines = _Line(many=True)
 
 
+HANDLE_WORDING = "Opaque identifier. Pass it on; do not read it out."
+
+
 def _annotated(**kwargs: object) -> dict:
     schema = output_to_json_schema(_Invoice, **kwargs)  # type: ignore[arg-type]
-    return annotate_output_schema(schema, build_agent_projection(_Invoice))
+    return annotate_output_schema(
+        schema, build_agent_projection(_Invoice), handle_description=HANDLE_WORDING
+    )
 
 
 def test_hidden_properties_leave_schema_and_required() -> None:
@@ -45,8 +47,8 @@ def test_handle_descriptions() -> None:
     properties = _annotated()["properties"]
 
     assert properties["id"]["description"] == "Invoice handle."
-    # A handle with no declared wording still says what it is.
-    assert properties["customer"]["description"] == HANDLE_DESCRIPTION
+    # A handle with no declared wording falls back to the caller's sentence.
+    assert properties["customer"]["description"] == HANDLE_WORDING
     # help_text survives where nothing overrides it.
     assert properties["number"]["description"] == "Invoice number."
 
@@ -147,3 +149,18 @@ class TestSpokenChoiceSchemas:
         assert properties["listed"] == {"enum": ["Awaiting review", "Paid"]}
         # Nothing enum-shaped to rewrite; the rule is respected as written.
         assert properties["opaque"] == {"type": "string"}
+
+
+def test_an_unlabelled_handle_says_nothing_by_default() -> None:
+    """What a reader should *do* with an identifier depends on the reader.
+
+    This package does not know which kind is reading, so it supplies no wording
+    unless the transport that does know passes one in.
+    """
+    schema = annotate_output_schema(
+        output_to_json_schema(_Invoice), build_agent_projection(_Invoice)
+    )
+
+    assert "description" not in schema["properties"]["customer"]
+    # An explicitly declared description is still emitted; it came from the author.
+    assert schema["properties"]["id"]["description"] == "Invoice handle."

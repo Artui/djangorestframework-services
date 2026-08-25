@@ -8,7 +8,6 @@ for typical usage; deeper imports (``rest_framework_services.mutations``,
 """
 
 from rest_framework_services.audience import (
-    HANDLE_DESCRIPTION,
     agent_projection_for_spec,
     annotate_output_schema,
     build_agent_projection,
@@ -177,7 +176,6 @@ __all__ = [
     "FieldChange",
     "ForwardRelationSpec",
     "GenericRelationSpec",
-    "HANDLE_DESCRIPTION",
     "HttpExtras",
     "InputRequired",
     "InputRequiredType",

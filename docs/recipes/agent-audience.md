@@ -40,7 +40,7 @@ Four audiences, and the default is "content":
 | --- | --- | --- | --- | --- |
 | *(unmarked)* | content | included | included | unchanged |
 | `AgentField.label()` | names this record for a human | included | its `description`, if given | unchanged |
-| `AgentField.handle()` | opaque; passed to tools, never spoken | verbatim | `description` says so | unchanged |
+| `AgentField.handle()` | opaque; passed to tools, never spoken | verbatim | its `description`, if given | unchanged |
 | `AgentField.hidden()` | plumbing | **dropped** | dropped | unchanged |
 
 `style` is used because it is the only door `Meta.extra_kwargs` opens onto a

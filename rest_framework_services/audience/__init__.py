@@ -9,15 +9,11 @@ every agent transport identically. The DRF view path reads none of it.
 from rest_framework_services.audience.agent_projection_for_spec import (
     agent_projection_for_spec,
 )
-from rest_framework_services.audience.annotate_output_schema import (
-    HANDLE_DESCRIPTION,
-    annotate_output_schema,
-)
+from rest_framework_services.audience.annotate_output_schema import annotate_output_schema
 from rest_framework_services.audience.build_agent_projection import build_agent_projection
 from rest_framework_services.audience.project_payload import project_payload
 
 __all__ = [
-    "HANDLE_DESCRIPTION",
     "agent_projection_for_spec",
     "annotate_output_schema",
     "build_agent_projection",
