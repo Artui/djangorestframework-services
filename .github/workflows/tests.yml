@@ -73,8 +73,18 @@ jobs:
       # likely to use something a newer Python removed.
       - name: Use the floor Python
         run: uv python install 3.10
+      # `--refresh` on both resolutions below. This job's whole claim is "what a
+      # consumer resolving from scratch would get", and the runner's uv cache is
+      # shared across runs: without it the answer comes from whatever package
+      # list that cache happens to hold, which can be hours behind the index.
+      # Not hypothetical -- a sibling's gate failed a floor raise as
+      # unsatisfiable while the index had been serving the release for some
+      # time, two re-runs reused the same cache and failed identically, and a
+      # cacheless resolve of the same requirement succeeded at once. A stale
+      # listing makes this gate report the past, in whichever direction happens
+      # to be wrong: inventing a broken floor, or hiding a real one.
       - name: Resolve every declared dependency at its floor
-        run: uv lock --resolution lowest-direct --python 3.10
+        run: uv lock --resolution lowest-direct --python 3.10 --refresh
       # --frozen and --no-sync are load-bearing, not tidiness. uv records the
       # resolution mode in the lockfile and silently discards a lock resolved
       # in a different one -- a plain `uv sync` here prints "Ignoring existing
@@ -102,7 +112,7 @@ jobs:
       - name: Import the package installed alone, at its floors
         run: |
           uv venv --python 3.10 .venv-floor
-          uv pip install --python .venv-floor/bin/python --resolution lowest-direct -e .
+          uv pip install --python .venv-floor/bin/python --resolution lowest-direct --refresh -e .
           uv pip list --python .venv-floor/bin/python
           .venv-floor/bin/python - <<'PY'
           import django
