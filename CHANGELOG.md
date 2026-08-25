@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The floor-resolution CI gate could resolve against a stale package index.**
+  Its purpose is to answer "what would a consumer installing from scratch get" —
+  the comment above it cites a real incident where only a consumer resolving from
+  scratch caught a bad floor. But both of its resolutions read the runner's
+  shared uv cache, so the answer came from whatever package list that cache held
+  rather than from the index. A sibling's gate failed a floor raise as
+  unsatisfiable while the index had been serving the release for some time; two
+  re-runs reused the same cache and failed identically, and a cacheless resolve
+  of the same requirement succeeded at once. Both resolutions now use
+  `--refresh`, so the gate measures what it claims to. A stale listing was
+  dangerous in both directions: it can invent a broken floor, or hide a real one.
+
 ## [0.42.0] — 2026-08-24
 
 ### Upgrade notes
