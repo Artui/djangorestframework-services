@@ -383,11 +383,27 @@ class TestOutputDirection:
         assert "generated" in schema["properties"]
         assert "secret" not in schema["properties"]
 
-    def test_every_rendered_field_is_required(self) -> None:
-        """``required`` means the key is present; DRF emits every field's key."""
+    def test_required_claims_only_the_keys_drf_cannot_omit(self) -> None:
+        """``Field.get_attribute`` raises ``SkipField`` and the key never appears.
+
+        ``generated`` is ``read_only``, so it is rendered but not *guaranteed*:
+        with no default and no ``allow_null`` it vanishes when the source
+        attribute is missing, which is ordinary for a dict-sourced output.
+        """
         schema = serializer_to_schema(_OutputSample(), for_output=True)
 
-        assert schema["required"] == ["name", "generated", "nested", "tags"]
+        assert schema["required"] == ["name", "nested", "tags"]
+        assert "generated" in schema["properties"]
+
+    def test_a_default_or_allow_null_makes_a_key_guaranteed(self) -> None:
+        class _Guaranteed(serializers.Serializer):
+            defaulted = serializers.CharField(required=False, default="x")
+            nullable = serializers.CharField(required=False, allow_null=True)
+            skippable = serializers.CharField(required=False)
+
+        schema = serializer_to_schema(_Guaranteed(), for_output=True)
+
+        assert schema["required"] == ["defaulted", "nullable"]
 
     def test_input_direction_is_unchanged(self) -> None:
         schema = serializer_to_schema(_OutputSample())

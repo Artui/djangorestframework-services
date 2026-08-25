@@ -113,3 +113,28 @@ def test_drf_s_own_style_keys_are_not_mistaken_for_markings() -> None:
 
     assert projection.fields == {}
     assert projection.is_empty()
+
+
+def test_a_serializer_that_reads_context_can_still_be_projected() -> None:
+    """The baseline context DRF always supplies over HTTP is supplied here too.
+
+    Reading ``self.context["request"]`` unguarded is routine, because behind a
+    view the key is always present. Building the projection without it raised
+    ``KeyError`` in the one place a caller could not see or fix.
+    """
+
+    class _ContextReading(serializers.Serializer):
+        def get_fields(self) -> dict[str, serializers.Field]:
+            assert self.context["request"] is None
+            return {"etag": serializers.CharField(style={AGENT: AgentField.hidden()})}
+
+    assert build_agent_projection(_ContextReading).audience("etag") is FieldAudience.HIDDEN
+
+
+def test_a_list_field_wrapping_a_serializer_projects_its_child() -> None:
+    """``ListField(child=Serializer())`` nests as surely as ``many=True`` does."""
+
+    class _Parent(serializers.Serializer):
+        lines = serializers.ListField(child=_Line())
+
+    assert build_agent_projection(_Parent).nested["lines"].audience("sku") is FieldAudience.HANDLE

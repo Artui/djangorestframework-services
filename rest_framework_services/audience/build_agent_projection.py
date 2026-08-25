@@ -36,7 +36,18 @@ def build_agent_projection(serializer_cls: type | None) -> AgentProjection:
         isinstance(serializer_cls, type) and issubclass(serializer_cls, serializers.Serializer)
     ):
         return AgentProjection()
-    return _project(serializer_cls())
+    # Genuine circular import, deliberately local: ``dispatch`` re-exports
+    # ``render_for_agent``, which imports this module, so importing anything
+    # from ``dispatch`` at module scope executes a half-built package.
+    from rest_framework_services.dispatch.base_serializer_context import (
+        base_serializer_context,
+    )
+
+    # The same baseline ``render_spec_output`` renders with. A serializer whose
+    # ``get_fields`` reads ``self.context['request']`` -- routine, since over
+    # HTTP the key is always there -- would otherwise raise ``KeyError`` here
+    # and only here, breaking the documented swap to ``render_for_agent``.
+    return _project(serializer_cls(context=base_serializer_context(view=None, request=None)))
 
 
 def _project(serializer: serializers.Serializer) -> AgentProjection:
@@ -60,7 +71,15 @@ def _project(serializer: serializers.Serializer) -> AgentProjection:
             labels = {v: str(d) for v, d in bound.choices.items() if str(d) != str(v)}
             if labels:
                 choice_labels[name] = labels
-        child = bound.child if isinstance(bound, serializers.ListSerializer) else bound
+        # ``ListSerializer`` (``many=True``) and ``ListField(child=Serializer())``
+        # both put a serializer one level down, and the schema walk descends
+        # into both. Missing either here fails *open* -- a hidden field inside
+        # the child would survive in the payload.
+        child = (
+            bound.child
+            if isinstance(bound, serializers.ListSerializer | serializers.ListField)
+            else bound
+        )
         if isinstance(child, serializers.Serializer):
             child_projection = _project(child)
             if not child_projection.is_empty():

@@ -21,7 +21,9 @@ def project_payload(payload: Any, projection: AgentProjection) -> Any:
       nothing. What an agent must never use should not be there.
     - a ``ChoiceField``'s constant is replaced by its display value, so the enum
       does not have to be spelled out to a person as ``PENDING_REVIEW``. **Not**
-      on a ``HANDLE``, which some other tool takes as input.
+      on a ``HANDLE``, which some other tool takes as input. A
+      ``MultipleChoiceField`` renders a *collection* of constants, so each
+      member is substituted rather than the collection looked up whole.
 
     Apply this where a payload becomes the agent's *answer*. Not where it feeds
     the next step of a chain, which still needs the handles.
@@ -45,7 +47,22 @@ def _project(payload: Any, projection: AgentProjection) -> Any:
         if child is not None:
             projected[key] = _project(value, child)
         elif audience is not FieldAudience.HANDLE and key in projection.choice_labels:
-            projected[key] = projection.choice_labels[key].get(value, value)
+            projected[key] = _spoken(value, projection.choice_labels[key])
         else:
             projected[key] = value
     return projected
+
+
+def _spoken(value: Any, labels: Mapping[Any, str]) -> Any:
+    """The display value for a rendered choice, or the value unchanged.
+
+    ``MultipleChoiceField`` subclasses ``ChoiceField`` and renders a *set* of
+    constants, so a whole-value lookup would hash a list and raise. Only a
+    ``ChoiceField`` reaches here, so those two shapes are the whole domain.
+
+    An unrecognised constant passes through: a stale row naming a choice that has
+    since been removed should still be reported, not crash the call.
+    """
+    if isinstance(value, list | tuple | set | frozenset):
+        return [labels.get(member, member) for member in value]
+    return labels.get(value, value)

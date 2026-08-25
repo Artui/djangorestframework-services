@@ -7,7 +7,9 @@ from typing import Any
 
 from rest_framework import serializers
 
+from rest_framework_services.audience.annotate_output_schema import annotate_output_schema
 from rest_framework_services.jsonschema.utils import dataclass_to_schema, serializer_to_schema
+from rest_framework_services.types.agent_projection import AgentProjection
 from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
@@ -20,6 +22,7 @@ def output_to_json_schema(
     *,
     kind: SelectorKind | None = None,
     paginate: bool = False,
+    projection: AgentProjection | None = None,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
 ) -> dict[str, Any] | None:
     """Build a JSON Schema for an output serializer, or ``None`` when undeclared.
@@ -33,12 +36,21 @@ def output_to_json_schema(
     - ``kind=LIST, paginate=True`` — the pagination envelope
       ``{items, page, totalPages, hasNext}``.
 
+    ``projection`` applies the serializer's agent markings, mirroring what
+    [`project_payload`][rest_framework_services.audience.project_payload.project_payload]
+    does to the payload. It lands on the **item**, wherever the item sits for this
+    ``kind`` — the array wrapper and the pagination envelope are this function's
+    own shapes and belong to no serializer, so a projection walking them would
+    look for markings that cannot exist and silently annotate nothing.
+
     ``registry`` supplies consumer rules for custom field / Python types — see
     [`JsonSchemaRegistry`][rest_framework_services.types.json_schema_registry.JsonSchemaRegistry].
     """
     item_schema: dict[str, Any] | None = _item_schema(output_serializer, registry)
     if item_schema is None:
         return None
+    if projection is not None:
+        item_schema = annotate_output_schema(item_schema, projection) or item_schema
     if kind is not SelectorKind.LIST:
         return item_schema
     array_schema: dict[str, Any] = {"type": "array", "items": item_schema}

@@ -37,6 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `style` is consulted only by `HTMLFormRenderer`, and only for its own keys —
   so REST responses are byte-identical whether or not a serializer is marked up.
 
+  The payload and the schema are generated from that one declaration, so they
+  cannot disagree about what a caller receives: hidden fields leave both,
+  and a substituted choice field is re-declared in the schema in its display
+  values. `output_to_json_schema` takes a `projection=` and applies it to the
+  **item**, wherever the item sits for the requested `kind` — the array
+  wrapper and the pagination envelope are the generator's own shapes and
+  belong to no serializer.
+
   New public API: `AGENT`, `AgentField`, `AgentProjection`, `FieldAudience`,
   `build_agent_projection`, `project_payload`, `annotate_output_schema`,
   `HANDLE_DESCRIPTION`, and `render_for_agent` / `arender_for_agent` on the
@@ -54,6 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A choice field's schema could reject a value the serializer accepts.**
+  `allow_blank` / `allow_null` were widened in unconditionally, so a field
+  already declaring `""` or `None` among its choices — Django prepends an
+  empty choice to every `FilePathField` — emitted that `const` twice. `oneOf`
+  requires *exactly* one match, so the widening meant to admit the value
+  rejected it instead.
+
 - **Output schemas dropped every `read_only` field.** `serializer_to_schema`
   skips them by design — it was written for input — and `output_to_json_schema`
   reused the same walker, so an output schema was silently missing its primary
@@ -61,9 +76,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   being rendered. A consumer generating an `outputSchema` from a spec advertised
   a shape its own payloads did not match. `serializer_to_schema` now takes
   `for_output`, which the output path passes: `write_only` fields drop out
-  instead, and every remaining field joins `required` — `required` means the key
-  is present, not that its value is non-null, and DRF emits every field's key
-  either way. **This changes the shape of every generated output schema.**
+  instead. `required` on an output schema means the key is present, not that
+  its value is non-null, and is claimed only where DRF cannot omit it —
+  `Field.get_attribute` raises `SkipField` and drops the key entirely when the
+  source attribute is missing and the field has no default, does not allow
+  null, and is not required. **This changes the shape of every generated
+  output schema.**
 
 - **`MultipleChoiceField` was described as accepting a single value.** It
   subclasses `ChoiceField`, so the walk caught it first and emitted a plain

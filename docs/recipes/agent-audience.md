@@ -39,7 +39,7 @@ Four audiences, and the default is "content":
 | Marking | Meaning | Agent payload | Agent schema | REST |
 | --- | --- | --- | --- | --- |
 | *(unmarked)* | content | included | included | unchanged |
-| `AgentField.label()` | names this record for a human | included | — | unchanged |
+| `AgentField.label()` | names this record for a human | included | its `description`, if given | unchanged |
 | `AgentField.handle()` | opaque; passed to tools, never spoken | verbatim | `description` says so | unchanged |
 | `AgentField.hidden()` | plumbing | **dropped** | dropped | unchanged |
 
@@ -62,21 +62,30 @@ payload = render_for_agent(spec, result.value, many=True)
 `etag` is gone, `status` reads `"Awaiting review"`, and `id` is untouched — a
 handle is somebody else's input, so its constant is never re-spelled.
 
-For the schema side, pair
-[`build_agent_projection`][rest_framework_services.audience.build_agent_projection.build_agent_projection]
-with
-[`annotate_output_schema`][rest_framework_services.audience.annotate_output_schema.annotate_output_schema]
-so both sides come from the one declaration and cannot disagree:
+For the schema side, hand the same projection to
+[`output_to_json_schema`][rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema]
+so both sides come from the one declaration:
 
 ```python
-projection = build_agent_projection(spec.output_serializer)
-schema = annotate_output_schema(output_to_json_schema(spec.output_serializer), projection)
+projection = build_agent_projection(InvoiceSerializer)
+
+schema = output_to_json_schema(InvoiceSerializer, kind=SelectorKind.LIST, projection=projection)
 payload = render_for_agent(spec, value, many=True, projection=projection)
 ```
+
+Pass the same `kind` / `paginate` you dispatch with, or the schema describes the
+wrong cardinality. The projection lands on the **item** wherever the item sits:
+inside the array for a list, inside `items` for a paginated envelope. Those
+wrappers are the generator's own shapes and belong to no serializer.
 
 Building the projection instantiates the serializer, so a transport that
 registers its tools up front should build it **once at registration** and pass
 it to every render, as above.
+
+A substituted choice field is re-declared in the schema in its *display* values,
+because that is what the payload now carries. If another tool takes that field
+as input, mark it `AgentField.handle()` — that suppresses the substitution on
+both sides and keeps the constant.
 
 ## Nesting
 

@@ -104,6 +104,16 @@ def _field_to_schema_default(
     return {}
 
 
+def _always_rendered(field: serializers.Field) -> bool:
+    """Whether DRF is guaranteed to emit this field's key.
+
+    Mirrors the fallbacks in ``Field.get_attribute``: a default is substituted,
+    ``allow_null`` yields ``None``, and a required field raises rather than
+    skipping. Anything else can vanish from the payload.
+    """
+    return bool(field.required or field.default is not _drf_empty or field.allow_null)
+
+
 def _choice_schema(field: serializers.ChoiceField, *, widen: bool = True) -> dict[str, Any]:
     """``enum`` when the labels add nothing, ``oneOf`` + ``title`` when they do.
 
@@ -119,15 +129,21 @@ def _choice_schema(field: serializers.ChoiceField, *, widen: bool = True) -> dic
     value set, so omitting an accepted value is a concrete falsehood, where
     ``{"type": "string"}`` for a nullable ``CharField`` is merely incomplete.
 
-    ``widen`` is off for the element schema of a ``MultipleChoiceField``, whose
-    emptiness rule is ``allow_empty`` on the array rather than a member value.
+    ``widen`` is off for the element schema of a ``MultipleChoiceField``: its
+    ``allow_null`` and ``allow_empty`` describe the array, not a member, and the
+    array schema declares them itself.
     """
     choices: dict[Any, Any] = dict(field.choices)
     extra: list[Any] = []
     if widen:
-        if getattr(field, "allow_blank", False):
+        # Only values the choices do not already declare. Django prepends an
+        # empty choice to a ``FilePathField``, and a nullable field may list
+        # ``None`` outright -- appending a second ``const`` for either makes
+        # ``oneOf`` match twice, which is a *failure*, so the widening meant to
+        # admit the value would reject it.
+        if getattr(field, "allow_blank", False) and "" not in choices:
             extra.append("")
-        if field.allow_null:
+        if field.allow_null and None not in choices:
             extra.append(None)
     if all(str(label) == str(value) for value, label in choices.items()):
         return {"enum": [*choices, *extra]}
@@ -166,7 +182,7 @@ def serializer_to_schema(
         properties[name] = field_to_schema(field, registry, for_output=for_output)
         if field.help_text:
             properties[name]["description"] = str(field.help_text)
-        if for_output or field.required:
+        if _always_rendered(field) if for_output else field.required:
             required.append(name)
     schema: dict[str, Any] = {"type": "object", "properties": properties}
     if required:

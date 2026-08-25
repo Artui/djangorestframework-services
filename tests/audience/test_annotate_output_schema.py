@@ -11,6 +11,7 @@ from rest_framework_services.audience.annotate_output_schema import (
 from rest_framework_services.audience.build_agent_projection import build_agent_projection
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
 from rest_framework_services.types.agent_field import AGENT, AgentField
+from rest_framework_services.types.json_schema_registry import DEFAULT_JSON_SCHEMA_REGISTRY
 from rest_framework_services.types.selector_kind import SelectorKind
 
 
@@ -92,3 +93,57 @@ def test_schema_without_properties_is_returned_as_is() -> None:
     schema = {"type": "string"}
 
     assert annotate_output_schema(schema, projection) == {"type": "string"}
+
+
+class TestSpokenChoiceSchemas:
+    """A substituted choice must be *described* in the values it now carries."""
+
+    def test_a_labelled_choice_is_redeclared_in_display_values(self) -> None:
+        class _Order(serializers.Serializer):
+            status = serializers.ChoiceField(
+                choices=[("PENDING_REVIEW", "Awaiting review"), ("PAID", "Paid")]
+            )
+
+        projection = build_agent_projection(_Order)
+        schema = annotate_output_schema(output_to_json_schema(_Order), projection)
+
+        assert schema["properties"]["status"] == {
+            "oneOf": [{"const": "Awaiting review"}, {"const": "Paid"}]
+        }
+
+    def test_a_handle_keeps_its_constants(self) -> None:
+        class _Order(serializers.Serializer):
+            kind = serializers.ChoiceField(
+                choices=[("PENDING_REVIEW", "Awaiting review")],
+                style={AGENT: AgentField.handle()},
+            )
+
+        projection = build_agent_projection(_Order)
+        schema = annotate_output_schema(output_to_json_schema(_Order), projection)
+
+        assert schema["properties"]["kind"]["oneOf"][0]["const"] == "PENDING_REVIEW"
+
+    def test_a_registry_rule_is_rewritten_or_left_alone(self) -> None:
+        """A consumer rule replaces the fragment, and both shapes are handled."""
+
+        class _Listed(serializers.ChoiceField): ...
+
+        class _Opaque(serializers.ChoiceField): ...
+
+        class _Order(serializers.Serializer):
+            listed = _Listed(choices=[("PENDING_REVIEW", "Awaiting review"), ("PAID", "Paid")])
+            opaque = _Opaque(choices=[("PAID", "Paid")])
+
+        registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+            fields=[
+                (_Listed, {"enum": ["PENDING_REVIEW", "PAID"]}),
+                (_Opaque, {"type": "string"}),
+            ]
+        )
+        projection = build_agent_projection(_Order)
+        schema = output_to_json_schema(_Order, registry=registry)
+        properties = annotate_output_schema(schema, projection)["properties"]
+
+        assert properties["listed"] == {"enum": ["Awaiting review", "Paid"]}
+        # Nothing enum-shaped to rewrite; the rule is respected as written.
+        assert properties["opaque"] == {"type": "string"}
