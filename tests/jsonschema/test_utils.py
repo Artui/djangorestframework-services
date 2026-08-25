@@ -481,4 +481,7 @@ class TestMultipleChoiceField:
         schema = field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY)
 
         assert schema.get("type") != "array"
-        assert [entry["title"] for entry in schema["oneOf"]] == ["---------", "one.txt"]
+        # Django prepends an empty choice whose label it words differently across
+        # versions, so match the shape rather than the wording.
+        assert [entry["const"] for entry in schema["oneOf"]][1:] == [str(tmp_path / "one.txt")]
+        assert schema["oneOf"][0]["const"] == ""
