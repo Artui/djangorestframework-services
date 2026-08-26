@@ -9,8 +9,14 @@ generator works whether or not spectacular is installed. Keep it that way.
 from __future__ import annotations
 
 import dataclasses
+import datetime
+import decimal
+import enum
 import inspect
-from typing import Any, get_args, get_origin, get_type_hints
+import types
+import typing
+import uuid
+from typing import Any, Literal, get_args, get_origin, get_type_hints
 
 from rest_framework import serializers
 from rest_framework.fields import empty as _drf_empty
@@ -190,32 +196,98 @@ def serializer_to_schema(
     return apply_serializer_overrides(schema, type(serializer))
 
 
+# Python types with a direct JSON counterpart, matched by identity. The string
+# formats mirror ``_DRF_FIELD_TO_SCHEMA`` above, so a value described once as a
+# serializer field and once as an annotation gets the same wire shape.
+_PYTHON_TYPE_TO_SCHEMA: list[tuple[Any, dict[str, Any]]] = [
+    (str, {"type": "string"}),
+    (int, {"type": "integer"}),
+    (float, {"type": "number"}),
+    (bool, {"type": "boolean"}),
+    (type(None), {"type": "null"}),
+    (decimal.Decimal, {"type": "string", "format": "decimal"}),
+    (datetime.datetime, {"type": "string", "format": "date-time"}),
+    (datetime.date, {"type": "string", "format": "date"}),
+    (datetime.time, {"type": "string", "format": "time"}),
+    (uuid.UUID, {"type": "string", "format": "uuid"}),
+]
+
+# Origins whose members are unordered, so the array they describe is a set.
+_UNIQUE_ITEM_ORIGINS = (set, frozenset)
+
+# Containers that carry no member annotation. ``get_origin`` answers ``None``
+# for a bare ``list`` where it answers ``list`` for ``list[int]``, and the
+# container is worth publishing either way.
+_BARE_CONTAINERS = (list, set, frozenset, dict)
+
+
 def _python_type_to_schema(
     annotation: Any, registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY
 ) -> dict[str, Any]:
     """Best-effort mapping from a Python type annotation to JSON Schema.
 
-    ``registry.python_types`` rules are matched by identity and win first;
-    unknown types fall back to ``{}``. The ``Annotated[...]`` wrapper is
-    stripped first so markers do not push a typed annotation into that
-    fallback; the markers themselves are read by the callers that care.
+    ``registry.python_types`` rules are matched by identity and win first. The
+    ``Annotated[...]`` wrapper is stripped before anything else so markers do not
+    push a typed annotation into the fallback; the markers themselves are read by
+    the callers that care.
+
+    Handled structurally, because a caller that declared this much deserves to
+    have it published: the JSON scalars, ``None``, the stdlib scalars DRF
+    already renders as formatted strings (``datetime`` / ``date`` / ``time`` /
+    ``UUID`` / ``Decimal``), ``Literal[...]`` and ``Enum`` subclasses as an
+    ``enum``, ``list`` / ``set`` / ``frozenset`` / ``dict``, and unions —
+    including ``X | None`` — as ``anyOf``. Members are resolved recursively, so
+    a registry rule reaches inside a container or a union.
+
+    **What is left is ``{}``, and ``{}`` means "any JSON value".** A domain class
+    (``Money``, a Django model), a ``Callable``, a bare ``Any`` and an annotation
+    that could not be resolved all land there, and a caller reading the published
+    schema cannot tell them apart from a value that genuinely is unconstrained.
+    A type identity is exactly what ``registry.python_types`` takes, so register
+    the ones that matter to you rather than letting them publish as anything.
     """
     annotation, _required, _hidden = read_schema_markers(annotation)
     for rule_type, rule_schema in registry.python_types:
         if annotation is rule_type:
             return dict(rule_schema)
-    if annotation is str:
-        return {"type": "string"}
-    if annotation is int:
-        return {"type": "integer"}
-    if annotation is float:
-        return {"type": "number"}
-    if annotation is bool:
-        return {"type": "boolean"}
+    for python_type, schema in _PYTHON_TYPE_TO_SCHEMA:
+        if annotation is python_type:
+            return dict(schema)
+    if isinstance(annotation, type) and issubclass(annotation, enum.Enum):
+        # The member *values* are what crosses the wire; ``Enum`` iterates in
+        # declaration order, which is the order a caller sees them declared in.
+        return {"enum": [member.value for member in annotation]}
+    return _parametrised_type_to_schema(annotation, registry)
+
+
+def _parametrised_type_to_schema(annotation: Any, registry: JsonSchemaRegistry) -> dict[str, Any]:
+    """The ``get_origin``-keyed half of ``_python_type_to_schema``."""
     origin: Any = get_origin(annotation)
+    if origin is None:
+        origin = next((bare for bare in _BARE_CONTAINERS if annotation is bare), None)
+    args: tuple[Any, ...] = get_args(annotation)
+    if origin is Literal:
+        # ``Literal`` args are values, not types — they are the enum.
+        return {"enum": list(args)}
+    if origin in (typing.Union, types.UnionType):
+        return {"anyOf": [_python_type_to_schema(arg, registry) for arg in args]}
     if origin is list:
-        (item_type,) = get_args(annotation) or (Any,)
+        (item_type,) = args or (Any,)
         return {"type": "array", "items": _python_type_to_schema(item_type, registry)}
+    if origin in _UNIQUE_ITEM_ORIGINS:
+        (item_type,) = args or (Any,)
+        return {
+            "type": "array",
+            "items": _python_type_to_schema(item_type, registry),
+            "uniqueItems": True,
+        }
+    if origin is dict:
+        # Only the value type is expressible: JSON object keys are strings, so a
+        # non-string key annotation is a Python-side detail with nowhere to go.
+        value_schema = _python_type_to_schema(args[1], registry) if args else {}
+        if value_schema:
+            return {"type": "object", "additionalProperties": value_schema}
+        return {"type": "object"}
     return {}
 
 

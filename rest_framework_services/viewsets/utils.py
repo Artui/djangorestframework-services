@@ -90,6 +90,8 @@ def resolve_action_service_spec(
         raise MethodNotAllowed(method)
     if isinstance(entry, PolymorphicServiceSpec):
         return resolve_polymorphic_service_spec(entry, view=view, request=view.request)
+    # ``as_view`` refuses this pairing at setup, so reaching it means the mapping
+    # was built or swapped after the view was wired. Kept as the backstop.
     if not isinstance(entry, ServiceSpec):
         raise ImproperlyConfigured(
             f"action_specs[{action!r}] must be a ServiceSpec, got "
@@ -113,6 +115,8 @@ def resolve_action_selector_spec(
     entry = action_specs.get(action)
     if entry is None:
         return None
+    # As above: setup already refused this pairing, so this is the backstop for
+    # a mapping that changed afterwards.
     if not isinstance(entry, SelectorSpec):
         raise ImproperlyConfigured(
             f"action_specs[{action!r}] must be a SelectorSpec, got "
