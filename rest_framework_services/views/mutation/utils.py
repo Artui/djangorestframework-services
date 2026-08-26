@@ -272,7 +272,12 @@ def _dispatch_bulk_via_spec(
     [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult] to
     a DRF ``Response`` and translate a ``ServiceError`` the same way the single-instance
     flow does. The status and finalizer pools carry no ``instance`` / ``data`` on a bulk
-    path."""
+    path.
+
+    The two request channels stay apart here as they do on the single-instance path —
+    the body validates, the query string filters — and the target guard is passed for
+    the same reason it is there: whatever the collection selector resolved is what the
+    service is about to mutate."""
     # Local import: ``dispatch_spec`` composes ``build_input_serializer_from_data``
     # from this module, so the dependency is one-directional only at runtime.
     from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
@@ -282,13 +287,12 @@ def _dispatch_bulk_via_spec(
         # ``many`` is a list body straight through.
         params: Any = request.data
     else:
-        # Collection target: a DELETE carries no body, so the filter lives in the
-        # query string, merged under any body payload and then under the view's
-        # URL kwargs. Route captures go last because they are authoritative — a
-        # client-supplied filter value must not override the route scope.
+        # Collection target: the body payload under the view's URL kwargs. Route
+        # captures go last because they are authoritative — a client-supplied
+        # value must not override the route scope.
         body = request.data if isinstance(request.data, dict) else {}
         url_kwargs = getattr(view, "kwargs", None) or {}
-        params = {**request.query_params.dict(), **body, **url_kwargs}
+        params = {**body, **url_kwargs}
 
     view_hooks = resolve_view_hooks(view, request)
     try:
@@ -296,9 +300,15 @@ def _dispatch_bulk_via_spec(
             spec,
             user=getattr(request, "user", None),
             params=params,
+            # The same channel split the single-instance path applies: the body
+            # validates and the query string filters. The ``QueryDict`` itself
+            # goes through rather than a flattened copy, so a repeated parameter
+            # still reaches a multi-valued filter as all of its values.
+            filter_data=request.query_params,
             request=request,
             view=view,
             view_hooks=view_hooks,
+            on_target_resolved=check_view_object_permissions,
         )
     except ServiceError as exc:
         raise map_service_error(exc) from exc

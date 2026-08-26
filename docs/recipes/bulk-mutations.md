@@ -68,6 +68,15 @@ query string; an **empty** set is a harmless no-op (idempotent). A bulk update
 is the same shape with a service that calls `collection.update(...)` (return a
 summary like `{"updated": n}` to get a `200` body instead of `204`).
 
+The two channels stay apart here exactly as they do on a single-instance
+mutation: the **query string** feeds `filter_set` and the **body** feeds
+`input_serializer`. A repeated parameter therefore survives whole, so a
+`MultipleChoiceFilter` or an `id__in` filter reads every value of
+`?id=1&id=2&id=3`; and a query parameter cannot stand in for a serializer field
+it happens to share a name with. Selector *arguments* come from the body and the
+route captures — `?status=` reaches `filter_set`, not a `status=` keyword on the
+selector.
+
 `delete_collection` / `adelete_collection` are batteries-included; pass
 `soft_delete=lambda qs: qs.update(is_archived=True)` to archive instead.
 

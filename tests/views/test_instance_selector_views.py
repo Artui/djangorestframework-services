@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -145,3 +146,79 @@ class TestNestedOutputSpecIgnoresAllowNone:
         author = Author.objects.create(name="orig")
         response = _View.as_view()(factory.put("/", {"name": "new"}, format="json"), pk=author.pk)
         assert response.status_code == 204
+
+
+class _NameFilterSet:
+    """Duck-typed scoping FilterSet: keeps only rows whose ``name`` matches."""
+
+    def __init__(self, *, data: Any, queryset: QuerySet[Author]) -> None:
+        self._data = data
+        self._queryset = queryset
+
+    @property
+    def qs(self) -> QuerySet[Author]:
+        raw = self._data.get("name")
+        if raw is None:
+            return self._queryset
+        return self._queryset.filter(name=raw)
+
+
+class _ScopedUpdateView(ServiceUpdateView):
+    spec = ServiceSpec(
+        service=_update_author,
+        input_serializer=_AuthorIn,
+        instance_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_author_by_pk, filter_set=_NameFilterSet
+        ),
+    )
+
+
+@pytest.mark.django_db
+class TestInstanceSelectorFilterChannel:
+    """A ``filter_set`` on the nested lookup narrows the row a mutation reaches.
+
+    That makes it a scoping rule, and a scoping rule has to read the channel
+    the client cannot also use to satisfy the serializer. Both tests use the
+    *same* key in both channels, which is the collision the split exists for:
+    bound to the body, the value being written decides which row is writable.
+    """
+
+    def test_the_query_string_is_the_scope(self) -> None:
+        author = Author.objects.create(name="orig")
+
+        response = _ScopedUpdateView.as_view()(
+            factory.patch("/?name=orig", {"name": "new"}, format="json"), pk=author.pk
+        )
+
+        assert response.status_code == 200
+        author.refresh_from_db()
+        assert author.name == "new"
+
+    def test_the_body_cannot_widen_the_scope(self) -> None:
+        author = Author.objects.create(name="orig")
+
+        response = _ScopedUpdateView.as_view()(
+            factory.patch("/?name=someone-else", {"name": "orig"}, format="json"), pk=author.pk
+        )
+
+        assert response.status_code == 404
+        author.refresh_from_db()
+        assert author.name == "orig"
+
+
+@pytest.mark.django_db
+class TestNonObjectBody:
+    def test_a_json_array_body_is_a_400_not_a_500(self) -> None:
+        """Only a ``many=True`` spec takes a list. Reaching a single-instance
+        spec, one used to raise an ``AttributeError`` deep in the target lookup
+        — which DRF re-raises, so the client got a stack trace instead of the
+        rejection its input had earned."""
+        author = Author.objects.create(name="orig")
+
+        response = _SpecLookupUpdateView.as_view()(
+            factory.patch("/", [1, 2], format="json"), pk=author.pk
+        )
+
+        assert response.status_code == 400
+        author.refresh_from_db()
+        assert author.name == "orig"

@@ -9,6 +9,7 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 
 from rest_framework_services import (
     DispatchResult,
@@ -560,3 +561,133 @@ class TestFilterDataOnTheReadPath:
 
         rendered = render_spec_output(spec, result.value, many=True)
         assert [row["title"] for row in rendered] == ["draft"]
+
+
+@pytest.mark.django_db
+class TestFilterDataOnTheTargetPath:
+    """The nested target specs read the filter channel too.
+
+    ``instance_selector_spec`` / ``collection_selector_spec`` resolve *what a
+    mutation is allowed to touch*, so a ``filter_set`` declared on one is a
+    scoping rule rather than a convenience. Off HTTP one flat mapping is both
+    channels and nothing changes; over HTTP the body would otherwise be the
+    filter source, where every optional filter field is absent — the set
+    validates clean and the scoping rule narrows nothing.
+    """
+
+    def test_a_nested_filter_set_reads_filter_data_not_params(self) -> None:
+        draft = Post.objects.create(title="draft", published=False)
+        spec = ServiceSpec(
+            service=_update_post,
+            input_serializer=_PostIn,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                selector=_post_qs_by_pk,
+                filter_set=_PublishedFilterSet,
+            ),
+            atomic=False,
+        )
+
+        result = dispatch_spec(
+            spec,
+            user=None,
+            params={"pk": draft.pk, "title": "renamed", "published": "false"},
+            filter_data={"published": "true"},
+        )
+
+        assert result.kind == "not_found"
+        draft.refresh_from_db()
+        assert draft.title == "draft"
+
+    def test_the_collection_target_reads_filter_data_too(self) -> None:
+        Post.objects.create(title="shipped", published=True)
+        Post.objects.create(title="draft", published=False)
+
+        def _titles(*, collection: QuerySet[Post]) -> list[str]:
+            return sorted(collection.values_list("title", flat=True))
+
+        spec = ServiceSpec(
+            service=_titles,
+            collection_selector_spec=SelectorSpec(
+                kind=SelectorKind.LIST, selector=_all_posts, filter_set=_PublishedFilterSet
+            ),
+            atomic=False,
+        )
+
+        result = dispatch_spec(
+            spec, user=None, params={"published": "false"}, filter_data={"published": "true"}
+        )
+
+        assert result.value == ["shipped"]
+
+    def test_omitting_filter_data_keeps_params_as_the_filter_source(self) -> None:
+        """The off-HTTP default: one flat mapping is argument channel and
+        filter channel both, exactly as before."""
+        draft = Post.objects.create(title="draft", published=False)
+        spec = ServiceSpec(
+            service=_update_post,
+            input_serializer=_PostIn,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                selector=_post_qs_by_pk,
+                filter_set=_PublishedFilterSet,
+            ),
+            atomic=False,
+        )
+
+        result = dispatch_spec(
+            spec, user=None, params={"pk": draft.pk, "title": "renamed", "published": "false"}
+        )
+
+        assert result.kind == "instance"
+        draft.refresh_from_db()
+        assert draft.title == "renamed"
+
+
+@pytest.mark.django_db
+class TestNonMappingParams:
+    """A list body only makes sense on a ``many=True`` spec.
+
+    Everywhere else ``params`` is spread into a keyword pool, so the first
+    thing that touches it calls ``.items()``. The resulting ``AttributeError``
+    is not an ``APIException``, so it reaches a transport as an unhandled error
+    rather than as the rejected input it is.
+    """
+
+    def test_a_list_payload_is_a_validation_error(self) -> None:
+        spec = ServiceSpec(
+            service=_update_post,
+            input_serializer=_PostIn,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk
+            ),
+            atomic=False,
+        )
+
+        with pytest.raises(ValidationError, match="Expected a dictionary"):
+            dispatch_spec(spec, user=None, params=[1, 2])
+
+    def test_a_caller_resolved_instance_does_not_excuse_it(self) -> None:
+        """The guard sits above the target branch, not inside it.
+
+        ``params`` is still spread and unknown-argument-checked when the caller
+        resolved the target itself, and the spec here declares no
+        ``input_serializer`` — so nothing further down would have rejected the
+        payload, and ``UnknownArguments.REJECT`` would have reached the same
+        ``.items()`` from the other direction.
+        """
+        post = Post.objects.create(title="p")
+        spec = ServiceSpec(service=lambda *, instance: instance.title, atomic=False)
+
+        with pytest.raises(ValidationError, match="Expected a dictionary"):
+            dispatch_spec(spec, user=None, params="not-an-object", instance=post)
+
+    def test_a_many_spec_still_takes_its_list(self) -> None:
+        def _bulk_create(*, data: list[_PostIn]) -> list[str]:
+            return [item.title for item in data]
+
+        spec = ServiceSpec(service=_bulk_create, input_serializer=_PostIn, many=True, atomic=False)
+
+        result = dispatch_spec(spec, user=None, params=[{"title": "a"}, {"title": "b"}])
+
+        assert result.value == ["a", "b"]

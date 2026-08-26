@@ -22,6 +22,7 @@ from rest_framework_services.dispatch.utils import (
     call_target_guard,
     clear_prefetch_cache,
     guard_many_argument_binding,
+    guard_mapping_params,
     merge_arguments,
     resolve_argument_binding,
     resolve_dispatch_kwargs,
@@ -243,6 +244,7 @@ async def _adispatch_service(
             progress=progress,
             view_hooks=view_hooks,
         )
+    guard_mapping_params(params)
 
     if instance is not UNSET:
         # The caller resolved the target itself — the HTTP path, whose
@@ -250,7 +252,7 @@ async def _adispatch_service(
         mode, target = "instance", instance
     else:
         mode, target = await _aresolve_target(
-            spec, user=user, params=params, request=request, view=view
+            spec, user=user, params=params, request=request, view=view, filter_data=filter_data
         )
         if mode == "missing":
             return DispatchResult(value=None, kind="not_found", status=404)
@@ -443,7 +445,15 @@ async def _aresolve_target(
     params: Mapping[str, Any],
     request: Any,
     view: Any,
+    filter_data: Mapping[str, Any] | None,
 ) -> tuple[str, Any]:
+    """Async :func:`~...dispatch.dispatch_spec._resolve_target`.
+
+    Same split — ``params`` is the nested selector's argument channel and
+    ``filter_data`` the one its ``filter_set`` reads; see the sync sibling for
+    why a scoping filter on a nested target spec needs it.
+    """
+    filters = params if filter_data is None else filter_data
     coll_spec = spec.collection_selector_spec
     if coll_spec is not None:
         if coll_spec.selector is None:
@@ -475,12 +485,12 @@ async def _aresolve_target(
             result,
             view=view,
             request=request,
-            params=params,
+            params=filters,
             source_label=COLLECTION_SOURCE,
         )
         return ("collection", collection)
     found, instance = await _aresolve_instance(
-        spec, user=user, params=params, request=request, view=view
+        spec, user=user, params=params, request=request, view=view, filter_data=filters
     )
     return ("instance", instance) if found else ("missing", None)
 
@@ -534,6 +544,7 @@ async def _aresolve_instance(
     params: Mapping[str, Any],
     request: Any,
     view: Any,
+    filter_data: Mapping[str, Any],
 ) -> tuple[bool, Any]:
     instance_spec = spec.instance_selector_spec
     if instance_spec is None or instance_spec.selector is None:
@@ -564,7 +575,7 @@ async def _aresolve_instance(
             result,
             view=view,
             request=request,
-            params=params,
+            params=filter_data,
             source_label=INSTANCE_SOURCE,
         )
     except ObjectDoesNotExist:

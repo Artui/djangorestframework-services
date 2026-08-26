@@ -18,6 +18,7 @@ from rest_framework_services.dispatch.utils import (
     call_target_guard,
     clear_prefetch_cache,
     guard_many_argument_binding,
+    guard_mapping_params,
     merge_arguments,
     resolve_argument_binding,
     resolve_dispatch_kwargs,
@@ -124,12 +125,16 @@ def dispatch_spec(
         instance: A target the caller resolved itself, skipping
             ``instance_selector_spec``. ``None`` is a *supplied* value (a create), which
             is why the default is a sentinel.
-        filter_data: The data the ``filter_set`` reads, on both spec kinds — a
-            selector's own filtering and a service's output-selector re-fetch. Only
-            meaningful when ``params`` is not the filter source: off HTTP one flat
-            mapping is usually both, so this stays ``None``, whereas over HTTP the body
-            validates and the **query string** filters, and merging them would let a
-            query parameter satisfy a serializer field.
+        filter_data: The data the ``filter_set`` reads, wherever one can be
+            declared — a selector's own filtering, a service's ``instance_`` /
+            ``collection_selector_spec`` target lookup, and its output-selector
+            re-fetch. On the target lookups that makes it a scoping channel: a
+            ``filter_set`` there narrows the row a mutation may reach, and one bound
+            to the wrong mapping validates clean (every filter field is optional) and
+            narrows nothing. Only meaningful when ``params`` is not the filter source:
+            off HTTP one flat mapping is usually both, so this stays ``None``, whereas
+            over HTTP the body validates and the **query string** filters, and merging
+            them would let a query parameter satisfy a serializer field.
 
     Returns: The
         [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult]
@@ -282,13 +287,16 @@ def _dispatch_service(
             progress=progress,
             view_hooks=view_hooks,
         )
+    guard_mapping_params(params)
 
     if instance is not UNSET:
         # The caller resolved the target itself — the HTTP path, whose
         # ``get_object()`` chain has no off-HTTP meaning and so cannot live here.
         mode, target = "instance", instance
     else:
-        mode, target = _resolve_target(spec, user=user, params=params, request=request, view=view)
+        mode, target = _resolve_target(
+            spec, user=user, params=params, request=request, view=view, filter_data=filter_data
+        )
         if mode == "missing":
             return DispatchResult(value=None, kind="not_found", status=404)
     call_target_guard(on_target_resolved, spec, target, user=user, request=request, view=view)
@@ -445,20 +453,38 @@ def _resolve_target(
     params: Mapping[str, Any],
     request: Any,
     view: Any,
+    filter_data: Mapping[str, Any] | None,
 ) -> tuple[str, Any]:
     """Resolve the mutation target: ``("collection", qs)``, ``("instance", obj)``,
     or ``("missing", None)`` when a required instance wasn't found.
 
     A ``collection_selector_spec`` (bulk) takes precedence; an empty collection
     is a valid no-op (never ``"missing"``).
+
+    ``params`` is the nested selector's *argument* channel; ``filter_data`` is
+    the one its ``filter_set`` reads, resolved here exactly as the output
+    re-fetch resolves it. That split is what lets a scoping ``filter_set`` on a
+    nested target spec narrow the row a mutation may reach — bound against the
+    body instead, every one of django-filter's optional fields is absent, the
+    set validates clean, and the filter never narrows anything.
     """
+    filters = params if filter_data is None else filter_data
     coll_spec = spec.collection_selector_spec
     if coll_spec is not None:
         return (
             "collection",
-            _resolve_collection(coll_spec, user=user, params=params, request=request, view=view),
+            _resolve_collection(
+                coll_spec,
+                user=user,
+                params=params,
+                request=request,
+                view=view,
+                filter_data=filters,
+            ),
         )
-    found, instance = _resolve_instance(spec, user=user, params=params, request=request, view=view)
+    found, instance = _resolve_instance(
+        spec, user=user, params=params, request=request, view=view, filter_data=filters
+    )
     return ("instance", instance) if found else ("missing", None)
 
 
@@ -469,6 +495,7 @@ def _resolve_collection(
     params: Mapping[str, Any],
     request: Any,
     view: Any,
+    filter_data: Mapping[str, Any],
 ) -> Any:
     if coll_spec.selector is None:
         raise ImproperlyConfigured(
@@ -490,7 +517,12 @@ def _resolve_collection(
         coll_spec.selector, resolve_dispatch_kwargs(coll_spec.selector, pool)
     )
     return shape_queryset(
-        coll_spec, result, view=view, request=request, params=params, source_label=COLLECTION_SOURCE
+        coll_spec,
+        result,
+        view=view,
+        request=request,
+        params=filter_data,
+        source_label=COLLECTION_SOURCE,
     )
 
 
@@ -542,6 +574,7 @@ def _resolve_instance(
     params: Mapping[str, Any],
     request: Any,
     view: Any,
+    filter_data: Mapping[str, Any],
 ) -> tuple[bool, Any]:
     """Resolve the mutation target from ``instance_selector_spec`` + ``params``.
 
@@ -572,7 +605,7 @@ def _resolve_instance(
             result,
             view=view,
             request=request,
-            params=params,
+            params=filter_data,
             source_label=INSTANCE_SOURCE,
         )
     except ObjectDoesNotExist:

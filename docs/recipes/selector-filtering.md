@@ -171,6 +171,37 @@ class PostViewSet(SelectorViewSet):
 Retrieve has no such conflict: the selector retrieve path overrides `get_object()`
 and never calls `filter_queryset`, so `filter_set` is the only filter applied.
 
+## Scoping a mutation's target
+
+`instance_selector_spec` and `collection_selector_spec` are `SelectorSpec`s like
+any other, so they take a `filter_set` too — and there it narrows the row (or the
+set) a mutation is *allowed to reach*, which makes it a scoping rule rather than a
+convenience:
+
+```python
+class ArchivePostView(ServiceDeleteView):
+    spec = ServiceSpec(
+        service=delete_collection(Post),
+        collection_selector_spec=SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=all_posts,
+            filter_set=PostFilterSet,
+        ),
+    )
+```
+
+The values come off the **query string**, the same place a list selector's do —
+never off the request body, even on a `PUT` / `PATCH` that has one. That split is
+what keeps the two channels honest: the body is validated by `input_serializer`,
+and merging the two would let a query parameter satisfy a serializer field (and a
+body field decide which rows are writable). Off HTTP, where a transport hands the
+dispatch one flat mapping, that mapping is both channels and nothing changes.
+
+Note what a body-bound filter would have done, since it is quiet: a `FilterSet`'s
+fields are all optional, so a mapping containing none of them validates cleanly
+and `.qs` comes back **unfiltered** — a scoping rule that never narrows anything
+and never says so.
+
 ## Invalid filter input is a 400
 
 Replacing `DjangoFilterBackend` means keeping its contract, and the part of that

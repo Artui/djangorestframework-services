@@ -41,6 +41,36 @@ the view's default permissions and no variant rule was checked. The decorated
 class is unknown at decoration time, so the check happens on the first request
 through the action and refuses it rather than serving it unguarded.
 
+**A bulk endpoint's query string no longer feeds its `input_serializer`.** The
+collection path used to hand `dispatch_spec` one mapping built as
+`{**query_params, **body, **url_kwargs}`, so on a `many` / `collection_selector_spec`
+action a query parameter could satisfy a serializer field: `DELETE /things/?reason=cleanup`
+validated `ArchiveInput.reason` from the URL, on an endpoint whose author had
+documented it as a body field — and over a channel that lands in access logs and
+`Referer` headers, which the body does not. The body and the route captures are
+now the argument channel and the query string is the filter channel, the split the
+single-instance path has always used. Two consequences to check before upgrading:
+
+- a caller relying on a query parameter to satisfy a serializer field now gets a
+  400 — move the value into the body;
+- a `collection_selector_spec` selector taking a **keyword argument** off the query
+  string (`def target(*, status)` fed by `?status=draft`) no longer receives it.
+  Declare the filtering with `filter_set`, which reads the query string, or scope
+  it from a route capture.
+
+Filtering itself gets better rather than worse: the query string reaches
+`filter_set` as the `QueryDict` it is, so `?id=1&id=2&id=3` arrives whole and a
+`MultipleChoiceFilter` or an `id__in` filter sees all three values. It previously
+went through `.dict()`, which keeps only the last.
+
+**A non-object body to a single-item spec is a 400, not a 500 (or a silence).**
+Only a spec declaring `many=True` takes a list payload; anywhere else `params` is
+spread into a keyword pool and validated as one object. A JSON array reaching a
+spec with an `instance_selector_spec` used to raise `AttributeError` from inside
+the target lookup, which is not an `APIException`, so DRF re-raised it and the
+client got a stack trace. A spec with no `input_serializer` ignored such a body
+entirely. Both now answer `400`.
+
 **Adapters reading `QueryParam.default` / `UrlKwarg.default` must account for a
 new sentinel.** "No default" is now `UNSET`, not `None`, so `default=None` is a
 declarable value ("defaults to null") that reaches the generated schema. A
@@ -64,13 +94,13 @@ None`. `UNSET` is a top-level export.
   has always accepted one) and then had no way to render with it. Passing it
   used to raise `TypeError`; omitting it renders exactly as before.
 
-
 - **`RESERVED_POOL_SEEDS` is re-exported from the package root**, alongside
   `base_pool` and the rest of the dispatch surface. Its own docstring tells
   transport adapters to import it rather than keep a copy of the seed names,
   while it was reachable only from `rest_framework_services.types` — and a
   local copy is exactly what an adapter following the "import from the package
   root" rule ended up writing.
+
 - **`QueryParam(default=None)` / `UrlKwarg(default=None)` are expressible.**
   Both dataclasses used plain `None` for two different things, so a declared
   null default and no default at all generated the same schema. The field now
@@ -100,7 +130,6 @@ None`. `UNSET` is a top-level export.
   on input the sync core accepts, and a `JSONField` quietly accepting the list.
   The conversion was never needed — the sync core passes `params` straight
   through.
-
 
 - **`build_offline_context` no longer writes to the request you pass it.** The
   `http_request=` argument is documented as the way an off-HTTP transport
@@ -149,6 +178,37 @@ None`. `UNSET` is a top-level export.
   the rule the dispatch core has always applied to caller-supplied names. Keys
   the helpers do not seed still reach the service unchanged.
 
+- **A `filter_set` on `instance_selector_spec` / `collection_selector_spec` now
+  reads the filter channel.** `filter_data` reached a selector's own filtering
+  and a service's output re-fetch, but never the nested lookup that resolves
+  *which row (or set) the mutation may touch* — that shaping bound against
+  `params`, which over HTTP is the request **body**. A `FilterSet`'s fields are
+  all optional, so a body containing none of them validated cleanly and `.qs`
+  came back unfiltered: a scoping filter on a mutation's target lookup narrowed
+  nothing, silently, and a `PATCH` or `DELETE` reached rows the filter was
+  written to exclude. Where a body did happen to carry a filter's field name,
+  the value being written decided which row was writable. Both dispatch cores
+  are fixed, and the split is the documented one — the query string filters, the
+  body validates, and off HTTP one flat mapping is still both.
+
+- **The bulk HTTP path passes the object-permission guard, like every other
+  dispatch site does.** `dispatch_mutation_for_spec` and the selector path both
+  hand the core `check_view_object_permissions`; the collection / `many` path
+  handed it nothing, so the guard the core fires on a resolved collection target
+  never ran over HTTP while the off-HTTP transports ran theirs. A collection
+  target is normally a queryset, which the guard skips, so this changes nothing
+  for the ordinary shape; it closes the case where a
+  `collection_selector_spec.selector` returns a single model instance, which
+  `shape_queryset` passes through untouched and which was then mutated with no
+  `check_object_permissions` at all.
+
+- **The bulk path keeps the query string and the body apart, and stops
+  flattening the query string.** See the upgrade notes above for what changes
+  for a caller.
+
+- **A JSON array body to a single-item spec is rejected instead of crashing.**
+  See the upgrade notes above.
+
 ### Changed
 
 - **A new standing check compares the sync and async dispatch cores directly.**
@@ -171,7 +231,6 @@ None`. `UNSET` is a top-level export.
   `user` or `request` into a loud `TypeError` instead of a silent override of
   the transport's own value. The docstring and the dispatch reference now say
   what is actually guaranteed and what an adapter has to do.
-
 
 - **Python annotations are mapped into JSON Schema structurally instead of
   being erased.** A selector declaring `status: Literal["open", "closed"]`
@@ -199,10 +258,12 @@ None`. `UNSET` is a top-level export.
   `concepts.md`'s claim that DRF's filter backends "never reach" a retrieve was
   wrong about DRF and is now stated as what it is: an effect of overriding
   `get_object()`.
+
 - **The permissions recipe states the polymorphic carve-out.** It claimed
   decorator-attached specs carry their `permission_classes` into both
   router-driven and direct-`as_view` setups, with no exception noted for a
   `PolymorphicServiceSpec`, which forwards nothing.
+
 - **`UrlKwarg` / `QueryParam` state what an explicit null means.** A `null`
   from a caller is not a supplied value: it is an omitted argument, so
   `required` still refuses it and `default` still applies. Over HTTP neither
@@ -210,6 +271,12 @@ None`. `UNSET` is a top-level export.
   scoping provider into a silent `IS NULL` lookup that returns rows and looks
   successful.
 
+- **The filtering recipe covers a mutation's target lookup.** A `filter_set` on
+  `instance_selector_spec` / `collection_selector_spec` is a scoping rule, not a
+  convenience, and it reads the query string rather than the body. The page now
+  says so, and names the failure mode a body-bound filter has: every filter
+  field is optional, so the wrong mapping validates cleanly and returns every
+  row. The bulk recipe states the same channel split from its own side.
 
 ## [0.43.0] — 2026-08-25
 

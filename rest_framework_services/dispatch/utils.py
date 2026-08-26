@@ -328,6 +328,28 @@ def guard_many_argument_binding(argument_binding: ArgumentBinding) -> None:
         )
 
 
+def guard_mapping_params(params: Any) -> None:
+    """Reject a non-mapping ``params`` on a single-item dispatch.
+
+    Only a ``many=True`` spec takes a list payload; every other path spreads
+    ``params`` into a keyword pool and validates it as one object, which needs
+    ``.items()``. A JSON array — or any other non-object — reaching a
+    single-item spec is client input, so it earns a 400 here rather than the
+    ``AttributeError`` the first spread would raise, which is not an
+    ``APIException`` and so surfaces as a 500 with a stack trace.
+    """
+    if not isinstance(params, Mapping):
+        raise ValidationError(
+            {
+                "non_field_errors": [
+                    "Invalid data. Expected a dictionary, but got "
+                    f"{type(params).__name__}. Only a spec declaring many=True "
+                    "accepts a list payload."
+                ]
+            }
+        )
+
+
 def resolve_service_many_input(
     spec: ServiceSpec[Any, Any, Any],
     serializer: Any,

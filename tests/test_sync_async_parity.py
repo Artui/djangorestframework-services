@@ -18,7 +18,10 @@ The kernel the twins share, and are therefore most likely to drift on:
   in, and the stale-prefetch clear that runs before the output re-fetch;
 - **the signatures themselves** — a parameter added to one twin and not the
   other is drift that no behavioural test can see, because the async surface
-  simply cannot be handed the argument.
+  simply cannot be handed the argument. The pair of public entry points is not
+  the whole story: the private target-resolution helpers each core keeps take
+  the same arguments too, and that is where a channel added to one core alone
+  would hide.
 """
 
 from __future__ import annotations
@@ -33,6 +36,7 @@ from django.contrib.auth.models import User
 from django.db.models import Model, QuerySet
 from django.http import QueryDict
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 
 from rest_framework_services import (
     DispatchResult,
@@ -47,6 +51,14 @@ from rest_framework_services import (
     dispatch_spec,
     render_for_agent,
     render_spec_output,
+)
+from rest_framework_services.dispatch.adispatch_spec import (
+    _aresolve_instance,
+    _aresolve_target,
+)
+from rest_framework_services.dispatch.dispatch_spec import (
+    _resolve_instance,
+    _resolve_target,
 )
 from tests.testapp.models import Catalog, Post, Section
 
@@ -126,6 +138,25 @@ def _posts_by_pk(*, pk: Any) -> QuerySet[Post]:
     return Post.objects.filter(pk=pk)
 
 
+def _all_posts() -> QuerySet[Post]:
+    return Post.objects.all().order_by("id")
+
+
+class _PublishedOnly:
+    """Duck-typed FilterSet narrowing by ``published``, as django-filter would."""
+
+    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
+        self._data = data
+        self._queryset = queryset
+
+    @property
+    def qs(self) -> QuerySet[Post]:
+        raw = self._data.get("published")
+        if raw is None:
+            return self._queryset
+        return self._queryset.filter(published=str(raw).lower() == "true")
+
+
 # --- the twins take the same arguments -----------------------------------
 #
 # Each async twin's docstring promises identical arguments, and each one is a
@@ -133,6 +164,12 @@ def _posts_by_pk(*, pk: Any) -> QuerySet[Post]:
 # structural check that they were: a keyword added to one and not the other is
 # invisible to every behavioural test, since the drifted surface cannot be
 # handed the argument at all — the caller finds out with a ``TypeError``.
+#
+# The private target-resolution helpers are checked alongside the public entry
+# points. They are where a channel reaches the nested selector specs, so a
+# channel threaded through one core and not the other would leave the drifted
+# core resolving a mutation target from a different mapping — the same class of
+# silent divergence, one layer down and with authorization riding on it.
 
 
 def _parameters(fn: Any) -> list[tuple[str, Any]]:
@@ -145,8 +182,16 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
         (dispatch_spec, adispatch_spec),
         (render_spec_output, arender_spec_output),
         (render_for_agent, arender_for_agent),
+        (_resolve_target, _aresolve_target),
+        (_resolve_instance, _aresolve_instance),
     ],
-    ids=["dispatch_spec", "render_spec_output", "render_for_agent"],
+    ids=[
+        "dispatch_spec",
+        "render_spec_output",
+        "render_for_agent",
+        "resolve_target",
+        "resolve_instance",
+    ],
 )
 def test_an_async_twin_takes_the_same_arguments_as_its_sync_twin(
     sync_twin: Any, async_twin: Any
@@ -243,6 +288,86 @@ async def test_route_captures_reach_the_target_pool_on_either_core() -> None:
     sync_summary, async_summary = await _dispatch_both(spec, make_kwargs)
     assert sync_summary == async_summary
     assert seen == [(real, "from-route"), (real, "from-route")]
+
+
+# --- the filter channel in target resolution ------------------------------
+#
+# ``filter_data`` is the mapping a ``filter_set`` reads, and it is deliberately
+# a *different* channel from ``params``: over HTTP the body validates and the
+# query string filters. The nested target specs resolve what a mutation is
+# allowed to touch, so a ``filter_set`` declared on one is a scoping rule —
+# and a scoping rule bound to the wrong channel is worse than none, because
+# django-filter's fields are all optional: a mapping containing none of them
+# validates clean and narrows nothing at all.
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_filter_data_narrows_the_instance_target_on_either_core() -> None:
+    """Both directions at once: the filter channel reaches the nested lookup,
+    and the argument channel does not."""
+    draft = await Post.objects.acreate(title="draft", published=False)
+    spec = ServiceSpec(
+        service=lambda *, instance: None,
+        instance_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_posts_by_pk, filter_set=_PublishedOnly
+        ),
+    )
+    sync_summary, async_summary = await _dispatch_both(
+        spec,
+        lambda: {
+            "user": None,
+            # ``published=false`` sits in the argument channel, where a body
+            # value would; the filter channel asks for published rows only.
+            "params": {"pk": draft.pk, "published": "false"},
+            "filter_data": {"published": "true"},
+        },
+    )
+    assert sync_summary == async_summary
+    # The draft is out of scope, so there is no row to mutate.
+    assert async_summary["kind"] == "not_found"
+    assert async_summary["status"] == 404
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_filter_data_narrows_the_collection_target_on_either_core() -> None:
+    """The bulk twin: the *set* a mutation may touch."""
+    await Post.objects.acreate(title="shipped", published=True)
+    await Post.objects.acreate(title="draft", published=False)
+    spec = ServiceSpec(
+        service=lambda *, collection: sorted(collection.values_list("title", flat=True)),
+        collection_selector_spec=SelectorSpec(
+            kind=SelectorKind.LIST, selector=_all_posts, filter_set=_PublishedOnly
+        ),
+    )
+    sync_summary, async_summary = await _dispatch_both(
+        spec,
+        lambda: {
+            "user": None,
+            "params": {"published": "false"},
+            "filter_data": {"published": "true"},
+        },
+    )
+    assert sync_summary == async_summary
+    assert async_summary["value"] == ["shipped"]
+
+
+# --- a payload that is not an object --------------------------------------
+#
+# Only a ``many=True`` spec takes a list. Everywhere else ``params`` is spread
+# into a keyword pool, which needs ``.items()`` — and the ``AttributeError`` a
+# list raises there is not an ``APIException``, so a transport that maps this
+# package's errors to its wire has nothing to map and answers 500.
+
+
+async def test_a_list_payload_to_a_single_item_spec_is_rejected_by_either_core() -> None:
+    spec = ServiceSpec(
+        service=lambda *, instance: None,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_posts_by_pk),
+    )
+    with pytest.raises(ValidationError):
+        await sync_to_async(dispatch_spec, thread_sensitive=True)(spec, user=None, params=[1, 2])
+    with pytest.raises(ValidationError):
+        await adispatch_spec(spec, user=None, params=[1, 2])
 
 
 # --- the mutation tail ----------------------------------------------------

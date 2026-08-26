@@ -9,6 +9,7 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from rest_framework import serializers
+from rest_framework.permissions import BasePermission
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
@@ -319,3 +320,183 @@ class TestBulkValidation:
             )
 
         assert _View.as_view() is not None
+
+
+class _IdsFilterSet:
+    """Duck-typed multi-valued filter, as a ``MultipleChoiceFilter`` would be.
+
+    Reads every value under ``id`` when the data mapping can produce a list
+    (a ``QueryDict`` can), and degrades to the single value a flat dict has —
+    so the difference between the two shapes shows up as the *wrong set* rather
+    than as an exception.
+    """
+
+    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
+        self._data = data
+        self._queryset = queryset
+
+    @property
+    def qs(self) -> QuerySet[Post]:
+        if "id" not in self._data:
+            return self._queryset
+        getlist = getattr(self._data, "getlist", None)
+        ids = getlist("id") if getlist is not None else [self._data["id"]]
+        return self._queryset.filter(id__in=ids)
+
+
+@dataclass
+class _ArchiveIn:
+    reason: str
+
+
+@pytest.mark.django_db
+class TestBulkChannelSeparation:
+    """The query string filters; the body validates.
+
+    The single-instance path has always kept the two apart. The bulk path used
+    to merge them into one mapping, which made a query parameter able to
+    satisfy an ``input_serializer`` field — a privileged value arriving over
+    the channel that lands in access logs and ``Referer`` headers — and flattened
+    the query string on the way, so only the last value of a repeated parameter
+    survived to reach the filter.
+    """
+
+    def test_a_query_parameter_cannot_satisfy_an_input_serializer_field(self) -> None:
+        Post.objects.create(title="a")
+
+        def _archive(*, collection: QuerySet[Post], data: _ArchiveIn) -> dict[str, Any]:
+            return {"reason": data.reason, "count": collection.count()}
+
+        class _View(ServiceDeleteView):
+            spec = ServiceSpec(
+                service=_archive,
+                input_serializer=_ArchiveIn,
+                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts),
+                atomic=False,
+            )
+
+        response = _View.as_view()(factory.delete("/?reason=cleanup"))
+
+        assert response.status_code == 400
+        assert "reason" in response.data
+
+    def test_a_body_field_still_validates_on_the_bulk_path(self) -> None:
+        """The other half of the same rule — the body channel is untouched."""
+        Post.objects.create(title="a")
+
+        def _archive(*, collection: QuerySet[Post], data: _ArchiveIn) -> dict[str, Any]:
+            return {"reason": data.reason, "count": collection.count()}
+
+        class _View(ServiceUpdateView):
+            spec = ServiceSpec(
+                service=_archive,
+                input_serializer=_ArchiveIn,
+                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts),
+                atomic=False,
+            )
+
+        response = _View.as_view()(factory.put("/", {"reason": "cleanup"}, format="json"))
+
+        assert response.status_code == 200
+        assert response.data == {"reason": "cleanup", "count": 1}
+
+    def test_a_repeated_query_parameter_reaches_the_filter_whole(self) -> None:
+        keep = Post.objects.create(title="keep")
+        first = Post.objects.create(title="first")
+        second = Post.objects.create(title="second")
+
+        class _View(ServiceDeleteView):
+            spec = ServiceSpec(
+                service=delete_collection(Post),
+                collection_selector_spec=SelectorSpec(
+                    kind=SelectorKind.LIST, selector=_all_posts, filter_set=_IdsFilterSet
+                ),
+                atomic=False,
+            )
+
+        response = _View.as_view()(factory.delete(f"/?id={first.pk}&id={second.pk}"))
+
+        assert response.status_code == 204
+        # Both named rows went, and only those: a flattened query string would
+        # have kept the first one by dropping all but the last value.
+        assert list(Post.objects.values_list("id", flat=True)) == [keep.pk]
+
+    def test_the_query_string_no_longer_reaches_the_collection_selectors_arguments(
+        self,
+    ) -> None:
+        """The narrowing consequence of the split, pinned rather than implied.
+
+        A collection selector's keyword arguments come from the body and the
+        route, as the single-instance path's do. A filter belongs in
+        ``filter_set``, which reads the query string.
+        """
+        seen: list[Any] = []
+
+        def _scoped(*, scope: str = "unset") -> QuerySet[Post]:
+            seen.append(scope)
+            return Post.objects.none()
+
+        class _View(ServiceDeleteView):
+            spec = ServiceSpec(
+                service=delete_collection(Post),
+                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_scoped),
+                atomic=False,
+            )
+
+        assert _View.as_view()(factory.delete("/?scope=from-query")).status_code == 204
+        assert seen == ["unset"]
+
+
+@pytest.mark.django_db
+class TestBulkTargetGuard:
+    """The bulk path passes the object-permission guard, like every other one.
+
+    A collection target is a queryset, which the guard skips — so this is a
+    no-op until a ``collection_selector_spec`` resolves a single row, which
+    ``shape_queryset`` passes through untouched when no shaping field is set.
+    Off HTTP the same spec has always had its guard run.
+    """
+
+    def test_a_single_row_collection_target_is_object_checked(self) -> None:
+        post = Post.objects.create(title="a")
+
+        class _DenyObject(BasePermission):
+            def has_object_permission(self, request: Any, view: Any, obj: Any) -> bool:
+                return False
+
+        def _one_post() -> Post:
+            return post
+
+        class _View(ServiceDeleteView):
+            permission_classes = [_DenyObject]
+            spec = ServiceSpec(
+                service=lambda *, collection: collection.delete(),
+                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_one_post),
+                atomic=False,
+            )
+
+        response = _View.as_view()(factory.delete("/"))
+
+        assert response.status_code == 403
+        assert Post.objects.count() == 1
+
+    def test_a_queryset_collection_target_is_untouched_by_the_guard(self) -> None:
+        """Per-row permissions stay per-row: a set is not object-checked."""
+        Post.objects.create(title="a")
+
+        class _DenyObject(BasePermission):
+            def has_object_permission(self, request: Any, view: Any, obj: Any) -> bool:
+                return False
+
+        class _View(ServiceDeleteView):
+            permission_classes = [_DenyObject]
+            spec = ServiceSpec(
+                service=delete_collection(Post),
+                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts),
+                atomic=False,
+            )
+
+        response = _View.as_view()(factory.delete("/"))
+
+        assert response.status_code == 204
+        assert Post.objects.count() == 0
