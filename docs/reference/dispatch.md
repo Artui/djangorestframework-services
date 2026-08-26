@@ -241,11 +241,26 @@ the HTTP path — see
 
 ## Pool seeds
 
-Every dispatched callable's kwargs pool starts from `base_pool`, on **every**
-transport — HTTP views and off-HTTP dispatch alike. Use it rather than
-restating the seeds if you build a pool of your own: a seed present in one
-place and not the other means a service that declares it works over one
-transport and raises a `TypeError` over the next.
+Every kwargs pool this package builds for a dispatched spec starts from
+`base_pool` — the HTTP view layer and off-HTTP `dispatch_spec` alike — so a spec
+callable that declares a seed behaves the same over either.
+
+`base_pool` is a builder, not a gate, and nothing checks a pool assembled
+elsewhere. **If you are writing a transport adapter, build your pool by calling
+it** — `base_pool(user=…, request=…, **your_own_entries)` — rather than writing a
+dict literal of your own:
+
+- A literal that omits a seed carries no trace of it. `resolve_callable_kwargs`
+  forwards only the keys the pool has, so a callable declaring the missing seed
+  raises a `TypeError` at call time: the same spec works when your adapter
+  dispatches it one way and fails another. `progress` is the usual casualty —
+  it is the seed with a default, so a callable can declare it in the
+  documented `progress: ProgressReporter` form and never see that anything is
+  missing until a pool without it comes along.
+- Spreading your own entries through `**extra` makes a name collision loud. An
+  entry called `user` or `request` raises `TypeError` at the `base_pool` call;
+  in a dict literal the same entry silently outranks the value your transport
+  authenticated.
 
 ::: rest_framework_services.dispatch.base_pool.base_pool
 

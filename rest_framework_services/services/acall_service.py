@@ -31,7 +31,11 @@ async def acall_service(
     Same contract as
     [`call_service`][rest_framework_services.services.call_service.call_service],
     ``map_errors`` included. Async services are awaited directly; a sync service is
-    called inline with no thread hop, so the caller owns any sync-side I/O safety."""
+    called inline with no thread hop, so the caller owns any sync-side I/O safety.
+
+    ``**extras`` never overrides a seed this helper derives, exactly as in the sync
+    twin: a ``user`` key spread in from client-supplied data is dropped rather than
+    replacing ``request.user``."""
     pool: dict[str, Any] = {
         "request": request,
         "user": getattr(request, "user", None),
@@ -40,7 +44,12 @@ async def acall_service(
         pool["data"] = data
     if instance is not UNSET:
         pool["instance"] = instance
-    pool.update(extras)
+    # The seeds above are transport-derived and authoritative: ``**extras`` is
+    # often a ``**validated_data`` spread, and letting a key from it outrank
+    # ``request.user`` would run the service as a client-chosen principal. The
+    # dispatch core keeps the same names out of its spreads for the same reason;
+    # names this helper does not seed still come through.
+    pool.update({key: value for key, value in extras.items() if key not in pool})
     kwargs = resolve_callable_kwargs(service, pool)
     try:
         if is_async(service):

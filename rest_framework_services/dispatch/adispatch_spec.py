@@ -20,7 +20,9 @@ from rest_framework_services.dispatch.utils import (
     arun_off_loop,
     arun_service_callable,
     call_target_guard,
+    clear_prefetch_cache,
     guard_many_argument_binding,
+    guard_mapping_params,
     merge_arguments,
     resolve_argument_binding,
     resolve_dispatch_kwargs,
@@ -46,6 +48,7 @@ from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.target_guard import TargetGuard
 from rest_framework_services.types.unknown_arguments import UnknownArguments
+from rest_framework_services.types.unset import UNSET
 from rest_framework_services.types.view_hooks import ViewHooks
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.mutation.utils import build_input_serializer_from_data
@@ -64,6 +67,7 @@ async def adispatch_spec(
     on_target_resolved: TargetGuard | None = None,
     progress: ProgressReporter | None = None,
     view_hooks: ViewHooks | None = None,
+    instance: Any = UNSET,
     filter_data: Mapping[str, Any] | None = None,
 ) -> DispatchResult:
     """Async
@@ -101,6 +105,7 @@ async def adispatch_spec(
             on_target_resolved=on_target_resolved,
             progress=progress,
             view_hooks=view_hooks,
+            instance=instance,
             filter_data=filter_data,
         )
     if isinstance(spec, SelectorSpec):
@@ -222,6 +227,7 @@ async def _adispatch_service(
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
     view_hooks: ViewHooks | None,
+    instance: Any,
     filter_data: Mapping[str, Any] | None,
 ) -> DispatchResult:
     if spec.many:
@@ -238,12 +244,18 @@ async def _adispatch_service(
             progress=progress,
             view_hooks=view_hooks,
         )
+    guard_mapping_params(params)
 
-    mode, target = await _aresolve_target(
-        spec, user=user, params=params, request=request, view=view
-    )
-    if mode == "missing":
-        return DispatchResult(value=None, kind="not_found", status=404)
+    if instance is not UNSET:
+        # The caller resolved the target itself — the HTTP path, whose
+        # ``get_object()`` chain has no off-HTTP meaning and so cannot live here.
+        mode, target = "instance", instance
+    else:
+        mode, target = await _aresolve_target(
+            spec, user=user, params=params, request=request, view=view, filter_data=filter_data
+        )
+        if mode == "missing":
+            return DispatchResult(value=None, kind="not_found", status=404)
     # The guard may run ``has_object_permission`` (DB), so keep it off the loop.
     await arun_off_loop(
         call_target_guard, on_target_resolved, spec, target, user=user, request=request, view=view
@@ -269,7 +281,7 @@ async def _adispatch_service(
     # Validation can touch the DB (e.g. ``UniqueValidator``); run it off-loop.
     serializer = await arun_off_loop(
         build_input_serializer_from_data,
-        dict(params),
+        params,
         spec.input_serializer,
         partial=spec.partial or False,
         context=input_context,
@@ -311,6 +323,10 @@ async def _adispatch_service(
         result: Any = await arun_service_callable(
             spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
         )
+    # Called directly, not through ``arun_off_loop``: it reads and rebinds one
+    # attribute on the target and issues no query, so there is nothing here that
+    # the event loop has to be protected from.
+    clear_prefetch_cache(instance)
     output_result, output_is_list = await _arun_output_selector(
         spec,
         result,
@@ -335,7 +351,12 @@ async def _adispatch_service(
         )
     )
     return DispatchResult(
-        value=output_result, kind="list" if output_is_list else "instance", status=status
+        value=output_result,
+        kind="list" if output_is_list else "instance",
+        status=status,
+        service_result=result,
+        instance=instance,
+        data=data,
     )
 
 
@@ -424,7 +445,15 @@ async def _aresolve_target(
     params: Mapping[str, Any],
     request: Any,
     view: Any,
+    filter_data: Mapping[str, Any] | None,
 ) -> tuple[str, Any]:
+    """Async :func:`~...dispatch.dispatch_spec._resolve_target`.
+
+    Same split — ``params`` is the nested selector's argument channel and
+    ``filter_data`` the one its ``filter_set`` reads; see the sync sibling for
+    why a scoping filter on a nested target spec needs it.
+    """
+    filters = params if filter_data is None else filter_data
     coll_spec = spec.collection_selector_spec
     if coll_spec is not None:
         if coll_spec.selector is None:
@@ -456,12 +485,12 @@ async def _aresolve_target(
             result,
             view=view,
             request=request,
-            params=params,
+            params=filters,
             source_label=COLLECTION_SOURCE,
         )
         return ("collection", collection)
     found, instance = await _aresolve_instance(
-        spec, user=user, params=params, request=request, view=view
+        spec, user=user, params=params, request=request, view=view, filter_data=filters
     )
     return ("instance", instance) if found else ("missing", None)
 
@@ -515,6 +544,7 @@ async def _aresolve_instance(
     params: Mapping[str, Any],
     request: Any,
     view: Any,
+    filter_data: Mapping[str, Any],
 ) -> tuple[bool, Any]:
     instance_spec = spec.instance_selector_spec
     if instance_spec is None or instance_spec.selector is None:
@@ -545,7 +575,7 @@ async def _aresolve_instance(
             result,
             view=view,
             request=request,
-            params=params,
+            params=filter_data,
             source_label=INSTANCE_SOURCE,
         )
     except ObjectDoesNotExist:

@@ -7,6 +7,279 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.44.0] — 2026-08-26
+
+### Upgrade notes
+
+**Four declarations that used to be accepted and then ignored now raise at
+`as_view()`.** Each was configuration that could not do the thing it read as
+doing, so nothing that worked stops working — the error moved from every
+request (or from nowhere at all) to the one place that can fix it.
+
+- `permission_classes` on a nested `instance_selector_spec` /
+  `collection_selector_spec` / `output_selector_spec`. The view resolves
+  permissions once, from the spec being dispatched, so an inner
+  `permission_classes=[IsPostOwner]` never ran. Move it to the surrounding
+  spec, or scope the nested selector's own queryset.
+- `input_serializer` that is not a `Serializer` subclass or a dataclass
+  **type** — most often a dataclass *instance*, one stray pair of parentheses,
+  which `dataclasses.is_dataclass` accepts and the request path then fails on.
+- An `action_specs` entry whose spec type does not match its action key (a
+  `SelectorSpec` under `"create"`, a `ServiceSpec` under `"retrieve"`). Same
+  `ImproperlyConfigured` as before, raised at setup instead of on the first
+  request.
+- An `action_specs` entry keyed on a **custom** action is now signature-checked
+  like any other, having previously been the one entry nothing validated. Such
+  an entry stays fully supported — `get_permissions` and
+  `ActionSerializerResolver` both read it — but a service demanding a key
+  nothing seeds is reported at setup.
+
+**`@service_action` with a `PolymorphicServiceSpec` now requires the viewset to
+carry `_ActionSpecsMixin`** when any variant declares `permission_classes` —
+`ServiceViewSet` and every mixin in this package already do. There is no single
+list to forward into DRF's `@action(permission_classes=...)`, so that mixin is
+the only place variant permissions are enforced; without it the action ran under
+the view's default permissions and no variant rule was checked. The decorated
+class is unknown at decoration time, so the check happens on the first request
+through the action and refuses it rather than serving it unguarded.
+
+**A bulk endpoint's query string no longer feeds its `input_serializer`.** The
+collection path used to hand `dispatch_spec` one mapping built as
+`{**query_params, **body, **url_kwargs}`, so on a `many` / `collection_selector_spec`
+action a query parameter could satisfy a serializer field: `DELETE /things/?reason=cleanup`
+validated `ArchiveInput.reason` from the URL, on an endpoint whose author had
+documented it as a body field — and over a channel that lands in access logs and
+`Referer` headers, which the body does not. The body and the route captures are
+now the argument channel and the query string is the filter channel, the split the
+single-instance path has always used. Two consequences to check before upgrading:
+
+- a caller relying on a query parameter to satisfy a serializer field now gets a
+  400 — move the value into the body;
+- a `collection_selector_spec` selector taking a **keyword argument** off the query
+  string (`def target(*, status)` fed by `?status=draft`) no longer receives it.
+  Declare the filtering with `filter_set`, which reads the query string, or scope
+  it from a route capture.
+
+Filtering itself gets better rather than worse: the query string reaches
+`filter_set` as the `QueryDict` it is, so `?id=1&id=2&id=3` arrives whole and a
+`MultipleChoiceFilter` or an `id__in` filter sees all three values. It previously
+went through `.dict()`, which keeps only the last.
+
+**A non-object body to a single-item spec is a 400, not a 500 (or a silence).**
+Only a spec declaring `many=True` takes a list payload; anywhere else `params` is
+spread into a keyword pool and validated as one object. A JSON array reaching a
+spec with an `instance_selector_spec` used to raise `AttributeError` from inside
+the target lookup, which is not an `APIException`, so DRF re-raised it and the
+client got a stack trace. A spec with no `input_serializer` ignored such a body
+entirely. Both now answer `400`.
+
+**Adapters reading `QueryParam.default` / `UrlKwarg.default` must account for a
+new sentinel.** "No default" is now `UNSET`, not `None`, so `default=None` is a
+declarable value ("defaults to null") that reaches the generated schema. A
+consumer branching on `default is not None` will read the sentinel as a value
+and seed it; the tolerant form is `default is not UNSET and default is not
+None`. `UNSET` is a top-level export.
+
+### Added
+
+- **`adispatch_spec` takes `instance=`, like its sync twin.** A caller that has
+  already fetched and authorised the row it wants to mutate can pin the
+  mutation to it instead of having the core re-derive a target from the
+  caller's `params`. The default is the `UNSET` sentinel rather than `None`,
+  because `None` is a *supplied* value there — a create — and both readings now
+  behave the same on both cores.
+
+- **`arender_spec_output` and `arender_for_agent` take `view_hooks=`.** Both
+  are thin off-loop wrappers over their sync twin, and both dropped the
+  carrier that a view's `get_output_serializer_context` chain travels in — so
+  an async caller could dispatch with a resolved hook chain (`adispatch_spec`
+  has always accepted one) and then had no way to render with it. Passing it
+  used to raise `TypeError`; omitting it renders exactly as before.
+
+- **`RESERVED_POOL_SEEDS` is re-exported from the package root**, alongside
+  `base_pool` and the rest of the dispatch surface. Its own docstring tells
+  transport adapters to import it rather than keep a copy of the seed names,
+  while it was reachable only from `rest_framework_services.types` — and a
+  local copy is exactly what an adapter following the "import from the package
+  root" rule ended up writing.
+
+- **`QueryParam(default=None)` / `UrlKwarg(default=None)` are expressible.**
+  Both dataclasses used plain `None` for two different things, so a declared
+  null default and no default at all generated the same schema. The field now
+  defaults to `UNSET`, and `json_schema()` emits `"default": null` for an
+  explicit one.
+
+### Fixed
+
+- **The async mutation path now fills in the whole `DispatchResult`.** It
+  returned only `value` / `kind` / `status`, leaving `service_result`,
+  `instance` and `data` at `None` where the sync path sets all three. A
+  transport reading `result.instance` for an audit entry, or `result.data` for
+  what was validated, silently recorded the mutation as having had no target
+  and no input.
+
+- **A mutated target's stale prefetch cache is dropped on the async path too.**
+  A service that changed a relation the target had prefetched left
+  `_prefetched_objects_cache` populated, so the returned instance
+  re-serialized the pre-mutation rows — telling an agent that the row it had
+  just revoked was still there. The sync path already cleared it, mirroring
+  DRF's `UpdateModelMixin`.
+
+- **A form-encoded body validates the same on both dispatch cores.** The async
+  core flattened `params` through `dict()` before validation, which on a
+  `QueryDict` exposes its internal `{key: [values]}` storage and turns every
+  scalar into a one-element list: a `CharField` answering "Not a valid string"
+  on input the sync core accepts, and a `JSONField` quietly accepting the list.
+  The conversion was never needed — the sync core passes `params` straight
+  through.
+
+- **`build_offline_context` no longer writes to the request you pass it.** The
+  `http_request=` argument is documented as the way an off-HTTP transport
+  carries a real request's headers into a dispatch, and the MCP server passes
+  the request it is serving. That request was then wrapped and written to
+  directly: `method` was forced to `POST`, `GET` was replaced whenever
+  `query_params=` was given, and `user` was reassigned — DRF's `Request.user`
+  setter writes through to the request it wraps. The effects outlived the call.
+  A server dispatching several specs from one HTTP request leaked each call's
+  query params into the next, and anything reading the ambient request
+  afterwards — a permission class, an audit hook, a `FilterSet`, a
+  `if request.method == "GET"` branch — saw values chosen by the dispatched
+  call rather than by the client.
+
+  A shallow copy of the request is now what gets wrapped, so those three
+  assignments land on the copy alone. The copy is shallow on purpose: `META`,
+  the session, the upload handlers and any body already read stay the same
+  objects, so headers, session writes and body access behave exactly as before.
+  The ownership contract is now stated on the parameter: pass the request you
+  are serving, dispatch as many specs from it as you like, and none of them
+  will be visible on it afterwards.
+
+- **`UnknownArguments.REJECT` can no longer degrade into accepting everything.**
+  A callable's declared keyword surface is read from its resolved
+  `**extras: Unpack[SomeExtras]` annotation. When that annotation did not
+  resolve — the `TypedDict` imported under `if TYPE_CHECKING:`, which this
+  package's `from __future__ import annotations` convention makes routine — the
+  failure was swallowed and the callable was reported as accepting anything.
+  `REJECT`, whose entire purpose is refusing an unrecognised argument, then
+  enforced nothing, with no diagnostic anywhere.
+
+  An annotated `**kwargs` that cannot be resolved is now treated as an unknown
+  surface rather than an unrestricted one: `REJECT` raises
+  `ImproperlyConfigured` naming the callable and how to fix it, on the first
+  dispatch rather than on the first bogus argument. A bare, unannotated
+  `**kwargs` is genuinely open and is unaffected, and `IGNORE` / `PASSTHROUGH`
+  keep reading an unresolvable annotation as open.
+
+- **`call_service` / `acall_service`: `**extras` can no longer replace the
+  request-derived `user`.** `**extras` was merged last, so
+  `call_service(service, request=request, **serializer.validated_data)` — with a
+  `user` key in that payload — handed the service a client-supplied principal in
+  place of `request.user`, silently. `request`, `data` and `instance` were
+  protected only by Python's duplicate-keyword `TypeError`; `user` is
+  synthesized and had nothing. Seeds these helpers derive now outrank `**extras`,
+  the rule the dispatch core has always applied to caller-supplied names. Keys
+  the helpers do not seed still reach the service unchanged.
+
+- **A `filter_set` on `instance_selector_spec` / `collection_selector_spec` now
+  reads the filter channel.** `filter_data` reached a selector's own filtering
+  and a service's output re-fetch, but never the nested lookup that resolves
+  *which row (or set) the mutation may touch* — that shaping bound against
+  `params`, which over HTTP is the request **body**. A `FilterSet`'s fields are
+  all optional, so a body containing none of them validated cleanly and `.qs`
+  came back unfiltered: a scoping filter on a mutation's target lookup narrowed
+  nothing, silently, and a `PATCH` or `DELETE` reached rows the filter was
+  written to exclude. Where a body did happen to carry a filter's field name,
+  the value being written decided which row was writable. Both dispatch cores
+  are fixed, and the split is the documented one — the query string filters, the
+  body validates, and off HTTP one flat mapping is still both.
+
+- **The bulk HTTP path passes the object-permission guard, like every other
+  dispatch site does.** `dispatch_mutation_for_spec` and the selector path both
+  hand the core `check_view_object_permissions`; the collection / `many` path
+  handed it nothing, so the guard the core fires on a resolved collection target
+  never ran over HTTP while the off-HTTP transports ran theirs. A collection
+  target is normally a queryset, which the guard skips, so this changes nothing
+  for the ordinary shape; it closes the case where a
+  `collection_selector_spec.selector` returns a single model instance, which
+  `shape_queryset` passes through untouched and which was then mutated with no
+  `check_object_permissions` at all.
+
+- **The bulk path keeps the query string and the body apart, and stops
+  flattening the query string.** See the upgrade notes above for what changes
+  for a caller.
+
+- **A JSON array body to a single-item spec is rejected instead of crashing.**
+  See the upgrade notes above.
+
+### Changed
+
+- **A new standing check compares the sync and async dispatch cores directly.**
+  `tests/test_transport_parity.py` guards HTTP against the transport-neutral
+  core, and had been carrying a handful of async cases that only ever asserted
+  the async outcome in isolation — so drift between the two cores passed it.
+  The new `tests/test_sync_async_parity.py` drives one case through both and
+  compares every field of the result, covering the pools that decide which row
+  a mutation targets, the mutation tail, and the signatures of each sync/async
+  pair.
+
+- **`base_pool` accepts a transport adapter's own pool entries.** The seeds it
+  returns were only ever guaranteed for pools this package builds; an adapter
+  assembling `{"request": …, "user": …, **its_own}` as a dict literal silently
+  carried no `progress` seed, so a callable declaring the documented
+  `progress: ProgressReporter` worked over one of that adapter's paths and
+  raised `TypeError` over the next. Adapter entries can now be spread straight
+  into the call — `base_pool(user=…, request=…, **own_entries)` — which both
+  removes the reason to restate the seeds and turns a colliding entry named
+  `user` or `request` into a loud `TypeError` instead of a silent override of
+  the transport's own value. The docstring and the dispatch reference now say
+  what is actually guaranteed and what an adapter has to do.
+
+- **Python annotations are mapped into JSON Schema structurally instead of
+  being erased.** A selector declaring `status: Literal["open", "closed"]`
+  published `{}` for it, and `{}` means *any JSON value* — so the declared set
+  was gone by the time a model read the tool schema, and registry rules, which
+  match by type identity, could never cover a `Literal` or a union. Now mapped:
+  `None`, `datetime` / `date` / `time` / `UUID` / `Decimal` (the formats DRF's
+  own fields use), `Literal[...]` and `Enum` subclasses as an `enum`, `set` /
+  `frozenset` / `dict`, and unions — `X | None` included — as `anyOf`. Members
+  resolve recursively, so one `JsonSchemaRegistry` rule for `Money` also covers
+  `list[Money]` and `Money | None`. What genuinely cannot be mapped still
+  publishes `{}`; the docstring and the reference page now name exactly what
+  lands there.
+
+### Documentation
+
+- **The three sites that drop `filter_backends` now say so where the code
+  is.** `SelectorRetrieveMixin.get_object`, `SelectorRetrieveView.get_object`
+  and `resolve_mutation_instance` take over DRF's `get_object()`, which is
+  where `filter_queryset()` runs — so a tenant-scoping backend narrows a
+  sibling `list` action and not a spec-driven detail lookup. The behaviour is
+  deliberate and unchanged (a hand-written `get_object()` override drops the
+  backends identically, and `filter_set` is the seam for a rule that must apply
+  to both paths); the disclosure previously lived only in two prose pages.
+  `concepts.md`'s claim that DRF's filter backends "never reach" a retrieve was
+  wrong about DRF and is now stated as what it is: an effect of overriding
+  `get_object()`.
+
+- **The permissions recipe states the polymorphic carve-out.** It claimed
+  decorator-attached specs carry their `permission_classes` into both
+  router-driven and direct-`as_view` setups, with no exception noted for a
+  `PolymorphicServiceSpec`, which forwards nothing.
+
+- **`UrlKwarg` / `QueryParam` state what an explicit null means.** A `null`
+  from a caller is not a supplied value: it is an omitted argument, so
+  `required` still refuses it and `default` still applies. Over HTTP neither
+  channel can carry a null at all, and routing one onto `view.kwargs` turns a
+  scoping provider into a silent `IS NULL` lookup that returns rows and looks
+  successful.
+
+- **The filtering recipe covers a mutation's target lookup.** A `filter_set` on
+  `instance_selector_spec` / `collection_selector_spec` is a scoping rule, not a
+  convenience, and it reads the query string rather than the body. The page now
+  says so, and names the failure mode a body-bound filter has: every filter
+  field is optional, so the wrong mapping validates cleanly and returns every
+  row. The bulk recipe states the same channel split from its own side.
+
 ## [0.43.0] — 2026-08-25
 
 ### Added
@@ -2768,7 +3041,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.43.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.44.0...HEAD
+[0.44.0]: https://github.com/Artui/djangorestframework-services/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/Artui/djangorestframework-services/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/Artui/djangorestframework-services/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/Artui/djangorestframework-services/compare/v0.40.0...v0.41.0

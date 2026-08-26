@@ -49,7 +49,14 @@ def build_offline_context(
             available (the MCP server passes its real one); otherwise an
             [`OfflineHttpRequest`][rest_framework_services.types.offline_http_request.OfflineHttpRequest]
             is created. Either way the method is forced to ``POST``, because mutation
-            callables often branch on it.
+            callables often branch on it. **The caller keeps ownership: a request
+            passed here is never written to.** What gets wrapped is a shallow copy,
+            so the ``method`` / ``GET`` / ``user`` this function sets land on the copy
+            alone, while ``META``, the session, the upload handlers and any body
+            already read stay shared — headers and session writes behave as they do
+            on HTTP, and the live request keeps its own method, query string and user
+            for the rest of its cycle. Pass the request you are serving; dispatching
+            several specs from one request is safe, and neither leaks into the next.
         action: The view action name, exposed on the
             [`OfflineServiceView`][rest_framework_services.types.offline_service_view.OfflineServiceView].
         kwargs: **The** channel for route-derived values — the off-HTTP counterpart of a
@@ -64,7 +71,8 @@ def build_offline_context(
             inputs reach the serializer offline (``SelectorSpec.filter_set``, a
             serializer branching on ``query_params``). Values are stringified as on
             HTTP; a list / tuple becomes a multi-valued param. **Replaces** a wrapped
-            ``http_request``'s ``GET``.
+            ``http_request``'s ``GET`` — on the copy that is wrapped, so the caller's
+            own ``GET`` still reads its real query string afterwards.
         host: The origin the synthesized request reports, so ``build_absolute_uri`` —
             which DRF's ``FileField`` / ``HyperlinkedIdentityField`` call whenever a
             ``request`` is in the serializer context — returns real absolute URLs off
@@ -79,7 +87,9 @@ def build_offline_context(
         [`OfflineContext`][rest_framework_services.types.offline_context.OfflineContext]
         to hand to ``dispatch_spec``.
     """
-    base: HttpRequest = http_request if http_request is not None else _synthesize_request(host)
+    base: HttpRequest = (
+        _copy_request(http_request) if http_request is not None else _synthesize_request(host)
+    )
     base.method = "POST"
     if query_params is not None:
         # ``_build_query_dict`` freezes the result (``_mutable = False``), so it is
@@ -96,6 +106,36 @@ def build_offline_context(
         request=drf_request, action=action, kwargs=dict(kwargs) if kwargs is not None else {}
     )
     return OfflineContext(user=user, request=drf_request, view=view)
+
+
+def _copy_request(http_request: HttpRequest) -> HttpRequest:
+    """Shallow-copy the caller's request so the derived one owns its own attributes.
+
+    Three attributes are assigned to the wrapped request downstream — ``method``,
+    ``GET``, and ``user`` (DRF's ``Request.user`` setter writes through to the object
+    it wraps). Assigning them to a live request would leak an off-HTTP dispatch into
+    the surrounding HTTP cycle: a later ``request.method == "GET"`` branch, a
+    permission class or audit hook reading ``request.user``, or a request-scoped
+    ``FilterSet`` reading ``query_params`` would all see values chosen by the
+    dispatched call rather than by the client.
+
+    The copy is deliberately *shallow*: ``META``, the session, the upload handlers and
+    any already-read body stay the same objects, so headers, session writes and body
+    access behave exactly as on the original, while the three assignments above land
+    on the copy's own ``__dict__``.
+    """
+    # The ``__dict__`` is transplanted directly rather than via ``copy.copy``, which
+    # routes through ``__reduce_ex__`` and so through Django's own
+    # ``HttpRequest.__getstate__`` -- and that deliberately drops
+    # ``non_picklable_attrs``: ``environ``, ``_stream``, ``resolver_match``. A copy
+    # missing ``environ`` raises ``AttributeError`` from ``WSGIRequest._get_scheme``
+    # the first time anything builds an absolute URI, which a serializer with a
+    # ``FileField`` or a ``HyperlinkedIdentityField`` does. Going through
+    # ``object.__new__`` skips ``__init__`` (there is no ``environ`` to hand it) and
+    # copies every attribute, picklable or not.
+    clone: Any = object.__new__(type(http_request))
+    clone.__dict__.update(http_request.__dict__)
+    return cast(HttpRequest, clone)
 
 
 def _synthesize_request(host: str | None) -> OfflineHttpRequest:

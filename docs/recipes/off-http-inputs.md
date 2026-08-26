@@ -48,6 +48,15 @@ def list_widgets(**extras: Unpack[WidgetExtras]) -> list[Widget]:
 The inherited `request` / `user` seeds are excluded automatically — they are
 transport-controlled, never caller input.
 
+!!! warning "Import the `TypedDict` at runtime"
+    The declared surface is read from the resolved annotation, so the
+    `TypedDict` has to be importable when the callable is dispatched — an import
+    parked under `if TYPE_CHECKING:` is not. With
+    `UnknownArguments.REJECT` the annotation is the entire basis for refusing an
+    argument, so an unresolvable one raises `ImproperlyConfigured` on dispatch
+    rather than quietly letting every argument through. The permissive policies
+    read an unresolvable annotation as an open `**kwargs`, as they always have.
+
 ## Requiredness: `InputRequired`
 
 `list_widgets` above cannot run without `project_pk`, but the schema says the key

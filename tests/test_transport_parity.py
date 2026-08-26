@@ -12,6 +12,10 @@ one spec, exercises it over both surfaces, and asserts the surfaces agree; a
 behaviour that only one path implements is a defect regardless of which path
 has it. Keep new spec fields covered here — a field honoured on one transport
 and silently ignored on the other is the failure mode this file exists to catch.
+
+That is the only axis this file guards. The *other* one — the sync dispatch
+core against its async twin — lives in ``tests/test_sync_async_parity.py``,
+which drives one case through both and compares the outcomes.
 """
 
 from __future__ import annotations
@@ -161,11 +165,16 @@ def test_async_service_resolves_off_http() -> None:
     assert result.value == {"title": "t", "tenant": "a"}
 
 
-# --- sync/async dispatch parity ------------------------------------------
+# --- the async twin honours the same spec fields --------------------------
 #
 # ``adispatch_spec`` is the async twin of ``dispatch_spec``, and a fix applied to
-# one is a defect in the other until it is applied to both. These pin the twin to
-# the same spec-field behaviour rather than trusting that the pair stay in step.
+# one is a defect in the other until it is applied to both. These re-run a few of
+# this file's cases through the twin, so a spec field the async core never
+# learned about is caught on this axis too.
+#
+# They assert the async outcome **in isolation**, though, so a case where the two
+# cores disagree still passes both halves. Comparing them is the job of
+# ``tests/test_sync_async_parity.py``; new twin coverage belongs there.
 
 
 @pytest.mark.django_db(transaction=True)

@@ -255,7 +255,8 @@ both paths share.
 origin, and a process with no ambient request has none. Two ways to give it one:
 
 ```python
-# The transport has a real request (the MCP server): pass it through.
+# The transport has a real request (the MCP server): pass it through. The
+# request is never written to — a copy of it is what gets wrapped.
 build_offline_context(user, http_request=request)
 
 # It doesn't (a toolset, a management command, a worker): name the origin.

@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from asgiref.sync import sync_to_async
+from django.core.exceptions import ImproperlyConfigured
 from rest_framework.exceptions import ValidationError
 from typing_extensions import get_type_hints
 
@@ -113,12 +114,36 @@ def merge_arguments(
         pool.update(spread)
 
 
+class _UnresolvedExtras(Exception):
+    """A ``**kwargs`` annotation that exists but cannot be resolved at runtime.
+
+    Distinguishes "this callable accepts anything" (a bare ``**kwargs``, genuinely
+    open) from "we cannot tell what this callable accepts" — which used to collapse
+    into the same ``None``, silently turning a strict policy into a no-op. Raised by
+    ``_callable_param_names`` and handled in ``resolve_unknown_arguments``.
+    """
+
+    def __init__(self, fn: Callable[..., Any], parameter: str, cause: Exception) -> None:
+        label = getattr(fn, "__qualname__", repr(fn))
+        super().__init__(
+            f"{label}(**{parameter}) is annotated, but the annotation cannot be "
+            f"resolved at runtime ({type(cause).__name__}: {cause})."
+        )
+
+
 def _callable_param_names(fn: Callable[..., Any]) -> set[str] | None:
     """Declared keyword-acceptable parameter names of ``fn``; ``None`` if open.
 
     A bare ``**kwargs`` is open — it accepts anything, so no key can be called
     "unknown". A ``**kwargs: Unpack[SomeExtras]`` is *not*: the ``TypedDict``
     names an exact keyword surface, and only those keys join the declared set.
+
+    An **annotated** ``**kwargs`` whose annotation does not resolve — the
+    ``TypedDict`` imported under ``if TYPE_CHECKING:``, which
+    ``from __future__ import annotations`` makes routine — raises
+    ``_UnresolvedExtras`` rather than reporting the callable as open: the surface is
+    unknown, not unrestricted, and the caller decides what an unknown surface means
+    for its policy.
 
     Keys marked ``NotClientInput`` are excluded as
     provider-owned and never advertised. Delivery is unaffected — this feeds the
@@ -128,10 +153,12 @@ def _callable_param_names(fn: Callable[..., Any]) -> set[str] | None:
     names: set[str] = set()
     for name, p in parameters.items():
         if p.kind is inspect.Parameter.VAR_KEYWORD:
+            if p.annotation is inspect.Parameter.empty:
+                return None
             try:
                 hints = get_type_hints(fn)
-            except Exception:  # noqa: BLE001 — unresolvable → treat as open below
-                hints = {}
+            except Exception as exc:  # noqa: BLE001 — any resolution failure is opaque
+                raise _UnresolvedExtras(fn, name, exc) from exc
             typed_dict = unpack_typed_dict(hints.get(name))
             if typed_dict is None:
                 return None
@@ -164,6 +191,8 @@ def declared_input_keys(
     declares its ``input_serializer`` fields plus whatever its nested target
     selectors consume (e.g. the ``pk`` an ``instance_selector_spec`` reads).
     ``None`` means the set is not enumerable, so nothing can be flagged unknown.
+    Propagates ``_UnresolvedExtras`` when a callable's ``**kwargs`` annotation cannot
+    be resolved — "unknown surface", which is not the same as "open".
     """
     if isinstance(spec, SelectorSpec):
         if spec.filter_set is not None:
@@ -190,10 +219,27 @@ def resolve_unknown_arguments(
     ``PASSTHROUGH`` returns the undeclared key/values so the caller can fold them
     into the dispatched callable's input. Reserved pool seeds are never
     considered unknown.
+
+    When a callable's ``**kwargs`` annotation cannot be resolved, its accepted keys
+    are unknown rather than unrestricted. ``REJECT`` — whose entire purpose is to
+    refuse an argument it does not recognise — cannot be honoured against an unknown
+    surface, so it raises ``ImproperlyConfigured`` instead of quietly accepting
+    everything. The permissive policies keep treating it as open, which is what they
+    would do with a bare ``**kwargs`` anyway.
     """
     if unknown_arguments is UnknownArguments.IGNORE:
         return {}
-    declared = declared_input_keys(spec, serializer=serializer)
+    try:
+        declared = declared_input_keys(spec, serializer=serializer)
+    except _UnresolvedExtras as exc:
+        if unknown_arguments is UnknownArguments.REJECT:
+            raise ImproperlyConfigured(
+                f"UnknownArguments.REJECT cannot be enforced: {exc} Make the annotation "
+                "resolvable at runtime (import the TypedDict normally rather than under "
+                "'if TYPE_CHECKING:'), or dispatch with UnknownArguments.IGNORE or "
+                "PASSTHROUGH."
+            ) from exc
+        return {}
     if declared is None:
         return {}
     unknown = {
@@ -279,6 +325,28 @@ def guard_many_argument_binding(argument_binding: ArgumentBinding) -> None:
             "argument_binding is not applicable with many=True: a bulk service "
             "receives the whole list as `data`, so there are no scalar client "
             "arguments to spread. Pass argument_binding only on single-item specs."
+        )
+
+
+def guard_mapping_params(params: Any) -> None:
+    """Reject a non-mapping ``params`` on a single-item dispatch.
+
+    Only a ``many=True`` spec takes a list payload; every other path spreads
+    ``params`` into a keyword pool and validates it as one object, which needs
+    ``.items()``. A JSON array — or any other non-object — reaching a
+    single-item spec is client input, so it earns a 400 here rather than the
+    ``AttributeError`` the first spread would raise, which is not an
+    ``APIException`` and so surfaces as a 500 with a stack trace.
+    """
+    if not isinstance(params, Mapping):
+        raise ValidationError(
+            {
+                "non_field_errors": [
+                    "Invalid data. Expected a dictionary, but got "
+                    f"{type(params).__name__}. Only a spec declaring many=True "
+                    "accepts a list payload."
+                ]
+            }
         )
 
 

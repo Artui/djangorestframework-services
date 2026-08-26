@@ -100,6 +100,32 @@ def test_extras_merge_into_pool() -> None:
     assert captured == {"tenant_id": 42, "actor": "bob"}
 
 
+def test_extras_cannot_override_the_request_derived_user() -> None:
+    """A ``user`` key spread in from client data never outranks ``request.user``."""
+    captured: dict[str, Any] = {}
+
+    def service(*, user: Any) -> None:
+        captured["user"] = user
+
+    validated_data = {"user": "mallory"}
+    call_service(service, request=_build_request(user="alice"), **validated_data)
+
+    assert captured["user"] == "alice"
+
+
+def test_extras_still_carry_names_the_helper_does_not_seed() -> None:
+    """Only seeds the helper derived are protected; anything else comes through."""
+    captured: dict[str, Any] = {}
+
+    def service(*, progress: Any) -> None:
+        captured["progress"] = progress
+
+    reporter = object()
+    call_service(service, request=_build_request(user="alice"), progress=reporter)
+
+    assert captured["progress"] is reporter
+
+
 def test_signature_filter_drops_undeclared_keys() -> None:
     """Service that doesn't declare ``request`` doesn't receive it."""
 
