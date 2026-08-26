@@ -1330,6 +1330,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="SelectorRetrieveMixin">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin.get_object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_object
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1794,6 +1811,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="SelectorRetrieveMixin">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin.get_object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_object
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2309,6 +2343,35 @@ action-specific override, do it explicitly in your own <code>get_object()</code>
 
 
 
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin.get_object" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_object</span>
+
+
+<a href="#rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin.get_object" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_object</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Resolve the target row through the retrieve selector, if one is wired.</p>
+<p><strong><code>filter_backends</code> do not apply here.</strong> DRF runs
+<code>filter_queryset()</code> inside its own <code>get_object()</code>, so taking that
+method over — as this mixin does, and as any hand-written
+<code>get_object()</code> override does — is what drops them. A tenant-scoping
+backend listed in <code>DEFAULT_FILTER_BACKENDS</code> therefore narrows the
+sibling <code>list</code> action and <em>not</em> this lookup, which is what makes the
+gap easy to miss. Scope the selector's own queryset, or declare the
+rule as <code>SelectorSpec.filter_set</code> — the sanctioned seam, applied by
+the dispatcher on both paths.</p>
+
+
+    </div>
+
+</div>
+
 
 
   </div>
@@ -2434,10 +2497,24 @@ DRF <code>@action</code> metadata and pick up the action name from <code>__name_
 for one action accepting several payload shapes) for the service wiring. <code>detail</code>,
 <code>methods</code>, <code>url_path</code>, <code>url_name</code>, and any extra <code>**action_kwargs</code> are
 forwarded to DRF's <code>@action</code>.</p>
-<p>For a polymorphic action, per-variant <code>permission_classes</code> are enforced by
-the viewset's <code>get_permissions</code> (the <code>_ActionSpecsMixin</code> reads the
-stashed spec) rather than via DRF's <code>@action(permission_classes=...)</code>,
-since there is no single list to forward.</p>
+<p>A plain <code>ServiceSpec</code> forwards its <code>permission_classes</code> into DRF's
+<code>@action(permission_classes=...)</code>, so it is enforced on any viewset. A
+<a class="autorefs autorefs-internal" title="PolymorphicServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec"><code>PolymorphicServiceSpec</code></a>
+has no single list to forward — which list applies depends on the strategy,
+and under <code>"discriminate"</code> on the body — so its per-variant
+<code>permission_classes</code> are enforced by <code>_ActionSpecsMixin.get_permissions</code>,
+which reads the spec stashed on the handler. That makes the mixin a
+<strong>requirement</strong>, not a convenience: on a viewset without it, DRF's stock
+<code>get_permissions</code> would apply the view's defaults and every variant rule
+would go unchecked. The decorated class is unknown at decoration time, so
+the dependency is checked on the first request through the action and the
+request is refused rather than served unguarded. Compose <code>ServiceViewSet</code>
+(or any mixin from this package) and the check never fires.</p>
 
 
     </div>

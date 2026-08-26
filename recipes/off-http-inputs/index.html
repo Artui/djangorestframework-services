@@ -1705,6 +1705,16 @@ per key, no registration anywhere:</p>
 </span></code></pre></div>
 <p>The inherited <code>request</code> / <code>user</code> seeds are excluded automatically — they are
 transport-controlled, never caller input.</p>
+<div class="admonition warning">
+<p class="admonition-title">Import the <code>TypedDict</code> at runtime</p>
+<p>The declared surface is read from the resolved annotation, so the
+<code>TypedDict</code> has to be importable when the callable is dispatched — an import
+parked under <code>if TYPE_CHECKING:</code> is not. With
+<code>UnknownArguments.REJECT</code> the annotation is the entire basis for refusing an
+argument, so an unresolvable one raises <code>ImproperlyConfigured</code> on dispatch
+rather than quietly letting every argument through. The permissive policies
+read an unresolvable annotation as an open <code>**kwargs</code>, as they always have.</p>
+</div>
 <h2 id="requiredness-inputrequired">Requiredness: <code>InputRequired</code><a class="headerlink" href="#requiredness-inputrequired" title="Permanent link">&para;</a></h2>
 <p><code>list_widgets</code> above cannot run without <code>project_pk</code>, but the schema says the key
 is optional, and a caller that omits it gets a <code>KeyError</code> from inside dispatch.</p>

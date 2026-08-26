@@ -1470,6 +1470,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="spec_to_json_schema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-an-annotation-publishes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What an annotation publishes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1744,6 +1761,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="spec_to_json_schema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-an-annotation-publishes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What an annotation publishes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2054,6 +2088,54 @@ like <code>get_widget(user, pk)</code> advertises <code>pk</code> instead of a b
 that leans on the docstring alone. An un-annotated parameter is still surfaced by
 name (untyped <code>{}</code>); a <code>filter_set</code> field wins over a callable parameter of the
 same name.</p>
+<h3 id="what-an-annotation-publishes">What an annotation publishes<a class="headerlink" href="#what-an-annotation-publishes" title="Permanent link">&para;</a></h3>
+<p>The mapping from a Python annotation is structural, so a declaration a caller
+took the trouble to write survives into the published schema:</p>
+<table>
+<thead>
+<tr>
+<th>Annotation</th>
+<th>Schema</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>str</code> / <code>int</code> / <code>float</code> / <code>bool</code> / <code>None</code></td>
+<td>the matching JSON type</td>
+</tr>
+<tr>
+<td><code>datetime</code> / <code>date</code> / <code>time</code> / <code>UUID</code> / <code>Decimal</code></td>
+<td><code>string</code> with the format DRF's own field would use</td>
+</tr>
+<tr>
+<td><code>Literal["open", "closed"]</code>, an <code>Enum</code> subclass</td>
+<td><code>{"enum": [...]}</code> — by member <em>value</em> for an <code>Enum</code></td>
+</tr>
+<tr>
+<td><code>list[X]</code>, <code>set[X]</code> / <code>frozenset[X]</code></td>
+<td><code>array</code> (a set adds <code>uniqueItems</code>)</td>
+</tr>
+<tr>
+<td><code>dict[str, X]</code></td>
+<td><code>object</code> with <code>additionalProperties</code></td>
+</tr>
+<tr>
+<td><code>X \| None</code>, <code>Union[X, Y]</code></td>
+<td><code>{"anyOf": [...]}</code></td>
+</tr>
+</tbody>
+</table>
+<p>Anything else — a domain class, a <code>Callable</code>, a bare <code>Any</code>, an annotation that
+could not be resolved — publishes as <code>{}</code>, which in JSON Schema means <strong>any
+value</strong>, so a caller cannot tell it from a value that genuinely is
+unconstrained. Register the types that matter to you rather than letting them
+publish as anything:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">python_types</span><span class="o">=</span><span class="p">[(</span><span class="n">Money</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span><span class="p">,</span> <span class="s2">&quot;format&quot;</span><span class="p">:</span> <span class="s2">&quot;money&quot;</span><span class="p">})],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>Rules are matched by type <em>identity</em>, and members are resolved recursively, so
+one rule for <code>Money</code> also covers <code>list[Money]</code> and <code>Money | None</code>.</p>
 <h2 id="jsonschemaregistry"><code>JsonSchemaRegistry</code><a class="headerlink" href="#jsonschemaregistry" title="Permanent link">&para;</a></h2>
 
 

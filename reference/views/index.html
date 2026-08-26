@@ -1252,6 +1252,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="SelectorRetrieveView">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView.get_object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_object
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2055,6 +2072,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="SelectorRetrieveView">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView.get_object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_object
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2769,6 +2803,33 @@ configure the selector and/or the output serializer. Both fields are optional:</
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView.get_object" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_object</span>
+
+
+<a href="#rest_framework_services.views.query.selector_retrieve_view.SelectorRetrieveView.get_object" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">get_object</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Resolve the target row through <code>spec.selector</code>, if one is set.</p>
+<p><strong><code>filter_backends</code> do not apply here.</strong> DRF runs
+<code>filter_queryset()</code> inside its own <code>get_object()</code>, so overriding
+that method — this view, or any hand-written override — drops them.
+A tenant-scoping backend in <code>DEFAULT_FILTER_BACKENDS</code> scopes a
+sibling list view and not this lookup. Scope the selector's own
+queryset, or declare the rule as <code>SelectorSpec.filter_set</code>, which
+the dispatcher applies on both the list and the retrieve path.</p>
+
+
+    </div>
+
+</div>
 
 
 

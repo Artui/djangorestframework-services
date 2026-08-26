@@ -1693,6 +1693,14 @@ single <code>pk</code> in the URL.</p>
 query string; an <strong>empty</strong> set is a harmless no-op (idempotent). A bulk update
 is the same shape with a service that calls <code>collection.update(...)</code> (return a
 summary like <code>{"updated": n}</code> to get a <code>200</code> body instead of <code>204</code>).</p>
+<p>The two channels stay apart here exactly as they do on a single-instance
+mutation: the <strong>query string</strong> feeds <code>filter_set</code> and the <strong>body</strong> feeds
+<code>input_serializer</code>. A repeated parameter therefore survives whole, so a
+<code>MultipleChoiceFilter</code> or an <code>id__in</code> filter reads every value of
+<code>?id=1&amp;id=2&amp;id=3</code>; and a query parameter cannot stand in for a serializer field
+it happens to share a name with. Selector <em>arguments</em> come from the body and the
+route captures — <code>?status=</code> reaches <code>filter_set</code>, not a <code>status=</code> keyword on the
+selector.</p>
 <p><code>delete_collection</code> / <code>adelete_collection</code> are batteries-included; pass
 <code>soft_delete=lambda qs: qs.update(is_archived=True)</code> to archive instead.</p>
 <h3 id="return-the-affected-set">Return the affected set<a class="headerlink" href="#return-the-affected-set" title="Permanent link">&para;</a></h3>

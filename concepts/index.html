@@ -2231,8 +2231,11 @@ post-mutation re-fetch, queryset shaping) lives in a single nested
   (DRF-style <code>serializer(instance, data=..., partial=...)</code>), the
   service pool (<code>instance</code>), and object-level permission checks
   (<code>check_object_permissions</code>). <code>None</code> / missing → <code>404</code>. Queryset
-  shaping applies; the nested spec's <code>permission_classes</code>,
-  <code>output_serializer</code>, and <code>output_serializer_context</code> are ignored.
+  shaping applies; the nested spec's <code>output_serializer</code> and
+  <code>output_serializer_context</code> are ignored, and its <code>permission_classes</code>
+  / <code>preconditions</code> are <em>rejected</em> at <code>as_view()</code> — only the dispatching
+  spec's permissions are ever checked, so a nested list would guard
+  nothing.
   <code>None</code> (the default) keeps the <code>get_object()</code> chain. See
   <a href="#standalone-update-without-a-queryset">Standalone update without a queryset</a>.
 - <strong><code>collection_selector_spec</code></strong> — the bulk twin of
@@ -2247,9 +2250,9 @@ post-mutation re-fetch, queryset shaping) lives in a single nested
   (<code>kind=SelectorKind.RETRIEVE</code>) carrying the response serializer, the
   optional re-fetch <code>selector</code>, the output <code>output_serializer_context</code>
   hook, and the queryset-shaping fields. <code>None</code> (the default) renders
-  the service's return value directly. The nested spec's
-  <code>permission_classes</code> and <code>kwargs</code> are ignored — the surrounding
-  mutation's permissions and kwargs chain apply.
+  the service's return value directly. The nested spec's <code>kwargs</code> is
+  ignored — the surrounding mutation's kwargs chain applies — and its
+  <code>permission_classes</code> / <code>preconditions</code> are rejected at <code>as_view()</code>.
 - <strong><code>kwargs</code></strong> — callable returning extra kwargs to merge into the pool
   the service receives. The most-specific level of the kwargs
   resolution chain; co-located with the service it feeds.
@@ -2830,9 +2833,11 @@ mutation flow. See the <a href="../recipes/service-action/">service-action recip
 <ul>
 <li>It does not define a <code>Service</code> base class. A service is a function.</li>
 <li>It does not invent a queryset filtering DSL. Use DRF's
-  <code>filter_backends</code> for list endpoints; for a <em>retrieve</em> selector (which
-  DRF's <code>filter_backends</code> never reach) or a transport-neutral declaration,
-  point <code>SelectorSpec.filter_set</code> at a <code>django-filter</code> <code>FilterSet</code> — see
+  <code>filter_backends</code> for list endpoints; for a <em>retrieve</em> selector — which
+  overrides <code>get_object()</code>, the method DRF runs <code>filter_queryset()</code> from,
+  so the backends stop applying exactly as they would for any
+  hand-written override — or for a transport-neutral declaration, point
+  <code>SelectorSpec.filter_set</code> at a <code>django-filter</code> <code>FilterSet</code> — see
   <a href="../recipes/selector-filtering/">filter a selector with <code>filter_set</code></a>.</li>
 <li>It does not own the input format. Use any DRF <code>Serializer</code> (including
   <code>ModelSerializer</code>) or a bare <code>@dataclass</code>.</li>

@@ -4267,8 +4267,10 @@ service pool as <code>instance</code>. A missing row is always
 <code>NotFound</code> — the nested
 <code>allow_none</code> is ignored — and <code>check_object_permissions</code> runs
 against it. Queryset shaping applies; the nested
-<code>permission_classes</code> / <code>output_serializer</code> /
-<code>output_serializer_context</code> are ignored.</p>
+<code>output_serializer</code> / <code>output_serializer_context</code> are ignored,
+and the nested <code>permission_classes</code> / <code>preconditions</code> are
+<em>refused</em> at <code>as_view()</code> — the dispatching spec's permissions are
+the ones checked, so declaring them here would guard nothing.</p>
               </div>
             </td>
           </tr>
@@ -4291,7 +4293,9 @@ instance-less "operate on the filtered set" action where an empty
 set is a harmless no-op rather than a 404. The pool carries query
 params, body and URL kwargs, so a nested-route bulk can scope by
 <code>parent_pk</code>; route captures win on conflict, so a filter value
-cannot override the route scope.</p>
+cannot override the route scope. Its <code>permission_classes</code> /
+<code>preconditions</code> are refused at <code>as_view()</code> for the same reason as
+<code>instance_selector_spec</code>'s.</p>
               </div>
             </td>
           </tr>
@@ -4313,9 +4317,10 @@ instance (the service returns the written row, the selector
 re-fetches it with the relations the response needs, and
 <code>output_serializer</code> renders it); LIST re-fetches and renders a set
 and is valid only alongside <code>collection_selector_spec</code>. <code>None</code>
-renders the service's return value directly. The nested
-<code>permission_classes</code> and <code>kwargs</code> are ignored — the surrounding
-mutation's chains apply.</p>
+renders the service's return value directly. The nested <code>kwargs</code>
+is ignored — the surrounding mutation's chains apply — and the nested
+<code>permission_classes</code> / <code>preconditions</code> are refused at
+<code>as_view()</code> rather than silently ignored.</p>
               </div>
             </td>
           </tr>
@@ -7201,6 +7206,13 @@ the key into the schema and <code>params</code> delivers it. A key can be <em>bo
 reflected and registered — the explicit <code>UrlKwarg</code> wins the adapter's schema
 merge, registration pops the argument into <code>kwargs=</code>, and the authoritative
 spread still delivers it to the selector pool, so both readers see it.</p>
+<p><strong>An explicit null from the caller is not a supplied value.</strong> A route capture
+is a URL segment, so over HTTP there is no value that means null; off-HTTP,
+<code>{"project_pk": null}</code> is what a model emits for a capture it could not
+resolve. A transport treats that as an omitted argument — <code>required</code> still
+refuses it and <code>default</code> still applies — rather than spreading <code>None</code> onto
+<code>view.kwargs</code>, where a scoping provider would turn it into a silent
+<code>IS NULL</code> lookup that returns rows and looks successful.</p>
 
 
 <p><span class="doc-section-title">Attributes:</span></p>
@@ -7256,8 +7268,12 @@ default, or <code>"integer"</code> / <code>"number"</code> / <code>"boolean"</co
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Optional value seeded when the caller omits the argument; also
-surfaced as the schema <code>default</code>.</p>
+                <p>Value seeded when the caller omits the argument; also surfaced as
+the schema <code>default</code>. Left at <code>UNSET</code> there is no default and the
+schema carries no <code>default</code> key; <code>default=None</code> is a real
+declaration ("defaults to null") and is surfaced like any other
+value. Read it with <code>is not UNSET</code>, never with a truthiness or
+<code>is not None</code> test.</p>
               </div>
             </td>
           </tr>
@@ -7318,6 +7334,9 @@ schema's <code>required</code>.</p>
     <div class="doc doc-contents ">
 
         <p>The JSON-Schema property this kwarg contributes to an input schema.</p>
+<p><code>default</code> is emitted whenever one was declared — <code>UNSET</code> is the
+"no default" sentinel, so an explicit <code>default=None</code> reaches the
+schema as <code>"default": None</code> instead of vanishing.</p>
 
 
     </div>
@@ -7384,9 +7403,18 @@ declaration whichever transport carries it. Pair it with
 <li><code>type</code> — the JSON-Schema type advertised to the caller (<code>"string"</code> by default;
   <code>"integer"</code> / <code>"number"</code> / <code>"boolean"</code> / <code>"array"</code> …).</li>
 <li><code>description</code> — optional help text shown to the caller.</li>
-<li><code>default</code> — optional value seeded when the caller omits the argument; also
-  surfaced as the schema <code>default</code>.</li>
+<li><code>default</code> — value seeded when the caller omits the argument; also surfaced
+  as the schema <code>default</code>. Left at <code>UNSET</code> there is no default, and the
+  schema carries no <code>default</code> key; <code>default=None</code> is a real declaration
+  ("defaults to null") and is surfaced like any other value. Read it with
+  <code>is not UNSET</code>, never with a truthiness or <code>is not None</code> test.</li>
 </ul>
+<p><strong>An explicit null from the caller is not a supplied value.</strong> Over HTTP a
+query param is always a string, so there is no value a caller can send that
+means null; off-HTTP, <code>{"fields": null}</code> is the shape a model emits for a
+param it chose not to fill. A transport treats it as an omitted argument —
+the <code>default</code> still applies — rather than routing <code>None</code> onto
+<code>request.query_params</code>.</p>
 <p><strong>No <code>required</code> flag, deliberately.</strong> A query param is <em>read-shaping</em> —
 omitting one is legitimate by construction, and the spec runs correctly
 without it. Requiredness belongs to inputs the spec cannot run without, which
@@ -7433,6 +7461,9 @@ is <a class="autorefs autorefs-internal" title="UrlKwarg
     <div class="doc doc-contents ">
 
         <p>The JSON-Schema property this param contributes to an input schema.</p>
+<p><code>default</code> is emitted whenever one was declared — <code>UNSET</code> is the
+"no default" sentinel, so an explicit <code>default=None</code> reaches the
+schema as <code>"default": None</code> instead of vanishing.</p>
 
 
     </div>
@@ -7496,7 +7527,10 @@ with a key the transport controls, and must not be declared twice.</p>
 <li><strong><code>required</code> together with a <code>default</code></strong> — contradictory: a default
   means the argument can always be satisfied without the caller, so demanding
   it is either a no-op or a lie. Only checked on declarations that carry a
-  <code>required</code> attribute (<code>QueryParam</code> deliberately has none).</li>
+  <code>required</code> attribute (<code>QueryParam</code> deliberately has none). "Has a
+  default" is <code>default is not UNSET</code>: <code>None</code> is a declarable default
+  ("defaults to null"), so pairing <em>it</em> with <code>required</code> is contradictory
+  too.</li>
 </ul>
 <p>Adapters should call this once per tool / operation, with <code>label</code>
 identifying the offending registration site and <code>kind</code> naming the

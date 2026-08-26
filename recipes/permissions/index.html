@@ -1728,6 +1728,16 @@ same precedence: spec wins, then fall through to the view.</p>
 <code>@selector_action</code> also carry their <code>permission_classes</code> via DRF's standard
 <code>@action(permission_classes=...)</code> integration — so the same configuration
 works in both router-driven and direct-<code>as_view</code> setups.</p>
+<p><strong>A <code>PolymorphicServiceSpec</code> is the exception.</strong> <code>@action</code> takes a single
+list, and which list applies to a polymorphic action depends on its
+<code>permission_strategy</code> — under <code>"discriminate"</code>, on the request body. There is
+nothing to forward, so the variants' <code>permission_classes</code> are enforced only by
+<code>_ActionSpecsMixin.get_permissions</code>. That makes the mixin a requirement for
+that combination rather than a convenience: compose <code>ServiceViewSet</code> (or any
+mixin from this package) and it is already there. On a viewset without it,
+<code>@service_action</code> refuses the request instead of serving it under the view's
+default permissions — the decorated class is unknown at decoration time, so
+the check cannot happen any earlier.</p>
 
 
 

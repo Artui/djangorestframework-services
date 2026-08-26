@@ -3667,12 +3667,16 @@ is why the default is a sentinel.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The data the <code>filter_set</code> reads, on both spec kinds — a
-selector's own filtering and a service's output-selector re-fetch. Only
-meaningful when <code>params</code> is not the filter source: off HTTP one flat
-mapping is usually both, so this stays <code>None</code>, whereas over HTTP the body
-validates and the <strong>query string</strong> filters, and merging them would let a
-query parameter satisfy a serializer field.</p>
+                <p>The data the <code>filter_set</code> reads, wherever one can be
+declared — a selector's own filtering, a service's <code>instance_</code> /
+<code>collection_selector_spec</code> target lookup, and its output-selector
+re-fetch. On the target lookups that makes it a scoping channel: a
+<code>filter_set</code> there narrows the row a mutation may reach, and one bound
+to the wrong mapping validates clean (every filter field is optional) and
+narrows nothing. Only meaningful when <code>params</code> is not the filter source:
+off HTTP one flat mapping is usually both, so this stays <code>None</code>, whereas
+over HTTP the body validates and the <strong>query string</strong> filters, and merging
+them would let a query parameter satisfy a serializer field.</p>
               </div>
             </td>
             <td>
@@ -3799,8 +3803,9 @@ query parameter satisfy a serializer field.</p>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">on_target_resolved</span><span class="p">:</span> <span class="n">TargetGuard</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">progress</span><span class="p">:</span> <span class="n">ProgressReporter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">view_hooks</span><span class="p">:</span> <span class="n">ViewHooks</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">filter_data</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">filter_data</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3902,7 +3907,8 @@ id-keyed batched context query reuses the page's result cache.</p>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">extras</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">view_hooks</span><span class="p">:</span> <span class="n">ViewHooks</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -4022,7 +4028,8 @@ handles the next step reads by will have been projected away.</p>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">view</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">extras</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">view_hooks</span><span class="p">:</span> <span class="n">ViewHooks</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -4863,7 +4870,14 @@ Pass both the same value.</p>
 available (the MCP server passes its real one); otherwise an
 <a class="autorefs autorefs-internal" title="OfflineHttpRequest" href="#rest_framework_services.types.offline_http_request.OfflineHttpRequest"><code>OfflineHttpRequest</code></a>
 is created. Either way the method is forced to <code>POST</code>, because mutation
-callables often branch on it.</p>
+callables often branch on it. <strong>The caller keeps ownership: a request
+passed here is never written to.</strong> What gets wrapped is a shallow copy,
+so the <code>method</code> / <code>GET</code> / <code>user</code> this function sets land on the copy
+alone, while <code>META</code>, the session, the upload handlers and any body
+already read stay shared — headers and session writes behave as they do
+on HTTP, and the live request keeps its own method, query string and user
+for the rest of its cycle. Pass the request you are serving; dispatching
+several specs from one request is safe, and neither leaks into the next.</p>
               </div>
             </td>
             <td>
@@ -4928,7 +4942,8 @@ key conflict, below a <code>spec.kwargs</code> provider, which also sees it as
 inputs reach the serializer offline (<code>SelectorSpec.filter_set</code>, a
 serializer branching on <code>query_params</code>). Values are stringified as on
 HTTP; a list / tuple becomes a multi-valued param. <strong>Replaces</strong> a wrapped
-<code>http_request</code>'s <code>GET</code>.</p>
+<code>http_request</code>'s <code>GET</code> — on the copy that is wrapped, so the caller's
+own <code>GET</code> still reads its real query string afterwards.</p>
               </div>
             </td>
             <td>
@@ -5721,6 +5736,15 @@ callers that don't need the bound serializer itself.</p>
           </tr>
       </tbody>
     </table>
+        <p><strong><code>filter_backends</code> do not apply to the two spec-driven branches.</strong> DRF
+runs <code>filter_queryset()</code> inside its own <code>get_object()</code>, so an
+<code>instance_selector_spec</code> (resolved by the core) and a retrieve selector
+(which overrides <code>get_object()</code>) both bypass it, exactly as a hand-written
+<code>get_object()</code> override does. A tenant-scoping backend in
+<code>DEFAULT_FILTER_BACKENDS</code> therefore does not narrow the row a PATCH or
+DELETE may reach here, while the sibling list action stays scoped. Put the
+scoping in the selector's own queryset. Only the last branch — DRF's own
+<code>get_object()</code> — applies the backends.</p>
 
 
     </div>
@@ -5985,11 +6009,26 @@ rendering.</p>
     </div>
 
 </div><h2 id="pool-seeds">Pool seeds<a class="headerlink" href="#pool-seeds" title="Permanent link">&para;</a></h2>
-<p>Every dispatched callable's kwargs pool starts from <code>base_pool</code>, on <strong>every</strong>
-transport — HTTP views and off-HTTP dispatch alike. Use it rather than
-restating the seeds if you build a pool of your own: a seed present in one
-place and not the other means a service that declares it works over one
-transport and raises a <code>TypeError</code> over the next.</p>
+<p>Every kwargs pool this package builds for a dispatched spec starts from
+<code>base_pool</code> — the HTTP view layer and off-HTTP <code>dispatch_spec</code> alike — so a spec
+callable that declares a seed behaves the same over either.</p>
+<p><code>base_pool</code> is a builder, not a gate, and nothing checks a pool assembled
+elsewhere. <strong>If you are writing a transport adapter, build your pool by calling
+it</strong> — <code>base_pool(user=…, request=…, **your_own_entries)</code> — rather than writing a
+dict literal of your own:</p>
+<ul>
+<li>A literal that omits a seed carries no trace of it. <code>resolve_callable_kwargs</code>
+  forwards only the keys the pool has, so a callable declaring the missing seed
+  raises a <code>TypeError</code> at call time: the same spec works when your adapter
+  dispatches it one way and fails another. <code>progress</code> is the usual casualty —
+  it is the seed with a default, so a callable can declare it in the
+  documented <code>progress: ProgressReporter</code> form and never see that anything is
+  missing until a pool without it comes along.</li>
+<li>Spreading your own entries through <code>**extra</code> makes a name collision loud. An
+  entry called <code>user</code> or <code>request</code> raises <code>TypeError</code> at the <code>base_pool</code> call;
+  in a dict literal the same entry silently outranks the value your transport
+  authenticated.</li>
+</ul>
 
 
 <div class="doc doc-object doc-function">
@@ -6001,16 +6040,32 @@ transport and raises a <code>TypeError</code> over the next.</p>
 
 <a href="#rest_framework_services.dispatch.base_pool.base_pool" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">base_pool</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="o">*</span><span class="p">,</span> <span class="n">user</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">progress</span><span class="p">:</span> <span class="n">ProgressReporter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="o">*</span><span class="p">,</span> <span class="n">user</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">progress</span><span class="p">:</span> <span class="n">ProgressReporter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">extra</span><span class="p">:</span> <span class="n">Any</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p>The seeds every dispatched callable's pool carries, on every transport.</p>
-<p><strong>Every</strong> pool routes through here, HTTP and off-HTTP alike, so a service
-that declares a seed behaves the same whoever dispatched it. Build a pool
-of your own from this rather than restating the seeds.</p>
+        <p>The seeds a dispatched callable's kwargs pool carries, on every transport.</p>
+<p>Every pool this package builds for a dispatched spec routes through here — the
+HTTP view layer and off-HTTP
+<a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>
+alike — so a spec callable that declares a seed behaves the same whichever of
+them dispatched it.</p>
+<p>That is a property of the pools built here, not a rule the framework can
+enforce on its callers: this is a builder, not a gate. A transport adapter that
+assembles a pool as a dict literal of its own carries exactly the keys it wrote
+there, because <code>resolve_callable_kwargs</code> forwards only keys the pool actually
+has. A callable declaring a seed the literal omitted then raises <code>TypeError</code>
+at call time rather than running — <code>progress</code> most often, since it is the seed
+with a default and so the one nobody remembers.</p>
+<p><strong>An adapter that dispatches callables through this package must build its pool
+from this function</strong>, with its own entries spread in —
+<code>base_pool(user=…, request=…, **own_entries)</code> — rather than restating the
+seeds. Routing those entries through <code>**extra</code> is also what makes a name
+collision loud: an entry called <code>user</code> or <code>request</code> raises <code>TypeError</code>
+here, where in a dict literal it would quietly outrank the value the transport
+authenticated.</p>
 <p><code>progress</code> defaults to
 <a class="autorefs autorefs-internal" title="null_progress" href="#rest_framework_services.dispatch.null_progress.null_progress"><code>null_progress</code></a>
 rather than to <code>None</code>, so a declared reporter is always callable — see

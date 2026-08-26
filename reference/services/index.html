@@ -2982,7 +2982,12 @@ propagates unchanged and an unhandled one surfaces as a <code>500</code>.</p>
               <div class="doc-md-description">
                 <p>Merged into the pool; the signature filter
 (<code>resolve_callable_kwargs</code>) decides which keys reach the
-service.</p>
+service. <strong>A seed this helper derives is never overridden here:</strong>
+an <code>extras</code> key named <code>user</code> (or <code>data</code> / <code>instance</code> when
+the matching argument was passed) is dropped, so spreading a
+serializer's <code>validated_data</code> cannot hand the service a
+client-supplied principal in place of <code>request.user</code>. Keys the
+helper does not seed reach the service unchanged.</p>
               </div>
             </td>
             <td>
@@ -3028,6 +3033,9 @@ service.</p>
 <a class="autorefs autorefs-internal" title="call_service" href="#rest_framework_services.services.call_service.call_service"><code>call_service</code></a>,
 <code>map_errors</code> included. Async services are awaited directly; a sync service is
 called inline with no thread hop, so the caller owns any sync-side I/O safety.</p>
+<p><code>**extras</code> never overrides a seed this helper derives, exactly as in the sync
+twin: a <code>user</code> key spread in from client-supplied data is dropped rather than
+replacing <code>request.user</code>.</p>
 
 
     </div>
