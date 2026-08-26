@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`adispatch_spec` takes `instance=`, like its sync twin.** A caller that has
+  already fetched and authorised the row it wants to mutate can pin the
+  mutation to it instead of having the core re-derive a target from the
+  caller's `params`. The default is the `UNSET` sentinel rather than `None`,
+  because `None` is a *supplied* value there — a create — and both readings now
+  behave the same on both cores.
+
+- **`arender_spec_output` and `arender_for_agent` take `view_hooks=`.** Both
+  are thin off-loop wrappers over their sync twin, and both dropped the
+  carrier that a view's `get_output_serializer_context` chain travels in — so
+  an async caller could dispatch with a resolved hook chain (`adispatch_spec`
+  has always accepted one) and then had no way to render with it. Passing it
+  used to raise `TypeError`; omitting it renders exactly as before.
+
+### Fixed
+
+- **The async mutation path now fills in the whole `DispatchResult`.** It
+  returned only `value` / `kind` / `status`, leaving `service_result`,
+  `instance` and `data` at `None` where the sync path sets all three. A
+  transport reading `result.instance` for an audit entry, or `result.data` for
+  what was validated, silently recorded the mutation as having had no target
+  and no input.
+
+- **A mutated target's stale prefetch cache is dropped on the async path too.**
+  A service that changed a relation the target had prefetched left
+  `_prefetched_objects_cache` populated, so the returned instance
+  re-serialized the pre-mutation rows — telling an agent that the row it had
+  just revoked was still there. The sync path already cleared it, mirroring
+  DRF's `UpdateModelMixin`.
+
+- **A form-encoded body validates the same on both dispatch cores.** The async
+  core flattened `params` through `dict()` before validation, which on a
+  `QueryDict` exposes its internal `{key: [values]}` storage and turns every
+  scalar into a one-element list: a `CharField` answering "Not a valid string"
+  on input the sync core accepts, and a `JSONField` quietly accepting the list.
+  The conversion was never needed — the sync core passes `params` straight
+  through.
+
+### Changed
+
+- **A new standing check compares the sync and async dispatch cores directly.**
+  `tests/test_transport_parity.py` guards HTTP against the transport-neutral
+  core, and had been carrying a handful of async cases that only ever asserted
+  the async outcome in isolation — so drift between the two cores passed it.
+  The new `tests/test_sync_async_parity.py` drives one case through both and
+  compares every field of the result, covering the pools that decide which row
+  a mutation targets, the mutation tail, and the signatures of each sync/async
+  pair.
+
 ## [0.43.0] — 2026-08-25
 
 ### Added

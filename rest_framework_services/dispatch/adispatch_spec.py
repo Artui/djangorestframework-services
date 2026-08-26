@@ -20,6 +20,7 @@ from rest_framework_services.dispatch.utils import (
     arun_off_loop,
     arun_service_callable,
     call_target_guard,
+    clear_prefetch_cache,
     guard_many_argument_binding,
     merge_arguments,
     resolve_argument_binding,
@@ -46,6 +47,7 @@ from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.target_guard import TargetGuard
 from rest_framework_services.types.unknown_arguments import UnknownArguments
+from rest_framework_services.types.unset import UNSET
 from rest_framework_services.types.view_hooks import ViewHooks
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.mutation.utils import build_input_serializer_from_data
@@ -64,6 +66,7 @@ async def adispatch_spec(
     on_target_resolved: TargetGuard | None = None,
     progress: ProgressReporter | None = None,
     view_hooks: ViewHooks | None = None,
+    instance: Any = UNSET,
     filter_data: Mapping[str, Any] | None = None,
 ) -> DispatchResult:
     """Async
@@ -101,6 +104,7 @@ async def adispatch_spec(
             on_target_resolved=on_target_resolved,
             progress=progress,
             view_hooks=view_hooks,
+            instance=instance,
             filter_data=filter_data,
         )
     if isinstance(spec, SelectorSpec):
@@ -222,6 +226,7 @@ async def _adispatch_service(
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
     view_hooks: ViewHooks | None,
+    instance: Any,
     filter_data: Mapping[str, Any] | None,
 ) -> DispatchResult:
     if spec.many:
@@ -239,11 +244,16 @@ async def _adispatch_service(
             view_hooks=view_hooks,
         )
 
-    mode, target = await _aresolve_target(
-        spec, user=user, params=params, request=request, view=view
-    )
-    if mode == "missing":
-        return DispatchResult(value=None, kind="not_found", status=404)
+    if instance is not UNSET:
+        # The caller resolved the target itself — the HTTP path, whose
+        # ``get_object()`` chain has no off-HTTP meaning and so cannot live here.
+        mode, target = "instance", instance
+    else:
+        mode, target = await _aresolve_target(
+            spec, user=user, params=params, request=request, view=view
+        )
+        if mode == "missing":
+            return DispatchResult(value=None, kind="not_found", status=404)
     # The guard may run ``has_object_permission`` (DB), so keep it off the loop.
     await arun_off_loop(
         call_target_guard, on_target_resolved, spec, target, user=user, request=request, view=view
@@ -269,7 +279,7 @@ async def _adispatch_service(
     # Validation can touch the DB (e.g. ``UniqueValidator``); run it off-loop.
     serializer = await arun_off_loop(
         build_input_serializer_from_data,
-        dict(params),
+        params,
         spec.input_serializer,
         partial=spec.partial or False,
         context=input_context,
@@ -311,6 +321,10 @@ async def _adispatch_service(
         result: Any = await arun_service_callable(
             spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
         )
+    # Called directly, not through ``arun_off_loop``: it reads and rebinds one
+    # attribute on the target and issues no query, so there is nothing here that
+    # the event loop has to be protected from.
+    clear_prefetch_cache(instance)
     output_result, output_is_list = await _arun_output_selector(
         spec,
         result,
@@ -335,7 +349,12 @@ async def _adispatch_service(
         )
     )
     return DispatchResult(
-        value=output_result, kind="list" if output_is_list else "instance", status=status
+        value=output_result,
+        kind="list" if output_is_list else "instance",
+        status=status,
+        service_result=result,
+        instance=instance,
+        data=data,
     )
 
 

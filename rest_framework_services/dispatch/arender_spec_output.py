@@ -10,6 +10,7 @@ from rest_framework_services.dispatch.render_spec_output import render_spec_outp
 from rest_framework_services.dispatch.utils import arun_off_loop
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.types.view_hooks import ViewHooks
 
 
 async def arender_spec_output(
@@ -20,6 +21,7 @@ async def arender_spec_output(
     view: Any = None,
     request: Any = None,
     extras: Mapping[str, Any] | None = None,
+    view_hooks: ViewHooks | None = None,
 ) -> Any:
     """Async
     [`render_spec_output`][rest_framework_services.dispatch.render_spec_output.render_spec_output].
@@ -56,7 +58,14 @@ async def arender_spec_output(
     contract and the rest of the semantics.
     """
     return await arun_off_loop(
-        render_spec_output, spec, value, many=many, view=view, request=request, extras=extras
+        render_spec_output,
+        spec,
+        value,
+        many=many,
+        view=view,
+        request=request,
+        extras=extras,
+        view_hooks=view_hooks,
     )
 
 

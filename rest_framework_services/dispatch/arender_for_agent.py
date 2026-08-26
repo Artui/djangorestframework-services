@@ -11,6 +11,7 @@ from rest_framework_services.dispatch.utils import arun_off_loop
 from rest_framework_services.types.agent_projection import AgentProjection
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.types.view_hooks import ViewHooks
 
 
 async def arender_for_agent(
@@ -22,6 +23,7 @@ async def arender_for_agent(
     view: Any = None,
     request: Any = None,
     extras: Mapping[str, Any] | None = None,
+    view_hooks: ViewHooks | None = None,
 ) -> Any:
     """Async
     [`render_for_agent`][rest_framework_services.dispatch.render_for_agent.render_for_agent].
@@ -42,4 +44,5 @@ async def arender_for_agent(
         view=view,
         request=request,
         extras=extras,
+        view_hooks=view_hooks,
     )
