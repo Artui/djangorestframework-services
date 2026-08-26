@@ -53,7 +53,12 @@ def call_service(
             propagates unchanged and an unhandled one surfaces as a ``500``.
         **extras: Merged into the pool; the signature filter
             (``resolve_callable_kwargs``) decides which keys reach the
-            service.
+            service. **A seed this helper derives is never overridden here:**
+            an ``extras`` key named ``user`` (or ``data`` / ``instance`` when
+            the matching argument was passed) is dropped, so spreading a
+            serializer's ``validated_data`` cannot hand the service a
+            client-supplied principal in place of ``request.user``. Keys the
+            helper does not seed reach the service unchanged.
     """
     pool: dict[str, Any] = {
         "request": request,
@@ -63,7 +68,12 @@ def call_service(
         pool["data"] = data
     if instance is not UNSET:
         pool["instance"] = instance
-    pool.update(extras)
+    # The seeds above are transport-derived and authoritative: ``**extras`` is
+    # often a ``**validated_data`` spread, and letting a key from it outrank
+    # ``request.user`` would run the service as a client-chosen principal. The
+    # dispatch core keeps the same names out of its spreads for the same reason;
+    # names this helper does not seed still come through.
+    pool.update({key: value for key, value in extras.items() if key not in pool})
     kwargs = resolve_callable_kwargs(service, pool)
     try:
         if is_async(service):

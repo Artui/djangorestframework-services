@@ -47,6 +47,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The conversion was never needed — the sync core passes `params` straight
   through.
 
+
+- **`build_offline_context` no longer writes to the request you pass it.** The
+  `http_request=` argument is documented as the way an off-HTTP transport
+  carries a real request's headers into a dispatch, and the MCP server passes
+  the request it is serving. That request was then wrapped and written to
+  directly: `method` was forced to `POST`, `GET` was replaced whenever
+  `query_params=` was given, and `user` was reassigned — DRF's `Request.user`
+  setter writes through to the request it wraps. The effects outlived the call.
+  A server dispatching several specs from one HTTP request leaked each call's
+  query params into the next, and anything reading the ambient request
+  afterwards — a permission class, an audit hook, a `FilterSet`, a
+  `if request.method == "GET"` branch — saw values chosen by the dispatched
+  call rather than by the client.
+
+  A shallow copy of the request is now what gets wrapped, so those three
+  assignments land on the copy alone. The copy is shallow on purpose: `META`,
+  the session, the upload handlers and any body already read stay the same
+  objects, so headers, session writes and body access behave exactly as before.
+  The ownership contract is now stated on the parameter: pass the request you
+  are serving, dispatch as many specs from it as you like, and none of them
+  will be visible on it afterwards.
+
+- **`UnknownArguments.REJECT` can no longer degrade into accepting everything.**
+  A callable's declared keyword surface is read from its resolved
+  `**extras: Unpack[SomeExtras]` annotation. When that annotation did not
+  resolve — the `TypedDict` imported under `if TYPE_CHECKING:`, which this
+  package's `from __future__ import annotations` convention makes routine — the
+  failure was swallowed and the callable was reported as accepting anything.
+  `REJECT`, whose entire purpose is refusing an unrecognised argument, then
+  enforced nothing, with no diagnostic anywhere.
+
+  An annotated `**kwargs` that cannot be resolved is now treated as an unknown
+  surface rather than an unrestricted one: `REJECT` raises
+  `ImproperlyConfigured` naming the callable and how to fix it, on the first
+  dispatch rather than on the first bogus argument. A bare, unannotated
+  `**kwargs` is genuinely open and is unaffected, and `IGNORE` / `PASSTHROUGH`
+  keep reading an unresolvable annotation as open.
+
+- **`call_service` / `acall_service`: `**extras` can no longer replace the
+  request-derived `user`.** `**extras` was merged last, so
+  `call_service(service, request=request, **serializer.validated_data)` — with a
+  `user` key in that payload — handed the service a client-supplied principal in
+  place of `request.user`, silently. `request`, `data` and `instance` were
+  protected only by Python's duplicate-keyword `TypeError`; `user` is
+  synthesized and had nothing. Seeds these helpers derive now outrank `**extras`,
+  the rule the dispatch core has always applied to caller-supplied names. Keys
+  the helpers do not seed still reach the service unchanged.
+
 ### Changed
 
 - **A new standing check compares the sync and async dispatch cores directly.**
@@ -57,6 +105,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compares every field of the result, covering the pools that decide which row
   a mutation targets, the mutation tail, and the signatures of each sync/async
   pair.
+
+- **`base_pool` accepts a transport adapter's own pool entries.** The seeds it
+  returns were only ever guaranteed for pools this package builds; an adapter
+  assembling `{"request": …, "user": …, **its_own}` as a dict literal silently
+  carried no `progress` seed, so a callable declaring the documented
+  `progress: ProgressReporter` worked over one of that adapter's paths and
+  raised `TypeError` over the next. Adapter entries can now be spread straight
+  into the call — `base_pool(user=…, request=…, **own_entries)` — which both
+  removes the reason to restate the seeds and turns a colliding entry named
+  `user` or `request` into a loud `TypeError` instead of a silent override of
+  the transport's own value. The docstring and the dispatch reference now say
+  what is actually guaranteed and what an adapter has to do.
+
 
 ## [0.43.0] — 2026-08-25
 
