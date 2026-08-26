@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Mapping
 from typing import Any, cast
 from urllib.parse import urlsplit
@@ -125,10 +124,18 @@ def _copy_request(http_request: HttpRequest) -> HttpRequest:
     access behave exactly as on the original, while the three assignments above land
     on the copy's own ``__dict__``.
     """
-    # ``copy.copy`` on an ``HttpRequest`` subclass rebinds ``__dict__`` entries without
-    # re-running ``__init__``, which is what keeps a WSGI / ASGI request usable here.
-    raw: Any = copy.copy(http_request)
-    return cast(HttpRequest, raw)
+    # The ``__dict__`` is transplanted directly rather than via ``copy.copy``, which
+    # routes through ``__reduce_ex__`` and so through Django's own
+    # ``HttpRequest.__getstate__`` -- and that deliberately drops
+    # ``non_picklable_attrs``: ``environ``, ``_stream``, ``resolver_match``. A copy
+    # missing ``environ`` raises ``AttributeError`` from ``WSGIRequest._get_scheme``
+    # the first time anything builds an absolute URI, which a serializer with a
+    # ``FileField`` or a ``HyperlinkedIdentityField`` does. Going through
+    # ``object.__new__`` skips ``__init__`` (there is no ``environ`` to hand it) and
+    # copies every attribute, picklable or not.
+    clone: Any = object.__new__(type(http_request))
+    clone.__dict__.update(http_request.__dict__)
+    return cast(HttpRequest, clone)
 
 
 def _synthesize_request(host: str | None) -> OfflineHttpRequest:

@@ -55,6 +55,24 @@ def test_supplied_http_request_is_wrapped_and_forced_to_post() -> None:
     assert ctx.request.data == {"a": 1}
 
 
+def test_wrapping_a_real_wsgi_request_keeps_the_attributes_pickling_drops() -> None:
+    # ``HttpRequest.__getstate__`` deliberately omits ``non_picklable_attrs``, so a
+    # copy taken through ``copy.copy`` / ``__reduce_ex__`` silently loses ``environ``
+    # and ``_stream``. ``WSGIRequest._get_scheme`` reads ``environ``, so the loss only
+    # surfaces when something builds an absolute URI -- what a serializer carrying a
+    # ``FileField`` or ``HyperlinkedIdentityField`` does on a perfectly ordinary read.
+    from django.test import RequestFactory
+
+    base = RequestFactory().post("/hook/")
+    carried = set(base.__dict__)
+    wrapped = build_offline_context(_USER, http_request=base).request._request
+    # Nothing the caller's request held may be missing from the copy. Asserting the
+    # whole set rather than naming ``environ`` keeps this true across Django versions:
+    # which attributes are deemed non-picklable has changed, and the invariant has not.
+    assert carried - set(wrapped.__dict__) == set()
+    assert wrapped.build_absolute_uri("/x/") == "http://testserver/x/"
+
+
 def test_wrapping_shares_meta_session_and_body_with_the_caller() -> None:
     base = HttpRequest()
     base.session = {"cart": ["a"]}  # ty: ignore[invalid-assignment]
