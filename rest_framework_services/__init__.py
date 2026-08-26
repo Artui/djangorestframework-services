@@ -83,6 +83,7 @@ from rest_framework_services.services import (
 from rest_framework_services.types import (
     AGENT,
     DEFAULT_JSON_SCHEMA_REGISTRY,
+    RESERVED_POOL_SEEDS,
     UNSET,
     AgentField,
     AgentProjection,
@@ -192,6 +193,7 @@ __all__ = [
     "PolymorphicServiceSpec",
     "ProgressReporter",
     "QueryParam",
+    "RESERVED_POOL_SEEDS",
     "RegisteredSpec",
     "RelatedObjectChange",
     "RelationMode",

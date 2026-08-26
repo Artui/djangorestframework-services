@@ -31,6 +31,7 @@ from rest_framework_services.selectors.utils import (
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.registered_spec import RegisteredSpec
+from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
 from rest_framework_services.views.mutation.utils import (
     build_input_serializer,
     build_input_serializer_from_data,
@@ -41,6 +42,10 @@ from rest_framework_services.views.utils import resolve_callable_kwargs
 
 # Blessed name → the leaf-module original it must alias.
 _SURFACE = {
+    # Adapters are told to import this rather than keep a copy of the seed
+    # names, so it has to be reachable from the same place as the rest of
+    # the dispatch surface.
+    "RESERVED_POOL_SEEDS": RESERVED_POOL_SEEDS,
     "RegisteredSpec": RegisteredSpec,
     "SpecRegistry": SpecRegistry,
     "adispatch_spec": adispatch_spec,

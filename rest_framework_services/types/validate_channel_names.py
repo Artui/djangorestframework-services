@@ -8,6 +8,7 @@ from typing import Any, Protocol
 from django.core.exceptions import ImproperlyConfigured
 
 from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
+from rest_framework_services.types.unset import UNSET
 
 
 class _ChannelDeclaration(Protocol):
@@ -57,7 +58,10 @@ def validate_channel_names(
     - **``required`` together with a ``default``** — contradictory: a default
       means the argument can always be satisfied without the caller, so demanding
       it is either a no-op or a lie. Only checked on declarations that carry a
-      ``required`` attribute (``QueryParam`` deliberately has none).
+      ``required`` attribute (``QueryParam`` deliberately has none). "Has a
+      default" is ``default is not UNSET``: ``None`` is a declarable default
+      ("defaults to null"), so pairing *it* with ``required`` is contradictory
+      too.
 
     Adapters should call this once per tool / operation, with ``label``
     identifying the offending registration site and ``kind`` naming the
@@ -77,7 +81,7 @@ def validate_channel_names(
     contradictory = sorted(
         declaration.name
         for declaration in declarations
-        if getattr(declaration, "required", False) and declaration.default is not None
+        if getattr(declaration, "required", False) and declaration.default is not UNSET
     )
     if contradictory:
         raise ImproperlyConfigured(

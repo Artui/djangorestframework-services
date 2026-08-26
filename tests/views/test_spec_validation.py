@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+from rest_framework.permissions import BasePermission
 
 from rest_framework_services import (
     SelectorKind,
@@ -23,6 +24,10 @@ from rest_framework_services.views.spec_validation import (
     validate_selector_spec,
     validate_service_spec,
 )
+
+
+class _AlwaysAllow(BasePermission):
+    """A well-formed permission class; never instantiated by the validator."""
 
 
 class DjangoFilterBackend:
@@ -580,6 +585,93 @@ class TestNestedPreconditionsRejected:
                 has_instance=False,
                 permissive_extras=False,
             )
+
+
+class TestNestedPermissionClassesRejected:
+    """A nested spec's permissions are never checked, so declaring them fails fast.
+
+    The dispatching spec is the only one whose ``permission_classes`` the view
+    resolves, and it does so before anything nested resolves — an inner
+    ``IsOwner`` would read as a guard while every caller sailed past it.
+    """
+
+    def _nested(self, kind: SelectorKind = SelectorKind.RETRIEVE) -> SelectorSpec[Any, Any]:
+        return SelectorSpec(
+            kind=kind,
+            selector=lambda: None,
+            permission_classes=[_AlwaysAllow],
+        )
+
+    def test_instance_selector_spec_names_the_field_and_the_position(self) -> None:
+        with pytest.raises(
+            ImproperlyConfigured,
+            match=r"X\.instance_selector_spec: `permission_classes` .* never enforced",
+        ):
+            validate_service_spec(
+                ServiceSpec(service=lambda: None, instance_selector_spec=self._nested()),
+                label="X",
+                has_instance=True,
+                permissive_extras=False,
+            )
+
+    def test_collection_selector_spec_names_the_field_and_the_position(self) -> None:
+        with pytest.raises(
+            ImproperlyConfigured,
+            match=r"X\.collection_selector_spec: `permission_classes` .* never enforced",
+        ):
+            validate_service_spec(
+                ServiceSpec(
+                    service=lambda: None,
+                    collection_selector_spec=self._nested(SelectorKind.LIST),
+                ),
+                label="X",
+                has_instance=False,
+                permissive_extras=False,
+            )
+
+    def test_output_selector_spec_names_the_field_and_the_position(self) -> None:
+        with pytest.raises(
+            ImproperlyConfigured,
+            match=r"X\.output_selector_spec: `permission_classes` .* never enforced",
+        ):
+            validate_service_spec(
+                ServiceSpec(service=lambda: None, output_selector_spec=self._nested()),
+                label="X",
+                has_instance=False,
+                permissive_extras=False,
+            )
+
+    def test_an_empty_nested_list_is_refused_too(self) -> None:
+        # ``[]`` is as unenforced as a populated list; the field simply has no
+        # meaning in this position.
+        with pytest.raises(ImproperlyConfigured, match="never enforced"):
+            validate_service_spec(
+                ServiceSpec(
+                    service=lambda: None,
+                    instance_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE,
+                        selector=lambda: None,
+                        permission_classes=[],
+                    ),
+                ),
+                label="X",
+                has_instance=True,
+                permissive_extras=False,
+            )
+
+    def test_the_dispatching_spec_still_takes_permission_classes(self) -> None:
+        validate_service_spec(
+            ServiceSpec(
+                service=lambda: None,
+                permission_classes=[_AlwaysAllow],
+                instance_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, selector=lambda: None
+                ),
+            ),
+            label="X",
+            has_instance=True,
+            permissive_extras=False,
+        )
 
 
 class TestSelectorSpecPreconditions:

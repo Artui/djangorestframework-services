@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from rest_framework_services.types.query_param import QueryParam
+from rest_framework_services.types.unset import UNSET
 from rest_framework_services.types.url_kwarg import UrlKwarg
 
 
@@ -43,3 +44,27 @@ def test_query_param_schema_carries_type_description_and_default() -> None:
 
 def test_query_param_defaults_to_an_optional_string() -> None:
     assert QueryParam("fields").json_schema() == {"type": "string"}
+
+
+def test_url_kwarg_without_a_default_declares_none() -> None:
+    # ``UNSET``, not ``None`` — otherwise "no default" and "defaults to null"
+    # are the same declaration and the schema cannot tell them apart.
+    assert UrlKwarg("project_pk").default is UNSET
+
+
+def test_url_kwarg_surfaces_an_explicit_null_default() -> None:
+    assert UrlKwarg("parent_id", type="integer", default=None).json_schema() == {
+        "type": "integer",
+        "default": None,
+    }
+
+
+def test_query_param_without_a_default_declares_none() -> None:
+    assert QueryParam("fields").default is UNSET
+
+
+def test_query_param_surfaces_an_explicit_null_default() -> None:
+    assert QueryParam("parent_id", type="integer", default=None).json_schema() == {
+        "type": "integer",
+        "default": None,
+    }

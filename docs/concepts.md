@@ -208,8 +208,11 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   (DRF-style `serializer(instance, data=..., partial=...)`), the
   service pool (`instance`), and object-level permission checks
   (`check_object_permissions`). `None` / missing → `404`. Queryset
-  shaping applies; the nested spec's `permission_classes`,
-  `output_serializer`, and `output_serializer_context` are ignored.
+  shaping applies; the nested spec's `output_serializer` and
+  `output_serializer_context` are ignored, and its `permission_classes`
+  / `preconditions` are *rejected* at `as_view()` — only the dispatching
+  spec's permissions are ever checked, so a nested list would guard
+  nothing.
   `None` (the default) keeps the `get_object()` chain. See
   [Standalone update without a queryset](#standalone-update-without-a-queryset).
 - **`collection_selector_spec`** — the bulk twin of
@@ -224,9 +227,9 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   (`kind=SelectorKind.RETRIEVE`) carrying the response serializer, the
   optional re-fetch `selector`, the output `output_serializer_context`
   hook, and the queryset-shaping fields. `None` (the default) renders
-  the service's return value directly. The nested spec's
-  `permission_classes` and `kwargs` are ignored — the surrounding
-  mutation's permissions and kwargs chain apply.
+  the service's return value directly. The nested spec's `kwargs` is
+  ignored — the surrounding mutation's kwargs chain applies — and its
+  `permission_classes` / `preconditions` are rejected at `as_view()`.
 - **`kwargs`** — callable returning extra kwargs to merge into the pool
   the service receives. The most-specific level of the kwargs
   resolution chain; co-located with the service it feeds.

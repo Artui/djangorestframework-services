@@ -62,6 +62,17 @@ def test_rejects_required_together_with_a_default() -> None:
         )
 
 
+def test_rejects_required_together_with_an_explicit_null_default() -> None:
+    # ``default=None`` is a declaration ("defaults to null"), not the absence of
+    # one, so it contradicts ``required`` exactly as any other value does.
+    with pytest.raises(ImproperlyConfigured, match="cannot also be required"):
+        validate_channel_names(
+            label="tool 'x'",
+            kind="url_kwargs",
+            declarations=[UrlKwarg("pk", default=None, required=True)],
+        )
+
+
 def test_allows_required_without_a_default() -> None:
     validate_channel_names(
         label="tool 'x'", kind="url_kwargs", declarations=[UrlKwarg("pk", required=True)]
