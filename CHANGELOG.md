@@ -7,6 +7,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrade notes
+
+**Four declarations that used to be accepted and then ignored now raise at
+`as_view()`.** Each was configuration that could not do the thing it read as
+doing, so nothing that worked stops working — the error moved from every
+request (or from nowhere at all) to the one place that can fix it.
+
+- `permission_classes` on a nested `instance_selector_spec` /
+  `collection_selector_spec` / `output_selector_spec`. The view resolves
+  permissions once, from the spec being dispatched, so an inner
+  `permission_classes=[IsPostOwner]` never ran. Move it to the surrounding
+  spec, or scope the nested selector's own queryset.
+- `input_serializer` that is not a `Serializer` subclass or a dataclass
+  **type** — most often a dataclass *instance*, one stray pair of parentheses,
+  which `dataclasses.is_dataclass` accepts and the request path then fails on.
+- An `action_specs` entry whose spec type does not match its action key (a
+  `SelectorSpec` under `"create"`, a `ServiceSpec` under `"retrieve"`). Same
+  `ImproperlyConfigured` as before, raised at setup instead of on the first
+  request.
+- An `action_specs` entry keyed on a **custom** action is now signature-checked
+  like any other, having previously been the one entry nothing validated. Such
+  an entry stays fully supported — `get_permissions` and
+  `ActionSerializerResolver` both read it — but a service demanding a key
+  nothing seeds is reported at setup.
+
+**`@service_action` with a `PolymorphicServiceSpec` now requires the viewset to
+carry `_ActionSpecsMixin`** when any variant declares `permission_classes` —
+`ServiceViewSet` and every mixin in this package already do. There is no single
+list to forward into DRF's `@action(permission_classes=...)`, so that mixin is
+the only place variant permissions are enforced; without it the action ran under
+the view's default permissions and no variant rule was checked. The decorated
+class is unknown at decoration time, so the check happens on the first request
+through the action and refuses it rather than serving it unguarded.
+
+**Adapters reading `QueryParam.default` / `UrlKwarg.default` must account for a
+new sentinel.** "No default" is now `UNSET`, not `None`, so `default=None` is a
+declarable value ("defaults to null") that reaches the generated schema. A
+consumer branching on `default is not None` will read the sentinel as a value
+and seed it; the tolerant form is `default is not UNSET and default is not
+None`. `UNSET` is a top-level export.
+
+### Added
+
+- **`RESERVED_POOL_SEEDS` is re-exported from the package root**, alongside
+  `base_pool` and the rest of the dispatch surface. Its own docstring tells
+  transport adapters to import it rather than keep a copy of the seed names,
+  while it was reachable only from `rest_framework_services.types` — and a
+  local copy is exactly what an adapter following the "import from the package
+  root" rule ended up writing.
+- **`QueryParam(default=None)` / `UrlKwarg(default=None)` are expressible.**
+  Both dataclasses used plain `None` for two different things, so a declared
+  null default and no default at all generated the same schema. The field now
+  defaults to `UNSET`, and `json_schema()` emits `"default": null` for an
+  explicit one.
+
+### Changed
+
+- **Python annotations are mapped into JSON Schema structurally instead of
+  being erased.** A selector declaring `status: Literal["open", "closed"]`
+  published `{}` for it, and `{}` means *any JSON value* — so the declared set
+  was gone by the time a model read the tool schema, and registry rules, which
+  match by type identity, could never cover a `Literal` or a union. Now mapped:
+  `None`, `datetime` / `date` / `time` / `UUID` / `Decimal` (the formats DRF's
+  own fields use), `Literal[...]` and `Enum` subclasses as an `enum`, `set` /
+  `frozenset` / `dict`, and unions — `X | None` included — as `anyOf`. Members
+  resolve recursively, so one `JsonSchemaRegistry` rule for `Money` also covers
+  `list[Money]` and `Money | None`. What genuinely cannot be mapped still
+  publishes `{}`; the docstring and the reference page now name exactly what
+  lands there.
+
+### Documentation
+
+- **The three sites that drop `filter_backends` now say so where the code
+  is.** `SelectorRetrieveMixin.get_object`, `SelectorRetrieveView.get_object`
+  and `resolve_mutation_instance` take over DRF's `get_object()`, which is
+  where `filter_queryset()` runs — so a tenant-scoping backend narrows a
+  sibling `list` action and not a spec-driven detail lookup. The behaviour is
+  deliberate and unchanged (a hand-written `get_object()` override drops the
+  backends identically, and `filter_set` is the seam for a rule that must apply
+  to both paths); the disclosure previously lived only in two prose pages.
+  `concepts.md`'s claim that DRF's filter backends "never reach" a retrieve was
+  wrong about DRF and is now stated as what it is: an effect of overriding
+  `get_object()`.
+- **The permissions recipe states the polymorphic carve-out.** It claimed
+  decorator-attached specs carry their `permission_classes` into both
+  router-driven and direct-`as_view` setups, with no exception noted for a
+  `PolymorphicServiceSpec`, which forwards nothing.
+- **`UrlKwarg` / `QueryParam` state what an explicit null means.** A `null`
+  from a caller is not a supplied value: it is an omitted argument, so
+  `required` still refuses it and `default` still applies. Over HTTP neither
+  channel can carry a null at all, and routing one onto `view.kwargs` turns a
+  scoping provider into a silent `IS NULL` lookup that returns rows and looks
+  successful.
+
 ## [0.43.0] — 2026-08-25
 
 ### Added
