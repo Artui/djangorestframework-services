@@ -273,3 +273,105 @@ class TestPolymorphicServiceAction:
             "email:x@y.z"
         )
         assert view(factory.post("/", {"token": "t"}, format="json")).data["name"] == "token:t"
+
+
+class _DenyEverything(BasePermission):
+    def has_permission(self, request: Any, view: Any) -> bool:  # noqa: ARG002
+        return False
+
+
+_GUARDED_POLY = PolymorphicServiceSpec(
+    discriminator=_discriminate,
+    specs={
+        "email": _variant(_create_by_email, _EmailIn),
+        "token": ServiceSpec(
+            service=_create_by_token,
+            input_serializer=_TokenIn,
+            permission_classes=[_DenyEverything],
+        ),
+    },
+)
+
+
+@pytest.mark.django_db
+class TestPolymorphicServiceActionNeedsTheMixin:
+    """Variant permissions have exactly one enforcement point, so require it.
+
+    ``@action(permission_classes=...)`` takes a single list, which a polymorphic
+    spec cannot supply — under ``discriminate`` the list depends on the body.
+    ``_ActionSpecsMixin.get_permissions`` is the only place that resolves it, and
+    a viewset without the mixin used to run the action under DRF's default
+    permissions with every variant rule unchecked.
+    """
+
+    def test_a_viewset_without_the_mixin_refuses_the_request(self) -> None:
+        class _Plain(GenericViewSet):
+            queryset = Author.objects.all()
+
+            @service_action(_GUARDED_POLY, detail=False, methods=["post"])
+            def make(self, request):  # type: ignore[no-untyped-def]
+                """Stubbed."""
+
+        view = _Plain.as_view({"post": "make"})
+        with pytest.raises(ImproperlyConfigured, match="does not provide it"):
+            view(factory.post("/", {"token": "t"}, format="json"))
+
+    def test_the_denied_variant_is_a_403_on_a_viewset_with_the_mixin(self) -> None:
+        class _Composed(ServiceViewSet):
+            queryset = Author.objects.all()
+
+            @service_action(_GUARDED_POLY, detail=False, methods=["post"])
+            def make(self, request):  # type: ignore[no-untyped-def]
+                """Stubbed."""
+
+        view = _Composed.as_view({"post": "make"})
+        # ``union`` is the default strategy, so the deny applies to both bodies.
+        assert view(factory.post("/", {"token": "t"}, format="json")).status_code == 403
+        assert view(factory.post("/", {"email": "a@b.c"}, format="json")).status_code == 403
+
+    def test_variants_declaring_no_permissions_run_without_the_mixin(self) -> None:
+        # Nothing is lost in that case: DRF's own lookup and the mixin's union
+        # both end at the view's class-level permissions.
+        class _Plain(GenericViewSet):
+            queryset = Author.objects.all()
+
+            @service_action(_POLY, detail=False, methods=["post"])
+            def make(self, request):  # type: ignore[no-untyped-def]
+                """Stubbed."""
+
+        view = _Plain.as_view({"post": "make"})
+        assert view(factory.post("/", {"token": "t"}, format="json")).status_code == 200
+
+    def test_only_a_plain_spec_forwards_permissions_to_drfs_action(self) -> None:
+        """Why the guard exists: there is nothing to forward for a variant set.
+
+        DRF's ``@action(permission_classes=...)`` takes one list and the router
+        applies it as the view's ``initkwargs``. A plain spec fills it; a
+        polymorphic one leaves it empty, which is precisely the hole the mixin
+        has to close.
+        """
+
+        class _Plain(GenericViewSet):
+            queryset = Author.objects.all()
+
+            @service_action(
+                ServiceSpec(
+                    service=_create_by_token,
+                    input_serializer=_TokenIn,
+                    permission_classes=[_DenyEverything],
+                ),
+                detail=False,
+                methods=["post"],
+            )
+            def single(self, request):  # type: ignore[no-untyped-def]
+                """Stubbed."""
+
+        class _Poly(ServiceViewSet):
+            queryset = Author.objects.all()
+
+            @service_action(_GUARDED_POLY, detail=False, methods=["post"])
+            def many_shapes(self, request):  # type: ignore[no-untyped-def]
+                """Stubbed."""
+
+        assert _Plain.single.kwargs["permission_classes"] == [_DenyEverything]
+        assert "permission_classes" not in _Poly.many_shapes.kwargs
