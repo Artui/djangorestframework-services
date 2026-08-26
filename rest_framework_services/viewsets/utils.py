@@ -90,6 +90,8 @@ def resolve_action_service_spec(
         raise MethodNotAllowed(method)
     if isinstance(entry, PolymorphicServiceSpec):
         return resolve_polymorphic_service_spec(entry, view=view, request=view.request)
+    # ``as_view`` refuses this pairing at setup, so reaching it means the mapping
+    # was built or swapped after the view was wired. Kept as the backstop.
     if not isinstance(entry, ServiceSpec):
         raise ImproperlyConfigured(
             f"action_specs[{action!r}] must be a ServiceSpec, got "
@@ -113,6 +115,8 @@ def resolve_action_selector_spec(
     entry = action_specs.get(action)
     if entry is None:
         return None
+    # As above: setup already refused this pairing, so this is the backstop for
+    # a mapping that changed afterwards.
     if not isinstance(entry, SelectorSpec):
         raise ImproperlyConfigured(
             f"action_specs[{action!r}] must be a SelectorSpec, got "
@@ -124,34 +128,101 @@ def resolve_action_selector_spec(
     return entry
 
 
-def _validate_action_spec(view_cls: type, action: str, spec: object) -> None:
-    """Run signature validation for a single ``action_specs`` entry."""
-    label = f"{view_cls.__name__}.action_specs[{action!r}]"
-    if action in _MUTATION_ACTIONS and isinstance(spec, PolymorphicServiceSpec):
-        permissive = is_overridden(view_cls, MutationFlowMixin, "get_service_kwargs") or hasattr(
-            view_cls, f"get_{action}_service_kwargs"
+def _mutation_extras_are_permissive(view_cls: type, action: str) -> bool:
+    """Whether a kwargs hook the validator cannot read into is in play."""
+    return is_overridden(view_cls, MutationFlowMixin, "get_service_kwargs") or hasattr(
+        view_cls, f"get_{action}_service_kwargs"
+    )
+
+
+def _validate_mutation_action_spec(
+    view_cls: type, action: str, spec: object, *, label: str
+) -> None:
+    has_instance: bool = _MUTATION_ACTIONS[action]["has_instance"]
+    permissive = _mutation_extras_are_permissive(view_cls, action)
+    if isinstance(spec, PolymorphicServiceSpec):
+        validate_polymorphic_service_spec(
+            spec, label=label, has_instance=has_instance, permissive_extras=permissive
         )
+        return
+    if not isinstance(spec, ServiceSpec):
+        raise ImproperlyConfigured(
+            f"{label} must be a ServiceSpec, got {type(spec).__name__}. "
+            "Use ServiceSpec(service=...) for write actions."
+        )
+    validate_service_spec(
+        spec, label=label, has_instance=has_instance, permissive_extras=permissive
+    )
+
+
+def _validate_selector_action_spec(
+    view_cls: type, action: str, spec: object, *, label: str
+) -> None:
+    if not isinstance(spec, SelectorSpec):
+        raise ImproperlyConfigured(
+            f"{label} must be a SelectorSpec, got {type(spec).__name__}. "
+            "Wrap the selector: SelectorSpec(selector=your_callable)."
+        )
+    kind = _SELECTOR_ACTION_KIND[action]
+    validate_selector_spec(spec, label=label, expected_kind=kind)
+    if kind is SelectorKind.LIST:
+        validate_filter_set_no_backend_conflict(view_cls, spec, label=label)
+
+
+def _validate_custom_action_spec(view_cls: type, action: str, spec: object, *, label: str) -> None:
+    """Validate an entry keyed on an action none of the mixins dispatch.
+
+    A custom key is not dead configuration: ``get_permissions`` and
+    [`ActionSerializerResolver`][rest_framework_services.viewsets.action_serializer_resolver.ActionSerializerResolver]
+    both resolve by action name, so a ``@action``-decorated method takes its
+    permissions and serializer from here. It used to be the one entry nothing
+    validated at all.
+
+    The kwargs chain is the same one a built-in action uses, so permissiveness
+    is decided the same way. What the key cannot say is whether the action
+    targets an instance, so ``has_instance`` is granted rather than guessed — a
+    detail action would otherwise be refused for declaring the ``instance`` it
+    does receive.
+    """
+    if isinstance(spec, PolymorphicServiceSpec):
         validate_polymorphic_service_spec(
             spec,
             label=label,
-            has_instance=_MUTATION_ACTIONS[action]["has_instance"],
-            permissive_extras=permissive,
+            has_instance=True,
+            permissive_extras=_mutation_extras_are_permissive(view_cls, action),
         )
-    elif action in _MUTATION_ACTIONS and isinstance(spec, ServiceSpec):
-        permissive = is_overridden(view_cls, MutationFlowMixin, "get_service_kwargs") or hasattr(
-            view_cls, f"get_{action}_service_kwargs"
-        )
+    elif isinstance(spec, ServiceSpec):
         validate_service_spec(
             spec,
             label=label,
-            has_instance=_MUTATION_ACTIONS[action]["has_instance"],
-            permissive_extras=permissive,
+            has_instance=True,
+            permissive_extras=_mutation_extras_are_permissive(view_cls, action),
         )
-    elif action in _SELECTOR_ACTION_KIND and isinstance(spec, SelectorSpec):
-        kind = _SELECTOR_ACTION_KIND[action]
-        validate_selector_spec(spec, label=label, expected_kind=kind)
-        if kind is SelectorKind.LIST:
-            validate_filter_set_no_backend_conflict(view_cls, spec, label=label)
+    elif isinstance(spec, SelectorSpec):
+        validate_selector_spec(spec, label=label)
+    else:
+        raise ImproperlyConfigured(
+            f"{label} must be a ServiceSpec, PolymorphicServiceSpec or SelectorSpec, "
+            f"got {type(spec).__name__}."
+        )
+
+
+def _validate_action_spec(view_cls: type, action: str, spec: object) -> None:
+    """Run fail-fast validation for a single ``action_specs`` entry.
+
+    Every entry is validated, whatever it is keyed on. The built-in action keys
+    additionally get the type check the dispatch sites make at request time — a
+    ``SelectorSpec`` under ``"create"``, or a ``ServiceSpec`` under
+    ``"retrieve"``, is a mis-wiring that used to reach ``as_view()`` untouched
+    and surface as an ``ImproperlyConfigured`` on the first request instead.
+    """
+    label = f"{view_cls.__name__}.action_specs[{action!r}]"
+    if action in _MUTATION_ACTIONS:
+        _validate_mutation_action_spec(view_cls, action, spec, label=label)
+    elif action in _SELECTOR_ACTION_KIND:
+        _validate_selector_action_spec(view_cls, action, spec, label=label)
+    else:
+        _validate_custom_action_spec(view_cls, action, spec, label=label)
 
 
 class _ActionSpecsMixin:

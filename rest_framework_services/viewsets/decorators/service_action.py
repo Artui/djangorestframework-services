@@ -6,6 +6,7 @@ import functools
 from collections.abc import Callable
 from typing import Any
 
+from django.core.exceptions import ImproperlyConfigured
 from rest_framework import status as drf_status
 from rest_framework.decorators import action
 from rest_framework.request import Request
@@ -24,6 +25,7 @@ from rest_framework_services.views.spec_validation import (
 from rest_framework_services.viewsets.resolve_polymorphic_service_spec import (
     resolve_polymorphic_service_spec,
 )
+from rest_framework_services.viewsets.utils import _ActionSpecsMixin
 
 
 def service_action(
@@ -47,10 +49,19 @@ def service_action(
     ``methods``, ``url_path``, ``url_name``, and any extra ``**action_kwargs`` are
     forwarded to DRF's ``@action``.
 
-    For a polymorphic action, per-variant ``permission_classes`` are enforced by
-    the viewset's ``get_permissions`` (the ``_ActionSpecsMixin`` reads the
-    stashed spec) rather than via DRF's ``@action(permission_classes=...)``,
-    since there is no single list to forward.
+    A plain ``ServiceSpec`` forwards its ``permission_classes`` into DRF's
+    ``@action(permission_classes=...)``, so it is enforced on any viewset. A
+    [`PolymorphicServiceSpec`][rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec]
+    has no single list to forward — which list applies depends on the strategy,
+    and under ``"discriminate"`` on the body — so its per-variant
+    ``permission_classes`` are enforced by ``_ActionSpecsMixin.get_permissions``,
+    which reads the spec stashed on the handler. That makes the mixin a
+    **requirement**, not a convenience: on a viewset without it, DRF's stock
+    ``get_permissions`` would apply the view's defaults and every variant rule
+    would go unchecked. The decorated class is unknown at decoration time, so
+    the dependency is checked on the first request through the action and the
+    request is refused rather than served unguarded. Compose ``ServiceViewSet``
+    (or any mixin from this package) and the check never fires.
     """
     drf_kwargs: dict[str, Any] = {"detail": detail}
     if methods is not None:
@@ -62,6 +73,12 @@ def service_action(
     if isinstance(spec, ServiceSpec) and spec.permission_classes is not None:
         drf_kwargs["permission_classes"] = list(spec.permission_classes)
     drf_kwargs.update(action_kwargs)
+    # A variant list can only be enforced through ``_ActionSpecsMixin``. When no
+    # variant declares one there is nothing to lose: DRF's own lookup and the
+    # mixin's union both end at the view's class-level permissions.
+    needs_action_specs_mixin = isinstance(spec, PolymorphicServiceSpec) and any(
+        variant.permission_classes is not None for variant in spec.specs.values()
+    )
 
     def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         fn_label = getattr(fn, "__qualname__", repr(fn))
@@ -85,6 +102,15 @@ def service_action(
 
         @functools.wraps(fn)
         def handler(self: Any, request: Request, *args: Any, **kwargs: Any) -> Response:
+            if needs_action_specs_mixin and not isinstance(self, _ActionSpecsMixin):
+                raise ImproperlyConfigured(
+                    f"@service_action {fn_label}: the variants declare "
+                    "`permission_classes`, which only `_ActionSpecsMixin.get_permissions` "
+                    f"enforces — and {type(self).__name__} does not provide it, so DRF "
+                    "applied the view's default permissions and no variant rule ran. "
+                    "Compose the viewset with ServiceViewSet (or any mixin from this "
+                    "package), or move the rule to the view's `permission_classes`."
+                )
             # A polymorphic spec resolves to its chosen variant first (memoized
             # for the request), then dispatches exactly as a plain spec.
             concrete: ServiceSpec = (

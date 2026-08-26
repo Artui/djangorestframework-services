@@ -31,6 +31,35 @@ that leans on the docstring alone. An un-annotated parameter is still surfaced b
 name (untyped `{}`); a `filter_set` field wins over a callable parameter of the
 same name.
 
+### What an annotation publishes
+
+The mapping from a Python annotation is structural, so a declaration a caller
+took the trouble to write survives into the published schema:
+
+| Annotation | Schema |
+|---|---|
+| `str` / `int` / `float` / `bool` / `None` | the matching JSON type |
+| `datetime` / `date` / `time` / `UUID` / `Decimal` | `string` with the format DRF's own field would use |
+| `Literal["open", "closed"]`, an `Enum` subclass | `{"enum": [...]}` — by member *value* for an `Enum` |
+| `list[X]`, `set[X]` / `frozenset[X]` | `array` (a set adds `uniqueItems`) |
+| `dict[str, X]` | `object` with `additionalProperties` |
+| `X \| None`, `Union[X, Y]` | `{"anyOf": [...]}` |
+
+Anything else — a domain class, a `Callable`, a bare `Any`, an annotation that
+could not be resolved — publishes as `{}`, which in JSON Schema means **any
+value**, so a caller cannot tell it from a value that genuinely is
+unconstrained. Register the types that matter to you rather than letting them
+publish as anything:
+
+```python
+registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+    python_types=[(Money, {"type": "string", "format": "money"})],
+)
+```
+
+Rules are matched by type *identity*, and members are resolved recursively, so
+one rule for `Money` also covers `list[Money]` and `Money | None`.
+
 ## `JsonSchemaRegistry`
 
 ::: rest_framework_services.types.json_schema_registry.JsonSchemaRegistry

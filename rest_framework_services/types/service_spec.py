@@ -102,8 +102,10 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             ``NotFound`` — the nested
             ``allow_none`` is ignored — and ``check_object_permissions`` runs
             against it. Queryset shaping applies; the nested
-            ``permission_classes`` / ``output_serializer`` /
-            ``output_serializer_context`` are ignored.
+            ``output_serializer`` / ``output_serializer_context`` are ignored,
+            and the nested ``permission_classes`` / ``preconditions`` are
+            *refused* at ``as_view()`` — the dispatching spec's permissions are
+            the ones checked, so declaring them here would guard nothing.
         collection_selector_spec: The LIST-kind twin of
             ``instance_selector_spec``. Its resolved set is seeded into the pool
             as ``collection`` to ``.delete()`` / ``.update()`` / iterate, for an
@@ -111,16 +113,19 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             set is a harmless no-op rather than a 404. The pool carries query
             params, body and URL kwargs, so a nested-route bulk can scope by
             ``parent_pk``; route captures win on conflict, so a filter value
-            cannot override the route scope.
+            cannot override the route scope. Its ``permission_classes`` /
+            ``preconditions`` are refused at ``as_view()`` for the same reason as
+            ``instance_selector_spec``'s.
         output_selector_spec: The output pipeline as one nested spec. Its
             ``kind`` declares response cardinality: RETRIEVE re-fetches a single
             instance (the service returns the written row, the selector
             re-fetches it with the relations the response needs, and
             ``output_serializer`` renders it); LIST re-fetches and renders a set
             and is valid only alongside ``collection_selector_spec``. ``None``
-            renders the service's return value directly. The nested
-            ``permission_classes`` and ``kwargs`` are ignored — the surrounding
-            mutation's chains apply.
+            renders the service's return value directly. The nested ``kwargs``
+            is ignored — the surrounding mutation's chains apply — and the nested
+            ``permission_classes`` / ``preconditions`` are refused at
+            ``as_view()`` rather than silently ignored.
         kwargs: Provider (pool: ``view`` / ``request``) of extra kwargs merged
             into the pool the service receives. Co-locating it with the spec
             lets each action declare its own contract, instead of

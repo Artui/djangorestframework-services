@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Iterable
+from dataclasses import is_dataclass
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.permissions import BasePermission
+from rest_framework.serializers import Serializer
 
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.selector_kind import SelectorKind
@@ -237,6 +239,28 @@ def _validate_permission_classes(
             )
 
 
+def _validate_input_serializer(input_serializer: Any, *, label: str) -> None:
+    """Reject an ``input_serializer`` that is neither shape the runtime accepts.
+
+    ``dataclasses.is_dataclass`` answers ``True`` for an *instance* as well as a
+    class, so ``input_serializer=MyInput()`` — one stray pair of parentheses —
+    slips past every other check here and reaches
+    ``DataclassSerializer(dataclass=<instance>)`` on the first request, where it
+    fails somewhere that names neither the spec nor the field.
+    """
+    if input_serializer is None:
+        return
+    if isinstance(input_serializer, type) and (
+        issubclass(input_serializer, Serializer) or is_dataclass(input_serializer)
+    ):
+        return
+    raise ImproperlyConfigured(
+        f"{label}: `input_serializer` must be a Serializer subclass or a dataclass "
+        f"*type*, got {input_serializer!r}. An instance is the usual cause — pass "
+        "the class itself, without the parentheses."
+    )
+
+
 def _validate_preconditions(
     preconditions: Any,
     *,
@@ -285,16 +309,28 @@ def _validate_preconditions(
         )
 
 
-def _reject_nested_preconditions(nested: Any, *, label: str) -> None:
-    """A nested spec's ``preconditions`` never runs — say so rather than ignore it.
+def _reject_ignored_nested_fields(nested: Any, *, label: str) -> None:
+    """Refuse the nested-spec fields nothing ever reads — don't ignore them.
 
-    Only the spec that owns the dispatch invokes preconditions.
+    Only the spec that owns the dispatch invokes ``preconditions``, and only its
+    ``permission_classes`` are checked: the view resolves permissions once, from
+    the spec being dispatched, before any nested spec resolves. Guarding an
+    inner selector with its own ``permission_classes`` therefore guards nothing,
+    which is worse than not declaring it — the reader sees a rule that is not
+    there. Both fail at ``as_view()`` instead.
     """
     if nested.preconditions is not None:
         raise ImproperlyConfigured(
             f"{label}: `preconditions` on a nested spec is never invoked — the "
             "surrounding spec owns the dispatch. Move them to the spec being "
             "dispatched."
+        )
+    if nested.permission_classes is not None:
+        raise ImproperlyConfigured(
+            f"{label}: `permission_classes` on a nested spec is never enforced — "
+            "the view checks the permissions of the spec being dispatched, before "
+            "any nested spec resolves. Move them to the surrounding spec's "
+            "`permission_classes`, or scope the nested selector's own queryset."
         )
 
 
@@ -315,11 +351,13 @@ def _validate_output_selector_spec(
     ``kind=LIST`` is refused without ``collection_selector_spec``: a
     single-instance mutation returns one representation. ``has_result=True``
     because the service's return joins the selector's pool as ``result``. Extras
-    come from the *surrounding* mutation's kwargs chain — the nested spec's own
-    ``kwargs`` / ``permission_classes`` are ignored at request time, so they are
-    deliberately not validated as a selector spec's would be.
+    come from the *surrounding* mutation's kwargs chain, so the nested spec's own
+    ``kwargs`` is ignored at request time and deliberately not validated as a
+    selector spec's would be. ``permission_classes`` is ignored at request time
+    too, but is *refused* rather than skipped — an unenforced authorization field
+    reads as protection that is not there.
     """
-    _reject_nested_preconditions(output_spec, label=label)
+    _reject_ignored_nested_fields(output_spec, label=label)
     if output_spec.kind is SelectorKind.LIST and not has_collection:
         raise ImproperlyConfigured(
             f"{label}: output_selector_spec.kind=LIST renders a list and is only "
@@ -356,7 +394,7 @@ def _validate_instance_selector_spec(
     ``has_result`` all ``False`` below, while other extras stay permissive
     because URL kwargs and the selector kwargs chain are dynamic.
     """
-    _reject_nested_preconditions(instance_spec, label=label)
+    _reject_ignored_nested_fields(instance_spec, label=label)
     if not has_instance:
         raise ImproperlyConfigured(
             f"{label}: instance_selector_spec is set but this action does not "
@@ -395,7 +433,7 @@ def _validate_collection_selector_spec(
     view fallback for a collection target. Runs against ``{request, user}`` plus
     the dispatch params, so extras stay permissive.
     """
-    _reject_nested_preconditions(collection_spec, label=label)
+    _reject_ignored_nested_fields(collection_spec, label=label)
     if collection_spec.kind is not SelectorKind.LIST:
         raise ImproperlyConfigured(
             f"{label}: collection_selector_spec.kind must be SelectorKind.LIST; "
@@ -491,6 +529,7 @@ def validate_service_spec(
     """
     _validate_success_status(spec.success_status, label=label)
     _validate_response_finalizer(spec.response_finalizer, label=label)
+    _validate_input_serializer(spec.input_serializer, label=label)
     if spec.many and spec.collection_selector_spec is not None:
         raise ImproperlyConfigured(
             f"{label}: `many` and `collection_selector_spec` are mutually exclusive "

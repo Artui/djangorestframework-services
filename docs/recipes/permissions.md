@@ -114,3 +114,14 @@ When you wire the viewset through DRF's router, `@service_action` /
 `@selector_action` also carry their `permission_classes` via DRF's standard
 `@action(permission_classes=...)` integration — so the same configuration
 works in both router-driven and direct-`as_view` setups.
+
+**A `PolymorphicServiceSpec` is the exception.** `@action` takes a single
+list, and which list applies to a polymorphic action depends on its
+`permission_strategy` — under `"discriminate"`, on the request body. There is
+nothing to forward, so the variants' `permission_classes` are enforced only by
+`_ActionSpecsMixin.get_permissions`. That makes the mixin a requirement for
+that combination rather than a convenience: compose `ServiceViewSet` (or any
+mixin from this package) and it is already there. On a viewset without it,
+`@service_action` refuses the request instead of serving it under the view's
+default permissions — the decorated class is unknown at decoration time, so
+the check cannot happen any earlier.

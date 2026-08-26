@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime
+import decimal
+import enum
 import typing
+import uuid
 from decimal import Decimal
 from typing import Any
 
@@ -485,3 +489,85 @@ class TestMultipleChoiceField:
         # versions, so match the shape rather than the wording.
         assert [entry["const"] for entry in schema["oneOf"]][1:] == [str(tmp_path / "one.txt")]
         assert schema["oneOf"][0]["const"] == ""
+
+
+def test_python_type_to_schema_maps_the_stdlib_scalars() -> None:
+    # The same wire shapes ``_DRF_FIELD_TO_SCHEMA`` gives the matching DRF
+    # fields, so one value described two ways does not describe two things.
+    assert _python_type_to_schema(datetime.datetime) == {
+        "type": "string",
+        "format": "date-time",
+    }
+    assert _python_type_to_schema(datetime.date) == {"type": "string", "format": "date"}
+    assert _python_type_to_schema(datetime.time) == {"type": "string", "format": "time"}
+    assert _python_type_to_schema(uuid.UUID) == {"type": "string", "format": "uuid"}
+    assert _python_type_to_schema(decimal.Decimal) == {"type": "string", "format": "decimal"}
+    assert _python_type_to_schema(type(None)) == {"type": "null"}
+
+
+def test_python_type_to_schema_publishes_a_literal_as_an_enum() -> None:
+    assert _python_type_to_schema(typing.Literal["open", "closed"]) == {"enum": ["open", "closed"]}
+
+
+def test_python_type_to_schema_publishes_an_enum_class_by_value() -> None:
+    class _Status(enum.Enum):
+        OPEN = "open"
+        CLOSED = "closed"
+
+    assert _python_type_to_schema(_Status) == {"enum": ["open", "closed"]}
+
+
+def test_python_type_to_schema_widens_an_optional_to_any_of() -> None:
+    assert _python_type_to_schema(str | None) == {"anyOf": [{"type": "string"}, {"type": "null"}]}
+    assert _python_type_to_schema(typing.Optional[int]) == {  # noqa: UP045 — the typing spelling is the point
+        "anyOf": [{"type": "integer"}, {"type": "null"}]
+    }
+    assert _python_type_to_schema(typing.Union[int, str]) == {  # noqa: UP007 — ditto
+        "anyOf": [{"type": "integer"}, {"type": "string"}]
+    }
+
+
+def test_python_type_to_schema_maps_sets_and_mappings() -> None:
+    assert _python_type_to_schema(set[str]) == {
+        "type": "array",
+        "items": {"type": "string"},
+        "uniqueItems": True,
+    }
+    assert _python_type_to_schema(frozenset) == {
+        "type": "array",
+        "items": {},
+        "uniqueItems": True,
+    }
+    assert _python_type_to_schema(dict[str, int]) == {
+        "type": "object",
+        "additionalProperties": {"type": "integer"},
+    }
+    # An unconstrained value type adds nothing, so it is left off rather than
+    # published as ``"additionalProperties": {}``.
+    assert _python_type_to_schema(dict[str, typing.Any]) == {"type": "object"}
+    assert _python_type_to_schema(dict) == {"type": "object"}
+    assert _python_type_to_schema(list) == {"type": "array", "items": {}}
+
+
+def test_python_type_to_schema_resolves_registry_rules_inside_containers() -> None:
+    class _Money: ...
+
+    registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
+        python_types=[(_Money, {"type": "string", "format": "money"})]
+    )
+    assert _python_type_to_schema(list[_Money], registry) == {
+        "type": "array",
+        "items": {"type": "string", "format": "money"},
+    }
+    assert _python_type_to_schema(_Money | None, registry) == {
+        "anyOf": [{"type": "string", "format": "money"}, {"type": "null"}]
+    }
+
+
+def test_python_type_to_schema_still_falls_back_for_an_unregistered_class() -> None:
+    class _Money: ...
+
+    # ``{}`` is "any JSON value" — the documented escape hatch is a registry
+    # rule, which is why the fallback stays permissive rather than raising.
+    assert _python_type_to_schema(_Money) == {}
+    assert _python_type_to_schema(typing.Any) == {}

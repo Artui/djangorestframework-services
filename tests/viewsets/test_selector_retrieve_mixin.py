@@ -8,7 +8,13 @@ import pytest
 from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet
 
-from rest_framework_services import SelectorKind, SelectorRetrieveMixin, SelectorSpec
+from rest_framework_services import (
+    SelectorKind,
+    SelectorRetrieveMixin,
+    SelectorRetrieveView,
+    SelectorSpec,
+    resolve_mutation_instance,
+)
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -80,3 +86,50 @@ def test_allow_none_still_serializes_resolved_instance() -> None:
     response = view(factory.get("/"), pk=author.pk)
     assert response.status_code == 200
     assert response.data == {"id": author.pk, "name": "Ada"}
+
+
+class _ExcludeEverything:
+    """A filter backend that would leave no row at all."""
+
+    def filter_queryset(self, request: Any, queryset: Any, view: Any) -> Any:
+        return queryset.none()
+
+
+class _BackendRetrieve(SelectorRetrieveMixin, GenericViewSet):
+    filter_backends = [_ExcludeEverything]
+    action_specs = {
+        "retrieve": SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_nullable_retrieve)
+    }
+    serializer_class = AuthorSerializer
+    queryset = Author.objects.all()
+
+
+@pytest.mark.django_db
+def test_filter_backends_do_not_narrow_the_selector_retrieve_lookup() -> None:
+    """Characterises the bypass rather than fixing it.
+
+    DRF applies ``filter_queryset()`` from inside its own ``get_object()``, so
+    a mixin that overrides that method drops the backends exactly as a
+    hand-written override would. Pinned so a change here is a deliberate one.
+    """
+    author = Author.objects.create(name="Ada")
+    view = _BackendRetrieve.as_view({"get": "retrieve"})
+    response = view(factory.get("/"), pk=author.pk)
+    assert response.status_code == 200
+
+
+def test_the_three_bypass_sites_disclose_the_dropped_filter_backends() -> None:
+    """The disclosure has to live where the bypass does.
+
+    It used to live only in two prose pages, so a reader of ``get_object()``
+    learned nothing. This asserts each site still says it, because a
+    disclosure nobody is checking is a disclosure that quietly disappears.
+    """
+    for site in (
+        SelectorRetrieveMixin.get_object,
+        SelectorRetrieveView.get_object,
+        resolve_mutation_instance,
+    ):
+        doc = site.__doc__ or ""
+        assert "filter_backends" in doc, f"{site.__qualname__} does not disclose the bypass"
+        assert "filter_queryset" in doc, f"{site.__qualname__} does not name what is skipped"

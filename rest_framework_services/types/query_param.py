@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from rest_framework_services.types.unset import UNSET
+
 
 @dataclass(frozen=True)
 class QueryParam:
@@ -33,8 +35,18 @@ class QueryParam:
     - ``type`` — the JSON-Schema type advertised to the caller (``"string"`` by default;
       ``"integer"`` / ``"number"`` / ``"boolean"`` / ``"array"`` …).
     - ``description`` — optional help text shown to the caller.
-    - ``default`` — optional value seeded when the caller omits the argument; also
-      surfaced as the schema ``default``.
+    - ``default`` — value seeded when the caller omits the argument; also surfaced
+      as the schema ``default``. Left at ``UNSET`` there is no default, and the
+      schema carries no ``default`` key; ``default=None`` is a real declaration
+      ("defaults to null") and is surfaced like any other value. Read it with
+      ``is not UNSET``, never with a truthiness or ``is not None`` test.
+
+    **An explicit null from the caller is not a supplied value.** Over HTTP a
+    query param is always a string, so there is no value a caller can send that
+    means null; off-HTTP, ``{"fields": null}`` is the shape a model emits for a
+    param it chose not to fill. A transport treats it as an omitted argument —
+    the ``default`` still applies — rather than routing ``None`` onto
+    ``request.query_params``.
 
     **No ``required`` flag, deliberately.** A query param is *read-shaping* —
     omitting one is legitimate by construction, and the spec runs correctly
@@ -46,14 +58,19 @@ class QueryParam:
     name: str
     type: str = "string"
     description: str | None = None
-    default: Any = None
+    default: Any = UNSET
 
     def json_schema(self) -> dict[str, Any]:
-        """The JSON-Schema property this param contributes to an input schema."""
+        """The JSON-Schema property this param contributes to an input schema.
+
+        ``default`` is emitted whenever one was declared — ``UNSET`` is the
+        "no default" sentinel, so an explicit ``default=None`` reaches the
+        schema as ``"default": None`` instead of vanishing.
+        """
         schema: dict[str, Any] = {"type": self.type}
         if self.description is not None:
             schema["description"] = self.description
-        if self.default is not None:
+        if self.default is not UNSET:
             schema["default"] = self.default
         return schema
 
