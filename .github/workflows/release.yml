@@ -12,6 +12,11 @@ concurrency:
   group: release-main
   cancel-in-progress: false
 
+# Actions are pinned to a commit SHA rather than a tag: a tag is mutable, and an
+# action owner (or anyone who takes over the account) can silently repoint one at
+# new code that then runs with this workflow's token. The trailing version comment
+# is not decoration -- Dependabot reads it to know which release the SHA is, and
+# rewrites both together when a newer one ships.
 jobs:
   release:
     name: release
@@ -23,10 +28,10 @@ jobs:
       id-token: write   # PyPI OIDC trusted publishing
       contents: write   # tag push + gh release create
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
       - name: Install
@@ -38,7 +43,7 @@ jobs:
 
       - name: Publish to PyPI
         if: steps.prepare.outputs.released == 'true'
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           # Idempotent on purpose. What gates a release is the git tag, not the
           # index (see `prepare`), so re-running this job after a failure in a
