@@ -4,14 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 from rest_framework.exceptions import ValidationError
 from typing_extensions import NotRequired, TypedDict, Unpack
 
 from rest_framework_services.dispatch.utils import (
     RESERVED_POOL_SEEDS,
+    _UnresolvedExtras,
     call_target_guard,
     declared_input_keys,
     merge_arguments,
@@ -47,6 +49,17 @@ def _by_pk(*, pk: int) -> Any:
 
 
 def _open_selector(**_kwargs: Any) -> Any: ...
+
+
+if TYPE_CHECKING:
+    # The routine idiom this module's ``from __future__ import annotations`` makes
+    # possible: a TypedDict that only exists for the type checker, so the runtime
+    # cannot resolve the annotation that names it.
+    class _TenantExtras(TypedDict, total=False):
+        tenant: str
+
+
+def _find_orders(*, user: Any, **extras: Unpack[_TenantExtras]) -> Any: ...
 
 
 class _FilterSet:
@@ -211,11 +224,32 @@ class TestDeclaredInputKeys:
         spec = SelectorSpec(kind=SelectorKind.LIST, selector=selector)
         assert declared_input_keys(spec, serializer=None) == {"pk", "parent_pk", "label"}
 
-    def test_selector_unresolvable_unpack_hints_stay_open(self) -> None:
-        def selector(**extras: Unpack[_Ghost]) -> Any: ...  # noqa: F821 — unresolvable
+    def test_selector_unresolvable_unpack_hints_raise_instead_of_reading_as_open(
+        self,
+    ) -> None:
+        # "We cannot tell what this accepts" must not collapse into "it accepts
+        # anything" — that is what let a strict policy pass everything.
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=_find_orders)
+        with pytest.raises(_UnresolvedExtras) as exc:
+            declared_input_keys(spec, serializer=None)
+        assert "_find_orders(**extras)" in str(exc.value)
+
+    def test_selector_unannotated_var_keyword_stays_open(self) -> None:
+        # A bare ``**kwargs`` has no annotation to resolve and really does accept
+        # anything, so it stays open and never reaches hint resolution.
+        def selector(**kwargs):  # the missing annotation is the point of the test
+            ...
 
         spec = SelectorSpec(kind=SelectorKind.LIST, selector=selector)
         assert declared_input_keys(spec, serializer=None) is None
+
+    def test_service_nested_selector_with_unresolvable_extras_raises(self) -> None:
+        spec = ServiceSpec(
+            service=_service,
+            instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_find_orders),
+        )
+        with pytest.raises(_UnresolvedExtras):
+            declared_input_keys(spec, serializer=None)
 
     def test_selector_without_selector_is_empty(self) -> None:
         # Unreachable through dispatch (a None selector raises first), but the
@@ -273,6 +307,51 @@ class TestResolveUnknownArguments:
         assert (
             resolve_unknown_arguments(
                 spec, {"x": 1}, unknown_arguments=UnknownArguments.REJECT, serializer=None
+            )
+            == {}
+        )
+
+    def test_reject_refuses_an_unresolvable_extras_annotation(self) -> None:
+        # The whole point of REJECT is refusing an argument it does not recognise.
+        # Against a surface it cannot read it used to accept everything in silence.
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=_find_orders)
+        with pytest.raises(ImproperlyConfigured) as exc:
+            resolve_unknown_arguments(
+                spec, {"bogus": 1}, unknown_arguments=UnknownArguments.REJECT, serializer=None
+            )
+        message = str(exc.value)
+        assert "REJECT cannot be enforced" in message
+        assert "_find_orders(**extras)" in message
+        assert "TYPE_CHECKING" in message
+
+    def test_reject_refuses_even_when_no_argument_looks_unknown(self) -> None:
+        # The policy is unenforceable regardless of the arguments in hand, so it
+        # fails on the first dispatch rather than only on a bogus one.
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=_find_orders)
+        with pytest.raises(ImproperlyConfigured):
+            resolve_unknown_arguments(
+                spec, {}, unknown_arguments=UnknownArguments.REJECT, serializer=None
+            )
+
+    def test_passthrough_treats_an_unresolvable_extras_annotation_as_open(self) -> None:
+        # A permissive policy loses nothing by treating the surface as open, which
+        # is exactly what it does with a bare ``**kwargs``.
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=_find_orders)
+        assert (
+            resolve_unknown_arguments(
+                spec,
+                {"bogus": 1},
+                unknown_arguments=UnknownArguments.PASSTHROUGH,
+                serializer=None,
+            )
+            == {}
+        )
+
+    def test_ignore_never_inspects_the_declared_surface(self) -> None:
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=_find_orders)
+        assert (
+            resolve_unknown_arguments(
+                spec, {"bogus": 1}, unknown_arguments=UnknownArguments.IGNORE, serializer=None
             )
             == {}
         )
