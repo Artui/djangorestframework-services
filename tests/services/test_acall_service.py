@@ -97,3 +97,30 @@ async def test_map_errors_maps_generic_error_from_sync_service() -> None:
     with pytest.raises(drf_exceptions.APIException) as exc_info:
         await acall_service(service, request=_build_request(user="x"), map_errors=True)
     assert exc_info.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_extras_cannot_override_the_request_derived_user() -> None:
+    """Sync twin's guard, async side: ``request.user`` outranks an ``extras`` key."""
+    captured: dict[str, Any] = {}
+
+    async def aservice(*, user: Any) -> None:
+        captured["user"] = user
+
+    validated_data = {"user": "mallory"}
+    await acall_service(aservice, request=_build_request(user="alice"), **validated_data)
+
+    assert captured["user"] == "alice"
+
+
+@pytest.mark.asyncio
+async def test_extras_still_carry_names_the_helper_does_not_seed() -> None:
+    captured: dict[str, Any] = {}
+
+    async def aservice(*, progress: Any) -> None:
+        captured["progress"] = progress
+
+    reporter = object()
+    await acall_service(aservice, request=_build_request(user="alice"), progress=reporter)
+
+    assert captured["progress"] is reporter
