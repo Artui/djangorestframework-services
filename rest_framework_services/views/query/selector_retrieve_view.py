@@ -74,6 +74,16 @@ class SelectorRetrieveView(RetrieveModelMixin, GenericAPIView):
         )
 
     def get_object(self) -> Any:
+        """Resolve the target row through ``spec.selector``, if one is set.
+
+        **``filter_backends`` do not apply here.** DRF runs
+        ``filter_queryset()`` inside its own ``get_object()``, so overriding
+        that method — this view, or any hand-written override — drops them.
+        A tenant-scoping backend in ``DEFAULT_FILTER_BACKENDS`` scopes a
+        sibling list view and not this lookup. Scope the selector's own
+        queryset, or declare the rule as ``SelectorSpec.filter_set``, which
+        the dispatcher applies on both the list and the retrieve path.
+        """
         s: SelectorSpec | None = get_class_attr(self, "spec")
         if s is None or s.selector is None:
             obj = super().get_object()

@@ -447,6 +447,16 @@ def resolve_mutation_instance(
         [`SelectorRetrieveMixin`][rest_framework_services.viewsets.selector_retrieve_mixin.SelectorRetrieveMixin],
         else DRF's ``queryset`` / ``lookup_field`` lookup, else a user override) — the
         one branch that is genuinely HTTP-only and so cannot move.
+
+    **``filter_backends`` do not apply to the two spec-driven branches.** DRF
+    runs ``filter_queryset()`` inside its own ``get_object()``, so an
+    ``instance_selector_spec`` (resolved by the core) and a retrieve selector
+    (which overrides ``get_object()``) both bypass it, exactly as a hand-written
+    ``get_object()`` override does. A tenant-scoping backend in
+    ``DEFAULT_FILTER_BACKENDS`` therefore does not narrow the row a PATCH or
+    DELETE may reach here, while the sibling list action stays scoped. Put the
+    scoping in the selector's own queryset. Only the last branch — DRF's own
+    ``get_object()`` — applies the backends.
     """
     if spec.many or spec.collection_selector_spec is not None:
         return None

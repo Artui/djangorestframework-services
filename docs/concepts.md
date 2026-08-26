@@ -785,9 +785,11 @@ mutation flow. See the [service-action recipe](recipes/service-action.md).
 
 - It does not define a `Service` base class. A service is a function.
 - It does not invent a queryset filtering DSL. Use DRF's
-  `filter_backends` for list endpoints; for a *retrieve* selector (which
-  DRF's `filter_backends` never reach) or a transport-neutral declaration,
-  point `SelectorSpec.filter_set` at a `django-filter` `FilterSet` — see
+  `filter_backends` for list endpoints; for a *retrieve* selector — which
+  overrides `get_object()`, the method DRF runs `filter_queryset()` from,
+  so the backends stop applying exactly as they would for any
+  hand-written override — or for a transport-neutral declaration, point
+  `SelectorSpec.filter_set` at a `django-filter` `FilterSet` — see
   [filter a selector with `filter_set`](recipes/selector-filtering.md).
 - It does not own the input format. Use any DRF `Serializer` (including
   `ModelSerializer`) or a bare `@dataclass`.

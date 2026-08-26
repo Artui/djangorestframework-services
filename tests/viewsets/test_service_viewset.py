@@ -9,7 +9,13 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.test import APIRequestFactory
 
-from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec, ServiceViewSet
+from rest_framework_services import (
+    PolymorphicServiceSpec,
+    SelectorKind,
+    SelectorSpec,
+    ServiceSpec,
+    ServiceViewSet,
+)
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -591,43 +597,38 @@ class TestServiceViewSetUnconfigured:
         response = view(factory.delete("/"), pk=author.pk)
         assert response.status_code == 405
 
-    def test_create_with_selector_spec_raises_improperly_configured(self) -> None:
+    def test_create_with_selector_spec_raises_at_setup(self) -> None:
         class _View(ServiceViewSet):
             action_specs = {
                 "create": SelectorSpec(kind=SelectorKind.LIST, selector=lambda: None),
             }
 
-        view = _View.as_view({"post": "create"})
-        with pytest.raises(ImproperlyConfigured):
-            view(factory.post("/"))
+        # A write action keyed to a read spec is a mis-wiring the URL wiring can
+        # see; it used to wait for the first POST to say so.
+        with pytest.raises(ImproperlyConfigured, match="must be a ServiceSpec"):
+            _View.as_view({"post": "create"})
 
-    def test_update_with_selector_spec_raises_improperly_configured(self) -> None:
-        author = Author.objects.create(name="x")
-
+    def test_update_with_selector_spec_raises_at_setup(self) -> None:
         class _View(ServiceViewSet):
             queryset = Author.objects.all()
             action_specs = {
                 "update": SelectorSpec(kind=SelectorKind.RETRIEVE, selector=lambda: None),
             }
 
-        view = _View.as_view({"put": "update"})
-        with pytest.raises(ImproperlyConfigured):
-            view(factory.put("/", {"name": "y"}, format="json"), pk=author.pk)
+        with pytest.raises(ImproperlyConfigured, match="must be a ServiceSpec"):
+            _View.as_view({"put": "update"})
 
-    def test_destroy_with_selector_spec_raises_improperly_configured(self) -> None:
-        author = Author.objects.create(name="x")
-
+    def test_destroy_with_selector_spec_raises_at_setup(self) -> None:
         class _View(ServiceViewSet):
             queryset = Author.objects.all()
             action_specs = {
                 "destroy": SelectorSpec(kind=SelectorKind.RETRIEVE, selector=lambda: None),
             }
 
-        view = _View.as_view({"delete": "destroy"})
-        with pytest.raises(ImproperlyConfigured):
-            view(factory.delete("/"), pk=author.pk)
+        with pytest.raises(ImproperlyConfigured, match="must be a ServiceSpec"):
+            _View.as_view({"delete": "destroy"})
 
-    def test_list_with_service_spec_raises_improperly_configured(self) -> None:
+    def test_list_with_service_spec_raises_at_setup(self) -> None:
         def _noop() -> None: ...
 
         class _View(ServiceViewSet):
@@ -635,11 +636,10 @@ class TestServiceViewSetUnconfigured:
                 "list": ServiceSpec(service=_noop),
             }
 
-        view = _View.as_view({"get": "list"})
-        with pytest.raises(ImproperlyConfigured):
-            view(factory.get("/"))
+        with pytest.raises(ImproperlyConfigured, match="must be a SelectorSpec"):
+            _View.as_view({"get": "list"})
 
-    def test_retrieve_with_service_spec_raises_improperly_configured(self) -> None:
+    def test_retrieve_with_service_spec_raises_at_setup(self) -> None:
         def _noop() -> None: ...
 
         class _View(ServiceViewSet):
@@ -647,9 +647,8 @@ class TestServiceViewSetUnconfigured:
                 "retrieve": ServiceSpec(service=_noop),
             }
 
-        view = _View.as_view({"get": "retrieve"})
-        with pytest.raises(ImproperlyConfigured):
-            view(factory.get("/"), pk=1)
+        with pytest.raises(ImproperlyConfigured, match="must be a SelectorSpec"):
+            _View.as_view({"get": "retrieve"})
 
 
 @pytest.mark.django_db
@@ -704,3 +703,68 @@ class TestServiceViewSetSpecOverrides:
         assert response.data is None
         assert response.render().content == b""
         assert not Author.objects.filter(pk=author.pk).exists()
+
+
+class TestActionSpecsCustomKeys:
+    """Entries keyed on an action the mixins don't dispatch are still validated.
+
+    A custom key is live configuration — ``get_permissions`` and the serializer
+    resolver both read it — but it used to be the one entry whose signature
+    nothing checked, so a service demanding a key nothing seeds waited for the
+    first request to say so.
+    """
+
+    def test_a_custom_key_service_spec_is_signature_checked(self) -> None:
+        def _publish(*, unseeded: int) -> None: ...
+
+        class _View(ServiceViewSet):
+            action_specs = {"publish": ServiceSpec(service=_publish)}
+
+        with pytest.raises(ImproperlyConfigured, match=r"action_specs\['publish'\]"):
+            _View.as_view({"post": "create"})
+
+    def test_a_valid_custom_key_entry_is_accepted(self) -> None:
+        def _publish(*, instance: object, request: object) -> None: ...
+
+        class _View(ServiceViewSet):
+            action_specs = {"publish": ServiceSpec(service=_publish)}
+
+        assert _View.as_view({"post": "create"}) is not None
+
+    def test_a_custom_key_selector_spec_is_signature_checked(self) -> None:
+        class _View(ServiceViewSet):
+            action_specs = {
+                "recent": SelectorSpec(
+                    kind=SelectorKind.LIST, select_related=("author",), selector=None
+                )
+            }
+
+        with pytest.raises(ImproperlyConfigured, match=r"action_specs\['recent'\]"):
+            _View.as_view({"get": "list"})
+
+    def test_a_custom_key_polymorphic_spec_is_validated(self) -> None:
+        class _View(ServiceViewSet):
+            action_specs = {"publish": PolymorphicServiceSpec(discriminator=lambda: "x", specs={})}
+
+        with pytest.raises(ImproperlyConfigured, match="must not be empty"):
+            _View.as_view({"post": "create"})
+
+    def test_a_non_spec_entry_is_rejected(self) -> None:
+        class _View(ServiceViewSet):
+            action_specs = {"publish": "not a spec"}  # type: ignore[dict-item]
+
+        with pytest.raises(ImproperlyConfigured, match="must be a ServiceSpec"):
+            _View.as_view({"post": "create"})
+
+    def test_a_kwargs_hook_for_the_custom_action_relaxes_the_check(self) -> None:
+        # The same permissiveness rule as a built-in action: a hook the
+        # validator cannot read into may be feeding the missing key.
+        def _publish(*, unseeded: int) -> None: ...
+
+        class _View(ServiceViewSet):
+            action_specs = {"publish": ServiceSpec(service=_publish)}
+
+            def get_publish_service_kwargs(self) -> dict[str, Any]:
+                return {"unseeded": 1}
+
+        assert _View.as_view({"post": "create"}) is not None

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.permissions import BasePermission
+from rest_framework.serializers import CharField, Serializer
 
 from rest_framework_services import (
     SelectorKind,
@@ -24,6 +26,17 @@ from rest_framework_services.views.spec_validation import (
     validate_selector_spec,
     validate_service_spec,
 )
+
+
+@dataclass
+class _InputDataclass:
+    """A dataclass *type* is a legal ``input_serializer``; an instance is not."""
+
+    name: str
+
+
+class _InputSerializer(Serializer):
+    name = CharField()
 
 
 class _AlwaysAllow(BasePermission):
@@ -713,3 +726,45 @@ class TestSelectorSpecPreconditions:
                 SelectorSpec(kind=SelectorKind.RETRIEVE, preconditions=["nope"]),
                 label="X",
             )
+
+
+class TestInputSerializerShape:
+    """``input_serializer`` is checked for shape, not only for presence.
+
+    ``dataclasses.is_dataclass`` is true of instances too, so the dataclass
+    branch downstream accepts a typo that cannot work.
+    """
+
+    def _validate(self, input_serializer: Any) -> None:
+        validate_service_spec(
+            ServiceSpec(service=lambda *, data: None, input_serializer=input_serializer),
+            label="X",
+            has_instance=False,
+            permissive_extras=False,
+        )
+
+    def test_a_serializer_subclass_is_accepted(self) -> None:
+        self._validate(_InputSerializer)
+
+    def test_a_dataclass_type_is_accepted(self) -> None:
+        self._validate(_InputDataclass)
+
+    def test_a_dataclass_instance_is_rejected(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="without the parentheses"):
+            self._validate(_InputDataclass(name="x"))
+
+    def test_a_serializer_instance_is_rejected(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="must be a Serializer subclass"):
+            self._validate(_InputSerializer())
+
+    def test_a_plain_function_is_rejected(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="must be a Serializer subclass"):
+            self._validate(lambda: None)
+
+    def test_none_is_still_no_input(self) -> None:
+        validate_service_spec(
+            ServiceSpec(service=lambda: None),
+            label="X",
+            has_instance=False,
+            permissive_extras=False,
+        )

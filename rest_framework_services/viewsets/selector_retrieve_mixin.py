@@ -58,6 +58,18 @@ class SelectorRetrieveMixin(RetrieveModelMixin, _ActionSpecsMixin):
         return Response(serializer.data)
 
     def get_object(self) -> Any:
+        """Resolve the target row through the retrieve selector, if one is wired.
+
+        **``filter_backends`` do not apply here.** DRF runs
+        ``filter_queryset()`` inside its own ``get_object()``, so taking that
+        method over — as this mixin does, and as any hand-written
+        ``get_object()`` override does — is what drops them. A tenant-scoping
+        backend listed in ``DEFAULT_FILTER_BACKENDS`` therefore narrows the
+        sibling ``list`` action and *not* this lookup, which is what makes the
+        gap easy to miss. Scope the selector's own queryset, or declare the
+        rule as ``SelectorSpec.filter_set`` — the sanctioned seam, applied by
+        the dispatcher on both paths.
+        """
         spec = resolve_action_selector_spec(self.action_specs, "retrieve")
         obj = (
             super().get_object()  # ty: ignore[unresolved-attribute]

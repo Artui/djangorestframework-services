@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Iterable
+from dataclasses import is_dataclass
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.permissions import BasePermission
+from rest_framework.serializers import Serializer
 
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.selector_kind import SelectorKind
@@ -235,6 +237,28 @@ def _validate_permission_classes(
                 f"{label}: permission_classes entries must be `BasePermission` "
                 f"subclasses; got {entry!r}."
             )
+
+
+def _validate_input_serializer(input_serializer: Any, *, label: str) -> None:
+    """Reject an ``input_serializer`` that is neither shape the runtime accepts.
+
+    ``dataclasses.is_dataclass`` answers ``True`` for an *instance* as well as a
+    class, so ``input_serializer=MyInput()`` — one stray pair of parentheses —
+    slips past every other check here and reaches
+    ``DataclassSerializer(dataclass=<instance>)`` on the first request, where it
+    fails somewhere that names neither the spec nor the field.
+    """
+    if input_serializer is None:
+        return
+    if isinstance(input_serializer, type) and (
+        issubclass(input_serializer, Serializer) or is_dataclass(input_serializer)
+    ):
+        return
+    raise ImproperlyConfigured(
+        f"{label}: `input_serializer` must be a Serializer subclass or a dataclass "
+        f"*type*, got {input_serializer!r}. An instance is the usual cause — pass "
+        "the class itself, without the parentheses."
+    )
 
 
 def _validate_preconditions(
@@ -505,6 +529,7 @@ def validate_service_spec(
     """
     _validate_success_status(spec.success_status, label=label)
     _validate_response_finalizer(spec.response_finalizer, label=label)
+    _validate_input_serializer(spec.input_serializer, label=label)
     if spec.many and spec.collection_selector_spec is not None:
         raise ImproperlyConfigured(
             f"{label}: `many` and `collection_selector_spec` are mutually exclusive "
