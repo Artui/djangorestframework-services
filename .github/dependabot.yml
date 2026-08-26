@@ -4,6 +4,14 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Dependabot already holds a new version for 3 days before proposing it; a
+    # week is the more useful threshold. A compromised release is typically
+    # yanked within days, so the gap between "published" and "found" is exactly
+    # the window an automatic upgrade walks into. This costs nothing in
+    # responsiveness that matters: cooldown covers version updates only, and
+    # security advisories are proposed immediately regardless.
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
@@ -11,6 +19,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     groups:
       python:
         patterns: ["*"]
