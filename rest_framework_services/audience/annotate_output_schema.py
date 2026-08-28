@@ -5,13 +5,13 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from rest_framework_services.types.agent_projection import AgentProjection
+from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.field_audience import FieldAudience
 
 
 def annotate_output_schema(
     schema: dict[str, Any] | None,
-    projection: AgentProjection,
+    projection: AudienceProjection,
     *,
     handle_description: str | None = None,
 ) -> dict[str, Any] | None:
@@ -52,7 +52,7 @@ def annotate_output_schema(
 
 
 def _annotate(
-    schema: dict[str, Any], projection: AgentProjection, handle_description: str | None
+    schema: dict[str, Any], projection: AudienceProjection, handle_description: str | None
 ) -> dict[str, Any]:
     # A list schema wraps the item schema; project the items and keep the array.
     items = schema.get("items")
@@ -111,7 +111,7 @@ def _spoken_schema(schema: dict[str, Any], labels: Mapping[Any, str]) -> dict[st
 
 
 def _description(
-    projection: AgentProjection,
+    projection: AudienceProjection,
     name: str,
     audience: FieldAudience,
     handle_description: str | None,

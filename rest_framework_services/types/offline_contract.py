@@ -1,17 +1,17 @@
-"""``AgentContract`` -- what a transport with no HTTP request has to be told."""
+"""``OfflineContract`` -- what a transport with no HTTP request has to be told."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from rest_framework_services.types.agent_field import AgentField
+from rest_framework_services.types.field_marking import FieldMarking
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.url_kwarg import UrlKwarg
 
 
 @dataclass(frozen=True)
-class AgentContract:
+class OfflineContract:
     """The declarations an off-HTTP caller needs and an HTTP one never does.
 
     **Over HTTP this is all free.** A nested route's captures reach a spec
@@ -51,7 +51,7 @@ class AgentContract:
 
     url_kwargs: tuple[UrlKwarg, ...] = field(default_factory=tuple)
     query_params: tuple[QueryParam, ...] = field(default_factory=tuple)
-    field_audiences: Mapping[str, AgentField] | None = None
+    field_audiences: Mapping[str, FieldMarking] | None = None
     """Per-tool overrides layered over the output serializer's own markings.
 
     Here rather than at a mount because
@@ -62,7 +62,7 @@ class AgentContract:
     of what that audience sees **cannot** legitimately differ between them.
 
     It also belongs at the same level as the thing it overrides. The baseline is
-    the serializer's own ``AgentField`` markings, which are spec-level and read
+    the serializer's own ``FieldMarking`` markings, which are spec-level and read
     by every transport; declaring the baseline once and the override per mount
     is what let one spec project a different field set depending on which
     transport served it -- a field hidden for one agent audience left visible to
@@ -70,4 +70,4 @@ class AgentContract:
     """
 
 
-__all__ = ["AgentContract"]
+__all__ = ["OfflineContract"]

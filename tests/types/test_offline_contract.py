@@ -14,8 +14,8 @@ in two shapes, with nothing comparing them.
 from __future__ import annotations
 
 from rest_framework_services import (
-    AgentContract,
-    AgentField,
+    FieldMarking,
+    OfflineContract,
     QueryParam,
     SelectorKind,
     SelectorSpec,
@@ -43,17 +43,17 @@ class TestTheDefault:
         # "Declared, and declares nothing" differs from "not declared", because a
         # transport may want to distinguish an explicit empty from an absent one.
         registry = SpecRegistry()
-        registry.register("list_widgets", _spec(), agent_contract=AgentContract())
+        registry.register("list_widgets", _spec(), agent_contract=OfflineContract())
 
         entry = registry.get("list_widgets")
         assert entry is not None
-        assert entry.agent_contract == AgentContract()
+        assert entry.agent_contract == OfflineContract()
         assert entry.agent_contract is not None
 
 
 class TestWhatItCarries:
     def test_url_kwargs_and_query_params_ride_through_verbatim(self) -> None:
-        contract = AgentContract(
+        contract = OfflineContract(
             url_kwargs=(UrlKwarg("project_pk"),),
             query_params=(QueryParam("fields"),),
         )
@@ -69,7 +69,7 @@ class TestWhatItCarries:
 
         import pytest
 
-        contract = AgentContract(url_kwargs=(UrlKwarg("project_pk"),))
+        contract = OfflineContract(url_kwargs=(UrlKwarg("project_pk"),))
 
         with pytest.raises(dataclasses.FrozenInstanceError):
             contract.url_kwargs = ()  # type: ignore[misc]
@@ -86,10 +86,10 @@ class TestFieldAudiences:
     """
 
     def test_it_rides_the_contract(self) -> None:
-        overrides = {"etag": AgentField()}
+        overrides = {"etag": FieldMarking()}
         registry = SpecRegistry()
         registry.register(
-            "lookup_invoice", _spec(), agent_contract=AgentContract(field_audiences=overrides)
+            "lookup_invoice", _spec(), agent_contract=OfflineContract(field_audiences=overrides)
         )
 
         entry = registry.get("lookup_invoice")
@@ -99,14 +99,14 @@ class TestFieldAudiences:
 
     def test_declaring_none_is_the_default(self) -> None:
         # The serializer's own markings stay authoritative unless overridden.
-        assert AgentContract().field_audiences is None
+        assert OfflineContract().field_audiences is None
 
 
 class TestItSurvivesTheRegistryOperations:
     def test_by_tag_carries_the_contract_with_the_entry(self) -> None:
         # The property that makes the registry a viable home: a filtered view is
         # built from RegisteredSpec objects, so anything on the entry survives.
-        contract = AgentContract(url_kwargs=(UrlKwarg("project_pk"),))
+        contract = OfflineContract(url_kwargs=(UrlKwarg("project_pk"),))
         registry = SpecRegistry()
         registry.register("list_widgets", _spec(), tags=("public",), agent_contract=contract)
         registry.register("other", _spec(), tags=("internal",))
@@ -118,7 +118,7 @@ class TestItSurvivesTheRegistryOperations:
         assert entry.agent_contract is contract
 
     def test_subset_carries_it_too(self) -> None:
-        contract = AgentContract(query_params=(QueryParam("fields"),))
+        contract = OfflineContract(query_params=(QueryParam("fields"),))
         registry = SpecRegistry()
         registry.register("list_widgets", _spec(), agent_contract=contract)
         registry.register("other", _spec())
@@ -140,7 +140,7 @@ class TestWhatItDeliberatelyDoesNotCarry:
         """
         import dataclasses
 
-        fields = {f.name for f in dataclasses.fields(AgentContract)}
+        fields = {f.name for f in dataclasses.fields(OfflineContract)}
 
         assert fields == {"url_kwargs", "query_params", "field_audiences"}
 
@@ -152,4 +152,4 @@ class TestWhatItDeliberatelyDoesNotCarry:
         """
         import dataclasses
 
-        assert "ordering_fields" not in {f.name for f in dataclasses.fields(AgentContract)}
+        assert "ordering_fields" not in {f.name for f in dataclasses.fields(OfflineContract)}

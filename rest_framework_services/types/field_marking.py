@@ -1,8 +1,8 @@
-"""``AgentField`` — per-field agent presentation, plus the ``AGENT`` style key.
+"""``FieldMarking`` — per-field agent presentation, plus the ``MARKING`` style key.
 
 The key is exported from the same module as the class it labels because the two
-are meaningless apart: ``AGENT`` exists only to carry an ``AgentField``, and an
-``AgentField`` is only ever found under it. Same reasoning as
+are meaningless apart: ``MARKING`` exists only to carry an ``FieldMarking``, and an
+``FieldMarking`` is only ever found under it. Same reasoning as
 ``types/input_required.py``, which exports its marker and that marker's type.
 """
 
@@ -13,19 +13,19 @@ from typing import Final
 
 from rest_framework_services.types.field_audience import FieldAudience
 
-AGENT: Final = "drf_agent"
-"""Key under which an :class:`AgentField` is declared in a DRF field's ``style``.
+MARKING: Final = "drf_marking"
+"""Key under which an :class:`FieldMarking` is declared in a DRF field's ``style``.
 
 Namespaced rather than bare (``"agent"``) because ``style`` is a shared bag any
 library may write to. The namespacing is courtesy, not correctness: readers
-match on the *value* being an ``AgentField``, so a marking under another key
-still takes effect and another library's data under ``AGENT`` is refused loudly
+match on the *value* being an ``FieldMarking``, so a marking under another key
+still takes effect and another library's data under ``MARKING`` is refused loudly
 rather than silently misread.
 """
 
 
 @dataclass(frozen=True, slots=True)
-class AgentField:
+class FieldMarking:
     """How one serializer field is presented to an agent audience.
 
     Declared in DRF's per-field ``style`` bag, which is the only door
@@ -39,9 +39,9 @@ class AgentField:
             model = Invoice
             fields = ["id", "number", "status", "etag"]
             extra_kwargs = {
-                "id":     {"style": {AGENT: AgentField.handle("Invoice handle.")}},
-                "etag":   {"style": {AGENT: AgentField.hidden()}},
-                "number": {"style": {AGENT: AgentField.label()}},
+                "id":     {"style": {MARKING: FieldMarking.handle("Invoice handle.")}},
+                "etag":   {"style": {MARKING: FieldMarking.hidden()}},
+                "number": {"style": {MARKING: FieldMarking.label()}},
             }
     ```
 
@@ -56,7 +56,7 @@ class AgentField:
 
     audience: FieldAudience = FieldAudience.CONTENT
     description: str | None = None
-    """Agent-facing description, replacing ``help_text`` in agent schemas only.
+    """Audience-facing description, replacing ``help_text`` for this audience only.
 
     ``help_text`` is shared with the frontend and the browsable API, so it cannot
     say "opaque handle, never read this out". This can, without changing a word
@@ -64,16 +64,16 @@ class AgentField:
     """
 
     @classmethod
-    def handle(cls, description: str | None = None) -> AgentField:
+    def handle(cls, description: str | None = None) -> FieldMarking:
         """An opaque identifier: passed to other tools, never spoken to a user."""
         return cls(FieldAudience.HANDLE, description)
 
     @classmethod
-    def hidden(cls) -> AgentField:
-        """Plumbing: dropped from the agent payload and the agent schema."""
+    def hidden(cls) -> FieldMarking:
+        """Plumbing: dropped from the projected payload and the projected schema."""
         return cls(FieldAudience.HIDDEN)
 
     @classmethod
-    def label(cls, description: str | None = None) -> AgentField:
+    def label(cls, description: str | None = None) -> FieldMarking:
         """The field that names this record for a human."""
         return cls(FieldAudience.LABEL, description)

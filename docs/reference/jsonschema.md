@@ -95,7 +95,7 @@ describe. So a `get_fields` that *branches* on the view or the user is reflected
 as the branch taken by a caller with neither. Reflection cannot report a field
 set that depends on who is asking, because at description time nobody is — if
 your field set varies by audience, declare it with
-[agent markings](audience.md) instead, which are resolved per render.
+[field markings](audience.md) instead, which are resolved per render.
 
 ## `JsonSchemaRegistry`
 

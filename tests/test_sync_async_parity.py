@@ -45,11 +45,11 @@ from rest_framework_services import (
     ServiceSpec,
     ViewHooks,
     adispatch_spec,
-    arender_for_agent,
+    arender_for_audience,
     arender_spec_output,
     build_offline_context,
     dispatch_spec,
-    render_for_agent,
+    render_for_audience,
     render_spec_output,
 )
 from rest_framework_services.dispatch.adispatch_spec import (
@@ -181,14 +181,14 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
     [
         (dispatch_spec, adispatch_spec),
         (render_spec_output, arender_spec_output),
-        (render_for_agent, arender_for_agent),
+        (render_for_audience, arender_for_audience),
         (_resolve_target, _aresolve_target),
         (_resolve_instance, _aresolve_instance),
     ],
     ids=[
         "dispatch_spec",
         "render_spec_output",
-        "render_for_agent",
+        "render_for_audience",
         "resolve_target",
         "resolve_instance",
     ],
@@ -566,9 +566,9 @@ async def test_view_hooks_reach_the_output_context_on_either_render_twin() -> No
 @pytest.mark.django_db(transaction=True)
 async def test_view_hooks_reach_the_output_context_on_either_agent_render_twin() -> None:
     post = await Post.objects.acreate(title="p")
-    sync_payload = await sync_to_async(render_for_agent, thread_sensitive=True)(
+    sync_payload = await sync_to_async(render_for_audience, thread_sensitive=True)(
         _RENDER_SPEC, post, view_hooks=_HOOKS
     )
-    async_payload = await arender_for_agent(_RENDER_SPEC, post, view_hooks=_HOOKS)
+    async_payload = await arender_for_audience(_RENDER_SPEC, post, view_hooks=_HOOKS)
     assert async_payload == sync_payload
     assert async_payload["tenant"] == "from-view-hook"

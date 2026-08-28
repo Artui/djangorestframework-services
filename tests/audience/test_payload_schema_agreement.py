@@ -14,11 +14,11 @@ import pytest
 from jsonschema import Draft202012Validator
 from rest_framework import serializers
 
-from rest_framework_services.audience.build_agent_projection import build_agent_projection
+from rest_framework_services.audience.build_audience_projection import build_audience_projection
 from rest_framework_services.audience.project_payload import project_payload
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
 from rest_framework_services.jsonschema.utils import field_to_schema
-from rest_framework_services.types.agent_field import AGENT, AgentField
+from rest_framework_services.types.field_marking import MARKING, FieldMarking
 from rest_framework_services.types.selector_kind import SelectorKind
 
 STATUSES = [("PENDING_REVIEW", "Awaiting review"), ("PAID", "Paid")]
@@ -26,15 +26,15 @@ STATUSES = [("PENDING_REVIEW", "Awaiting review"), ("PAID", "Paid")]
 
 class _Line(serializers.Serializer):
     sku = serializers.CharField()
-    internal_cost = serializers.CharField(style={AGENT: AgentField.hidden()})
+    internal_cost = serializers.CharField(style={MARKING: FieldMarking.hidden()})
 
 
 class _Invoice(serializers.Serializer):
-    id = serializers.IntegerField(style={AGENT: AgentField.handle()})
-    number = serializers.CharField(style={AGENT: AgentField.label()})
-    etag = serializers.CharField(style={AGENT: AgentField.hidden()})
+    id = serializers.IntegerField(style={MARKING: FieldMarking.handle()})
+    number = serializers.CharField(style={MARKING: FieldMarking.label()})
+    etag = serializers.CharField(style={MARKING: FieldMarking.hidden()})
     status = serializers.ChoiceField(choices=STATUSES)
-    kind = serializers.ChoiceField(choices=STATUSES, style={AGENT: AgentField.handle()})
+    kind = serializers.ChoiceField(choices=STATUSES, style={MARKING: FieldMarking.handle()})
     tags = serializers.MultipleChoiceField(choices=STATUSES)
     lines = _Line(many=True)
     extra_lines = serializers.ListField(child=_Line())
@@ -50,7 +50,7 @@ ROW: dict[str, Any] = {
     "lines": [{"sku": "S1", "internal_cost": "9.99"}],
     "extra_lines": [{"sku": "S2", "internal_cost": "1.00"}],
 }
-PROJECTION = build_agent_projection(_Invoice)
+PROJECTION = build_audience_projection(_Invoice)
 
 
 def _assert_agrees(payload: Any, schema: Any) -> None:

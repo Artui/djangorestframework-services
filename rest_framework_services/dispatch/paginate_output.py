@@ -1,27 +1,27 @@
-"""``paginate_for_agent`` — slice a list selector's rows into one agent-facing page."""
+"""``paginate_output`` — slice a list selector's rows into one agent-facing page."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from rest_framework_services.selectors.utils import is_queryset
-from rest_framework_services.types.agent_page import AgentPage
+from rest_framework_services.types.output_page import OutputPage
 
 #: Rows per page when the caller asks for a page and names no size.
-DEFAULT_AGENT_PAGE_SIZE = 100
+DEFAULT_PAGE_SIZE = 100
 
 
-def paginate_for_agent(
+def paginate_output(
     rows: Any,
     *,
     page: int | None = None,
     limit: int | None = None,
     max_page_size: int | None = None,
-) -> AgentPage:
+) -> OutputPage:
     """Slice ``rows`` into the page an agent transport serves.
 
     ``page`` / ``limit`` default to 1 and
-    [`DEFAULT_AGENT_PAGE_SIZE`][rest_framework_services.dispatch.paginate_for_agent.DEFAULT_AGENT_PAGE_SIZE].
+    [`DEFAULT_PAGE_SIZE`][rest_framework_services.dispatch.paginate_output.DEFAULT_PAGE_SIZE].
     Out-of-range values clamp at *both* ends — ``limit`` down to
     ``max_page_size`` and up to 1, ``page`` up to 1 and down to the last page
     that exists — and the clamps are not silent the way truncating an
@@ -45,7 +45,7 @@ def paginate_for_agent(
         TypeError: If ``rows`` is neither a queryset nor a sized, sliceable
             sequence — there is nothing to count and nothing to slice.
     """
-    served_limit: int = max(1, DEFAULT_AGENT_PAGE_SIZE if limit is None else limit)
+    served_limit: int = max(1, DEFAULT_PAGE_SIZE if limit is None else limit)
     if max_page_size is not None:
         served_limit = min(served_limit, max_page_size)
     total: int = _count(rows)
@@ -53,7 +53,7 @@ def paginate_for_agent(
     # served is never one the same payload then says does not exist.
     served_page: int = min(max(1, 1 if page is None else page), max(1, -(-total // served_limit)))
     start: int = (served_page - 1) * served_limit
-    return AgentPage(
+    return OutputPage(
         items=rows[start : start + served_limit],
         page=served_page,
         limit=served_limit,
@@ -80,4 +80,4 @@ def _count(rows: Any) -> int:
     )
 
 
-__all__ = ["DEFAULT_AGENT_PAGE_SIZE", "paginate_for_agent"]
+__all__ = ["DEFAULT_PAGE_SIZE", "paginate_output"]

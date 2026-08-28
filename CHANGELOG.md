@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.0] — 2026-08-28
+
+### Changed
+
+- **The neutral kernel stopped naming its consumers.** Ten public symbols said
+  `agent` in a package that is deliberately agent-less, and they were doing two
+  different jobs. Renamed, with **no aliases** — see the note below.
+
+  | Was | Now | Why |
+  | --- | --- | --- |
+  | `AgentField` | `FieldMarking` | It is the marking. The docstrings across this family already say "markings". |
+  | `AGENT` (`"drf_agent"`) | `MARKING` (`"drf_marking"`) | The key exists only to carry one. Detection is by **value**, not by key, so a serializer still declaring the old literal keeps working. |
+  | `AgentProjection` | `AudienceProjection` | A serializer's markings resolved. `audience/` is already the package and `FieldAudience` the enum. |
+  | `build_agent_projection` | `build_audience_projection` | |
+  | `agent_projection_for_spec` | `audience_projection_for_spec` | |
+  | `render_for_agent` / `arender_for_agent` | `render_for_audience` / `arender_for_audience` | Its own docstring called it "the agent-audience twin of `render_spec_output`". |
+  | `AgentContract` | `OfflineContract` | Its own docstring: *"what a transport with no HTTP request has to be told"*. This package already says `offline` — `OfflineServiceView`, `OfflineHttpRequest`, `build_offline_context`. |
+  | `paginate_for_agent` | `paginate_output` | Pairs with `output_to_json_schema` / `output_serializer`, this package's directional convention. |
+  | `AgentPage` | `OutputPage` | |
+  | `DEFAULT_AGENT_PAGE_SIZE` | `DEFAULT_PAGE_SIZE` | |
+
+  **The rule, for the next symbol.** "Agent" is *earned* where a name marks an
+  audience the serializer author declares, and is a *leak* where it marks only
+  which callers happen to use it. The last three published nothing about an
+  audience — they slice rows and count them — and the first seven named a
+  consumer where the concept is a field's treatment: `FieldAudience`'s own values
+  are `CONTENT` / `LABEL` / `HANDLE` / `HIDDEN`, which say what a field *is*.
+
+  **Prose still says "agent" where that is the truth.** A docstring explaining
+  that agent transports read these markings is explanatory, not a leak. Only the
+  names moved.
+
+  **No deprecation aliases, on purpose.** Every known consumer is inside this
+  family and is being updated in the same pass, which is the whole reason this
+  landed before they adopted the 0.47.0 API rather than after. Ten warning
+  aliases would also have expanded exactly the surface the next change is trying
+  to shrink.
+
+
 ## [0.47.0] — 2026-08-28
 
 ### Added
@@ -3213,7 +3252,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.47.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.48.0...HEAD
+[0.48.0]: https://github.com/Artui/djangorestframework-services/compare/v0.47.0...v0.48.0
 [0.47.0]: https://github.com/Artui/djangorestframework-services/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/Artui/djangorestframework-services/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/Artui/djangorestframework-services/compare/v0.44.0...v0.45.0

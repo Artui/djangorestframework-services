@@ -13,13 +13,13 @@ was handed. Declare the difference on the server, once, on the field.
 ## Declare it
 
 The marking is an
-[`AgentField`][rest_framework_services.types.agent_field.AgentField] in DRF's
+[`FieldMarking`][rest_framework_services.types.field_marking.FieldMarking] in DRF's
 per-field `style` bag, under the
-[`AGENT`][rest_framework_services.types.agent_field.AGENT] key:
+[`MARKING`][rest_framework_services.types.field_marking.MARKING] key:
 
 ```python
 from rest_framework import serializers
-from rest_framework_services import AGENT, AgentField
+from rest_framework_services import MARKING, FieldMarking
 
 
 class InvoiceSerializer(serializers.ModelSerializer):
@@ -27,10 +27,10 @@ class InvoiceSerializer(serializers.ModelSerializer):
         model = Invoice
         fields = ["id", "number", "status", "customer", "etag", "amount"]
         extra_kwargs = {
-            "id": {"style": {AGENT: AgentField.handle("Invoice handle for other tools.")}},
-            "customer": {"style": {AGENT: AgentField.handle()}},
-            "etag": {"style": {AGENT: AgentField.hidden()}},
-            "number": {"style": {AGENT: AgentField.label()}},
+            "id": {"style": {MARKING: FieldMarking.handle("Invoice handle for other tools.")}},
+            "customer": {"style": {MARKING: FieldMarking.handle()}},
+            "etag": {"style": {MARKING: FieldMarking.hidden()}},
+            "number": {"style": {MARKING: FieldMarking.label()}},
         }
 ```
 
@@ -39,9 +39,9 @@ Four audiences, and the default is "content":
 | Marking | Meaning | Agent payload | Agent schema | REST |
 | --- | --- | --- | --- | --- |
 | *(unmarked)* | content | included | included | unchanged |
-| `AgentField.label()` | names this record for a human | included | its `description`, if given | unchanged |
-| `AgentField.handle()` | opaque; passed to tools, never spoken | verbatim | its `description`, if given | unchanged |
-| `AgentField.hidden()` | plumbing | **dropped** | dropped | unchanged |
+| `FieldMarking.label()` | names this record for a human | included | its `description`, if given | unchanged |
+| `FieldMarking.handle()` | opaque; passed to tools, never spoken | verbatim | its `description`, if given | unchanged |
+| `FieldMarking.hidden()` | plumbing | **dropped** | dropped | unchanged |
 
 `style` is used because it is the only door `Meta.extra_kwargs` opens onto a
 field constructor — anything else would mean subclassing every field type and
@@ -52,11 +52,11 @@ its own keys, so **your REST responses do not change**.
 ## Apply it
 
 An agent transport renders with
-[`render_for_agent`][rest_framework_services.dispatch.render_for_agent.render_for_agent]
+[`render_for_audience`][rest_framework_services.dispatch.render_for_audience.render_for_audience]
 instead of `render_spec_output`:
 
 ```python
-payload = render_for_agent(spec, result.value, many=True)
+payload = render_for_audience(spec, result.value, many=True)
 ```
 
 `etag` is gone, `status` reads `"Awaiting review"`, and `id` is untouched — a
@@ -67,10 +67,10 @@ For the schema side, hand the same projection to
 so both sides come from the one declaration:
 
 ```python
-projection = build_agent_projection(InvoiceSerializer)
+projection = build_audience_projection(InvoiceSerializer)
 
 schema = output_to_json_schema(InvoiceSerializer, kind=SelectorKind.LIST, projection=projection)
-payload = render_for_agent(spec, value, many=True, projection=projection)
+payload = render_for_audience(spec, value, many=True, projection=projection)
 ```
 
 Pass the same `kind` / `paginate` you dispatch with, or the schema describes the
@@ -84,7 +84,7 @@ it to every render, as above.
 
 A substituted choice field is re-declared in the schema in its *display* values,
 because that is what the payload now carries. If another tool takes that field
-as input, mark it `AgentField.handle()` — that suppresses the substitution on
+as input, mark it `FieldMarking.handle()` — that suppresses the substitution on
 both sides and keeps the constant.
 
 ## One mount that needs what its sibling hides
@@ -98,21 +98,21 @@ it belongs on the registry entry rather than on any one transport:
 registry.register(
     "lookup_invoice",
     lookup_spec,
-    agent_contract=AgentContract(field_audiences={"etag": AgentField()}),
+    agent_contract=OfflineContract(field_audiences={"etag": FieldMarking()}),
 )
 ```
 
 Every agent transport reads that one contract, so the field set an agent sees
-cannot depend on which transport served it. `build_agent_projection` layers it:
+cannot depend on which transport served it. `build_audience_projection` layers it:
 
 ```python
-projection = build_agent_projection(
+projection = build_audience_projection(
     InvoiceSerializer, overrides=contract.field_audiences, name="lookup_invoice"
 )
 ```
 
 An override can move the label and it can introduce the clash the serializer
-could not have — two fields marked `AgentField.label()` from two places — which
+could not have — two fields marked `FieldMarking.label()` from two places — which
 raises `ImproperlyConfigured` naming the mount.
 
 **A project that wants two agent audiences with different visibility does not
@@ -130,21 +130,21 @@ is renamed:
 
 ```python
 class LineSerializer(serializers.Serializer):
-    sku = serializers.CharField(style={AGENT: AgentField.handle()})
+    sku = serializers.CharField(style={MARKING: FieldMarking.handle()})
     description = serializers.CharField()
 
 
 class InvoiceSerializer(serializers.Serializer):
-    number = serializers.CharField(style={AGENT: AgentField.label()})
+    number = serializers.CharField(style={MARKING: FieldMarking.label()})
     lines = LineSerializer(many=True)
 ```
 
 ## Two mistakes that raise rather than pass quietly
 
-- A value under `AGENT` that is not an `AgentField` — the shape a half-finished
-  migration leaves behind (`{"style": {AGENT: "handle"}}`). It would otherwise
+- A value under `MARKING` that is not an `FieldMarking` — the shape a half-finished
+  migration leaves behind (`{"style": {MARKING: "handle"}}`). It would otherwise
   do nothing at all.
-- Two fields both marked `AgentField.label()`. A record has one name; silently
+- Two fields both marked `FieldMarking.label()`. A record has one name; silently
   picking the first is the kind of thing you find in a transcript weeks later.
 
 Both raise `ImproperlyConfigured` naming the serializer and the field.

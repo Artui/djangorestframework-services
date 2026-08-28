@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from rest_framework_services.types.agent_projection import AgentProjection
+from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.field_audience import FieldAudience
 
 
-def project_payload(payload: Any, projection: AgentProjection) -> Any:
+def project_payload(payload: Any, projection: AudienceProjection) -> Any:
     """Drop plumbing and speak enum labels, at any depth.
 
     Two changes, both driven by the same declaration that shapes the schema so
@@ -33,7 +33,7 @@ def project_payload(payload: Any, projection: AgentProjection) -> Any:
     return _project(payload, projection)
 
 
-def _project(payload: Any, projection: AgentProjection) -> Any:
+def _project(payload: Any, projection: AudienceProjection) -> Any:
     if isinstance(payload, list):
         return [_project(item, projection) for item in payload]
     if not isinstance(payload, Mapping):

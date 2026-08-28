@@ -194,7 +194,7 @@ def serializer_for_schema(serializer_cls: type[serializers.Serializer]) -> seria
     to prevent.
 
     The baseline is the same one
-    [`build_agent_projection`][rest_framework_services.audience.build_agent_projection.build_agent_projection]
+    [`build_audience_projection`][rest_framework_services.audience.build_audience_projection.build_audience_projection]
     already synthesizes, and for the same reason.
 
     **The view and request are `None`, and cannot be otherwise.** A schema is
@@ -206,7 +206,7 @@ def serializer_for_schema(serializer_cls: type[serializers.Serializer]) -> seria
     """
     # Genuine circular import, deliberately local: ``dispatch`` re-exports
     # helpers that reach back into this package, so importing it at module
-    # scope executes a half-built package. ``build_agent_projection`` records
+    # scope executes a half-built package. ``build_audience_projection`` records
     # the same constraint.
     from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
 

@@ -5,17 +5,15 @@ These are intentionally framework-agnostic data carriers. They live outside
 inputs/outputs are not coupled to the mutation helpers themselves.
 """
 
-from rest_framework_services.types.agent_contract import AgentContract
-from rest_framework_services.types.agent_field import AGENT, AgentField
-from rest_framework_services.types.agent_page import AgentPage
-from rest_framework_services.types.agent_projection import AgentProjection
 from rest_framework_services.types.argument_binding import ArgumentBinding
+from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.change_result import ChangeResult
 from rest_framework_services.types.child_collection_change import ChildCollectionChange
 from rest_framework_services.types.child_spec import ChildSpec
 from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.field_audience import FieldAudience
 from rest_framework_services.types.field_change import FieldChange
+from rest_framework_services.types.field_marking import MARKING, FieldMarking
 from rest_framework_services.types.forward_relation_spec import ForwardRelationSpec
 from rest_framework_services.types.generic_relation_spec import GenericRelationSpec
 from rest_framework_services.types.http_extras import HttpExtras
@@ -28,8 +26,10 @@ from rest_framework_services.types.many_to_many_spec import ManyToManySpec
 from rest_framework_services.types.no_input import NoInput
 from rest_framework_services.types.not_client_input import NotClientInput, NotClientInputType
 from rest_framework_services.types.offline_context import OfflineContext
+from rest_framework_services.types.offline_contract import OfflineContract
 from rest_framework_services.types.offline_http_request import OfflineHttpRequest
 from rest_framework_services.types.offline_service_view import OfflineServiceView
+from rest_framework_services.types.output_page import OutputPage
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.progress_reporter import ProgressReporter
 from rest_framework_services.types.query_param import QueryParam
@@ -55,10 +55,10 @@ from rest_framework_services.types.validate_channel_names import validate_channe
 from rest_framework_services.types.view_hooks import ViewHooks
 
 __all__ = [
-    "AGENT",
-    "AgentField",
-    "AgentPage",
-    "AgentProjection",
+    "MARKING",
+    "FieldMarking",
+    "OutputPage",
+    "AudienceProjection",
     "DEFAULT_JSON_SCHEMA_REGISTRY",
     "RESERVED_POOL_SEEDS",
     "UNSET",
@@ -84,7 +84,7 @@ __all__ = [
     "PolymorphicServiceSpec",
     "ProgressReporter",
     "QueryParam",
-    "AgentContract",
+    "OfflineContract",
     "RegisteredSpec",
     "RelatedObjectChange",
     "RelationMode",
