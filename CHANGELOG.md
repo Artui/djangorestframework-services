@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Schema generation could not describe a serializer dispatch renders fine.**
+  Both `serializer_to_json_schema` and `output_to_json_schema` instantiated the
+  serializer bare, so a `get_fields` reading `self.context["request"]` — routine,
+  because over HTTP the key is always there — raised `KeyError` from description
+  while the same spec rendered perfectly. They now use the baseline context
+  `build_agent_projection` already synthesizes, and for the same reason: a spec
+  that can be called and cannot be described is exactly the schema/payload
+  divergence the audience layer exists to prevent.
+
+  The view and request are `None` and cannot be otherwise, since a schema is
+  built once when a transport declares its tools and no request exists yet. A
+  `get_fields` that *branches* on the view is therefore reflected as the branch
+  a caller with none takes. That limit is now stated in the docs rather than
+  discovered.
+
+### Changed
+
+- **A `FilterSet`'s choice labels now travel with their constants.**
+  `filterset_to_json_schema` kept only the values, so one project described the
+  same constants two ways depending on which side of a spec they arrived on: a
+  status came with `"Red"` from a serializer and bare from a FilterSet. The
+  shape is now the serializer path's — `{"const": …, "title": …}` under `oneOf`,
+  falling back to a plain `enum` when the labels only restate their values.
+
+  **This changes published output** for a `ChoiceFilter` or
+  `MultipleChoiceFilter` whose labels differ from their values. `title` is an
+  annotation keyword and constrains nothing, so the accepted value set is
+  unchanged.
+
+### Added
+
+- **A filter now publishes what it is called and what it matches.** A filter's
+  `label` becomes `title` and its `help_text` becomes `description`; where the
+  argument's own name does not give the lookup away, it is stated —
+  `min_views` declared as `field_name="views", lookup_expr="gte"` publishes
+  ``"Matches `views` with the `gte` lookup."`` A filter whose name, field and
+  lookup already agree says nothing extra, and an author's own `help_text`
+  always wins over the derived wording.
+
+- **A serializer field's `label` becomes `title`**, where the author wrote one.
+  DRF binds a derived label to every unlabelled field, and emitting that would
+  restate the property name in worse English at a reader's cost, so only a
+  declared label travels.
+
 ## [0.46.0] — 2026-08-28
 
 ### Added

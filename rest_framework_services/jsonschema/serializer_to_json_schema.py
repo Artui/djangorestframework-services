@@ -7,7 +7,11 @@ from typing import Any
 
 from rest_framework import serializers
 
-from rest_framework_services.jsonschema.utils import dataclass_to_schema, serializer_to_schema
+from rest_framework_services.jsonschema.utils import (
+    dataclass_to_schema,
+    serializer_for_schema,
+    serializer_to_schema,
+)
 from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
@@ -39,7 +43,7 @@ def serializer_to_json_schema(
     if serializer is None:
         schema = {"type": "object"}
     elif isinstance(serializer, type) and issubclass(serializer, serializers.Serializer):
-        schema = serializer_to_schema(serializer(), registry)
+        schema = serializer_to_schema(serializer_for_schema(serializer), registry)
     elif isinstance(serializer, type) and dataclasses.is_dataclass(serializer):
         schema = dataclass_to_schema(serializer, registry)
     else:

@@ -120,6 +120,28 @@ def _always_rendered(field: serializers.Field) -> bool:
     return bool(field.required or field.default is not _drf_empty or field.allow_null)
 
 
+def _declared_label(name: str, field: serializers.Field) -> str | None:
+    """The field's ``label`` when its author wrote one, else ``None``.
+
+    Every bound DRF field has a label: ``Field.bind`` derives one from the field
+    name when the author declared none. That derivation says nothing a reader
+    of the property name does not already have -- ``"Vat id"`` beside
+    ``vat_id`` -- so emitting it as ``title`` costs tokens to restate the key in
+    worse English. An author's own label is the opposite: it is the only place
+    the human phrasing for a field lives, and the choice path next door already
+    carries labels for exactly that reason.
+    """
+    label: Any = field.label
+    if label is None or str(label) == _derived_label(name):
+        return None
+    return str(label)
+
+
+def _derived_label(name: str) -> str:
+    """What ``Field.bind`` would have made of ``name`` on its own."""
+    return name.replace("_", " ").capitalize()
+
+
 def _choice_schema(field: serializers.ChoiceField, *, widen: bool = True) -> dict[str, Any]:
     """``enum`` when the labels add nothing, ``oneOf`` + ``title`` when they do.
 
@@ -161,6 +183,36 @@ def _choice_schema(field: serializers.ChoiceField, *, widen: bool = True) -> dic
     }
 
 
+def serializer_for_schema(serializer_cls: type[serializers.Serializer]) -> serializers.Serializer:
+    """Instantiate a serializer for *description*, with the context render uses.
+
+    Both schema entry points used to instantiate bare, so a serializer whose
+    ``get_fields`` reads ``self.context["request"]`` -- routine, because over
+    HTTP the key is always there -- raised ``KeyError`` from description while
+    dispatch rendered it perfectly. The spec could be called and could not be
+    described, which is the schema/payload divergence the audience layer exists
+    to prevent.
+
+    The baseline is the same one
+    [`build_agent_projection`][rest_framework_services.audience.build_agent_projection.build_agent_projection]
+    already synthesizes, and for the same reason.
+
+    **The view and request are `None`, and cannot be otherwise.** A schema is
+    built once, when a transport declares its tools -- before any request
+    exists to describe. So a ``get_fields`` that *branches* on the view type
+    still sees ``None`` here and describes the branch it takes for a caller
+    with no view: reflection cannot report a field set that depends on who is
+    asking, because at description time nobody is.
+    """
+    # Genuine circular import, deliberately local: ``dispatch`` re-exports
+    # helpers that reach back into this package, so importing it at module
+    # scope executes a half-built package. ``build_agent_projection`` records
+    # the same constraint.
+    from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
+
+    return serializer_cls(context=base_serializer_context(view=None, request=None))
+
+
 def serializer_to_schema(
     serializer: serializers.Serializer,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
@@ -186,6 +238,9 @@ def serializer_to_schema(
         if field.write_only if for_output else field.read_only:
             continue
         properties[name] = field_to_schema(field, registry, for_output=for_output)
+        title = _declared_label(name, field)
+        if title is not None:
+            properties[name]["title"] = title
         if field.help_text:
             properties[name]["description"] = str(field.help_text)
         if _always_rendered(field) if for_output else field.required:

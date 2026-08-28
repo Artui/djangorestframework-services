@@ -8,7 +8,11 @@ from typing import Any
 from rest_framework import serializers
 
 from rest_framework_services.audience.annotate_output_schema import annotate_output_schema
-from rest_framework_services.jsonschema.utils import dataclass_to_schema, serializer_to_schema
+from rest_framework_services.jsonschema.utils import (
+    dataclass_to_schema,
+    serializer_for_schema,
+    serializer_to_schema,
+)
 from rest_framework_services.types.agent_projection import AgentProjection
 from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
@@ -86,7 +90,9 @@ def _item_schema(
     if isinstance(output_serializer, type) and issubclass(
         output_serializer, serializers.Serializer
     ):
-        return serializer_to_schema(output_serializer(), registry, for_output=True)
+        return serializer_to_schema(
+            serializer_for_schema(output_serializer), registry, for_output=True
+        )
     if isinstance(output_serializer, type) and dataclasses.is_dataclass(output_serializer):
         return dataclass_to_schema(output_serializer, registry)
     return None
