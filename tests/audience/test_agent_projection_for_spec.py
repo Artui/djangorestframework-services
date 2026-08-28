@@ -36,3 +36,19 @@ def test_a_spec_that_renders_through_nothing_projects_empty() -> None:
     spec = SelectorSpec(kind=SelectorKind.LIST, selector=lambda **_: [])
 
     assert agent_projection_for_spec(spec).is_empty()
+
+
+def test_a_contracts_overrides_are_forwarded() -> None:
+    """One helper resolves the projection for every agent transport.
+
+    ``AgentContract.field_audiences`` is declared once on the registry entry;
+    what makes that worth doing is that both readers layer it by the same rule
+    rather than each carrying its own merge.
+    """
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=lambda **_: [], output_serializer=_Marked)
+
+    projection = agent_projection_for_spec(
+        spec, overrides={"etag": AgentField()}, name="lookup_invoice"
+    )
+
+    assert projection.audience("etag") is FieldAudience.CONTENT

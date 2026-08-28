@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`build_agent_projection(overrides=…, name=…)`, and the same pair forwarded
+  by `agent_projection_for_spec`** — where a mount's per-tool audience
+  overrides are merged with the serializer's own markings.
+
+  ```python
+  projection = agent_projection_for_spec(
+      spec, overrides=entry.agent_contract.field_audiences, name=entry.name
+  )
+  ```
+
+  The merge already existed, in drf-mcp, as a private helper reachable only
+  from its three tool bindings — so a per-tool override was something one agent
+  transport could express and the other could not, and **one spec projected a
+  different field set depending on which transport served it**. 0.45.0 moved the
+  declaration onto `AgentContract`, which both transports read; this moves the
+  *resolution* to the same place, so the shared declaration is not layered by
+  two independently-maintained copies of one rule.
+
+  It sits next to the clash check it extends: an override can move the label,
+  and it can introduce the two-labels clash a single serializer could not have.
+  That now raises from one site rather than two, naming the mount (`name=`,
+  defaulting to the serializer's class name) rather than a transport's
+  vocabulary.
+
 ## [0.45.0] — 2026-08-28
 
 ### Added

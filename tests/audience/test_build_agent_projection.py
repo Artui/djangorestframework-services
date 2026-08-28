@@ -138,3 +138,49 @@ def test_a_list_field_wrapping_a_serializer_projects_its_child() -> None:
         lines = serializers.ListField(child=_Line())
 
     assert build_agent_projection(_Parent).nested["lines"].audience("sku") is FieldAudience.HANDLE
+
+
+def test_overrides_layer_over_the_serializers_own_markings() -> None:
+    """One mount returning what its sibling hides, without a second serializer."""
+    projection = build_agent_projection(_Invoice, overrides={"etag": AgentField()})
+
+    assert projection.audience("etag") is FieldAudience.CONTENT
+    # Everything the override did not name is untouched, including the two
+    # halves an override cannot address at all.
+    assert projection.audience("id") is FieldAudience.HANDLE
+    assert projection.label == "number"
+    assert projection.choice_labels["status"]["PAID"] == "Paid"
+    assert projection.nested["lines"].audience("sku") is FieldAudience.HANDLE
+
+
+def test_an_override_can_move_the_label() -> None:
+    projection = build_agent_projection(
+        _Invoice, overrides={"number": AgentField(), "id": AgentField.label()}
+    )
+
+    assert projection.label == "id"
+
+
+def test_an_override_that_leaves_two_labels_raises() -> None:
+    """The clash the serializer could not have: two markings from two places."""
+    with pytest.raises(ImproperlyConfigured, match=r"lookup_invoice.*'id'.*'number'"):
+        build_agent_projection(
+            _Invoice, overrides={"id": AgentField.label()}, name="lookup_invoice"
+        )
+
+
+def test_an_override_clash_names_the_serializer_when_no_name_is_given() -> None:
+    """A mount that did not identify itself still gets a locatable message."""
+    with pytest.raises(ImproperlyConfigured, match=r"^_Invoice: "):
+        build_agent_projection(_Invoice, overrides={"id": AgentField.label()})
+
+
+def test_overrides_apply_to_a_spec_that_renders_through_no_serializer() -> None:
+    """``None`` projects empty, and an override is still the caller's to make.
+
+    A spec rendering a plain dataclass has nothing to mark up, but the mount's
+    declaration is about the payload, not about the serializer.
+    """
+    projection = build_agent_projection(None, overrides={"secret": AgentField.hidden()})
+
+    assert projection.audience("secret") is FieldAudience.HIDDEN

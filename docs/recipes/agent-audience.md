@@ -87,6 +87,40 @@ because that is what the payload now carries. If another tool takes that field
 as input, mark it `AgentField.handle()` — that suppresses the substitution on
 both sides and keeps the constant.
 
+## One mount that needs what its sibling hides
+
+The serializer is the declaration and stays authoritative. The exception is a
+single tool that must return a field its neighbours drop — a lookup whose whole
+job is handing back the identifier the list view hides. That is an override, and
+it belongs on the registry entry rather than on any one transport:
+
+```python
+registry.register(
+    "lookup_invoice",
+    lookup_spec,
+    agent_contract=AgentContract(field_audiences={"etag": AgentField()}),
+)
+```
+
+Every agent transport reads that one contract, so the field set an agent sees
+cannot depend on which transport served it. `build_agent_projection` layers it:
+
+```python
+projection = build_agent_projection(
+    InvoiceSerializer, overrides=contract.field_audiences, name="lookup_invoice"
+)
+```
+
+An override can move the label and it can introduce the clash the serializer
+could not have — two fields marked `AgentField.label()` from two places — which
+raises `ImproperlyConfigured` naming the mount.
+
+**A project that wants two agent audiences with different visibility does not
+want this.** It wants two serializers, or a real second audience.
+`FieldAudience`'s axis is audience, not transport, and reaching for per-mount
+overrides to get a second one produces something the serializer's own markings
+then contradict.
+
 ## Nesting
 
 The marking lives on the field object, not in a list on `Meta`. A nested
