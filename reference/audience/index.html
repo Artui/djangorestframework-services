@@ -1740,7 +1740,10 @@ documented under <a href="../types/">Types</a>; the render entry points
 <a href="#rest_framework_services.audience.agent_projection_for_spec.agent_projection_for_spec" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">agent_projection_for_spec</span><span class="p">(</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AgentProjection</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">overrides</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AgentField</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AgentProjection</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -1752,6 +1755,17 @@ front calls this once per spec and hands the result to
 <a class="autorefs autorefs-internal" title="render_for_agent" href="../dispatch/#rest_framework_services.dispatch.render_for_agent.render_for_agent"><code>render_for_agent</code></a>,
 rather than paying a serializer instantiation on every call — and rather than
 each transport re-deriving where a spec keeps its output serializer.</p>
+<p><code>overrides</code> and <code>name</code> are
+<a class="autorefs autorefs-internal" title="build_agent_projection" href="#rest_framework_services.audience.build_agent_projection.build_agent_projection"><code>build_agent_projection</code></a>'s,
+forwarded: a mount holding an
+<a class="autorefs autorefs-internal" title="AgentContract
+
+
+  
+      dataclass
+  " href="../registry/#rest_framework_services.types.agent_contract.AgentContract"><code>AgentContract</code></a>
+passes its <code>field_audiences</code> straight through, and every agent transport
+layers that one declaration by the same rule.</p>
 
 
     </div>
@@ -1767,7 +1781,12 @@ each transport re-deriving where a spec keeps its output serializer.</p>
 
 
 <a href="#rest_framework_services.audience.build_agent_projection.build_agent_projection" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_agent_projection</span><span class="p">(</span><span class="n">serializer_cls</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AgentProjection</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_agent_projection</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">serializer_cls</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">overrides</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AgentField</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AgentProjection</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -1792,6 +1811,20 @@ reused — see
 <p>A class that is not a DRF serializer (a plain <code>@dataclass</code> output, or
 <code>None</code>) yields an empty projection rather than an error: not every spec
 renders through a serializer, and nothing is marked up in those that don't.</p>
+<p><code>overrides</code> layers a caller's markings on top, for the one case the
+serializer cannot express: a mount that needs what its sibling hides. They
+reach a transport as
+<a class="autorefs autorefs-internal" title="AgentContract
+
+
+  
+      dataclass
+  " href="../registry/#rest_framework_services.types.agent_contract.AgentContract"><code>AgentContract.field_audiences</code></a>,
+which is one declaration read by every agent transport — and the merge lives
+here, next to the clash rule it extends, so that stays true. Two copies of it
+is how one spec comes to project a different field set depending on which
+transport served it. <code>name</code> identifies the mount in the error message and
+defaults to the serializer's own class name.</p>
 
 
 <p><span class="doc-section-title">Raises:</span></p>
@@ -1811,8 +1844,10 @@ renders through a serializer, and nothing is marked up in those that don't.</p>
               <div class="doc-md-description">
                 <p>If a field carries
 something other than an <code>AgentField</code> under <code>AGENT</code>, or if two
-fields both claim <code>LABEL</code>. Neither can be caught later — the first
-would silently do nothing, and the second would silently pick one.</p>
+fields both claim <code>LABEL</code> — whether the serializer declared the
+clash or an override introduced it. Neither can be caught later: the
+first would silently do nothing, and the second would silently pick
+one.</p>
               </div>
             </td>
           </tr>
