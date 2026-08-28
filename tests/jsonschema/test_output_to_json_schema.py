@@ -59,3 +59,19 @@ def test_list_with_pagination_is_envelope() -> None:
         },
         "required": ["items", "page", "totalPages", "hasNext"],
     }
+
+
+def test_output_serializer_reading_request_context_is_described() -> None:
+    """The output half of the same gate -- see the input-side test."""
+
+    class _ContextAware(serializers.Serializer):
+        def get_fields(self) -> dict[str, serializers.Field]:
+            fields = super().get_fields()
+            assert self.context["request"] is None
+            fields["title"] = serializers.CharField()
+            return fields
+
+    schema = output_to_json_schema(_ContextAware, kind=SelectorKind.RETRIEVE)
+
+    assert schema is not None
+    assert schema["properties"]["title"] == {"type": "string"}

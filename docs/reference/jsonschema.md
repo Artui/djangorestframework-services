@@ -19,6 +19,27 @@ produces DRF serializer classes for DRF's own OpenAPI generators.
 
 ::: rest_framework_services.jsonschema.filterset_to_json_schema.filterset_to_json_schema
 
+### What a filter publishes about itself
+
+A filter carries more than a type. Its `label` becomes `title`, its `help_text`
+becomes `description`, and a `ChoiceFilter`'s labels ride along with their
+constants as `{"const": ..., "title": ...}` — the same shape the serializer path
+has always produced, so one project's constants are described one way whichever
+side of a spec they arrive on. Labels that only restate their value are dropped.
+
+Where the argument's own name does not give the lookup away, it is stated:
+
+```python
+class ArticleFilter(django_filters.FilterSet):
+    min_views = django_filters.NumberFilter(field_name="views", lookup_expr="gte")
+```
+
+publishes `min_views` as
+`{"type": "number", "description": "Matches `views` with the `gte` lookup."}`.
+A filter whose name, field and lookup already agree — `name` matching `name` for
+equality — says nothing extra, and your own `help_text` always wins over the
+derived wording.
+
 ## `spec_to_json_schema`
 
 ::: rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema
@@ -59,6 +80,22 @@ registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
 
 Rules are matched by type *identity*, and members are resolved recursively, so
 one rule for `Money` also covers `list[Money]` and `Money | None`.
+
+## What generation can and cannot see
+
+Both entry points instantiate the serializer with the same baseline `context`
+dispatch renders with — `{"request": None, "format": None, "view": None}` — so a
+serializer whose `get_fields` reads `self.context["request"]` is describable, not
+just callable. Before, description raised `KeyError` on a serializer the same
+spec rendered perfectly.
+
+The view and request are `None` and cannot be otherwise: a schema is built once,
+when a transport declares its tools, and there is no request at that moment to
+describe. So a `get_fields` that *branches* on the view or the user is reflected
+as the branch taken by a caller with neither. Reflection cannot report a field
+set that depends on who is asking, because at description time nobody is — if
+your field set varies by audience, declare it with
+[agent markings](audience.md) instead, which are resolved per render.
 
 ## `JsonSchemaRegistry`
 

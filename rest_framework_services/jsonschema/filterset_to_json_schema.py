@@ -34,9 +34,45 @@ def filterset_to_json_schema(
     module = _import_django_filters()
     base_filters: dict[str, Any] = dict(getattr(filter_set_class, "base_filters", {}))
     return {
-        name: _filter_to_schema(module, filter_obj, registry)
+        name: _annotated(_filter_to_schema(module, filter_obj, registry), name, filter_obj)
         for name, filter_obj in base_filters.items()
     }
+
+
+def _annotated(schema: dict[str, Any], name: str, filter_obj: Any) -> dict[str, Any]:
+    """Add the human half of a filter: what it is called, and what it matches."""
+    label: Any = getattr(filter_obj, "label", None)
+    if label:
+        schema["title"] = str(label)
+    description = _description_for(name, filter_obj)
+    if description is not None:
+        schema["description"] = description
+    return schema
+
+
+def _description_for(name: str, filter_obj: Any) -> str | None:
+    """What this filter matches, when the argument's own name does not say.
+
+    ``min_views`` is ``views__gte``, and a caller reading the schema sees a
+    number called ``min_views`` -- not whether it is a floor, a ceiling or an
+    exact match. The field name and the lookup are both already on the filter;
+    they were simply never emitted, which is the reported complaint about an
+    agent not knowing a project's vocabulary, stated concretely.
+
+    Silent where the name already carries it: a filter called ``name`` matching
+    ``name`` for equality has nothing to add, and an annotation restating the
+    property is a cost with no reader. An author's own ``help_text`` always
+    wins -- they know what the filter is for, and this only ever knew its shape.
+    """
+    extra: dict[str, Any] = getattr(filter_obj, "extra", {}) or {}
+    help_text: Any = extra.get("help_text")
+    if help_text:
+        return str(help_text)
+    field_name: Any = getattr(filter_obj, "field_name", None) or name
+    lookup: Any = getattr(filter_obj, "lookup_expr", None) or "exact"
+    if field_name == name and lookup == "exact":
+        return None
+    return f"Matches `{field_name}` with the `{lookup}` lookup."
 
 
 def _import_django_filters() -> Any:
@@ -106,7 +142,14 @@ def _scalar_for(module: Any, filter_obj: Any) -> dict[str, Any]:
 
 
 def _choice_schema(filter_obj: Any) -> dict[str, Any]:
-    """Build an ``enum`` schema from a ``ChoiceFilter``-derived filter.
+    """``enum`` when the labels add nothing, ``oneOf`` + ``title`` when they do.
+
+    The rule, and the reasoning, are the serializer path's — see
+    [`_choice_schema`][rest_framework_services.jsonschema.utils] there. This
+    path kept only the values, so one package described the same constants two
+    ways depending on which side of a spec they arrived on: a status called
+    ``"r"`` came with ``"Red"`` from a serializer and bare from a FilterSet, and
+    only the second is what an agent-facing schema was built from.
 
     Falls back to ``{"type": "string"}`` when ``extra["choices"]`` isn't present
     — some custom subclasses defer choice resolution.
@@ -115,11 +158,24 @@ def _choice_schema(filter_obj: Any) -> dict[str, Any]:
     choices: Any = extra.get("choices")
     if not choices:
         return {"type": "string"}
-    # django-filter choices come as ``[(value, label), ...]``; keep the values.
-    values: list[Any] = []
-    for choice in choices:
-        if isinstance(choice, tuple | list) and len(choice) >= 1:
-            values.append(choice[0])
-        else:
-            values.append(choice)
-    return {"enum": values}
+    pairs = [_choice_pair(choice) for choice in choices]
+    if all(str(label) == str(value) for value, label in pairs):
+        return {"enum": [value for value, _ in pairs]}
+    return {"oneOf": [{"const": value, "title": str(label)} for value, label in pairs]}
+
+
+def _choice_pair(choice: Any) -> tuple[Any, Any]:
+    """One django-filter choice as ``(value, label)``.
+
+    Choices arrive as ``[(value, label), ...]``, as bare values, and — for a
+    grouped select — as ``(group_name, [(value, label), ...])``. The group form
+    is not flattened here, and never was: it would need the schema to describe
+    members this function does not walk. Its label is dropped rather than
+    stringified, so the output stays the same shape it has always been rather
+    than gaining a title made out of a repr.
+    """
+    if not isinstance(choice, tuple | list):
+        return (choice, choice)
+    value = choice[0]
+    label = choice[1] if len(choice) >= 2 else value
+    return (value, value if isinstance(label, tuple | list) else label)

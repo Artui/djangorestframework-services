@@ -7,6 +7,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.0] — 2026-08-28
+
+### Added
+
+- **`paginate_for_agent` and `AgentPage` — the payload for an envelope this
+  package already described.** `output_to_json_schema` has always published
+  `{items, page, totalPages, hasNext}` for `kind=LIST, paginate=True`, and
+  nothing here produced it. The shaper lived in a transport, so one agent
+  transport wrapped its pages and another returned a bare list, against one
+  schema claiming the envelope for both. Two implementations of one mechanism
+  drift; here one of them was missing entirely, which is why an agent talking
+  to the in-process toolset got 50 of 51 rows with nothing to say more existed.
+
+  ```python
+  page = paginate_for_agent(rows, page=page, limit=limit, max_page_size=ceiling)
+  rendered = render_for_agent(spec, page.items, projection=projection, many=True)
+  payload = page.envelope(rendered)
+  ```
+
+  Rendering sits between the two calls because it needs a view, a request and a
+  spec that belong to the caller — and because the projection lands on the rows,
+  never on the envelope, whose keys belong to no serializer.
+
+  `page` and `limit` are taken **already parsed**. Turning an untyped argument
+  into an integer is where transports legitimately differ — a public endpoint
+  clamps a malformed value and answers, an in-process toolset can hand the model
+  its mistake back and ask again — and that is a policy about bad input, not
+  about what a page is. What a page *is* lives here: `limit` clamped down to
+  `max_page_size` and up to 1, `page` clamped up to 1 and down to the last page
+  that exists, the count taken before the slice so an unclamped page never
+  becomes an arbitrarily large SQL `OFFSET`, and the reported `page` being the
+  one actually served.
+
+### Fixed
+
+- **Schema generation could not describe a serializer dispatch renders fine.**
+  Both `serializer_to_json_schema` and `output_to_json_schema` instantiated the
+  serializer bare, so a `get_fields` reading `self.context["request"]` — routine,
+  because over HTTP the key is always there — raised `KeyError` from description
+  while the same spec rendered perfectly. They now use the baseline context
+  `build_agent_projection` already synthesizes, and for the same reason: a spec
+  that can be called and cannot be described is exactly the schema/payload
+  divergence the audience layer exists to prevent.
+
+  The view and request are `None` and cannot be otherwise, since a schema is
+  built once when a transport declares its tools and no request exists yet. A
+  `get_fields` that *branches* on the view is therefore reflected as the branch
+  a caller with none takes. That limit is now stated in the docs rather than
+  discovered.
+
+### Changed
+
+- **A `FilterSet`'s choice labels now travel with their constants.**
+  `filterset_to_json_schema` kept only the values, so one project described the
+  same constants two ways depending on which side of a spec they arrived on: a
+  status came with `"Red"` from a serializer and bare from a FilterSet. The
+  shape is now the serializer path's — `{"const": …, "title": …}` under `oneOf`,
+  falling back to a plain `enum` when the labels only restate their values.
+
+  **This changes published output** for a `ChoiceFilter` or
+  `MultipleChoiceFilter` whose labels differ from their values. `title` is an
+  annotation keyword and constrains nothing, so the accepted value set is
+  unchanged.
+
+  **`OrderingFilter` subclasses `ChoiceFilter`, so `ordering` changes shape**
+  — the case most likely to reach an existing consumer, since a FilterSet's
+  `OrderingFilter` is the canonical way to declare ordering here. It published
+  `{"enum": ["amount", "-amount", ...]}` and now publishes
+  `{"oneOf": [{"const": "-amount", "title": "Amount (descending)"}, ...]}`, so
+  a caller reading the schema is finally told what `-amount` means rather than
+  being left to infer it from a leading minus sign. A consumer asserting
+  `properties["ordering"]["enum"]` will need updating when it raises its floor
+  to this version.
+
+### Added
+
+- **A filter now publishes what it is called and what it matches.** A filter's
+  `label` becomes `title` and its `help_text` becomes `description`; where the
+  argument's own name does not give the lookup away, it is stated —
+  `min_views` declared as `field_name="views", lookup_expr="gte"` publishes
+  ``"Matches `views` with the `gte` lookup."`` A filter whose name, field and
+  lookup already agree says nothing extra, and an author's own `help_text`
+  always wins over the derived wording.
+
+- **A serializer field's `label` becomes `title`**, where the author wrote one.
+  DRF binds a derived label to every unlabelled field, and emitting that would
+  restate the property name in worse English at a reader's cost, so only a
+  declared label travels.
+
 ## [0.46.0] — 2026-08-28
 
 ### Added
@@ -3124,7 +3213,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.46.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.47.0...HEAD
+[0.47.0]: https://github.com/Artui/djangorestframework-services/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/Artui/djangorestframework-services/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/Artui/djangorestframework-services/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/Artui/djangorestframework-services/compare/v0.43.0...v0.44.0

@@ -22,6 +22,10 @@ from rest_framework_services.dispatch.enforce_permissions import enforce_permiss
 # to a module object rather than the function. Alphabetical order happens to be
 # correct here; if these are ever reordered, keep this one last of the two.
 from rest_framework_services.dispatch.null_progress import null_progress
+from rest_framework_services.dispatch.paginate_for_agent import (
+    DEFAULT_AGENT_PAGE_SIZE,
+    paginate_for_agent,
+)
 from rest_framework_services.dispatch.render_for_agent import render_for_agent
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.dispatch.unguarded_specs import unguarded_specs
@@ -36,7 +40,9 @@ __all__ = [
     "combine_progress",
     "dispatch_spec",
     "enforce_permissions",
+    "DEFAULT_AGENT_PAGE_SIZE",
     "null_progress",
+    "paginate_for_agent",
     "render_for_agent",
     "render_spec_output",
     "unguarded_specs",

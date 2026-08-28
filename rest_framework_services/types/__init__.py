@@ -7,6 +7,7 @@ inputs/outputs are not coupled to the mutation helpers themselves.
 
 from rest_framework_services.types.agent_contract import AgentContract
 from rest_framework_services.types.agent_field import AGENT, AgentField
+from rest_framework_services.types.agent_page import AgentPage
 from rest_framework_services.types.agent_projection import AgentProjection
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.change_result import ChangeResult
@@ -56,6 +57,7 @@ from rest_framework_services.types.view_hooks import ViewHooks
 __all__ = [
     "AGENT",
     "AgentField",
+    "AgentPage",
     "AgentProjection",
     "DEFAULT_JSON_SCHEMA_REGISTRY",
     "RESERVED_POOL_SEEDS",
