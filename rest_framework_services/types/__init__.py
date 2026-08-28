@@ -5,6 +5,7 @@ These are intentionally framework-agnostic data carriers. They live outside
 inputs/outputs are not coupled to the mutation helpers themselves.
 """
 
+from rest_framework_services.types.agent_contract import AgentContract
 from rest_framework_services.types.agent_field import AGENT, AgentField
 from rest_framework_services.types.agent_projection import AgentProjection
 from rest_framework_services.types.argument_binding import ArgumentBinding
@@ -81,6 +82,7 @@ __all__ = [
     "PolymorphicServiceSpec",
     "ProgressReporter",
     "QueryParam",
+    "AgentContract",
     "RegisteredSpec",
     "RelatedObjectChange",
     "RelationMode",
