@@ -40,6 +40,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   annotation keyword and constrains nothing, so the accepted value set is
   unchanged.
 
+  **`OrderingFilter` subclasses `ChoiceFilter`, so `ordering` changes shape**
+  — the case most likely to reach an existing consumer, since a FilterSet's
+  `OrderingFilter` is the canonical way to declare ordering here. It published
+  `{"enum": ["amount", "-amount", ...]}` and now publishes
+  `{"oneOf": [{"const": "-amount", "title": "Amount (descending)"}, ...]}`, so
+  a caller reading the schema is finally told what `-amount` means rather than
+  being left to infer it from a leading minus sign. A consumer asserting
+  `properties["ordering"]["enum"]` will need updating when it raises its floor
+  to this version.
+
 ### Added
 
 - **A filter now publishes what it is called and what it matches.** A filter's
