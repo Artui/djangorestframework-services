@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`AgentContract` and `SpecRegistry.register(agent_contract=…)`** — one home
+  for what a transport with no HTTP request has to be told.
+
+  ```python
+  registry.register(
+      "list_widgets",
+      widgets_spec,
+      agent_contract=AgentContract(url_kwargs=(UrlKwarg("project_pk"),)),
+  )
+  ```
+
+  **Over HTTP this is all free.** A nested route's captures reach a spec through
+  `view.kwargs` because the URLconf declared them; read-shaping params reach a
+  serializer through `request.query_params` because the query string carried
+  them. A spec mounted on a view is already complete.
+
+  Off HTTP there is no route and no query string, so somebody has to say what
+  they would have contained — and **every off-HTTP transport needs the identical
+  answer**. A project running an MCP server and an in-process Pydantic-AI toolset
+  declared the same `UrlKwarg` twice, in two shapes, with nothing comparing them.
+
+  **Not on the spec, deliberately.** `UrlKwarg("project_pk")` means *"when there
+  is no URL, synthesise this view kwarg"* — a sentence with no meaning on a
+  transport that has a URL. Putting it on the spec would add a field HTTP must
+  ignore and a second declaration of a fact the URLconf already owns, pointing
+  the other way; a spec mounted at two URLs with different kwarg names could not
+  express both.
+
+  **One typed slot rather than loose fields**, so `RegisteredSpec` stays an index
+  rather than becoming a configuration object.
+
+  It carries only what *cannot* differ between mounts. Bounds and strictness —
+  result-size caps, page ceilings, timeouts, unknown-argument policy —
+  legitimately differ between a public endpoint and an in-process toolset, so
+  they stay per-mount. Sorting is absent for the opposite reason: it is already
+  declared once, on the spec's own `filter_set`.
+
+  Purely additive. An entry that declares nothing has `agent_contract is None`,
+  and transports read it as a **default** a mount may still override.
+
 ## [0.44.0] — 2026-08-26
 
 ### Upgrade notes

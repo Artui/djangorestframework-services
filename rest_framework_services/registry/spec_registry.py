@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from typing import Any
 
+from rest_framework_services.types.agent_contract import AgentContract
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.registered_spec import RegisteredSpec
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -55,6 +56,7 @@ class SpecRegistry:
         spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
         *,
         tags: Iterable[str] = (),
+        agent_contract: AgentContract | None = None,
     ) -> None:
         """Add a spec under ``name``.
 
@@ -65,6 +67,12 @@ class SpecRegistry:
                 an operation.
             spec: A ``ServiceSpec`` (mutation) or ``SelectorSpec`` (read).
             tags: Free-form labels, deduplicated into a frozen set.
+            agent_contract: What a transport with no HTTP request has to be
+                told -- the URL captures and query params the URLconf and query
+                string would have supplied. Every off-HTTP transport needs the
+                identical answer, so declaring it here is declaring it once; a
+                mount may still override it. Meaningless over HTTP, which is why
+                it is not on the spec.
 
         Raises:
             ValueError: ``name`` is already registered here.
@@ -73,7 +81,11 @@ class SpecRegistry:
                 register each of its variants under its own name, since
                 transports project one operation per variant, not a union.
         """
-        self._add(RegisteredSpec(name=name, spec=spec, tags=frozenset(tags)))
+        self._add(
+            RegisteredSpec(
+                name=name, spec=spec, tags=frozenset(tags), agent_contract=agent_contract
+            )
+        )
 
     def get(self, name: str) -> RegisteredSpec | None:
         """Return the entry registered under ``name``, or ``None``."""

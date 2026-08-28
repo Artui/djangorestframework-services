@@ -15,3 +15,7 @@ filtered views — see the recipe
 ## `RegisteredSpec`
 
 ::: rest_framework_services.types.registered_spec.RegisteredSpec
+
+## `AgentContract`
+
+::: rest_framework_services.types.agent_contract.AgentContract
