@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from typing import Any
 
-from rest_framework_services.types.agent_contract import AgentContract
+from rest_framework_services.types.offline_contract import OfflineContract
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.registered_spec import RegisteredSpec
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -56,7 +56,7 @@ class SpecRegistry:
         spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
         *,
         tags: Iterable[str] = (),
-        agent_contract: AgentContract | None = None,
+        agent_contract: OfflineContract | None = None,
     ) -> None:
         """Add a spec under ``name``.
 

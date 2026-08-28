@@ -16,7 +16,7 @@ class FieldAudience(str, Enum):
     different from a browser.
 
     So the axis this names is **audience**, not protocol. Declared per field via
-    [`AgentField`][rest_framework_services.types.agent_field.AgentField]; read by
+    [`FieldMarking`][rest_framework_services.types.field_marking.FieldMarking]; read by
     agent transports and ignored entirely by the DRF view path, which keeps
     rendering every field exactly as before.
 
@@ -35,4 +35,4 @@ class FieldAudience(str, Enum):
     never re-spelled by a choice label — a handle is somebody else's input."""
 
     HIDDEN = "hidden"
-    """Plumbing. Dropped from the agent payload and from the agent schema."""
+    """Plumbing. Dropped from the projected payload and from the projected schema."""

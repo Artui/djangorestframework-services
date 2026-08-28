@@ -67,7 +67,7 @@ class _ContextAware(serializers.Serializer):
     """A serializer whose field set depends on who is asking.
 
     Routine over HTTP, where DRF's context always carries a request -- and the
-    reason ``build_agent_projection`` synthesizes the same baseline before it
+    reason ``build_audience_projection`` synthesizes the same baseline before it
     instantiates. Schema generation instantiated bare and raised ``KeyError``
     on the identical serializer, so a spec could be dispatched and rendered but
     not described.

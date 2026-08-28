@@ -1,4 +1,4 @@
-"""``AgentPage`` — one page of a list selector's rows, and how to describe it."""
+"""``OutputPage`` — one page of a list selector's rows, and how to describe it."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any
 
 
 @dataclass(frozen=True)
-class AgentPage:
+class OutputPage:
     """One page of rows, plus what a caller needs to know to ask for the next.
 
     The envelope this describes is **already** the one
@@ -21,7 +21,7 @@ class AgentPage:
 
     ``items`` is the slice itself, unrendered — rendering needs a view, a
     request and a spec, all of which belong to the caller. Hand the rendered
-    result back to [`envelope`][rest_framework_services.types.agent_page.AgentPage.envelope]
+    result back to [`envelope`][rest_framework_services.types.output_page.OutputPage.envelope]
     to get the wire shape.
     """
 
@@ -65,4 +65,4 @@ class AgentPage:
         }
 
 
-__all__ = ["AgentPage"]
+__all__ = ["OutputPage"]

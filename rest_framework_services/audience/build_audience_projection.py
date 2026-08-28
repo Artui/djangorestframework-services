@@ -1,4 +1,4 @@
-"""``build_agent_projection`` — read a serializer's agent markings."""
+"""``build_audience_projection`` — read a serializer's field markings."""
 
 from __future__ import annotations
 
@@ -8,25 +8,25 @@ from typing import Any
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework import serializers
 
-from rest_framework_services.types.agent_field import AGENT, AgentField
-from rest_framework_services.types.agent_projection import AgentProjection
+from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.field_audience import FieldAudience
+from rest_framework_services.types.field_marking import MARKING, FieldMarking
 
 
-def build_agent_projection(
+def build_audience_projection(
     serializer_cls: type | None,
     *,
-    overrides: Mapping[str, AgentField] | None = None,
+    overrides: Mapping[str, FieldMarking] | None = None,
     name: str | None = None,
-) -> AgentProjection:
+) -> AudienceProjection:
     """Resolve one serializer class's agent presentation, recursing into children.
 
     Reads
-    [`AgentField`][rest_framework_services.types.agent_field.AgentField] markings
+    [`FieldMarking`][rest_framework_services.types.field_marking.FieldMarking] markings
     out of each field's ``style`` bag and collects the ``ChoiceField`` labels DRF
     already holds. Pure in the serializer class, so the result is built once and
     reused — see
-    [`AgentProjection`][rest_framework_services.types.agent_projection.AgentProjection].
+    [`AudienceProjection`][rest_framework_services.types.audience_projection.AudienceProjection].
 
     A class that is not a DRF serializer (a plain ``@dataclass`` output, or
     ``None``) yields an empty projection rather than an error: not every spec
@@ -35,7 +35,7 @@ def build_agent_projection(
     ``overrides`` layers a caller's markings on top, for the one case the
     serializer cannot express: a mount that needs what its sibling hides. They
     reach a transport as
-    [`AgentContract.field_audiences`][rest_framework_services.types.agent_contract.AgentContract],
+    [`OfflineContract.field_audiences`][rest_framework_services.types.offline_contract.OfflineContract],
     which is one declaration read by every agent transport — and the merge lives
     here, next to the clash rule it extends, so that stays true. Two copies of it
     is how one spec comes to project a different field set depending on which
@@ -44,7 +44,7 @@ def build_agent_projection(
 
     Raises:
         django.core.exceptions.ImproperlyConfigured: If a field carries
-            something other than an ``AgentField`` under ``AGENT``, or if two
+            something other than an ``FieldMarking`` under ``MARKING``, or if two
             fields both claim ``LABEL`` — whether the serializer declared the
             clash or an override introduced it. Neither can be caught later: the
             first would silently do nothing, and the second would silently pick
@@ -52,7 +52,7 @@ def build_agent_projection(
     """
     if isinstance(serializer_cls, type) and issubclass(serializer_cls, serializers.Serializer):
         # Genuine circular import, deliberately local: ``dispatch`` re-exports
-        # ``render_for_agent``, which imports this module, so importing anything
+        # ``render_for_audience``, which imports this module, so importing anything
         # from ``dispatch`` at module scope executes a half-built package.
         from rest_framework_services.dispatch.base_serializer_context import (
             base_serializer_context,
@@ -62,12 +62,12 @@ def build_agent_projection(
         # whose ``get_fields`` reads ``self.context['request']`` -- routine,
         # since over HTTP the key is always there -- would otherwise raise
         # ``KeyError`` here and only here, breaking the documented swap to
-        # ``render_for_agent``.
+        # ``render_for_audience``.
         projection = _project(
             serializer_cls(context=base_serializer_context(view=None, request=None))
         )
     else:
-        projection = AgentProjection()
+        projection = AudienceProjection()
     if not overrides:
         return projection
     return _with_overrides(
@@ -78,8 +78,8 @@ def build_agent_projection(
 
 
 def _with_overrides(
-    projection: AgentProjection, overrides: Mapping[str, AgentField], *, name: str
-) -> AgentProjection:
+    projection: AudienceProjection, overrides: Mapping[str, FieldMarking], *, name: str
+) -> AudienceProjection:
     """The serializer's markings with one mount's overrides layered over them.
 
     The serializer stays authoritative — it is the declaration every transport
@@ -90,14 +90,14 @@ def _with_overrides(
     ``ChoiceField`` definitions and ``nested`` from child serializers; an
     override names neither, so both pass through.
     """
-    fields: dict[str, AgentField] = {**projection.fields, **overrides}
+    fields: dict[str, FieldMarking] = {**projection.fields, **overrides}
     labels = [n for n, marking in fields.items() if marking.audience is FieldAudience.LABEL]
     if len(labels) > 1:
         raise ImproperlyConfigured(
             f"{name}: field_audiences leaves {labels!r} all marked as the label. "
             f"A record has one name — override the others to something else."
         )
-    return AgentProjection(
+    return AudienceProjection(
         fields=fields,
         label=labels[0] if labels else None,
         choice_labels=projection.choice_labels,
@@ -105,10 +105,10 @@ def _with_overrides(
     )
 
 
-def _project(serializer: serializers.Serializer) -> AgentProjection:
-    marked: dict[str, AgentField] = {}
+def _project(serializer: serializers.Serializer) -> AudienceProjection:
+    marked: dict[str, FieldMarking] = {}
     choice_labels: dict[str, dict[Any, str]] = {}
-    nested: dict[str, AgentProjection] = {}
+    nested: dict[str, AudienceProjection] = {}
     label: str | None = None
     for name, bound in serializer.fields.items():
         marking = _marking(bound, serializer=serializer, field_name=name)
@@ -118,7 +118,7 @@ def _project(serializer: serializers.Serializer) -> AgentProjection:
                 if label is not None:
                     raise ImproperlyConfigured(
                         f"{type(serializer).__name__}: both {label!r} and {name!r} are "
-                        f"marked AgentField.label(). A record has one name — pick the "
+                        f"marked FieldMarking.label(). A record has one name — pick the "
                         f"field an agent should call it by."
                     )
                 label = name
@@ -139,29 +139,31 @@ def _project(serializer: serializers.Serializer) -> AgentProjection:
             child_projection = _project(child)
             if not child_projection.is_empty():
                 nested[name] = child_projection
-    return AgentProjection(fields=marked, label=label, choice_labels=choice_labels, nested=nested)
+    return AudienceProjection(
+        fields=marked, label=label, choice_labels=choice_labels, nested=nested
+    )
 
 
 def _marking(
     bound: serializers.Field, *, serializer: serializers.Serializer, field_name: str
-) -> AgentField | None:
-    """The field's ``AgentField``, or ``None``.
+) -> FieldMarking | None:
+    """The field's ``FieldMarking``, or ``None``.
 
-    Matches on the *value*, not on ``AGENT`` being present, so a marking filed
+    Matches on the *value*, not on ``MARKING`` being present, so a marking filed
     under some other key still counts — the key is a naming courtesy, and an
-    ``AgentField`` can only have come from the person who declared it. A
-    non-``AgentField`` sitting under ``AGENT`` is the one case that raises: it is
+    ``FieldMarking`` can only have come from the person who declared it. A
+    non-``FieldMarking`` sitting under ``MARKING`` is the one case that raises: it is
     the shape a half-finished migration leaves behind (a bare ``"handle"``), and
     it would otherwise do nothing at all.
     """
     style: dict[Any, Any] = bound.style or {}
-    if AGENT in style and not isinstance(style[AGENT], AgentField):
+    if MARKING in style and not isinstance(style[MARKING], FieldMarking):
         raise ImproperlyConfigured(
-            f"{type(serializer).__name__}.{field_name}: style[{AGENT!r}] is "
-            f"{style[AGENT]!r}, not an AgentField. Use AgentField.handle() / "
+            f"{type(serializer).__name__}.{field_name}: style[{MARKING!r}] is "
+            f"{style[MARKING]!r}, not an FieldMarking. Use FieldMarking.handle() / "
             f".hidden() / .label() — a bare value here is silently ignored."
         )
     for value in style.values():
-        if isinstance(value, AgentField):
+        if isinstance(value, FieldMarking):
             return value
     return None

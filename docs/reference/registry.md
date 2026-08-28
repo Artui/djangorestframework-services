@@ -16,6 +16,6 @@ filtered views — see the recipe
 
 ::: rest_framework_services.types.registered_spec.RegisteredSpec
 
-## `AgentContract`
+## `OfflineContract`
 
-::: rest_framework_services.types.agent_contract.AgentContract
+::: rest_framework_services.types.offline_contract.OfflineContract

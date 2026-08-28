@@ -1,26 +1,26 @@
-"""``render_for_agent`` — render a dispatch result for an agent audience."""
+"""``render_for_audience`` — render a dispatch result for an agent audience."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any
 
-from rest_framework_services.audience.agent_projection_for_spec import (
-    agent_projection_for_spec,
+from rest_framework_services.audience.audience_projection_for_spec import (
+    audience_projection_for_spec,
 )
 from rest_framework_services.audience.project_payload import project_payload
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
-from rest_framework_services.types.agent_projection import AgentProjection
+from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.view_hooks import ViewHooks
 
 
-def render_for_agent(
+def render_for_audience(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     value: Any,
     *,
-    projection: AgentProjection | None = None,
+    projection: AudienceProjection | None = None,
     many: bool = False,
     view: Any = None,
     request: Any = None,
@@ -42,7 +42,7 @@ def render_for_agent(
     ``projection`` is the serializer's resolved markings. Omit it and one is
     derived from the spec, which costs a serializer instantiation per call — a
     transport that registers its tools up front should build it once with
-    [`agent_projection_for_spec`][rest_framework_services.audience.agent_projection_for_spec.agent_projection_for_spec]
+    [`audience_projection_for_spec`][rest_framework_services.audience.audience_projection_for_spec.audience_projection_for_spec]
     and pass it in.
 
     Render the agent's **answer** with this. A pipeline that feeds one spec's
@@ -59,5 +59,5 @@ def render_for_agent(
         view_hooks=view_hooks,
     )
     if projection is None:
-        projection = agent_projection_for_spec(spec)
+        projection = audience_projection_for_spec(spec)
     return project_payload(payload, projection)

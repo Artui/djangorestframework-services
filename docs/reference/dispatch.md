@@ -48,23 +48,23 @@ one on the same result.
 
 ::: rest_framework_services.dispatch.arender_spec_output.arender_spec_output
 
-### `render_for_agent`
+### `render_for_audience`
 
 The agent-audience twin of `render_spec_output`: it renders through the same
 path, then applies the serializer's
-[`AgentField`](types.md#agentfield) markings. An alternate transport whose
+[`FieldMarking`](types.md#agentfield) markings. An alternate transport whose
 consumer is a model calls this instead, so every such transport shapes payloads
 identically. Not for a pipeline that feeds one spec's output into the next —
 that still wants `render_spec_output`, or the handles the next step reads by
 will have been projected away.
 
-::: rest_framework_services.dispatch.render_for_agent.render_for_agent
+::: rest_framework_services.dispatch.render_for_audience.render_for_audience
 
-### `arender_for_agent`
+### `arender_for_audience`
 
-::: rest_framework_services.dispatch.arender_for_agent.arender_for_agent
+::: rest_framework_services.dispatch.arender_for_audience.arender_for_audience
 
-### `paginate_for_agent`
+### `paginate_output`
 
 One page of a list selector's rows, in the envelope
 [`output_to_json_schema`](jsonschema.md#output_to_json_schema) has always
@@ -77,8 +77,8 @@ Rendering happens between the two calls, because it needs a view, a request and
 a spec that belong to the caller:
 
 ```python
-page = paginate_for_agent(rows, page=page, limit=limit, max_page_size=ceiling)
-rendered = render_for_agent(spec, page.items, projection=projection, many=True, ...)
+page = paginate_output(rows, page=page, limit=limit, max_page_size=ceiling)
+rendered = render_for_audience(spec, page.items, projection=projection, many=True, ...)
 payload = page.envelope(rendered)
 ```
 
@@ -90,15 +90,15 @@ what a page is. Everything that *is* about what a page is lives here: the clamps
 at both ends, the count taken before the slice, and the reported `page` being
 the one actually served.
 
-::: rest_framework_services.dispatch.paginate_for_agent.paginate_for_agent
+::: rest_framework_services.dispatch.paginate_output.paginate_output
 
-### `DEFAULT_AGENT_PAGE_SIZE`
+### `DEFAULT_PAGE_SIZE`
 
-::: rest_framework_services.dispatch.paginate_for_agent.DEFAULT_AGENT_PAGE_SIZE
+::: rest_framework_services.dispatch.paginate_output.DEFAULT_PAGE_SIZE
 
-### `AgentPage`
+### `OutputPage`
 
-::: rest_framework_services.types.agent_page.AgentPage
+::: rest_framework_services.types.output_page.OutputPage
 
 ### `base_serializer_context`
 

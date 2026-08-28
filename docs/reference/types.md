@@ -112,14 +112,14 @@
 
 ::: rest_framework_services.types.field_audience.FieldAudience
 
-## `AGENT`
+## `MARKING`
 
-::: rest_framework_services.types.agent_field.AGENT
+::: rest_framework_services.types.field_marking.MARKING
 
-## `AgentField`
+## `FieldMarking`
 
-::: rest_framework_services.types.agent_field.AgentField
+::: rest_framework_services.types.field_marking.FieldMarking
 
-## `AgentProjection`
+## `AudienceProjection`
 
-::: rest_framework_services.types.agent_projection.AgentProjection
+::: rest_framework_services.types.audience_projection.AudienceProjection

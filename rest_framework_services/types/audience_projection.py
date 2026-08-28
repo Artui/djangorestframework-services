@@ -1,4 +1,4 @@
-"""``AgentProjection`` — a serializer's agent markings, resolved once."""
+"""``AudienceProjection`` — a serializer's field markings, resolved once."""
 
 from __future__ import annotations
 
@@ -6,22 +6,22 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from rest_framework_services.types.agent_field import AgentField
 from rest_framework_services.types.field_audience import FieldAudience
+from rest_framework_services.types.field_marking import FieldMarking
 
 
 @dataclass(frozen=True)
-class AgentProjection:
+class AudienceProjection:
     """How one serializer's output is shaped for an agent audience.
 
     Derived from the serializer's
-    [`AgentField`][rest_framework_services.types.agent_field.AgentField] markings
+    [`FieldMarking`][rest_framework_services.types.field_marking.FieldMarking] markings
     plus its own ``ChoiceField`` definitions. Nothing here depends on the
     instance being rendered, so a consumer builds it **once at registration** and
     passes it to every render rather than re-deriving it per call.
     """
 
-    fields: Mapping[str, AgentField] = field(default_factory=dict)
+    fields: Mapping[str, FieldMarking] = field(default_factory=dict)
     """Every explicitly marked field, by name. Unmarked fields are absent."""
 
     label: str | None = None
@@ -31,7 +31,7 @@ class AgentProjection:
     """Per ``ChoiceField``, the ``{value: display}`` pairs whose display differs
     from the value. Empty for a field whose labels only repeat its constants."""
 
-    nested: Mapping[str, AgentProjection] = field(default_factory=dict)
+    nested: Mapping[str, AudienceProjection] = field(default_factory=dict)
     """Child projections, by field name, for nested and list serializers."""
 
     def is_empty(self) -> bool:
