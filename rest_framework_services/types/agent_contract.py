@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from rest_framework_services.types.agent_field import AgentField
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.url_kwarg import UrlKwarg
 
@@ -49,6 +51,23 @@ class AgentContract:
 
     url_kwargs: tuple[UrlKwarg, ...] = field(default_factory=tuple)
     query_params: tuple[QueryParam, ...] = field(default_factory=tuple)
+    field_audiences: Mapping[str, AgentField] | None = None
+    """Per-tool overrides layered over the output serializer's own markings.
+
+    Here rather than at a mount because
+    [`FieldAudience`][rest_framework_services.types.field_audience.FieldAudience]
+    already settles the question: *the axis is audience, not protocol* -- an MCP
+    server and an in-process toolset want the same thing as each other, and
+    something different from a browser. If the two are one audience, an override
+    of what that audience sees **cannot** legitimately differ between them.
+
+    It also belongs at the same level as the thing it overrides. The baseline is
+    the serializer's own ``AgentField`` markings, which are spec-level and read
+    by every transport; declaring the baseline once and the override per mount
+    is what let one spec project a different field set depending on which
+    transport served it -- a field hidden for one agent audience left visible to
+    the other, with nothing comparing them.
+    """
 
 
 __all__ = ["AgentContract"]

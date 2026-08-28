@@ -40,11 +40,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **One typed slot rather than loose fields**, so `RegisteredSpec` stays an index
   rather than becoming a configuration object.
 
-  It carries only what *cannot* differ between mounts. Bounds and strictness —
-  result-size caps, page ceilings, timeouts, unknown-argument policy —
-  legitimately differ between a public endpoint and an in-process toolset, so
-  they stay per-mount. Sorting is absent for the opposite reason: it is already
-  declared once, on the spec's own `filter_set`.
+  It carries `url_kwargs`, `query_params` and `field_audiences` — only what
+  *cannot* differ between mounts. Bounds and strictness — result-size caps, page
+  ceilings, timeouts, unknown-argument policy — legitimately differ between a
+  public endpoint and an in-process toolset, so they stay per-mount. Sorting is
+  absent for the opposite reason: it is already declared once, on the spec's own
+  `filter_set`.
+
+  **`field_audiences` is here because `FieldAudience` already settled it**: *the
+  axis is audience, not protocol* — an MCP server and an in-process toolset want
+  the same thing as each other, and something different from a browser. If the
+  two are one audience, an override of what that audience sees cannot
+  legitimately differ between them. It also belongs at the same level as the
+  thing it overrides: the baseline is the serializer's own `AgentField` markings,
+  which are spec-level and read by every transport, and declaring the baseline
+  once while overriding it per mount is what let one spec project a different
+  field set depending on which transport served it.
 
   Purely additive. An entry that declares nothing has `agent_contract is None`,
   and transports read it as a **default** a mount may still override.

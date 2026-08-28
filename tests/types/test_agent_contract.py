@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from rest_framework_services import (
     AgentContract,
+    AgentField,
     QueryParam,
     SelectorKind,
     SelectorSpec,
@@ -74,6 +75,33 @@ class TestWhatItCarries:
             contract.url_kwargs = ()  # type: ignore[misc]
 
 
+class TestFieldAudiences:
+    """The override lives with the thing it overrides.
+
+    ``FieldAudience`` already settles which bucket this is in: *the axis is
+    audience, not protocol* -- an MCP server and an in-process toolset want the
+    same thing as each other. If the two are one audience, an override of what
+    that audience sees cannot legitimately differ between them, so it is
+    structural rather than policy.
+    """
+
+    def test_it_rides_the_contract(self) -> None:
+        overrides = {"etag": AgentField()}
+        registry = SpecRegistry()
+        registry.register(
+            "lookup_invoice", _spec(), agent_contract=AgentContract(field_audiences=overrides)
+        )
+
+        entry = registry.get("lookup_invoice")
+        assert entry is not None
+        assert entry.agent_contract is not None
+        assert entry.agent_contract.field_audiences == overrides
+
+    def test_declaring_none_is_the_default(self) -> None:
+        # The serializer's own markings stay authoritative unless overridden.
+        assert AgentContract().field_audiences is None
+
+
 class TestItSurvivesTheRegistryOperations:
     def test_by_tag_carries_the_contract_with_the_entry(self) -> None:
         # The property that makes the registry a viable home: a filtered view is
@@ -114,7 +142,7 @@ class TestWhatItDeliberatelyDoesNotCarry:
 
         fields = {f.name for f in dataclasses.fields(AgentContract)}
 
-        assert fields == {"url_kwargs", "query_params"}
+        assert fields == {"url_kwargs", "query_params", "field_audiences"}
 
     def test_no_ordering(self) -> None:
         """Sorting is already declared once, on the spec's own ``filter_set``.
