@@ -1678,21 +1678,21 @@ ETag as if it were content.</p>
 was handed. Declare the difference on the server, once, on the field.</p>
 <h2 id="declare-it">Declare it<a class="headerlink" href="#declare-it" title="Permanent link">&para;</a></h2>
 <p>The marking is an
-<a class="autorefs autorefs-internal" title="AgentField
+<a class="autorefs autorefs-internal" title="FieldMarking
 
 
   
       dataclass
-  " href="../../reference/types/#rest_framework_services.types.agent_field.AgentField"><code>AgentField</code></a> in DRF's
+  " href="../../reference/types/#rest_framework_services.types.field_marking.FieldMarking"><code>FieldMarking</code></a> in DRF's
 per-field <code>style</code> bag, under the
-<a class="autorefs autorefs-internal" title="AGENT
+<a class="autorefs autorefs-internal" title="MARKING
 
 
   
       module-attribute
-  " href="../../reference/types/#rest_framework_services.types.agent_field.AGENT"><code>AGENT</code></a> key:</p>
+  " href="../../reference/types/#rest_framework_services.types.field_marking.MARKING"><code>MARKING</code></a> key:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework</span><span class="w"> </span><span class="kn">import</span> <span class="n">serializers</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">AGENT</span><span class="p">,</span> <span class="n">AgentField</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">MARKING</span><span class="p">,</span> <span class="n">FieldMarking</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">InvoiceSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">ModelSerializer</span><span class="p">):</span>
@@ -1700,10 +1700,10 @@ per-field <code>style</code> bag, under the
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="n">model</span> <span class="o">=</span> <span class="n">Invoice</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;number&quot;</span><span class="p">,</span> <span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;customer&quot;</span><span class="p">,</span> <span class="s2">&quot;etag&quot;</span><span class="p">,</span> <span class="s2">&quot;amount&quot;</span><span class="p">]</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        <span class="n">extra_kwargs</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>            <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;style&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">AGENT</span><span class="p">:</span> <span class="n">AgentField</span><span class="o">.</span><span class="n">handle</span><span class="p">(</span><span class="s2">&quot;Invoice handle for other tools.&quot;</span><span class="p">)}},</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>            <span class="s2">&quot;customer&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;style&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">AGENT</span><span class="p">:</span> <span class="n">AgentField</span><span class="o">.</span><span class="n">handle</span><span class="p">()}},</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>            <span class="s2">&quot;etag&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;style&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">AGENT</span><span class="p">:</span> <span class="n">AgentField</span><span class="o">.</span><span class="n">hidden</span><span class="p">()}},</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>            <span class="s2">&quot;number&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;style&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">AGENT</span><span class="p">:</span> <span class="n">AgentField</span><span class="o">.</span><span class="n">label</span><span class="p">()}},</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>            <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;style&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">MARKING</span><span class="p">:</span> <span class="n">FieldMarking</span><span class="o">.</span><span class="n">handle</span><span class="p">(</span><span class="s2">&quot;Invoice handle for other tools.&quot;</span><span class="p">)}},</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>            <span class="s2">&quot;customer&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;style&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">MARKING</span><span class="p">:</span> <span class="n">FieldMarking</span><span class="o">.</span><span class="n">handle</span><span class="p">()}},</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>            <span class="s2">&quot;etag&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;style&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">MARKING</span><span class="p">:</span> <span class="n">FieldMarking</span><span class="o">.</span><span class="n">hidden</span><span class="p">()}},</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>            <span class="s2">&quot;number&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;style&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">MARKING</span><span class="p">:</span> <span class="n">FieldMarking</span><span class="o">.</span><span class="n">label</span><span class="p">()}},</span>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>        <span class="p">}</span>
 </span></code></pre></div>
 <p>Four audiences, and the default is "content":</p>
@@ -1726,21 +1726,21 @@ per-field <code>style</code> bag, under the
 <td>unchanged</td>
 </tr>
 <tr>
-<td><code>AgentField.label()</code></td>
+<td><code>FieldMarking.label()</code></td>
 <td>names this record for a human</td>
 <td>included</td>
 <td>its <code>description</code>, if given</td>
 <td>unchanged</td>
 </tr>
 <tr>
-<td><code>AgentField.handle()</code></td>
+<td><code>FieldMarking.handle()</code></td>
 <td>opaque; passed to tools, never spoken</td>
 <td>verbatim</td>
 <td>its <code>description</code>, if given</td>
 <td>unchanged</td>
 </tr>
 <tr>
-<td><code>AgentField.hidden()</code></td>
+<td><code>FieldMarking.hidden()</code></td>
 <td>plumbing</td>
 <td><strong>dropped</strong></td>
 <td>dropped</td>
@@ -1755,19 +1755,19 @@ one serializer. DRF consults <code>style</code> only in <code>HTMLFormRenderer</
 its own keys, so <strong>your REST responses do not change</strong>.</p>
 <h2 id="apply-it">Apply it<a class="headerlink" href="#apply-it" title="Permanent link">&para;</a></h2>
 <p>An agent transport renders with
-<a class="autorefs autorefs-internal" title="render_for_agent" href="../../reference/dispatch/#rest_framework_services.dispatch.render_for_agent.render_for_agent"><code>render_for_agent</code></a>
+<a class="autorefs autorefs-internal" title="render_for_audience" href="../../reference/dispatch/#rest_framework_services.dispatch.render_for_audience.render_for_audience"><code>render_for_audience</code></a>
 instead of <code>render_spec_output</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">payload</span> <span class="o">=</span> <span class="n">render_for_agent</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">payload</span> <span class="o">=</span> <span class="n">render_for_audience</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </span></code></pre></div>
 <p><code>etag</code> is gone, <code>status</code> reads <code>"Awaiting review"</code>, and <code>id</code> is untouched — a
 handle is somebody else's input, so its constant is never re-spelled.</p>
 <p>For the schema side, hand the same projection to
 <a class="autorefs autorefs-internal" title="output_to_json_schema" href="../../reference/jsonschema/#rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema"><code>output_to_json_schema</code></a>
 so both sides come from the one declaration:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">projection</span> <span class="o">=</span> <span class="n">build_agent_projection</span><span class="p">(</span><span class="n">InvoiceSerializer</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">projection</span> <span class="o">=</span> <span class="n">build_audience_projection</span><span class="p">(</span><span class="n">InvoiceSerializer</span><span class="p">)</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">output_to_json_schema</span><span class="p">(</span><span class="n">InvoiceSerializer</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="n">projection</span><span class="p">)</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">payload</span> <span class="o">=</span> <span class="n">render_for_agent</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="n">projection</span><span class="p">)</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">payload</span> <span class="o">=</span> <span class="n">render_for_audience</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="n">projection</span><span class="p">)</span>
 </span></code></pre></div>
 <p>Pass the same <code>kind</code> / <code>paginate</code> you dispatch with, or the schema describes the
 wrong cardinality. The projection lands on the <strong>item</strong> wherever the item sits:
@@ -1778,7 +1778,7 @@ registers its tools up front should build it <strong>once at registration</stron
 it to every render, as above.</p>
 <p>A substituted choice field is re-declared in the schema in its <em>display</em> values,
 because that is what the payload now carries. If another tool takes that field
-as input, mark it <code>AgentField.handle()</code> — that suppresses the substitution on
+as input, mark it <code>FieldMarking.handle()</code> — that suppresses the substitution on
 both sides and keeps the constant.</p>
 <h2 id="one-mount-that-needs-what-its-sibling-hides">One mount that needs what its sibling hides<a class="headerlink" href="#one-mount-that-needs-what-its-sibling-hides" title="Permanent link">&para;</a></h2>
 <p>The serializer is the declaration and stays authoritative. The exception is a
@@ -1788,17 +1788,17 @@ it belongs on the registry entry rather than on any one transport:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="s2">&quot;lookup_invoice&quot;</span><span class="p">,</span>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">lookup_spec</span><span class="p">,</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">agent_contract</span><span class="o">=</span><span class="n">AgentContract</span><span class="p">(</span><span class="n">field_audiences</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;etag&quot;</span><span class="p">:</span> <span class="n">AgentField</span><span class="p">()}),</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">agent_contract</span><span class="o">=</span><span class="n">OfflineContract</span><span class="p">(</span><span class="n">field_audiences</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;etag&quot;</span><span class="p">:</span> <span class="n">FieldMarking</span><span class="p">()}),</span>
 </span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Every agent transport reads that one contract, so the field set an agent sees
-cannot depend on which transport served it. <code>build_agent_projection</code> layers it:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">projection</span> <span class="o">=</span> <span class="n">build_agent_projection</span><span class="p">(</span>
+cannot depend on which transport served it. <code>build_audience_projection</code> layers it:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">projection</span> <span class="o">=</span> <span class="n">build_audience_projection</span><span class="p">(</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">InvoiceSerializer</span><span class="p">,</span> <span class="n">overrides</span><span class="o">=</span><span class="n">contract</span><span class="o">.</span><span class="n">field_audiences</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;lookup_invoice&quot;</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>An override can move the label and it can introduce the clash the serializer
-could not have — two fields marked <code>AgentField.label()</code> from two places — which
+could not have — two fields marked <code>FieldMarking.label()</code> from two places — which
 raises <code>ImproperlyConfigured</code> naming the mount.</p>
 <p><strong>A project that wants two agent audiences with different visibility does not
 want this.</strong> It wants two serializers, or a real second audience.
@@ -1811,20 +1811,20 @@ serializer's fields carry their own audience wherever that serializer appears,
 so there is no hoisting rule to learn and nothing to keep in sync when a field
 is renamed:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">LineSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">Serializer</span><span class="p">):</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">sku</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">style</span><span class="o">=</span><span class="p">{</span><span class="n">AGENT</span><span class="p">:</span> <span class="n">AgentField</span><span class="o">.</span><span class="n">handle</span><span class="p">()})</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">sku</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">style</span><span class="o">=</span><span class="p">{</span><span class="n">MARKING</span><span class="p">:</span> <span class="n">FieldMarking</span><span class="o">.</span><span class="n">handle</span><span class="p">()})</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">description</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">()</span>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
 </span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">InvoiceSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">Serializer</span><span class="p">):</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">number</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">style</span><span class="o">=</span><span class="p">{</span><span class="n">AGENT</span><span class="p">:</span> <span class="n">AgentField</span><span class="o">.</span><span class="n">label</span><span class="p">()})</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">number</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">style</span><span class="o">=</span><span class="p">{</span><span class="n">MARKING</span><span class="p">:</span> <span class="n">FieldMarking</span><span class="o">.</span><span class="n">label</span><span class="p">()})</span>
 </span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="n">lines</span> <span class="o">=</span> <span class="n">LineSerializer</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </span></code></pre></div>
 <h2 id="two-mistakes-that-raise-rather-than-pass-quietly">Two mistakes that raise rather than pass quietly<a class="headerlink" href="#two-mistakes-that-raise-rather-than-pass-quietly" title="Permanent link">&para;</a></h2>
 <ul>
-<li>A value under <code>AGENT</code> that is not an <code>AgentField</code> — the shape a half-finished
-  migration leaves behind (<code>{"style": {AGENT: "handle"}}</code>). It would otherwise
+<li>A value under <code>MARKING</code> that is not an <code>FieldMarking</code> — the shape a half-finished
+  migration leaves behind (<code>{"style": {MARKING: "handle"}}</code>). It would otherwise
   do nothing at all.</li>
-<li>Two fields both marked <code>AgentField.label()</code>. A record has one name; silently
+<li>Two fields both marked <code>FieldMarking.label()</code>. A record has one name; silently
   picking the first is the kind of thing you find in a transcript weeks later.</li>
 </ul>
 <p>Both raise <code>ImproperlyConfigured</code> naming the serializer and the field.</p>

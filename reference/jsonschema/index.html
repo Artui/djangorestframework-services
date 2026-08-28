@@ -1987,7 +1987,7 @@ would make schema-strict consumers reject calls the service accepts.</p>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">kind</span><span class="p">:</span> <span class="n">SelectorKind</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">paginate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">projection</span><span class="p">:</span> <span class="n">AgentProjection</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">projection</span><span class="p">:</span> <span class="n">AudienceProjection</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">handle_description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
@@ -2005,7 +2005,7 @@ what dispatch actually returns:</p>
 <li><code>kind=LIST, paginate=True</code> — the pagination envelope
   <code>{items, page, totalPages, hasNext}</code>.</li>
 </ul>
-<p><code>projection</code> applies the serializer's agent markings, mirroring what
+<p><code>projection</code> applies the serializer's field markings, mirroring what
 <a class="autorefs autorefs-internal" title="project_payload" href="../audience/#rest_framework_services.audience.project_payload.project_payload"><code>project_payload</code></a>
 does to the payload. It lands on the <strong>item</strong>, wherever the item sits for this
 <code>kind</code> — the array wrapper and the pagination envelope are this function's
@@ -2219,7 +2219,7 @@ describe. So a <code>get_fields</code> that <em>branches</em> on the view or the
 as the branch taken by a caller with neither. Reflection cannot report a field
 set that depends on who is asking, because at description time nobody is — if
 your field set varies by audience, declare it with
-<a href="../audience/">agent markings</a> instead, which are resolved per render.</p>
+<a href="../audience/">field markings</a> instead, which are resolved per render.</p>
 <h2 id="jsonschemaregistry"><code>JsonSchemaRegistry</code><a class="headerlink" href="#jsonschemaregistry" title="Permanent link">&para;</a></h2>
 
 
