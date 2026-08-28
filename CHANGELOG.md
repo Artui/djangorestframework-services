@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.47.0] — 2026-08-28
 
+### Added
+
+- **`paginate_for_agent` and `AgentPage` — the payload for an envelope this
+  package already described.** `output_to_json_schema` has always published
+  `{items, page, totalPages, hasNext}` for `kind=LIST, paginate=True`, and
+  nothing here produced it. The shaper lived in a transport, so one agent
+  transport wrapped its pages and another returned a bare list, against one
+  schema claiming the envelope for both. Two implementations of one mechanism
+  drift; here one of them was missing entirely, which is why an agent talking
+  to the in-process toolset got 50 of 51 rows with nothing to say more existed.
+
+  ```python
+  page = paginate_for_agent(rows, page=page, limit=limit, max_page_size=ceiling)
+  rendered = render_for_agent(spec, page.items, projection=projection, many=True)
+  payload = page.envelope(rendered)
+  ```
+
+  Rendering sits between the two calls because it needs a view, a request and a
+  spec that belong to the caller — and because the projection lands on the rows,
+  never on the envelope, whose keys belong to no serializer.
+
+  `page` and `limit` are taken **already parsed**. Turning an untyped argument
+  into an integer is where transports legitimately differ — a public endpoint
+  clamps a malformed value and answers, an in-process toolset can hand the model
+  its mistake back and ask again — and that is a policy about bad input, not
+  about what a page is. What a page *is* lives here: `limit` clamped down to
+  `max_page_size` and up to 1, `page` clamped up to 1 and down to the last page
+  that exists, the count taken before the slice so an unclamped page never
+  becomes an arbitrarily large SQL `OFFSET`, and the reported `page` being the
+  one actually served.
+
 ### Fixed
 
 - **Schema generation could not describe a serializer dispatch renders fine.**

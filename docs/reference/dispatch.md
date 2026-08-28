@@ -64,6 +64,42 @@ will have been projected away.
 
 ::: rest_framework_services.dispatch.arender_for_agent.arender_for_agent
 
+### `paginate_for_agent`
+
+One page of a list selector's rows, in the envelope
+[`output_to_json_schema`](jsonschema.md#output_to_json_schema) has always
+published for `kind=LIST, paginate=True` — `{items, page, totalPages, hasNext}`.
+That schema described a payload nothing in this package produced: the shaper
+lived in a transport, so one agent transport wrapped its pages and another
+returned a bare list, against one schema claiming the envelope for both.
+
+Rendering happens between the two calls, because it needs a view, a request and
+a spec that belong to the caller:
+
+```python
+page = paginate_for_agent(rows, page=page, limit=limit, max_page_size=ceiling)
+rendered = render_for_agent(spec, page.items, projection=projection, many=True, ...)
+payload = page.envelope(rendered)
+```
+
+`page` and `limit` are taken already parsed. Turning an untyped argument into an
+integer is where transports legitimately differ — a public endpoint clamps a
+malformed value and answers, an in-process toolset can hand the model its
+mistake back and ask again — and that is a policy about bad input, not about
+what a page is. Everything that *is* about what a page is lives here: the clamps
+at both ends, the count taken before the slice, and the reported `page` being
+the one actually served.
+
+::: rest_framework_services.dispatch.paginate_for_agent.paginate_for_agent
+
+### `DEFAULT_AGENT_PAGE_SIZE`
+
+::: rest_framework_services.dispatch.paginate_for_agent.DEFAULT_AGENT_PAGE_SIZE
+
+### `AgentPage`
+
+::: rest_framework_services.types.agent_page.AgentPage
+
 ### `base_serializer_context`
 
 The DRF baseline (`request` / `format` / `view`) that every serializer gets for
