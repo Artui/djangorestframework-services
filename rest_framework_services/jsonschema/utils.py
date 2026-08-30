@@ -53,6 +53,8 @@ def field_to_schema(
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
     *,
     for_output: bool = False,
+    max_depth: int | None = None,
+    path: tuple[type[serializers.Serializer], ...] = (),
 ) -> dict[str, Any]:
     """Convert a single DRF field into a JSON Schema fragment.
 
@@ -61,13 +63,26 @@ def field_to_schema(
 
     ``for_output`` is threaded through nested serializers so a nested block
     describes the same direction as the block containing it.
+
+    ``max_depth`` and ``path`` bound the walk into nested serializers, list
+    children and list-serializer children. They are threaded rather than
+    interpreted here -- a field is only ever a step on the way to another
+    serializer -- so ``serializer_to_schema`` below is where both are read and
+    where the reasoning lives.
     """
-    default: dict[str, Any] = _field_to_schema_default(field, registry, for_output)
+    default: dict[str, Any] = _field_to_schema_default(
+        field, registry, for_output, max_depth=max_depth, path=path
+    )
     return apply_field_override(field, default)
 
 
 def _field_to_schema_default(
-    field: serializers.Field, registry: JsonSchemaRegistry, for_output: bool
+    field: serializers.Field,
+    registry: JsonSchemaRegistry,
+    for_output: bool,
+    *,
+    max_depth: int | None,
+    path: tuple[type[serializers.Serializer], ...],
 ) -> dict[str, Any]:
     for rule_type, rule_schema in registry.fields:
         if isinstance(field, rule_type):
@@ -75,7 +90,9 @@ def _field_to_schema_default(
     if isinstance(field, serializers.ListField):
         child: serializers.Field | None = field.child
         item_schema: dict[str, Any] = (
-            field_to_schema(child, registry, for_output=for_output) if child is not None else {}
+            field_to_schema(child, registry, for_output=for_output, max_depth=max_depth, path=path)
+            if child is not None
+            else {}
         )
         return {"type": "array", "items": item_schema}
     if isinstance(field, serializers.ListSerializer):
@@ -86,10 +103,17 @@ def _field_to_schema_default(
             return {"type": "array", "items": {}}
         return {
             "type": "array",
-            "items": serializer_to_schema(list_child, registry, for_output=for_output),
+            # The array wrapper is this walker's own shape, not a serializer
+            # level, so ``path`` is handed on unchanged: ``many=True`` costs no
+            # depth and a cycle through a list is still a cycle.
+            "items": serializer_to_schema(
+                list_child, registry, for_output=for_output, max_depth=max_depth, path=path
+            ),
         }
     if isinstance(field, serializers.Serializer):
-        return serializer_to_schema(field, registry, for_output=for_output)
+        return serializer_to_schema(
+            field, registry, for_output=for_output, max_depth=max_depth, path=path
+        )
     if isinstance(field, serializers.MultipleChoiceField):
         # Checked before ChoiceField, which it subclasses: this field accepts a
         # *set* of the choices, not one of them. FilePathField subclasses
@@ -218,6 +242,8 @@ def serializer_to_schema(
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
     *,
     for_output: bool = False,
+    max_depth: int | None = None,
+    path: tuple[type[serializers.Serializer], ...] = (),
 ) -> dict[str, Any]:
     """Convert a DRF serializer instance into a JSON Schema object.
 
@@ -231,13 +257,62 @@ def serializer_to_schema(
     input direction must — left an output schema silently missing its primary
     key, its ETag, and every ``SerializerMethodField``, none of which stopped
     being rendered.
+
+    **The walk is bounded, and two different things bound it.** ``path`` carries
+    the serializer classes currently being described, innermost last; the
+    recursion appends to it and a caller leaves it empty.
+
+    - **Re-entry into a class already on the path truncates.** A
+      self-referential declaration — a category tree, a threaded comment, an
+      org chart — is an ordinary shape, and unguarded it is a ``RecursionError``
+      raised while a transport *declares its tools*, before any request exists
+      to fail. So this guard is not optional and has no off switch. It costs one
+      case: a serializer that limits its own nesting (passing a countdown into
+      each nested instance) terminates today and is truncated at the first
+      re-entry now. Class identity cannot tell that apart from the unbounded
+      form, and the unbounded form crashes. Sibling branches are unaffected —
+      the same address serializer under ``billing`` and ``shipping`` is on two
+      *different* paths and is described in full on both.
+    - **``max_depth`` is an opt-in ceiling**, for size rather than safety: a
+      schema grows roughly threefold per nesting level, and both transports
+      rebuild every tool's schema per listing. ``None``, the default, is
+      unbounded — exactly what callers got before the option existed. It counts
+      serializer objects, not the array wrappers around them, so ``many=True``
+      costs no level; the root is level 1, so ``max_depth=1`` publishes the top
+      level and truncates every nested serializer, and a value below 1
+      truncates the root itself.
+
+    **A truncated node is ``{"type": "object"}``.** It is the one thing still
+    known to be true, it is what a caller can still send — an object whose keys
+    this schema declines to enumerate — and it constrains nothing a valid call
+    could fail against. The alternative, publishing the level's properties and
+    dropping only the level below, emits a ``required`` list whose members'
+    own shapes are unknown: it reads as a complete description and is not one.
+
+    **Not ``$defs`` / ``$ref``, deliberately.** Factoring the repeated
+    sub-schema out is the obvious answer to both the cycle and the size, and it
+    is refused: most MCP clients reject a tool schema containing a reference
+    outright, so it trades a size problem for a compatibility one, and the
+    transports in this family have no reference handling in either direction.
+    Every schema this module emits is flat and self-contained. Keep it that way.
     """
+    serializer_cls: type[serializers.Serializer] = type(serializer)
+    re_entered: bool = serializer_cls in path
+    beyond_bound: bool = max_depth is not None and len(path) >= max_depth
+    if re_entered or beyond_bound:
+        # Overrides are deliberately skipped here: a truncated node publishes no
+        # properties for ``exclude_fields`` / ``deprecate_fields`` to act on, and
+        # an ``examples`` block would re-inline the very subtree just dropped.
+        return {"type": "object"}
+    path = (*path, serializer_cls)
     properties: dict[str, Any] = {}
     required: list[str] = []
     for name, field in serializer.fields.items():
         if field.write_only if for_output else field.read_only:
             continue
-        properties[name] = field_to_schema(field, registry, for_output=for_output)
+        properties[name] = field_to_schema(
+            field, registry, for_output=for_output, max_depth=max_depth, path=path
+        )
         title = _declared_label(name, field)
         if title is not None:
             properties[name]["title"] = title

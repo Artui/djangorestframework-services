@@ -97,6 +97,37 @@ set that depends on who is asking, because at description time nobody is — if
 your field set varies by audience, declare it with
 [field markings](audience.md) instead, which are resolved per render.
 
+## How deep generation goes
+
+A nested serializer is walked into, and two things stop the walk.
+
+**A serializer that nests itself is truncated at the re-entry.** A category tree,
+a threaded comment, an org chart — the shape is ordinary, and describing it
+unbounded is a `RecursionError` raised while a transport *declares its tools*,
+before any request exists to fail. So the guard is always on and has nothing to
+configure. It follows the current *path*, not everything seen: the same address
+serializer under `billing` and under `shipping` sits on two different paths and
+is described in full on both.
+
+**`max_depth` is an opt-in ceiling on size.** A schema grows roughly threefold
+per nesting level and both agent transports rebuild every tool's schema each
+time they list, so a deep declaration is paid for on every listing. It counts
+serializer objects — the root is level 1, and the array wrapper `many=True`
+produces costs no level:
+
+```python
+schema = output_to_json_schema(InvoiceSerializer, kind=SelectorKind.LIST, max_depth=2)
+```
+
+Left unset it describes every level, which is what generation has always done.
+
+A truncated node is `{"type": "object"}` — the one thing still known to be true,
+and what a caller can still send: an object whose keys the schema declines to
+enumerate. **Never `$defs` / `$ref`.** Factoring the repeated sub-schema out is
+the obvious answer and it is refused deliberately: most MCP clients reject a tool
+schema containing a reference outright, so it would trade a size problem for a
+compatibility one. Every schema these helpers emit is flat and self-contained.
+
 ## `JsonSchemaRegistry`
 
 ::: rest_framework_services.types.json_schema_registry.JsonSchemaRegistry

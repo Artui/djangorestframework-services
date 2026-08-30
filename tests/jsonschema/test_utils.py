@@ -571,3 +571,163 @@ def test_python_type_to_schema_still_falls_back_for_an_unregistered_class() -> N
     # rule, which is why the fallback stays permissive rather than raising.
     assert _python_type_to_schema(_Money) == {}
     assert _python_type_to_schema(typing.Any) == {}
+
+
+class _Node(serializers.Serializer):
+    """A self-referential declaration: a category tree, a threaded comment.
+
+    Declared through ``get_fields`` because a class body cannot name the class
+    it is still defining -- which is how these get written in the wild.
+    """
+
+    name = serializers.CharField()
+
+    def get_fields(self) -> dict[str, serializers.Field]:
+        fields = super().get_fields()
+        fields["children"] = _Node(many=True)
+        return fields
+
+
+class _Author(serializers.Serializer):
+    name = serializers.CharField()
+
+    def get_fields(self) -> dict[str, serializers.Field]:
+        fields = super().get_fields()
+        fields["latest_post"] = _Post()
+        return fields
+
+
+class _Post(serializers.Serializer):
+    title = serializers.CharField()
+
+    def get_fields(self) -> dict[str, serializers.Field]:
+        fields = super().get_fields()
+        fields["author"] = _Author()
+        return fields
+
+
+class _Address(serializers.Serializer):
+    line1 = serializers.CharField()
+
+
+class _Order(serializers.Serializer):
+    billing = _Address()
+    shipping = _Address()
+
+
+class _Level3(serializers.Serializer):
+    value = serializers.IntegerField()
+
+
+class _Level2(serializers.Serializer):
+    level3 = _Level3()
+
+
+class _Level1(serializers.Serializer):
+    level2 = _Level2()
+
+
+_TRUNCATED = {"type": "object"}
+
+
+class TestCycleGuard:
+    """A declaration must not be able to crash schema generation.
+
+    Unguarded, every case here is a ``RecursionError`` raised while a transport
+    declares its tools -- before any request exists to fail.
+    """
+
+    def test_a_self_referential_serializer_truncates_instead_of_crashing(self) -> None:
+        schema = serializer_to_schema(_Node())
+
+        assert schema["properties"]["name"] == {"type": "string"}
+        assert schema["properties"]["children"] == {"type": "array", "items": _TRUNCATED}
+
+    def test_a_mutually_recursive_pair_truncates_at_the_re_entry(self) -> None:
+        schema = serializer_to_schema(_Author())
+
+        post = schema["properties"]["latest_post"]
+        assert post["properties"]["title"] == {"type": "string"}
+        assert post["properties"]["author"] == _TRUNCATED
+
+    def test_the_same_serializer_on_sibling_branches_is_described_in_full(self) -> None:
+        """The guard is a *path*, not a seen-set: two branches are not a cycle."""
+        schema = serializer_to_schema(_Order())
+
+        described = {"type": "object", "properties": {"line1": {"type": "string"}}}
+        assert schema["properties"]["billing"] == {**described, "required": ["line1"]}
+        assert schema["properties"]["shipping"] == {**described, "required": ["line1"]}
+
+    def test_a_truncated_node_keeps_what_its_parent_declared_about_it(self) -> None:
+        """``title`` / ``description`` come from the *parent's* field, not the walk."""
+
+        class _Documented(serializers.Serializer):
+            name = serializers.CharField()
+
+            def get_fields(self) -> dict[str, serializers.Field]:
+                fields = super().get_fields()
+                fields["children"] = _Documented(many=True, help_text="the child nodes")
+                return fields
+
+        schema = serializer_to_schema(_Documented())
+
+        assert schema["properties"]["children"] == {
+            "type": "array",
+            "items": _TRUNCATED,
+            "description": "the child nodes",
+        }
+
+    def test_the_guard_survives_the_output_direction(self) -> None:
+        schema = serializer_to_schema(_Node(), for_output=True)
+
+        assert schema["properties"]["children"] == {"type": "array", "items": _TRUNCATED}
+
+
+class TestMaxDepth:
+    """An opt-in size bound. Unset means what it has always meant."""
+
+    def test_unset_describes_every_level(self) -> None:
+        schema = serializer_to_schema(_Level1())
+
+        assert schema["properties"]["level2"]["properties"]["level3"] == {
+            "type": "object",
+            "properties": {"value": {"type": "integer"}},
+            "required": ["value"],
+        }
+
+    def test_the_root_is_level_one_so_one_truncates_every_nested_serializer(self) -> None:
+        schema = serializer_to_schema(_Level1(), max_depth=1)
+
+        assert schema == {
+            "type": "object",
+            "properties": {"level2": _TRUNCATED},
+            "required": ["level2"],
+        }
+
+    def test_the_bound_lets_through_exactly_as_many_levels_as_it_names(self) -> None:
+        schema = serializer_to_schema(_Level1(), max_depth=2)
+
+        level2 = schema["properties"]["level2"]
+        assert level2["properties"]["level3"] == _TRUNCATED
+        assert level2["required"] == ["level3"]
+
+    def test_below_one_truncates_the_root_itself(self) -> None:
+        assert serializer_to_schema(_Level1(), max_depth=0) == _TRUNCATED
+
+    def test_an_array_wrapper_costs_no_level(self) -> None:
+        """``many=True`` is this walker's own shape, not a serializer level."""
+
+        class _Many(serializers.Serializer):
+            rows = _Level2(many=True)
+
+        schema = serializer_to_schema(_Many(), max_depth=2)
+
+        assert schema["properties"]["rows"]["items"]["properties"]["level3"] == _TRUNCATED
+
+    def test_the_bound_reaches_a_list_field_child(self) -> None:
+        class _Listed(serializers.Serializer):
+            rows = serializers.ListField(child=_Level2())
+
+        schema = serializer_to_schema(_Listed(), max_depth=2)
+
+        assert schema["properties"]["rows"]["items"]["properties"]["level3"] == _TRUNCATED

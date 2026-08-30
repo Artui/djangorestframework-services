@@ -29,6 +29,7 @@ def output_to_json_schema(
     projection: AudienceProjection | None = None,
     handle_description: str | None = None,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+    max_depth: int | None = None,
 ) -> dict[str, Any] | None:
     """Build a JSON Schema for an output serializer, or ``None`` when undeclared.
 
@@ -56,8 +57,17 @@ def output_to_json_schema(
 
     ``registry`` supplies consumer rules for custom field / Python types — see
     [`JsonSchemaRegistry`][rest_framework_services.types.json_schema_registry.JsonSchemaRegistry].
+
+    ``max_depth`` bounds how many serializer levels the **item** describes,
+    truncating deeper ones to ``{"type": "object"}``; ``None``, the default,
+    describes them all. The item is level 1, and the array wrapper and the
+    pagination envelope are this function's own shapes, so they cost no level.
+    Independently of this bound, a serializer that nests itself is truncated at
+    the re-entry rather than recursing until the process dies. Truncation is
+    flat and self-contained — never ``$defs`` / ``$ref``, which most MCP clients
+    reject outright.
     """
-    item_schema: dict[str, Any] | None = _item_schema(output_serializer, registry)
+    item_schema: dict[str, Any] | None = _item_schema(output_serializer, registry, max_depth)
     if item_schema is None:
         return None
     if projection is not None:
@@ -83,7 +93,7 @@ def output_to_json_schema(
 
 
 def _item_schema(
-    output_serializer: type | None, registry: JsonSchemaRegistry
+    output_serializer: type | None, registry: JsonSchemaRegistry, max_depth: int | None
 ) -> dict[str, Any] | None:
     if output_serializer is None:
         return None
@@ -91,7 +101,7 @@ def _item_schema(
         output_serializer, serializers.Serializer
     ):
         return serializer_to_schema(
-            serializer_for_schema(output_serializer), registry, for_output=True
+            serializer_for_schema(output_serializer), registry, for_output=True, max_depth=max_depth
         )
     if isinstance(output_serializer, type) and dataclasses.is_dataclass(output_serializer):
         return dataclass_to_schema(output_serializer, registry)

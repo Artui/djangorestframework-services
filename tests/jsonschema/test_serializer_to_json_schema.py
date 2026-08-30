@@ -119,3 +119,28 @@ def test_the_label_drf_derives_from_the_name_is_not_repeated() -> None:
     # restates the property name in worse English and costs a reader tokens to
     # learn nothing.
     assert "title" not in serializer_to_json_schema(_Plain)["properties"]["vat_id"]
+
+
+class _NestedIn(serializers.Serializer):
+    inner = _S()
+
+
+class TestMaxDepth:
+    def test_unset_describes_the_nested_serializer(self) -> None:
+        schema = serializer_to_json_schema(_NestedIn)
+
+        assert schema["properties"]["inner"]["properties"]["name"] == {"type": "string"}
+
+    def test_the_bound_truncates_the_nested_serializer(self) -> None:
+        assert serializer_to_json_schema(_NestedIn, max_depth=1) == {
+            "type": "object",
+            "properties": {"inner": {"type": "object"}},
+            "required": ["inner"],
+        }
+
+    def test_the_bound_composes_with_partial(self) -> None:
+        """``partial`` drops ``required``; the bound is about depth, not fields."""
+        assert serializer_to_json_schema(_NestedIn, partial=True, max_depth=1) == {
+            "type": "object",
+            "properties": {"inner": {"type": "object"}},
+        }
