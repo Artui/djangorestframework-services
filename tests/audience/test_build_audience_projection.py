@@ -73,11 +73,11 @@ def test_marking_under_another_key_still_counts() -> None:
     assert build_audience_projection(_Odd).audience("secret") is FieldAudience.HIDDEN
 
 
-def test_non_agent_field_under_agent_key_raises() -> None:
+def test_non_marking_under_the_marking_key_raises() -> None:
     class _Draft(serializers.Serializer):
         id = serializers.CharField(style={MARKING: "handle"})
 
-    with pytest.raises(ImproperlyConfigured, match="not an FieldMarking"):
+    with pytest.raises(ImproperlyConfigured, match="not a FieldMarking"):
         build_audience_projection(_Draft)
 
 

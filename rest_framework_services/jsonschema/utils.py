@@ -25,6 +25,7 @@ from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
 )
+from rest_framework_services.types.read_input_description import read_input_description
 from rest_framework_services.types.read_schema_markers import read_schema_markers
 from rest_framework_services.types.typed_dict_input import typed_dict_input
 from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
@@ -468,10 +469,17 @@ def callable_input_schema(
 
     ``skip`` drops transport seeds (``request`` / ``user`` / ``view``) from
     both ordinary parameters and expanded keys, and ``required`` never contains
-    a skipped name. ``InputRequired`` / ``NotClientInput`` markers apply to
-    both alike. Requiredness of an ordinary parameter is never inferred from
-    its default: the framework may supply it from the kwargs pool rather than
-    from caller input, so only the marker may declare it.
+    a skipped name. ``InputRequired`` / ``NotClientInput`` /
+    ``InputDescription`` markers apply to both alike. Requiredness of an
+    ordinary parameter is never inferred from its default: the framework may
+    supply it from the kwargs pool rather than from caller input, so only the
+    marker may declare it.
+
+    An ``InputDescription`` lands on the property as ``description``, the same
+    key the serializer path fills from ``help_text``. It is read *before* the
+    hidden check rather than after, so a description declared beside
+    ``NotClientInput`` is refused instead of quietly disappearing with the key
+    it was written for.
     """
     try:
         # ``include_extras`` is required: the schema markers ride in the
@@ -497,9 +505,12 @@ def callable_input_schema(
             properties[name] = {}
             continue
         _underlying, marked_required, hidden = read_schema_markers(hints[name])
+        description = read_input_description(hints[name])
         if hidden:
             continue
         properties[name] = _python_type_to_schema(hints[name], registry)
+        if description is not None:
+            properties[name]["description"] = description
         if marked_required:
             required.append(name)
     return properties, required
@@ -517,6 +528,8 @@ def _typed_dict_to_schema(
     key is never advertised as a caller input. ``InputRequired`` is the usable
     way to mark a key required here, because a genuinely required
     ``TypedDict`` key breaks the callable's Protocol conformance under PEP 692.
+    ``InputDescription`` is the usable way to describe one, because a
+    ``TypedDict`` key has no ``help_text`` to read.
     """
     field_types, required_keys = typed_dict_input(typed_dict)
     properties: dict[str, Any] = {}
@@ -525,9 +538,12 @@ def _typed_dict_to_schema(
         if name in skip:
             continue
         _underlying, marked_required, hidden = read_schema_markers(hint)
+        description = read_input_description(hint)
         if hidden:
             continue
         properties[name] = _python_type_to_schema(hint, registry)
+        if description is not None:
+            properties[name]["description"] = description
         if name in required_keys or marked_required:
             required.append(name)
     return properties, required

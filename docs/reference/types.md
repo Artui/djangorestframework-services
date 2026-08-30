@@ -88,6 +88,14 @@
 
 ::: rest_framework_services.types.not_client_input
 
+## `InputDescription`
+
+::: rest_framework_services.types.input_description
+
+## `read_input_description`
+
+::: rest_framework_services.types.read_input_description.read_input_description
+
 ## `UrlKwarg`
 
 ::: rest_framework_services.types.url_kwarg.UrlKwarg

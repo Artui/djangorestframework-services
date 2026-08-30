@@ -161,12 +161,16 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             ``instance`` cannot be written against a LIST spec. Raise-to-abort:
             the return value is ignored. See [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] for the raise
             contract.
-        metadata: Consumer-owned, framework-opaque mapping — **the framework
-            never reads it**. No known keys, no per-key validation, no
-            defaulting, no effect on the generated JSON Schema or OpenAPI;
-            validation is shape-only, and a non-``Mapping`` raises
-            ``ImproperlyConfigured`` at
-            construction. Use it to attach a project's own per-operation facts
+        metadata: Consumer-owned, framework-opaque mapping with **exactly one
+            reserved key**: ``"json_schema"``, which
+            [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
+            merges onto the schema it derives — see that function for the shape,
+            the phase keys and the precedence. Every other key is carried and
+            never read: no defaulting, no per-key validation, no effect on the
+            generated JSON Schema or OpenAPI. Validation at construction stays
+            shape-only, and a non-``Mapping`` raises
+            ``ImproperlyConfigured``
+            there. Use it to attach a project's own per-operation facts
             — read back by its own permission class, scoping helper, or audit
             hook — to the spec describing the operation, rather than to a
             name-keyed side table that drifts the day a spec is renamed. It is
