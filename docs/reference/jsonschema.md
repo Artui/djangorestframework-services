@@ -81,6 +81,84 @@ registry = DEFAULT_JSON_SCHEMA_REGISTRY.extend(
 Rules are matched by type *identity*, and members are resolved recursively, so
 one rule for `Money` also covers `list[Money]` and `Money | None`.
 
+### What a reflected input can say about itself
+
+A serializer field describes itself through `help_text`, and a filter through
+its own. A reflected input has neither — it is a `TypedDict` key or a bare
+parameter — so it carries the sentence in its `Annotated` metadata, with
+`InputDescription`:
+
+```python
+class WidgetExtras(HttpExtras[MyUser], total=False):
+    project_pk: Annotated[
+        int, InputRequired, InputDescription("The project whose widgets to list.")
+    ]
+```
+
+`project_pk` publishes as
+`{"type": "integer", "description": "The project whose widgets to list."}` —
+`description` being the same key the serializer and filter paths already fill,
+so one project's inputs read the same way whichever side of a spec they arrive
+on. The marker composes with `InputRequired` in either order and is ignored by
+anything else reading the same `Annotated`.
+
+It is refused beside `NotClientInput`, which drops the key from the schema
+entirely and so leaves the sentence no caller to reach, and refused twice on one
+input, because a schema publishes one description and picking a winner would be
+an arbitrary rule to memorise. See
+[the off-HTTP inputs recipe](../recipes/off-http-inputs.md#describing-an-input-inputdescription).
+
+## A spec-level title and description
+
+Derivation reads serializers, filters and callables. None of them can tell it
+what the *operation* is called or what it does, so `spec_to_json_schema` used to
+emit no `title` and no `description` at all and every transport invented its own
+— from the spec name, from a docstring, from a hand-written table.
+
+The reserved `metadata["json_schema"]` key is where that is declared once:
+
+```python
+ServiceSpec(
+    service=archive_project,
+    input_serializer=ArchiveInput,
+    output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=ProjectOut),
+    metadata={
+        "json_schema": {
+            "input": {
+                "title": "Archive project",
+                "description": "Retire a project without deleting its history.",
+            },
+            "output": {"description": "The project as it stands after archiving."},
+        }
+    },
+)
+```
+
+Three decisions worth knowing:
+
+- **It is keyed by phase**, with the same two words `phase=` takes. One flat
+  fragment merged into both would hang the operation's description off the
+  output schema, which describes what comes *back* rather than what to send.
+  A key that is neither `"input"` nor `"output"` raises — forgetting the phase
+  key is the mistake this shape invites, and publishing nothing is the worst
+  way to report it.
+- **The fragment wins, key by key, and the merge is shallow.** It is an
+  explicit declaration standing against a derived value, so a derivation it
+  could not override would leave a wrong derivation unfixable. Shallow means one
+  rule instead of a per-key policy: a fragment naming `properties` replaces the
+  whole derived block rather than adding to it.
+- **It annotates a derived schema and never conjures one.** Where
+  `phase="output"` yields `None` because nothing declares an output, an
+  `"output"` fragment leaves it `None` — otherwise `metadata` would quietly
+  become a schema-authoring channel.
+
+The fragment is read off the spec you pass in, never off a nested one:
+`metadata` does not merge or inherit, so a `ServiceSpec`'s output schema takes
+the `ServiceSpec`'s fragment even though the serializer behind it came from
+`output_selector_spec`. Malformed declarations raise here rather than at
+construction, so declaring metadata costs nothing on a spec that generates no
+schemas.
+
 ## What generation can and cannot see
 
 Both entry points instantiate the serializer with the same baseline `context`

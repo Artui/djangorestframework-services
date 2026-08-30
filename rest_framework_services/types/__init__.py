@@ -17,6 +17,7 @@ from rest_framework_services.types.field_marking import MARKING, FieldMarking
 from rest_framework_services.types.forward_relation_spec import ForwardRelationSpec
 from rest_framework_services.types.generic_relation_spec import GenericRelationSpec
 from rest_framework_services.types.http_extras import HttpExtras
+from rest_framework_services.types.input_description import InputDescription
 from rest_framework_services.types.input_required import InputRequired, InputRequiredType
 from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
@@ -33,6 +34,7 @@ from rest_framework_services.types.output_page import OutputPage
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.progress_reporter import ProgressReporter
 from rest_framework_services.types.query_param import QueryParam
+from rest_framework_services.types.read_input_description import read_input_description
 from rest_framework_services.types.read_schema_markers import read_schema_markers
 from rest_framework_services.types.registered_spec import RegisteredSpec
 from rest_framework_services.types.related_object_change import RelatedObjectChange
@@ -71,6 +73,7 @@ __all__ = [
     "ForwardRelationSpec",
     "GenericRelationSpec",
     "HttpExtras",
+    "InputDescription",
     "InputRequired",
     "InputRequiredType",
     "JsonSchemaRegistry",
@@ -104,6 +107,7 @@ __all__ = [
     "ViewHooks",
     "UnsetType",
     "UrlKwarg",
+    "read_input_description",
     "read_schema_markers",
     "validate_channel_names",
 ]

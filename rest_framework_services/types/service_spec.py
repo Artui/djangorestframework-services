@@ -60,6 +60,19 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             each consumer apply its action-appropriate default (201 create, 200
             update, 204 destroy). OpenAPI cannot resolve a provider statically,
             so the schema documents the mixin default in that case.
+        idempotent: Whether repeating the call with the same arguments leaves
+            the same state as making it once. Declaration-only: nothing in this
+            package reads it, because idempotency is a property of the service
+            the author writes, not something a dispatcher can arrange. It is
+            here so the fact is stated once, on the spec, and every transport
+            reads the same answer — a retry policy, a queue's redelivery
+            handling, an agent tool annotation. ``None`` means **undeclared**
+            and is the default: a transport that turns the signal into a
+            published annotation must be able to tell "nothing was said" from a
+            declared ``False``, or every spec ever written starts claiming it is
+            not idempotent. Note that ``atomic`` is a different question — it
+            says a single call is all-or-nothing, not that a second call is a
+            no-op.
         partial: Override the partial-validation flag the calling surface
             derives (``False`` for PUT/POST, ``True`` for PATCH). Forcing
             ``False`` on a ``partial_update`` entry makes a PATCH endpoint
@@ -158,11 +171,17 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             **HTTP-only** — skipped on the transport-neutral path, which builds
             no ``Response``. On the bulk path ``instance`` / ``data`` are absent
             and ``result`` is the post-output-selector value.
-        metadata: Consumer-owned and framework-opaque — the one field carried
-            but **never read**. No known keys, no per-key validation, no
-            defaulting, no effect on the generated JSON Schema or OpenAPI;
-            validation is shape-only, and a non-``Mapping`` raises
-            ``ImproperlyConfigured`` at construction.
+        metadata: Consumer-owned and framework-opaque, with **exactly one
+            reserved key**: ``"json_schema"``, which
+            [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
+            merges onto the schema it derives — see that function for the shape,
+            the phase keys and the precedence. Every other key is carried and
+            never read: no defaulting, no per-key validation, no effect on the
+            generated JSON Schema or OpenAPI. Validation at construction stays
+            shape-only — a non-``Mapping`` raises ``ImproperlyConfigured`` there,
+            and the reserved key is checked when a schema is generated rather
+            than here, so declaring metadata never costs a spec that generates
+            no schemas.
             Use it to attach a project's own per-operation facts, read back by
             its own permission class or audit hook, to the spec describing the
             operation rather than to a name-keyed side table that drifts the day
@@ -174,6 +193,18 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     service: Callable[..., ResultT]
     atomic: bool = True
     success_status: int | Callable[..., int] | None = None
+    # Naming (CLAUDE.md rule, third output — a genuinely new field). Bare
+    # adjective, to sit with the other per-action flags this dataclass already
+    # carries in that shape (``atomic``, ``partial``, ``many``). Not
+    # ``idempotent_hint``: that is one transport's spelling, and a spec that
+    # named its consumers would have to grow a second field the day a second
+    # transport wanted the same fact under its own word — the fact is about the
+    # operation, not about the annotation somebody derives from it. Not
+    # ``safe``: RFC 9110 reserves that for "no side effects at all", which a
+    # mutation is never, so the two words are not interchangeable. ``bool |
+    # None`` rather than ``bool`` for the reason the docstring gives — silence
+    # must not read as a claim.
+    idempotent: bool | None = None
     partial: bool | None = None
     many: bool = False
     document_service_error: bool | None = None

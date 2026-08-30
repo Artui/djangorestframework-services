@@ -113,7 +113,8 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
   **`extend_queryset`** — declarative + dynamic queryset shaping applied
   to the selector's return value inside `dispatch_selector_for_spec`. See
   the [queryset-shaping recipe](recipes/queryset-shaping.md).
-- **`metadata`** — a mapping the framework carries but never reads. Your
+- **`metadata`** — a mapping the framework carries and does not read,
+  apart from the reserved `"json_schema"` key. Your
   own per-operation facts, attached to the spec that describes the
   operation. See [Consumer-owned `metadata`](#consumer-owned-metadata).
 
@@ -133,6 +134,7 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     service: Callable[..., ResultT]
     atomic: bool = True
     success_status: int | Callable[..., int] | None = None
+    idempotent: bool | None = None
     partial: bool | None = None
     input_serializer: type | None = None
     input_data: Callable[..., Mapping[str, Any]] | None = None
@@ -175,6 +177,28 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
 
   OpenAPI documents the action default for the callable case (it can't be
   resolved statically).
+- **`idempotent`** — whether repeating the call with the same arguments
+  leaves the same state as making it once. Nothing in this package reads
+  it: idempotency is a property of the service you write, not something a
+  dispatcher can arrange. It is here so the fact is stated **once**, beside
+  the operation it is true of, and every consumer reads the same answer —
+  a retry policy, a queue's redelivery handling, an agent tool annotation.
+  Before, a consumer running two transports off one registry had to repeat
+  the claim per transport, in each transport's own vocabulary.
+
+  `None` (the default) means **undeclared**, and that is not the same as
+  `False`. A consumer that publishes the signal has to tell "nothing was
+  said" from "the author said no" — defaulting to `False` would have every
+  spec ever written start claiming it is not idempotent.
+
+  ```python
+  ServiceSpec(service=set_project_status, input_serializer=StatusIn, idempotent=True)
+  ```
+
+  `atomic` answers a different question: it says one call is
+  all-or-nothing, not that a second call is a no-op. `SelectorSpec` has no
+  such field — a read is idempotent by construction, so the signal would
+  say nothing there.
 - **`partial`** — override the transport-derived partial-validation flag.
   `None` (the default) inherits what the verb implies (`False` for
   PUT/POST, `True` for PATCH); `True`/`False` forces it. Applied once at
@@ -257,7 +281,8 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   return domain flags on the result DTO and let the finalizer translate them
   into transport effects. **HTTP-only**: skipped on the transport-neutral
   path (`dispatch_spec` / `call_service` / MCP).
-- **`metadata`** — a mapping the framework carries but never reads. See
+- **`metadata`** — a mapping the framework carries and does not read,
+  apart from the reserved `"json_schema"` key. See
   [Consumer-owned `metadata`](#consumer-owned-metadata).
 
 Generic parameters `InputT` / `ResultT` / `ExtraT` default to `Any`, so
@@ -265,11 +290,15 @@ Generic parameters `InputT` / `ResultT` / `ExtraT` default to `Any`, so
 
 ### Consumer-owned `metadata`
 
-Both specs carry a `metadata: Mapping[str, Any] | None` field. It is the
-one field **the framework never reads** — no known keys, no per-key
-validation, no defaulting, no effect on the generated JSON Schema or
-OpenAPI. Validation is shape-only: a non-mapping raises
-`ImproperlyConfigured` at construction.
+Both specs carry a `metadata: Mapping[str, Any] | None` field. The
+framework reads **exactly one key** out of it, `"json_schema"` (see
+[a spec-level title and description](reference/jsonschema.md#a-spec-level-title-and-description)),
+and that key is reserved. Every other key is carried and never read — no
+defaulting, no per-key validation, no effect on the generated JSON Schema
+or OpenAPI. Validation at construction is shape-only: a non-mapping raises
+`ImproperlyConfigured` there, and the reserved key is checked when a
+schema is generated, so declaring metadata costs nothing on a spec that
+generates none.
 
 It exists so a project can attach its own per-operation facts to the spec
 that describes the operation, and read them back from its own code:
@@ -318,8 +347,10 @@ Three things it deliberately does not do:
   chosen).
 - **It is not copied or frozen.** The spec is frozen; the mapping you
   pass is not, and it is stored as given. Pass something you don't mutate.
-- **It carries no meaning the framework will ever assign.** Keys stay
-  yours; the library will not grow an interpretation of one later.
+- **It assigns no meaning to a key it has not reserved.** `"json_schema"`
+  is reserved and is the only one; a key the library later wants is
+  announced in the changelog and refused loudly rather than quietly
+  reinterpreted. Everything else stays yours.
 
 ### Polymorphic actions
 

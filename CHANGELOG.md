@@ -40,6 +40,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`ServiceSpec.idempotent`** — whether repeating a call with the same
+  arguments leaves the same state as making it once. Nothing in this package
+  reads it: idempotency is a property of the service its author writes, not
+  something a dispatcher can arrange. It is a spec field so the fact is stated
+  once, beside the operation it is true of, and every consumer reads the same
+  answer — a retry policy, a queue's redelivery handling, an agent tool
+  annotation. A consumer running two transports off one spec registry had to
+  repeat the claim per transport, in each transport's own vocabulary, and the
+  copies drifted.
+
+  **`None` is the default and means undeclared, which is not `False`.** A
+  consumer that publishes the signal has to tell "nothing was said" from "the
+  author said no"; defaulting to `False` would have every spec ever written
+  start claiming it is not idempotent. `atomic` answers a different question —
+  one call is all-or-nothing, not that a second call is a no-op — and
+  `SelectorSpec` grows no such field, because a read is idempotent by
+  construction.
+
+- **`InputDescription`** — a third schema marker, carrying prose for an input
+  the schema reflects from an annotation rather than from a serializer field.
+  An extras `TypedDict` key reached a schema-driven caller as a bare typed
+  property: a serializer field describes itself through `help_text` and a filter
+  through its own, but a `TypedDict` key has neither, and the existing two
+  markers are singletons whose `__new__` returns one instance, so neither can
+  carry per-key text even in principle. The only workaround was declaring the
+  same input twice — once where the callable reads it, once in a serializer
+  written so one transport could describe it — and the second declaration is the
+  one nothing executes when they drift.
+
+  ```python
+  class WidgetExtras(HttpExtras[MyUser], total=False):
+      project_pk: Annotated[
+          int, InputRequired, InputDescription("The project whose widgets to list.")
+      ]
+  ```
+
+  The text lands as `description`, the key the serializer and filter paths
+  already fill, so a project's inputs read the same way whichever side of a spec
+  they arrive on. It composes with `InputRequired` in either order and ignores
+  other libraries' metadata in the same `Annotated`. Two of them on one input
+  raise, and so does one beside `NotClientInput`: that marker drops the key from
+  the schema, leaving the sentence no caller to reach. Neither is a
+  contradiction the way `InputRequired` with `NotClientInput` is — they are
+  declarations that would decide nothing, which is what gets refused rather than
+  silently dropped. `read_input_description` reads it, kept separate from
+  `read_schema_markers` so that function's public tuple shape does not widen
+  under its callers.
+
+- **A spec-level title and description, through a reserved
+  `metadata["json_schema"]` key.** `spec_to_json_schema` derives from
+  serializers, filters and callables, none of which can say what the *operation*
+  is called or what it does, so it emitted no `title` and no `description` at
+  all and each transport invented its own from a name or a docstring. A consumer
+  now declares the fragment once and it merges onto the derived schema:
+
+  ```python
+  ServiceSpec(
+      service=archive_project,
+      input_serializer=ArchiveInput,
+      metadata={
+          "json_schema": {"input": {"title": "Archive project", "description": "Retire a project."}}
+      },
+  )
+  ```
+
+  It is **keyed by phase**, spelled with the same two words `phase=` takes: one
+  flat fragment merged into both would hang the operation's description off the
+  output schema, which describes what comes back rather than what to send. A key
+  naming no phase raises, because omitting the phase key is the mistake this
+  shape invites and publishing nothing is the worst way to report it.
+
+  **The fragment wins, key by key, and the merge is shallow.** An explicit
+  declaration stands against a derived value, so a derivation it could not
+  override would leave a wrong derivation unfixable. Shallow gives one rule
+  instead of a per-key policy for `properties` and another for `required`: a
+  fragment naming `properties` replaces the whole derived block. And a fragment
+  **annotates a derived schema without ever conjuring one** — where
+  `phase="output"` yields `None` because nothing declares an output, an
+  `"output"` fragment leaves it `None`, rather than turning `metadata` into a
+  schema-authoring channel.
+
+  Nothing reads it but this function, it is read off the spec passed in rather
+  than a nested one, and malformed declarations raise at generation rather than
+  at construction — so `metadata` stays free of contents-reading on a spec that
+  generates no schemas. **`"json_schema"` is now reserved**; every other key is
+  still carried and never read.
+
 - **`max_depth=` on `serializer_to_json_schema`, `output_to_json_schema` and
   `spec_to_json_schema`** — an opt-in ceiling on how many serializer levels a
   schema describes. A schema grows roughly threefold per nesting level and both

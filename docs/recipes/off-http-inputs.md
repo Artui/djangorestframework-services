@@ -6,8 +6,9 @@ selector pool. Off-HTTP — under an MCP tool, an agent toolset, a management
 command, a task runner — there is no route, so those inputs have to arrive some
 other way, and a caller has to be *told* they exist.
 
-This recipe covers the three pieces: making a URL-derived input discoverable,
-declaring it **required**, and hiding an input the caller has no business setting.
+This recipe covers the four pieces: making a URL-derived input discoverable,
+declaring it **required**, hiding an input the caller has no business setting,
+and saying in prose what one is for.
 
 ## The channel: `build_offline_context(kwargs=…)`
 
@@ -122,6 +123,48 @@ unknown argument. Delivery is untouched: the provider still fills it in.
 Marking a key both `InputRequired` and `NotClientInput` raises — the caller cannot
 be required to supply a value it is never told about.
 
+## Describing an input: `InputDescription`
+
+`project_pk` now reaches a schema-driven caller as `{"type": "integer"}` and a
+name. A model calling the tool has to guess what a project id is *for* here, and
+the type says nothing about it.
+
+A serializer field would carry `help_text`. A `TypedDict` key has no field, and
+neither of the two markers above can carry text — both are singletons, so
+`InputRequiredType()` returns the one instance and has nowhere to put per-key
+prose. `InputDescription` is the third marker, and it is a value rather than a
+singleton for exactly that reason:
+
+```python
+class WidgetExtras(HttpExtras[MyUser], total=False):
+    project_pk: Annotated[
+        int, InputRequired, InputDescription("The project whose widgets to list.")
+    ]
+```
+
+The text lands on the property as `description` — the same key the serializer
+path fills from `help_text` and the filter path from a filter's — so one
+project's inputs read the same way whichever side of a spec they arrive on. Order
+inside `Annotated` does not matter, and metadata belonging to other libraries is
+left alone.
+
+The alternative was declaring the same input twice: once in the `TypedDict` the
+callable actually reads, and once in a serializer written only so one transport
+could describe it. Two declarations of one input drift, and the one that drifts
+is the one nothing executes.
+
+!!! warning "Two refusals"
+    Two `InputDescription` markers on one input raise — a schema publishes one
+    description, and choosing between them would be an arbitrary rule to
+    remember. So does an `InputDescription` beside `NotClientInput`: that marker
+    drops the key from the schema, so the sentence has no caller left to reach.
+    Neither is a contradiction the way `InputRequired` + `NotClientInput` is —
+    they are declarations that would decide nothing, which is the thing this
+    package refuses to do quietly.
+
+To describe the *operation* rather than one of its inputs, see
+[a spec-level title and description](../reference/jsonschema.md#a-spec-level-title-and-description).
+
 ## Values the callable never declares: `UrlKwarg`
 
 Reflection covers keys the callable's own signature declares. It cannot cover a
@@ -162,6 +205,7 @@ pagination names on top.
 | read by the callable from its own `**extras` | nothing — reflection covers it |
 | …and the spec can't run without it | `Annotated[T, InputRequired]` |
 | …and the caller must never set it | `Annotated[T, NotClientInput]` |
+| …and the name alone doesn't say what it is for | `Annotated[T, InputDescription("…")]` |
 | read only by a `spec.kwargs` provider off `view.kwargs` | `UrlKwarg(..., required=…)` |
 | read off `request.query_params` to shape output | `QueryParam(...)` |
 
