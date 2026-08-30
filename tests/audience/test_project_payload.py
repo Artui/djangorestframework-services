@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from django.utils import timezone
 from rest_framework import serializers
 
 from rest_framework_services.audience.build_audience_projection import build_audience_projection
 from rest_framework_services.audience.project_payload import project_payload
+from rest_framework_services.types.field_audience import FieldAudience
 from rest_framework_services.types.field_marking import MARKING, FieldMarking
+from rest_framework_services.types.value_formatter import ValueFormatter
 
 STATUSES = [("PENDING_REVIEW", "Awaiting review"), ("PAID", "Paid")]
 
@@ -73,3 +76,75 @@ def test_non_mapping_payload_passes_through() -> None:
 
     assert project_payload("just a string", projection) == "just a string"
     assert project_payload(None, projection) is None
+
+
+class _Formatted(serializers.Serializer):
+    """Every collision the formatter path has to decide, in one declaration."""
+
+    due_at = serializers.DateTimeField(style={MARKING: FieldMarking.timestamp("%Y-%m-%d %H:%M")})
+    closed_at = serializers.DateTimeField(
+        allow_null=True, style={MARKING: FieldMarking.timestamp()}
+    )
+    # A choice the author has also given a formatter: two transforms, one field.
+    status = serializers.ChoiceField(
+        choices=STATUSES,
+        style={MARKING: FieldMarking.formatted(ValueFormatter(str.title, "string"))},
+    )
+    # A handle that is *also* formatted, which the handle wins.
+    id = serializers.CharField(
+        style={
+            MARKING: FieldMarking(
+                FieldAudience.HANDLE, formatter=ValueFormatter(str.upper, "string")
+            )
+        }
+    )
+
+
+FORMATTED_PAYLOAD = {
+    "due_at": "2026-01-31T12:00:00Z",
+    "closed_at": None,
+    "status": "PENDING_REVIEW",
+    "id": "inv-7",
+}
+
+
+def test_formats_a_marked_value_in_the_active_timezone() -> None:
+    with timezone.override("UTC"):
+        projected = project_payload(FORMATTED_PAYLOAD, build_audience_projection(_Formatted))
+
+    assert projected["due_at"] == "2026-01-31 12:00"
+
+
+def test_a_null_is_left_alone_rather_than_formatted() -> None:
+    projected = project_payload(FORMATTED_PAYLOAD, build_audience_projection(_Formatted))
+
+    assert projected["closed_at"] is None
+
+
+def test_an_explicit_formatter_beats_the_derived_choice_substitution() -> None:
+    """Declared beats derived, deliberately — not by whichever branch came first."""
+    projected = project_payload(FORMATTED_PAYLOAD, build_audience_projection(_Formatted))
+
+    assert projected["status"] == "Pending_Review"
+
+
+def test_a_handle_is_never_formatted() -> None:
+    """A formatted machine identifier is a broken one."""
+    projected = project_payload(FORMATTED_PAYLOAD, build_audience_projection(_Formatted))
+
+    assert projected["id"] == "inv-7"
+
+
+def test_a_formatter_on_a_nested_field_is_still_the_one_transform_that_applies() -> None:
+    """It is an odd thing to declare, but it is explicit, so it is honoured."""
+
+    class _Parent(serializers.Serializer):
+        lines = _Line(
+            many=True, style={MARKING: FieldMarking.formatted(ValueFormatter(len, "integer"))}
+        )
+
+    projected = project_payload(
+        {"lines": [{"sku": "A-1", "internal": "x"}]}, build_audience_projection(_Parent)
+    )
+
+    assert projected == {"lines": 1}

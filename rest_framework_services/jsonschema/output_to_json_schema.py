@@ -44,7 +44,10 @@ def output_to_json_schema(
 
     ``projection`` applies the serializer's field markings, mirroring what
     [`project_payload`][rest_framework_services.audience.project_payload.project_payload]
-    does to the payload. It lands on the **item**, wherever the item sits for this
+    does to the payload — hidden fields dropped, choices re-declared in their
+    display values, and a formatted field re-declared as the type its
+    [`ValueFormatter`][rest_framework_services.types.value_formatter.ValueFormatter]
+    produces. It lands on the **item**, wherever the item sits for this
     ``kind`` — the array wrapper and the pagination envelope are this function's
     own shapes and belong to no serializer, so a projection walking them would
     look for markings that cannot exist and silently annotate nothing.

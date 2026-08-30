@@ -7,9 +7,11 @@ from rest_framework import serializers
 from rest_framework_services.audience.annotate_output_schema import annotate_output_schema
 from rest_framework_services.audience.build_audience_projection import build_audience_projection
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
+from rest_framework_services.types.field_audience import FieldAudience
 from rest_framework_services.types.field_marking import MARKING, FieldMarking
 from rest_framework_services.types.json_schema_registry import DEFAULT_JSON_SCHEMA_REGISTRY
 from rest_framework_services.types.selector_kind import SelectorKind
+from rest_framework_services.types.value_formatter import ValueFormatter
 
 
 class _Line(serializers.Serializer):
@@ -166,3 +168,72 @@ def test_an_unlabelled_handle_says_nothing_by_default() -> None:
     assert "description" not in schema["properties"]["customer"]
     # An explicitly declared description is still emitted; it came from the author.
     assert schema["properties"]["id"]["description"] == "Invoice handle."
+
+
+class _Formatted(serializers.Serializer):
+    """The schema mirror of every collision ``project_payload`` has to decide."""
+
+    due_at = serializers.DateTimeField(
+        label="Payment due",
+        help_text="When payment is due.",
+        style={MARKING: FieldMarking.timestamp()},
+    )
+    # Nothing to carry across: no author label, no help_text.
+    seen_at = serializers.DateTimeField(style={MARKING: FieldMarking.timestamp()})
+    status = serializers.ChoiceField(
+        choices=[("PENDING_REVIEW", "Awaiting review")],
+        style={MARKING: FieldMarking.formatted(ValueFormatter(str.title, "string"))},
+    )
+    id = serializers.DateTimeField(
+        style={
+            MARKING: FieldMarking(
+                FieldAudience.HANDLE, formatter=ValueFormatter(str.upper, "string")
+            )
+        }
+    )
+    amount = serializers.IntegerField(
+        style={
+            MARKING: FieldMarking.formatted(
+                ValueFormatter(lambda cents: f"EUR {cents / 100:.2f}", "string"),
+                "The invoice total.",
+            )
+        }
+    )
+
+
+def _formatted_properties() -> dict:
+    projection = build_audience_projection(_Formatted)
+    return annotate_output_schema(output_to_json_schema(_Formatted), projection)["properties"]
+
+
+def test_a_formatted_property_is_redeclared_as_what_it_produces() -> None:
+    """``format: date-time`` described the raw value, and that value is gone."""
+    seen_at = _formatted_properties()["seen_at"]
+
+    assert seen_at == {"type": "string", "examples": ["31 Jan 2026 14:05"]}
+
+
+def test_a_formatted_property_keeps_what_annotates_the_field() -> None:
+    """``title`` and ``help_text`` describe the field, not the value's shape."""
+    due_at = _formatted_properties()["due_at"]
+
+    assert due_at["title"] == "Payment due"
+    assert due_at["description"] == "When payment is due."
+    assert due_at["type"] == "string"
+    assert "format" not in due_at
+
+
+def test_the_markings_description_still_wins_over_everything() -> None:
+    assert _formatted_properties()["amount"]["description"] == "The invoice total."
+
+
+def test_a_formatter_replaces_the_choice_declaration_it_beats() -> None:
+    """The payload no longer carries constants, so the schema must not list them."""
+    status = _formatted_properties()["status"]
+
+    assert status == {"type": "string"}
+
+
+def test_a_handle_is_not_reformatted_in_the_schema_either() -> None:
+    """Suppressed on both sides from one place, so the two cannot diverge."""
+    assert _formatted_properties()["id"] == {"type": "string", "format": "date-time"}
