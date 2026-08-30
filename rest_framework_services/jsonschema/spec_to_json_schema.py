@@ -61,9 +61,10 @@ def spec_to_json_schema(
     all. It reaches the serializer-backed schemas — a ``ServiceSpec``'s input
     and either spec's output — and has nothing to bound on a ``SelectorSpec``'s
     input, which is reflected from a callable and a ``filter_set`` rather than
-    walked. A serializer that nests itself is truncated at the re-entry
-    regardless, because the alternative is a ``RecursionError`` raised while a
-    transport declares its tools.
+    walked. A serializer that nests itself is truncated after a fixed number of
+    appearances regardless, because the alternative is a ``RecursionError``
+    raised while a transport declares its tools; where the two disagree the
+    tighter wins, so this still yields exactly the levels it names.
     """
     if phase == "input":
         return _input_schema(spec, registry, max_depth)

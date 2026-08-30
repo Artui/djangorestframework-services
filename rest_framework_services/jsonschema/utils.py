@@ -29,6 +29,29 @@ from rest_framework_services.types.read_schema_markers import read_schema_marker
 from rest_framework_services.types.typed_dict_input import typed_dict_input
 from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
 
+# How many times one serializer class may appear on the walk's current path
+# before the next appearance is truncated. Counting *appearances* rather than
+# re-entries is what keeps the arithmetic honest: the root is the first
+# appearance, so a declaration that nests itself three levels deep puts four of
+# them on the path.
+#
+# Any finite value stops the ``RecursionError``, because the declaration that
+# crashes is the one with no bound of its own. So this number is not a safety
+# margin -- it is how much of a *self-bounded* declaration survives being
+# described. The bounded form is the standard answer to a recursive shape in
+# DRF: the serializer takes a countdown and stops nesting when it runs out.
+# Written the way it usually is, with three levels of children below the root,
+# that declaration terminates on its own and needs four appearances to be
+# published as written. Truncating it sooner under-describes a shape that was
+# never in danger of recursing.
+#
+# The cost lands only on the unbounded form -- the one that used to crash. A
+# self-bounded declaration stops before this does, so the allowance adds nothing
+# to its schema; an unbounded one pays the roughly threefold-per-level growth up
+# to this many levels. A caller who cannot afford that has ``max_depth``, which
+# is read alongside this and wins wherever it is the tighter of the two.
+_MAX_SERIALIZER_APPEARANCES = 4
+
 # Order matters: the walk takes the first ``isinstance`` hit, so more specific
 # subclasses must precede broader ones (EmailField before CharField).
 _DRF_FIELD_TO_SCHEMA: list[tuple[type[serializers.Field], dict[str, Any]]] = [
@@ -262,17 +285,20 @@ def serializer_to_schema(
     the serializer classes currently being described, innermost last; the
     recursion appends to it and a caller leaves it empty.
 
-    - **Re-entry into a class already on the path truncates.** A
-      self-referential declaration — a category tree, a threaded comment, an
-      org chart — is an ordinary shape, and unguarded it is a ``RecursionError``
-      raised while a transport *declares its tools*, before any request exists
-      to fail. So this guard is not optional and has no off switch. It costs one
-      case: a serializer that limits its own nesting (passing a countdown into
-      each nested instance) terminates today and is truncated at the first
-      re-entry now. Class identity cannot tell that apart from the unbounded
-      form, and the unbounded form crashes. Sibling branches are unaffected —
-      the same address serializer under ``billing`` and ``shipping`` is on two
-      *different* paths and is described in full on both.
+    - **A class may appear on the path ``_MAX_SERIALIZER_APPEARANCES`` times;
+      the next appearance truncates.** A self-referential declaration — a
+      category tree, a threaded comment, an org chart — is an ordinary shape,
+      and unguarded it is a ``RecursionError`` raised while a transport
+      *declares its tools*, before any request exists to fail. So this guard is
+      not optional and has no off switch. It is an *allowance* rather than a
+      boolean because class identity cannot tell the unbounded form apart from
+      the self-bounded one — a serializer passing a countdown into each nested
+      instance, which terminates by itself — and truncating at the first
+      re-entry flattened the second to a single level. The constant says what
+      the allowance is sized for. Sibling branches are unaffected — the same
+      address serializer under ``billing`` and ``shipping`` is on two
+      *different* paths and is described in full on both, however many times
+      either path is walked.
     - **``max_depth`` is an opt-in ceiling**, for size rather than safety: a
       schema grows roughly threefold per nesting level, and both transports
       rebuild every tool's schema per listing. ``None``, the default, is
@@ -281,6 +307,12 @@ def serializer_to_schema(
       costs no level; the root is level 1, so ``max_depth=1`` publishes the top
       level and truncates every nested serializer, and a value below 1
       truncates the root itself.
+
+    The two are read together and **the tighter one wins**, because either
+    firing truncates. A caller asking for ``max_depth=2`` gets two levels of a
+    self-referential serializer even though the allowance would have described
+    more; the allowance is a floor under what generation does unasked, never a
+    quota a caller has to spend.
 
     **A truncated node is ``{"type": "object"}``.** It is the one thing still
     known to be true, it is what a caller can still send — an object whose keys
@@ -297,9 +329,9 @@ def serializer_to_schema(
     Every schema this module emits is flat and self-contained. Keep it that way.
     """
     serializer_cls: type[serializers.Serializer] = type(serializer)
-    re_entered: bool = serializer_cls in path
+    re_entered_too_often: bool = path.count(serializer_cls) >= _MAX_SERIALIZER_APPEARANCES
     beyond_bound: bool = max_depth is not None and len(path) >= max_depth
-    if re_entered or beyond_bound:
+    if re_entered_too_often or beyond_bound:
         # Overrides are deliberately skipped here: a truncated node publishes no
         # properties for ``exclude_fields`` / ``deprecate_fields`` to act on, and
         # an ``examples`` block would re-inline the very subtree just dropped.

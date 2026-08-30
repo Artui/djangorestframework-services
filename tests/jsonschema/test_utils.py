@@ -15,6 +15,7 @@ from rest_framework import serializers
 from typing_extensions import NotRequired, Required, TypedDict, Unpack
 
 from rest_framework_services.jsonschema.utils import (
+    _MAX_SERIALIZER_APPEARANCES,
     _python_type_to_schema,
     apply_field_override,
     apply_serializer_overrides,
@@ -588,6 +589,52 @@ class _Node(serializers.Serializer):
         return fields
 
 
+class _BoundedNode(serializers.Serializer):
+    """The standard DRF answer to a recursive shape: a countdown per level.
+
+    This declaration stops on its own -- the innermost instance declares no
+    ``children`` at all -- so nothing here was ever at risk of recursing. It is
+    the case a first-re-entry guard flattened to a single level.
+    """
+
+    name = serializers.CharField()
+
+    def __init__(self, *args: Any, depth: int = 3, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        if depth > 0:
+            self.fields["children"] = _BoundedNode(depth=depth - 1, many=True)
+
+
+def _nested(node: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any] | None:
+    """The next serializer node down, unwrapping any array a ``many=True`` made.
+
+    Takes several keys so a mutually recursive chain, which alternates the name
+    it nests under, walks with the same helper as a self-referential one.
+    """
+    for key in keys:
+        field = node["properties"].get(key)
+        if field is not None:
+            return field["items"] if field.get("type") == "array" else field
+    return None
+
+
+def _levels_described(schema: dict[str, Any], *keys: str) -> int:
+    """How many links of a nesting chain carry properties of their own.
+
+    Stops at the first node that publishes none -- a truncated ``{"type":
+    "object"}``, or a leaf that declared no further nesting.
+    """
+    levels = 0
+    node: dict[str, Any] = schema
+    while "properties" in node:
+        levels += 1
+        nested = _nested(node, keys)
+        if nested is None:
+            break
+        node = nested
+    return levels
+
+
 class _Author(serializers.Serializer):
     name = serializers.CharField()
 
@@ -630,25 +677,74 @@ class _Level1(serializers.Serializer):
 _TRUNCATED = {"type": "object"}
 
 
+def _deepest(schema: dict[str, Any], *keys: str) -> dict[str, Any]:
+    """The last node of a nesting chain that still publishes properties."""
+    node: dict[str, Any] = schema
+    while True:
+        nested = _nested(node, keys)
+        if nested is None or "properties" not in nested:
+            return node
+        node = nested
+
+
 class TestCycleGuard:
     """A declaration must not be able to crash schema generation.
 
-    Unguarded, every case here is a ``RecursionError`` raised while a transport
-    declares its tools -- before any request exists to fail.
+    Unguarded, the unbounded cases here are a ``RecursionError`` raised while a
+    transport declares its tools -- before any request exists to fail. The guard
+    is an *allowance* rather than a boolean because class identity cannot tell
+    the unbounded form apart from one that bounds itself.
     """
 
     def test_a_self_referential_serializer_truncates_instead_of_crashing(self) -> None:
         schema = serializer_to_schema(_Node())
 
         assert schema["properties"]["name"] == {"type": "string"}
-        assert schema["properties"]["children"] == {"type": "array", "items": _TRUNCATED}
+        assert _levels_described(schema, "children") == _MAX_SERIALIZER_APPEARANCES
+        assert _deepest(schema, "children")["properties"]["children"] == {
+            "type": "array",
+            "items": _TRUNCATED,
+        }
 
-    def test_a_mutually_recursive_pair_truncates_at_the_re_entry(self) -> None:
+    def test_a_self_bounded_serializer_is_described_as_declared(self) -> None:
+        """The countdown recipe terminates by itself and must not be flattened.
+
+        Truncating at the first re-entry published one level where four were
+        declared: not a lie -- a truncated node claims nothing -- but a caller
+        reading the schema saw a flat object where the declaration has a tree.
+        """
+        schema = serializer_to_schema(_BoundedNode())
+
+        # One level is what the first-re-entry guard published; four is what
+        # ``_BoundedNode`` declares.
+        assert _levels_described(schema, "children") == 4
+        # The innermost level is the declaration's own leaf, not a truncation:
+        # it publishes ``name`` and declares no ``children`` at all.
+        assert _deepest(schema, "children") == {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        }
+
+    def test_a_self_bounded_serializer_deeper_than_the_allowance_still_truncates(self) -> None:
+        """The allowance is a number, and a declaration may out-nest it."""
+        schema = serializer_to_schema(_BoundedNode(depth=_MAX_SERIALIZER_APPEARANCES + 2))
+
+        assert _levels_described(schema, "children") == _MAX_SERIALIZER_APPEARANCES
+        assert _deepest(schema, "children")["properties"]["children"]["items"] == _TRUNCATED
+
+    def test_a_mutually_recursive_pair_truncates(self) -> None:
+        """Each class gets its own allowance: the path is counted per class."""
         schema = serializer_to_schema(_Author())
 
         post = schema["properties"]["latest_post"]
         assert post["properties"]["title"] == {"type": "string"}
-        assert post["properties"]["author"] == _TRUNCATED
+        # _Author and _Post alternate, and each is counted only against its own
+        # appearances, so the pair spends twice the allowance before truncating.
+        assert _levels_described(schema, "latest_post", "author") == 2 * _MAX_SERIALIZER_APPEARANCES
+        assert _nested(_deepest(schema, "latest_post", "author"), ("latest_post", "author")) == (
+            _TRUNCATED
+        )
 
     def test_the_same_serializer_on_sibling_branches_is_described_in_full(self) -> None:
         """The guard is a *path*, not a seen-set: two branches are not a cycle."""
@@ -671,7 +767,7 @@ class TestCycleGuard:
 
         schema = serializer_to_schema(_Documented())
 
-        assert schema["properties"]["children"] == {
+        assert _deepest(schema, "children")["properties"]["children"] == {
             "type": "array",
             "items": _TRUNCATED,
             "description": "the child nodes",
@@ -680,7 +776,11 @@ class TestCycleGuard:
     def test_the_guard_survives_the_output_direction(self) -> None:
         schema = serializer_to_schema(_Node(), for_output=True)
 
-        assert schema["properties"]["children"] == {"type": "array", "items": _TRUNCATED}
+        assert _levels_described(schema, "children") == _MAX_SERIALIZER_APPEARANCES
+        assert _deepest(schema, "children")["properties"]["children"] == {
+            "type": "array",
+            "items": _TRUNCATED,
+        }
 
 
 class TestMaxDepth:
@@ -731,3 +831,26 @@ class TestMaxDepth:
         schema = serializer_to_schema(_Listed(), max_depth=2)
 
         assert schema["properties"]["rows"]["items"]["properties"]["level3"] == _TRUNCATED
+
+    def test_it_wins_over_the_re_entry_allowance_when_it_is_tighter(self) -> None:
+        """A caller asking for two levels gets two, allowance or no allowance.
+
+        The allowance is a floor under what generation does when nobody asked
+        for a bound -- never a quota the caller has to spend. Both cases here
+        would be described far deeper if the allowance alone decided: the
+        unbounded one to the allowance itself, the self-bounded one to the four
+        levels it declares.
+        """
+        assert _MAX_SERIALIZER_APPEARANCES > 2
+
+        for serializer in (_Node(), _BoundedNode()):
+            schema = serializer_to_schema(serializer, max_depth=2)
+
+            assert _levels_described(schema, "children") == 2
+            assert _deepest(schema, "children")["properties"]["children"]["items"] == _TRUNCATED
+
+    def test_the_allowance_wins_when_max_depth_is_the_looser_of_the_two(self) -> None:
+        """The other side of the same ``or``: a generous ceiling cedes to it."""
+        schema = serializer_to_schema(_Node(), max_depth=_MAX_SERIALIZER_APPEARANCES + 3)
+
+        assert _levels_described(schema, "children") == _MAX_SERIALIZER_APPEARANCES

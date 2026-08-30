@@ -101,13 +101,35 @@ your field set varies by audience, declare it with
 
 A nested serializer is walked into, and two things stop the walk.
 
-**A serializer that nests itself is truncated at the re-entry.** A category tree,
-a threaded comment, an org chart — the shape is ordinary, and describing it
-unbounded is a `RecursionError` raised while a transport *declares its tools*,
-before any request exists to fail. So the guard is always on and has nothing to
-configure. It follows the current *path*, not everything seen: the same address
-serializer under `billing` and under `shipping` sits on two different paths and
-is described in full on both.
+**A serializer that nests itself is truncated after four appearances.** A
+category tree, a threaded comment, an org chart — the shape is ordinary, and
+describing it unbounded is a `RecursionError` raised while a transport *declares
+its tools*, before any request exists to fail. So the guard is always on and has
+nothing to configure. It follows the current *path*, not everything seen: the
+same address serializer under `billing` and under `shipping` sits on two
+different paths and is described in full on both, however often either is
+walked.
+
+The allowance is four rather than one because a serializer may bound its own
+nesting — the countdown recipe, where each level constructs the next with one
+less to spend:
+
+```python
+class NodeSerializer(serializers.Serializer):
+    name = serializers.CharField()
+
+    def __init__(self, *args, depth=3, **kwargs):
+        super().__init__(*args, **kwargs)
+        if depth > 0:
+            self.fields["children"] = NodeSerializer(depth=depth - 1, many=True)
+```
+
+That declaration terminates by itself and was never at risk of recursing, but
+class identity cannot tell it apart from the unbounded form. Truncating at the
+first re-entry published one level where four are declared. Four appearances —
+the root plus the three levels this recipe is usually written with — is what
+publishes it as declared; a declaration that nests itself deeper than that is
+still truncated, and so is any declaration with no bound of its own.
 
 **`max_depth` is an opt-in ceiling on size.** A schema grows roughly threefold
 per nesting level and both agent transports rebuild every tool's schema each
@@ -120,6 +142,11 @@ schema = output_to_json_schema(InvoiceSerializer, kind=SelectorKind.LIST, max_de
 ```
 
 Left unset it describes every level, which is what generation has always done.
+
+The two bounds are read together and **the tighter one wins**: `max_depth=2`
+yields two levels of a self-referential serializer, allowance or no allowance.
+The allowance is a floor under what generation does when nobody asked for a
+bound — never a quota a caller has to spend.
 
 A truncated node is `{"type": "object"}` — the one thing still known to be true,
 and what a caller can still send: an object whose keys the schema declines to

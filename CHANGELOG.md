@@ -20,10 +20,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   The guard follows the **path**, not everything seen, so the same address
   serializer under `billing` and under `shipping` is still described in full on
-  both. It costs one case: a serializer that limits its own nesting by passing a
-  countdown into each nested instance terminated before and is truncated at its
-  first re-entry now. Class identity cannot distinguish that from the unbounded
-  form, and the unbounded form crashes.
+  both, however often either is walked.
+
+  **The bound is an allowance of four appearances of a class on the path, not a
+  single re-entry.** A serializer may limit its own nesting by passing a
+  countdown into each nested instance — the standard answer to a recursive shape
+  in DRF — and that declaration terminates on its own. Class identity cannot
+  distinguish it from the unbounded form, so truncating at the first re-entry
+  flattened it, publishing one level where four are declared. Nothing about that
+  was untrue, because a truncated node claims nothing; but a caller reading the
+  schema saw a flat object where the declaration has a tree, and that is a real
+  loss on a declaration that was never in danger of recursing. Four appearances
+  — the root plus the three levels that recipe is usually written with — is what
+  publishes it as declared. Any finite allowance stops the `RecursionError`,
+  since the declaration that crashes is the one with no bound of its own, so the
+  number is chosen for how much of a self-bounded declaration survives rather
+  than as a safety margin. A declaration that nests itself deeper than the
+  allowance is still truncated, and so is one with no bound at all.
 
 ### Added
 
@@ -33,7 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   agent transports rebuild every tool's schema each time they list, so a deep
   declaration is paid for on every listing. It counts serializer objects: the
   root is level 1, and the array wrapper `many=True` produces costs no level.
-  **Unset means exactly what it meant before** — describe every level.
+  **Unset means exactly what it meant before** — describe every level. It is
+  read alongside the re-entry allowance and **the tighter of the two wins**, so
+  `max_depth=2` yields two levels of a self-referential serializer.
 
   A truncated node is `{"type": "object"}`: the one thing still known to be
   true, and what a caller can still send — an object whose keys the schema
