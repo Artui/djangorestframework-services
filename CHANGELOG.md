@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.0] — 2026-08-30
+
 ### Added
 
 - **A field can declare how its value is rendered for an agent, and the schema
@@ -3456,7 +3458,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.48.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.49.0...HEAD
+[0.49.0]: https://github.com/Artui/djangorestframework-services/compare/v0.48.0...v0.49.0
 [0.48.0]: https://github.com/Artui/djangorestframework-services/compare/v0.47.0...v0.48.0
 [0.47.0]: https://github.com/Artui/djangorestframework-services/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/Artui/djangorestframework-services/compare/v0.45.0...v0.46.0
