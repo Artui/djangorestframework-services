@@ -160,7 +160,7 @@ def _marking(
     if MARKING in style and not isinstance(style[MARKING], FieldMarking):
         raise ImproperlyConfigured(
             f"{type(serializer).__name__}.{field_name}: style[{MARKING!r}] is "
-            f"{style[MARKING]!r}, not an FieldMarking. Use FieldMarking.handle() / "
+            f"{style[MARKING]!r}, not a FieldMarking. Use FieldMarking.handle() / "
             f".hidden() / .label() — a bare value here is silently ignored."
         )
     for value in style.values():

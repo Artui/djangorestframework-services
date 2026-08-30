@@ -189,6 +189,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **A stale cross-reference, and the check that would have caught it.** The
+  dispatch reference linked `FieldMarking` to `types.md#agentfield` — an anchor
+  the `AgentField` to `FieldMarking` rename removed. The link still resolved to
+  the page, so it silently landed at the top of it instead of at the symbol. The
+  same rename left `not an FieldMarking` in the message
+  `build_audience_projection` raises, where the article no longer fits the noun.
+
+  **`mkdocs.yml` declared no `validation:` block**, which is why this went
+  unnoticed: unresolved anchors were not checked at all. `anchors`,
+  `absolute_links` and `unrecognized_links` are now `warn`, and `--strict` — which
+  CI already runs — turns a warning into a failed build. Verified by re-breaking
+  the link and watching the build abort. The rest of the tree was already clean.
+
 - **The agent-audience recipe now says that `output_to_json_schema` with the
   full argument set *is* the output-phase path**, rather than leaving a reader
   to wonder whether `spec_to_json_schema` was the one they were meant to reach

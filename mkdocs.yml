@@ -111,3 +111,12 @@ nav:
       - Audience projection: reference/audience.md
       - OpenAPI: reference/openapi.md
       - Exceptions: reference/exceptions.md
+
+# Anchor drift is silent otherwise: a rename moves a heading, every in-page link
+# to its old id still resolves to the page and lands at the top, and nothing says
+# so. `--strict` turns these into build failures, which is what CI already runs.
+validation:
+  anchors: warn
+  links:
+    absolute_links: warn
+    unrecognized_links: warn
