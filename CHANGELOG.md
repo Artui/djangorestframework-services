@@ -7,38 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- **A serializer that nests itself crashed schema generation.** The JSON Schema
-  walk recursed into nested serializers, `ListSerializer` children and
-  `ListField` children with no bound at all, so a self-referential declaration —
-  a category tree, a threaded comment, an org chart — raised `RecursionError`.
-  It raised it while a transport *declares its tools*, which is before any
-  request exists to fail: one ordinary serializer took the process down at
-  startup. The walk now tracks the serializer classes on its current path and
-  truncates at a re-entry instead of recursing.
-
-  The guard follows the **path**, not everything seen, so the same address
-  serializer under `billing` and under `shipping` is still described in full on
-  both, however often either is walked.
-
-  **The bound is an allowance of four appearances of a class on the path, not a
-  single re-entry.** A serializer may limit its own nesting by passing a
-  countdown into each nested instance — the standard answer to a recursive shape
-  in DRF — and that declaration terminates on its own. Class identity cannot
-  distinguish it from the unbounded form, so truncating at the first re-entry
-  flattened it, publishing one level where four are declared. Nothing about that
-  was untrue, because a truncated node claims nothing; but a caller reading the
-  schema saw a flat object where the declaration has a tree, and that is a real
-  loss on a declaration that was never in danger of recursing. Four appearances
-  — the root plus the three levels that recipe is usually written with — is what
-  publishes it as declared. Any finite allowance stops the `RecursionError`,
-  since the declaration that crashes is the one with no bound of its own, so the
-  number is chosen for how much of a self-bounded declaration survives rather
-  than as a safety margin. A declaration that nests itself deeper than the
-  allowance is still truncated, and so is one with no bound at all.
-
 ### Added
+
+- **A field can declare how its value is rendered for an agent, and the schema
+  says so too.** A marking may now carry a `ValueFormatter`: a transform, the
+  JSON type it produces, and an optional fragment describing the shape of what
+  it produces. The same walk that drops hidden fields and speaks choice labels
+  applies it to the payload and mirrors it onto the output schema, so both come
+  from the one declaration. `FieldMarking.timestamp()` is a named constructor
+  over it, for the case that prompted it — an agent reading a raw ISO-8601 UTC
+  string out to a person instead of a local date-time.
+
+  **The transform is generic on purpose.** Money with its currency, a duration,
+  a percentage and a quantity with its unit are all the same shape as a
+  formatted timestamp, and adding them one at a time is how a small marking
+  type becomes a switch statement.
+
+  **`produces=` names the type and the framework writes it.** The fragment
+  merges over it for `description` / `examples` / `format` and is refused if it
+  names `type`. Choice substitution cannot lie because both sides are derived
+  from the same `ChoiceField`; a caller-supplied renderer can, so the
+  declaration has to carry what it produces for the schema to stay honest.
+
+  **`timestamp()` takes a format, not a timezone.** DRF's `DateTimeField`
+  already renders in `django.utils.timezone.get_current_timezone()`, so reading
+  the same source makes the REST response and the agent payload agree by
+  construction. A callable zone is not merely unsupported: the projection is
+  built once per serializer class and the schema half is built with no request
+  at all, so a per-request callable would resolve differently on the two paths
+  — which is the divergence the audience layer exists to prevent.
+
+  Two collisions are now decided rather than falling out of branch order: an
+  explicit formatter beats the substitution derived from a `ChoiceField`, and
+  `HANDLE` suppresses formatting exactly as it suppresses that substitution. A
+  field another tool takes as input should be marked `HANDLE`, or that tool
+  receives a display string its own input schema rejects.
+
+  Unmarked serializers are unaffected, down to the byte.
 
 - **`ServiceSpec.idempotent`** — whether repeating a call with the same
   arguments leaves the same state as making it once. Nothing in this package
@@ -150,6 +155,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   problem for a compatibility one, and the transports in this family have no
   reference handling in either direction. Every schema these helpers emit stays
   flat and self-contained.
+
+### Fixed
+
+- **A serializer that nests itself crashed schema generation.** The JSON Schema
+  walk recursed into nested serializers, `ListSerializer` children and
+  `ListField` children with no bound at all, so a self-referential declaration —
+  a category tree, a threaded comment, an org chart — raised `RecursionError`.
+  It raised it while a transport *declares its tools*, which is before any
+  request exists to fail: one ordinary serializer took the process down at
+  startup. The walk now tracks the serializer classes on its current path and
+  truncates at a re-entry instead of recursing.
+
+  The guard follows the **path**, not everything seen, so the same address
+  serializer under `billing` and under `shipping` is still described in full on
+  both, however often either is walked.
+
+  **The bound is an allowance of four appearances of a class on the path, not a
+  single re-entry.** A serializer may limit its own nesting by passing a
+  countdown into each nested instance — the standard answer to a recursive shape
+  in DRF — and that declaration terminates on its own. Class identity cannot
+  distinguish it from the unbounded form, so truncating at the first re-entry
+  flattened it, publishing one level where four are declared. Nothing about that
+  was untrue, because a truncated node claims nothing; but a caller reading the
+  schema saw a flat object where the declaration has a tree, and that is a real
+  loss on a declaration that was never in danger of recursing. Four appearances
+  — the root plus the three levels that recipe is usually written with — is what
+  publishes it as declared. Any finite allowance stops the `RecursionError`,
+  since the declaration that crashes is the one with no bound of its own, so the
+  number is chosen for how much of a self-bounded declaration survives rather
+  than as a safety margin. A declaration that nests itself deeper than the
+  allowance is still truncated, and so is one with no bound at all.
 
 ### Documentation
 

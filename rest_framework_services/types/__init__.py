@@ -54,6 +54,7 @@ from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.types.unset import UNSET, UnsetType
 from rest_framework_services.types.url_kwarg import UrlKwarg
 from rest_framework_services.types.validate_channel_names import validate_channel_names
+from rest_framework_services.types.value_formatter import ValueFormatter
 from rest_framework_services.types.view_hooks import ViewHooks
 
 __all__ = [
@@ -108,6 +109,7 @@ __all__ = [
     "UnsetType",
     "UrlKwarg",
     "read_input_description",
+    "ValueFormatter",
     "read_schema_markers",
     "validate_channel_names",
 ]
