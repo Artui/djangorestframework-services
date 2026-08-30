@@ -62,10 +62,11 @@ def output_to_json_schema(
     truncating deeper ones to ``{"type": "object"}``; ``None``, the default,
     describes them all. The item is level 1, and the array wrapper and the
     pagination envelope are this function's own shapes, so they cost no level.
-    Independently of this bound, a serializer that nests itself is truncated at
-    the re-entry rather than recursing until the process dies. Truncation is
-    flat and self-contained — never ``$defs`` / ``$ref``, which most MCP clients
-    reject outright.
+    Independently of this bound, a serializer that nests itself is truncated
+    after a fixed number of appearances rather than recursing until the process
+    dies; where the two disagree the tighter wins, so this still yields exactly
+    the levels it names. Truncation is flat and self-contained — never ``$defs``
+    / ``$ref``, which most MCP clients reject outright.
     """
     item_schema: dict[str, Any] | None = _item_schema(output_serializer, registry, max_depth)
     if item_schema is None:

@@ -45,10 +45,11 @@ def serializer_to_json_schema(
     all, which is what every caller got before the option existed. The root is
     level 1, so ``max_depth=1`` publishes the top-level fields and truncates
     every nested serializer. It is a **size** knob and nothing more: a
-    self-referential serializer is truncated at its re-entry whatever this says,
-    because the alternative is a ``RecursionError`` raised while a transport
-    declares its tools. A dataclass input has no nested-serializer walk, so the
-    bound does not reach that branch.
+    self-referential serializer is truncated after a fixed number of appearances
+    whatever this says, because the alternative is a ``RecursionError`` raised
+    while a transport declares its tools. Whichever of the two is tighter wins,
+    so this still yields exactly the levels it names. A dataclass input has no
+    nested-serializer walk, so the bound does not reach that branch.
 
     Truncation is flat and self-contained — never ``$defs`` / ``$ref``, which
     most MCP clients reject outright.
