@@ -1886,6 +1886,16 @@ the two cannot disagree:</p>
   on a <code>HANDLE</code>, which some other tool takes as input. A
   <code>MultipleChoiceField</code> renders a <em>collection</em> of constants, so each
   member is substituted rather than the collection looked up whole.</li>
+<li>a field carrying a
+  <a class="autorefs autorefs-internal" title="ValueFormatter
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.value_formatter.ValueFormatter"><code>ValueFormatter</code></a>
+  is rendered through it — a date-time read as a local date-time rather than
+  raw ISO-8601, an amount with its currency. Also <strong>not</strong> on a <code>HANDLE</code>,
+  and for the same reason.</li>
 </ul>
 <p>Apply this where a payload becomes the agent's <em>answer</em>. Not where it feeds
 the next step of a chain, which still needs the handles.</p>
@@ -1928,6 +1938,17 @@ applies to the payload.</p>
   constant is gone from the response by design — a field another tool takes
   as input should be marked <code>HANDLE</code>, which suppresses the substitution on
   both sides.</li>
+<li>a formatted field is re-declared as the type its
+  <a class="autorefs autorefs-internal" title="ValueFormatter
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.value_formatter.ValueFormatter"><code>ValueFormatter</code></a>
+  says it produces, plus whatever that declaration adds about the shape of
+  the produced value. The framework writes the <code>type</code> from <code>produces</code>
+  rather than taking one from the fragment, so a renderer cannot contradict
+  its own advertisement.</li>
 </ul>
 <p>Generating both sides from one declaration is the point: a schema that
 advertises a field the payload no longer carries is worse than either

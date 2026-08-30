@@ -1049,6 +1049,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#describing-an-input-inputdescription" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Describing an input: InputDescription
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#values-the-callable-never-declares-urlkwarg" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1621,6 +1632,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#describing-an-input-inputdescription" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Describing an input: InputDescription
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#values-the-callable-never-declares-urlkwarg" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1673,8 +1695,9 @@ puts <code>project_pk</code> into <code>view.kwargs</code>, and the framework sp
 selector pool. Off-HTTP — under an MCP tool, an agent toolset, a management
 command, a task runner — there is no route, so those inputs have to arrive some
 other way, and a caller has to be <em>told</em> they exist.</p>
-<p>This recipe covers the three pieces: making a URL-derived input discoverable,
-declaring it <strong>required</strong>, and hiding an input the caller has no business setting.</p>
+<p>This recipe covers the four pieces: making a URL-derived input discoverable,
+declaring it <strong>required</strong>, hiding an input the caller has no business setting,
+and saying in prose what one is for.</p>
 <h2 id="the-channel-build_offline_contextkwargs">The channel: <code>build_offline_context(kwargs=…)</code><a class="headerlink" href="#the-channel-build_offline_contextkwargs" title="Permanent link">&para;</a></h2>
 <p><code>kwargs=</code> is the off-HTTP counterpart of <code>view.kwargs</code>. Everything you pass there
 is spread into the selector and target pools exactly as a route capture would be
@@ -1768,6 +1791,41 @@ key is hidden.</p>
 </div>
 <p>Marking a key both <code>InputRequired</code> and <code>NotClientInput</code> raises — the caller cannot
 be required to supply a value it is never told about.</p>
+<h2 id="describing-an-input-inputdescription">Describing an input: <code>InputDescription</code><a class="headerlink" href="#describing-an-input-inputdescription" title="Permanent link">&para;</a></h2>
+<p><code>project_pk</code> now reaches a schema-driven caller as <code>{"type": "integer"}</code> and a
+name. A model calling the tool has to guess what a project id is <em>for</em> here, and
+the type says nothing about it.</p>
+<p>A serializer field would carry <code>help_text</code>. A <code>TypedDict</code> key has no field, and
+neither of the two markers above can carry text — both are singletons, so
+<code>InputRequiredType()</code> returns the one instance and has nowhere to put per-key
+prose. <code>InputDescription</code> is the third marker, and it is a value rather than a
+singleton for exactly that reason:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">WidgetExtras</span><span class="p">(</span><span class="n">HttpExtras</span><span class="p">[</span><span class="n">MyUser</span><span class="p">],</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">project_pk</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>        <span class="nb">int</span><span class="p">,</span> <span class="n">InputRequired</span><span class="p">,</span> <span class="n">InputDescription</span><span class="p">(</span><span class="s2">&quot;The project whose widgets to list.&quot;</span><span class="p">)</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="p">]</span>
+</span></code></pre></div>
+<p>The text lands on the property as <code>description</code> — the same key the serializer
+path fills from <code>help_text</code> and the filter path from a filter's — so one
+project's inputs read the same way whichever side of a spec they arrive on. Order
+inside <code>Annotated</code> does not matter, and metadata belonging to other libraries is
+left alone.</p>
+<p>The alternative was declaring the same input twice: once in the <code>TypedDict</code> the
+callable actually reads, and once in a serializer written only so one transport
+could describe it. Two declarations of one input drift, and the one that drifts
+is the one nothing executes.</p>
+<div class="admonition warning">
+<p class="admonition-title">Two refusals</p>
+<p>Two <code>InputDescription</code> markers on one input raise — a schema publishes one
+description, and choosing between them would be an arbitrary rule to
+remember. So does an <code>InputDescription</code> beside <code>NotClientInput</code>: that marker
+drops the key from the schema, so the sentence has no caller left to reach.
+Neither is a contradiction the way <code>InputRequired</code> + <code>NotClientInput</code> is —
+they are declarations that would decide nothing, which is the thing this
+package refuses to do quietly.</p>
+</div>
+<p>To describe the <em>operation</em> rather than one of its inputs, see
+<a href="../../reference/jsonschema/#a-spec-level-title-and-description">a spec-level title and description</a>.</p>
 <h2 id="values-the-callable-never-declares-urlkwarg">Values the callable never declares: <code>UrlKwarg</code><a class="headerlink" href="#values-the-callable-never-declares-urlkwarg" title="Permanent link">&para;</a></h2>
 <p>Reflection covers keys the callable's own signature declares. It cannot cover a
 value read only by a <code>spec.kwargs</code> provider off <code>view.kwargs</code>, because that value
@@ -1780,9 +1838,9 @@ must still be caller-suppliable.</p>
   
       dataclass
   " href="../../reference/types/#rest_framework_services.types.url_kwarg.UrlKwarg"><code>UrlKwarg</code></a>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">UrlKwarg</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">UrlKwarg</span><span class="p">(</span><span class="s2">&quot;project_pk&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;integer&quot;</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Owning project.&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">UrlKwarg</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">UrlKwarg</span><span class="p">(</span><span class="s2">&quot;project_pk&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;integer&quot;</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Owning project.&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </span></code></pre></div>
 <p>The adapter merges its <code>json_schema()</code> into the operation's input schema, pops the
 argument out of the caller's arguments, and routes it to
@@ -1818,6 +1876,10 @@ pagination names on top.</p>
 <tr>
 <td>…and the caller must never set it</td>
 <td><code>Annotated[T, NotClientInput]</code></td>
+</tr>
+<tr>
+<td>…and the name alone doesn't say what it is for</td>
+<td><code>Annotated[T, InputDescription("…")]</code></td>
 </tr>
 <tr>
 <td>read only by a <code>spec.kwargs</code> provider off <code>view.kwargs</code></td>

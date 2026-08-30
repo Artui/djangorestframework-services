@@ -1501,8 +1501,30 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#what-a-reflected-input-can-say-about-itself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a reflected input can say about itself
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-spec-level-title-and-description" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A spec-level title and description
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1511,6 +1533,17 @@
     <span class="md-ellipsis">
       
         What generation can and cannot see
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-deep-generation-goes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How deep generation goes
       
     </span>
   </a>
@@ -1821,8 +1854,30 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#what-a-reflected-input-can-say-about-itself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a reflected input can say about itself
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-spec-level-title-and-description" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A spec-level title and description
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1831,6 +1886,17 @@
     <span class="md-ellipsis">
       
         What generation can and cannot see
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-deep-generation-goes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How deep generation goes
       
     </span>
   </a>
@@ -1946,7 +2012,8 @@ produces DRF serializer classes for DRF's own OpenAPI generators.</p>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">max_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -1967,6 +2034,18 @@ would make schema-strict consumers reject calls the service accepts.</p>
   
       dataclass
   " href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry"><code>JsonSchemaRegistry</code></a>.</p>
+<p><code>max_depth</code> bounds how many serializer levels are described, truncating
+deeper ones to <code>{"type": "object"}</code>; <code>None</code>, the default, describes them
+all, which is what every caller got before the option existed. The root is
+level 1, so <code>max_depth=1</code> publishes the top-level fields and truncates
+every nested serializer. It is a <strong>size</strong> knob and nothing more: a
+self-referential serializer is truncated after a fixed number of appearances
+whatever this says, because the alternative is a <code>RecursionError</code> raised
+while a transport declares its tools. Whichever of the two is tighter wins,
+so this still yields exactly the levels it names. A dataclass input has no
+nested-serializer walk, so the bound does not reach that branch.</p>
+<p>Truncation is flat and self-contained — never <code>$defs</code> / <code>$ref</code>, which
+most MCP clients reject outright.</p>
 
 
     </div>
@@ -1990,7 +2069,8 @@ would make schema-strict consumers reject calls the service accepts.</p>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">projection</span><span class="p">:</span> <span class="n">AudienceProjection</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">handle_description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">max_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2007,7 +2087,15 @@ what dispatch actually returns:</p>
 </ul>
 <p><code>projection</code> applies the serializer's field markings, mirroring what
 <a class="autorefs autorefs-internal" title="project_payload" href="../audience/#rest_framework_services.audience.project_payload.project_payload"><code>project_payload</code></a>
-does to the payload. It lands on the <strong>item</strong>, wherever the item sits for this
+does to the payload — hidden fields dropped, choices re-declared in their
+display values, and a formatted field re-declared as the type its
+<a class="autorefs autorefs-internal" title="ValueFormatter
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.value_formatter.ValueFormatter"><code>ValueFormatter</code></a>
+produces. It lands on the <strong>item</strong>, wherever the item sits for this
 <code>kind</code> — the array wrapper and the pagination envelope are this function's
 own shapes and belong to no serializer, so a projection walking them would
 look for markings that cannot exist and silently annotate nothing.</p>
@@ -2023,6 +2111,15 @@ transport is what knows.</p>
   
       dataclass
   " href="#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry"><code>JsonSchemaRegistry</code></a>.</p>
+<p><code>max_depth</code> bounds how many serializer levels the <strong>item</strong> describes,
+truncating deeper ones to <code>{"type": "object"}</code>; <code>None</code>, the default,
+describes them all. The item is level 1, and the array wrapper and the
+pagination envelope are this function's own shapes, so they cost no level.
+Independently of this bound, a serializer that nests itself is truncated
+after a fixed number of appearances rather than recursing until the process
+dies; where the two disagree the tighter wins, so this still yields exactly
+the levels it names. Truncation is flat and self-contained — never <code>$defs</code>
+/ <code>$ref</code>, which most MCP clients reject outright.</p>
 
 
     </div>
@@ -2095,7 +2192,8 @@ derived wording.</p>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">phase</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;input&quot;</span><span class="p">,</span> <span class="s2">&quot;output&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;input&quot;</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">max_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2148,6 +2246,59 @@ for custom field / filter / Python types — see
   
       dataclass
   " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> its own.</p>
+<p><code>max_depth</code> bounds how many serializer levels are described, truncating
+deeper ones to <code>{"type": "object"}</code>; <code>None</code>, the default, describes them
+all. It reaches the serializer-backed schemas — a <code>ServiceSpec</code>'s input
+and either spec's output — and has nothing to bound on a <code>SelectorSpec</code>'s
+input, which is reflected from a callable and a <code>filter_set</code> rather than
+walked. A serializer that nests itself is truncated after a fixed number of
+appearances regardless, because the alternative is a <code>RecursionError</code>
+raised while a transport declares its tools; where the two disagree the
+tighter wins, so this still yields exactly the levels it names.</p>
+<p><strong><code>metadata["json_schema"]</code> is the one declaration this merges on top.</strong>
+Derivation reads serializers and callables, so there is nowhere for it to
+find a <code>title</code> for the operation or a sentence saying what the operation
+does; every transport was left to invent its own, from the spec name or a
+docstring. A consumer writes the fragment once, on the spec:</p>
+<div class="language-text highlight"><pre><span></span><code>ServiceSpec(
+    service=archive_project,
+    input_serializer=ArchiveInput,
+    metadata={
+        &quot;json_schema&quot;: {
+            &quot;input&quot;: {&quot;title&quot;: &quot;Archive project&quot;, &quot;description&quot;: &quot;Retire a project.&quot;}
+        }
+    },
+)
+</code></pre></div>
+<p>It is <strong>keyed by phase</strong>, with the same two words <code>phase=</code> takes. One flat
+fragment merged into both would hang the operation's description off the
+output schema, which describes what comes back rather than what to send —
+two different sentences that only ever coincide by accident. A key that is
+neither <code>"input"</code> nor <code>"output"</code> raises rather than being ignored,
+because omitting the phase key is the mistake this shape invites and
+silently publishing nothing is the worst way to report it.</p>
+<p><strong>The fragment wins, key by key, and the merge is shallow.</strong> It is an
+author's explicit declaration standing against a <em>derived</em> value, so a
+derivation it could not override would leave a wrong derivation unfixable —
+which is the whole reason the hatch exists. Shallow means one rule: a key
+the fragment names is the fragment's, whole. So a fragment naming
+<code>properties</code> replaces the entire derived block rather than adding to it,
+which is the sharp edge and is deliberate — the alternative is a per-key
+policy for <code>properties</code> and another for <code>required</code>, and every answer
+there is wrong for somebody.</p>
+<p>A fragment <strong>annotates a derived schema and never conjures one</strong>: where
+<code>phase="output"</code> yields <code>None</code> because nothing declares an output, an
+<code>"output"</code> fragment leaves it <code>None</code>. Otherwise <code>metadata</code> would
+become a schema-authoring channel and a fragment carrying only a
+<code>description</code> would publish as an output schema describing nothing.</p>
+<p>The fragment is read off <strong>the spec passed in</strong>, never off a nested one:
+<code>metadata</code> does not merge or inherit, so a <code>ServiceSpec</code>'s output schema
+takes the <code>ServiceSpec</code>'s fragment even though the serializer behind it
+came from <code>output_selector_spec</code>.</p>
+<p>Validation happens here rather than at construction. <code>metadata</code> is
+declared by consumers who may never generate a schema, and checking a
+reserved key on every <code>ServiceSpec(...)</code> would mean the kernel reads
+metadata contents — the one thing the field promises it does not do.</p>
 
 
     </div>
@@ -2207,6 +2358,72 @@ publish as anything:</p>
 </span></code></pre></div>
 <p>Rules are matched by type <em>identity</em>, and members are resolved recursively, so
 one rule for <code>Money</code> also covers <code>list[Money]</code> and <code>Money | None</code>.</p>
+<h3 id="what-a-reflected-input-can-say-about-itself">What a reflected input can say about itself<a class="headerlink" href="#what-a-reflected-input-can-say-about-itself" title="Permanent link">&para;</a></h3>
+<p>A serializer field describes itself through <code>help_text</code>, and a filter through
+its own. A reflected input has neither — it is a <code>TypedDict</code> key or a bare
+parameter — so it carries the sentence in its <code>Annotated</code> metadata, with
+<code>InputDescription</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">WidgetExtras</span><span class="p">(</span><span class="n">HttpExtras</span><span class="p">[</span><span class="n">MyUser</span><span class="p">],</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">project_pk</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>        <span class="nb">int</span><span class="p">,</span> <span class="n">InputRequired</span><span class="p">,</span> <span class="n">InputDescription</span><span class="p">(</span><span class="s2">&quot;The project whose widgets to list.&quot;</span><span class="p">)</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="p">]</span>
+</span></code></pre></div>
+<p><code>project_pk</code> publishes as
+<code>{"type": "integer", "description": "The project whose widgets to list."}</code> —
+<code>description</code> being the same key the serializer and filter paths already fill,
+so one project's inputs read the same way whichever side of a spec they arrive
+on. The marker composes with <code>InputRequired</code> in either order and is ignored by
+anything else reading the same <code>Annotated</code>.</p>
+<p>It is refused beside <code>NotClientInput</code>, which drops the key from the schema
+entirely and so leaves the sentence no caller to reach, and refused twice on one
+input, because a schema publishes one description and picking a winner would be
+an arbitrary rule to memorise. See
+<a href="../../recipes/off-http-inputs/#describing-an-input-inputdescription">the off-HTTP inputs recipe</a>.</p>
+<h2 id="a-spec-level-title-and-description">A spec-level title and description<a class="headerlink" href="#a-spec-level-title-and-description" title="Permanent link">&para;</a></h2>
+<p>Derivation reads serializers, filters and callables. None of them can tell it
+what the <em>operation</em> is called or what it does, so <code>spec_to_json_schema</code> used to
+emit no <code>title</code> and no <code>description</code> at all and every transport invented its own
+— from the spec name, from a docstring, from a hand-written table.</p>
+<p>The reserved <code>metadata["json_schema"]</code> key is where that is declared once:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">service</span><span class="o">=</span><span class="n">archive_project</span><span class="p">,</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">ArchiveInput</span><span class="p">,</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span> <span class="n">output_serializer</span><span class="o">=</span><span class="n">ProjectOut</span><span class="p">),</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>        <span class="s2">&quot;json_schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>            <span class="s2">&quot;input&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>                <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;Archive project&quot;</span><span class="p">,</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Retire a project without deleting its history.&quot;</span><span class="p">,</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>            <span class="p">},</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>            <span class="s2">&quot;output&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;The project as it stands after archiving.&quot;</span><span class="p">},</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>        <span class="p">}</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>    <span class="p">},</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>Three decisions worth knowing:</p>
+<ul>
+<li><strong>It is keyed by phase</strong>, with the same two words <code>phase=</code> takes. One flat
+  fragment merged into both would hang the operation's description off the
+  output schema, which describes what comes <em>back</em> rather than what to send.
+  A key that is neither <code>"input"</code> nor <code>"output"</code> raises — forgetting the phase
+  key is the mistake this shape invites, and publishing nothing is the worst
+  way to report it.</li>
+<li><strong>The fragment wins, key by key, and the merge is shallow.</strong> It is an
+  explicit declaration standing against a derived value, so a derivation it
+  could not override would leave a wrong derivation unfixable. Shallow means one
+  rule instead of a per-key policy: a fragment naming <code>properties</code> replaces the
+  whole derived block rather than adding to it.</li>
+<li><strong>It annotates a derived schema and never conjures one.</strong> Where
+  <code>phase="output"</code> yields <code>None</code> because nothing declares an output, an
+  <code>"output"</code> fragment leaves it <code>None</code> — otherwise <code>metadata</code> would quietly
+  become a schema-authoring channel.</li>
+</ul>
+<p>The fragment is read off the spec you pass in, never off a nested one:
+<code>metadata</code> does not merge or inherit, so a <code>ServiceSpec</code>'s output schema takes
+the <code>ServiceSpec</code>'s fragment even though the serializer behind it came from
+<code>output_selector_spec</code>. Malformed declarations raise here rather than at
+construction, so declaring metadata costs nothing on a spec that generates no
+schemas.</p>
 <h2 id="what-generation-can-and-cannot-see">What generation can and cannot see<a class="headerlink" href="#what-generation-can-and-cannot-see" title="Permanent link">&para;</a></h2>
 <p>Both entry points instantiate the serializer with the same baseline <code>context</code>
 dispatch renders with — <code>{"request": None, "format": None, "view": None}</code> — so a
@@ -2220,6 +2437,51 @@ as the branch taken by a caller with neither. Reflection cannot report a field
 set that depends on who is asking, because at description time nobody is — if
 your field set varies by audience, declare it with
 <a href="../audience/">field markings</a> instead, which are resolved per render.</p>
+<h2 id="how-deep-generation-goes">How deep generation goes<a class="headerlink" href="#how-deep-generation-goes" title="Permanent link">&para;</a></h2>
+<p>A nested serializer is walked into, and two things stop the walk.</p>
+<p><strong>A serializer that nests itself is truncated after four appearances.</strong> A
+category tree, a threaded comment, an org chart — the shape is ordinary, and
+describing it unbounded is a <code>RecursionError</code> raised while a transport <em>declares
+its tools</em>, before any request exists to fail. So the guard is always on and has
+nothing to configure. It follows the current <em>path</em>, not everything seen: the
+same address serializer under <code>billing</code> and under <code>shipping</code> sits on two
+different paths and is described in full on both, however often either is
+walked.</p>
+<p>The allowance is four rather than one because a serializer may bound its own
+nesting — the countdown recipe, where each level constructs the next with one
+less to spend:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">NodeSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">Serializer</span><span class="p">):</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">name</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">()</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="k">if</span> <span class="n">depth</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">&quot;children&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">NodeSerializer</span><span class="p">(</span><span class="n">depth</span><span class="o">=</span><span class="n">depth</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span></code></pre></div>
+<p>That declaration terminates by itself and was never at risk of recursing, but
+class identity cannot tell it apart from the unbounded form. Truncating at the
+first re-entry published one level where four are declared. Four appearances —
+the root plus the three levels this recipe is usually written with — is what
+publishes it as declared; a declaration that nests itself deeper than that is
+still truncated, and so is any declaration with no bound of its own.</p>
+<p><strong><code>max_depth</code> is an opt-in ceiling on size.</strong> A schema grows roughly threefold
+per nesting level and both agent transports rebuild every tool's schema each
+time they list, so a deep declaration is paid for on every listing. It counts
+serializer objects — the root is level 1, and the array wrapper <code>many=True</code>
+produces costs no level:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">output_to_json_schema</span><span class="p">(</span><span class="n">InvoiceSerializer</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span> <span class="n">max_depth</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Left unset it describes every level, which is what generation has always done.</p>
+<p>The two bounds are read together and <strong>the tighter one wins</strong>: <code>max_depth=2</code>
+yields two levels of a self-referential serializer, allowance or no allowance.
+The allowance is a floor under what generation does when nobody asked for a
+bound — never a quota a caller has to spend.</p>
+<p>A truncated node is <code>{"type": "object"}</code> — the one thing still known to be true,
+and what a caller can still send: an object whose keys the schema declines to
+enumerate. <strong>Never <code>$defs</code> / <code>$ref</code>.</strong> Factoring the repeated sub-schema out is
+the obvious answer and it is refused deliberately: most MCP clients reject a tool
+schema containing a reference outright, so it would trade a size problem for a
+compatibility one. Every schema these helpers emit is flat and self-contained.</p>
 <h2 id="jsonschemaregistry"><code>JsonSchemaRegistry</code><a class="headerlink" href="#jsonschemaregistry" title="Permanent link">&para;</a></h2>
 
 

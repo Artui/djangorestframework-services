@@ -4187,7 +4187,7 @@ contract and the rest of the semantics.</p>
 </div><h3 id="render_for_audience"><code>render_for_audience</code><a class="headerlink" href="#render_for_audience" title="Permanent link">&para;</a></h3>
 <p>The agent-audience twin of <code>render_spec_output</code>: it renders through the same
 path, then applies the serializer's
-<a href="../types/#agentfield"><code>FieldMarking</code></a> markings. An alternate transport whose
+<a href="../types/#fieldmarking"><code>FieldMarking</code></a> markings. An alternate transport whose
 consumer is a model calls this instead, so every such transport shapes payloads
 identically. Not for a pipeline that feeds one spec's output into the next —
 that still wants <code>render_spec_output</code>, or the handles the next step reads by
