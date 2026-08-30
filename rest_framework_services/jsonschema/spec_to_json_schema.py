@@ -28,6 +28,7 @@ def spec_to_json_schema(
     *,
     phase: Literal["input", "output"] = "input",
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+    max_depth: int | None = None,
 ) -> dict[str, Any] | None:
     """Derive a JSON Schema from a spec, reading the right serializer off it.
 
@@ -54,18 +55,32 @@ def spec_to_json_schema(
     [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] supplies its
     ``output_selector_spec``'s ``output_serializer`` and ``kind``, a
     [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] its own.
+
+    ``max_depth`` bounds how many serializer levels are described, truncating
+    deeper ones to ``{"type": "object"}``; ``None``, the default, describes them
+    all. It reaches the serializer-backed schemas — a ``ServiceSpec``'s input
+    and either spec's output — and has nothing to bound on a ``SelectorSpec``'s
+    input, which is reflected from a callable and a ``filter_set`` rather than
+    walked. A serializer that nests itself is truncated at the re-entry
+    regardless, because the alternative is a ``RecursionError`` raised while a
+    transport declares its tools.
     """
     if phase == "input":
-        return _input_schema(spec, registry)
-    return _output_schema(spec, registry)
+        return _input_schema(spec, registry, max_depth)
+    return _output_schema(spec, registry, max_depth)
 
 
 def _input_schema(
-    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any], registry: JsonSchemaRegistry
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
+    registry: JsonSchemaRegistry,
+    max_depth: int | None,
 ) -> dict[str, Any]:
     if isinstance(spec, ServiceSpec):
         return serializer_to_json_schema(
-            spec.input_serializer, partial=bool(spec.partial), registry=registry
+            spec.input_serializer,
+            partial=bool(spec.partial),
+            registry=registry,
+            max_depth=max_depth,
         )
     schema: dict[str, Any] = {"type": "object"}
     properties: dict[str, Any] = {}
@@ -90,11 +105,17 @@ def _input_schema(
 
 
 def _output_schema(
-    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any], registry: JsonSchemaRegistry
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
+    registry: JsonSchemaRegistry,
+    max_depth: int | None,
 ) -> dict[str, Any] | None:
     if isinstance(spec, ServiceSpec):
         nested = spec.output_selector_spec
         if nested is None:
             return None
-        return output_to_json_schema(nested.output_serializer, kind=nested.kind, registry=registry)
-    return output_to_json_schema(spec.output_serializer, kind=spec.kind, registry=registry)
+        return output_to_json_schema(
+            nested.output_serializer, kind=nested.kind, registry=registry, max_depth=max_depth
+        )
+    return output_to_json_schema(
+        spec.output_serializer, kind=spec.kind, registry=registry, max_depth=max_depth
+    )

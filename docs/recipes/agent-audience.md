@@ -78,6 +78,15 @@ wrong cardinality. The projection lands on the **item** wherever the item sits:
 inside the array for a list, inside `items` for a paginated envelope. Those
 wrappers are the generator's own shapes and belong to no serializer.
 
+**That call is the main path for the output phase, not a detour around one.**
+`spec_to_json_schema` is the convenience for the *input* phase, and that is the
+only phase either shipped transport uses it for. For output, both the MCP server
+and the Pydantic-AI toolset read the spec's output serializer and `kind`
+themselves and call `output_to_json_schema` directly with the full argument set
+— `paginate`, `projection` and `handle_description` — because those three are
+the transport's own answers and no spec carries them. Writing the call out the
+way this recipe does puts you on the road they are already on.
+
 Building the projection instantiates the serializer, so a transport that
 registers its tools up front should build it **once at registration** and pass
 it to every render, as above.

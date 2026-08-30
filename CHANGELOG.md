@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A serializer that nests itself crashed schema generation.** The JSON Schema
+  walk recursed into nested serializers, `ListSerializer` children and
+  `ListField` children with no bound at all, so a self-referential declaration —
+  a category tree, a threaded comment, an org chart — raised `RecursionError`.
+  It raised it while a transport *declares its tools*, which is before any
+  request exists to fail: one ordinary serializer took the process down at
+  startup. The walk now tracks the serializer classes on its current path and
+  truncates at a re-entry instead of recursing.
+
+  The guard follows the **path**, not everything seen, so the same address
+  serializer under `billing` and under `shipping` is still described in full on
+  both. It costs one case: a serializer that limits its own nesting by passing a
+  countdown into each nested instance terminated before and is truncated at its
+  first re-entry now. Class identity cannot distinguish that from the unbounded
+  form, and the unbounded form crashes.
+
+### Added
+
+- **`max_depth=` on `serializer_to_json_schema`, `output_to_json_schema` and
+  `spec_to_json_schema`** — an opt-in ceiling on how many serializer levels a
+  schema describes. A schema grows roughly threefold per nesting level and both
+  agent transports rebuild every tool's schema each time they list, so a deep
+  declaration is paid for on every listing. It counts serializer objects: the
+  root is level 1, and the array wrapper `many=True` produces costs no level.
+  **Unset means exactly what it meant before** — describe every level.
+
+  A truncated node is `{"type": "object"}`: the one thing still known to be
+  true, and what a caller can still send — an object whose keys the schema
+  declines to enumerate. Emitting the level's properties and dropping only the
+  level below was the alternative, and it publishes a `required` list whose
+  members' own shapes are unknown, which reads as a complete description and is
+  not one.
+
+  **Not `$defs` / `$ref`, deliberately.** Factoring the repeated sub-schema out
+  answers both the cycle and the size, and it is refused: most MCP clients
+  reject a tool schema containing a reference outright, so it trades a size
+  problem for a compatibility one, and the transports in this family have no
+  reference handling in either direction. Every schema these helpers emit stays
+  flat and self-contained.
+
+### Documentation
+
+- **The agent-audience recipe now says that `output_to_json_schema` with the
+  full argument set *is* the output-phase path**, rather than leaving a reader
+  to wonder whether `spec_to_json_schema` was the one they were meant to reach
+  for. `spec_to_json_schema` is the input-phase convenience, and that is the
+  only phase either shipped transport uses it for; both read the spec's output
+  serializer and `kind` themselves and call `output_to_json_schema` directly,
+  because `paginate` / `projection` / `handle_description` are the transport's
+  own answers and no spec carries them.
+
 ## [0.48.0] — 2026-08-28
 
 ### Changed

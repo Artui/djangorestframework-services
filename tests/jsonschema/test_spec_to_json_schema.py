@@ -294,3 +294,47 @@ class TestMetadataIsInertForSchemas:
         assert spec_to_json_schema(declared, phase="output") == spec_to_json_schema(
             bare, phase="output"
         )
+
+
+class _NestedIO(serializers.Serializer):
+    id = serializers.IntegerField()
+    inner = _Out()
+
+
+class TestMaxDepth:
+    """The bound reaches the two serializer-backed phases."""
+
+    def test_service_input_is_bounded(self) -> None:
+        spec = ServiceSpec(service=_service, input_serializer=_NestedIO)
+
+        assert spec_to_json_schema(spec, max_depth=1) == {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}, "inner": {"type": "object"}},
+            "required": ["id", "inner"],
+        }
+
+    def test_service_output_is_bounded_through_the_nested_selector_spec(self) -> None:
+        spec = ServiceSpec(
+            service=_service,
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, output_serializer=_NestedIO
+            ),
+        )
+        schema = spec_to_json_schema(spec, phase="output", max_depth=1)
+
+        assert schema is not None
+        assert schema["properties"]["inner"] == {"type": "object"}
+
+    def test_selector_output_is_bounded(self) -> None:
+        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_NestedIO)
+        schema = spec_to_json_schema(spec, phase="output", max_depth=1)
+
+        assert schema is not None
+        assert schema["properties"]["inner"] == {"type": "object"}
+
+    def test_unset_still_describes_every_level(self) -> None:
+        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_NestedIO)
+        schema = spec_to_json_schema(spec, phase="output")
+
+        assert schema is not None
+        assert schema["properties"]["inner"]["properties"]["id"] == {"type": "integer"}
