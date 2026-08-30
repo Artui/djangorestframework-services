@@ -8,6 +8,7 @@ from typing import Any
 
 from rest_framework_services.types.field_audience import FieldAudience
 from rest_framework_services.types.field_marking import FieldMarking
+from rest_framework_services.types.value_formatter import ValueFormatter
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,11 @@ class AudienceProjection:
 
         The fast path: an unmarked serializer with no labelled choices anywhere
         should cost a caller one boolean rather than a full payload walk.
+
+        A value formatter needs no term of its own here: it is carried *by* a
+        marking, so a serializer that declares one has a non-empty ``fields``
+        already. A term that can never be the deciding one is a term that goes
+        stale without failing.
         """
         return not (
             self.fields
@@ -51,3 +57,17 @@ class AudienceProjection:
         """The audience declared for ``name``, defaulting to ``CONTENT``."""
         marking = self.fields.get(name)
         return marking.audience if marking is not None else FieldAudience.CONTENT
+
+    def formatter(self, name: str) -> ValueFormatter | None:
+        """The formatter that applies to ``name``, or ``None``.
+
+        ``None`` for a ``HANDLE`` however the two were declared together: a
+        handle is another tool's input and a formatted machine identifier is a
+        broken one. The suppression lives here rather than in each walk, so the
+        payload and the schema cannot end up formatting different field sets —
+        which is the one failure this whole layer exists to make impossible.
+        """
+        marking = self.fields.get(name)
+        if marking is None or marking.audience is FieldAudience.HANDLE:
+            return None
+        return marking.formatter

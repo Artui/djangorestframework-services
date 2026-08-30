@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A field can declare how its value is rendered for an agent, and the schema
+  says so too.** A marking may now carry a `ValueFormatter`: a transform, the
+  JSON type it produces, and an optional fragment describing the shape of what
+  it produces. The same walk that drops hidden fields and speaks choice labels
+  applies it to the payload and mirrors it onto the output schema, so both come
+  from the one declaration. `FieldMarking.timestamp()` is a named constructor
+  over it, for the case that prompted it — an agent reading a raw ISO-8601 UTC
+  string out to a person instead of a local date-time.
+
+  **The transform is generic on purpose.** Money with its currency, a duration,
+  a percentage and a quantity with its unit are all the same shape as a
+  formatted timestamp, and adding them one at a time is how a small marking
+  type becomes a switch statement.
+
+  **`produces=` names the type and the framework writes it.** The fragment
+  merges over it for `description` / `examples` / `format` and is refused if it
+  names `type`. Choice substitution cannot lie because both sides are derived
+  from the same `ChoiceField`; a caller-supplied renderer can, so the
+  declaration has to carry what it produces for the schema to stay honest.
+
+  **`timestamp()` takes a format, not a timezone.** DRF's `DateTimeField`
+  already renders in `django.utils.timezone.get_current_timezone()`, so reading
+  the same source makes the REST response and the agent payload agree by
+  construction. A callable zone is not merely unsupported: the projection is
+  built once per serializer class and the schema half is built with no request
+  at all, so a per-request callable would resolve differently on the two paths
+  — which is the divergence the audience layer exists to prevent.
+
+  Two collisions are now decided rather than falling out of branch order: an
+  explicit formatter beats the substitution derived from a `ChoiceField`, and
+  `HANDLE` suppresses formatting exactly as it suppresses that substitution. A
+  field another tool takes as input should be marked `HANDLE`, or that tool
+  receives a display string its own input schema rejects.
+
+  Unmarked serializers are unaffected, down to the byte.
+
+
 ### Fixed
 
 - **A serializer that nests itself crashed schema generation.** The JSON Schema

@@ -120,6 +120,10 @@
 
 ::: rest_framework_services.types.field_marking.FieldMarking
 
+## `ValueFormatter`
+
+::: rest_framework_services.types.value_formatter.ValueFormatter
+
 ## `AudienceProjection`
 
 ::: rest_framework_services.types.audience_projection.AudienceProjection

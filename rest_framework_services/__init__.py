@@ -130,6 +130,7 @@ from rest_framework_services.types import (
     UnknownArguments,
     UnsetType,
     UrlKwarg,
+    ValueFormatter,
     ViewHooks,
     validate_channel_names,
 )
@@ -237,6 +238,7 @@ __all__ = [
     "UnsetType",
     "UpdateService",
     "UrlKwarg",
+    "ValueFormatter",
     "ViewHooks",
     "acall_selector",
     "acall_service",

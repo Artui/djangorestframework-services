@@ -42,6 +42,7 @@ Four audiences, and the default is "content":
 | `FieldMarking.label()` | names this record for a human | included | its `description`, if given | unchanged |
 | `FieldMarking.handle()` | opaque; passed to tools, never spoken | verbatim | its `description`, if given | unchanged |
 | `FieldMarking.hidden()` | plumbing | **dropped** | dropped | unchanged |
+| `FieldMarking.timestamp()` | content, formatted | rendered through the formatter | the type the formatter produces | unchanged |
 
 `style` is used because it is the only door `Meta.extra_kwargs` opens onto a
 field constructor — anything else would mean subclassing every field type and
@@ -95,6 +96,87 @@ A substituted choice field is re-declared in the schema in its *display* values,
 because that is what the payload now carries. If another tool takes that field
 as input, mark it `FieldMarking.handle()` — that suppresses the substitution on
 both sides and keeps the constant.
+
+## Format a value for the agent
+
+An agent reading `2026-01-31T13:00:00Z` out to a person is doing the same thing
+it does with `PENDING_REVIEW`: repeating a machine's spelling because nothing
+told it there was another one. A
+[`ValueFormatter`][rest_framework_services.types.value_formatter.ValueFormatter]
+is that declaration, and `FieldMarking.timestamp()` is the one you probably want:
+
+```python
+extra_kwargs = {
+    "due_at": {"style": {MARKING: FieldMarking.timestamp()}},
+    "closed_at": {"style": {MARKING: FieldMarking.timestamp("%d %b %Y")}},
+}
+```
+
+The payload now carries `"31 Jan 2026 14:05"`, and the schema says
+`{"type": "string", "examples": ["31 Jan 2026 14:05"]}` — the example is
+rendered from the same format string, so it cannot describe a shape the field
+does not produce.
+
+### The zone is Django's, and it is not an argument
+
+`timestamp()` takes a format, never a timezone. DRF's `DateTimeField` already
+renders in `django.utils.timezone.get_current_timezone()`, so reading the same
+source is what makes the REST response and the agent payload agree by
+construction rather than by discipline — activate the zone the way you already
+do for the ORM, in per-tenant middleware or at the top of a worker, and both
+transports follow.
+
+A *callable* zone is not merely unsupported. The projection is built once per
+serializer class, and the schema half is built with no request at all, because
+a transport describes its tools before anybody has called them. A per-request
+callable would therefore resolve differently on the two paths, which is the
+schema-versus-payload divergence this whole feature exists to prevent. The
+schema describes a formatted string and never names a zone, which is what keeps
+it honest.
+
+### Any other transform
+
+`timestamp()` is a named constructor over a generic mechanism, not a special
+case inside one. Money with its currency, a duration, a percentage, a quantity
+with its unit — all of them are the same shape:
+
+```python
+from rest_framework_services import FieldMarking, ValueFormatter
+
+total = FieldMarking.formatted(
+    ValueFormatter(
+        lambda cents: f"EUR {cents / 100:.2f}",
+        produces="string",
+        schema={"examples": ["EUR 1240.00"]},
+    )
+)
+```
+
+**`produces=` names the JSON type and the framework writes it into the schema.**
+`schema=` merges over that for anything about the *shape* of the produced value
+— `description`, `examples`, `format` — and is refused if it names `type`.
+Choice substitution cannot lie because both sides are derived from the same
+`ChoiceField`; a formatter you supply could, so the declaration carries what it
+produces and the schema is written from that rather than taken on trust.
+
+Everything the schema previously asserted about the field is dropped, because it
+described a value the payload no longer carries — a formatted local date-time is
+not `format: date-time`. An author's `label` and `help_text` survive: they
+annotate the field rather than asserting anything about its value. A `None` never
+reaches the formatter.
+
+### Two collisions, decided rather than left to chance
+
+- **An explicit formatter beats the substitution derived from a `ChoiceField`.**
+  Only one transform can apply, and the one written by hand is the one that was
+  asked for.
+- **`HANDLE` suppresses formatting**, exactly as it suppresses choice
+  substitution. A formatted machine identifier is a broken one. Declaring both
+  on one field is honoured as `HANDLE` and the formatter never runs.
+
+⇒ **a field a second tool takes as input wants `FieldMarking.handle()`.**
+Otherwise that tool is handed `"31 Jan 2026 14:05"` for an argument its own
+input schema declares as a date-time, and rejects.
 
 ## One mount that needs what its sibling hides
 
