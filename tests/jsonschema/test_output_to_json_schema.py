@@ -59,3 +59,43 @@ def test_list_with_pagination_is_envelope() -> None:
         },
         "required": ["items", "page", "totalPages", "hasNext"],
     }
+
+
+def test_output_serializer_reading_request_context_is_described() -> None:
+    """The output half of the same gate -- see the input-side test."""
+
+    class _ContextAware(serializers.Serializer):
+        def get_fields(self) -> dict[str, serializers.Field]:
+            fields = super().get_fields()
+            assert self.context["request"] is None
+            fields["title"] = serializers.CharField()
+            return fields
+
+    schema = output_to_json_schema(_ContextAware, kind=SelectorKind.RETRIEVE)
+
+    assert schema is not None
+    assert schema["properties"]["title"] == {"type": "string"}
+
+
+class _NestedOut(serializers.Serializer):
+    id = serializers.IntegerField()
+    inner = _Out()
+
+
+class TestMaxDepth:
+    def test_unset_describes_the_nested_serializer(self) -> None:
+        schema = output_to_json_schema(_NestedOut)
+
+        assert schema is not None
+        assert schema["properties"]["inner"] == _ITEM
+
+    def test_the_bound_lands_on_the_item_inside_the_envelope(self) -> None:
+        """The envelope and the array are this function's shapes, not a level."""
+        schema = output_to_json_schema(
+            _NestedOut, kind=SelectorKind.LIST, paginate=True, max_depth=1
+        )
+
+        assert schema is not None
+        item = schema["properties"]["items"]["items"]
+        assert item["properties"]["inner"] == {"type": "object"}
+        assert item["properties"]["id"] == {"type": "integer"}

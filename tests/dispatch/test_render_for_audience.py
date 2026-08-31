@@ -1,4 +1,4 @@
-"""``render_for_agent`` — the render step, shaped for an agent audience.
+"""``render_for_audience`` — the render step, shaped for an agent audience.
 
 ``render_spec_output``'s own semantics are covered elsewhere; these pin what
 this wrapper adds: the projection is applied, it can be supplied pre-built, and
@@ -12,13 +12,13 @@ from django.db.models import QuerySet
 from rest_framework import serializers
 
 from rest_framework_services import (
-    AGENT,
-    AgentField,
+    MARKING,
+    FieldMarking,
     SelectorKind,
     SelectorSpec,
-    arender_for_agent,
-    build_agent_projection,
-    render_for_agent,
+    arender_for_audience,
+    build_audience_projection,
+    render_for_audience,
     render_spec_output,
 )
 from tests.testapp.models import Post
@@ -29,8 +29,8 @@ class _PostSerializer(serializers.ModelSerializer):
         model = Post
         fields = ("id", "title")
         extra_kwargs = {
-            "id": {"style": {AGENT: AgentField.hidden()}},
-            "title": {"style": {AGENT: AgentField.label()}},
+            "id": {"style": {MARKING: FieldMarking.hidden()}},
+            "title": {"style": {MARKING: FieldMarking.label()}},
         }
 
 
@@ -55,14 +55,14 @@ class TestRenderForAgent:
         spec = _spec(_PostSerializer)
 
         assert render_spec_output(spec, _all_posts(), many=True) == [{"id": 1, "title": "a"}]
-        assert render_for_agent(spec, _all_posts(), many=True) == [{"title": "a"}]
+        assert render_for_audience(spec, _all_posts(), many=True) == [{"title": "a"}]
 
     def test_accepts_a_prebuilt_projection(self) -> None:
         """The registration-time path: derive once, reuse per call."""
         Post.objects.create(title="a")
-        projection = build_agent_projection(_PostSerializer)
+        projection = build_audience_projection(_PostSerializer)
 
-        rendered = render_for_agent(
+        rendered = render_for_audience(
             _spec(_PostSerializer), _all_posts(), many=True, projection=projection
         )
 
@@ -72,13 +72,13 @@ class TestRenderForAgent:
         Post.objects.create(title="a")
         spec = _spec(_PlainPostSerializer)
 
-        assert render_for_agent(spec, _all_posts(), many=True) == [{"id": 1, "title": "a"}]
+        assert render_for_audience(spec, _all_posts(), many=True) == [{"id": 1, "title": "a"}]
 
     def test_serializerless_spec_passes_the_value_through(self) -> None:
         Post.objects.create(title="a")
         spec = SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts)
 
-        assert list(render_for_agent(spec, _all_posts(), many=True)) == list(_all_posts())
+        assert list(render_for_audience(spec, _all_posts(), many=True)) == list(_all_posts())
 
 
 @pytest.mark.django_db(transaction=True)
@@ -87,4 +87,4 @@ class TestARenderForAgent:
         await Post.objects.acreate(title="a")
         spec = _spec(_PostSerializer)
 
-        assert await arender_for_agent(spec, _all_posts(), many=True) == [{"title": "a"}]
+        assert await arender_for_audience(spec, _all_posts(), many=True) == [{"title": "a"}]

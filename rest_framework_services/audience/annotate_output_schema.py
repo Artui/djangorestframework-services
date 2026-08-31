@@ -3,15 +3,23 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Final
 
-from rest_framework_services.types.agent_projection import AgentProjection
+from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.field_audience import FieldAudience
+from rest_framework_services.types.value_formatter import ValueFormatter
+
+_CARRIED: Final = ("title", "description")
+"""Keywords that survive a formatter replacing a property's schema.
+
+Both annotate the field rather than asserting anything about its value, so
+neither stops being true when the value is rendered differently.
+"""
 
 
 def annotate_output_schema(
     schema: dict[str, Any] | None,
-    projection: AgentProjection,
+    projection: AudienceProjection,
     *,
     handle_description: str | None = None,
 ) -> dict[str, Any] | None:
@@ -30,6 +38,12 @@ def annotate_output_schema(
       constant is gone from the response by design — a field another tool takes
       as input should be marked ``HANDLE``, which suppresses the substitution on
       both sides.
+    - a formatted field is re-declared as the type its
+      [`ValueFormatter`][rest_framework_services.types.value_formatter.ValueFormatter]
+      says it produces, plus whatever that declaration adds about the shape of
+      the produced value. The framework writes the ``type`` from ``produces``
+      rather than taking one from the fragment, so a renderer cannot contradict
+      its own advertisement.
 
     Generating both sides from one declaration is the point: a schema that
     advertises a field the payload no longer carries is worse than either
@@ -52,7 +66,7 @@ def annotate_output_schema(
 
 
 def _annotate(
-    schema: dict[str, Any], projection: AgentProjection, handle_description: str | None
+    schema: dict[str, Any], projection: AudienceProjection, handle_description: str | None
 ) -> dict[str, Any]:
     # A list schema wraps the item schema; project the items and keep the array.
     items = schema.get("items")
@@ -66,12 +80,21 @@ def _annotate(
         audience = projection.audience(name)
         if audience is FieldAudience.HIDDEN:
             continue
+        # The mirror of the chain in ``project_payload``, in the same order and
+        # for the same reason: a declared formatter is the transform its author
+        # asked for, so it wins over the substitution derived from a
+        # ``ChoiceField``. Reorder one of these two and the schema starts
+        # describing a payload nobody renders.
+        formatter = projection.formatter(name)
         child = projection.nested.get(name)
-        resolved = (
-            _annotate(subschema, child, handle_description) if child is not None else subschema
-        )
-        if audience is not FieldAudience.HANDLE and name in projection.choice_labels:
-            resolved = _spoken_schema(resolved, projection.choice_labels[name])
+        if formatter is not None:
+            resolved = _formatted_schema(subschema, formatter)
+        else:
+            resolved = (
+                _annotate(subschema, child, handle_description) if child is not None else subschema
+            )
+            if audience is not FieldAudience.HANDLE and name in projection.choice_labels:
+                resolved = _spoken_schema(resolved, projection.choice_labels[name])
         description = _description(projection, name, audience, handle_description)
         annotated[name] = {**resolved, "description": description} if description else resolved
     result: dict[str, Any] = {**schema, "properties": annotated}
@@ -81,6 +104,25 @@ def _annotate(
     else:
         result.pop("required", None)
     return result
+
+
+def _formatted_schema(schema: dict[str, Any], formatter: ValueFormatter) -> dict[str, Any]:
+    """Re-declare a property as what its formatter produces.
+
+    Every assertion the walk made — ``type``, ``format``, ``enum``, a
+    ``MultipleChoiceField``'s ``items`` — described the value the serializer
+    rendered, and that value is no longer what the payload carries. A
+    ``DateTimeField`` reported ``format: date-time``, which a formatted local
+    date-time is not; keeping it would be a schema that fails its own claim
+    while looking correct.
+
+    ``_CARRIED`` is what survives, because it annotates the *field* rather than
+    asserting anything about its value: an author's ``label`` and their
+    ``help_text``. The formatter's own fragment merges over both, so a
+    formatter that wants to say something else about the field still can.
+    """
+    carried = {key: schema[key] for key in _CARRIED if key in schema}
+    return {**carried, **formatter.json_schema()}
 
 
 def _spoken_schema(schema: dict[str, Any], labels: Mapping[Any, str]) -> dict[str, Any]:
@@ -111,7 +153,7 @@ def _spoken_schema(schema: dict[str, Any], labels: Mapping[Any, str]) -> dict[st
 
 
 def _description(
-    projection: AgentProjection,
+    projection: AudienceProjection,
     name: str,
     audience: FieldAudience,
     handle_description: str | None,

@@ -15,3 +15,7 @@ filtered views — see the recipe
 ## `RegisteredSpec`
 
 ::: rest_framework_services.types.registered_spec.RegisteredSpec
+
+## `OfflineContract`
+
+::: rest_framework_services.types.offline_contract.OfflineContract

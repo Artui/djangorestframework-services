@@ -7,6 +7,423 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.0] — 2026-08-30
+
+### Added
+
+- **A field can declare how its value is rendered for an agent, and the schema
+  says so too.** A marking may now carry a `ValueFormatter`: a transform, the
+  JSON type it produces, and an optional fragment describing the shape of what
+  it produces. The same walk that drops hidden fields and speaks choice labels
+  applies it to the payload and mirrors it onto the output schema, so both come
+  from the one declaration. `FieldMarking.timestamp()` is a named constructor
+  over it, for the case that prompted it — an agent reading a raw ISO-8601 UTC
+  string out to a person instead of a local date-time.
+
+  **The transform is generic on purpose.** Money with its currency, a duration,
+  a percentage and a quantity with its unit are all the same shape as a
+  formatted timestamp, and adding them one at a time is how a small marking
+  type becomes a switch statement.
+
+  **`produces=` names the type and the framework writes it.** The fragment
+  merges over it for `description` / `examples` / `format` and is refused if it
+  names `type`. Choice substitution cannot lie because both sides are derived
+  from the same `ChoiceField`; a caller-supplied renderer can, so the
+  declaration has to carry what it produces for the schema to stay honest.
+
+  **`timestamp()` takes a format, not a timezone.** DRF's `DateTimeField`
+  already renders in `django.utils.timezone.get_current_timezone()`, so reading
+  the same source makes the REST response and the agent payload agree by
+  construction. A callable zone is not merely unsupported: the projection is
+  built once per serializer class and the schema half is built with no request
+  at all, so a per-request callable would resolve differently on the two paths
+  — which is the divergence the audience layer exists to prevent.
+
+  Two collisions are now decided rather than falling out of branch order: an
+  explicit formatter beats the substitution derived from a `ChoiceField`, and
+  `HANDLE` suppresses formatting exactly as it suppresses that substitution. A
+  field another tool takes as input should be marked `HANDLE`, or that tool
+  receives a display string its own input schema rejects.
+
+  Unmarked serializers are unaffected, down to the byte.
+
+- **`ServiceSpec.idempotent`** — whether repeating a call with the same
+  arguments leaves the same state as making it once. Nothing in this package
+  reads it: idempotency is a property of the service its author writes, not
+  something a dispatcher can arrange. It is a spec field so the fact is stated
+  once, beside the operation it is true of, and every consumer reads the same
+  answer — a retry policy, a queue's redelivery handling, an agent tool
+  annotation. A consumer running two transports off one spec registry had to
+  repeat the claim per transport, in each transport's own vocabulary, and the
+  copies drifted.
+
+  **`None` is the default and means undeclared, which is not `False`.** A
+  consumer that publishes the signal has to tell "nothing was said" from "the
+  author said no"; defaulting to `False` would have every spec ever written
+  start claiming it is not idempotent. `atomic` answers a different question —
+  one call is all-or-nothing, not that a second call is a no-op — and
+  `SelectorSpec` grows no such field, because a read is idempotent by
+  construction.
+
+- **`InputDescription`** — a third schema marker, carrying prose for an input
+  the schema reflects from an annotation rather than from a serializer field.
+  An extras `TypedDict` key reached a schema-driven caller as a bare typed
+  property: a serializer field describes itself through `help_text` and a filter
+  through its own, but a `TypedDict` key has neither, and the existing two
+  markers are singletons whose `__new__` returns one instance, so neither can
+  carry per-key text even in principle. The only workaround was declaring the
+  same input twice — once where the callable reads it, once in a serializer
+  written so one transport could describe it — and the second declaration is the
+  one nothing executes when they drift.
+
+  ```python
+  class WidgetExtras(HttpExtras[MyUser], total=False):
+      project_pk: Annotated[
+          int, InputRequired, InputDescription("The project whose widgets to list.")
+      ]
+  ```
+
+  The text lands as `description`, the key the serializer and filter paths
+  already fill, so a project's inputs read the same way whichever side of a spec
+  they arrive on. It composes with `InputRequired` in either order and ignores
+  other libraries' metadata in the same `Annotated`. Two of them on one input
+  raise, and so does one beside `NotClientInput`: that marker drops the key from
+  the schema, leaving the sentence no caller to reach. Neither is a
+  contradiction the way `InputRequired` with `NotClientInput` is — they are
+  declarations that would decide nothing, which is what gets refused rather than
+  silently dropped. `read_input_description` reads it, kept separate from
+  `read_schema_markers` so that function's public tuple shape does not widen
+  under its callers.
+
+- **A spec-level title and description, through a reserved
+  `metadata["json_schema"]` key.** `spec_to_json_schema` derives from
+  serializers, filters and callables, none of which can say what the *operation*
+  is called or what it does, so it emitted no `title` and no `description` at
+  all and each transport invented its own from a name or a docstring. A consumer
+  now declares the fragment once and it merges onto the derived schema:
+
+  ```python
+  ServiceSpec(
+      service=archive_project,
+      input_serializer=ArchiveInput,
+      metadata={
+          "json_schema": {"input": {"title": "Archive project", "description": "Retire a project."}}
+      },
+  )
+  ```
+
+  It is **keyed by phase**, spelled with the same two words `phase=` takes: one
+  flat fragment merged into both would hang the operation's description off the
+  output schema, which describes what comes back rather than what to send. A key
+  naming no phase raises, because omitting the phase key is the mistake this
+  shape invites and publishing nothing is the worst way to report it.
+
+  **The fragment wins, key by key, and the merge is shallow.** An explicit
+  declaration stands against a derived value, so a derivation it could not
+  override would leave a wrong derivation unfixable. Shallow gives one rule
+  instead of a per-key policy for `properties` and another for `required`: a
+  fragment naming `properties` replaces the whole derived block. And a fragment
+  **annotates a derived schema without ever conjuring one** — where
+  `phase="output"` yields `None` because nothing declares an output, an
+  `"output"` fragment leaves it `None`, rather than turning `metadata` into a
+  schema-authoring channel.
+
+  Nothing reads it but this function, it is read off the spec passed in rather
+  than a nested one, and malformed declarations raise at generation rather than
+  at construction — so `metadata` stays free of contents-reading on a spec that
+  generates no schemas. **`"json_schema"` is now reserved**; every other key is
+  still carried and never read.
+
+- **`max_depth=` on `serializer_to_json_schema`, `output_to_json_schema` and
+  `spec_to_json_schema`** — an opt-in ceiling on how many serializer levels a
+  schema describes. A schema grows roughly threefold per nesting level and both
+  agent transports rebuild every tool's schema each time they list, so a deep
+  declaration is paid for on every listing. It counts serializer objects: the
+  root is level 1, and the array wrapper `many=True` produces costs no level.
+  **Unset means exactly what it meant before** — describe every level. It is
+  read alongside the re-entry allowance and **the tighter of the two wins**, so
+  `max_depth=2` yields two levels of a self-referential serializer.
+
+  A truncated node is `{"type": "object"}`: the one thing still known to be
+  true, and what a caller can still send — an object whose keys the schema
+  declines to enumerate. Emitting the level's properties and dropping only the
+  level below was the alternative, and it publishes a `required` list whose
+  members' own shapes are unknown, which reads as a complete description and is
+  not one.
+
+  **Not `$defs` / `$ref`, deliberately.** Factoring the repeated sub-schema out
+  answers both the cycle and the size, and it is refused: most MCP clients
+  reject a tool schema containing a reference outright, so it trades a size
+  problem for a compatibility one, and the transports in this family have no
+  reference handling in either direction. Every schema these helpers emit stays
+  flat and self-contained.
+
+### Fixed
+
+- **A serializer that nests itself crashed schema generation.** The JSON Schema
+  walk recursed into nested serializers, `ListSerializer` children and
+  `ListField` children with no bound at all, so a self-referential declaration —
+  a category tree, a threaded comment, an org chart — raised `RecursionError`.
+  It raised it while a transport *declares its tools*, which is before any
+  request exists to fail: one ordinary serializer took the process down at
+  startup. The walk now tracks the serializer classes on its current path and
+  truncates at a re-entry instead of recursing.
+
+  The guard follows the **path**, not everything seen, so the same address
+  serializer under `billing` and under `shipping` is still described in full on
+  both, however often either is walked.
+
+  **The bound is an allowance of four appearances of a class on the path, not a
+  single re-entry.** A serializer may limit its own nesting by passing a
+  countdown into each nested instance — the standard answer to a recursive shape
+  in DRF — and that declaration terminates on its own. Class identity cannot
+  distinguish it from the unbounded form, so truncating at the first re-entry
+  flattened it, publishing one level where four are declared. Nothing about that
+  was untrue, because a truncated node claims nothing; but a caller reading the
+  schema saw a flat object where the declaration has a tree, and that is a real
+  loss on a declaration that was never in danger of recursing. Four appearances
+  — the root plus the three levels that recipe is usually written with — is what
+  publishes it as declared. Any finite allowance stops the `RecursionError`,
+  since the declaration that crashes is the one with no bound of its own, so the
+  number is chosen for how much of a self-bounded declaration survives rather
+  than as a safety margin. A declaration that nests itself deeper than the
+  allowance is still truncated, and so is one with no bound at all.
+
+### Documentation
+
+- **A stale cross-reference, and the check that would have caught it.** The
+  dispatch reference linked `FieldMarking` to `types.md#agentfield` — an anchor
+  the `AgentField` to `FieldMarking` rename removed. The link still resolved to
+  the page, so it silently landed at the top of it instead of at the symbol. The
+  same rename left `not an FieldMarking` in the message
+  `build_audience_projection` raises, where the article no longer fits the noun.
+
+  **`mkdocs.yml` declared no `validation:` block**, which is why this went
+  unnoticed: unresolved anchors were not checked at all. `anchors`,
+  `absolute_links` and `unrecognized_links` are now `warn`, and `--strict` — which
+  CI already runs — turns a warning into a failed build. Verified by re-breaking
+  the link and watching the build abort. The rest of the tree was already clean.
+
+- **The agent-audience recipe now says that `output_to_json_schema` with the
+  full argument set *is* the output-phase path**, rather than leaving a reader
+  to wonder whether `spec_to_json_schema` was the one they were meant to reach
+  for. `spec_to_json_schema` is the input-phase convenience, and that is the
+  only phase either shipped transport uses it for; both read the spec's output
+  serializer and `kind` themselves and call `output_to_json_schema` directly,
+  because `paginate` / `projection` / `handle_description` are the transport's
+  own answers and no spec carries them.
+
+## [0.48.0] — 2026-08-28
+
+### Changed
+
+- **The neutral kernel stopped naming its consumers.** Ten public symbols said
+  `agent` in a package that is deliberately agent-less, and they were doing two
+  different jobs. Renamed, with **no aliases** — see the note below.
+
+  | Was | Now | Why |
+  | --- | --- | --- |
+  | `AgentField` | `FieldMarking` | It is the marking. The docstrings across this family already say "markings". |
+  | `AGENT` (`"drf_agent"`) | `MARKING` (`"drf_marking"`) | The key exists only to carry one. Detection is by **value**, not by key, so a serializer still declaring the old literal keeps working. |
+  | `AgentProjection` | `AudienceProjection` | A serializer's markings resolved. `audience/` is already the package and `FieldAudience` the enum. |
+  | `build_agent_projection` | `build_audience_projection` | |
+  | `agent_projection_for_spec` | `audience_projection_for_spec` | |
+  | `render_for_agent` / `arender_for_agent` | `render_for_audience` / `arender_for_audience` | Its own docstring called it "the agent-audience twin of `render_spec_output`". |
+  | `AgentContract` | `OfflineContract` | Its own docstring: *"what a transport with no HTTP request has to be told"*. This package already says `offline` — `OfflineServiceView`, `OfflineHttpRequest`, `build_offline_context`. |
+  | `paginate_for_agent` | `paginate_output` | Pairs with `output_to_json_schema` / `output_serializer`, this package's directional convention. |
+  | `AgentPage` | `OutputPage` | |
+  | `DEFAULT_AGENT_PAGE_SIZE` | `DEFAULT_PAGE_SIZE` | |
+
+  **The rule, for the next symbol.** "Agent" is *earned* where a name marks an
+  audience the serializer author declares, and is a *leak* where it marks only
+  which callers happen to use it. The last three published nothing about an
+  audience — they slice rows and count them — and the first seven named a
+  consumer where the concept is a field's treatment: `FieldAudience`'s own values
+  are `CONTENT` / `LABEL` / `HANDLE` / `HIDDEN`, which say what a field *is*.
+
+  **Prose still says "agent" where that is the truth.** A docstring explaining
+  that agent transports read these markings is explanatory, not a leak. Only the
+  names moved.
+
+  **No deprecation aliases, on purpose.** Every known consumer is inside this
+  family and is being updated in the same pass, which is the whole reason this
+  landed before they adopted the 0.47.0 API rather than after. Ten warning
+  aliases would also have expanded exactly the surface the next change is trying
+  to shrink.
+
+
+## [0.47.0] — 2026-08-28
+
+### Added
+
+- **`paginate_for_agent` and `AgentPage` — the payload for an envelope this
+  package already described.** `output_to_json_schema` has always published
+  `{items, page, totalPages, hasNext}` for `kind=LIST, paginate=True`, and
+  nothing here produced it. The shaper lived in a transport, so one agent
+  transport wrapped its pages and another returned a bare list, against one
+  schema claiming the envelope for both. Two implementations of one mechanism
+  drift; here one of them was missing entirely, which is why an agent talking
+  to the in-process toolset got 50 of 51 rows with nothing to say more existed.
+
+  ```python
+  page = paginate_for_agent(rows, page=page, limit=limit, max_page_size=ceiling)
+  rendered = render_for_agent(spec, page.items, projection=projection, many=True)
+  payload = page.envelope(rendered)
+  ```
+
+  Rendering sits between the two calls because it needs a view, a request and a
+  spec that belong to the caller — and because the projection lands on the rows,
+  never on the envelope, whose keys belong to no serializer.
+
+  `page` and `limit` are taken **already parsed**. Turning an untyped argument
+  into an integer is where transports legitimately differ — a public endpoint
+  clamps a malformed value and answers, an in-process toolset can hand the model
+  its mistake back and ask again — and that is a policy about bad input, not
+  about what a page is. What a page *is* lives here: `limit` clamped down to
+  `max_page_size` and up to 1, `page` clamped up to 1 and down to the last page
+  that exists, the count taken before the slice so an unclamped page never
+  becomes an arbitrarily large SQL `OFFSET`, and the reported `page` being the
+  one actually served.
+
+### Fixed
+
+- **Schema generation could not describe a serializer dispatch renders fine.**
+  Both `serializer_to_json_schema` and `output_to_json_schema` instantiated the
+  serializer bare, so a `get_fields` reading `self.context["request"]` — routine,
+  because over HTTP the key is always there — raised `KeyError` from description
+  while the same spec rendered perfectly. They now use the baseline context
+  `build_agent_projection` already synthesizes, and for the same reason: a spec
+  that can be called and cannot be described is exactly the schema/payload
+  divergence the audience layer exists to prevent.
+
+  The view and request are `None` and cannot be otherwise, since a schema is
+  built once when a transport declares its tools and no request exists yet. A
+  `get_fields` that *branches* on the view is therefore reflected as the branch
+  a caller with none takes. That limit is now stated in the docs rather than
+  discovered.
+
+### Changed
+
+- **A `FilterSet`'s choice labels now travel with their constants.**
+  `filterset_to_json_schema` kept only the values, so one project described the
+  same constants two ways depending on which side of a spec they arrived on: a
+  status came with `"Red"` from a serializer and bare from a FilterSet. The
+  shape is now the serializer path's — `{"const": …, "title": …}` under `oneOf`,
+  falling back to a plain `enum` when the labels only restate their values.
+
+  **This changes published output** for a `ChoiceFilter` or
+  `MultipleChoiceFilter` whose labels differ from their values. `title` is an
+  annotation keyword and constrains nothing, so the accepted value set is
+  unchanged.
+
+  **`OrderingFilter` subclasses `ChoiceFilter`, so `ordering` changes shape**
+  — the case most likely to reach an existing consumer, since a FilterSet's
+  `OrderingFilter` is the canonical way to declare ordering here. It published
+  `{"enum": ["amount", "-amount", ...]}` and now publishes
+  `{"oneOf": [{"const": "-amount", "title": "Amount (descending)"}, ...]}`, so
+  a caller reading the schema is finally told what `-amount` means rather than
+  being left to infer it from a leading minus sign. A consumer asserting
+  `properties["ordering"]["enum"]` will need updating when it raises its floor
+  to this version.
+
+### Added
+
+- **A filter now publishes what it is called and what it matches.** A filter's
+  `label` becomes `title` and its `help_text` becomes `description`; where the
+  argument's own name does not give the lookup away, it is stated —
+  `min_views` declared as `field_name="views", lookup_expr="gte"` publishes
+  ``"Matches `views` with the `gte` lookup."`` A filter whose name, field and
+  lookup already agree says nothing extra, and an author's own `help_text`
+  always wins over the derived wording.
+
+- **A serializer field's `label` becomes `title`**, where the author wrote one.
+  DRF binds a derived label to every unlabelled field, and emitting that would
+  restate the property name in worse English at a reader's cost, so only a
+  declared label travels.
+
+## [0.46.0] — 2026-08-28
+
+### Added
+
+- **`build_agent_projection(overrides=…, name=…)`, and the same pair forwarded
+  by `agent_projection_for_spec`** — where a mount's per-tool audience
+  overrides are merged with the serializer's own markings.
+
+  ```python
+  projection = agent_projection_for_spec(
+      spec, overrides=entry.agent_contract.field_audiences, name=entry.name
+  )
+  ```
+
+  The merge already existed, in drf-mcp, as a private helper reachable only
+  from its three tool bindings — so a per-tool override was something one agent
+  transport could express and the other could not, and **one spec projected a
+  different field set depending on which transport served it**. 0.45.0 moved the
+  declaration onto `AgentContract`, which both transports read; this moves the
+  *resolution* to the same place, so the shared declaration is not layered by
+  two independently-maintained copies of one rule.
+
+  It sits next to the clash check it extends: an override can move the label,
+  and it can introduce the two-labels clash a single serializer could not have.
+  That now raises from one site rather than two, naming the mount (`name=`,
+  defaulting to the serializer's class name) rather than a transport's
+  vocabulary.
+
+## [0.45.0] — 2026-08-28
+
+### Added
+
+- **`AgentContract` and `SpecRegistry.register(agent_contract=…)`** — one home
+  for what a transport with no HTTP request has to be told.
+
+  ```python
+  registry.register(
+      "list_widgets",
+      widgets_spec,
+      agent_contract=AgentContract(url_kwargs=(UrlKwarg("project_pk"),)),
+  )
+  ```
+
+  **Over HTTP this is all free.** A nested route's captures reach a spec through
+  `view.kwargs` because the URLconf declared them; read-shaping params reach a
+  serializer through `request.query_params` because the query string carried
+  them. A spec mounted on a view is already complete.
+
+  Off HTTP there is no route and no query string, so somebody has to say what
+  they would have contained — and **every off-HTTP transport needs the identical
+  answer**. A project running an MCP server and an in-process Pydantic-AI toolset
+  declared the same `UrlKwarg` twice, in two shapes, with nothing comparing them.
+
+  **Not on the spec, deliberately.** `UrlKwarg("project_pk")` means *"when there
+  is no URL, synthesise this view kwarg"* — a sentence with no meaning on a
+  transport that has a URL. Putting it on the spec would add a field HTTP must
+  ignore and a second declaration of a fact the URLconf already owns, pointing
+  the other way; a spec mounted at two URLs with different kwarg names could not
+  express both.
+
+  **One typed slot rather than loose fields**, so `RegisteredSpec` stays an index
+  rather than becoming a configuration object.
+
+  It carries `url_kwargs`, `query_params` and `field_audiences` — only what
+  *cannot* differ between mounts. Bounds and strictness — result-size caps, page
+  ceilings, timeouts, unknown-argument policy — legitimately differ between a
+  public endpoint and an in-process toolset, so they stay per-mount. Sorting is
+  absent for the opposite reason: it is already declared once, on the spec's own
+  `filter_set`.
+
+  **`field_audiences` is here because `FieldAudience` already settled it**: *the
+  axis is audience, not protocol* — an MCP server and an in-process toolset want
+  the same thing as each other, and something different from a browser. If the
+  two are one audience, an override of what that audience sees cannot
+  legitimately differ between them. It also belongs at the same level as the
+  thing it overrides: the baseline is the serializer's own `AgentField` markings,
+  which are spec-level and read by every transport, and declaring the baseline
+  once while overriding it per mount is what let one spec project a different
+  field set depending on which transport served it.
+
+  Purely additive. An entry that declares nothing has `agent_contract is None`,
+  and transports read it as a **default** a mount may still override.
+
 ## [0.44.0] — 2026-08-26
 
 ### Upgrade notes
@@ -3041,7 +3458,12 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.44.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.49.0...HEAD
+[0.49.0]: https://github.com/Artui/djangorestframework-services/compare/v0.48.0...v0.49.0
+[0.48.0]: https://github.com/Artui/djangorestframework-services/compare/v0.47.0...v0.48.0
+[0.47.0]: https://github.com/Artui/djangorestframework-services/compare/v0.46.0...v0.47.0
+[0.46.0]: https://github.com/Artui/djangorestframework-services/compare/v0.45.0...v0.46.0
+[0.45.0]: https://github.com/Artui/djangorestframework-services/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/Artui/djangorestframework-services/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/Artui/djangorestframework-services/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/Artui/djangorestframework-services/compare/v0.41.0...v0.42.0

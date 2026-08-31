@@ -61,3 +61,24 @@ class TestServiceSpecMetadata:
         out = SelectorSpec(kind=SelectorKind.RETRIEVE, metadata={"scope": "nested"})
         spec = ServiceSpec(service=_noop, output_selector_spec=out)
         assert spec.metadata is None
+
+
+class TestServiceSpecIdempotent:
+    """The declaration is carried verbatim and never defaulted to a claim."""
+
+    def test_defaults_to_undeclared(self) -> None:
+        # ``None`` is "nothing said", which a transport must be able to tell
+        # apart from a declared ``False`` before it stamps an annotation.
+        assert ServiceSpec(service=_noop).idempotent is None
+
+    def test_a_declaration_is_carried_verbatim(self) -> None:
+        assert ServiceSpec(service=_noop, idempotent=True).idempotent is True
+        assert ServiceSpec(service=_noop, idempotent=False).idempotent is False
+
+    def test_does_not_inherit_from_the_nested_output_selector_spec(self) -> None:
+        # ``SelectorSpec`` has no such field: a read is idempotent by
+        # construction, so the signal would say nothing there.
+        out = SelectorSpec(kind=SelectorKind.RETRIEVE)
+        spec = ServiceSpec(service=_noop, output_selector_spec=out, idempotent=True)
+        assert spec.idempotent is True
+        assert not hasattr(out, "idempotent")

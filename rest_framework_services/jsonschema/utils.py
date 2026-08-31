@@ -25,9 +25,33 @@ from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
 )
+from rest_framework_services.types.read_input_description import read_input_description
 from rest_framework_services.types.read_schema_markers import read_schema_markers
 from rest_framework_services.types.typed_dict_input import typed_dict_input
 from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
+
+# How many times one serializer class may appear on the walk's current path
+# before the next appearance is truncated. Counting *appearances* rather than
+# re-entries is what keeps the arithmetic honest: the root is the first
+# appearance, so a declaration that nests itself three levels deep puts four of
+# them on the path.
+#
+# Any finite value stops the ``RecursionError``, because the declaration that
+# crashes is the one with no bound of its own. So this number is not a safety
+# margin -- it is how much of a *self-bounded* declaration survives being
+# described. The bounded form is the standard answer to a recursive shape in
+# DRF: the serializer takes a countdown and stops nesting when it runs out.
+# Written the way it usually is, with three levels of children below the root,
+# that declaration terminates on its own and needs four appearances to be
+# published as written. Truncating it sooner under-describes a shape that was
+# never in danger of recursing.
+#
+# The cost lands only on the unbounded form -- the one that used to crash. A
+# self-bounded declaration stops before this does, so the allowance adds nothing
+# to its schema; an unbounded one pays the roughly threefold-per-level growth up
+# to this many levels. A caller who cannot afford that has ``max_depth``, which
+# is read alongside this and wins wherever it is the tighter of the two.
+_MAX_SERIALIZER_APPEARANCES = 4
 
 # Order matters: the walk takes the first ``isinstance`` hit, so more specific
 # subclasses must precede broader ones (EmailField before CharField).
@@ -53,6 +77,8 @@ def field_to_schema(
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
     *,
     for_output: bool = False,
+    max_depth: int | None = None,
+    path: tuple[type[serializers.Serializer], ...] = (),
 ) -> dict[str, Any]:
     """Convert a single DRF field into a JSON Schema fragment.
 
@@ -61,13 +87,26 @@ def field_to_schema(
 
     ``for_output`` is threaded through nested serializers so a nested block
     describes the same direction as the block containing it.
+
+    ``max_depth`` and ``path`` bound the walk into nested serializers, list
+    children and list-serializer children. They are threaded rather than
+    interpreted here -- a field is only ever a step on the way to another
+    serializer -- so ``serializer_to_schema`` below is where both are read and
+    where the reasoning lives.
     """
-    default: dict[str, Any] = _field_to_schema_default(field, registry, for_output)
+    default: dict[str, Any] = _field_to_schema_default(
+        field, registry, for_output, max_depth=max_depth, path=path
+    )
     return apply_field_override(field, default)
 
 
 def _field_to_schema_default(
-    field: serializers.Field, registry: JsonSchemaRegistry, for_output: bool
+    field: serializers.Field,
+    registry: JsonSchemaRegistry,
+    for_output: bool,
+    *,
+    max_depth: int | None,
+    path: tuple[type[serializers.Serializer], ...],
 ) -> dict[str, Any]:
     for rule_type, rule_schema in registry.fields:
         if isinstance(field, rule_type):
@@ -75,7 +114,9 @@ def _field_to_schema_default(
     if isinstance(field, serializers.ListField):
         child: serializers.Field | None = field.child
         item_schema: dict[str, Any] = (
-            field_to_schema(child, registry, for_output=for_output) if child is not None else {}
+            field_to_schema(child, registry, for_output=for_output, max_depth=max_depth, path=path)
+            if child is not None
+            else {}
         )
         return {"type": "array", "items": item_schema}
     if isinstance(field, serializers.ListSerializer):
@@ -86,10 +127,17 @@ def _field_to_schema_default(
             return {"type": "array", "items": {}}
         return {
             "type": "array",
-            "items": serializer_to_schema(list_child, registry, for_output=for_output),
+            # The array wrapper is this walker's own shape, not a serializer
+            # level, so ``path`` is handed on unchanged: ``many=True`` costs no
+            # depth and a cycle through a list is still a cycle.
+            "items": serializer_to_schema(
+                list_child, registry, for_output=for_output, max_depth=max_depth, path=path
+            ),
         }
     if isinstance(field, serializers.Serializer):
-        return serializer_to_schema(field, registry, for_output=for_output)
+        return serializer_to_schema(
+            field, registry, for_output=for_output, max_depth=max_depth, path=path
+        )
     if isinstance(field, serializers.MultipleChoiceField):
         # Checked before ChoiceField, which it subclasses: this field accepts a
         # *set* of the choices, not one of them. FilePathField subclasses
@@ -118,6 +166,28 @@ def _always_rendered(field: serializers.Field) -> bool:
     skipping. Anything else can vanish from the payload.
     """
     return bool(field.required or field.default is not _drf_empty or field.allow_null)
+
+
+def _declared_label(name: str, field: serializers.Field) -> str | None:
+    """The field's ``label`` when its author wrote one, else ``None``.
+
+    Every bound DRF field has a label: ``Field.bind`` derives one from the field
+    name when the author declared none. That derivation says nothing a reader
+    of the property name does not already have -- ``"Vat id"`` beside
+    ``vat_id`` -- so emitting it as ``title`` costs tokens to restate the key in
+    worse English. An author's own label is the opposite: it is the only place
+    the human phrasing for a field lives, and the choice path next door already
+    carries labels for exactly that reason.
+    """
+    label: Any = field.label
+    if label is None or str(label) == _derived_label(name):
+        return None
+    return str(label)
+
+
+def _derived_label(name: str) -> str:
+    """What ``Field.bind`` would have made of ``name`` on its own."""
+    return name.replace("_", " ").capitalize()
 
 
 def _choice_schema(field: serializers.ChoiceField, *, widen: bool = True) -> dict[str, Any]:
@@ -161,11 +231,43 @@ def _choice_schema(field: serializers.ChoiceField, *, widen: bool = True) -> dic
     }
 
 
+def serializer_for_schema(serializer_cls: type[serializers.Serializer]) -> serializers.Serializer:
+    """Instantiate a serializer for *description*, with the context render uses.
+
+    Both schema entry points used to instantiate bare, so a serializer whose
+    ``get_fields`` reads ``self.context["request"]`` -- routine, because over
+    HTTP the key is always there -- raised ``KeyError`` from description while
+    dispatch rendered it perfectly. The spec could be called and could not be
+    described, which is the schema/payload divergence the audience layer exists
+    to prevent.
+
+    The baseline is the same one
+    [`build_audience_projection`][rest_framework_services.audience.build_audience_projection.build_audience_projection]
+    already synthesizes, and for the same reason.
+
+    **The view and request are `None`, and cannot be otherwise.** A schema is
+    built once, when a transport declares its tools -- before any request
+    exists to describe. So a ``get_fields`` that *branches* on the view type
+    still sees ``None`` here and describes the branch it takes for a caller
+    with no view: reflection cannot report a field set that depends on who is
+    asking, because at description time nobody is.
+    """
+    # Genuine circular import, deliberately local: ``dispatch`` re-exports
+    # helpers that reach back into this package, so importing it at module
+    # scope executes a half-built package. ``build_audience_projection`` records
+    # the same constraint.
+    from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
+
+    return serializer_cls(context=base_serializer_context(view=None, request=None))
+
+
 def serializer_to_schema(
     serializer: serializers.Serializer,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
     *,
     for_output: bool = False,
+    max_depth: int | None = None,
+    path: tuple[type[serializers.Serializer], ...] = (),
 ) -> dict[str, Any]:
     """Convert a DRF serializer instance into a JSON Schema object.
 
@@ -179,13 +281,74 @@ def serializer_to_schema(
     input direction must — left an output schema silently missing its primary
     key, its ETag, and every ``SerializerMethodField``, none of which stopped
     being rendered.
+
+    **The walk is bounded, and two different things bound it.** ``path`` carries
+    the serializer classes currently being described, innermost last; the
+    recursion appends to it and a caller leaves it empty.
+
+    - **A class may appear on the path ``_MAX_SERIALIZER_APPEARANCES`` times;
+      the next appearance truncates.** A self-referential declaration — a
+      category tree, a threaded comment, an org chart — is an ordinary shape,
+      and unguarded it is a ``RecursionError`` raised while a transport
+      *declares its tools*, before any request exists to fail. So this guard is
+      not optional and has no off switch. It is an *allowance* rather than a
+      boolean because class identity cannot tell the unbounded form apart from
+      the self-bounded one — a serializer passing a countdown into each nested
+      instance, which terminates by itself — and truncating at the first
+      re-entry flattened the second to a single level. The constant says what
+      the allowance is sized for. Sibling branches are unaffected — the same
+      address serializer under ``billing`` and ``shipping`` is on two
+      *different* paths and is described in full on both, however many times
+      either path is walked.
+    - **``max_depth`` is an opt-in ceiling**, for size rather than safety: a
+      schema grows roughly threefold per nesting level, and both transports
+      rebuild every tool's schema per listing. ``None``, the default, is
+      unbounded — exactly what callers got before the option existed. It counts
+      serializer objects, not the array wrappers around them, so ``many=True``
+      costs no level; the root is level 1, so ``max_depth=1`` publishes the top
+      level and truncates every nested serializer, and a value below 1
+      truncates the root itself.
+
+    The two are read together and **the tighter one wins**, because either
+    firing truncates. A caller asking for ``max_depth=2`` gets two levels of a
+    self-referential serializer even though the allowance would have described
+    more; the allowance is a floor under what generation does unasked, never a
+    quota a caller has to spend.
+
+    **A truncated node is ``{"type": "object"}``.** It is the one thing still
+    known to be true, it is what a caller can still send — an object whose keys
+    this schema declines to enumerate — and it constrains nothing a valid call
+    could fail against. The alternative, publishing the level's properties and
+    dropping only the level below, emits a ``required`` list whose members'
+    own shapes are unknown: it reads as a complete description and is not one.
+
+    **Not ``$defs`` / ``$ref``, deliberately.** Factoring the repeated
+    sub-schema out is the obvious answer to both the cycle and the size, and it
+    is refused: most MCP clients reject a tool schema containing a reference
+    outright, so it trades a size problem for a compatibility one, and the
+    transports in this family have no reference handling in either direction.
+    Every schema this module emits is flat and self-contained. Keep it that way.
     """
+    serializer_cls: type[serializers.Serializer] = type(serializer)
+    re_entered_too_often: bool = path.count(serializer_cls) >= _MAX_SERIALIZER_APPEARANCES
+    beyond_bound: bool = max_depth is not None and len(path) >= max_depth
+    if re_entered_too_often or beyond_bound:
+        # Overrides are deliberately skipped here: a truncated node publishes no
+        # properties for ``exclude_fields`` / ``deprecate_fields`` to act on, and
+        # an ``examples`` block would re-inline the very subtree just dropped.
+        return {"type": "object"}
+    path = (*path, serializer_cls)
     properties: dict[str, Any] = {}
     required: list[str] = []
     for name, field in serializer.fields.items():
         if field.write_only if for_output else field.read_only:
             continue
-        properties[name] = field_to_schema(field, registry, for_output=for_output)
+        properties[name] = field_to_schema(
+            field, registry, for_output=for_output, max_depth=max_depth, path=path
+        )
+        title = _declared_label(name, field)
+        if title is not None:
+            properties[name]["title"] = title
         if field.help_text:
             properties[name]["description"] = str(field.help_text)
         if _always_rendered(field) if for_output else field.required:
@@ -306,10 +469,17 @@ def callable_input_schema(
 
     ``skip`` drops transport seeds (``request`` / ``user`` / ``view``) from
     both ordinary parameters and expanded keys, and ``required`` never contains
-    a skipped name. ``InputRequired`` / ``NotClientInput`` markers apply to
-    both alike. Requiredness of an ordinary parameter is never inferred from
-    its default: the framework may supply it from the kwargs pool rather than
-    from caller input, so only the marker may declare it.
+    a skipped name. ``InputRequired`` / ``NotClientInput`` /
+    ``InputDescription`` markers apply to both alike. Requiredness of an
+    ordinary parameter is never inferred from its default: the framework may
+    supply it from the kwargs pool rather than from caller input, so only the
+    marker may declare it.
+
+    An ``InputDescription`` lands on the property as ``description``, the same
+    key the serializer path fills from ``help_text``. It is read *before* the
+    hidden check rather than after, so a description declared beside
+    ``NotClientInput`` is refused instead of quietly disappearing with the key
+    it was written for.
     """
     try:
         # ``include_extras`` is required: the schema markers ride in the
@@ -335,9 +505,12 @@ def callable_input_schema(
             properties[name] = {}
             continue
         _underlying, marked_required, hidden = read_schema_markers(hints[name])
+        description = read_input_description(hints[name])
         if hidden:
             continue
         properties[name] = _python_type_to_schema(hints[name], registry)
+        if description is not None:
+            properties[name]["description"] = description
         if marked_required:
             required.append(name)
     return properties, required
@@ -355,6 +528,8 @@ def _typed_dict_to_schema(
     key is never advertised as a caller input. ``InputRequired`` is the usable
     way to mark a key required here, because a genuinely required
     ``TypedDict`` key breaks the callable's Protocol conformance under PEP 692.
+    ``InputDescription`` is the usable way to describe one, because a
+    ``TypedDict`` key has no ``help_text`` to read.
     """
     field_types, required_keys = typed_dict_input(typed_dict)
     properties: dict[str, Any] = {}
@@ -363,9 +538,12 @@ def _typed_dict_to_schema(
         if name in skip:
             continue
         _underlying, marked_required, hidden = read_schema_markers(hint)
+        description = read_input_description(hint)
         if hidden:
             continue
         properties[name] = _python_type_to_schema(hint, registry)
+        if description is not None:
+            properties[name]["description"] = description
         if name in required_keys or marked_required:
             required.append(name)
     return properties, required

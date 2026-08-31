@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from rest_framework_services.types.offline_contract import OfflineContract
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 
@@ -37,11 +38,23 @@ class RegisteredSpec:
       ``"admin"``, ``"destructive"`` — that every transport can interpret in its own
       vocabulary. Structured, transport-specific payloads do not belong in a tag string;
       they belong at the binding.
+    - **``agent_contract``** — an optional
+      [`OfflineContract`][rest_framework_services.types.offline_contract.OfflineContract]:
+      what a transport with **no HTTP request** has to be told, because the URLconf
+      and query string told an HTTP one for free. One typed slot rather than loose
+      fields, so this stays an index rather than becoming a configuration object.
+
+    **Note: "invariant across transports" is not the same test as "which transport
+    configures it"**, and reading it as the latter is what put these declarations
+    at the binding. `icons` and `annotations` are genuinely MCP's. A `UrlKwarg`
+    is not: every off-HTTP transport needs the identical one, and none of them is
+    where it should be declared.
     """
 
     name: str
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]
     tags: frozenset[str] = frozenset()
+    agent_contract: OfflineContract | None = None
 
 
 __all__ = ["RegisteredSpec"]

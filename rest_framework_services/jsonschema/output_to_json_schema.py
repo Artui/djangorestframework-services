@@ -8,8 +8,12 @@ from typing import Any
 from rest_framework import serializers
 
 from rest_framework_services.audience.annotate_output_schema import annotate_output_schema
-from rest_framework_services.jsonschema.utils import dataclass_to_schema, serializer_to_schema
-from rest_framework_services.types.agent_projection import AgentProjection
+from rest_framework_services.jsonschema.utils import (
+    dataclass_to_schema,
+    serializer_for_schema,
+    serializer_to_schema,
+)
+from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
@@ -22,9 +26,10 @@ def output_to_json_schema(
     *,
     kind: SelectorKind | None = None,
     paginate: bool = False,
-    projection: AgentProjection | None = None,
+    projection: AudienceProjection | None = None,
     handle_description: str | None = None,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+    max_depth: int | None = None,
 ) -> dict[str, Any] | None:
     """Build a JSON Schema for an output serializer, or ``None`` when undeclared.
 
@@ -37,9 +42,12 @@ def output_to_json_schema(
     - ``kind=LIST, paginate=True`` — the pagination envelope
       ``{items, page, totalPages, hasNext}``.
 
-    ``projection`` applies the serializer's agent markings, mirroring what
+    ``projection`` applies the serializer's field markings, mirroring what
     [`project_payload`][rest_framework_services.audience.project_payload.project_payload]
-    does to the payload. It lands on the **item**, wherever the item sits for this
+    does to the payload — hidden fields dropped, choices re-declared in their
+    display values, and a formatted field re-declared as the type its
+    [`ValueFormatter`][rest_framework_services.types.value_formatter.ValueFormatter]
+    produces. It lands on the **item**, wherever the item sits for this
     ``kind`` — the array wrapper and the pagination envelope are this function's
     own shapes and belong to no serializer, so a projection walking them would
     look for markings that cannot exist and silently annotate nothing.
@@ -52,8 +60,18 @@ def output_to_json_schema(
 
     ``registry`` supplies consumer rules for custom field / Python types — see
     [`JsonSchemaRegistry`][rest_framework_services.types.json_schema_registry.JsonSchemaRegistry].
+
+    ``max_depth`` bounds how many serializer levels the **item** describes,
+    truncating deeper ones to ``{"type": "object"}``; ``None``, the default,
+    describes them all. The item is level 1, and the array wrapper and the
+    pagination envelope are this function's own shapes, so they cost no level.
+    Independently of this bound, a serializer that nests itself is truncated
+    after a fixed number of appearances rather than recursing until the process
+    dies; where the two disagree the tighter wins, so this still yields exactly
+    the levels it names. Truncation is flat and self-contained — never ``$defs``
+    / ``$ref``, which most MCP clients reject outright.
     """
-    item_schema: dict[str, Any] | None = _item_schema(output_serializer, registry)
+    item_schema: dict[str, Any] | None = _item_schema(output_serializer, registry, max_depth)
     if item_schema is None:
         return None
     if projection is not None:
@@ -79,14 +97,16 @@ def output_to_json_schema(
 
 
 def _item_schema(
-    output_serializer: type | None, registry: JsonSchemaRegistry
+    output_serializer: type | None, registry: JsonSchemaRegistry, max_depth: int | None
 ) -> dict[str, Any] | None:
     if output_serializer is None:
         return None
     if isinstance(output_serializer, type) and issubclass(
         output_serializer, serializers.Serializer
     ):
-        return serializer_to_schema(output_serializer(), registry, for_output=True)
+        return serializer_to_schema(
+            serializer_for_schema(output_serializer), registry, for_output=True, max_depth=max_depth
+        )
     if isinstance(output_serializer, type) and dataclasses.is_dataclass(output_serializer):
         return dataclass_to_schema(output_serializer, registry)
     return None

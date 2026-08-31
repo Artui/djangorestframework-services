@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from rest_framework_services.types.agent_projection import AgentProjection
+from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.field_audience import FieldAudience
 
 
-def project_payload(payload: Any, projection: AgentProjection) -> Any:
+def project_payload(payload: Any, projection: AudienceProjection) -> Any:
     """Drop plumbing and speak enum labels, at any depth.
 
     Two changes, both driven by the same declaration that shapes the schema so
@@ -24,6 +24,11 @@ def project_payload(payload: Any, projection: AgentProjection) -> Any:
       on a ``HANDLE``, which some other tool takes as input. A
       ``MultipleChoiceField`` renders a *collection* of constants, so each
       member is substituted rather than the collection looked up whole.
+    - a field carrying a
+      [`ValueFormatter`][rest_framework_services.types.value_formatter.ValueFormatter]
+      is rendered through it — a date-time read as a local date-time rather than
+      raw ISO-8601, an amount with its currency. Also **not** on a ``HANDLE``,
+      and for the same reason.
 
     Apply this where a payload becomes the agent's *answer*. Not where it feeds
     the next step of a chain, which still needs the handles.
@@ -33,7 +38,7 @@ def project_payload(payload: Any, projection: AgentProjection) -> Any:
     return _project(payload, projection)
 
 
-def _project(payload: Any, projection: AgentProjection) -> Any:
+def _project(payload: Any, projection: AudienceProjection) -> Any:
     if isinstance(payload, list):
         return [_project(item, projection) for item in payload]
     if not isinstance(payload, Mapping):
@@ -43,8 +48,17 @@ def _project(payload: Any, projection: AgentProjection) -> Any:
         audience = projection.audience(key)
         if audience is FieldAudience.HIDDEN:
             continue
+        # Declared beats derived, deliberately and not as a by-product of which
+        # branch this chain happens to reach first. A ``ChoiceField`` its author
+        # has also given a formatter is a real collision, and the transform
+        # written by hand is the one that was asked for. ``annotate_output_schema``
+        # orders its mirror of this chain the same way; the two agree only while
+        # they are read together.
+        formatter = projection.formatter(key)
         child = projection.nested.get(key)
-        if child is not None:
+        if formatter is not None:
+            projected[key] = formatter.apply(value)
+        elif child is not None:
             projected[key] = _project(value, child)
         elif audience is not FieldAudience.HANDLE and key in projection.choice_labels:
             projected[key] = _spoken(value, projection.choice_labels[key])

@@ -1,0 +1,56 @@
+"""``audience_projection_for_spec`` — where each spec kind keeps its serializer."""
+
+from __future__ import annotations
+
+from rest_framework import serializers
+
+from rest_framework_services.audience.audience_projection_for_spec import (
+    audience_projection_for_spec,
+)
+from rest_framework_services.types.field_audience import FieldAudience
+from rest_framework_services.types.field_marking import MARKING, FieldMarking
+from rest_framework_services.types.selector_kind import SelectorKind
+from rest_framework_services.types.selector_spec import SelectorSpec
+from rest_framework_services.types.service_spec import ServiceSpec
+
+
+class _Marked(serializers.Serializer):
+    etag = serializers.CharField(style={MARKING: FieldMarking.hidden()})
+
+
+def test_a_selector_keeps_it_on_output_serializer() -> None:
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=lambda **_: [], output_serializer=_Marked)
+
+    assert audience_projection_for_spec(spec).audience("etag") is FieldAudience.HIDDEN
+
+
+def test_a_service_keeps_it_one_level_down() -> None:
+    spec = ServiceSpec(
+        service=lambda **_: None,
+        atomic=False,
+        output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_Marked),
+    )
+
+    assert audience_projection_for_spec(spec).audience("etag") is FieldAudience.HIDDEN
+
+
+def test_a_spec_that_renders_through_nothing_projects_empty() -> None:
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=lambda **_: [])
+
+    assert audience_projection_for_spec(spec).is_empty()
+
+
+def test_a_contracts_overrides_are_forwarded() -> None:
+    """One helper resolves the projection for every agent transport.
+
+    ``OfflineContract.field_audiences`` is declared once on the registry entry;
+    what makes that worth doing is that both readers layer it by the same rule
+    rather than each carrying its own merge.
+    """
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=lambda **_: [], output_serializer=_Marked)
+
+    projection = audience_projection_for_spec(
+        spec, overrides={"etag": FieldMarking()}, name="lookup_invoice"
+    )
+
+    assert projection.audience("etag") is FieldAudience.CONTENT

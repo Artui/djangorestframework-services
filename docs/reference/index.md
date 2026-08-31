@@ -20,7 +20,7 @@ signatures from the source — when in doubt, follow the source link
 - **[Types](types.md)** — `ServiceSpec`, `SelectorSpec`,
   `PolymorphicServiceSpec`, `ChangeResult`, `FieldChange`, `UNSET`,
   `UnsetType`, `NoInput`, `HttpExtras`.
-- **[Audience projection](audience.md)** — `build_agent_projection`,
+- **[Audience projection](audience.md)** — `build_audience_projection`,
   `project_payload`, `annotate_output_schema`: keep one serializer for your
   API and your agent tools, and declare per field which are content, which
   are opaque handles, and which a model should never read out.

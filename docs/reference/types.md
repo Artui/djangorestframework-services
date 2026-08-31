@@ -88,6 +88,14 @@
 
 ::: rest_framework_services.types.not_client_input
 
+## `InputDescription`
+
+::: rest_framework_services.types.input_description
+
+## `read_input_description`
+
+::: rest_framework_services.types.read_input_description.read_input_description
+
 ## `UrlKwarg`
 
 ::: rest_framework_services.types.url_kwarg.UrlKwarg
@@ -112,14 +120,18 @@
 
 ::: rest_framework_services.types.field_audience.FieldAudience
 
-## `AGENT`
+## `MARKING`
 
-::: rest_framework_services.types.agent_field.AGENT
+::: rest_framework_services.types.field_marking.MARKING
 
-## `AgentField`
+## `FieldMarking`
 
-::: rest_framework_services.types.agent_field.AgentField
+::: rest_framework_services.types.field_marking.FieldMarking
 
-## `AgentProjection`
+## `ValueFormatter`
 
-::: rest_framework_services.types.agent_projection.AgentProjection
+::: rest_framework_services.types.value_formatter.ValueFormatter
+
+## `AudienceProjection`
+
+::: rest_framework_services.types.audience_projection.AudienceProjection

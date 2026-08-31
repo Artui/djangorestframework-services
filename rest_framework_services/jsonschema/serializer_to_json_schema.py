@@ -7,7 +7,11 @@ from typing import Any
 
 from rest_framework import serializers
 
-from rest_framework_services.jsonschema.utils import dataclass_to_schema, serializer_to_schema
+from rest_framework_services.jsonschema.utils import (
+    dataclass_to_schema,
+    serializer_for_schema,
+    serializer_to_schema,
+)
 from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
@@ -19,6 +23,7 @@ def serializer_to_json_schema(
     *,
     partial: bool = False,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+    max_depth: int | None = None,
 ) -> dict[str, Any]:
     """Build a JSON Schema *object* for an input serializer / dataclass / ``None``.
 
@@ -34,12 +39,28 @@ def serializer_to_json_schema(
 
     ``registry`` supplies consumer rules for custom field / Python types — see
     [`JsonSchemaRegistry`][rest_framework_services.types.json_schema_registry.JsonSchemaRegistry].
+
+    ``max_depth`` bounds how many serializer levels are described, truncating
+    deeper ones to ``{"type": "object"}``; ``None``, the default, describes them
+    all, which is what every caller got before the option existed. The root is
+    level 1, so ``max_depth=1`` publishes the top-level fields and truncates
+    every nested serializer. It is a **size** knob and nothing more: a
+    self-referential serializer is truncated after a fixed number of appearances
+    whatever this says, because the alternative is a ``RecursionError`` raised
+    while a transport declares its tools. Whichever of the two is tighter wins,
+    so this still yields exactly the levels it names. A dataclass input has no
+    nested-serializer walk, so the bound does not reach that branch.
+
+    Truncation is flat and self-contained — never ``$defs`` / ``$ref``, which
+    most MCP clients reject outright.
     """
     schema: dict[str, Any]
     if serializer is None:
         schema = {"type": "object"}
     elif isinstance(serializer, type) and issubclass(serializer, serializers.Serializer):
-        schema = serializer_to_schema(serializer(), registry)
+        schema = serializer_to_schema(
+            serializer_for_schema(serializer), registry, max_depth=max_depth
+        )
     elif isinstance(serializer, type) and dataclasses.is_dataclass(serializer):
         schema = dataclass_to_schema(serializer, registry)
     else:
