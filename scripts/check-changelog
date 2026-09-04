@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""Refuse a CHANGELOG a merge or a rebase has quietly rearranged.
+
+A released heading and an unreleased entry insert after the *same* line, so git
+resolves them without a conflict and nothing fails. The result has shipped work
+filed under a version already on PyPI, and the only outward sign is that
+``[Unreleased]`` has gone empty. It has happened four times across two
+repositories, and every hand-check that caught it was a habit rather than a
+gate -- which is what this replaces.
+
+Four shapes, because the first one found is not the only one:
+
+1. a version heading appearing twice;
+2. a ``###`` section appearing twice inside one version, which is what a release
+   covering two feature branches produces and what the heading check misses;
+3. an entry appearing twice, byte for byte, which is what a branch cut while its
+   work sat under ``[Unreleased]`` produces once main releases that work -- the
+   headings are all correct there, so only this catches it;
+4. ``[Unreleased]`` emptied without a new version heading to account for it.
+
+Whole entries are compared rather than first lines. Two releases may legitimately
+open two different entries with the same sentence -- a link to one documentation
+page, say -- and refusing that would be a guard nobody could keep.
+"""
+
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+_VERSION = re.compile(r"^## \[(?P<name>[^\]]+)\]")
+_SECTION = re.compile(r"^### ")
+_ENTRY = re.compile(r"^- ")
+
+
+def _sections(lines: list[str]) -> list[tuple[str, list[str]]]:
+    """The file split into version blocks, in the order they appear."""
+    blocks: list[tuple[str, list[str]]] = []
+    for line in lines:
+        found = _VERSION.match(line)
+        if found:
+            blocks.append((found.group("name"), []))
+        elif blocks:
+            blocks[-1][1].append(line)
+    return blocks
+
+
+def _entries(body: list[str]) -> list[str]:
+    """Whole entries, each one its bullet and every line that continues it."""
+    found: list[str] = []
+    for line in body:
+        if _ENTRY.match(line):
+            found.append(line)
+        elif found and line.startswith(("  ", "\t")):
+            found[-1] += "\n" + line
+    return found
+
+
+def _before(path: Path) -> list[str] | None:
+    """HEAD's copy of the file, or None when there is no HEAD copy."""
+    result = subprocess.run(
+        ["git", "show", f"HEAD:{path.as_posix()}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return None if result.returncode else result.stdout.split("\n")
+
+
+def check(path: Path) -> list[str]:
+    lines = path.read_text(encoding="utf-8").split("\n")
+    blocks = _sections(lines)
+    problems: list[str] = []
+
+    names = [name for name, _ in blocks]
+    for name in sorted({n for n in names if names.count(n) > 1}):
+        problems.append(
+            f"{path}: '## [{name}]' appears {names.count(name)} times. A merge put a released "
+            "heading above work that was still unreleased, so that work now claims a version "
+            "already published."
+        )
+
+    for name, body in blocks:
+        headings = [line for line in body if _SECTION.match(line)]
+        for heading in sorted({h for h in headings if headings.count(h) > 1}):
+            problems.append(
+                f"{path}: '{heading}' appears {headings.count(heading)} times inside "
+                f"'[{name}]'. Two branches each prepended their own section and the bump "
+                "promoted both. Merge them, keeping the entry order."
+            )
+
+    seen: dict[str, str] = {}
+    for name, body in blocks:
+        for entry in _entries(body):
+            first = entry.split("\n")[0]
+            if entry in seen:
+                problems.append(
+                    f"{path}: an entry appears in both '[{seen[entry]}]' and '[{name}]', byte "
+                    f"for byte: {first[:70]}... The headings are correct here, which is why "
+                    "nothing else catches it. Delete the copy in the *unreleased* section."
+                )
+            else:
+                seen[entry] = name
+
+    problems.extend(_emptied(path, blocks, set(names)))
+    return problems
+
+
+def _emptied(path: Path, blocks: list[tuple[str, list[str]]], names: set[str]) -> list[str]:
+    """Whether this change emptied ``[Unreleased]`` without releasing anything.
+
+    Emptiness alone says nothing -- every repository sits that way between
+    releases, and checking for it would fail on the next commit to touch any
+    changelog anywhere. What matters is the *transition*: entries were under
+    ``[Unreleased]`` in HEAD, they are gone now, and no new version heading
+    arrived to account for them. A release bump moves them under a heading it
+    adds in the same commit, so it never trips this.
+    """
+    now = next((body for name, body in blocks if name == "Unreleased"), None)
+    if now is None or any(_ENTRY.match(line) for line in now):
+        return []
+    before = _before(path)
+    if before is None:
+        return []
+    was = next((body for name, body in _sections(before) if name == "Unreleased"), [])
+    if not any(_ENTRY.match(line) for line in was):
+        return []
+    if names - {name for name, _ in _sections(before)}:
+        return []
+    return [
+        f"{path}: '[Unreleased]' had entries and now has none, and no version heading was added "
+        "to account for them. That is what a merge or a rebase does when a released heading and "
+        "an unreleased entry insert after the same line: nothing conflicts, and the work is "
+        "filed under a version already published."
+    ]
+
+
+def main(argv: list[str]) -> int:
+    problems = [problem for name in argv for problem in check(Path(name))]
+    for problem in problems:
+        print(problem, file=sys.stderr)
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

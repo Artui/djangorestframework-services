@@ -285,22 +285,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   becomes an arbitrarily large SQL `OFFSET`, and the reported `page` being the
   one actually served.
 
-### Fixed
+- **A filter now publishes what it is called and what it matches.** A filter's
+  `label` becomes `title` and its `help_text` becomes `description`; where the
+  argument's own name does not give the lookup away, it is stated —
+  `min_views` declared as `field_name="views", lookup_expr="gte"` publishes
+  ``"Matches `views` with the `gte` lookup."`` A filter whose name, field and
+  lookup already agree says nothing extra, and an author's own `help_text`
+  always wins over the derived wording.
 
-- **Schema generation could not describe a serializer dispatch renders fine.**
-  Both `serializer_to_json_schema` and `output_to_json_schema` instantiated the
-  serializer bare, so a `get_fields` reading `self.context["request"]` — routine,
-  because over HTTP the key is always there — raised `KeyError` from description
-  while the same spec rendered perfectly. They now use the baseline context
-  `build_agent_projection` already synthesizes, and for the same reason: a spec
-  that can be called and cannot be described is exactly the schema/payload
-  divergence the audience layer exists to prevent.
-
-  The view and request are `None` and cannot be otherwise, since a schema is
-  built once when a transport declares its tools and no request exists yet. A
-  `get_fields` that *branches* on the view is therefore reflected as the branch
-  a caller with none takes. That limit is now stated in the docs rather than
-  discovered.
+- **A serializer field's `label` becomes `title`**, where the author wrote one.
+  DRF binds a derived label to every unlabelled field, and emitting that would
+  restate the property name in worse English at a reader's cost, so only a
+  declared label travels.
 
 ### Changed
 
@@ -326,20 +322,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `properties["ordering"]["enum"]` will need updating when it raises its floor
   to this version.
 
-### Added
+### Fixed
 
-- **A filter now publishes what it is called and what it matches.** A filter's
-  `label` becomes `title` and its `help_text` becomes `description`; where the
-  argument's own name does not give the lookup away, it is stated —
-  `min_views` declared as `field_name="views", lookup_expr="gte"` publishes
-  ``"Matches `views` with the `gte` lookup."`` A filter whose name, field and
-  lookup already agree says nothing extra, and an author's own `help_text`
-  always wins over the derived wording.
+- **Schema generation could not describe a serializer dispatch renders fine.**
+  Both `serializer_to_json_schema` and `output_to_json_schema` instantiated the
+  serializer bare, so a `get_fields` reading `self.context["request"]` — routine,
+  because over HTTP the key is always there — raised `KeyError` from description
+  while the same spec rendered perfectly. They now use the baseline context
+  `build_agent_projection` already synthesizes, and for the same reason: a spec
+  that can be called and cannot be described is exactly the schema/payload
+  divergence the audience layer exists to prevent.
 
-- **A serializer field's `label` becomes `title`**, where the author wrote one.
-  DRF binds a derived label to every unlabelled field, and emitting that would
-  restate the property name in worse English at a reader's cost, so only a
-  declared label travels.
+  The view and request are `None` and cannot be otherwise, since a schema is
+  built once when a transport declares its tools and no request exists yet. A
+  `get_fields` that *branches* on the view is therefore reflected as the branch
+  a caller with none takes. That limit is now stated in the docs rather than
+  discovered.
 
 ## [0.46.0] — 2026-08-28
 
@@ -1013,34 +1011,19 @@ replaced.
   failures its service raises, and inventing one to satisfy the schema is not a
   trade this package makes.
 
-### Documentation
-
-- **The preconditions recipe no longer teaches a line that does nothing.** It
-  opened with `class BudgetLocked(ServiceError): status_code = 409` and promised
-  "a clean 409 for a browser", while every non-validation `ServiceError` mapped to
-  a fixed `422` — which the errors reference documented correctly, so two pages
-  contradicted each other and the more inviting one was wrong. The recipe raises
-  `ServiceConflict` now, and both pages say outright that a `status_code`
-  attribute is read by nobody and could not be honoured off HTTP anyway. Found by
-  writing that line from outside the package and watching a 422 come back.
-- **The exceptions reference lists the whole family.** `ServiceNotFound`,
-  `ServiceConflict` and — already missing — `AdditionalInputRequired` now render
-  alongside the other two.
-
 ### Fixed
 
 - **`OfflineHttpRequest.offline_host`'s description now reaches the page at all.**
   It documented itself with a Sphinx `#:` comment, which mkdocstrings reads as an
   ordinary Python comment — so the text was never rendered anywhere. It is an
   attribute docstring now, and the dispatch reference carries it.
+
 - **The reST literal-block marker no longer reaches the page.** Sphinx reads a
   trailing `::` as "an indented literal block follows" and prints one colon;
   Markdown has no such rule, so the second colon rendered verbatim. The indented
   block was already coming out as a code block either way, so this drops the
   stray character and nothing else. 19 occurrences, the last of the Sphinx
   markup this package carried.
-
-### Fixed
 
 - **Docstring cross-references now render as links instead of raw markup.** The
   docstrings carried Sphinx roles — ``:class:`~rest_framework_services.ServiceSpec` ``
@@ -1055,6 +1038,21 @@ replaced.
   reference pages, which render some of these symbols from the installed
   package — `djangorestframework-pydantic-ai` and
   `djangorestframework-mcp-server` both pick the fix up on their next resolve.
+
+### Documentation
+
+- **The preconditions recipe no longer teaches a line that does nothing.** It
+  opened with `class BudgetLocked(ServiceError): status_code = 409` and promised
+  "a clean 409 for a browser", while every non-validation `ServiceError` mapped to
+  a fixed `422` — which the errors reference documented correctly, so two pages
+  contradicted each other and the more inviting one was wrong. The recipe raises
+  `ServiceConflict` now, and both pages say outright that a `status_code`
+  attribute is read by nobody and could not be honoured off HTTP anyway. Found by
+  writing that line from outside the package and watching a 422 come back.
+
+- **The exceptions reference lists the whole family.** `ServiceNotFound`,
+  `ServiceConflict` and — already missing — `AdditionalInputRequired` now render
+  alongside the other two.
 
 ## [0.39.0] — 2026-08-12
 
@@ -1866,6 +1864,12 @@ unmatched primary key does.
   `dispatch_spec` / `adispatch_spec` and `render_spec_output` /
   `arender_spec_output`. Same arguments, same result, executor instead of loop.
 
+- **`base_serializer_context`** — the DRF baseline context, exported for
+  transports that build a serializer outside `dispatch_spec` /
+  `render_spec_output` (as `djangorestframework-mcp-server` does for its
+  selector, chain, and resource renderers). Prefers `view.get_serializer_context()`
+  when the view has it, else synthesizes `{"request", "format": None, "view"}`.
+
 ### Fixed
 
 - **`adispatch_spec` ran a spec's sync callables on the event loop, so any of
@@ -1890,6 +1894,7 @@ unmatched primary key does.
   All four now go through the executor, thread-sensitive like the calls that
   already did, so they share one connection and see the same transaction state
   as on the sync path. Sync dispatch is unaffected — it was never on a loop.
+
 - **Off-HTTP dispatch supplied no baseline serializer context, so
   `self.context["request"]` raised `KeyError`.** Over HTTP every serializer DRF
   builds carries `GenericAPIView.get_serializer_context()` — `request` /
@@ -1907,14 +1912,6 @@ unmatched primary key does.
   you passed it — and `format` is `None`. The HTTP bulk path (which renders
   through `render_spec_output`) gains the same baseline, from the real view's
   `get_serializer_context()`.
-
-### Added
-
-- **`base_serializer_context`** — the DRF baseline context, exported for
-  transports that build a serializer outside `dispatch_spec` /
-  `render_spec_output` (as `djangorestframework-mcp-server` does for its
-  selector, chain, and resource renderers). Prefers `view.get_serializer_context()`
-  when the view has it, else synthesizes `{"request", "format": None, "view"}`.
 
 ## [0.28.1] — 2026-07-28
 
