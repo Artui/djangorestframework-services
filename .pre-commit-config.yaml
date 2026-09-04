@@ -72,3 +72,15 @@ repos:
         language: pygrep
         types: [text]
         exclude: '^\.pre-commit-config\.yaml$'
+
+      # Structural rather than a pattern, so it is a script where the four
+      # above are pygrep. A merge or a rebase can rearrange this file without
+      # conflicting: a released heading and an unreleased entry insert after the
+      # same line, git resolves them silently, and shipped work ends up filed
+      # under a version already published. It has happened four times across two
+      # repositories and every catch was a habit rather than a gate.
+      - id: check-changelog
+        name: "check CHANGELOG structure (merge and rebase leave it silently wrong)"
+        entry: scripts/check-changelog
+        language: script
+        files: '^CHANGELOG\.md$'
