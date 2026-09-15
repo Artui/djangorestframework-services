@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.0] — 2026-09-15
+
+### Added
+
+- **A project can register its own always-available pool seeds.** `PoolSeeds` is
+  an immutable registry — `DEFAULT_POOL_SEEDS.extend(tenant=…)` returns a new one
+  — passed per dispatch as `dispatch_spec(..., pool_seeds=…)` and resolved into
+  every pool `base_pool` builds. A resolver binds by the same declare-to-receive
+  rule as any other spec callable, so it names the pool entries it wants.
+
+  **The reason this is a feature and not a convenience is the half nobody asks
+  for.** `RESERVED_POOL_SEEDS` does two jobs for the seven names it holds: it
+  strips client input named after one from the spread, and it exempts those names
+  from unknown-argument accounting. An entry added through `base_pool(**extra)`
+  got **neither** — so on a selector, where no validator stands in front of the
+  spread, a caller could supply it, and nothing warned. A registered seed now
+  gets both, because `PoolSeeds.reserved` is what the four sites read.
+
+  Registering a name is refused at registration rather than at dispatch: a
+  dispatcher-owned name raises, and so does a duplicate, because a silent
+  last-wins is the failure the reservation exists to prevent.
+
+  Off the HTTP path this is the channel that did not exist. `request` is not only
+  a transport object — it is where a tenant, a correlation id, a locale or a
+  clock hang off — and off HTTP `request` is the thing you do not have.
+
+### Changed
+
+- **An input or output serializer that is neither a `Serializer` subclass nor a
+  dataclass is now refused when its schema is derived**, where it used to return
+  `{"type": "object"}` — byte-identical to a spec declaring no input at all, so a
+  tool advertised no arguments and nothing said why. `build_input_serializer_from_data`
+  already raised `TypeError` for exactly that input at dispatch, so the schema
+  promised a call the dispatcher would refuse; the two halves now agree and the
+  refusal arrives at declaration time.
+
 ### Fixed
 
 - **Four documented behaviours that were not true.** Each was found by planning a
@@ -38,40 +74,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     Published only on the input side, and only for a default that is a constant
     and JSON-native — a callable or a `Decimal` is excluded, because naming
     either would be a false claim or an unserialisable schema.
-
-### Changed
-
-- **An input or output serializer that is neither a `Serializer` subclass nor a
-  dataclass is now refused when its schema is derived**, where it used to return
-  `{"type": "object"}` — byte-identical to a spec declaring no input at all, so a
-  tool advertised no arguments and nothing said why. `build_input_serializer_from_data`
-  already raised `TypeError` for exactly that input at dispatch, so the schema
-  promised a call the dispatcher would refuse; the two halves now agree and the
-  refusal arrives at declaration time.
-
-### Added
-
-- **A project can register its own always-available pool seeds.** `PoolSeeds` is
-  an immutable registry — `DEFAULT_POOL_SEEDS.extend(tenant=…)` returns a new one
-  — passed per dispatch as `dispatch_spec(..., pool_seeds=…)` and resolved into
-  every pool `base_pool` builds. A resolver binds by the same declare-to-receive
-  rule as any other spec callable, so it names the pool entries it wants.
-
-  **The reason this is a feature and not a convenience is the half nobody asks
-  for.** `RESERVED_POOL_SEEDS` does two jobs for the seven names it holds: it
-  strips client input named after one from the spread, and it exempts those names
-  from unknown-argument accounting. An entry added through `base_pool(**extra)`
-  got **neither** — so on a selector, where no validator stands in front of the
-  spread, a caller could supply it, and nothing warned. A registered seed now
-  gets both, because `PoolSeeds.reserved` is what the four sites read.
-
-  Registering a name is refused at registration rather than at dispatch: a
-  dispatcher-owned name raises, and so does a duplicate, because a silent
-  last-wins is the failure the reservation exists to prevent.
-
-  Off the HTTP path this is the channel that did not exist. `request` is not only
-  a transport object — it is where a tenant, a correlation id, a locale or a
-  clock hang off — and off HTTP `request` is the thing you do not have.
 
 ## [0.49.0] — 2026-08-30
 
@@ -3521,7 +3523,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.49.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.50.0...HEAD
+[0.50.0]: https://github.com/Artui/djangorestframework-services/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/Artui/djangorestframework-services/compare/v0.48.0...v0.49.0
 [0.48.0]: https://github.com/Artui/djangorestframework-services/compare/v0.47.0...v0.48.0
 [0.47.0]: https://github.com/Artui/djangorestframework-services/compare/v0.46.0...v0.47.0
