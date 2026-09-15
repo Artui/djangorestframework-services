@@ -116,6 +116,10 @@
 
 ::: rest_framework_services.types.reserved_pool_seeds
 
+## `PoolSeeds`
+
+::: rest_framework_services.types.pool_seeds
+
 ## `FieldAudience`
 
 ::: rest_framework_services.types.field_audience.FieldAudience

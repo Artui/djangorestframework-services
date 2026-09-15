@@ -42,6 +42,7 @@ from rest_framework_services.dispatch.utils import (
 from rest_framework_services.selectors.utils import amaterialize_retrieve
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.dispatch_result import DispatchResult
+from rest_framework_services.types.pool_seeds import DEFAULT_POOL_SEEDS, PoolSeeds
 from rest_framework_services.types.progress_reporter import ProgressReporter
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -58,6 +59,7 @@ async def adispatch_spec(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     *,
     user: Any,
+    pool_seeds: PoolSeeds = DEFAULT_POOL_SEEDS,
     params: Mapping[str, Any] | list[Any],
     request: Any = None,
     view: Any = None,
@@ -96,6 +98,7 @@ async def adispatch_spec(
         return await _adispatch_service(
             spec,
             user=user,
+            pool_seeds=pool_seeds,
             params=params,
             request=request,
             view=view,
@@ -112,6 +115,7 @@ async def adispatch_spec(
         return await _adispatch_selector(
             spec,
             user=user,
+            pool_seeds=pool_seeds,
             params=params,
             request=request,
             view=view,
@@ -131,6 +135,7 @@ async def _adispatch_selector(
     spec: SelectorSpec[Any, Any],
     *,
     user: Any,
+    pool_seeds: PoolSeeds,
     params: Any,
     request: Any,
     view: Any,
@@ -143,9 +148,16 @@ async def _adispatch_selector(
 ) -> DispatchResult:
     if spec.selector is None:
         raise ImproperlyConfigured("adispatch_spec requires the SelectorSpec to set a `selector`.")
-    resolve_unknown_arguments(spec, params, unknown_arguments=unknown_arguments, serializer=None)
+    resolve_unknown_arguments(
+        spec,
+        params,
+        unknown_arguments=unknown_arguments,
+        serializer=None,
+        reserved=pool_seeds.reserved,
+    )
     binding = resolve_argument_binding(spec, argument_binding)
     pool: dict[str, Any] = base_pool(
+        seeds=pool_seeds,
         user=user,
         request=request,
         progress=resolve_progress(
@@ -155,11 +167,12 @@ async def _adispatch_selector(
     merge_arguments(
         pool,
         binding=binding,
+        reserved=pool_seeds.reserved,
         spread_source=params,
         provider_kwargs=await arun_off_loop(
             resolve_service_kwargs, spec, view=view, request=request, view_hooks=view_hooks
         ),
-        url_kwargs=view_url_kwargs(view),
+        url_kwargs=view_url_kwargs(view, reserved=pool_seeds.reserved),
     )
     try:
         result: Any = await arun_callable(
@@ -218,6 +231,7 @@ async def _adispatch_service(
     spec: ServiceSpec[Any, Any, Any],
     *,
     user: Any,
+    pool_seeds: PoolSeeds,
     params: Any,
     request: Any,
     view: Any,
@@ -234,6 +248,7 @@ async def _adispatch_service(
         return await _adispatch_service_many(
             spec,
             user=user,
+            pool_seeds=pool_seeds,
             params=params,
             request=request,
             view=view,
@@ -252,7 +267,13 @@ async def _adispatch_service(
         mode, target = "instance", instance
     else:
         mode, target = await _aresolve_target(
-            spec, user=user, params=params, request=request, view=view, filter_data=filter_data
+            spec,
+            user=user,
+            pool_seeds=pool_seeds,
+            params=params,
+            request=request,
+            view=view,
+            filter_data=filter_data,
         )
         if mode == "missing":
             return DispatchResult(value=None, kind="not_found", status=404)
@@ -288,12 +309,17 @@ async def _adispatch_service(
         instance=instance,
     )
     extras = resolve_unknown_arguments(
-        spec, params, unknown_arguments=unknown_arguments, serializer=serializer
+        spec,
+        params,
+        unknown_arguments=unknown_arguments,
+        serializer=serializer,
+        reserved=pool_seeds.reserved,
     )
     data, spread_source = service_input(serializer, extras)
 
     binding = resolve_argument_binding(spec, argument_binding)
     pool: dict[str, Any] = base_pool(
+        seeds=pool_seeds,
         user=user,
         request=request,
         progress=resolve_progress(
@@ -303,6 +329,7 @@ async def _adispatch_service(
     merge_arguments(
         pool,
         binding=binding,
+        reserved=pool_seeds.reserved,
         spread_source=spread_source,
         provider_kwargs=await arun_off_loop(
             resolve_service_kwargs, spec, view=view, request=request, view_hooks=view_hooks
@@ -331,6 +358,7 @@ async def _adispatch_service(
         spec,
         result,
         user=user,
+        pool_seeds=pool_seeds,
         request=request,
         view=view,
         params=filter_data if filter_data is not None else params,
@@ -364,6 +392,7 @@ async def _adispatch_service_many(
     spec: ServiceSpec[Any, Any, Any],
     *,
     user: Any,
+    pool_seeds: PoolSeeds,
     params: Any,
     request: Any,
     view: Any,
@@ -401,9 +430,14 @@ async def _adispatch_service_many(
         context=input_context,
     )
     data, has_data = resolve_service_many_input(
-        spec, serializer, params, unknown_arguments=unknown_arguments
+        spec,
+        serializer,
+        params,
+        unknown_arguments=unknown_arguments,
+        reserved=pool_seeds.reserved,
     )
     pool: dict[str, Any] = base_pool(
+        seeds=pool_seeds,
         user=user,
         request=request,
         progress=resolve_progress(
@@ -442,6 +476,7 @@ async def _aresolve_target(
     spec: ServiceSpec[Any, Any, Any],
     *,
     user: Any,
+    pool_seeds: PoolSeeds,
     params: Mapping[str, Any],
     request: Any,
     view: Any,
@@ -464,12 +499,12 @@ async def _aresolve_target(
             # No live reporter, deliberately: a lookup has no progress to report, and
             # one emitting *after* the service finished reads to a watching client as
             # the work having restarted. These take the no-op ``base_pool`` supplies.
-            **base_pool(user=user, request=request),
+            **base_pool(user=user, request=request, seeds=pool_seeds),
             # Reserved seeds stripped from the client spread, as ``merge_arguments``
             # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
             # dispatcher in the pool deciding *which row* is mutated.
-            **strip_reserved_seeds(params),
-            **view_url_kwargs(view),
+            **strip_reserved_seeds(params, reserved=pool_seeds.reserved),
+            **view_url_kwargs(view, reserved=pool_seeds.reserved),
         }
         pool.update(
             await arun_off_loop(
@@ -490,7 +525,13 @@ async def _aresolve_target(
         )
         return ("collection", collection)
     found, instance = await _aresolve_instance(
-        spec, user=user, params=params, request=request, view=view, filter_data=filters
+        spec,
+        user=user,
+        pool_seeds=pool_seeds,
+        params=params,
+        request=request,
+        view=view,
+        filter_data=filters,
     )
     return ("instance", instance) if found else ("missing", None)
 
@@ -500,6 +541,7 @@ async def _arun_output_selector(
     result: Any,
     *,
     user: Any,
+    pool_seeds: PoolSeeds,
     request: Any,
     view: Any,
     params: Mapping[str, Any],
@@ -516,7 +558,7 @@ async def _arun_output_selector(
         # No live reporter, deliberately: a lookup has no progress to report, and
         # one emitting *after* the service finished reads to a watching client as
         # the work having restarted. These take the no-op ``base_pool`` supplies.
-        **base_pool(user=user, request=request),
+        **base_pool(user=user, request=request, seeds=pool_seeds),
         "instance": result,
         "result": result,
     }
@@ -541,6 +583,7 @@ async def _aresolve_instance(
     spec: ServiceSpec[Any, Any, Any],
     *,
     user: Any,
+    pool_seeds: PoolSeeds,
     params: Mapping[str, Any],
     request: Any,
     view: Any,
@@ -553,12 +596,12 @@ async def _aresolve_instance(
         # No live reporter, deliberately: a lookup has no progress to report, and
         # one emitting *after* the service finished reads to a watching client as
         # the work having restarted. These take the no-op ``base_pool`` supplies.
-        **base_pool(user=user, request=request),
+        **base_pool(user=user, request=request, seeds=pool_seeds),
         # Reserved seeds stripped from the client spread, as ``merge_arguments``
         # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
         # dispatcher in the pool deciding *which row* is mutated.
-        **strip_reserved_seeds(params),
-        **view_url_kwargs(view),
+        **strip_reserved_seeds(params, reserved=pool_seeds.reserved),
+        **view_url_kwargs(view, reserved=pool_seeds.reserved),
     }
     pool.update(
         await arun_off_loop(

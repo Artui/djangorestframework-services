@@ -39,6 +39,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from rest_framework_services import (
+    DEFAULT_POOL_SEEDS,
     DispatchResult,
     SelectorKind,
     SelectorSpec,
@@ -251,6 +252,40 @@ async def test_params_cannot_shadow_the_user_in_collection_resolution_on_either_
     )
     assert sync_summary == async_summary
     assert seen == [real, real]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_registered_pool_seed_reaches_target_resolution_on_either_core() -> None:
+    """A project's own seed, in the hand-built pool that picks the row.
+
+    This module's subject exactly: each core assembles that pool itself, so a
+    channel threaded into one and not the other is drift no behavioural test of a
+    single core can see. The client-supplied ``tenant`` is here because a
+    registered name has to be stripped from the spread on both sides too.
+    """
+    seen: list[Any] = []
+    real = await User.objects.acreate(username="real")
+    post = await Post.objects.acreate(title="p")
+
+    def target(*, pk: Any, tenant: Any) -> QuerySet[Post]:
+        seen.append(tenant)
+        return Post.objects.filter(pk=pk)
+
+    spec = ServiceSpec(
+        service=lambda *, instance: None,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=target),
+    )
+    seeds = DEFAULT_POOL_SEEDS.extend(tenant=lambda *, user: f"tenant-of-{user.username}")
+    sync_summary, async_summary = await _dispatch_both(
+        spec,
+        lambda: {
+            "user": real,
+            "params": {"pk": post.pk, "tenant": "client-supplied"},
+            "pool_seeds": seeds,
+        },
+    )
+    assert sync_summary == async_summary
+    assert seen == ["tenant-of-real", "tenant-of-real"]
 
 
 @pytest.mark.django_db(transaction=True)

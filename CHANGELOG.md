@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A project can register its own always-available pool seeds.** `PoolSeeds` is
+  an immutable registry — `DEFAULT_POOL_SEEDS.extend(tenant=…)` returns a new one
+  — passed per dispatch as `dispatch_spec(..., pool_seeds=…)` and resolved into
+  every pool `base_pool` builds. A resolver binds by the same declare-to-receive
+  rule as any other spec callable, so it names the pool entries it wants.
+
+  **The reason this is a feature and not a convenience is the half nobody asks
+  for.** `RESERVED_POOL_SEEDS` does two jobs for the seven names it holds: it
+  strips client input named after one from the spread, and it exempts those names
+  from unknown-argument accounting. An entry added through `base_pool(**extra)`
+  got **neither** — so on a selector, where no validator stands in front of the
+  spread, a caller could supply it, and nothing warned. A registered seed now
+  gets both, because `PoolSeeds.reserved` is what the four sites read.
+
+  Registering a name is refused at registration rather than at dispatch: a
+  dispatcher-owned name raises, and so does a duplicate, because a silent
+  last-wins is the failure the reservation exists to prevent.
+
+  Off the HTTP path this is the channel that did not exist. `request` is not only
+  a transport object — it is where a tenant, a correlation id, a locale or a
+  clock hang off — and off HTTP `request` is the thing you do not have.
+
 ## [0.49.0] — 2026-08-30
 
 ### Added

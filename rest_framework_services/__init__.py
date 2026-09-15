@@ -84,6 +84,7 @@ from rest_framework_services.services import (
 )
 from rest_framework_services.types import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
+    DEFAULT_POOL_SEEDS,
     MARKING,
     RESERVED_POOL_SEEDS,
     UNSET,
@@ -113,6 +114,7 @@ from rest_framework_services.types import (
     OfflineServiceView,
     OutputPage,
     PolymorphicServiceSpec,
+    PoolSeeds,
     ProgressReporter,
     QueryParam,
     RegisteredSpec,
@@ -201,7 +203,9 @@ __all__ = [
     "PolymorphicServiceSpec",
     "ProgressReporter",
     "QueryParam",
+    "DEFAULT_POOL_SEEDS",
     "RESERVED_POOL_SEEDS",
+    "PoolSeeds",
     "OfflineContract",
     "RegisteredSpec",
     "RelatedObjectChange",
