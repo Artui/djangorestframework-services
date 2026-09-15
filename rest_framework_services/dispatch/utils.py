@@ -43,18 +43,25 @@ COLLECTION_SOURCE = "ServiceSpec.collection_selector_spec.selector"
 OUTPUT_SOURCE = "ServiceSpec.output_selector_spec.selector"
 
 
-def strip_reserved_seeds(params: Mapping[str, Any]) -> dict[str, Any]:
+def strip_reserved_seeds(
+    params: Mapping[str, Any], *, reserved: frozenset[str] = RESERVED_POOL_SEEDS
+) -> dict[str, Any]:
     """Drop the dispatcher-owned names from a client-supplied mapping.
 
     ``merge_arguments`` applies this to every spread it performs, but the
     nested target resolutions build their pool directly and must call it
     themselves — skipping it lets a caller-supplied ``user`` / ``request`` /
     ``instance`` outrank the dispatcher's authoritative value.
+
+    ``reserved`` is the set for *this* dispatch — the dispatcher's own names plus
+    whatever the caller's
+    [`PoolSeeds`][rest_framework_services.types.pool_seeds.PoolSeeds] registered.
+    It defaults to the built-ins so a caller with no registry is unaffected.
     """
-    return {key: value for key, value in params.items() if key not in RESERVED_POOL_SEEDS}
+    return {key: value for key, value in params.items() if key not in reserved}
 
 
-def view_url_kwargs(view: Any) -> dict[str, Any]:
+def view_url_kwargs(view: Any, *, reserved: frozenset[str] = RESERVED_POOL_SEEDS) -> dict[str, Any]:
     """Route-capture kwargs carried by the (offline) view, reserved seeds stripped.
 
     On HTTP the selector pool picks these up as ``extra_url_kwargs=view.kwargs``;
@@ -66,7 +73,7 @@ def view_url_kwargs(view: Any) -> dict[str, Any]:
     kwargs = getattr(view, "kwargs", None)
     if not kwargs:
         return {}
-    return {key: value for key, value in kwargs.items() if key not in RESERVED_POOL_SEEDS}
+    return {key: value for key, value in kwargs.items() if key not in reserved}
 
 
 def resolve_argument_binding(
@@ -88,6 +95,7 @@ def merge_arguments(
     spread_source: Mapping[str, Any],
     provider_kwargs: dict[str, Any],
     url_kwargs: Mapping[str, Any] | None = None,
+    reserved: frozenset[str] = RESERVED_POOL_SEEDS,
 ) -> None:
     """Merge spread args, URL kwargs, and the ``spec.kwargs`` provider into ``pool``.
 
@@ -103,7 +111,7 @@ def merge_arguments(
         pool.update(url)
         pool.update(provider_kwargs)
         return
-    spread = {k: v for k, v in spread_source.items() if k not in RESERVED_POOL_SEEDS}
+    spread = {k: v for k, v in spread_source.items() if k not in reserved}
     if binding is ArgumentBinding.SPREAD_AUTHOR_WINS:
         pool.update(spread)
         pool.update(url)
@@ -213,6 +221,7 @@ def resolve_unknown_arguments(
     *,
     unknown_arguments: UnknownArguments,
     serializer: Any,
+    reserved: frozenset[str] = RESERVED_POOL_SEEDS,
 ) -> dict[str, Any]:
     """Enforce the unknown-argument policy; return ``PASSTHROUGH`` extras (else ``{}``).
 
@@ -243,9 +252,7 @@ def resolve_unknown_arguments(
     if declared is None:
         return {}
     unknown = {
-        key: value
-        for key, value in params.items()
-        if key not in declared and key not in RESERVED_POOL_SEEDS
+        key: value for key, value in params.items() if key not in declared and key not in reserved
     }
     if not unknown:
         return {}
@@ -356,6 +363,7 @@ def resolve_service_many_input(
     params: list[Any],
     *,
     unknown_arguments: UnknownArguments,
+    reserved: frozenset[str] = RESERVED_POOL_SEEDS,
 ) -> tuple[list[Any] | None, bool]:
     """Assemble the ``data`` list for a ``many=True`` dispatch, honouring
     ``unknown_arguments`` **per list element**.
@@ -371,7 +379,11 @@ def resolve_service_many_input(
     has_data = serializer is not None
     for index, raw_item in enumerate(params):
         extras = resolve_unknown_arguments(
-            spec, raw_item, unknown_arguments=unknown_arguments, serializer=child
+            spec,
+            raw_item,
+            unknown_arguments=unknown_arguments,
+            serializer=child,
+            reserved=reserved,
         )
         validated_item = validated[index] if validated is not None else None
         item_data, _spread = service_input_for_validated(validated_item, extras)

@@ -32,6 +32,7 @@ from rest_framework_services.types.offline_http_request import OfflineHttpReques
 from rest_framework_services.types.offline_service_view import OfflineServiceView
 from rest_framework_services.types.output_page import OutputPage
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
+from rest_framework_services.types.pool_seeds import DEFAULT_POOL_SEEDS, PoolSeeds
 from rest_framework_services.types.progress_reporter import ProgressReporter
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.read_input_description import read_input_description
@@ -63,6 +64,8 @@ __all__ = [
     "OutputPage",
     "AudienceProjection",
     "DEFAULT_JSON_SCHEMA_REGISTRY",
+    "DEFAULT_POOL_SEEDS",
+    "PoolSeeds",
     "RESERVED_POOL_SEEDS",
     "UNSET",
     "ArgumentBinding",
