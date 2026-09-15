@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
+from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model
 from rest_framework.exceptions import PermissionDenied
 
@@ -62,12 +65,47 @@ def enforce_permissions(
     view: Any = context.view
     for permission_class in spec.permission_classes:
         permission = permission_class()
-        if not permission.has_permission(request, view):
+        with _naming_the_missing_request(permission, request):
+            allowed = permission.has_permission(request, view)
+        if not allowed:
             _deny(permission)
-        if isinstance(instance, Model) and not permission.has_object_permission(
-            request, view, instance
-        ):
-            _deny(permission)
+        if isinstance(instance, Model):
+            with _naming_the_missing_request(permission, request):
+                allowed = permission.has_object_permission(request, view, instance)
+            if not allowed:
+                _deny(permission)
+
+
+@contextmanager
+def _naming_the_missing_request(permission: Any, request: Any) -> Iterator[None]:
+    """Turn "no request" into a message naming the fix, not a DRF ``AttributeError``.
+
+    Most permission classes read ``request.user`` first thing, so dispatching with
+    no request fails as ``'NoneType' object has no attribute 'user'`` raised from
+    inside DRF — which reads like a bug in the caller's permission class rather
+    than a missing argument. The combination is reachable straight from the
+    documented wiring: ``TargetGuard`` names
+    ``on_target_resolved=enforce_permissions`` as canonical, and ``dispatch_spec``
+    describes a pure non-HTTP caller as passing neither ``request`` nor ``view``.
+
+    Scoped to the case that is actually ambiguous. A class that never touches the
+    request — object-level-only rules are the common shape — keeps working
+    against a context with none, which is why this is a translation rather than a
+    refusal up front. And with a request present, an ``AttributeError`` is the
+    caller's own and propagates untouched.
+    """
+    try:
+        yield
+    except AttributeError as exc:
+        if request is not None:
+            raise
+        raise ImproperlyConfigured(
+            f"{type(permission).__name__} read an attribute of the request, and the "
+            f"context carries none. Build it with build_offline_context(user=…) and "
+            f"dispatch with its request= and view=, which is what this function's "
+            f"contract assumes; a permission class that ignores the request needs "
+            f"neither."
+        ) from exc
 
 
 def _deny(permission: Any) -> None:

@@ -5,11 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, IsAdminUser
 
 from rest_framework_services.dispatch.build_offline_context import build_offline_context
 from rest_framework_services.dispatch.enforce_permissions import enforce_permissions
+from rest_framework_services.types.offline_context import OfflineContext
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -126,3 +128,63 @@ def test_object_permission_skipped_for_non_model_instance() -> None:
     # runs class-level only — object permissions are a per-row Model concept.
     spec = ServiceSpec(service=_service, permission_classes=[_DenyObject])
     enforce_permissions(spec, _context(), instance=object())
+
+
+def test_a_context_with_no_request_is_refused_by_name() -> None:
+    """The documented canonical wiring used to fail as an ``AttributeError``.
+
+    ``TargetGuard`` names ``on_target_resolved=enforce_permissions`` as the
+    canonical wiring and ``dispatch_spec`` documents a pure non-HTTP caller as
+    passing neither ``request`` nor ``view`` — so the two together produced
+    ``'NoneType' object has no attribute 'user'`` from inside DRF, which reads
+    like a bug in the caller's permission class rather than a missing argument.
+    This docstring's own contract is that the context comes from
+    ``build_offline_context``; the refusal now says so.
+    """
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=lambda **_: None,
+        permission_classes=[IsAdminUser],
+    )
+    with pytest.raises(ImproperlyConfigured, match="build_offline_context"):
+        enforce_permissions(spec, OfflineContext(user="u", request=None, view=None))
+
+
+def test_a_permission_class_that_ignores_the_request_still_needs_none() -> None:
+    """The refusal is a translation, not a gate — object-level-only rules are a
+    common shape and worked against a request-less context before this change."""
+
+    class _ObjectOnly(BasePermission):
+        def has_permission(self, request: Any, view: Any) -> bool:
+            return True
+
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST, selector=lambda **_: None, permission_classes=[_ObjectOnly]
+    )
+    enforce_permissions(spec, OfflineContext(user="u", request=None, view=None))
+
+
+def test_an_attribute_error_with_a_real_request_is_the_callers_own() -> None:
+    """Only the ambiguous case is translated; a genuine bug keeps its traceback."""
+
+    class _Buggy(BasePermission):
+        def has_permission(self, request: Any, view: Any) -> bool:
+            return request.no_such_attribute
+
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST, selector=lambda **_: None, permission_classes=[_Buggy]
+    )
+    context = build_offline_context(user="u")
+    with pytest.raises(AttributeError, match="no_such_attribute"):
+        enforce_permissions(spec, context)
+
+
+def test_a_spec_with_no_permission_classes_still_needs_no_request() -> None:
+    """The refusal is scoped to the case that would have crashed.
+
+    ``permission_classes is None`` is a documented no-op off HTTP, so a caller
+    that dispatches without a request and declares nothing to enforce must keep
+    working — refusing here would break the transport-neutral default.
+    """
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=lambda **_: None)
+    enforce_permissions(spec, OfflineContext(user="u", request=None, view=None))
