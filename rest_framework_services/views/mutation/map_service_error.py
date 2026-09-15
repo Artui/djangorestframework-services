@@ -14,6 +14,9 @@ from __future__ import annotations
 from rest_framework import exceptions as drf_exceptions
 from rest_framework import status as drf_status
 
+from rest_framework_services.exceptions.additional_input_required import (
+    AdditionalInputRequired,
+)
 from rest_framework_services.exceptions.service_conflict import ServiceConflict
 from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.exceptions.service_not_found import ServiceNotFound
@@ -51,9 +54,12 @@ def map_service_error(exc: ServiceError) -> drf_exceptions.APIException:
     first would swallow all of them, which is the same trap a transport's own
     handler has (see each member's docstring).
 
-    ``AdditionalInputRequired`` deliberately has no branch — "I need one more value"
-    is the resource being unprocessable as asked, so it stays a ``422`` and carries
-    its own schema in the body.
+    ``AdditionalInputRequired`` takes no *status* branch — "I need one more value"
+    is the resource being unprocessable as asked, so it stays a ``422`` like any
+    other service error. It does take a *body* branch, because the schema naming
+    what is missing is the whole point of the error: without it a client is told
+    that something is needed and not what, and the answer comes back as ordinary
+    input on every transport.
     """
     if isinstance(exc, ServiceValidationError):
         return drf_exceptions.ValidationError(exc.detail)
@@ -61,4 +67,11 @@ def map_service_error(exc: ServiceError) -> drf_exceptions.APIException:
         return drf_exceptions.NotFound(str(exc))
     if isinstance(exc, ServiceConflict):
         return _ConflictAPIException(str(exc))
+    if isinstance(exc, AdditionalInputRequired) and exc.schema is not None:
+        # A mapping detail renders as the object itself, so ``detail`` keeps the
+        # shape a client already reads and ``schema`` joins it rather than
+        # replacing it. Only when there is a schema: the error is valid without
+        # one, and growing the body unconditionally would change every plain
+        # message into an object for no gain.
+        return _ServiceAPIException({"detail": str(exc), "schema": dict(exc.schema)})
     return _ServiceAPIException(str(exc))

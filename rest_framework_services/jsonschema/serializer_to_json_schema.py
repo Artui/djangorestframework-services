@@ -64,7 +64,19 @@ def serializer_to_json_schema(
     elif isinstance(serializer, type) and dataclasses.is_dataclass(serializer):
         schema = dataclass_to_schema(serializer, registry)
     else:
-        schema = {"type": "object"}
+        # Anything else used to fall through to ``{"type": "object"}`` — the
+        # schema a spec with *no* input produces, so a tool advertised no
+        # arguments and nothing said why. The two halves of the package
+        # disagreed: ``build_input_serializer_from_data`` raises ``TypeError``
+        # for exactly this input, so the schema promised a call the dispatcher
+        # would refuse. Refuse here too, in the same words, at declaration time
+        # rather than at the first call.
+        raise TypeError(
+            f"Cannot derive a JSON Schema from {serializer!r}: an input or output "
+            f"serializer must be a dataclass type or a Serializer subclass. This is "
+            f"the same requirement build_input_serializer_from_data enforces when "
+            f"the spec is dispatched."
+        )
     if partial:
         schema.pop("required", None)
     return schema
