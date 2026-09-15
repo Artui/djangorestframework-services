@@ -158,6 +158,33 @@ def _field_to_schema_default(
     return {}
 
 
+def _publishable_default(field: serializers.Field) -> Any:
+    """A field's declared default when it can honestly be published, else ``empty``.
+
+    Two exclusions, both about not making a false claim. A **callable** default
+    (``timezone.now``, ``CreateOnlyDefault``) is not a constant, so naming any
+    one value for it would be wrong. A default that is **not JSON-native** — a
+    ``Decimal``, a ``date``, a model instance — cannot survive the serialisation
+    both transports perform on the schema, so publishing it would break the
+    listing rather than enrich it.
+    """
+    default: Any = field.default
+    if default is _drf_empty or callable(default):
+        return _drf_empty
+    return default if _is_json_native(default) else _drf_empty
+
+
+def _is_json_native(value: Any) -> bool:
+    """Whether ``value`` survives a JSON round trip as itself, containers included."""
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return True
+    if isinstance(value, (list, tuple)):
+        return all(_is_json_native(item) for item in value)
+    if isinstance(value, dict):
+        return all(isinstance(key, str) and _is_json_native(item) for key, item in value.items())
+    return False
+
+
 def _always_rendered(field: serializers.Field) -> bool:
     """Whether DRF is guaranteed to emit this field's key.
 
@@ -221,14 +248,44 @@ def _choice_schema(field: serializers.ChoiceField, *, widen: bool = True) -> dic
             extra.append("")
         if field.allow_null and None not in choices:
             extra.append(None)
+    values: list[Any] = [*choices, *extra]
+    # A bare ``enum`` is silently lossy for anything keyed on ``type`` — a CLI
+    # or form builder picking a widget reads ``type``, sees nothing and falls
+    # back to free text while the values sit right beside it. Naming the type is
+    # a true statement whenever the values share one; where they do not, saying
+    # nothing is the incomplete-never-false side of this module's policy.
+    shared: dict[str, Any] = {}
+    json_types = {_json_type_of(value) for value in values}
+    if len(json_types) == 1 and None not in json_types:
+        shared = {"type": json_types.pop()}
     if all(str(label) == str(value) for value, label in choices.items()):
-        return {"enum": [*choices, *extra]}
+        return {**shared, "enum": values}
     return {
+        **shared,
         "oneOf": [
             *({"const": value, "title": str(label)} for value, label in choices.items()),
             *({"const": value} for value in extra),
-        ]
+        ],
     }
+
+
+def _json_type_of(value: Any) -> str | None:
+    """The JSON type name for a choice value, or ``None`` when it has no single one.
+
+    ``bool`` is tested before ``int`` because it is a subclass of it, and a
+    boolean described as an integer would be a false claim rather than a vague
+    one. ``None`` returns ``None`` rather than ``"null"``: a nullable enum is a
+    set of two types, which is exactly the case that must stay untyped.
+    """
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    return None
 
 
 def serializer_for_schema(serializer_cls: type[serializers.Serializer]) -> serializers.Serializer:
@@ -346,6 +403,13 @@ def serializer_to_schema(
         properties[name] = field_to_schema(
             field, registry, for_output=for_output, max_depth=max_depth, path=path
         )
+        default = _publishable_default(field)
+        if default is not _drf_empty and not for_output:
+            # Only on the input side: a default says what happens when a caller
+            # omits the field, which means nothing in a description of what came
+            # back. Without this a client could not tell an optional field's
+            # resting value, only that it was optional.
+            properties[name]["default"] = default
         title = _declared_label(name, field)
         if title is not None:
             properties[name]["title"] = title

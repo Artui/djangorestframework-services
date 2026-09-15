@@ -31,8 +31,16 @@ class TargetGuard(Protocol):
 
     ``dispatch_spec`` builds the
     [`OfflineContext`][rest_framework_services.types.offline_context.OfflineContext]
-    itself (it already holds ``user`` / ``request`` / ``view``) and calls ``guard(spec,
-    context, instance=target)``. ``instance`` is the resolved row for an update, the
+    itself, **from what the caller passed it**, and calls ``guard(spec, context,
+    instance=target)``. That distinction matters for the canonical wiring above:
+    a pure non-HTTP caller may pass neither ``request`` nor ``view``, and
+    [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions]
+    hands the request straight to a DRF permission class, which reads
+    ``request.user``. So a spec declaring ``permission_classes`` must be
+    dispatched with the ``request`` / ``view`` from
+    [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context];
+    without them the guard refuses by name rather than failing inside DRF. A
+    custom guard that needs no request is unaffected. ``instance`` is the resolved row for an update, the
     resolved set for a collection (bulk) mutation, and ``None`` for a create — so the
     guard fires uniformly on every resolved target, running the class-level check when
     there is no object."""

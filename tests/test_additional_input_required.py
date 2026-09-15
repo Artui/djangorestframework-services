@@ -12,13 +12,14 @@ from typing import Any
 import pytest
 from rest_framework import serializers
 
-from rest_framework_services import (
+from rest_framework_services import (  # noqa: I001
     AdditionalInputRequired,
     ServiceError,
     ServiceSpec,
     ServiceValidationError,
     dispatch_spec,
 )
+from rest_framework_services.views.mutation.map_service_error import map_service_error
 
 
 class _DeleteIn(serializers.Serializer):
@@ -97,3 +98,37 @@ def test_catching_service_error_still_catches_it() -> None:
     swallow this unless it checks for this first."""
     with pytest.raises(ServiceError):
         _dispatch(count=400)
+
+
+def test_the_mapped_http_error_carries_the_schema() -> None:
+    """The half that was documented and not built.
+
+    ``map_service_error``'s docstring said this error "stays a 422 and carries
+    its own schema in the body", and ``AdditionalInputRequired``'s says "a
+    transport that can ask renders it". The mapping dropped it: the response was
+    the message alone, so an HTTP client was told something was missing and not
+    what. drf-mcp renders the schema as an elicitation, which is why the gap
+    showed only on the transport nobody tested it through.
+    """
+    mapped = map_service_error(
+        AdditionalInputRequired("Confirm first", schema={"confirmed": {"type": "boolean"}})
+    )
+
+    assert mapped.status_code == 422
+    assert mapped.detail["detail"] == "Confirm first"
+    assert mapped.detail["schema"] == {"confirmed": {"type": "boolean"}}
+
+
+def test_the_mapped_http_error_without_a_schema_keeps_the_plain_body() -> None:
+    """``schema`` is optional, so the shape only grows when there is one to carry."""
+    mapped = map_service_error(AdditionalInputRequired("Confirm first"))
+
+    assert mapped.status_code == 422
+    assert mapped.detail == "Confirm first"
+
+
+def test_a_plain_service_error_is_unchanged() -> None:
+    mapped = map_service_error(ServiceError("nope"))
+
+    assert mapped.status_code == 422
+    assert mapped.detail == "nope"

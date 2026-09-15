@@ -114,7 +114,10 @@ class TestSpokenChoiceSchemas:
         schema = annotate_output_schema(output_to_json_schema(_Order), projection)
 
         assert schema["properties"]["status"] == {
-            "oneOf": [{"const": "Awaiting review"}, {"const": "Paid"}]
+            # The choice values are strings and the spoken labels replacing them
+            # are too, so the declared type survives the substitution.
+            "type": "string",
+            "oneOf": [{"const": "Awaiting review"}, {"const": "Paid"}],
         }
 
     def test_a_handle_keeps_its_constants(self) -> None:

@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Four documented behaviours that were not true.** Each was found by planning a
+  consumer of this package rather than by reviewing it, and three are the same
+  mistake: a docstring describing an affordance the code does not provide, which
+  a reader trusts over the signature.
+
+  - **`AdditionalInputRequired` now carries its schema in the HTTP body.**
+    `map_service_error` said this error "stays a 422 and carries its own schema
+    in the body" and dropped it — `exc.schema` was read nowhere in `views/`, so a
+    client was told something was missing and never what. The body grows a
+    `schema` key only when there is one to carry; a plain message keeps its
+    plain body.
+  - **A missing request is now named instead of failing inside DRF.**
+    `TargetGuard` documents `on_target_resolved=enforce_permissions` as the
+    canonical wiring and `dispatch_spec` describes a pure non-HTTP caller as
+    passing neither `request` nor `view`; together they produced
+    `AttributeError: 'NoneType' object has no attribute 'user'` from inside a DRF
+    permission class. A permission class that ignores the request keeps working
+    against a request-less context exactly as before — the translation fires only
+    when a class reached for a request that was not there.
+  - **A choice field's JSON Schema now declares its type.** `{"enum": [...]}`
+    with no `"type"` is silently lossy for anything keyed on `type` — a CLI or
+    form builder picking a widget fell back to free text. The type is named only
+    when every value shares one, so a mixed or nullable enum stays untyped rather
+    than becoming wrong.
+  - **A declared default now reaches the schema.** `default="draft"` never
+    appeared, so a client could not tell an optional field's resting value.
+    Published only on the input side, and only for a default that is a constant
+    and JSON-native — a callable or a `Decimal` is excluded, because naming
+    either would be a false claim or an unserialisable schema.
+
+### Changed
+
+- **An input or output serializer that is neither a `Serializer` subclass nor a
+  dataclass is now refused when its schema is derived**, where it used to return
+  `{"type": "object"}` — byte-identical to a spec declaring no input at all, so a
+  tool advertised no arguments and nothing said why. `build_input_serializer_from_data`
+  already raised `TypeError` for exactly that input at dispatch, so the schema
+  promised a call the dispatcher would refuse; the two halves now agree and the
+  refusal arrives at declaration time.
+
 ### Added
 
 - **A project can register its own always-available pool seeds.** `PoolSeeds` is

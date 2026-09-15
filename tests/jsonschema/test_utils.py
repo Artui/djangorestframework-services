@@ -63,7 +63,10 @@ def test_unknown_field_type_falls_back_to_any() -> None:
 
 
 def test_choice_field_becomes_enum() -> None:
-    assert field_to_schema(serializers.ChoiceField(choices=["a", "b"])) == {"enum": ["a", "b"]}
+    assert field_to_schema(serializers.ChoiceField(choices=["a", "b"])) == {
+        "type": "string",
+        "enum": ["a", "b"],
+    }
 
 
 def test_list_field_recurses_into_child() -> None:
@@ -101,7 +104,7 @@ def test_serializer_to_schema_honours_required_help_text_and_read_only() -> None
     assert "ro" not in props  # read_only fields are skipped
     assert props["name"] == {"type": "string", "description": "the name"}
     assert props["count"] == {"type": "integer"}
-    assert props["choice"] == {"enum": ["a", "b"]}
+    assert props["choice"] == {"type": "string", "enum": ["a", "b"]}
     assert props["tags"] == {"type": "array", "items": {"type": "string"}}
     assert props["nested"] == {
         "type": "object",
@@ -432,13 +435,17 @@ class TestChoiceSchema:
     def test_labels_that_repeat_their_value_stay_a_bare_enum(self) -> None:
         field = serializers.ChoiceField(choices=["a", "b"])
 
-        assert field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY) == {"enum": ["a", "b"]}
+        assert field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY) == {
+            "type": "string",
+            "enum": ["a", "b"],
+        }
 
     def test_distinct_labels_become_oneof_with_titles(self) -> None:
         field = serializers.ChoiceField(choices=[("P", "Pending"), ("D", "Done")])
 
         assert field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY) == {
-            "oneOf": [{"const": "P", "title": "Pending"}, {"const": "D", "title": "Done"}]
+            "type": "string",
+            "oneOf": [{"const": "P", "title": "Pending"}, {"const": "D", "title": "Done"}],
         }
 
     def test_allow_blank_and_allow_null_widen_the_enum(self) -> None:
@@ -464,7 +471,7 @@ class TestMultipleChoiceField:
 
         assert field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY) == {
             "type": "array",
-            "items": {"oneOf": [{"const": "P", "title": "Pending"}]},
+            "items": {"type": "string", "oneOf": [{"const": "P", "title": "Pending"}]},
             "uniqueItems": True,
         }
 
@@ -477,7 +484,10 @@ class TestMultipleChoiceField:
         """``allow_null`` is about the array, not about a member value."""
         field = serializers.MultipleChoiceField(choices=["a"], allow_null=True)
 
-        assert field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY)["items"] == {"enum": ["a"]}
+        assert field_to_schema(field, DEFAULT_JSON_SCHEMA_REGISTRY)["items"] == {
+            "type": "string",
+            "enum": ["a"],
+        }
 
     def test_file_path_field_keeps_the_single_valued_branch(self, tmp_path: Any) -> None:
         """It subclasses ``ChoiceField`` too, but picks one path, not a set."""
