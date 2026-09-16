@@ -56,9 +56,10 @@ def render_spec_output(
     selector's dispatch left them -- annotations on a queryset's rows, or the
     answers it attached to rows a selector returned directly -- so rendering them
     costs no query; ``many`` rows are materialised once so the rows walked are the
-    rows rendered. The ``reason`` is for a human reader --
+    rows rendered.
     [`render_for_audience`][rest_framework_services.dispatch.render_for_audience.render_for_audience]
-    leaves it out. A spec declaring none renders exactly as before.
+    renders the same answers, ``reason`` included. A spec declaring none renders
+    exactly as before.
     """
     serializer_cls = renderable_serializer_class(output_serializer_for(spec))
     affordances = rendered_affordances(spec)

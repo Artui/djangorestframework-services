@@ -206,13 +206,14 @@ retrieve and `@selector_action` views, and in a mutation's response when its
 `available` is always there. An unavailable answer names the **first** unmet
 condition in declaration order — the same one a call would be refused with.
 Reading the answers costs nothing: they are the annotations the list query
-already computed.
+already computed, or the answers attached to rows a selector returned directly.
 
-**An agent never reads the reason.**
+**An agent reads the same answers a browser does.**
 [`render_for_audience`][rest_framework_services.dispatch.render_for_audience.render_for_audience]
-keeps `available` and `code` and drops `reason`, because the reason is an
-operator's sentence and a model reads out what it is handed. The code is content
-for every audience.
+passes them through whole. A model speaks human language, so the `reason` is
+what it relays when it explains why an action is not possible, and the `code` is
+still there for the transport — or the model — to branch on. That is why the
+reason is written for people and models alike and keeps internal state out.
 
 The output schema declares the object too:
 [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
@@ -220,8 +221,8 @@ adds it, with `code` enumerated from the declaration so a client can switch on i
 exhaustively, and
 [`output_to_json_schema`][rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema]
 takes the mapping as `affordances=` for a transport that builds its schema from
-the serializer — with a `projection`, it leaves `reason` out to match the agent
-payload.
+the serializer. With or without a `projection` the object it declares is the
+same, `reason` included, because the payload is.
 
 Rendering refuses, rather than quietly dropping the answers, when the spec has no
 `output_serializer`, when the serializer already renders a field called

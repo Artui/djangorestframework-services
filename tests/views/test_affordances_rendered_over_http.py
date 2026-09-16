@@ -36,13 +36,17 @@ from tests.testapp.models import Post
 factory = APIRequestFactory()
 
 UNPUBLISHED = Affordance(
-    code="already_published", reason="Went out at 09:00.", when=Q(published=False)
+    code="already_published", reason="This post is already published.", when=Q(published=False)
 )
 PUBLISH = ServiceSpec(service=lambda: None, affordances=[UNPUBLISHED])
 
 _AVAILABLE = {"publish": {"available": True}}
 _REFUSED = {
-    "publish": {"available": False, "code": "already_published", "reason": "Went out at 09:00."}
+    "publish": {
+        "available": False,
+        "code": "already_published",
+        "reason": "This post is already published.",
+    }
 }
 
 

@@ -9,10 +9,6 @@ from rest_framework_services.audience.audience_projection_for_spec import (
     audience_projection_for_spec,
 )
 from rest_framework_services.audience.project_payload import project_payload
-from rest_framework_services.audience.utils import (
-    rendered_affordances,
-    without_affordance_reasons,
-)
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -53,10 +49,10 @@ def render_for_audience(
     output into the next must keep rendering with ``render_spec_output``, or the
     handles the next step reads by will have been projected away.
 
-    Declared ``affordances`` keep their ``available`` and ``code`` and lose their
-    ``reason``: the code names the rule and is content for every audience, while
-    the reason is an operator's sentence that may describe internal state, and a
-    model reads out what it is handed.
+    Declared ``affordances`` pass through whole: ``available``, the ``code`` a
+    transport or client branches on, and the ``reason`` -- the sentence a model
+    relays when it explains why an action is not possible, written for exactly
+    that reader.
     """
     payload: Any = render_spec_output(
         spec,
@@ -69,7 +65,4 @@ def render_for_audience(
     )
     if projection is None:
         projection = audience_projection_for_spec(spec)
-    projected: Any = project_payload(payload, projection)
-    if rendered_affordances(spec) is None or value is None:
-        return projected
-    return without_affordance_reasons(projected, many=many)
+    return project_payload(payload, projection)

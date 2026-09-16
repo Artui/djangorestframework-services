@@ -61,7 +61,13 @@ def capability_manifest(
                 "input_schema": {"type": "object", "properties": {...}},
                 "output_schema": {"type": "object", "properties": {...}},
                 "guards": [{"source": "orders.permissions.IsSupport"}],
-                "affordances": [{"code": "order_shipped", "scope": "row"}],
+                "affordances": [
+                    {
+                        "code": "order_shipped",
+                        "reason": "A shipped order cannot be cancelled.",
+                        "scope": "row",
+                    }
+                ],
             },
             ...
         ],
@@ -97,19 +103,18 @@ def capability_manifest(
     - ``guards`` -- one ``{"source": <dotted class path>}`` per permission class,
       in declaration order; ``None`` where the spec declares none (``[]`` is a
       declared "no permissions" and stays distinguishable).
-    - ``affordances`` -- one ``{"code": ..., "scope": ...}`` per
+    - ``affordances`` -- one ``{"code": ..., "reason": ..., "scope": ...}`` per
       [`Affordance`][rest_framework_services.types.affordance.Affordance] a
       mutation declares, in declaration order: the codes a call can be refused
-      with. ``scope`` is ``"row"`` for a condition on the row, which is answered
+      with, and the sentence each refusal says. ``scope`` is ``"row"`` for a condition on the row, which is answered
       per object, and ``"operation"`` for a callable one, which is answered
       without a row and so can decide whether the operation is offered at all.
       ``None`` where nothing is declared, and always on a query. The ``code``
       here is the same ``code`` a rendered object's ``affordances`` answer
-      carries and a 409 body names, so the manifest lists the vocabulary those
-      answers are drawn from. No reason sentence appears, because a surface
-      document describes the operation, never a row's state; a query's
-      ``output_schema`` still declares the ``reason`` *property* its rendered
-      answers carry.
+      carries and a 409 body names, and the ``reason`` is the same declared
+      sentence those carry beside it, so a model reading the manifest learns what
+      each refusal will say before it meets one. Both are declarations about the
+      operation, never a row's state.
 
     ``unguarded`` is ``unguarded_specs`` over the same registry: the operations
     whose ``permission_classes`` is ``None``, which have nothing to inherit off
@@ -171,6 +176,7 @@ def _affordances(declared: Sequence[Affordance] | None) -> list[dict[str, str]] 
     return [
         {
             "code": affordance.code,
+            "reason": affordance.reason,
             "scope": "row" if is_row_condition(affordance.when) else "operation",
         }
         for affordance in declared

@@ -41,10 +41,12 @@ from tests.testapp.models import Post
 
 UNPUBLISHED = Affordance(
     code="already_published",
-    reason="Went out in the 09:00 internal newsletter.",
+    reason="This post is already published.",
     when=Q(published=False),
 )
-BOOKS_OPEN = Affordance(code="books_closed", reason="Ledger 4 is locked.", when=lambda: True)
+BOOKS_OPEN = Affordance(
+    code="books_closed", reason="Publishing is paused until the books close.", when=lambda: True
+)
 PUBLISH = ServiceSpec(service=lambda: None, affordances=[UNPUBLISHED, BOOKS_OPEN])
 EDIT = ServiceSpec(service=lambda: None)
 
@@ -110,7 +112,7 @@ def test_each_rendered_row_carries_its_answers_as_served(two_posts: tuple[Post, 
                 "publish": {
                     "available": False,
                     "code": "already_published",
-                    "reason": "Went out in the 09:00 internal newsletter.",
+                    "reason": "This post is already published.",
                 },
                 "edit": {"available": True},
             },
@@ -290,19 +292,27 @@ def test_a_non_object_item_is_refused(two_posts: tuple[Post, Post]) -> None:
 # --- the agent audience ----------------------------------------------------------------
 
 
-def test_an_agent_reads_the_code_and_never_the_reason(two_posts: tuple[Post, Post]) -> None:
+_REFUSED = {
+    "available": False,
+    "code": "already_published",
+    "reason": "This post is already published.",
+}
+
+
+def test_an_agent_reads_the_same_answers_a_browser_does(two_posts: tuple[Post, Post]) -> None:
+    """The reason is the sentence a model relays; the code is what it branches on.
+    Both reach it, exactly as they reach a browser."""
     spec = _listing()
+    rows = _rows(spec)
 
-    payload = _wire(render_for_audience(spec, _rows(spec), many=True))
+    agent = _wire(render_for_audience(spec, rows, many=True))
+    browser = _wire(render_spec_output(spec, rows, many=True))
 
-    assert payload[1]["affordances"] == {
-        "publish": {"available": False, "code": "already_published"},
-        "edit": {"available": True},
-    }
-    assert "newsletter" not in json.dumps(payload)
+    assert agent[1]["affordances"] == {"publish": _REFUSED, "edit": {"available": True}}
+    assert [row["affordances"] for row in agent] == [row["affordances"] for row in browser]
 
 
-def test_an_agent_single_row_loses_the_reason_too(two_posts: tuple[Post, Post]) -> None:
+def test_an_agent_single_row_carries_the_reason_too(two_posts: tuple[Post, Post]) -> None:
     _draft, out = two_posts
     spec = SelectorSpec(
         kind=SelectorKind.RETRIEVE,
@@ -312,22 +322,18 @@ def test_an_agent_single_row_loses_the_reason_too(two_posts: tuple[Post, Post]) 
     )
     row = dispatch_spec(spec, user=None, params={"pk": out.pk}).value
 
-    assert render_for_audience(spec, row)["affordances"] == {
-        "publish": {"available": False, "code": "already_published"}
-    }
+    assert render_for_audience(spec, row)["affordances"] == {"publish": _REFUSED}
 
 
 def test_field_markings_and_the_answers_apply_together(two_posts: tuple[Post, Post]) -> None:
+    """Markings shape the serializer's fields and leave the answers whole."""
     spec = _listing(output_serializer=_MarkedPostOut)
 
     payload = render_for_audience(spec, _rows(spec), many=True)
 
     assert payload[1] == {
         "id": two_posts[1].pk,
-        "affordances": {
-            "publish": {"available": False, "code": "already_published"},
-            "edit": {"available": True},
-        },
+        "affordances": {"publish": _REFUSED, "edit": {"available": True}},
     }
 
 
@@ -349,8 +355,8 @@ async def test_the_async_twins_render_the_same_answers() -> None:
     served = await arender_spec_output(spec, rows, many=True)
     agent = await arender_for_audience(spec, rows, many=True)
 
-    assert served[1]["affordances"]["publish"]["reason"] == UNPUBLISHED.reason
-    assert agent[1]["affordances"]["publish"] == {"available": False, "code": "already_published"}
+    assert served[1]["affordances"]["publish"] == _REFUSED
+    assert agent[1]["affordances"]["publish"] == _REFUSED
 
 
 # --- the schema --------------------------------------------------------------------------
@@ -392,22 +398,18 @@ def test_the_output_schema_declares_the_answers() -> None:
     }
 
 
-def test_the_agent_schema_declares_no_reason() -> None:
-    schema = output_to_json_schema(
+def test_the_agent_schema_declares_the_same_answers_reason_included() -> None:
+    agent = output_to_json_schema(
         _PostOut,
         kind=SelectorKind.LIST,
         paginate=True,
         projection=AudienceProjection(),
         affordances={"publish": PUBLISH, "edit": EDIT},
     )
-    assert schema is not None
-    publish = schema["properties"]["items"]["items"]["properties"]["affordances"]["properties"][
-        "publish"
-    ]
-    assert publish["properties"] == {
-        "available": {"type": "boolean"},
-        "code": {"type": "string", "enum": ["already_published", "books_closed"]},
-    }
+    assert agent is not None
+    answers = agent["properties"]["items"]["items"]["properties"]["affordances"]
+
+    assert answers == _ANSWERS_WITH_REASON
 
 
 def test_a_mutations_output_schema_declares_its_output_selectors_answers() -> None:
@@ -483,8 +485,12 @@ def test_the_manifest_lists_the_codes_a_mutation_can_answer_with() -> None:
     operations = {op["name"]: op for op in capability_manifest(registry)["operations"]}
 
     assert operations["publish_post"]["affordances"] == [
-        {"code": "already_published", "scope": "row"},
-        {"code": "books_closed", "scope": "operation"},
+        {"code": "already_published", "reason": "This post is already published.", "scope": "row"},
+        {
+            "code": "books_closed",
+            "reason": "Publishing is paused until the books close.",
+            "scope": "operation",
+        },
     ]
     assert operations["edit_post"]["affordances"] is None
     assert operations["list_posts"]["affordances"] is None
@@ -493,4 +499,3 @@ def test_the_manifest_lists_the_codes_a_mutation_can_answer_with() -> None:
     assert item["properties"]["affordances"]["properties"]["publish"]["properties"]["code"][
         "enum"
     ] == [entry["code"] for entry in operations["publish_post"]["affordances"]]
-    assert "reason" not in json.dumps(operations["publish_post"])

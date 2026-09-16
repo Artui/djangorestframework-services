@@ -64,28 +64,14 @@ def with_affordances(
     return [_with_answers(item, row, affordances) for item, row in zip(payload, value, strict=True)]
 
 
-def without_affordance_reasons(payload: Any, *, many: bool) -> Any:
-    """``payload`` with every answer's ``reason`` removed, for an agent audience.
-
-    The code names the rule and is safe for any reader; the reason is an
-    operator's sentence and may describe internal state, and a model reads out
-    what it is handed. The mirror of ``affordance_schema(include_reason=False)``.
-    """
-    if not many:
-        return _without_reasons(payload)
-    return [_without_reasons(item) for item in payload]
-
-
-def affordance_schema(
-    affordances: Mapping[str, ServiceSpec[Any, Any, Any]], *, include_reason: bool
-) -> dict[str, Any]:
+def affordance_schema(affordances: Mapping[str, ServiceSpec[Any, Any, Any]]) -> dict[str, Any]:
     """The JSON Schema for the ``affordances`` object ``with_affordances`` adds.
 
     One property per declared name, each an object whose ``available`` is always
     present and whose ``code`` -- enumerated from the declaration, so a client can
     switch on it exhaustively -- and ``reason`` appear only when it is ``false``.
-    ``include_reason=False`` is the agent audience's mirror of
-    ``without_affordance_reasons``.
+    The same for every audience: a browser and a model both read the reason, and
+    both branch, if at all, on the code.
     """
     properties: dict[str, Any] = {}
     for name, service_spec in affordances.items():
@@ -93,8 +79,7 @@ def affordance_schema(
         codes = [affordance.code for affordance in service_spec.affordances or ()]
         if codes:
             answer["code"] = {"type": "string", "enum": codes}
-            if include_reason:
-                answer[_REASON] = {"type": "string"}
+            answer[_REASON] = {"type": "string"}
         properties[name] = {"type": "object", "properties": answer, "required": ["available"]}
     return {"type": "object", "properties": properties, "required": list(affordances)}
 
@@ -146,18 +131,3 @@ def _flag(row: Any, alias: str) -> Any:
             "through that selector -- or a spec whose selector is not set -- has none."
         )
     return flag
-
-
-def _without_reasons(item: Mapping[str, Any]) -> dict[str, Any]:
-    """One rendered object without its answers' reasons.
-
-    Only ever handed an object ``with_affordances`` produced, which is what lets
-    this read the key rather than check for it.
-    """
-    return {
-        **item,
-        AFFORDANCES_KEY: {
-            name: {key: value for key, value in answer.items() if key != _REASON}
-            for name, answer in item[AFFORDANCES_KEY].items()
-        },
-    }

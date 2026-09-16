@@ -84,9 +84,9 @@ def output_to_json_schema(
     ``affordances`` is the rendering selector spec's ``affordances`` mapping, and
     declares the ``affordances`` object every rendered item then carries: per
     name, a required ``available`` boolean, plus the ``code`` -- enumerated from
-    the declaration -- and ``reason`` a refused answer adds. With a
-    ``projection`` the schema describes the agent audience, whose payload carries
-    no ``reason``, so neither does the schema. Pass it wherever the payload is
+    the declaration -- and ``reason`` a refused answer adds, with or without a
+    ``projection``, since the agent audience reads the same answers a browser
+    does. Pass it wherever the payload is
     rendered by ``render_spec_output`` or ``render_for_audience`` from a spec that
     declares them;
     [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
@@ -107,7 +107,7 @@ def output_to_json_schema(
             **item_schema,
             "properties": {
                 **item_schema.get("properties", {}),
-                AFFORDANCES_KEY: affordance_schema(affordances, include_reason=projection is None),
+                AFFORDANCES_KEY: affordance_schema(affordances),
             },
             "required": [*item_schema.get("required", []), AFFORDANCES_KEY],
         }
