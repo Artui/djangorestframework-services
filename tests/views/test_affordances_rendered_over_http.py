@@ -126,6 +126,27 @@ def test_the_list_view_serves_what_an_agent_transport_renders(posts: tuple[Post,
     assert _body(_View.as_view()(factory.get("/"))) == rendered
 
 
+def test_the_list_view_keeps_a_subclass_list_override(posts: tuple[Post, Post]) -> None:
+    """Declaring affordances must not route a request around the view's own ``list``.
+
+    The viewset mixin adds the answers inside ``list``; the standalone view has to
+    as well, or a subclass extending ``list`` stops running the moment its spec
+    declares one.
+    """
+
+    class _View(SelectorListView):
+        spec = _listing()
+
+        def list(self, request: Any, *args: Any, **kwargs: Any) -> Any:
+            response = super().list(request, *args, **kwargs)
+            response["X-Extended"] = "yes"
+            return response
+
+    response = _View.as_view()(factory.get("/"))
+    assert response["X-Extended"] == "yes"
+    assert _answers(_body(response)) == [_AVAILABLE, _REFUSED]
+
+
 def test_the_list_view_declaring_nothing_serves_drfs_own_response(
     posts: tuple[Post, Post],
 ) -> None:
