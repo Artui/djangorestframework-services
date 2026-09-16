@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
+from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from django.db.models.query import Prefetch
 from rest_framework.permissions import BasePermission
@@ -14,7 +15,13 @@ from rest_framework.serializers import Serializer
 
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.service_view import ServiceView
-from rest_framework_services.types.utils import validate_metadata
+from rest_framework_services.types.utils import affordance_alias, validate_metadata
+
+if TYPE_CHECKING:
+    # Annotation only. ``service_spec`` imports this module at runtime -- a
+    # ``ServiceSpec`` nests ``SelectorSpec``s -- so a runtime import here is a
+    # cycle; the one runtime check that needs the class imports it locally.
+    from rest_framework_services.types.service_spec import ServiceSpec
 
 ResultT = TypeVar("ResultT")
 ExtraT = TypeVar("ExtraT", bound=Mapping[str, object])
@@ -137,6 +144,25 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             QuerySet: for an aggregate / computed return the ``?param`` values
             are computation inputs, so use ``kwargs`` /
             ``get_selector_kwargs()`` instead.
+        affordances: What can be done to each row right now, answered inside
+            the list query itself. A mapping from a name to the
+            [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]
+            whose ``affordances`` are being asked about -- the spec objects, not
+            registry names, so the read path takes no registry dependency and the
+            declaration stays the one the mutation enforces. Every condition on
+            the row becomes one boolean annotation, merged into the **same single
+            ``.annotate()`` call** as ``annotations``, and evaluated as the same
+            correlated ``Exists`` the mutation checks with, so a row reported
+            available is a row the call lets through. A callable condition is
+            answered once per dispatch and carried as a constant. The annotations
+            are named ``affordance__<name>__<code>``; a collision with a key of
+            ``annotations``, or between two entries, is refused at construction,
+            because a generated annotation silently replacing a project's own is
+            the worst way for this to fail. Being annotations, they read the table
+            rather than any ``prefetch_related`` cache, whose filtered ``Prefetch``
+            would otherwise hide rows from the answer. Requires ``selector`` and a
+            ``QuerySet`` return, like the shaping fields. ``None`` adds nothing to
+            the query.
         kwargs: Provider (pool: ``view`` / ``request``) of extra kwargs merged
             into the pool the selector receives. Co-locating it with the spec
             lets each action declare its own contract, instead of
@@ -207,6 +233,12 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     # Typed ``Any`` so ``types/`` never imports django-filter (the
     # dependency-sink rule); services applies it by duck typing.
     filter_set: Any | None = None
+    # Naming: the same word as ``ServiceSpec.affordances``, because it is the same
+    # declaration read from the other side -- there the conditions an operation
+    # needs, here the answer for each row. Keyed by a name the caller chooses
+    # rather than taken from a registry, since a ``ServiceSpec`` does not know
+    # what it is called.
+    affordances: Mapping[str, ServiceSpec[Any, Any, Any]] | None = None
 
     # Cross-cutting.
     kwargs: Callable[..., ExtraT] | None = None
@@ -235,3 +267,52 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
 
     def __post_init__(self) -> None:
         validate_metadata(self.metadata, label="SelectorSpec")
+        _validate_affordances(self)
+
+
+def _validate_affordances(spec: SelectorSpec[Any, Any]) -> None:
+    """Refuse an ``affordances`` mapping whose annotations could not be told apart.
+
+    At construction, like ``ServiceSpec``'s own check: a selector reaches
+    transports that never mount it on a view.
+    """
+    # Genuine circular import, deliberately local: ``service_spec`` imports this
+    # module at runtime, and this is the one place the class itself is needed.
+    from rest_framework_services.types.service_spec import ServiceSpec
+
+    affordances: Any = spec.affordances
+    if affordances is None:
+        return
+    if not isinstance(affordances, Mapping):
+        raise ImproperlyConfigured(
+            "SelectorSpec.affordances must be a mapping of name -> ServiceSpec; got "
+            f"{type(affordances).__name__}."
+        )
+    own: frozenset[str] = frozenset(spec.annotations or ())
+    owners: dict[str, str] = {}
+    for name, service_spec in affordances.items():
+        if not isinstance(name, str) or not name:
+            raise ImproperlyConfigured(
+                f"SelectorSpec.affordances keys must be non-empty strings; got {name!r}."
+            )
+        if not isinstance(service_spec, ServiceSpec):
+            raise ImproperlyConfigured(
+                f"SelectorSpec.affordances[{name!r}] must be a ServiceSpec; got "
+                f"{type(service_spec).__name__}. The mapping holds the spec whose "
+                "affordances are being asked about, not its registry name."
+            )
+        for affordance in service_spec.affordances or ():
+            alias = affordance_alias(name, affordance.code)
+            if alias in own:
+                raise ImproperlyConfigured(
+                    f"SelectorSpec.affordances[{name!r}] generates the annotation "
+                    f"{alias!r}, which `annotations` already declares. Rename one: the "
+                    "generated value would silently replace the declared one."
+                )
+            if alias in owners:
+                raise ImproperlyConfigured(
+                    f"SelectorSpec.affordances[{name!r}] and [{owners[alias]!r}] both "
+                    f"generate the annotation {alias!r}. Rename an entry so each answer "
+                    "has its own."
+                )
+            owners[alias] = name

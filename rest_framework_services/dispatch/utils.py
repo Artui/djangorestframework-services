@@ -9,7 +9,7 @@ from typing import Any
 
 from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured
-from django.db.models import Model
+from django.db.models import BooleanField, Model, Value
 from rest_framework.exceptions import ValidationError
 from typing_extensions import get_type_hints
 
@@ -21,7 +21,11 @@ from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
 from rest_framework_services.is_async import is_async
-from rest_framework_services.selectors.utils import affordance_expression, apply_queryset_shaping
+from rest_framework_services.selectors.utils import (
+    affordance_expression,
+    apply_queryset_shaping,
+    is_queryset,
+)
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.affordance import Affordance
@@ -36,7 +40,11 @@ from rest_framework_services.types.typed_dict_input import typed_dict_input
 from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
 from rest_framework_services.types.unset import UNSET
-from rest_framework_services.types.utils import PER_CALL_POOL_NAMES, is_row_condition
+from rest_framework_services.types.utils import (
+    PER_CALL_POOL_NAMES,
+    affordance_alias,
+    is_row_condition,
+)
 from rest_framework_services.types.view_hooks import ViewHooks
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
@@ -537,6 +545,34 @@ def _row_affordance_flags(instance: Any, affordances: Sequence[Affordance]) -> d
     return {index: bool(flag) for index, flag in zip(aliases.values(), row, strict=True)}
 
 
+def affordance_annotations(
+    model: type[Model],
+    affordances: Mapping[str, ServiceSpec[Any, Any, Any]],
+    pool: Mapping[str, Any],
+    *,
+    reserved: frozenset[str],
+) -> dict[str, Any]:
+    """One boolean annotation per declared condition, for a list query over ``model``.
+
+    A condition on the row becomes ``affordance_expression`` -- the correlated
+    ``Exists`` the single-object check also runs -- so the list and the call agree
+    about every row by construction rather than by a test. A callable condition
+    has no row to vary with, so it is answered once, here, against the same
+    ``ambient_pool`` the call reads, and carried as a constant.
+    """
+    ambient = ambient_pool(pool, reserved=reserved)
+    annotations: dict[str, Any] = {}
+    for name, service_spec in affordances.items():
+        for affordance in service_spec.affordances or ():
+            alias = affordance_alias(name, affordance.code)
+            if is_row_condition(affordance.when):
+                annotations[alias] = affordance_expression(model, affordance.when)
+                continue
+            answer = affordance.when(**resolve_dispatch_kwargs(affordance.when, ambient))
+            annotations[alias] = Value(bool(answer), output_field=BooleanField())
+    return annotations
+
+
 def call_preconditions(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     pool: dict[str, Any],
@@ -629,15 +665,33 @@ def shape_queryset(
     request: Any,
     params: Mapping[str, Any],
     source_label: str,
+    pool: Mapping[str, Any],
+    reserved: frozenset[str] = RESERVED_POOL_SEEDS,
 ) -> Any:
-    """Apply a selector spec's queryset shaping, ``params`` as the filter data."""
+    """Apply a selector spec's queryset shaping, ``params`` as the filter data.
+
+    ``spec.affordances`` join ``spec.annotations`` in the one ``.annotate()`` call
+    the shaping makes -- see ``affordance_annotations``. ``pool`` is the pool the
+    selector was called with, from which a callable condition reads its seeds.
+    """
+    annotations: Mapping[str, Any] | None = spec.annotations
+    if spec.affordances is not None:
+        if not is_queryset(qs):
+            raise ImproperlyConfigured(
+                f"affordances are declared on the spec but {source_label} returned "
+                f"{type(qs).__name__}, which is not a Django QuerySet. A row's answer is "
+                "an annotation on the query, so the selector has to return one."
+            )
+        generated = affordance_annotations(qs.model, spec.affordances, pool, reserved=reserved)
+        if generated:
+            annotations = {**(annotations or {}), **generated}
     return apply_queryset_shaping(
         qs,
         view,
         request,
         select_related=spec.select_related,
         prefetch_related=spec.prefetch_related,
-        annotations=spec.annotations,
+        annotations=annotations,
         extend_queryset=spec.extend_queryset,
         filter_set=spec.filter_set,
         filter_data=params,

@@ -114,6 +114,47 @@ A condition on the row needs one resolved row. It is refused on a spec with
 on an action that targets no row (a create, a non-detail action). A callable condition works on every shape, bulk
 included.
 
+## Asking for a whole list
+
+A client deciding which buttons to render should not have to attempt each
+action on each row. `SelectorSpec.affordances` asks the question inside the
+list query itself:
+
+```python
+orders = SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=orders_for_user,
+    affordances={"cancel": cancel_order, "refund": refund_order},
+)
+```
+
+The mapping holds the **mutation specs themselves**, keyed by a name you
+choose — not registry names, because a `ServiceSpec` does not know what it is
+called and the read path should not need a registry to find out. Every
+condition on those specs becomes one boolean annotation on each row, named
+`affordance__<name>__<code>` (`affordance__cancel__order_shipped`), and all of
+them join the **same single `.annotate()` call** as the spec's own
+`annotations`. Fifty orders with five conditions is still one query.
+
+Each annotation is the same correlated `Exists` the mutation evaluates when it
+is called, so the list and the call cannot disagree about a row. It also means
+the answer is read from the table:
+
+- a condition over a multi-valued relation neither duplicates the list's rows
+  nor inflates a `Count` you annotated beside it;
+- a filtered `Prefetch` on the same relation — which would hide rows from a
+  Python predicate reading `order.lines.all()` — does not change the answer.
+
+A callable condition has no row to vary with, so it is answered once per list
+and carried as a constant on every row.
+
+A generated name that collides with a key of `annotations`, or with another
+entry's, is refused at construction. `affordances` needs a `selector` returning
+a `QuerySet`, like the other shaping fields, and is refused on an
+`instance_selector_spec` or `collection_selector_spec`, whose rows are acted on
+rather than returned. On an `output_selector_spec` it annotates the row a
+mutation hands back.
+
 ## It is a check, not a lock
 
 The answer is correct at the moment of the call. Between the check and the
@@ -125,7 +166,8 @@ affordance is what lets every client find out *before* trying.
 ## Declaring nothing costs nothing
 
 A spec without `affordances` runs no query and, on the async path, takes no
-executor hop for them.
+executor hop for them. A selector without `affordances` issues exactly the
+query it issued before, and its rows carry no extra attribute.
 
 Full signatures: [`Affordance`](../reference/types.md#affordance),
 [`ActionUnavailable`](../reference/exceptions.md).

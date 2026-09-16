@@ -58,6 +58,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A row condition on a spec with `many=True` or a `collection_selector_spec` is
   refused at construction, and on an action that targets no row at `as_view()`.
 
+- **`SelectorSpec.affordances` answers "what can be done to each row" inside the
+  list query.** A mapping of name to the `ServiceSpec` being asked about; every
+  condition becomes a boolean annotation named `affordance__<name>__<code>`,
+  merged into the **same single `.annotate()` call** as `annotations`, so a list
+  of fifty rows with five conditions is still one query. Each annotation is the
+  correlated `Exists` the mutation itself evaluates, so the list and the call
+  agree about every row by construction — including under a filtered `Prefetch`
+  on the same relation, which silently hides rows from a per-instance predicate.
+  A condition over a multi-valued relation neither duplicates rows nor inflates a
+  declared aggregate. A callable condition is answered once per dispatch and
+  carried as a constant.
+
+  A generated name colliding with a key of `annotations` or with another entry's
+  is refused at construction. `affordances` needs a `selector` returning a
+  `QuerySet` and is refused on a nested target lookup at `as_view()`. A selector
+  declaring none issues the same query as before.
+
 ### Fixed
 
 - **`ServiceError`'s docstring no longer promises a structured `detail` payload.**
