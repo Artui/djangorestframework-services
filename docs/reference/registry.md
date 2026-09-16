@@ -1,8 +1,8 @@
 # Spec registry
 
 A named, taggable home for a project's spec set, so each transport reads one
-source instead of enumerating the same specs again. Both symbols are importable
-from the top-level package.
+source instead of enumerating the same specs again. Every symbol here is
+importable from the top-level package.
 
 For the task-shaped walkthrough — where the instance lives, multiple registries,
 filtered views — see the recipe
@@ -15,6 +15,10 @@ filtered views — see the recipe
 ## `RegisteredSpec`
 
 ::: rest_framework_services.types.registered_spec.RegisteredSpec
+
+## `capability_manifest`
+
+::: rest_framework_services.registry.capability_manifest.capability_manifest
 
 ## `OfflineContract`
 

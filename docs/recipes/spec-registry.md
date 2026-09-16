@@ -165,4 +165,33 @@ is rejected too, with a pointer at the supported shape: register each of its
 variants under its own name, since a transport that projects one operation per
 name wants one operation per variant, not a union.
 
+## The whole surface as one document
+
+`capability_manifest(registry)` describes every operation the registry holds —
+its name, whether it is a mutation or a query, its tags, its declared
+`idempotent`, its input and output JSON Schema, and the permission classes that
+guard it — as one JSON-native document:
+
+```python
+from rest_framework_services import capability_manifest
+
+manifest = capability_manifest(registry)
+manifest["operations"][0]
+# {"name": "list_orders", "kind": "query", "tags": ["public", "read"],
+#  "idempotent": None, "input_schema": {...}, "output_schema": {...},
+#  "guards": [{"source": "orders.permissions.IsStaff"}]}
+manifest["unguarded"]  # names whose permission_classes is None
+```
+
+The schemas are exactly what `spec_to_json_schema` produces, and the top-level
+`dialect` names that policy, so a manifest and the tool list a transport builds
+from the same registry describe each operation identically.
+
+Two things it deliberately is not. It names no principal and decides nothing: a
+guard is listed by its import path, because what a permission class grants is
+only known by running it against a caller. And it is not a document to serve to
+a client — it enumerates operations a given caller may not be able to see at
+all. Diff it in review, feed it to a test, or build a principal-scoped view on
+top of it; it reads no database, so building it is cheap.
+
 Full signatures in the [spec registry reference](../reference/registry.md).

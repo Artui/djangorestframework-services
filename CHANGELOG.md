@@ -18,6 +18,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Every render site in this package resolves through it, and a dataclass gets
   the same class on every call.
 
+- **`capability_manifest(registry)` describes a registry's whole surface as one
+  document.** Per operation: its name, `kind` (`mutation` / `query`), sorted
+  `tags`, declared `idempotent`, `input_schema` and `output_schema`, and a
+  `guards` entry naming each permission class by import path; plus `unguarded`,
+  the names with nothing to inherit off HTTP. JSON-native, derived rather than
+  written, and it reads no database.
+
+  Every transport already derives this piecemeal — a tool list, a toolset's
+  descriptions, an action menu — and each one re-walks the specs to do it. The
+  schemas here are exactly what `spec_to_json_schema` produces, and a top-level
+  `dialect` names that schema policy, because two emitters that agree on field
+  names and `required` still disagree on presentation (inlined shapes versus
+  `$defs`, how a decimal is spelled), so two manifests compare schema-for-schema
+  only when that value matches.
+
+  It names no principal and decides nothing. A permission class is code, so the
+  manifest says which guards an operation carries and never what they grant — a
+  reader that understands a declarative policy can layer that on. `idempotent`
+  keeps `None` distinct from a declared `False`, and `guards` keeps an undeclared
+  `permission_classes` (`None`) distinct from a declared empty list. A bare
+  `name -> spec` mapping is refused rather than accepted, since it has no tags and
+  would produce a manifest quietly smaller than the registry's.
+
 ### Fixed
 
 - **An output declaration that cannot be rendered is now refused when its schema
