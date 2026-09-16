@@ -2676,6 +2676,12 @@ a queryset materializes through <code>.first()</code> — so an author can write
 spec's shaping applied first — and anything else passes through as the
 resolved object. What each caller does with a <code>None</code> differs; how the value
 is arrived at does not.</p>
+<p>Exported for a transport that runs a <code>RETRIEVE</code> selector without
+<code>dispatch_spec</code> -- a chain step running each spec itself -- so the row its
+object-level permissions judge is the row the core would have resolved. Run
+on a queryset rather than the row, <code>enforce_permissions</code> skips
+<code>has_object_permission</code> by design, since a set is authorized per-set.
+Blocks on the query, so call <code>amaterialize_retrieve</code> from a coroutine.</p>
 
 
     </div>

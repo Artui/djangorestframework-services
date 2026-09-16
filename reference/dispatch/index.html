@@ -2231,6 +2231,62 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#materialize_retrieve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        materialize_retrieve
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.materialize_retrieve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        materialize_retrieve
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="materialize_retrieve">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#amaterialize_retrieve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        amaterialize_retrieve
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.amaterialize_retrieve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        amaterialize_retrieve
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="amaterialize_retrieve">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#apply_queryset_shaping" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3625,6 +3681,62 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#materialize_retrieve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        materialize_retrieve
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.materialize_retrieve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        materialize_retrieve
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="materialize_retrieve">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#amaterialize_retrieve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        amaterialize_retrieve
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.amaterialize_retrieve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        amaterialize_retrieve
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="amaterialize_retrieve">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#apply_queryset_shaping" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4270,6 +4382,13 @@ plumbing. Reads the output serializer from <code>spec.output_serializer</code> (
 <code>spec.output_selector_spec.output_serializer</code> (service), a raw dataclass type
 rendering through a <code>DataclassSerializer</code> for it; when none is set the value
 passes through (list-coerced when <code>many=True</code> so a queryset evaluates).</p>
+<p><strong><code>None</code> renders as <code>None</code></strong> when <code>many</code> is false, without the serializer
+being asked: a nullable <code>RETRIEVE</code> that resolved nothing, or a service that
+returned nothing, is not a row. The HTTP views already answer that case with a
+JSON <code>null</code> and never reach this function, so every caller that did reach it
+-- an agent transport rendering an <code>allow_none</code> miss -- used to receive what
+a DRF serializer builds for no instance: an object of blank and default field
+values, indistinguishable from a real row with empty fields.</p>
 <p>The serializer <code>context</code> always carries DRF's baseline — <code>request</code> / <code>format</code>
 / <code>view</code>, from
 <a class="autorefs autorefs-internal" title="base_serializer_context" href="#rest_framework_services.dispatch.base_serializer_context.base_serializer_context"><code>base_serializer_context</code></a>
@@ -6646,6 +6765,66 @@ scoping in the selector's own queryset. Only the last branch — DRF's own
 be applied to, and what a RETRIEVE selector materializes from. Tested by type
 rather than by <code>hasattr(…, "first")</code>, which would also match a domain
 object that happens to expose <code>first</code>. <code>QuerySet</code> subclasses all pass.</p>
+
+
+    </div>
+
+</div><h3 id="materialize_retrieve"><code>materialize_retrieve</code><a class="headerlink" href="#materialize_retrieve" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.selectors.utils.materialize_retrieve" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">materialize_retrieve</span>
+
+
+<a href="#rest_framework_services.selectors.utils.materialize_retrieve" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">materialize_retrieve</span><span class="p">(</span><span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Collapse a RETRIEVE selector's return to the single instance, or <code>None</code>.</p>
+<p>The one definition of what <code>kind=RETRIEVE</code> means once the selector has run:
+a queryset materializes through <code>.first()</code> — so an author can write
+<code>selector=lambda *, pk: Model.objects.filter(pk=pk)</code> and still get the
+spec's shaping applied first — and anything else passes through as the
+resolved object. What each caller does with a <code>None</code> differs; how the value
+is arrived at does not.</p>
+<p>Exported for a transport that runs a <code>RETRIEVE</code> selector without
+<code>dispatch_spec</code> -- a chain step running each spec itself -- so the row its
+object-level permissions judge is the row the core would have resolved. Run
+on a queryset rather than the row, <code>enforce_permissions</code> skips
+<code>has_object_permission</code> by design, since a set is authorized per-set.
+Blocks on the query, so call <code>amaterialize_retrieve</code> from a coroutine.</p>
+
+
+    </div>
+
+</div><h3 id="amaterialize_retrieve"><code>amaterialize_retrieve</code><a class="headerlink" href="#amaterialize_retrieve" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.selectors.utils.amaterialize_retrieve" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">amaterialize_retrieve</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#rest_framework_services.selectors.utils.amaterialize_retrieve" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">amaterialize_retrieve</span><span class="p">(</span><span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Async twin of <code>materialize_retrieve</code>, awaiting <code>.afirst()</code>.</p>
+<p>Separate because the materialization <em>is</em> the query — <code>.first()</code> would
+block the event loop. Same rule otherwise; keep the two in step.</p>
 
 
     </div>
