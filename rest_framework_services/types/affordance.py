@@ -65,11 +65,14 @@ class Affordance:
     is enforced and never advertised.
 
     Attributes:
-        code: Stable and machine-readable, and always safe to show: it names the
-            rule, never the state that tripped it. What a client branches on.
-        reason: The sentence for a human, **written for an operator**. It may
-            describe internal state, which is why an agent audience never reads
-            it -- only the code.
+        code: Stable and machine-readable: it names the rule, never the state
+            that tripped it, and it does not change when the sentence is
+            reworded. What a transport or a client branches on.
+        reason: The sentence people and models both read -- in a rendered
+            answer, and as the message of the ``ActionUnavailable`` a refused
+            call raises. Write it for them: say what is not possible and, where
+            it helps, what would make it possible, and keep internal state out
+            of it, since every reader of the operation reads it.
         when: The condition, as above.
 
     Raises:

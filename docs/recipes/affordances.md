@@ -42,13 +42,16 @@ condition gets
 
 ## A code and a reason are two different things
 
-`code` is stable, machine-readable and always safe to show: it names the rule,
-never the state that tripped it. It is what a client branches on, and it does
-not change when somebody rewords the sentence.
+`code` is stable and machine-readable: it names the rule, never the state that
+tripped it. It is what a transport or a client branches on, and it does not
+change when somebody rewords the sentence.
 
-`reason` is written for an operator. It may describe internal state — which
-reviewer, which batch, which ledger — so treat it as something a person reads,
-not something a program parses or a model repeats.
+`reason` is the sentence people and models both read: it is the message of the
+refusal a caller gets, and the sentence a model relays when it explains why an
+action is not possible. Write it for them — say what cannot be done and, where
+it helps, what would make it possible — and keep internal state out of it:
+which reviewer, which batch job, which ledger row is nobody's business but the
+code's. A sentence is for reading, not parsing, so branch on the code.
 
 Codes must be unique within a spec, because the code is the only way a reader
 tells one refusal from another.

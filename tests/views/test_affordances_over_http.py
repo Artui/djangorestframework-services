@@ -31,7 +31,7 @@ factory = APIRequestFactory()
 
 UNPUBLISHED = Affordance(
     code="already_published",
-    reason="Post 7 went out on the internal newsletter at 09:00.",
+    reason="This post is already published and cannot be published again.",
     when=Q(published=False),
 )
 
@@ -80,7 +80,7 @@ def test_an_unavailable_row_is_a_409_carrying_the_code_beside_the_detail() -> No
 
     assert response.status_code == 409
     assert _body(response) == {
-        "detail": "Post 7 went out on the internal newsletter at 09:00.",
+        "detail": "This post is already published and cannot be published again.",
         "code": "already_published",
     }
 
@@ -107,7 +107,7 @@ def test_a_caller_denied_the_row_learns_nothing_about_its_state() -> None:
     body = _body(response)
     assert body == {"detail": "You may not touch this post."}
     assert "code" not in body
-    assert "newsletter" not in json.dumps(body)
+    assert "already published" not in json.dumps(body)
 
 
 def test_a_row_condition_on_a_create_view_is_refused_at_as_view() -> None:

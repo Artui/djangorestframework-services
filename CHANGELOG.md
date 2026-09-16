@@ -46,8 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dispatcher refuses a call that fails one with **`ActionUnavailable`** — a
   `ServiceConflict`, so a `409` over HTTP, whose body is
   `{"detail": <reason>, "code": <code>}`. The code is stable and names the rule;
-  the reason is an operator's sentence. Before this a state refusal carried only
-  its sentence, which left a client nothing to branch on.
+  the reason is the sentence people and models both read, so it is written for
+  them and keeps internal state out. Before this a state refusal carried only its
+  sentence, which left a client nothing to branch on.
 
   `when` decides its own kind by type. An ORM boolean expression (`Q`, `Exists`,
   a lookup) is a condition on the row, meaning exactly what `filter(when)` means,

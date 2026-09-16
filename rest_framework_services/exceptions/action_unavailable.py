@@ -20,9 +20,11 @@ class ActionUnavailable(ServiceConflict):
     has no code and never will, so a nullable ``code`` on the parent would be a
     field that lies at every other call site.
 
-    ``code`` names the rule and is safe for every audience; the message is written
-    for an operator and may describe internal state, so a transport serving an
-    agent should read ``code`` and leave the message out.
+    ``code`` names the rule and is what a transport or client branches on; the
+    message is the affordance's ``reason``, the sentence a person or a model is
+    shown when the call is refused. A transport serving an agent should pass on
+    both: the model can say the sentence, and the code is what stays stable when
+    the sentence is reworded.
 
     Like every member, it must be matched **before** a generic ``ServiceConflict``
     or ``ServiceError`` handler, or the subclass check swallows it.
