@@ -9,12 +9,12 @@ from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 
 from rest_framework_services.dispatch.apply_input_data import apply_input_data
 from rest_framework_services.dispatch.base_pool import base_pool
+from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
 from rest_framework_services.dispatch.utils import (
     COLLECTION_SOURCE,
     INSTANCE_SOURCE,
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
-    call_affordances,
     call_preconditions,
     call_target_guard,
     clear_prefetch_cache,
@@ -377,7 +377,7 @@ def _dispatch_service(
     elif extras:
         pool["data"] = data
 
-    call_affordances(spec, pool, instance=instance, reserved=pool_seeds.reserved)
+    enforce_affordances(spec, pool, instance=instance, reserved=pool_seeds.reserved)
     with wire_named_errors(serializer):
         call_preconditions(spec, pool)
         result: Any = run_service(
@@ -468,7 +468,7 @@ def _dispatch_service_many(
     # only preconditions declaring ``user`` / ``request`` / the payload bind.
     # Per-item rules belong in the service's own loop. A row condition cannot be
     # declared on a bulk spec at all, so only callable affordances reach here.
-    call_affordances(spec, pool, instance=None, reserved=pool_seeds.reserved)
+    enforce_affordances(spec, pool, instance=None, reserved=pool_seeds.reserved)
     with wire_named_errors(serializer):
         call_preconditions(spec, pool)
         result: Any = run_service(

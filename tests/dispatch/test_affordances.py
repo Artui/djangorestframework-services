@@ -7,6 +7,7 @@ tested with the selector shaping; this file is the moment of the call.
 
 from __future__ import annotations
 
+import importlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -34,8 +35,11 @@ from rest_framework_services import (
     dispatch_spec,
     enforce_permissions,
 )
-from rest_framework_services.dispatch import utils as dispatch_utils
 from tests.testapp.models import Author, Post, PublishedPost, Tag
+
+# The submodule, not the function the package re-exports under the same name: the
+# executor hop is looked up in this module's namespace, so that is where it is counted.
+aenforce_module = importlib.import_module("rest_framework_services.dispatch.aenforce_affordances")
 
 # --- fixtures ---------------------------------------------------------------
 
@@ -298,13 +302,13 @@ async def test_declaring_nothing_costs_the_async_path_no_executor_hop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     hops: list[Any] = []
-    real = dispatch_utils.arun_off_loop
+    real = aenforce_module.arun_off_loop
 
     async def counting(fn: Any, /, *args: Any, **kwargs: Any) -> Any:
         hops.append(fn)
         return await real(fn, *args, **kwargs)
 
-    monkeypatch.setattr(dispatch_utils, "arun_off_loop", counting)
+    monkeypatch.setattr(aenforce_module, "arun_off_loop", counting)
     post = await Post.objects.acreate(title="draft")
     ambient = Affordance(code="open", reason="Closed.", when=lambda: True)
 
@@ -316,7 +320,7 @@ async def test_declaring_nothing_costs_the_async_path_no_executor_hop(
         params={},
         instance=post,
     )
-    assert [fn.__name__ for fn in hops] == ["call_affordances"]
+    assert [fn.__name__ for fn in hops] == ["enforce_affordances"]
 
 
 @pytest.mark.django_db

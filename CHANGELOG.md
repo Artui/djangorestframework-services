@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.52.0] — 2026-09-16
+
+### Added
+
+- **`enforce_affordances` and `aenforce_affordances`**, exported from the package
+  root and `rest_framework_services.dispatch`, run a service spec's `affordances`
+  check for a caller that runs the service without `dispatch_spec`. Handed the
+  kwargs pool the service is about to receive and its resolved target, they raise
+  `ActionUnavailable` with the unmet affordance's `code` and `reason`, exactly as
+  the core does.
+
+  The check existed only inside the core, so a transport that dispatches a service
+  directly had no way to run it short of copying it. djangorestframework-mcp-server's
+  chain tools are that transport: a chain owns the transaction and hands each step
+  a pool it built, and it re-runs `enforce_permissions` and the spec's preconditions
+  for that reason -- but not the affordances, so a service refused as a tool of its
+  own ran, and succeeded, as a chain step. The core calls the same function, so the
+  two paths cannot disagree about which condition answers.
+
 ## [0.51.0] — 2026-09-16
 
 ### Added
@@ -3712,7 +3731,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.51.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.52.0...HEAD
+[0.52.0]: https://github.com/Artui/djangorestframework-services/compare/v0.51.0...v0.52.0
 [0.51.0]: https://github.com/Artui/djangorestframework-services/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/Artui/djangorestframework-services/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/Artui/djangorestframework-services/compare/v0.48.0...v0.49.0
