@@ -7,6 +7,7 @@ declaration, because a schema that agrees only with itself proves nothing.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from typing import Any
 
@@ -18,17 +19,20 @@ from django.db.models import Q, QuerySet
 from django.test.utils import CaptureQueriesContext
 from jsonschema import Draft202012Validator
 from rest_framework import serializers
+from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
     MARKING,
     Affordance,
     FieldMarking,
     SelectorKind,
+    SelectorListView,
     SelectorSpec,
     ServiceSpec,
     SpecRegistry,
     arender_for_audience,
     arender_spec_output,
+    audience_projection_for_spec,
     capability_manifest,
     dispatch_spec,
     output_to_json_schema,
@@ -581,3 +585,57 @@ def test_a_vanished_rows_answer_validates_against_the_generated_schemas(
     assert served[0]["affordances"] == {"publish": {"available": False}}
     Draft202012Validator(browser).validate(served)
     Draft202012Validator(agent).validate(_wire(render_for_audience(spec, rows, many=True)))
+
+
+# --- a raw dataclass output ---------------------------------------------------------------
+
+
+@dataclasses.dataclass
+class _PostRow:
+    """Declared as the output itself: it renders through a ``DataclassSerializer``."""
+
+    id: int
+    title: str
+
+
+def test_a_raw_dataclass_output_renders_serves_and_describes_the_answers(
+    two_posts: tuple[Post, Post],
+) -> None:
+    """The two features together, at every site that renders them: the output class
+    is resolved from the dataclass, the answers are added to what it renders, and the
+    payload each audience gets validates against the schema generated for it."""
+    draft, out = two_posts
+    spec = _listing(output_serializer=_PostRow, affordances={"publish": PUBLISH})
+    expected = [
+        {"id": draft.pk, "title": "draft", "affordances": {"publish": {"available": True}}},
+        {"id": out.pk, "title": "out", "affordances": {"publish": _REFUSED}},
+    ]
+    rows = _rows(spec)
+
+    browser = _wire(render_spec_output(spec, rows, many=True))
+    agent = _wire(render_for_audience(spec, rows, many=True))
+
+    class _View(SelectorListView):
+        pass
+
+    _View.spec = spec
+    served = json.loads(_View.as_view()(APIRequestFactory().get("/")).render().content)
+
+    assert browser == agent == served == expected
+    browser_schema = spec_to_json_schema(spec, phase="output")
+    agent_schema = output_to_json_schema(
+        _PostRow,
+        kind=SelectorKind.LIST,
+        projection=audience_projection_for_spec(spec),
+        affordances=spec.affordances,
+    )
+    assert browser_schema is not None
+    assert agent_schema is not None
+    for schema in (browser_schema, agent_schema):
+        assert schema["items"]["properties"]["affordances"]["properties"]["publish"]["properties"][
+            "reason"
+        ] == {"type": "string"}
+        assert schema["items"]["required"] == ["id", "title", "affordances"]
+    Draft202012Validator(browser_schema).validate(browser)
+    Draft202012Validator(browser_schema).validate(served)
+    Draft202012Validator(agent_schema).validate(agent)
