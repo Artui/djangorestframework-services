@@ -420,11 +420,33 @@ def call_target_guard(
     on_target_resolved(spec, context, instance=target)
 
 
+def ambient_pool(pool: Mapping[str, Any], *, reserved: frozenset[str]) -> dict[str, Any]:
+    """The part of a pool an affordance's callable condition may read.
+
+    The seeds -- ``user``, ``request``, ``progress`` and whatever the project
+    registered -- and nothing else. Not the per-call names (the target and the
+    validated input), which would make the answer depend on attempting the call;
+    and not a client argument spread into the pool, which would let the caller
+    decide whether the operation is available. Filtering by the reserved set
+    rather than by exclusion is what makes the second hold: a spread key is by
+    construction not a seed.
+
+    One definition, so a condition asked at the moment of a call and the same
+    condition projected onto a list see the same names.
+    """
+    return {
+        key: value
+        for key, value in pool.items()
+        if key in reserved and key not in PER_CALL_POOL_NAMES
+    }
+
+
 def call_affordances(
     spec: ServiceSpec[Any, Any, Any],
     pool: dict[str, Any],
     *,
     instance: Any,
+    reserved: frozenset[str] = RESERVED_POOL_SEEDS,
 ) -> None:
     """Refuse the call if one of the spec's ``affordances`` is not met.
 
@@ -438,10 +460,12 @@ def call_affordances(
 
     Declaration order decides which refusal a caller sees, and nothing past the
     first unmet condition runs. Every condition on the row is answered together
-    by one query the first time one is reached; a callable condition sees the pool
-    without the per-call names, so a ``**kwargs`` catch-all is held to the same
-    rule the declaration enforces on a named parameter. A callable's result is
-    read for truth, so one that returns nothing refuses rather than allows.
+    by one query the first time one is reached. A callable condition sees
+    ``ambient_pool`` -- the seeds, never the call's target, input or client
+    arguments -- so a ``**kwargs`` catch-all is held to the same rule the
+    declaration enforces on a named parameter. ``reserved`` is this dispatch's
+    seed set, registered seeds included. A callable's result is read for truth,
+    so one that returns nothing refuses rather than allows.
     """
     affordances: Sequence[Affordance] | None = spec.affordances
     if not affordances:
@@ -453,7 +477,7 @@ def call_affordances(
                 row_flags = _row_affordance_flags(instance, affordances)
             available: Any = row_flags[index]
         else:
-            ambient = {key: value for key, value in pool.items() if key not in PER_CALL_POOL_NAMES}
+            ambient = ambient_pool(pool, reserved=reserved)
             available = affordance.when(**resolve_dispatch_kwargs(affordance.when, ambient))
         if not available:
             raise ActionUnavailable(affordance.reason, code=affordance.code)
@@ -464,6 +488,7 @@ async def acall_affordances(
     pool: dict[str, Any],
     *,
     instance: Any,
+    reserved: frozenset[str] = RESERVED_POOL_SEEDS,
 ) -> None:
     """``call_affordances`` for the async path.
 
@@ -473,7 +498,7 @@ async def acall_affordances(
     """
     if not spec.affordances:
         return
-    await arun_off_loop(call_affordances, spec, pool, instance=instance)
+    await arun_off_loop(call_affordances, spec, pool, instance=instance, reserved=reserved)
 
 
 def _row_affordance_flags(instance: Any, affordances: Sequence[Affordance]) -> dict[int, bool]:

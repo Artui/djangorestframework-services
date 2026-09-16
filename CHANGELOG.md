@@ -43,7 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `when` decides its own kind by type. An ORM boolean expression (`Q`, `Exists`,
   a lookup) is a condition on the row, meaning exactly what `filter(when)` means,
   and every such condition on a spec is answered by one query. A callable is a
-  condition on nothing in particular, bound through the keyword pool. **A
+  condition on nothing in particular, bound through the keyword pool's seeds
+  only, so neither the call's input nor a client argument can reach it. **A
   callable that reads the row is refused at construction**: it would cost one
   query per row wherever availability is reported for a list, and prefetching
   silently rescues only some predicates. Such a rule stays a precondition.
