@@ -4,6 +4,7 @@ These classes have **no DRF imports**. The view layer is responsible for
 translating them into HTTP responses.
 """
 
+from rest_framework_services.exceptions.action_unavailable import ActionUnavailable
 from rest_framework_services.exceptions.additional_input_required import (
     AdditionalInputRequired,
 )
@@ -15,6 +16,7 @@ from rest_framework_services.exceptions.service_validation_error import (
 )
 
 __all__ = [
+    "ActionUnavailable",
     "AdditionalInputRequired",
     "ServiceConflict",
     "ServiceError",

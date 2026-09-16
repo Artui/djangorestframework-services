@@ -5,6 +5,7 @@ These are intentionally framework-agnostic data carriers. They live outside
 inputs/outputs are not coupled to the mutation helpers themselves.
 """
 
+from rest_framework_services.types.affordance import Affordance
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.change_result import ChangeResult
@@ -68,6 +69,7 @@ __all__ = [
     "PoolSeeds",
     "RESERVED_POOL_SEEDS",
     "UNSET",
+    "Affordance",
     "ArgumentBinding",
     "ChangeResult",
     "ChildCollectionChange",

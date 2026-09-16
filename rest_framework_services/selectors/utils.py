@@ -8,7 +8,7 @@ from typing import Any
 
 from asgiref.sync import async_to_sync
 from django.core.exceptions import ImproperlyConfigured
-from django.db.models import Model, QuerySet
+from django.db.models import Exists, Model, OuterRef, QuerySet
 from django.db.models.manager import BaseManager
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.request import Request
@@ -166,6 +166,28 @@ def _filter_set_accepts_request(filter_set: Any) -> bool:
         and param.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
         for param in parameters
     )
+
+
+def affordance_expression(model: type[Model], when: Any) -> Exists:
+    """The SQL answer to one affordance condition, for whichever row it is annotated on.
+
+    ``Exists(<the row, narrowed by pk>.filter(when))`` rather than the condition
+    inline, for two reasons that both come from where this is spent. Inline, a
+    condition spanning a multi-valued relation joins it into the outer query and
+    **duplicates the rows** of the list it is annotated on, and an aggregate
+    beside it counts across that join. Inside a correlated subquery the outer
+    query gains no join at all. And the subquery gives the condition exactly the
+    meaning it has in ``Model.objects.filter(when)``, which is the reading an
+    author already has for a ``Q``.
+
+    ``_base_manager`` because the subquery only re-finds a row that has already
+    been resolved: a default manager that hides rows would answer "unavailable"
+    for a row the caller is looking at.
+
+    The single-object check and the list projection both annotate this one
+    expression, so the two cannot disagree about any row.
+    """
+    return Exists(model._base_manager.filter(pk=OuterRef("pk")).filter(when))
 
 
 def materialize_retrieve(result: Any) -> Any:

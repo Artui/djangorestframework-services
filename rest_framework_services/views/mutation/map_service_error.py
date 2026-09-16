@@ -14,6 +14,7 @@ from __future__ import annotations
 from rest_framework import exceptions as drf_exceptions
 from rest_framework import status as drf_status
 
+from rest_framework_services.exceptions.action_unavailable import ActionUnavailable
 from rest_framework_services.exceptions.additional_input_required import (
     AdditionalInputRequired,
 )
@@ -54,6 +55,10 @@ def map_service_error(exc: ServiceError) -> drf_exceptions.APIException:
     first would swallow all of them, which is the same trap a transport's own
     handler has (see each member's docstring).
 
+    ``ActionUnavailable`` is a ``ServiceConflict`` and keeps its ``409``; its
+    branch exists only to put the affordance's ``code`` in the body beside the
+    ``detail`` a client already reads.
+
     ``AdditionalInputRequired`` takes no *status* branch — "I need one more value"
     is the resource being unprocessable as asked, so it stays a ``422`` like any
     other service error. It does take a *body* branch, because the schema naming
@@ -65,6 +70,13 @@ def map_service_error(exc: ServiceError) -> drf_exceptions.APIException:
         return drf_exceptions.ValidationError(exc.detail)
     if isinstance(exc, ServiceNotFound):
         return drf_exceptions.NotFound(str(exc))
+    if isinstance(exc, ActionUnavailable):
+        # A body branch rather than a status one, for the reason
+        # ``AdditionalInputRequired`` takes one below: the stable code is the
+        # whole point of the member, and a client left with only the sentence has
+        # nothing to branch on. Always present, since the member cannot be built
+        # without one.
+        return _ConflictAPIException({"detail": str(exc), "code": exc.code})
     if isinstance(exc, ServiceConflict):
         return _ConflictAPIException(str(exc))
     if isinstance(exc, AdditionalInputRequired) and exc.schema is not None:

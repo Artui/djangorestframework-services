@@ -88,6 +88,7 @@ nav:
       - Pass extra kwargs to services: recipes/extra-kwargs.md
       - Per-action permissions on the spec: recipes/permissions.md
       - State rules with preconditions: recipes/preconditions.md
+      - What can be done right now: recipes/affordances.md
       - Per-spec queryset shaping: recipes/queryset-shaping.md
       - Filter a selector with filter_set: recipes/selector-filtering.md
       - Nested writes for every relation kind: recipes/nested-writes.md

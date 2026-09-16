@@ -31,6 +31,7 @@ from rest_framework_services.dispatch import (
     unguarded_specs,
 )
 from rest_framework_services.exceptions import (
+    ActionUnavailable,
     AdditionalInputRequired,
     ServiceConflict,
     ServiceError,
@@ -88,6 +89,7 @@ from rest_framework_services.types import (
     MARKING,
     RESERVED_POOL_SEEDS,
     UNSET,
+    Affordance,
     ArgumentBinding,
     AudienceProjection,
     ChangeResult,
@@ -169,7 +171,9 @@ from rest_framework_services.viewsets import (
 __all__ = [
     "MARKING",
     "ActionSerializerResolver",
+    "ActionUnavailable",
     "AdditionalInputRequired",
+    "Affordance",
     "FieldMarking",
     "OutputPage",
     "AudienceProjection",

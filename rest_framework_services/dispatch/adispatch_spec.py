@@ -15,6 +15,7 @@ from rest_framework_services.dispatch.utils import (
     INSTANCE_SOURCE,
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
+    acall_affordances,
     acall_preconditions,
     arun_callable,
     arun_off_loop,
@@ -345,6 +346,7 @@ async def _adispatch_service(
     elif extras:
         pool["data"] = data
 
+    await acall_affordances(spec, pool, instance=instance)
     with wire_named_errors(serializer):
         await acall_preconditions(spec, pool)
         result: Any = await arun_service_callable(
@@ -454,6 +456,7 @@ async def _adispatch_service_many(
     if serializer is not None:
         pool["serializer"] = serializer
     # Bulk: once, no target — see the sync sibling.
+    await acall_affordances(spec, pool, instance=None)
     with wire_named_errors(serializer):
         await acall_preconditions(spec, pool)
         result: Any = await arun_service_callable(
