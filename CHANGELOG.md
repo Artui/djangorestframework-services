@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.52.1] — 2026-09-16
+
 ### Added
 
 - **`materialize_retrieve` and `amaterialize_retrieve`**, exported from the package
@@ -3758,7 +3760,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.52.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.52.1...HEAD
+[0.52.1]: https://github.com/Artui/djangorestframework-services/compare/v0.52.0...v0.52.1
 [0.52.0]: https://github.com/Artui/djangorestframework-services/compare/v0.51.0...v0.52.0
 [0.51.0]: https://github.com/Artui/djangorestframework-services/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/Artui/djangorestframework-services/compare/v0.49.0...v0.50.0
