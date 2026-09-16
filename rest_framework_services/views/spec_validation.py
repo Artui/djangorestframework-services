@@ -154,6 +154,7 @@ def _has_any_shaping(spec: SelectorSpec[Any, Any]) -> bool:
         or spec.annotations is not None
         or spec.extend_queryset is not None
         or spec.filter_set is not None
+        or spec.affordances is not None
     )
 
 
@@ -171,7 +172,7 @@ def _validate_selector_shaping(
     if spec.selector is None and _has_any_shaping(spec):
         raise ImproperlyConfigured(
             f"{label}: select_related / prefetch_related / annotations / "
-            "extend_queryset / filter_set are set but `selector` is not. Set a "
+            "extend_queryset / filter_set / affordances are set but `selector` is not. Set a "
             "selector or drop the shaping fields — they only run when the "
             "spec's selector dispatches."
         )
@@ -356,6 +357,22 @@ def _reject_ignored_nested_fields(nested: Any, *, label: str) -> None:
         )
 
 
+def _reject_unrendered_affordances(nested: SelectorSpec[Any, Any], *, label: str) -> None:
+    """Refuse ``affordances`` on a nested spec that resolves a target.
+
+    ``instance_selector_spec`` and ``collection_selector_spec`` pick what a
+    mutation acts on; nothing they resolve is ever rendered, so the answers would
+    be computed into the lookup query and read by nobody. ``output_selector_spec``
+    is rendered, and is not refused.
+    """
+    if nested.affordances is not None:
+        raise ImproperlyConfigured(
+            f"{label}: `affordances` on a target lookup is never rendered -- the row "
+            "it resolves is acted on, not returned. Declare them on the "
+            "output_selector_spec, or on the selector that lists the rows."
+        )
+
+
 def _validate_output_selector_spec(
     output_spec: SelectorSpec[Any, Any],
     *,
@@ -417,6 +434,7 @@ def _validate_instance_selector_spec(
     because URL kwargs and the selector kwargs chain are dynamic.
     """
     _reject_ignored_nested_fields(instance_spec, label=label)
+    _reject_unrendered_affordances(instance_spec, label=label)
     if not has_instance:
         raise ImproperlyConfigured(
             f"{label}: instance_selector_spec is set but this action does not "
@@ -456,6 +474,7 @@ def _validate_collection_selector_spec(
     the dispatch params, so extras stay permissive.
     """
     _reject_ignored_nested_fields(collection_spec, label=label)
+    _reject_unrendered_affordances(collection_spec, label=label)
     if collection_spec.kind is not SelectorKind.LIST:
         raise ImproperlyConfigured(
             f"{label}: collection_selector_spec.kind must be SelectorKind.LIST; "

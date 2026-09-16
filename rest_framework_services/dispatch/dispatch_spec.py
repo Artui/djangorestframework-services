@@ -241,6 +241,8 @@ def _dispatch_selector(
             request=request,
             params=filter_data if filter_data is not None else params,
             source_label=SELECTOR_SOURCE,
+            pool=pool,
+            reserved=pool_seeds.reserved,
         )
     except ObjectDoesNotExist:
         if spec.kind is SelectorKind.RETRIEVE:
@@ -570,6 +572,8 @@ def _resolve_collection(
         request=request,
         params=filter_data,
         source_label=COLLECTION_SOURCE,
+        pool=pool,
+        reserved=pool_seeds.reserved,
     )
 
 
@@ -608,7 +612,14 @@ def _run_output_selector(
         out_spec.selector, resolve_dispatch_kwargs(out_spec.selector, pool)
     )
     selected = shape_queryset(
-        out_spec, selected, view=view, request=request, params=params, source_label=OUTPUT_SOURCE
+        out_spec,
+        selected,
+        view=view,
+        request=request,
+        params=params,
+        source_label=OUTPUT_SOURCE,
+        pool=pool,
+        reserved=pool_seeds.reserved,
     )
     if out_spec.kind is SelectorKind.LIST:
         return selected, True
@@ -656,6 +667,8 @@ def _resolve_instance(
             request=request,
             params=filter_data,
             source_label=INSTANCE_SOURCE,
+            pool=pool,
+            reserved=pool_seeds.reserved,
         )
     except ObjectDoesNotExist:
         return (False, None)

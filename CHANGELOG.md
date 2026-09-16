@@ -68,6 +68,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A row condition on a spec with `many=True` or a `collection_selector_spec` is
   refused at construction, and on an action that targets no row at `as_view()`.
 
+- **`SelectorSpec.affordances` answers "what can be done to each row" inside the
+  list query.** A mapping of name to the `ServiceSpec` being asked about; every
+  condition becomes a boolean annotation named `affordance__<name>__<code>`,
+  merged into the **same single `.annotate()` call** as `annotations`, so a list
+  of fifty rows with five conditions is still one query. Each annotation is the
+  correlated `Exists` the mutation itself evaluates, so the list and the call
+  agree about every row by construction — including under a filtered `Prefetch`
+  on the same relation, which silently hides rows from a per-instance predicate.
+  A condition over a multi-valued relation neither duplicates rows nor inflates a
+  declared aggregate. A callable condition is answered once per dispatch and
+  carried as a constant.
+
+  A selector returning rows rather than a `QuerySet` gets the same answers under
+  the same names. Model instances — a list, a generator (materialised once into
+  the list that flows on), or a `RETRIEVE` selector's bare instance — are answered
+  by **one query per model class present**, `_base_manager.filter(pk__in=...)`
+  annotated with the same `Exists` expressions, so a list of fifty instances with
+  five conditions costs one extra query; a row deleted before that query carries
+  `None` rather than `False` for its row conditions, since it fails none of them,
+  and an instance with no primary key is refused when a condition on the row needs
+  to find it. Mappings come back as new mappings carrying the
+  callable answers; a condition on the row is refused on them, because a mapping
+  has no primary key to evaluate it against. Any other row type is refused.
+
+  A generated name colliding with a key of `annotations` or with another entry's
+  is refused at construction. `affordances` needs a `selector` and is refused on a
+  nested target lookup at `as_view()`. A selector declaring none issues the same
+  query as before.
+
 ### Fixed
 
 - **An output declaration that cannot be rendered is now refused when its schema

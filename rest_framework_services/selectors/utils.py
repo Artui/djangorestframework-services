@@ -185,7 +185,9 @@ def affordance_expression(model: type[Model], when: Any) -> Exists:
     for a row the caller is looking at.
 
     The single-object check and the list projection both annotate this one
-    expression, so the two cannot disagree about any row.
+    expression, so the two cannot disagree about any row. Being SQL, it reads the
+    table and never a ``prefetch_related`` cache, so a filtered ``Prefetch`` on
+    the same relation cannot hide rows from the answer.
     """
     return Exists(model._base_manager.filter(pk=OuterRef("pk")).filter(when))
 

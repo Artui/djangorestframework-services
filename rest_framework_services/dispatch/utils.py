@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from typing import Any
 
 from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured
-from django.db.models import Model
+from django.db.models import BooleanField, Model, Value
 from rest_framework.exceptions import ValidationError
 from typing_extensions import get_type_hints
 
@@ -21,7 +21,11 @@ from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
 from rest_framework_services.is_async import is_async
-from rest_framework_services.selectors.utils import affordance_expression, apply_queryset_shaping
+from rest_framework_services.selectors.utils import (
+    affordance_expression,
+    apply_queryset_shaping,
+    is_queryset,
+)
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.affordance import Affordance
@@ -29,6 +33,7 @@ from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.marked_input_keys import marked_input_keys
 from rest_framework_services.types.offline_context import OfflineContext
 from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
+from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.target_guard import TargetGuard
@@ -36,7 +41,11 @@ from rest_framework_services.types.typed_dict_input import typed_dict_input
 from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
 from rest_framework_services.types.unset import UNSET
-from rest_framework_services.types.utils import PER_CALL_POOL_NAMES, is_row_condition
+from rest_framework_services.types.utils import (
+    PER_CALL_POOL_NAMES,
+    affordance_alias,
+    is_row_condition,
+)
 from rest_framework_services.types.view_hooks import ViewHooks
 from rest_framework_services.views.utils import resolve_callable_kwargs
 
@@ -537,6 +546,167 @@ def _row_affordance_flags(instance: Any, affordances: Sequence[Affordance]) -> d
     return {index: bool(flag) for index, flag in zip(aliases.values(), row, strict=True)}
 
 
+def split_affordances(
+    affordances: Mapping[str, ServiceSpec[Any, Any, Any]],
+    pool: Mapping[str, Any],
+    *,
+    reserved: frozenset[str],
+) -> tuple[dict[str, Any], dict[str, bool]]:
+    """``(row conditions, answered constants)``, both keyed by annotation name.
+
+    A condition on the row is returned as declared, for whichever path evaluates
+    it -- an annotation on a query, or one query over the rows a selector returned
+    -- and both build it with ``affordance_expression``, the correlated ``Exists``
+    the single-object check also runs, so every path agrees about every row by
+    construction rather than by a test. A callable condition has no row to vary
+    with, so it is answered once, here, against the same ``ambient_pool`` the call
+    reads, whatever the selector returned.
+    """
+    ambient = ambient_pool(pool, reserved=reserved)
+    row_conditions: dict[str, Any] = {}
+    constants: dict[str, bool] = {}
+    for name, service_spec in affordances.items():
+        for affordance in service_spec.affordances or ():
+            alias = affordance_alias(name, affordance.code)
+            if is_row_condition(affordance.when):
+                row_conditions[alias] = affordance.when
+                continue
+            answer = affordance.when(**resolve_dispatch_kwargs(affordance.when, ambient))
+            constants[alias] = bool(answer)
+    return row_conditions, constants
+
+
+def rows_with_affordances(
+    result: Any,
+    *,
+    kind: SelectorKind,
+    row_conditions: Mapping[str, Any],
+    constants: Mapping[str, bool],
+    source_label: str,
+) -> Any:
+    """A selector's non-``QuerySet`` result, with each row carrying its answers.
+
+    The same answers, under the same ``affordance__<name>__<code>`` names, that a
+    ``QuerySet`` result carries as annotations -- so rendering reads them the same
+    way whichever the selector returned. ``RETRIEVE`` treats the result as one row
+    (``None`` passes through); ``LIST`` as an iterable of rows, materialised into
+    the list that flows on, so a generator is walked once.
+
+    - **A model instance** gets every row condition answered by one query per
+      model class present -- see ``_row_condition_answers`` -- and the answers set
+      as attributes, like an annotation would be.
+    - **A mapping** gets a new mapping with the callable answers added; the
+      selector's own object is left alone. A condition on the row is refused
+      here, because a mapping has no model and no primary key to evaluate one
+      against.
+    - **Anything else** is refused rather than having attributes written onto it.
+
+    Raises:
+        ImproperlyConfigured: A ``LIST`` result is not an iterable of rows, a row is
+            neither a model instance nor a mapping, a row condition meets a mapping
+            row, or a row condition meets an instance with no primary key.
+    """
+    if kind is SelectorKind.RETRIEVE:
+        if result is None:
+            return None
+        return _answer_rows([result], row_conditions, constants, source_label)[0]
+    if isinstance(result, Mapping | str | bytes) or not isinstance(result, Iterable):
+        raise ImproperlyConfigured(
+            f"affordances are declared on a LIST spec but {source_label} returned "
+            f"{type(result).__name__}, which is neither a QuerySet nor an iterable of rows."
+        )
+    return _answer_rows(list(result), row_conditions, constants, source_label)
+
+
+def _answer_rows(
+    rows: list[Any],
+    row_conditions: Mapping[str, Any],
+    constants: Mapping[str, bool],
+    source_label: str,
+) -> list[Any]:
+    by_model: dict[type[Model], list[Any]] = {}
+    for row in rows:
+        if isinstance(row, Model):
+            if row_conditions and row.pk is None:
+                raise ImproperlyConfigured(
+                    f"{source_label} returned {row!r}, which has no primary key, and a "
+                    "condition on the row is answered by finding the row. Return saved "
+                    "instances."
+                )
+            by_model.setdefault(type(row), []).append(row.pk)
+        elif isinstance(row, Mapping):
+            if row_conditions:
+                raise ImproperlyConfigured(
+                    f"{source_label} returned mapping rows, and the affordances declare a "
+                    "condition on the row: a mapping has no model and no primary key to "
+                    "evaluate one against. Return model instances or a QuerySet, or keep "
+                    "only callable conditions."
+                )
+        else:
+            raise ImproperlyConfigured(
+                f"{source_label} returned a row of type {type(row).__name__}. Affordance "
+                "answers are carried by model instances and mappings; return one of those, "
+                "or a QuerySet."
+            )
+    answers = (
+        {
+            model: _row_condition_answers(model, pks, row_conditions)
+            for model, pks in by_model.items()
+        }
+        if row_conditions
+        else {}
+    )
+    answered: list[Any] = []
+    for row in rows:
+        if isinstance(row, Mapping):
+            answered.append({**row, **constants})
+            continue
+        flags = answers.get(type(row), {}).get(row.pk, {})
+        for alias in row_conditions:
+            # ``None`` for a row the answers query did not find -- see
+            # ``_row_condition_answers`` for why that is not ``False``.
+            setattr(row, alias, flags.get(alias))
+        for alias, answer in constants.items():
+            setattr(row, alias, answer)
+        answered.append(row)
+    return answered
+
+
+def _row_condition_answers(
+    model: type[Model], pks: list[Any], row_conditions: Mapping[str, Any]
+) -> dict[Any, dict[str, bool]]:
+    """Every row condition's answer for every ``pk``, in one query over ``model``.
+
+    Annotated with ``affordance_expression`` -- the same expression a ``QuerySet``
+    result is annotated with and the call is checked with -- and narrowed with
+    ``_base_manager``, because the rows are already in hand and a default manager
+    that hides some would answer for fewer of them.
+
+    **A pk the table no longer holds is absent from the result**, and its row
+    carries ``None`` for every row condition, not ``False``. The row was deleted
+    between the selector returning it and this query, so nothing can be done to
+    it -- a call against it is refused as not found -- and it must not read as
+    available. But ``False`` means "fails this condition", and the rendered
+    answer for a failed condition names its code and reason: "already published"
+    is a false sentence about a row that no longer exists. ``None`` is the third
+    answer, "no row to ask", which renders as unavailable with no code and no
+    reason. Callable conditions are not about the row, and keep their real
+    answers.
+    """
+    aliases = list(row_conditions)
+    found = (
+        model._base_manager.filter(pk__in=pks)
+        .annotate(
+            **{alias: affordance_expression(model, when) for alias, when in row_conditions.items()}
+        )
+        .values_list("pk", *aliases)
+    )
+    return {
+        pk: {alias: bool(flag) for alias, flag in zip(aliases, flags, strict=True)}
+        for pk, *flags in found
+    }
+
+
 def call_preconditions(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     pool: dict[str, Any],
@@ -629,18 +799,55 @@ def shape_queryset(
     request: Any,
     params: Mapping[str, Any],
     source_label: str,
+    pool: Mapping[str, Any],
+    reserved: frozenset[str] = RESERVED_POOL_SEEDS,
 ) -> Any:
-    """Apply a selector spec's queryset shaping, ``params`` as the filter data."""
-    return apply_queryset_shaping(
+    """Apply a selector spec's queryset shaping, ``params`` as the filter data.
+
+    ``spec.affordances`` on a ``QuerySet`` join ``spec.annotations`` in the one
+    ``.annotate()`` call the shaping makes. On any other result -- a list of rows,
+    or a ``RETRIEVE`` selector's bare row -- the rows are answered after the
+    shaping, by ``rows_with_affordances``. ``pool`` is the pool the selector was
+    called with, from which a callable condition reads its seeds.
+    """
+    annotations: Mapping[str, Any] | None = spec.annotations
+    row_conditions: dict[str, Any] = {}
+    constants: dict[str, bool] = {}
+    queryset = is_queryset(qs)
+    if spec.affordances is not None:
+        row_conditions, constants = split_affordances(spec.affordances, pool, reserved=reserved)
+        if queryset:
+            generated: dict[str, Any] = {
+                **{
+                    alias: affordance_expression(qs.model, when)
+                    for alias, when in row_conditions.items()
+                },
+                **{
+                    alias: Value(answer, output_field=BooleanField())
+                    for alias, answer in constants.items()
+                },
+            }
+            if generated:
+                annotations = {**(annotations or {}), **generated}
+    shaped = apply_queryset_shaping(
         qs,
         view,
         request,
         select_related=spec.select_related,
         prefetch_related=spec.prefetch_related,
-        annotations=spec.annotations,
+        annotations=annotations,
         extend_queryset=spec.extend_queryset,
         filter_set=spec.filter_set,
         filter_data=params,
+        source_label=source_label,
+    )
+    if spec.affordances is None or queryset:
+        return shaped
+    return rows_with_affordances(
+        shaped,
+        kind=spec.kind,
+        row_conditions=row_conditions,
+        constants=constants,
         source_label=source_label,
     )
 
