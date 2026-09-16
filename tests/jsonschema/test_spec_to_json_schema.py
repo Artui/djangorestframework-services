@@ -155,6 +155,30 @@ def test_selector_input_with_empty_filter_set_stays_bare_object() -> None:
     assert spec_to_json_schema(spec) == {"type": "object"}
 
 
+class _NotASerializer: ...
+
+
+def test_an_unwalkable_selector_output_is_refused_through_the_spec() -> None:
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=lambda: None,
+        output_serializer=_NotASerializer,  # ty: ignore[invalid-argument-type]
+    )
+    with pytest.raises(TypeError, match="Cannot derive an output JSON Schema"):
+        spec_to_json_schema(spec, phase="output")
+
+
+def test_an_unwalkable_output_behind_a_service_is_refused_through_the_spec() -> None:
+    nested = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=lambda: None,
+        output_serializer=_NotASerializer,  # ty: ignore[invalid-argument-type]
+    )
+    spec = ServiceSpec(service=lambda: None, output_selector_spec=nested)
+    with pytest.raises(TypeError, match="Cannot derive an output JSON Schema"):
+        spec_to_json_schema(spec, phase="output")
+
+
 def test_service_output_reads_nested_output_selector_spec() -> None:
     spec = ServiceSpec(
         service=_service,

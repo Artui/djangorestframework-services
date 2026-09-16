@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **An output serializer that is neither a `Serializer` subclass nor a dataclass
+  is now refused when its schema is derived, as 0.50.0 said it was.** 0.50.0's
+  entry and its `TypeError` both named input *and* output serializers, but only
+  the input side refused: `output_to_json_schema` still answered `None` for the
+  same declarations, which is what it answers for a spec with no output at all.
+  So a plain class or a serializer *instance* declared as `output_serializer`
+  was advertised as producing no output, and then raised the first time
+  `render_spec_output` instantiated it. `output_to_json_schema` and
+  `spec_to_json_schema(phase="output")` now raise `TypeError` naming the
+  declaration, and a genuinely undeclared output still returns `None`.
+
+  A transport that builds its schemas lazily - per tool listing rather than
+  when a spec is registered - now meets this error at listing time, where one
+  misdeclared spec can fail the whole listing. Build schemas at registration to
+  keep the failure where the mistake is.
+
 ## [0.50.0] — 2026-09-15
 
 ### Added
