@@ -663,7 +663,9 @@ def _answer_rows(
             continue
         flags = answers.get(type(row), {}).get(row.pk, {})
         for alias in row_conditions:
-            setattr(row, alias, flags.get(alias, False))
+            # ``None`` for a row the answers query did not find -- see
+            # ``_row_condition_answers`` for why that is not ``False``.
+            setattr(row, alias, flags.get(alias))
         for alias, answer in constants.items():
             setattr(row, alias, answer)
         answered.append(row)
@@ -681,10 +683,15 @@ def _row_condition_answers(
     that hides some would answer for fewer of them.
 
     **A pk the table no longer holds is absent from the result**, and its row
-    reads as unavailable on every row condition: the row was deleted between the
-    selector returning it and this query, nothing can be done to a row that does
-    not exist, and a call against it is refused as not found. Reporting it
-    available would advertise an action the call will not perform.
+    carries ``None`` for every row condition, not ``False``. The row was deleted
+    between the selector returning it and this query, so nothing can be done to
+    it -- a call against it is refused as not found -- and it must not read as
+    available. But ``False`` means "fails this condition", and the rendered
+    answer for a failed condition names its code and reason: "already published"
+    is a false sentence about a row that no longer exists. ``None`` is the third
+    answer, "no row to ask", which renders as unavailable with no code and no
+    reason. Callable conditions are not about the row, and keep their real
+    answers.
     """
     aliases = list(row_conditions)
     found = (

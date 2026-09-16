@@ -207,7 +207,9 @@ def test_a_generator_is_walked_once_and_the_list_flows_on() -> None:
 
 
 @pytest.mark.django_db
-def test_a_row_deleted_after_the_selector_ran_reads_as_unavailable() -> None:
+def test_a_row_deleted_after_the_selector_ran_has_no_row_answer() -> None:
+    """``None``, not ``False``: a ``False`` names a condition the row fails, and a row
+    that no longer exists fails none of them -- there is nothing to fail them."""
     _world()
 
     def then_delete() -> list[Post]:
@@ -219,10 +221,10 @@ def test_a_row_deleted_after_the_selector_ran_reads_as_unavailable() -> None:
 
     gone = rows[0]
     assert [getattr(gone, f"affordance__publish__{code}") for code in _CODES["publish"]] == [
-        False,
-        False,
-        False,
-        False,
+        None,
+        None,
+        None,
+        None,
     ]
     # Callable conditions are not about the row, and still answer.
     assert gone.affordance__archive__books_closed is True

@@ -162,9 +162,11 @@ reads them the same way:
   `Model._base_manager.filter(pk__in=...)` annotated with the very same `Exists`
   expressions — and carry the answers as attributes. Fifty instances with five
   conditions is one extra query, not fifty. A row the table no longer holds
-  (deleted between the selector returning it and the check) reads as unavailable,
-  since a call against it would be refused as not found. An instance with no
-  primary key is refused when a condition on the row needs finding it.
+  (deleted between the selector returning it and the check) carries `None` for
+  each condition on the row rather than `False`: a call against it would be
+  refused as not found, but it fails none of the conditions, so it must not be
+  reported as failing one. An instance with no primary key is refused when a
+  condition on the row needs finding it.
 - **Mappings** come back as **new** mappings with the callable answers added; the
   selector's own objects are left alone. A condition on the row is refused on a
   mapping, which has no model and no primary key to evaluate it against — return
