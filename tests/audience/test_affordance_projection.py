@@ -153,8 +153,7 @@ def test_a_single_row_renders_as_one_object(two_posts: tuple[Post, Post]) -> Non
 
 
 def test_nothing_carries_no_answers(db: Any) -> None:
-    """``None`` is not a row: it renders as the serializer renders it, with nothing
-    to report about."""
+    """``None`` is not a row: it renders as ``None``, with nothing to report about."""
     spec = SelectorSpec(
         kind=SelectorKind.RETRIEVE,
         selector=lambda: Post.objects.none(),
@@ -162,8 +161,8 @@ def test_nothing_carries_no_answers(db: Any) -> None:
         output_serializer=_PostOut,
         affordances={"publish": PUBLISH},
     )
-    assert render_spec_output(spec, None) == _PostOut(None).data
-    assert "affordances" not in render_for_audience(spec, None)
+    assert render_spec_output(spec, None) is None
+    assert render_for_audience(spec, None) is None
 
 
 def test_a_mutation_renders_the_answers_of_its_output_selector_not_its_own(

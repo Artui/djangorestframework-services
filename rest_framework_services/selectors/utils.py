@@ -201,6 +201,13 @@ def materialize_retrieve(result: Any) -> Any:
     spec's shaping applied first — and anything else passes through as the
     resolved object. What each caller does with a ``None`` differs; how the value
     is arrived at does not.
+
+    Exported for a transport that runs a ``RETRIEVE`` selector without
+    ``dispatch_spec`` -- a chain step running each spec itself -- so the row its
+    object-level permissions judge is the row the core would have resolved. Run
+    on a queryset rather than the row, ``enforce_permissions`` skips
+    ``has_object_permission`` by design, since a set is authorized per-set.
+    Blocks on the query, so call ``amaterialize_retrieve`` from a coroutine.
     """
     return result.first() if is_queryset(result) else result
 

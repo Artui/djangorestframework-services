@@ -63,10 +63,12 @@ from rest_framework_services.selectors import (
     RetrieveSelector,
     Selector,
     acall_selector,
+    amaterialize_retrieve,
     apply_queryset_shaping,
     arun_selector,
     call_selector,
     is_queryset,
+    materialize_retrieve,
     run_selector,
 )
 from rest_framework_services.services import (
@@ -263,6 +265,7 @@ __all__ = [
     "aenforce_affordances",
     "audience_projection_for_spec",
     "annotate_output_schema",
+    "amaterialize_retrieve",
     "apply_input",
     "apply_queryset_shaping",
     "DEFAULT_PAGE_SIZE",
@@ -293,6 +296,7 @@ __all__ = [
     "implements",
     "is_async",
     "is_queryset",
+    "materialize_retrieve",
     "null_progress",
     "paginate_output",
     "output_to_json_schema",

@@ -294,6 +294,14 @@ that path instead.
 
 ::: rest_framework_services.selectors.utils.is_queryset
 
+### `materialize_retrieve`
+
+::: rest_framework_services.selectors.utils.materialize_retrieve
+
+### `amaterialize_retrieve`
+
+::: rest_framework_services.selectors.utils.amaterialize_retrieve
+
 ### `apply_queryset_shaping`
 
 ::: rest_framework_services.selectors.utils.apply_queryset_shaping

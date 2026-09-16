@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.52.1] — 2026-09-16
+
+### Added
+
+- **`materialize_retrieve` and `amaterialize_retrieve`**, exported from the package
+  root and `rest_framework_services.selectors`, collapse a `RETRIEVE` selector's
+  return to its row the way the dispatch core does: a queryset through `.first()`
+  (awaited in the async twin), anything else as it is.
+
+  A transport that runs a selector without `dispatch_spec` needs the row rather
+  than the queryset before it checks permissions, because `enforce_permissions`
+  runs `has_object_permission` only for a model instance. djangorestframework-mcp-server's
+  chain steps are that transport: a step whose selector was written
+  `Model.objects.filter(pk=pk)` judged the queryset, skipped the object-level
+  rule, and handed the queryset on as the next step's `instance`. The core calls
+  the same functions, so the two cannot disagree about which row a read resolved.
+
+### Fixed
+
+- **`render_spec_output` renders a single `None` as `None`** instead of passing it
+  to the output serializer, which builds an object of blank and default field
+  values for no instance. The HTTP views already answer a nullable `RETRIEVE` that
+  resolved nothing with a JSON `null` and never reached the renderer with it, so
+  only the callers that did were affected: an agent transport rendering an
+  `allow_none` miss, or a service that returned nothing, served that blank object
+  as though a row had been found. `render_for_audience` and `arender_spec_output`
+  render through it and change with it. A `many=True` render of `None` is
+  unchanged.
+
 ## [0.52.0] — 2026-09-16
 
 ### Added
@@ -3731,7 +3760,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.52.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.52.1...HEAD
+[0.52.1]: https://github.com/Artui/djangorestframework-services/compare/v0.52.0...v0.52.1
 [0.52.0]: https://github.com/Artui/djangorestframework-services/compare/v0.51.0...v0.52.0
 [0.51.0]: https://github.com/Artui/djangorestframework-services/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/Artui/djangorestframework-services/compare/v0.49.0...v0.50.0
