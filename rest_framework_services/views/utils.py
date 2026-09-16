@@ -7,7 +7,11 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from rest_framework.request import Request
+from rest_framework.response import Response
 
+from rest_framework_services.audience.utils import rendered_affordances, with_affordances
+from rest_framework_services.types.selector_spec import SelectorSpec
+from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.unset import UNSET
 from rest_framework_services.types.view_hooks import ViewHooks
 
@@ -315,3 +319,44 @@ def resolve_view_hooks(
             extras={"result": result},
         ),
     )
+
+
+# --- affordances over HTTP --------------------------------------------------------
+#
+# The transport-neutral render path (``render_spec_output``) adds a spec's
+# affordance answers to what it renders. DRF's generic views serialize for
+# themselves, so each HTTP render site calls through here instead -- the same
+# helper, applied after the serializer, so a browser reads exactly the object an
+# agent transport renders. A spec that declares none takes DRF's own path
+# untouched, which is what keeps its responses byte-identical.
+
+
+def add_affordances(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any], data: Any, value: Any, *, many: bool
+) -> Any:
+    """``data`` with the rendering spec's affordance answers, when it declares any.
+
+    ``value`` is what the serializer rendered -- the row, the page, or the
+    queryset it iterated, whose result cache the second walk reuses. Nothing is
+    added to a ``None`` value, which renders as nothing to carry answers.
+    """
+    affordances = rendered_affordances(spec)
+    if affordances is None or value is None:
+        return data
+    return with_affordances(data, value, affordances, many=many)
+
+
+def list_with_affordances(view: Any, spec: SelectorSpec[Any, Any]) -> Response:
+    """DRF's ``ListModelMixin.list``, with each rendered row carrying its answers.
+
+    The same filter, paginate and serialize steps in the same order; the answers
+    are added to the serialized rows before a paginator wraps them, so every
+    paginator's envelope holds the same objects the unpaginated response does.
+    """
+    queryset = view.filter_queryset(view.get_queryset())
+    page = view.paginate_queryset(queryset)
+    if page is not None:
+        serializer = view.get_serializer(page, many=True)
+        return view.get_paginated_response(add_affordances(spec, serializer.data, page, many=True))
+    serializer = view.get_serializer(queryset, many=True)
+    return Response(add_affordances(spec, serializer.data, queryset, many=True))

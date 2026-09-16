@@ -39,6 +39,7 @@ from rest_framework_services.views.mutation.map_service_error import (
 )
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.utils import (
+    add_affordances,
     resolve_serializer_context,
     resolve_view_hooks,
 )
@@ -237,8 +238,9 @@ def render_mutation_response(
     )
 
     if output_serializer is not None:
+        rendered: Any = output_serializer(value, context=output_context(value)).data
         response = Response(
-            output_serializer(value, context=output_context(value)).data, status=resolved_status
+            add_affordances(spec, rendered, value, many=False), status=resolved_status
         )
     elif value is not None:
         response = Response(value, status=resolved_status)

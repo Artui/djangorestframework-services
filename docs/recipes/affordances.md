@@ -181,6 +181,53 @@ refused on an `instance_selector_spec` or `collection_selector_spec`, whose rows
 are acted on rather than returned. On an `output_selector_spec` it answers the
 row a mutation hands back.
 
+## What a client reads
+
+Every object rendered from a selector that declares `affordances` carries them
+under an `affordances` key — through `render_spec_output`, through the list,
+retrieve and `@selector_action` views, and in a mutation's response when its
+`output_selector_spec` declares them:
+
+```json
+{
+  "id": 42,
+  "status": "shipped",
+  "affordances": {
+    "cancel": {
+      "available": false,
+      "code": "order_shipped",
+      "reason": "A shipped order cannot be cancelled."
+    },
+    "refund": {"available": true}
+  }
+}
+```
+
+`available` is always there. An unavailable answer names the **first** unmet
+condition in declaration order — the same one a call would be refused with.
+Reading the answers costs nothing: they are the annotations the list query
+already computed.
+
+**An agent never reads the reason.**
+[`render_for_audience`][rest_framework_services.dispatch.render_for_audience.render_for_audience]
+keeps `available` and `code` and drops `reason`, because the reason is an
+operator's sentence and a model reads out what it is handed. The code is content
+for every audience.
+
+The output schema declares the object too:
+[`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
+adds it, with `code` enumerated from the declaration so a client can switch on it
+exhaustively, and
+[`output_to_json_schema`][rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema]
+takes the mapping as `affordances=` for a transport that builds its schema from
+the serializer — with a `projection`, it leaves `reason` out to match the agent
+payload.
+
+Rendering refuses, rather than quietly dropping the answers, when the spec has no
+`output_serializer`, when the serializer already renders a field called
+`affordances`, or when the row being rendered did not come through the selector
+that computes them.
+
 ## It is a check, not a lock
 
 The answer is correct at the moment of the call. Between the check and the
@@ -193,7 +240,8 @@ affordance is what lets every client find out *before* trying.
 
 A spec without `affordances` runs no query and, on the async path, takes no
 executor hop for them. A selector without `affordances` issues exactly the
-query it issued before, and its rows carry no extra attribute.
+query it issued before, its rows carry no extra attribute, and its views, its
+rendered payloads and its schemas are what they were.
 
 Full signatures: [`Affordance`](../reference/types.md#affordance),
 [`ActionUnavailable`](../reference/exceptions.md).

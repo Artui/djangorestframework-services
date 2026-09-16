@@ -183,6 +183,13 @@ manifest["operations"][0]
 manifest["unguarded"]  # names whose permission_classes is None
 ```
 
+A mutation that declares [affordances](affordances.md) lists them too, as
+`"affordances": [{"code": "order_shipped", "scope": "row"}]` — the codes a call
+can be refused with, and whether each is answered per row or for the operation
+as a whole. They are the same codes a rendered object's `affordances` answers
+carry and a 409 names, so the manifest is the vocabulary those answers are drawn
+from. No reason appears: the manifest describes operations, never a row's state.
+
 The schemas are exactly what `spec_to_json_schema` produces, and the top-level
 `dialect` names that policy, so a manifest and the tool list a transport builds
 from the same registry describe each operation identically.

@@ -15,7 +15,11 @@ from rest_framework_services.selectors.utils import dispatch_selector_for_spec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.spec_validation import validate_selector_view_spec
-from rest_framework_services.views.utils import get_class_attr, layer_serializer_context
+from rest_framework_services.views.utils import (
+    get_class_attr,
+    layer_serializer_context,
+    list_with_affordances,
+)
 
 
 class SelectorListView(ListModelMixin, GenericAPIView):
@@ -89,4 +93,7 @@ class SelectorListView(ListModelMixin, GenericAPIView):
         return dispatch_selector_for_spec(self, s)
 
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        return self.list(request, *args, **kwargs)
+        s: SelectorSpec | None = get_class_attr(self, "spec")
+        if s is None or s.affordances is None:
+            return self.list(request, *args, **kwargs)
+        return list_with_affordances(self, s)

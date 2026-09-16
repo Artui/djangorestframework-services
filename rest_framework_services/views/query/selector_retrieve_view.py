@@ -15,7 +15,11 @@ from rest_framework_services.selectors.utils import dispatch_selector_for_spec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.spec_validation import validate_selector_view_spec
-from rest_framework_services.views.utils import get_class_attr, layer_serializer_context
+from rest_framework_services.views.utils import (
+    add_affordances,
+    get_class_attr,
+    layer_serializer_context,
+)
 
 
 class SelectorRetrieveView(RetrieveModelMixin, GenericAPIView):
@@ -98,13 +102,18 @@ class SelectorRetrieveView(RetrieveModelMixin, GenericAPIView):
 
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         s: SelectorSpec | None = get_class_attr(self, "spec")
-        if not isinstance(s, SelectorSpec) or s.selector is None or not s.allow_none:
+        if (
+            not isinstance(s, SelectorSpec)
+            or s.selector is None
+            or (not s.allow_none and s.affordances is None)
+        ):
             return self.retrieve(request, *args, **kwargs)
         # Nullable-resource contract: ``get_object()`` may resolve ``None``
         # (instead of raising ``NotFound``); render it as a literal JSON
-        # ``null`` without invoking the output serializer.
+        # ``null`` without invoking the output serializer. The same path renders
+        # a row with its affordance answers, which DRF's ``retrieve`` cannot add.
         instance = self.get_object()
         if instance is None:
             return Response(None)
         serializer = self.get_serializer(instance)
-        return Response(serializer.data)
+        return Response(add_affordances(s, serializer.data, instance, many=False))
