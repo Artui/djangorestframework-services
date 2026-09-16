@@ -117,6 +117,7 @@ def test_the_whole_document_as_served() -> None:
                     "required": ["id"],
                 },
                 "guards": [{"source": _GUARD_PATH}],
+                "affordances": None,
             },
             {
                 "name": "list_orders",
@@ -136,6 +137,7 @@ def test_the_whole_document_as_served() -> None:
                     },
                 },
                 "guards": None,
+                "affordances": None,
             },
         ],
         "unguarded": ["list_orders"],

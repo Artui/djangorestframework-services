@@ -181,6 +181,59 @@ refused on an `instance_selector_spec` or `collection_selector_spec`, whose rows
 are acted on rather than returned. On an `output_selector_spec` it answers the
 row a mutation hands back.
 
+## What a client reads
+
+Every object rendered from a selector that declares `affordances` carries them
+under an `affordances` key — through `render_spec_output`, through the list,
+retrieve and `@selector_action` views, and in a mutation's response when its
+`output_selector_spec` declares them:
+
+```json
+{
+  "id": 42,
+  "status": "shipped",
+  "affordances": {
+    "cancel": {
+      "available": false,
+      "code": "order_shipped",
+      "reason": "A shipped order cannot be cancelled."
+    },
+    "refund": {"available": true}
+  }
+}
+```
+
+`available` is always there. An unavailable answer names the **first** unmet
+condition in declaration order — the same one a call would be refused with. The
+one exception is a row a selector returned directly that was deleted before its
+answers were asked: it reads `{"available": false}` with no `code` and no
+`reason`, because it fails none of the conditions and no sentence about it would
+be true. (A callable condition declared before the row conditions, and unmet,
+still reports its own code and reason; that sentence is true either way.)
+Reading the answers costs nothing: they are the annotations the list query
+already computed, or the answers attached to rows a selector returned directly.
+
+**An agent reads the same answers a browser does.**
+[`render_for_audience`][rest_framework_services.dispatch.render_for_audience.render_for_audience]
+passes them through whole. A model speaks human language, so the `reason` is
+what it relays when it explains why an action is not possible, and the `code` is
+still there for the transport — or the model — to branch on. That is why the
+reason is written for people and models alike and keeps internal state out.
+
+The output schema declares the object too:
+[`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
+adds it, with `code` enumerated from the declaration so a client can switch on it
+exhaustively, and
+[`output_to_json_schema`][rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema]
+takes the mapping as `affordances=` for a transport that builds its schema from
+the serializer. With or without a `projection` the object it declares is the
+same, `reason` included, because the payload is.
+
+Rendering refuses, rather than quietly dropping the answers, when the spec has no
+`output_serializer`, when the serializer already renders a field called
+`affordances`, or when the row being rendered did not come through the selector
+that computes them.
+
 ## It is a check, not a lock
 
 The answer is correct at the moment of the call. Between the check and the
@@ -193,7 +246,8 @@ affordance is what lets every client find out *before* trying.
 
 A spec without `affordances` runs no query and, on the async path, takes no
 executor hop for them. A selector without `affordances` issues exactly the
-query it issued before, and its rows carry no extra attribute.
+query it issued before, its rows carry no extra attribute, and its views, its
+rendered payloads and its schemas are what they were.
 
 Full signatures: [`Affordance`](../reference/types.md#affordance),
 [`ActionUnavailable`](../reference/exceptions.md).

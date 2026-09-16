@@ -97,6 +97,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nested target lookup at `as_view()`. A selector declaring none issues the same
   query as before.
 
+- **Every rendered object carries its affordance answers.** When the selector
+  spec a payload renders through declares `affordances`, each object gains an
+  `affordances` key: per name, `{"available": true}`, or `{"available": false,
+  "code": ..., "reason": ...}` naming the first unmet condition — the one a call
+  would be refused with — or a bare `{"available": false}` for a row deleted
+  before its answers were asked, which fails no condition and has no true
+  sentence to report. Through `render_spec_output` and its async twin, the
+  selector list, retrieve and `@selector_action` views, and a mutation's
+  response from its `output_selector_spec`, so a browser and an agent transport
+  are served the same object. Reading the answers costs no query.
+
+  **`render_for_audience` renders the same answers, `reason` included**: a model
+  relays the reason when it explains why an action is not possible, and branches,
+  if at all, on the `code`. `spec_to_json_schema(phase="output")` declares the
+  object, with `code` enumerated from the declaration; `output_to_json_schema`
+  takes the mapping as `affordances=` for transports that build the schema from
+  the serializer, and declares the same object with or without a `projection`.
+
+  `capability_manifest` lists each mutation's declared affordances as
+  `affordances: [{"code": ..., "reason": ..., "scope": "row" | "operation"}]`,
+  the codes and sentences those rendered answers and a 409 carry, so a model
+  reading the manifest learns what each refusal will say; `None` when undeclared
+  and on a query, whose answers its output schema describes.
+
+  Rendering refuses a spec with no `output_serializer`, a serializer that already
+  renders an `affordances` field, and a row that did not come through the
+  selector computing the answers. A spec declaring none renders, serves and
+  describes itself exactly as before.
+
 ### Fixed
 
 - **An output declaration that cannot be rendered is now refused when its schema

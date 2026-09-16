@@ -8,12 +8,14 @@ from typing import Any, Final
 from rest_framework_services.dispatch.unguarded_specs import unguarded_specs
 from rest_framework_services.jsonschema.spec_to_json_schema import spec_to_json_schema
 from rest_framework_services.registry.spec_registry import SpecRegistry
+from rest_framework_services.types.affordance import Affordance
 from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
 )
 from rest_framework_services.types.registered_spec import RegisteredSpec
 from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.types.utils import is_row_condition
 
 _MANIFEST_VERSION: Final = 1
 """The document's own format version, bumped when a key changes meaning or moves.
@@ -59,6 +61,13 @@ def capability_manifest(
                 "input_schema": {"type": "object", "properties": {...}},
                 "output_schema": {"type": "object", "properties": {...}},
                 "guards": [{"source": "orders.permissions.IsSupport"}],
+                "affordances": [
+                    {
+                        "code": "order_shipped",
+                        "reason": "A shipped order cannot be cancelled.",
+                        "scope": "row",
+                    }
+                ],
             },
             ...
         ],
@@ -94,6 +103,18 @@ def capability_manifest(
     - ``guards`` -- one ``{"source": <dotted class path>}`` per permission class,
       in declaration order; ``None`` where the spec declares none (``[]`` is a
       declared "no permissions" and stays distinguishable).
+    - ``affordances`` -- one ``{"code": ..., "reason": ..., "scope": ...}`` per
+      [`Affordance`][rest_framework_services.types.affordance.Affordance] a
+      mutation declares, in declaration order: the codes a call can be refused
+      with, and the sentence each refusal says. ``scope`` is ``"row"`` for a condition on the row, which is answered
+      per object, and ``"operation"`` for a callable one, which is answered
+      without a row and so can decide whether the operation is offered at all.
+      ``None`` where nothing is declared, and always on a query. The ``code``
+      here is the same ``code`` a rendered object's ``affordances`` answer
+      carries and a 409 body names, and the ``reason`` is the same declared
+      sentence those carry beside it, so a model reading the manifest learns what
+      each refusal will say before it meets one. Both are declarations about the
+      operation, never a row's state.
 
     ``unguarded`` is ``unguarded_specs`` over the same registry: the operations
     whose ``permission_classes`` is ``None``, which have nothing to inherit off
@@ -132,8 +153,10 @@ def capability_manifest(
 
 def _operation(entry: RegisteredSpec, schema_registry: JsonSchemaRegistry) -> dict[str, Any]:
     spec = entry.spec
-    kind, idempotent = (
-        ("mutation", spec.idempotent) if isinstance(spec, ServiceSpec) else ("query", None)
+    kind, idempotent, affordances = (
+        ("mutation", spec.idempotent, _affordances(spec.affordances))
+        if isinstance(spec, ServiceSpec)
+        else ("query", None, None)
     )
     return {
         "name": entry.name,
@@ -143,7 +166,21 @@ def _operation(entry: RegisteredSpec, schema_registry: JsonSchemaRegistry) -> di
         "input_schema": spec_to_json_schema(spec, phase="input", registry=schema_registry),
         "output_schema": spec_to_json_schema(spec, phase="output", registry=schema_registry),
         "guards": _guards(spec.permission_classes),
+        "affordances": affordances,
     }
+
+
+def _affordances(declared: Sequence[Affordance] | None) -> list[dict[str, str]] | None:
+    if declared is None:
+        return None
+    return [
+        {
+            "code": affordance.code,
+            "reason": affordance.reason,
+            "scope": "row" if is_row_condition(affordance.when) else "operation",
+        }
+        for affordance in declared
+    ]
 
 
 def _guards(permission_classes: Sequence[type] | None) -> list[dict[str, str]] | None:

@@ -48,6 +48,11 @@ def render_for_audience(
     Render the agent's **answer** with this. A pipeline that feeds one spec's
     output into the next must keep rendering with ``render_spec_output``, or the
     handles the next step reads by will have been projected away.
+
+    Declared ``affordances`` pass through whole: ``available``, the ``code`` a
+    transport or client branches on, and the ``reason`` -- the sentence a model
+    relays when it explains why an action is not possible, written for exactly
+    that reader.
     """
     payload: Any = render_spec_output(
         spec,
