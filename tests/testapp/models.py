@@ -48,6 +48,26 @@ class Post(models.Model):
         app_label = "testapp"
 
 
+class _PublishedOnlyManager(models.Manager):
+    def get_queryset(self) -> models.QuerySet:
+        return super().get_queryset().filter(published=True)
+
+
+class PublishedPost(Post):
+    """``Post`` whose default manager hides drafts.
+
+    For the affordance checks, which must re-find a row the caller already holds
+    through ``_base_manager``: a lookup through this default manager disagrees
+    with the table about every draft.
+    """
+
+    objects = _PublishedOnlyManager()
+
+    class Meta:
+        proxy = True
+        app_label = "testapp"
+
+
 # --- nested-write (NEST) fixtures ----------------------------------------
 #
 # Catalog ──< Section ──< Item        (non-nullable FKs → orphans DELETE)

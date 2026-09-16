@@ -24,6 +24,7 @@ from rest_framework_services.types.polymorphic_service_spec import PolymorphicSe
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
+from rest_framework_services.types.utils import is_row_condition
 
 # Keys the framework injects automatically into the pool.
 _FRAMEWORK_KEY_DATA = "data"
@@ -309,6 +310,27 @@ def _validate_preconditions(
         )
 
 
+def _validate_row_affordances(
+    spec: ServiceSpec[Any, Any, Any], *, label: str, has_instance: bool
+) -> None:
+    """Refuse a condition on the row on an action that resolves no row.
+
+    The spec cannot see this at construction -- whether an action targets a row
+    is the mount's fact, not the spec's -- and at request time it would be an
+    ``ImproperlyConfigured`` on the first call, which is a 500.
+    """
+    if has_instance:
+        return
+    for index, affordance in enumerate(spec.affordances or ()):
+        if is_row_condition(affordance.when):
+            raise ImproperlyConfigured(
+                f"{label}: affordances[{index}] ({affordance.code!r}) is a condition on "
+                "the row, but this action does not target one (e.g. a create or a "
+                "non-detail action). Move it to an update / destroy / detail action, or "
+                "make it a callable condition that needs no row."
+            )
+
+
 def _reject_ignored_nested_fields(nested: Any, *, label: str) -> None:
     """Refuse the nested-spec fields nothing ever reads — don't ignore them.
 
@@ -556,6 +578,7 @@ def validate_service_spec(
         permissive_extras=permissive_extras,
         extra_known_keys=("collection",) if spec.collection_selector_spec is not None else (),
     )
+    _validate_row_affordances(spec, label=label, has_instance=has_instance)
     if spec.collection_selector_spec is not None:
         _validate_collection_selector_spec(
             spec.collection_selector_spec,

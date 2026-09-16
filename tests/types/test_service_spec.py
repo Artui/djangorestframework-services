@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from typing import Any
+
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models import Q
 
-from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec
+from rest_framework_services import Affordance, SelectorKind, SelectorSpec, ServiceSpec
 from tests.testapp.serializers import AuthorSerializer
 
 
@@ -82,3 +86,66 @@ class TestServiceSpecIdempotent:
         spec = ServiceSpec(service=_noop, output_selector_spec=out, idempotent=True)
         assert spec.idempotent is True
         assert not hasattr(out, "idempotent")
+
+
+def _row(code: str = "shipped") -> Affordance:
+    return Affordance(code=code, reason="Shipped.", when=~Q(published=True))
+
+
+def _ambient(code: str = "books_closed") -> Affordance:
+    return Affordance(code=code, reason="The books are closed.", when=lambda: True)
+
+
+class TestAffordances:
+    def test_undeclared_is_none(self) -> None:
+        assert ServiceSpec(service=_noop).affordances is None
+
+    def test_a_sequence_is_stored_as_given(self) -> None:
+        declared = (_row(), _ambient())
+        assert ServiceSpec(service=_noop, affordances=declared).affordances is declared
+
+    def test_a_single_affordance_is_refused_with_the_fix(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match=r"got Affordance\. Wrap a single one"):
+            ServiceSpec(service=_noop, affordances=_row())  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize(
+        "declared",
+        [{_row()}, (a for a in [_row()])],
+        ids=["set", "generator"],
+    )
+    def test_a_non_sequence_is_refused(self, declared: Any) -> None:
+        """A set has no order to check in, and a generator is spent by the first call."""
+        with pytest.raises(ImproperlyConfigured, match="takes a sequence of Affordance"):
+            ServiceSpec(service=_noop, affordances=declared)
+
+    def test_a_non_affordance_element_is_named_by_index(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match=r"affordances\[1\] must be an Affordance"):
+            ServiceSpec(service=_noop, affordances=[_row(), "shipped"])  # type: ignore[list-item]
+
+    def test_a_duplicate_code_is_refused(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="'shipped' twice"):
+            ServiceSpec(service=_noop, affordances=[_row("shipped"), _ambient("shipped")])
+
+    def test_distinct_codes_pass(self) -> None:
+        ServiceSpec(service=_noop, affordances=[_row("a"), _row("b")])
+
+    def test_a_row_condition_is_refused_on_a_list_payload_bulk(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="operates on a set"):
+            ServiceSpec(service=_noop, many=True, affordances=[_row()])
+
+    def test_a_row_condition_is_refused_on_a_collection_target(self) -> None:
+        collection = SelectorSpec(kind=SelectorKind.LIST, selector=_noop)
+        with pytest.raises(ImproperlyConfigured, match="operates on a set"):
+            ServiceSpec(service=_noop, collection_selector_spec=collection, affordances=[_row()])
+
+    def test_a_callable_condition_is_allowed_on_either_bulk_shape(self) -> None:
+        """The refusal is about the row, not about bulk: sized so only that conjunct can
+        decide it."""
+        collection = SelectorSpec(kind=SelectorKind.LIST, selector=_noop)
+        ServiceSpec(service=_noop, many=True, affordances=[_ambient()])
+        ServiceSpec(service=_noop, collection_selector_spec=collection, affordances=[_ambient()])
+
+    def test_the_check_reruns_on_replace(self) -> None:
+        spec = ServiceSpec(service=_noop, affordances=[_row()])
+        with pytest.raises(ImproperlyConfigured, match="operates on a set"):
+            replace(spec, many=True)

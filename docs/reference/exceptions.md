@@ -12,4 +12,6 @@ for the mapping.
 
 ::: rest_framework_services.exceptions.service_conflict.ServiceConflict
 
+::: rest_framework_services.exceptions.action_unavailable.ActionUnavailable
+
 ::: rest_framework_services.exceptions.additional_input_required.AdditionalInputRequired

@@ -6,11 +6,13 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
+from django.core.exceptions import ImproperlyConfigured
 from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 
+from rest_framework_services.types.affordance import Affordance
 from rest_framework_services.types.selector_spec import SelectorSpec
-from rest_framework_services.types.utils import validate_metadata
+from rest_framework_services.types.utils import is_row_condition, validate_metadata
 
 InputT = TypeVar("InputT")
 ResultT = TypeVar("ResultT")
@@ -159,6 +161,24 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             predicate returning ``False`` does nothing. Raise ``ServiceError``
             or ``ServiceValidationError`` — every transport maps those, whereas
             a DRF ``APIException`` is mapped on HTTP only.
+        affordances: What must be true for this operation to be possible right
+            now, as a sequence of
+            [`Affordance`][rest_framework_services.types.affordance.Affordance]
+            declarations. Checked in declaration order after the target guard and
+            input validation and **before** ``preconditions``; the first one not
+            met raises
+            [`ActionUnavailable`][rest_framework_services.exceptions.action_unavailable.ActionUnavailable]
+            carrying its ``code``, and the service does not run. Every condition
+            on the row is answered by **one** query, however many are declared;
+            a condition that is a callable runs off the event loop on the async
+            path, as a precondition does. A condition on the row needs a single
+            resolved row, so it is refused alongside ``many=True`` or a
+            ``collection_selector_spec``, and a dispatch that resolved none
+            raises ``ImproperlyConfigured``. It is a check at the moment of the
+            call, not a lock: the service still re-validates whatever it relies
+            on. ``None`` declares nothing and costs nothing -- no query, no call.
+            Codes must be unique within a spec, because the code is how a reader
+            tells the conditions apart.
         response_finalizer: Provider (pool: ``response`` / ``result`` /
             ``request`` / ``view`` / ``instance`` / ``data``) for HTTP response
             side effects — cookies, headers, a swapped response. Runs on the
@@ -243,8 +263,61 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     # different semantics. ``preconditions`` also carries the 409-not-403
     # reading without documentation.
     preconditions: Sequence[Callable[..., None]] | None = None
+    # Naming (CLAUDE.md rule, third output -- a genuinely new field). Not
+    # ``availability``: that names the answer rather than the declaration, and in
+    # Django reads as scheduling. Not ``conditions``: ``django-fsm``'s word for
+    # the same idea on a transition, which would promise a state machine this is
+    # not. ``affordances`` is the established name for the state-dependent set of
+    # things a resource currently offers, and it names the object's side of the
+    # question -- which is also the key a list reports it under.
+    affordances: Sequence[Affordance] | None = None
     response_finalizer: Callable[..., Response | None] | None = None
     metadata: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         validate_metadata(self.metadata, label="ServiceSpec")
+        _validate_affordances(self)
+
+
+def _validate_affordances(spec: ServiceSpec[Any, Any, Any]) -> None:
+    """Refuse an ``affordances`` declaration that could never be honoured.
+
+    At construction rather than at ``as_view()``: a spec reaches transports that
+    never mount it on a view, and each of these would otherwise surface as a
+    request-time error on exactly those transports.
+    """
+    affordances: Any = spec.affordances
+    if affordances is None:
+        return
+    # ``Sequence`` alone refuses a single ``Affordance`` too -- a dataclass is not
+    # one -- as well as a set, whose order would decide which refusal a caller
+    # sees, and a generator, which the first dispatch would exhaust.
+    if not isinstance(affordances, Sequence):
+        raise ImproperlyConfigured(
+            "ServiceSpec.affordances takes a sequence of Affordance declarations; got "
+            f"{type(affordances).__name__}. Wrap a single one in a list: affordances=[...]."
+        )
+    codes: set[str] = set()
+    for index, affordance in enumerate(affordances):
+        if not isinstance(affordance, Affordance):
+            raise ImproperlyConfigured(
+                f"ServiceSpec.affordances[{index}] must be an Affordance; got "
+                f"{type(affordance).__name__}."
+            )
+        if affordance.code in codes:
+            raise ImproperlyConfigured(
+                f"ServiceSpec.affordances declares the code {affordance.code!r} twice. A "
+                "code is how a client tells one refusal from another, so each must be "
+                "unique within a spec."
+            )
+        codes.add(affordance.code)
+        if is_row_condition(affordance.when) and (
+            spec.many or spec.collection_selector_spec is not None
+        ):
+            raise ImproperlyConfigured(
+                f"ServiceSpec.affordances[{index}] ({affordance.code!r}) is a condition on "
+                "the row, and this spec operates on a set (many=True or a "
+                "collection_selector_spec) with no single row to evaluate it against. "
+                "Declare it on the per-row operation, or express a rule about the set in "
+                "`preconditions`."
+            )

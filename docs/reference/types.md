@@ -12,6 +12,10 @@
 
 ::: rest_framework_services.types.service_spec.ServiceSpec
 
+## `Affordance`
+
+::: rest_framework_services.types.affordance.Affordance
+
 ## `PolymorphicServiceSpec`
 
 ::: rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec

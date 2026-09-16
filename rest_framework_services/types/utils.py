@@ -8,7 +8,7 @@ once rather than agreed between two modules.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Final
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model
@@ -155,3 +155,26 @@ def validate_pk_field_map(
         "and refuses the row. Send the key under a name match_key reads, or match on a "
         "field the mapping does not rename."
     )
+
+
+# The pool names a dispatch seeds per call rather than per process: the resolved
+# target and the validated input. An affordance condition that reads one of them
+# is a rule about *this call* -- what ``preconditions`` is for -- and could never
+# be answered without attempting the call, which is the one thing an affordance
+# exists to allow. The declaration refuses a callable naming them, and the
+# dispatcher withholds them from one that takes ``**kwargs``, so the two cannot
+# disagree about what a condition may see.
+PER_CALL_POOL_NAMES: Final = frozenset({"instance", "collection", "data", "serializer"})
+
+
+def is_row_condition(when: Any) -> bool:
+    """True when an affordance's ``when`` is an ORM expression -- a condition on the row.
+
+    ``resolve_expression`` is the protocol every ORM expression and ``Q``
+    implements and no plain callable does, so it separates the two shapes
+    without importing each expression class. Shared because the declaration,
+    the enforcement and the list projection must all draw the line in the same
+    place: a condition one of them treats as a callable and another as SQL is
+    two definitions of one rule.
+    """
+    return hasattr(when, "resolve_expression")

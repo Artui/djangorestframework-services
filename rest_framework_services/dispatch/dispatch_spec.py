@@ -14,6 +14,7 @@ from rest_framework_services.dispatch.utils import (
     INSTANCE_SOURCE,
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
+    call_affordances,
     call_preconditions,
     call_target_guard,
     clear_prefetch_cache,
@@ -374,6 +375,7 @@ def _dispatch_service(
     elif extras:
         pool["data"] = data
 
+    call_affordances(spec, pool, instance=instance)
     with wire_named_errors(serializer):
         call_preconditions(spec, pool)
         result: Any = run_service(
@@ -462,7 +464,9 @@ def _dispatch_service_many(
         pool["serializer"] = serializer
     # Once, with no target, matching the ``call_target_guard(…, None)`` above:
     # only preconditions declaring ``user`` / ``request`` / the payload bind.
-    # Per-item rules belong in the service's own loop.
+    # Per-item rules belong in the service's own loop. A row condition cannot be
+    # declared on a bulk spec at all, so only callable affordances reach here.
+    call_affordances(spec, pool, instance=None)
     with wire_named_errors(serializer):
         call_preconditions(spec, pool)
         result: Any = run_service(
