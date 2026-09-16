@@ -61,6 +61,7 @@ from rest_framework_services.dispatch.dispatch_spec import (
     _resolve_instance,
     _resolve_target,
 )
+from rest_framework_services.dispatch.utils import acall_affordances, call_affordances
 from tests.testapp.models import Catalog, Post, Section
 
 # --- the harness ---------------------------------------------------------
@@ -185,6 +186,7 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
         (render_for_audience, arender_for_audience),
         (_resolve_target, _aresolve_target),
         (_resolve_instance, _aresolve_instance),
+        (call_affordances, acall_affordances),
     ],
     ids=[
         "dispatch_spec",
@@ -192,6 +194,7 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
         "render_for_audience",
         "resolve_target",
         "resolve_instance",
+        "call_affordances",
     ],
 )
 def test_an_async_twin_takes_the_same_arguments_as_its_sync_twin(

@@ -151,7 +151,10 @@ nothing sound to derive the text from — a function's `__name__` and `__doc__`
 are the only machine-readable strings on it, and generating agent-facing schema
 from either makes a docstring edit a wire-format change.
 
-If you want an agent to know an operation can fail this way, say so in
-`spec.metadata`, in the words you want it to read, and surface that from your
-own adapter. The retryable-vs-fatal distinction rides on the exception: a 409
+If a rule can be written as an ORM expression over the row, or as a condition
+on nothing in particular, declare it as an [affordance](affordances.md) instead:
+it is enforced at the same point, refuses with a stable code, and is the form
+that can be reported without attempting the call. Otherwise, if you want an
+agent to know an operation can fail this way, say so in `spec.metadata`, in the
+words you want it to read, and surface that from your own adapter. The retryable-vs-fatal distinction rides on the exception: a 409
 tells an agent the call could succeed later, a 403 tells it not to bother.

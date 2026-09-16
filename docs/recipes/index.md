@@ -15,6 +15,9 @@ the [Quickstart](../quickstart.md) and [Concepts](../concepts.md).
 - **[Per-action permissions on the spec](permissions.md)** — set
   `permission_classes` per action without `if self.action == ...`
   branching in `get_permissions()`.
+- **[What can be done to this object right now](affordances.md)** — declare
+  the state an operation needs with `affordances`, refuse with a stable code
+  and a 409, and why a condition on the row must be an ORM expression.
 - **[Per-spec queryset shaping](queryset-shaping.md)** — add
   `select_related` / `prefetch_related` / `annotations` to a selector
   spec, plus an `extend_queryset` callable for request-dependent

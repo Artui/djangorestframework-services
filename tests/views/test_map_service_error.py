@@ -6,6 +6,7 @@ from rest_framework import exceptions as drf_exceptions
 from rest_framework import status as drf_status
 
 from rest_framework_services.exceptions import (
+    ActionUnavailable,
     AdditionalInputRequired,
     ServiceConflict,
     ServiceError,
@@ -41,6 +42,17 @@ class TestMapServiceError:
         assert isinstance(exc, _ConflictAPIException)
         assert exc.status_code == drf_status.HTTP_409_CONFLICT
         assert str(exc.detail) == "That slot is taken."
+
+    def test_action_unavailable_is_a_409_whose_body_carries_the_code(self) -> None:
+        exc = map_service_error(ActionUnavailable("Order 7 has shipped.", code="order_shipped"))
+        assert isinstance(exc, _ConflictAPIException)
+        assert exc.status_code == drf_status.HTTP_409_CONFLICT
+        assert exc.detail == {"detail": "Order 7 has shipped.", "code": "order_shipped"}
+
+    def test_a_plain_conflict_keeps_its_plain_body(self) -> None:
+        """The code branch must not reach a conflict that has no code to carry."""
+        exc = map_service_error(ServiceConflict("That slot is taken."))
+        assert not isinstance(exc.detail, dict)
 
     def test_a_subclass_of_a_member_keeps_that_members_status(self) -> None:
         """The whole point of the members: a project names its own rule.

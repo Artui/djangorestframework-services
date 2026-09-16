@@ -41,6 +41,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `name -> spec` mapping is refused rather than accepted, since it has no tags and
   would produce a manifest quietly smaller than the registry's.
 
+- **`ServiceSpec.affordances` declares what must be true for an operation to be
+  possible right now**, as `Affordance(code=, reason=, when=)` entries, and the
+  dispatcher refuses a call that fails one with **`ActionUnavailable`** — a
+  `ServiceConflict`, so a `409` over HTTP, whose body is
+  `{"detail": <reason>, "code": <code>}`. The code is stable and names the rule;
+  the reason is the sentence people and models both read, so it is written for
+  them and keeps internal state out. Before this a state refusal carried only its
+  sentence, which left a client nothing to branch on.
+
+  `when` decides its own kind by type. An ORM boolean expression (`Q`, `Exists`,
+  a lookup) is a condition on the row, meaning exactly what `filter(when)` means,
+  and every such condition on a spec is answered by one query. A callable is a
+  condition on nothing in particular, bound through the keyword pool's seeds
+  only, so neither the call's input nor a client argument can reach it. **A
+  callable that reads the row is refused at construction**: it would cost one
+  query per row wherever availability is reported for a list, and prefetching
+  silently rescues only some predicates. Such a rule stays a precondition.
+
+  Evaluated after the target guard and validation and before `preconditions`, in
+  declaration order. **Access always comes first**, so a caller denied the row
+  gets the 403 and learns nothing about its state; tests on both cores fail if
+  the two are ever reordered. The async core runs the check off the event loop.
+  A spec declaring none runs no query and takes no executor hop.
+
+  A row condition on a spec with `many=True` or a `collection_selector_spec` is
+  refused at construction, and on an action that targets no row at `as_view()`.
+
 ### Fixed
 
 - **An output declaration that cannot be rendered is now refused when its schema
@@ -103,6 +130,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `annotate_output_schema` descends into `anyOf`, the shape an `X | None`
   annotation is described in, where it used to leave the values in place while
   the payload carried the names.
+
+- **`ServiceError`'s docstring no longer promises a structured `detail` payload.**
+  It carries a message and nothing else; the members that carry structure
+  (`ServiceValidationError.detail`, `AdditionalInputRequired.schema`,
+  `ActionUnavailable.code`) are now named instead.
 
 ## [0.50.0] — 2026-09-15
 
