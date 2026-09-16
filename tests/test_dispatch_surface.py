@@ -27,9 +27,11 @@ from rest_framework_services.jsonschema.spec_to_json_schema import spec_to_json_
 from rest_framework_services.registry.capability_manifest import capability_manifest
 from rest_framework_services.registry.spec_registry import SpecRegistry
 from rest_framework_services.selectors.utils import (
+    amaterialize_retrieve,
     apply_queryset_shaping,
     arun_selector,
     is_queryset,
+    materialize_retrieve,
     run_selector,
 )
 from rest_framework_services.services.arun_service import arun_service
@@ -56,6 +58,10 @@ _SURFACE = {
     # A transport that runs a service without the dispatch core -- a chain step --
     # re-runs the affordance check through these, as it re-runs permissions.
     "aenforce_affordances": aenforce_affordances,
+    # A transport that runs a ``RETRIEVE`` selector without the dispatch core
+    # collapses its return through these, or its object-level permissions judge a
+    # queryset and skip ``has_object_permission``.
+    "amaterialize_retrieve": amaterialize_retrieve,
     "apply_queryset_shaping": apply_queryset_shaping,
     "arun_selector": arun_selector,
     "arun_service": arun_service,
@@ -69,6 +75,7 @@ _SURFACE = {
     "filterset_to_json_schema": filterset_to_json_schema,
     "is_async": is_async,
     "is_queryset": is_queryset,
+    "materialize_retrieve": materialize_retrieve,
     "output_to_json_schema": output_to_json_schema,
     "render_spec_output": render_spec_output,
     # A transport that renders an output declaration outside ``render_spec_output``

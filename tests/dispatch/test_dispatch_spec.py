@@ -359,6 +359,35 @@ class TestRenderSpecOutput:
         result = dispatch_spec(spec, user=None, params={"pk": post.pk})
         assert render_spec_output(spec, result.value) is result.value
 
+    def test_a_nullable_retrieve_that_found_nothing_renders_none(self) -> None:
+        """Not the serializer's blank object, which reads as a row with empty fields."""
+        spec = SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=_post_qs_by_pk,
+            output_serializer=_PostSerializer,
+            allow_none=True,
+        )
+        result = dispatch_spec(spec, user=None, params={"pk": 9999})
+        assert render_spec_output(spec, result.value) is None
+
+    def test_a_service_that_returned_nothing_renders_none(self) -> None:
+        spec = ServiceSpec(
+            service=lambda: None,
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, output_serializer=_PostSerializer
+            ),
+        )
+        result = dispatch_spec(spec, user=None, params={})
+        assert render_spec_output(spec, result.value) is None
+
+    def test_a_list_render_of_none_still_goes_through_the_serializer(self) -> None:
+        """Only a single ``None`` short-circuits; this is the test holding the
+        ``not many`` half of that guard, which branch coverage cannot see."""
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST, selector=_all_posts, output_serializer=_PostSerializer
+        )
+        assert render_spec_output(spec, None, many=True) == []
+
     def test_output_context_provider_applied(self) -> None:
         Post.objects.create(title="a")
         Post.objects.create(title="b")

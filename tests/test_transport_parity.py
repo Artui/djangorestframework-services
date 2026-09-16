@@ -39,6 +39,7 @@ from rest_framework_services import (
     adispatch_spec,
     build_offline_context,
     dispatch_spec,
+    render_spec_output,
 )
 from rest_framework_services.viewsets.selector_viewset import SelectorViewSet
 from tests.testapp.models import Post
@@ -367,6 +368,10 @@ def test_retrieve_allow_none_agrees_across_transports() -> None:
     assert http.data is None
     assert offline.kind == "instance"
     assert offline.value is None
+    # Rendered, it is the same ``null``. It used to be the object a serializer
+    # builds for no instance -- every field blank -- which an agent transport
+    # served as though a row had been found.
+    assert render_spec_output(spec, offline.value) is None
 
 
 @pytest.mark.django_db

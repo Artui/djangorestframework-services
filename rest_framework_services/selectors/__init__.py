@@ -11,9 +11,11 @@ from rest_framework_services.selectors.list_selector import ListSelector
 from rest_framework_services.selectors.retrieve_selector import RetrieveSelector
 from rest_framework_services.selectors.selector import Selector
 from rest_framework_services.selectors.utils import (
+    amaterialize_retrieve,
     apply_queryset_shaping,
     arun_selector,
     is_queryset,
+    materialize_retrieve,
     run_selector,
 )
 
@@ -23,9 +25,11 @@ __all__ = [
     "RetrieveSelector",
     "Selector",
     "acall_selector",
+    "amaterialize_retrieve",
     "apply_queryset_shaping",
     "arun_selector",
     "call_selector",
     "is_queryset",
+    "materialize_retrieve",
     "run_selector",
 ]

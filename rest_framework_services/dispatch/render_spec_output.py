@@ -35,6 +35,14 @@ def render_spec_output(
     rendering through a ``DataclassSerializer`` for it; when none is set the value
     passes through (list-coerced when ``many=True`` so a queryset evaluates).
 
+    **``None`` renders as ``None``** when ``many`` is false, without the serializer
+    being asked: a nullable ``RETRIEVE`` that resolved nothing, or a service that
+    returned nothing, is not a row. The HTTP views already answer that case with a
+    JSON ``null`` and never reach this function, so every caller that did reach it
+    -- an agent transport rendering an ``allow_none`` miss -- used to receive what
+    a DRF serializer builds for no instance: an object of blank and default field
+    values, indistinguishable from a real row with empty fields.
+
     The serializer ``context`` always carries DRF's baseline — ``request`` / ``format``
     / ``view``, from
     [`base_serializer_context`][rest_framework_services.dispatch.base_serializer_context.base_serializer_context]
@@ -74,6 +82,10 @@ def render_spec_output(
         if many:
             return list(value) if hasattr(value, "__iter__") else value
         return value
+    if value is None and not many:
+        # After the serializer-less branch above, so a spec declaring affordances
+        # with nothing to render them through is refused whatever the value.
+        return None
     if affordances is not None and many:
         # Walked twice -- once by the serializer, once for the answers -- so it is
         # materialised here rather than trusted to cache: a manager passed as the
@@ -83,7 +95,7 @@ def render_spec_output(
         spec, view=view, request=request, extras=extras or {}, view_hooks=view_hooks
     )
     payload: Any = serializer_cls(value, many=many, context=context).data
-    if affordances is None or value is None:
+    if affordances is None:
         return payload
     return with_affordances(payload, value, affordances, many=many)
 
