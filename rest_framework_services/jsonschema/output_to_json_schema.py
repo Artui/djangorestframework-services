@@ -34,12 +34,13 @@ def output_to_json_schema(
     """Build a JSON Schema for an output serializer, or ``None`` when undeclared.
 
     Returns ``None`` when there is no ``output_serializer`` — callers shouldn't
-    fabricate a misleading shape. Anything that is neither a ``Serializer``
-    subclass nor a dataclass type raises ``TypeError`` instead: ``None`` would
-    read as "no output declared" for a declaration whose output cannot be
-    rendered at all, which is the input side's rule for the same inputs. A
-    transport building schemas lazily, per listing request, meets that error
-    there, so build them where the spec is registered. ``kind`` / ``paginate`` make the schema match
+    fabricate a misleading shape — and when the output is a ``BaseSerializer``
+    subclass that is not a ``Serializer``, which renders but declares no fields.
+    Anything that is neither a ``BaseSerializer`` subclass nor a dataclass type
+    raises ``TypeError``: ``None`` would read as "no output declared" for a
+    declaration whose output cannot be rendered at all. A transport building
+    schemas lazily, per listing request, meets that error there, so build them
+    where the spec is registered. ``kind`` / ``paginate`` make the schema match
     what dispatch actually returns:
 
     - ``kind=None`` / ``RETRIEVE`` — the bare item schema.
@@ -114,14 +115,21 @@ def _item_schema(
         )
     if isinstance(output_serializer, type) and dataclasses.is_dataclass(output_serializer):
         return dataclass_to_schema(output_serializer, registry)
-    # Anything else used to fall through to ``None`` -- the answer for a spec
-    # declaring no output at all, so a tool advertised no output and then raised
-    # the first time it had one to render, since ``render_spec_output``
-    # instantiates the declaration as a serializer. The input side stopped
-    # having this disagreement when ``serializer_to_json_schema`` began refusing
-    # the same inputs; refuse here too, at declaration time rather than mid-call.
+    if isinstance(output_serializer, type) and issubclass(
+        output_serializer, serializers.BaseSerializer
+    ):
+        # DRF's read-only pattern: it renders through ``render_spec_output`` like
+        # any serializer and declares no fields, so there is nothing to describe
+        # and ``None`` is the honest answer. Narrower than the input side's rule
+        # on purpose -- an input has to validate, and a ``BaseSerializer`` with
+        # only ``to_representation`` cannot.
+        return None
+    # Anything else used to fall through to ``None`` too -- the answer for a spec
+    # declaring no output at all -- while ``render_spec_output`` raised the first
+    # time it instantiated the declaration. Refused here instead, at declaration
+    # time rather than mid-call.
     raise TypeError(
         f"Cannot derive an output JSON Schema from {output_serializer!r}: an output "
-        f"serializer must be a Serializer subclass or a dataclass type. Declared as "
-        f"it is, rendering the spec's output would fail at the first call."
+        f"serializer must be a BaseSerializer subclass or a dataclass type. Declared "
+        f"as it is, rendering the spec's output would fail at the first call."
     )

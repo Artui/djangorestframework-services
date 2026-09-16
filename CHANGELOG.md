@@ -9,16 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **An output serializer that is neither a `Serializer` subclass nor a dataclass
-  is now refused when its schema is derived, as 0.50.0 said it was.** 0.50.0's
-  entry and its `TypeError` both named input *and* output serializers, but only
-  the input side refused: `output_to_json_schema` still answered `None` for the
-  same declarations, which is what it answers for a spec with no output at all.
-  So a plain class or a serializer *instance* declared as `output_serializer`
-  was advertised as producing no output, and then raised the first time
-  `render_spec_output` instantiated it. `output_to_json_schema` and
-  `spec_to_json_schema(phase="output")` now raise `TypeError` naming the
-  declaration, and a genuinely undeclared output still returns `None`.
+- **An output declaration that cannot be rendered is now refused when its schema
+  is derived.** 0.50.0's entry and its `TypeError` said an input *or output*
+  serializer that is neither a `Serializer` subclass nor a dataclass is refused;
+  only the input side was, and the rule as worded was wrong for output anyway.
+  `output_to_json_schema` answered `None` - what it answers for a spec with no
+  output at all - for a plain class or a serializer *instance*, which then raised
+  the first time `render_spec_output` instantiated it. It now raises `TypeError`
+  for anything that is neither a `BaseSerializer` subclass nor a dataclass type,
+  through `spec_to_json_schema(phase="output")` too.
+
+  A `BaseSerializer` subclass that is not a `Serializer` - DRF's read-only
+  pattern - is **not** refused: it renders like any serializer and declares no
+  fields, so it keeps getting `None`. The input side's message now says "input
+  serializer", since the narrower rule is only right for input, where a
+  declaration has to validate.
 
   A transport that builds its schemas lazily - per tool listing rather than
   when a spec is registered - now meets this error at listing time, where one
