@@ -72,7 +72,7 @@ def serializer_to_json_schema(
         # would refuse. Refuse here too, in the same words, at declaration time
         # rather than at the first call.
         raise TypeError(
-            f"Cannot derive a JSON Schema from {serializer!r}: an input or output "
+            f"Cannot derive a JSON Schema from {serializer!r}: an input "
             f"serializer must be a dataclass type or a Serializer subclass. This is "
             f"the same requirement build_input_serializer_from_data enforces when "
             f"the spec is dispatched."

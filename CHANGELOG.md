@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **An output declaration that cannot be rendered is now refused when its schema
+  is derived.** 0.50.0's entry and its `TypeError` said an input *or output*
+  serializer that is neither a `Serializer` subclass nor a dataclass is refused;
+  only the input side was, and the rule as worded was wrong for output anyway.
+  `output_to_json_schema` answered `None` - what it answers for a spec with no
+  output at all - for a plain class or a serializer *instance*, which then raised
+  the first time `render_spec_output` instantiated it. It now raises `TypeError`
+  for anything that is neither a `BaseSerializer` subclass nor a dataclass type,
+  through `spec_to_json_schema(phase="output")` too.
+
+  A `BaseSerializer` subclass that is not a `Serializer` - DRF's read-only
+  pattern - is **not** refused: it renders like any serializer and declares no
+  fields, so it keeps getting `None`. The input side's message now says "input
+  serializer", since the narrower rule is only right for input, where a
+  declaration has to validate.
+
+  A transport that builds its schemas lazily - per tool listing rather than
+  when a spec is registered - now meets this error at listing time, where one
+  misdeclared spec can fail the whole listing. Build schemas at registration to
+  keep the failure where the mistake is.
+
 ## [0.50.0] — 2026-09-15
 
 ### Added
