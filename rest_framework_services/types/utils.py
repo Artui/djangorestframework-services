@@ -178,3 +178,15 @@ def is_row_condition(when: Any) -> bool:
     two definitions of one rule.
     """
     return hasattr(when, "resolve_expression")
+
+
+def affordance_alias(name: str, code: str) -> str:
+    """The annotation a list query carries one affordance's answer under.
+
+    ``name`` is the key a ``SelectorSpec.affordances`` entry is declared under and
+    ``code`` the affordance's own. Prefixed and double-underscored on purpose: a
+    Django field name may not contain ``__``, so the alias can never shadow a
+    model field, and the prefix keeps it clear of a model *method* of the same
+    name, which ``annotate`` would silently overwrite on every instance.
+    """
+    return f"affordance__{name}__{code}"

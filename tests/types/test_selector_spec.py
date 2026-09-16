@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from types import MappingProxyType
+from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models import Count, Q
 
-from rest_framework_services import SelectorKind, SelectorSpec
+from rest_framework_services import Affordance, SelectorKind, SelectorSpec, ServiceSpec
 from tests.testapp.serializers import AuthorSerializer
 
 
@@ -81,3 +83,56 @@ class TestSelectorSpecMetadata:
         # holds the spec, and that is the whole path to the declaration.
         action_specs = {"list": SelectorSpec(kind=SelectorKind.LIST, metadata={"scope": "tenant"})}
         assert action_specs["list"].metadata == {"scope": "tenant"}
+
+
+def _with_codes(*codes: str) -> ServiceSpec[Any, Any, Any]:
+    return ServiceSpec(
+        service=_noop,
+        affordances=[Affordance(code=code, reason="r", when=Q(pk__isnull=False)) for code in codes],
+    )
+
+
+def _listing(**fields: Any) -> SelectorSpec[Any, Any]:
+    return SelectorSpec(kind=SelectorKind.LIST, selector=_noop, **fields)
+
+
+class TestSelectorSpecAffordances:
+    def test_undeclared_is_none(self) -> None:
+        assert SelectorSpec(kind=SelectorKind.LIST).affordances is None
+
+    def test_a_mapping_of_specs_is_stored_as_given(self) -> None:
+        declared = {"publish": _with_codes("a"), "archive": ServiceSpec(service=_noop)}
+        assert _listing(affordances=declared).affordances is declared
+
+    def test_a_non_mapping_is_refused(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="must be a mapping of name -> ServiceSpec"):
+            _listing(affordances=[_with_codes("a")])
+
+    @pytest.mark.parametrize("key", ["", 7], ids=["empty", "not-a-string"])
+    def test_keys_must_be_non_empty_strings(self, key: Any) -> None:
+        with pytest.raises(ImproperlyConfigured, match="keys must be non-empty strings"):
+            _listing(affordances={key: _with_codes("a")})
+
+    def test_a_registry_name_is_refused_in_place_of_the_spec(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="not its registry name"):
+            _listing(affordances={"publish": "publish_post"})
+
+    def test_a_generated_annotation_colliding_with_a_declared_one_is_refused(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="which `annotations` already declares"):
+            _listing(
+                annotations={"affordance__publish__a": Count("pk")},
+                affordances={"publish": _with_codes("a")},
+            )
+
+    def test_an_unrelated_declared_annotation_is_left_alone(self) -> None:
+        """Sized so a match on the prefix alone would refuse."""
+        _listing(
+            annotations={"affordance__publish__b": Count("pk")},
+            affordances={"publish": _with_codes("a")},
+        )
+
+    def test_two_entries_generating_one_annotation_are_refused(self) -> None:
+        with pytest.raises(ImproperlyConfigured, match="both generate the annotation") as info:
+            _listing(affordances={"a__b": _with_codes("c"), "a": _with_codes("b__c")})
+        # The earlier check has nothing to answer: no ``annotations`` are declared.
+        assert "already declares" not in str(info.value)
