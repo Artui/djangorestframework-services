@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from typing import Any, ClassVar
 
 from rest_framework.generics import GenericAPIView
@@ -50,7 +51,9 @@ class SelectorListView(ListModelMixin, GenericAPIView):
         """Hook for additional kwargs available to the selector signature."""
         return {}
 
-    def get_permissions(self) -> list[Any]:
+    # ``builtins.list`` because the class defines a ``list`` method, which a type
+    # checker resolves an annotation in this scope against.
+    def get_permissions(self) -> builtins.list[Any]:
         s: SelectorSpec | None = get_class_attr(self, "spec")
         if isinstance(s, SelectorSpec) and s.permission_classes is not None:
             return [permission() for permission in s.permission_classes]
@@ -91,8 +94,14 @@ class SelectorListView(ListModelMixin, GenericAPIView):
             return super().get_queryset()
         return dispatch_selector_for_spec(self, s)
 
-    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+    def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        # The answers are added here rather than in ``get`` so a subclass that
+        # extends ``list`` keeps running once its spec declares affordances --
+        # the same seam ``SelectorListMixin`` uses.
         s: SelectorSpec | None = get_class_attr(self, "spec")
         if s is None or s.affordances is None:
-            return self.list(request, *args, **kwargs)
+            return super().list(request, *args, **kwargs)
         return list_with_affordances(self, s)
+
+    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        return self.list(request, *args, **kwargs)
