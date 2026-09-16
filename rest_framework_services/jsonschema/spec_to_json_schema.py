@@ -62,8 +62,10 @@ def spec_to_json_schema(
 
     ``phase="output"`` returns the output schema, or ``None`` when undeclared: a
     [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] supplies its
-    ``output_selector_spec``'s ``output_serializer`` and ``kind``, a
+    ``output_selector_spec``'s ``output_serializer``, ``kind`` and ``affordances``, a
     [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] its own.
+    Declared ``affordances`` add the ``affordances`` object each rendered item
+    carries, ``reason`` included -- the shape ``render_spec_output`` produces.
 
     ``max_depth`` bounds how many serializer levels are described, truncating
     deeper ones to ``{"type": "object"}``; ``None``, the default, describes them
@@ -221,8 +223,16 @@ def _output_schema(
         if nested is None:
             return None
         return output_to_json_schema(
-            nested.output_serializer, kind=nested.kind, registry=registry, max_depth=max_depth
+            nested.output_serializer,
+            kind=nested.kind,
+            registry=registry,
+            max_depth=max_depth,
+            affordances=nested.affordances,
         )
     return output_to_json_schema(
-        spec.output_serializer, kind=spec.kind, registry=registry, max_depth=max_depth
+        spec.output_serializer,
+        kind=spec.kind,
+        registry=registry,
+        max_depth=max_depth,
+        affordances=spec.affordances,
     )

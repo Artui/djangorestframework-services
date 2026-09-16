@@ -5,6 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from django.core.exceptions import ImproperlyConfigured
+
+from rest_framework_services.audience.utils import rendered_affordances, with_affordances
 from rest_framework_services.dispatch.utils import output_serializer_for, resolve_output_context
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -42,16 +45,41 @@ def render_spec_output(
     Pagination is the caller's job — pass the already-sliced page as ``value``
     (and the same page object under the matching ``extras`` key) so an
     id-keyed batched context query reuses the page's result cache.
+
+    **Affordances.** When the selector spec rendered through declares
+    ``affordances``, each rendered object gains an ``affordances`` key: per
+    declared name, ``{"available": true}``, or ``{"available": false, "code": ...,
+    "reason": ...}`` naming the first condition the row does not meet; ``None`` is
+    not a row and carries none. The answers
+    are read off the annotations the selector's query computed, so rendering them
+    costs no query; ``many`` rows are materialised once so the rows walked are the
+    rows rendered. The ``reason`` is for a human reader --
+    [`render_for_audience`][rest_framework_services.dispatch.render_for_audience.render_for_audience]
+    leaves it out. A spec declaring none renders exactly as before.
     """
     serializer_cls = output_serializer_for(spec)
+    affordances = rendered_affordances(spec)
     if serializer_cls is None:
+        if affordances is not None:
+            raise ImproperlyConfigured(
+                "affordances are projected into each rendered object, and this spec "
+                "declares no output_serializer to render one. Declare an output_serializer."
+            )
         if many:
             return list(value) if hasattr(value, "__iter__") else value
         return value
+    if affordances is not None and many:
+        # Walked twice -- once by the serializer, once for the answers -- so it is
+        # materialised here rather than trusted to cache: a manager passed as the
+        # value would be re-queried on the second walk.
+        value = list(value)
     context = resolve_output_context(
         spec, view=view, request=request, extras=extras or {}, view_hooks=view_hooks
     )
-    return serializer_cls(value, many=many, context=context).data
+    payload: Any = serializer_cls(value, many=many, context=context).data
+    if affordances is None or value is None:
+        return payload
+    return with_affordances(payload, value, affordances, many=many)
 
 
 __all__ = ["render_spec_output"]

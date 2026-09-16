@@ -5,8 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from rest_framework.mixins import ListModelMixin
+from rest_framework.request import Request
+from rest_framework.response import Response
 
 from rest_framework_services.selectors.utils import dispatch_selector_for_spec
+from rest_framework_services.views.utils import list_with_affordances
 from rest_framework_services.viewsets.utils import (
     _ActionSpecsMixin,
     resolve_action_selector_spec,
@@ -43,6 +46,12 @@ class SelectorListMixin(ListModelMixin, _ActionSpecsMixin):
         page = super().paginate_queryset(queryset)  # ty: ignore[unresolved-attribute]
         self._resolved_page = page if page is not None else queryset
         return page
+
+    def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        spec = resolve_action_selector_spec(self.action_specs, "list")
+        if spec is None or spec.affordances is None:
+            return super().list(request, *args, **kwargs)
+        return list_with_affordances(self, spec)
 
     def get_queryset(self) -> Any:
         spec = resolve_action_selector_spec(self.action_specs, "list")

@@ -9,6 +9,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from rest_framework_services.selectors.utils import dispatch_selector_for_spec
+from rest_framework_services.views.utils import add_affordances
 from rest_framework_services.viewsets.utils import (
     _ActionSpecsMixin,
     resolve_action_selector_spec,
@@ -46,16 +47,17 @@ class SelectorRetrieveMixin(RetrieveModelMixin, _ActionSpecsMixin):
 
     def retrieve(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         spec = resolve_action_selector_spec(self.action_specs, "retrieve")
-        if spec is None or not spec.allow_none:
+        if spec is None or (not spec.allow_none and spec.affordances is None):
             return super().retrieve(request, *args, **kwargs)
         # Nullable-resource contract: ``get_object()`` may resolve ``None``
         # (instead of raising ``NotFound``); render it as a literal JSON
-        # ``null`` without invoking the output serializer.
+        # ``null`` without invoking the output serializer. The same path renders
+        # a row with its affordance answers, which DRF's ``retrieve`` cannot add.
         instance = self.get_object()
         if instance is None:
             return Response(None)
         serializer = self.get_serializer(instance)  # ty: ignore[unresolved-attribute]
-        return Response(serializer.data)
+        return Response(add_affordances(spec, serializer.data, instance, many=False))
 
     def get_object(self) -> Any:
         """Resolve the target row through the retrieve selector, if one is wired.

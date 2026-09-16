@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Mapping
 from typing import Any
 
 from rest_framework import serializers
 
 from rest_framework_services.audience.annotate_output_schema import annotate_output_schema
+from rest_framework_services.audience.utils import AFFORDANCES_KEY, affordance_schema
 from rest_framework_services.jsonschema.utils import (
     dataclass_to_schema,
     serializer_for_schema,
@@ -19,6 +21,7 @@ from rest_framework_services.types.json_schema_registry import (
     JsonSchemaRegistry,
 )
 from rest_framework_services.types.selector_kind import SelectorKind
+from rest_framework_services.types.service_spec import ServiceSpec
 
 
 def output_to_json_schema(
@@ -30,6 +33,7 @@ def output_to_json_schema(
     handle_description: str | None = None,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
     max_depth: int | None = None,
+    affordances: Mapping[str, ServiceSpec[Any, Any, Any]] | None = None,
 ) -> dict[str, Any] | None:
     """Build a JSON Schema for an output serializer, or ``None`` when undeclared.
 
@@ -70,6 +74,17 @@ def output_to_json_schema(
     dies; where the two disagree the tighter wins, so this still yields exactly
     the levels it names. Truncation is flat and self-contained — never ``$defs``
     / ``$ref``, which most MCP clients reject outright.
+
+    ``affordances`` is the rendering selector spec's ``affordances`` mapping, and
+    declares the ``affordances`` object every rendered item then carries: per
+    name, a required ``available`` boolean, plus the ``code`` -- enumerated from
+    the declaration -- and ``reason`` a refused answer adds. With a
+    ``projection`` the schema describes the agent audience, whose payload carries
+    no ``reason``, so neither does the schema. Pass it wherever the payload is
+    rendered by ``render_spec_output`` or ``render_for_audience`` from a spec that
+    declares them;
+    [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
+    does so itself.
     """
     item_schema: dict[str, Any] | None = _item_schema(output_serializer, registry, max_depth)
     if item_schema is None:
@@ -79,6 +94,17 @@ def output_to_json_schema(
             annotate_output_schema(item_schema, projection, handle_description=handle_description)
             or item_schema
         )
+    if affordances is not None:
+        # After the projection, which walks serializer markings and has nothing to
+        # say about a key no serializer declares.
+        item_schema = {
+            **item_schema,
+            "properties": {
+                **item_schema.get("properties", {}),
+                AFFORDANCES_KEY: affordance_schema(affordances, include_reason=projection is None),
+            },
+            "required": [*item_schema.get("required", []), AFFORDANCES_KEY],
+        }
     if kind is not SelectorKind.LIST:
         return item_schema
     array_schema: dict[str, Any] = {"type": "array", "items": item_schema}

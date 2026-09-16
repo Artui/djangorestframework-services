@@ -75,6 +75,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `QuerySet` and is refused on a nested target lookup at `as_view()`. A selector
   declaring none issues the same query as before.
 
+- **Every rendered object carries its affordance answers.** When the selector
+  spec a payload renders through declares `affordances`, each object gains an
+  `affordances` key: per name, `{"available": true}`, or `{"available": false,
+  "code": ..., "reason": ...}` naming the first unmet condition — the one a call
+  would be refused with. Through `render_spec_output` and its async twin, the
+  selector list, retrieve and `@selector_action` views, and a mutation's
+  response from its `output_selector_spec`, so a browser and an agent transport
+  are served the same object. Reading the answers costs no query.
+
+  **`render_for_audience` drops the `reason` and keeps the `code`**: the code is
+  content for every audience, the reason an operator's sentence a model would
+  read out. `spec_to_json_schema(phase="output")` declares the object, with
+  `code` enumerated from the declaration; `output_to_json_schema` takes the
+  mapping as `affordances=` for transports that build the schema from the
+  serializer, and leaves `reason` out when given a `projection`.
+
+  `capability_manifest` lists each mutation's declared codes as
+  `affordances: [{"code": ..., "scope": "row" | "operation"}]`, the vocabulary
+  those rendered answers and a 409 draw from; `None` when undeclared and on a
+  query, whose answers its output schema describes.
+
+  Rendering refuses a spec with no `output_serializer`, a serializer that already
+  renders an `affordances` field, and a row that did not come through the
+  selector computing the answers. A spec declaring none renders, serves and
+  describes itself exactly as before.
+
 ### Fixed
 
 - **`ServiceError`'s docstring no longer promises a structured `detail` payload.**

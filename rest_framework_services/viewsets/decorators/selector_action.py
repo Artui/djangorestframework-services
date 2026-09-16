@@ -14,7 +14,7 @@ from rest_framework_services.selectors.utils import dispatch_selector_for_spec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.spec_validation import validate_selector_spec
-from rest_framework_services.views.utils import resolve_serializer_context
+from rest_framework_services.views.utils import add_affordances, resolve_serializer_context
 
 
 def selector_action(
@@ -69,15 +69,17 @@ def selector_action(
                 serializer = _build_serializer(
                     self, spec, instance, many=False, extras={"instance": instance}
                 )
-                return Response(serializer.data)
+                return Response(add_affordances(spec, serializer.data, instance, many=False))
 
             result = dispatch_selector_for_spec(self, spec)
             page = self.paginate_queryset(result) if hasattr(self, "paginate_queryset") else None
             if page is not None:
                 serializer = _build_serializer(self, spec, page, many=True, extras={"page": page})
-                return self.get_paginated_response(serializer.data)
+                return self.get_paginated_response(
+                    add_affordances(spec, serializer.data, page, many=True)
+                )
             serializer = _build_serializer(self, spec, result, many=True, extras={"page": result})
-            return Response(serializer.data)
+            return Response(add_affordances(spec, serializer.data, result, many=True))
 
         # Stash the spec so schema generators can recover it; the closure is
         # otherwise opaque.
