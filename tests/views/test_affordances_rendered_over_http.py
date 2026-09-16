@@ -147,6 +147,32 @@ def test_the_list_view_keeps_a_subclass_list_override(posts: tuple[Post, Post]) 
     assert _answers(_body(response)) == [_AVAILABLE, _REFUSED]
 
 
+def test_the_list_view_over_a_selector_returning_a_list(posts: tuple[Post, Post]) -> None:
+    class _View(SelectorListView):
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=lambda: list(_posts()),
+            output_serializer=_PostOut,
+            affordances={"publish": PUBLISH},
+        )
+
+    assert _answers(_body(_View.as_view()(factory.get("/")))) == [_AVAILABLE, _REFUSED]
+
+
+def test_the_retrieve_view_over_a_selector_returning_an_instance(
+    posts: tuple[Post, Post],
+) -> None:
+    class _View(SelectorRetrieveView):
+        spec = SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=lambda *, pk: Post.objects.get(pk=pk),
+            output_serializer=_PostOut,
+            affordances={"publish": PUBLISH},
+        )
+
+    assert _body(_View.as_view()(factory.get("/"), pk=posts[1].pk))["affordances"] == _REFUSED
+
+
 def test_the_list_view_declaring_nothing_serves_drfs_own_response(
     posts: tuple[Post, Post],
 ) -> None:

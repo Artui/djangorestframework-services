@@ -52,8 +52,9 @@ def render_spec_output(
     ``affordances``, each rendered object gains an ``affordances`` key: per
     declared name, ``{"available": true}``, or ``{"available": false, "code": ...,
     "reason": ...}`` naming the first condition the row does not meet; ``None`` is
-    not a row and carries none. The answers
-    are read off the annotations the selector's query computed, so rendering them
+    not a row and carries none. The answers are read off the rows as the
+    selector's dispatch left them -- annotations on a queryset's rows, or the
+    answers it attached to rows a selector returned directly -- so rendering them
     costs no query; ``many`` rows are materialised once so the rows walked are the
     rows rendered. The ``reason`` is for a human reader --
     [`render_for_audience`][rest_framework_services.dispatch.render_for_audience.render_for_audience]

@@ -200,6 +200,29 @@ def test_a_mutation_with_its_own_affordances_and_no_output_renders_its_value_unt
     assert render_spec_output(spec, {"ok": True}) == {"ok": True}
 
 
+def test_a_list_selectors_instances_render_as_a_querysets_do(
+    two_posts: tuple[Post, Post],
+) -> None:
+    from_queryset = _listing()
+    from_list = _listing(selector=lambda: list(_posts()))
+
+    for render in (render_spec_output, render_for_audience):
+        assert render(from_list, _rows(from_list), many=True) == render(
+            from_queryset, _rows(from_queryset), many=True
+        )
+
+
+def test_a_list_selectors_mappings_render_their_callable_answers(db: Any) -> None:
+    spec = _listing(
+        selector=lambda: [{"id": 1, "title": "computed"}],
+        affordances={"edit": ServiceSpec(service=lambda: None, affordances=[BOOKS_OPEN])},
+    )
+
+    payload = _wire(render_spec_output(spec, _rows(spec), many=True))
+
+    assert payload == [{"id": 1, "title": "computed", "affordances": {"edit": {"available": True}}}]
+
+
 def test_rendering_the_answers_costs_no_query(two_posts: tuple[Post, Post]) -> None:
     spec = _listing()
     rows = _rows(spec)

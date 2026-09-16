@@ -3,8 +3,10 @@
 The payload side and the schema side of one declaration live together here for
 the reason ``project_payload`` and ``annotate_output_schema`` sit side by side:
 they agree only while they are read together. Nothing here touches a serializer
--- a payload arrives already rendered, and a row is read for the annotations the
-list query put on it -- so the projection survives whatever renders the fields.
+-- a payload arrives already rendered, and a row is read for the answers its
+selector's dispatch put on it: annotations on a queryset's rows, attributes on
+the instances and keys on the mappings a selector returned directly -- so the
+projection survives whatever renders the fields.
 """
 
 from __future__ import annotations
@@ -129,13 +131,17 @@ def _answers(
 
 
 def _flag(row: Any, alias: str) -> Any:
-    """The annotation's value on a model row, or on a ``.values()`` row."""
+    """One answer off a row: an attribute on an instance, a key on a mapping.
+
+    The same names whichever way the answers got there -- a queryset annotation,
+    or ``rows_with_affordances`` answering rows a selector returned directly.
+    """
     flag: Any = (
         row.get(alias, _MISSING) if isinstance(row, Mapping) else getattr(row, alias, _MISSING)
     )
     if flag is _MISSING:
         raise ImproperlyConfigured(
-            f"The rendered row carries no {alias!r} annotation. Affordance answers are "
+            f"The rendered row carries no {alias!r} answer. Affordance answers are "
             "computed by the selector spec that declares them; a value that did not come "
             "through that selector -- or a spec whose selector is not set -- has none."
         )
