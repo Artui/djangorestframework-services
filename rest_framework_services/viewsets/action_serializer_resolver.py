@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from rest_framework.serializers import Serializer
+from typing import Any
 
+from rest_framework.serializers import BaseSerializer
+
+from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.viewsets.utils import (
@@ -38,16 +41,16 @@ class ActionSerializerResolver(_ActionSpecsMixin):
     # Provided at runtime by ``GenericViewSet``.
     action: str | None
 
-    def get_serializer_class(self) -> type[Serializer]:
+    def get_serializer_class(self) -> type[BaseSerializer[Any]]:
         # Same ``"partial_update"`` → ``"update"`` fallback as dispatch and
         # ``get_permissions``, so the three sites agree.
         spec = resolve_action_spec_entry(self.action_specs, self.action)
         if isinstance(spec, SelectorSpec) and spec.output_serializer is not None:
-            return spec.output_serializer
+            return renderable_serializer_class(spec.output_serializer)
         if (
             isinstance(spec, ServiceSpec)
             and spec.output_selector_spec is not None
             and spec.output_selector_spec.output_serializer is not None
         ):
-            return spec.output_selector_spec.output_serializer
+            return renderable_serializer_class(spec.output_selector_spec.output_serializer)
         return super().get_serializer_class()  # ty: ignore[unresolved-attribute]

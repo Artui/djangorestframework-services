@@ -10,7 +10,6 @@ from django.db.models import QuerySet
 from django.db.models.query import Prefetch
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
-from rest_framework.serializers import Serializer
 
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.service_view import ServiceView
@@ -73,9 +72,11 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             ``ServiceSpec.output_selector_spec`` keeps its
             authoritative-``None`` → 204 contract and
             ``ServiceSpec.instance_selector_spec`` always 404s.
-        output_serializer: DRF ``Serializer`` subclass used by
-            ``get_serializer_class()`` for this action. ``None`` falls back to
-            DRF's standard ``serializer_class``.
+        output_serializer: Renders the result: a DRF serializer class, or a bare
+            dataclass type, which renders through a ``DataclassSerializer`` built
+            for it — the payload its output schema already describes. It is what
+            ``get_serializer_class()`` returns for this action. ``None`` falls
+            back to DRF's standard ``serializer_class``.
         output_serializer_context: Provider for the response serializer's
             ``context=``, at the most specific layer of the chain
             (``get_serializer_context`` → ``get_output_serializer_context`` →
@@ -198,7 +199,7 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     # QuerySet return. The open ``...`` parameter specs are because every
     # provider here is resolved through the keyword pool, so its signature is
     # whichever subset of the documented keywords it declares.
-    output_serializer: type[Serializer] | None = None
+    output_serializer: type | None = None
     output_serializer_context: Callable[..., Mapping[str, Any]] | None = None
     select_related: Sequence[str] | None = None
     prefetch_related: Sequence[str | Prefetch] | None = None

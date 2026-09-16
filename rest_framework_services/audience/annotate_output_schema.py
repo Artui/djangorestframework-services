@@ -134,11 +134,16 @@ def _spoken_schema(schema: dict[str, Any], labels: Mapping[Any, str]) -> dict[st
     value it now equals teaches nothing.
 
     A ``MultipleChoiceField`` arrives as an array wrapping its member schema, so
-    the rewrite descends one level.
+    the rewrite descends one level. A union arrives as ``anyOf`` — the shape an
+    ``X | None`` annotation is described in, which is how a dataclass output's
+    optional ``Enum`` field reaches here — and each member is rewritten, the
+    null one passing through untouched.
     """
     items = schema.get("items")
     if isinstance(items, dict):
         return {**schema, "items": _spoken_schema(items, labels)}
+    if "anyOf" in schema:
+        return {**schema, "anyOf": [_spoken_schema(member, labels) for member in schema["anyOf"]]}
     if "enum" in schema:
         return {**schema, "enum": [labels.get(value, value) for value in schema["enum"]]}
     if "oneOf" in schema:

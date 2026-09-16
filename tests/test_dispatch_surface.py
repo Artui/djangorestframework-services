@@ -16,6 +16,7 @@ from rest_framework_services.dispatch.build_offline_context import build_offline
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.dispatch.enforce_permissions import enforce_permissions
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
+from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.is_async import is_async
 from rest_framework_services.jsonschema.filterset_to_json_schema import filterset_to_json_schema
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
@@ -62,6 +63,9 @@ _SURFACE = {
     "is_queryset": is_queryset,
     "output_to_json_schema": output_to_json_schema,
     "render_spec_output": render_spec_output,
+    # A transport that renders an output declaration outside ``render_spec_output``
+    # resolves the class through this, or a dataclass output raises there.
+    "renderable_serializer_class": renderable_serializer_class,
     "resolve_callable_kwargs": resolve_callable_kwargs,
     "resolve_mutation_instance": resolve_mutation_instance,
     "run_selector": run_selector,

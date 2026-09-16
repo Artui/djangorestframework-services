@@ -10,6 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.selectors.utils import dispatch_selector_for_spec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -116,5 +117,7 @@ def _build_serializer(
             spec_provider=spec.output_serializer_context,
             extras=extras,
         )
-        return spec.output_serializer(instance, many=many, context=context)
+        return renderable_serializer_class(spec.output_serializer)(
+            instance, many=many, context=context
+        )
     return view.get_serializer(instance, many=many)

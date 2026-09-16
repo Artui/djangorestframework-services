@@ -7,6 +7,7 @@ from rest_framework import serializers
 from rest_framework_services.audience.annotate_output_schema import annotate_output_schema
 from rest_framework_services.audience.build_audience_projection import build_audience_projection
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
+from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.field_audience import FieldAudience
 from rest_framework_services.types.field_marking import MARKING, FieldMarking
 from rest_framework_services.types.json_schema_registry import DEFAULT_JSON_SCHEMA_REGISTRY
@@ -131,6 +132,20 @@ class TestSpokenChoiceSchemas:
         schema = annotate_output_schema(output_to_json_schema(_Order), projection)
 
         assert schema["properties"]["kind"]["oneOf"][0]["const"] == "PENDING_REVIEW"
+
+    def test_a_nullable_choice_described_as_a_union_is_redeclared(self) -> None:
+        """An ``X | None`` annotation is described as ``anyOf``, the shape a
+        dataclass output's optional ``Enum`` field takes. Each member is rewritten,
+        so the null branch survives and the enum branch speaks the labels."""
+        schema = {
+            "type": "object",
+            "properties": {"tier": {"anyOf": [{"enum": ["gold"]}, {"type": "null"}]}},
+        }
+        projection = AudienceProjection(choice_labels={"tier": {"gold": "Gold"}})
+
+        assert annotate_output_schema(schema, projection)["properties"]["tier"] == {
+            "anyOf": [{"enum": ["Gold"]}, {"type": "null"}]
+        }
 
     def test_a_registry_rule_is_rewritten_or_left_alone(self) -> None:
         """A consumer rule replaces the fragment, and both shapes are handled."""

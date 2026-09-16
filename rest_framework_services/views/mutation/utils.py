@@ -19,10 +19,11 @@ from rest_framework import status as drf_status
 from rest_framework.exceptions import NotFound
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import Serializer
+from rest_framework.serializers import BaseSerializer, Serializer
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.dispatch.apply_input_data import apply_input_data
+from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.selectors.utils import (
     check_view_object_permissions,
@@ -199,7 +200,7 @@ def render_mutation_response(
     selector_ran: bool = (
         spec.output_selector_spec is not None and spec.output_selector_spec.selector is not None
     )
-    output_serializer: type[Serializer] | None = (
+    output_serializer: type[BaseSerializer[Any]] | None = renderable_serializer_class(
         spec.output_selector_spec.output_serializer
         if spec.output_selector_spec is not None
         else None

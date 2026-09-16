@@ -59,7 +59,7 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     kind: SelectorKind  # required
     selector: Callable[..., ResultT] | None = None
     allow_none: bool = False
-    output_serializer: type[Serializer] | None = None
+    output_serializer: type | None = None
     kwargs: Callable[..., ExtraT] | None = None
     permission_classes: Sequence[type[BasePermission]] | None = None
     output_serializer_context: Callable[..., Mapping[str, Any]] | None = None
@@ -91,9 +91,10 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
   on nested specs: `output_selector_spec` keeps its authoritative-`None`
   → 204 contract, and `instance_selector_spec` always 404s (a mutation
   against a missing row is not a nullable read).
-- **`output_serializer`** — a DRF `Serializer` subclass used by
-  `get_serializer_class()` for this action. `None` falls back to DRF's
-  standard `serializer_class`.
+- **`output_serializer`** — a DRF serializer class, or a bare `@dataclass`
+  (auto-wrapped in `DataclassSerializer`, so it renders the payload its
+  output schema describes), used by `get_serializer_class()` for this
+  action. `None` falls back to DRF's standard `serializer_class`.
 - **`kwargs`** — callable returning extra kwargs to merge into the pool
   the selector receives. The most-specific level of the kwargs
   resolution chain; co-located with the selector it feeds. Invoked through

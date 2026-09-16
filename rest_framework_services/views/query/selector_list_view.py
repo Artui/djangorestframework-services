@@ -10,6 +10,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import BaseSerializer
 
+from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.selectors.utils import dispatch_selector_for_spec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -55,7 +56,7 @@ class SelectorListView(ListModelMixin, GenericAPIView):
     def get_serializer_class(self) -> type[BaseSerializer[Any]]:
         s: SelectorSpec | None = get_class_attr(self, "spec")
         if isinstance(s, SelectorSpec) and s.output_serializer is not None:
-            return s.output_serializer
+            return renderable_serializer_class(s.output_serializer)
         return super().get_serializer_class()
 
     def paginate_queryset(self, queryset: Any) -> Any:

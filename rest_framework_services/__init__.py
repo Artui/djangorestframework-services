@@ -28,6 +28,7 @@ from rest_framework_services.dispatch import (
     paginate_output,
     render_for_audience,
     render_spec_output,
+    renderable_serializer_class,
     unguarded_specs,
 )
 from rest_framework_services.exceptions import (
@@ -289,6 +290,7 @@ __all__ = [
     "project_payload",
     "render_for_audience",
     "render_spec_output",
+    "renderable_serializer_class",
     "resolve_callable_kwargs",
     "resolve_mutation_instance",
     "run_selector",

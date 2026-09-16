@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`renderable_serializer_class`**, exported from the package root and
+  `rest_framework_services.dispatch`, returns the class an `output_serializer`
+  declaration renders through: a serializer class as declared, a bare dataclass
+  wrapped in a `DataclassSerializer`. It is for a transport that instantiates an
+  output declaration outside `render_spec_output` - rendering a resource, say -
+  which would otherwise call a dataclass's own `__init__` with `many=` and raise.
+  Every render site in this package resolves through it, and a dataclass gets
+  the same class on every call.
+
 ### Fixed
 
 - **An output declaration that cannot be rendered is now refused when its schema
@@ -29,6 +40,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when a spec is registered - now meets this error at listing time, where one
   misdeclared spec can fail the whole listing. Build schemas at registration to
   keep the failure where the mistake is.
+
+- **A raw dataclass declared as `output_serializer` now renders, through a
+  `DataclassSerializer` built for it.** Its schema was already derived field by
+  field - `output_to_json_schema` and `spec_to_json_schema(phase="output")` walk a
+  dataclass type - but every render site instantiated the declaration as if it
+  were a serializer, calling the dataclass's own `__init__` with `many=` /
+  `context=`, so the first render raised `TypeError`. A spec advertised a payload
+  it could not produce. The payload it renders now validates against that schema.
+
+  The wrapping happens wherever an output declaration is instantiated:
+  `render_spec_output` and `arender_spec_output` (and so `render_for_audience`),
+  `get_serializer_class()` on `SelectorListView`, `SelectorRetrieveView` and the
+  viewsets, `@selector_action`, and a mutation's response, single or bulk. The
+  read views reach drf-spectacular through `get_serializer_class()`, so their
+  generated OpenAPI documents the dataclass too, where it used to drop the view.
+  A `Serializer` or `BaseSerializer` subclass renders exactly as before, and a
+  spec with no output still passes its value through.
+
+  Each dataclass gets one wrapper class for the process, shared with the OpenAPI
+  coercion of a dataclass input or output, and resolved through
+  `renderable_serializer_class` (see Added). `SelectorSpec.output_serializer` is
+  annotated `type | None`, matching `ServiceSpec.input_serializer`, since a
+  type checker would otherwise reject the declaration this makes work.
+
+  The agent projection reads the same class. `build_audience_projection` - and
+  so `audience_projection_for_spec` and `render_for_audience` - resolves a bare
+  dataclass to its `DataclassSerializer` before reading markings, so a
+  `FieldMarking` given to a dataclass field through `serializer_kwargs` metadata
+  applies: a hidden field is dropped from the agent payload and its schema, as
+  it would be on a serializer. Resolving there rather than in each caller covers
+  a transport that builds its projection from the declaration directly.
+
+  An `Enum` field renders as a choice field whose display values are the member
+  names, so an agent now reads `"GOLD"` where the REST response keeps `"gold"` -
+  the substitution every `ChoiceField` already gets - and the agent schema
+  declares the names. Mark the field as a handle to keep the value. For an
+  optional `Enum` field that rewrite now also reaches the schema:
+  `annotate_output_schema` descends into `anyOf`, the shape an `X | None`
+  annotation is described in, where it used to leave the values in place while
+  the payload carried the names.
 
 ## [0.50.0] — 2026-09-15
 

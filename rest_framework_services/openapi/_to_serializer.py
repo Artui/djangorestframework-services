@@ -15,26 +15,28 @@ runtime in lockstep."""
 from __future__ import annotations
 
 from dataclasses import is_dataclass
+from typing import cast
 
 from rest_framework.serializers import Serializer
-from rest_framework_dataclasses.serializers import DataclassSerializer
+
+from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 
 
 def to_serializer_class(value: type | None) -> type[Serializer] | None:
     """Coerce a spec serializer field to a ``Serializer`` subclass.
 
     Returns ``None`` when ``value`` is ``None`` or an unrecognised shape.
-    Bare dataclass types are wrapped in a one-off ``DataclassSerializer``
-    subclass so schema generators see typed properties rather than ``object``.
+    Bare dataclass types are wrapped in a ``DataclassSerializer`` subclass so
+    schema generators see typed properties rather than ``object`` — the same
+    class, per dataclass, that the render path serializes through.
     """
     if value is None:
         return None
     if isinstance(value, type) and issubclass(value, Serializer):
         return value
     if is_dataclass(value):
-        return type(
-            f"_AutoDataclassSerializer_{value.__name__}",
-            (DataclassSerializer,),
-            {"Meta": type("Meta", (), {"dataclass": value})},
-        )
+        # A dataclass resolves to a ``DataclassSerializer`` subclass, which is a
+        # ``Serializer``; the resolver is annotated for every declaration it
+        # passes through, so it cannot say that itself.
+        return cast("type[Serializer]", renderable_serializer_class(value))
     return None

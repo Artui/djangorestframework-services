@@ -19,7 +19,7 @@ def build_audience_projection(
     overrides: Mapping[str, FieldMarking] | None = None,
     name: str | None = None,
 ) -> AudienceProjection:
-    """Resolve one serializer class's agent presentation, recursing into children.
+    """Resolve one output declaration's agent presentation, recursing into children.
 
     Reads
     [`FieldMarking`][rest_framework_services.types.field_marking.FieldMarking] markings
@@ -28,9 +28,22 @@ def build_audience_projection(
     reused — see
     [`AudienceProjection`][rest_framework_services.types.audience_projection.AudienceProjection].
 
-    A class that is not a DRF serializer (a plain ``@dataclass`` output, or
-    ``None``) yields an empty projection rather than an error: not every spec
-    renders through a serializer, and nothing is marked up in those that don't.
+    ``serializer_cls`` is read as the class it renders through, resolved with
+    [`renderable_serializer_class`][rest_framework_services.dispatch.renderable_serializer_class.renderable_serializer_class],
+    so a bare ``@dataclass`` output is projected from the ``DataclassSerializer``
+    it is rendered with. Two consequences follow, both deliberate. A marking
+    given to a dataclass field — ``field(metadata={"serializer_kwargs": {"style":
+    {MARKING: FieldMarking.hidden()}}})`` — is collected like one on a serializer
+    field, so hidden means hidden whichever way the output was declared. And an
+    ``Enum`` field renders as a ``ChoiceField`` whose display values are the
+    member names, so an agent reads ``"GOLD"`` where the browser reads
+    ``"gold"``: the substitution every ``ChoiceField`` gets, and mirrored into
+    the schema by
+    [`annotate_output_schema`][rest_framework_services.audience.annotate_output_schema.annotate_output_schema].
+    Mark the field ``HANDLE`` to keep the value for an agent too.
+
+    ``None``, or anything else that does not resolve to a DRF ``Serializer``,
+    yields an empty projection rather than an error: there is nothing to mark up.
 
     ``overrides`` layers a caller's markings on top, for the one case the
     serializer cannot express: a mount that needs what its sibling hides. They
@@ -50,21 +63,30 @@ def build_audience_projection(
             first would silently do nothing, and the second would silently pick
             one.
     """
-    if isinstance(serializer_cls, type) and issubclass(serializer_cls, serializers.Serializer):
-        # Genuine circular import, deliberately local: ``dispatch`` re-exports
-        # ``render_for_audience``, which imports this module, so importing anything
-        # from ``dispatch`` at module scope executes a half-built package.
-        from rest_framework_services.dispatch.base_serializer_context import (
-            base_serializer_context,
-        )
+    # Genuine circular import, deliberately local: ``dispatch`` re-exports
+    # ``render_for_audience``, which imports this module, so importing anything
+    # from ``dispatch`` at module scope executes a half-built package.
+    from rest_framework_services.dispatch.base_serializer_context import (
+        base_serializer_context,
+    )
+    from rest_framework_services.dispatch.renderable_serializer_class import (
+        renderable_serializer_class,
+    )
 
+    # Resolved here rather than by each caller, because callers hand this the
+    # declaration as written: ``audience_projection_for_spec`` does, and so does
+    # a transport building a projection per binding. A projection read off a
+    # bare dataclass is empty while the payload renders every field, so a
+    # hidden field would be shown by whichever caller forgot.
+    rendered_cls = renderable_serializer_class(serializer_cls)
+    if isinstance(rendered_cls, type) and issubclass(rendered_cls, serializers.Serializer):
         # The same baseline ``render_spec_output`` renders with. A serializer
         # whose ``get_fields`` reads ``self.context['request']`` -- routine,
         # since over HTTP the key is always there -- would otherwise raise
         # ``KeyError`` here and only here, breaking the documented swap to
         # ``render_for_audience``.
         projection = _project(
-            serializer_cls(context=base_serializer_context(view=None, request=None))
+            rendered_cls(context=base_serializer_context(view=None, request=None))
         )
     else:
         projection = AudienceProjection()
