@@ -28,6 +28,9 @@ from rest_framework_services.dispatch.paginate_output import (
 )
 from rest_framework_services.dispatch.render_for_audience import render_for_audience
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
+from rest_framework_services.dispatch.renderable_serializer_class import (
+    renderable_serializer_class,
+)
 from rest_framework_services.dispatch.unguarded_specs import unguarded_specs
 
 __all__ = [
@@ -45,5 +48,6 @@ __all__ = [
     "paginate_output",
     "render_for_audience",
     "render_spec_output",
+    "renderable_serializer_class",
     "unguarded_specs",
 ]

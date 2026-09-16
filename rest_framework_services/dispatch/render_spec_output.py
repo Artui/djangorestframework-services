@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.dispatch.utils import output_serializer_for, resolve_output_context
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.view_hooks import ViewHooks
-from rest_framework_services.views.utils import renderable_serializer_class
 
 
 def render_spec_output(

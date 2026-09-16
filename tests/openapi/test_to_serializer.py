@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from rest_framework import serializers
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
+from rest_framework_services import renderable_serializer_class
 from rest_framework_services.openapi._to_serializer import to_serializer_class
-from rest_framework_services.views.utils import renderable_serializer_class
 
 
 @dataclass

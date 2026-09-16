@@ -23,6 +23,7 @@ from rest_framework.serializers import BaseSerializer, Serializer
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.dispatch.apply_input_data import apply_input_data
+from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.selectors.utils import (
     check_view_object_permissions,
@@ -38,7 +39,6 @@ from rest_framework_services.views.mutation.map_service_error import (
 )
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
 from rest_framework_services.views.utils import (
-    renderable_serializer_class,
     resolve_serializer_context,
     resolve_view_hooks,
 )

@@ -110,6 +110,16 @@ transport builds a serializer outside them. See
 
 ::: rest_framework_services.dispatch.base_serializer_context.base_serializer_context
 
+### `renderable_serializer_class`
+
+The class an `output_serializer` declaration renders through: a serializer
+class as declared, a bare dataclass wrapped in a `DataclassSerializer`.
+`render_spec_output` and the HTTP views resolve it themselves — a transport
+that instantiates an output declaration outside them resolves it here first,
+or a dataclass output raises where a serializer would have rendered.
+
+::: rest_framework_services.dispatch.renderable_serializer_class.renderable_serializer_class
+
 ### `DispatchResult`
 
 ::: rest_framework_services.types.dispatch_result.DispatchResult

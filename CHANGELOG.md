@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`renderable_serializer_class`**, exported from the package root and
+  `rest_framework_services.dispatch`, returns the class an `output_serializer`
+  declaration renders through: a serializer class as declared, a bare dataclass
+  wrapped in a `DataclassSerializer`. It is for a transport that instantiates an
+  output declaration outside `render_spec_output` - rendering a resource, say -
+  which would otherwise call a dataclass's own `__init__` with `many=` and raise.
+  Every render site in this package resolves through it, and a dataclass gets
+  the same class on every call.
+
 ### Fixed
 
 - **An output declaration that cannot be rendered is now refused when its schema
@@ -48,7 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   spec with no output still passes its value through.
 
   Each dataclass gets one wrapper class for the process, shared with the OpenAPI
-  coercion of a dataclass input or output. `SelectorSpec.output_serializer` is
+  coercion of a dataclass input or output, and resolved through
+  `renderable_serializer_class` (see Added). `SelectorSpec.output_serializer` is
   annotated `type | None`, matching `ServiceSpec.input_serializer`, since a
   type checker would otherwise reject the declaration this makes work.
 

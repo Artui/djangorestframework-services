@@ -15,10 +15,11 @@ runtime in lockstep."""
 from __future__ import annotations
 
 from dataclasses import is_dataclass
+from typing import cast
 
 from rest_framework.serializers import Serializer
 
-from rest_framework_services.views.utils import dataclass_serializer_class
+from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 
 
 def to_serializer_class(value: type | None) -> type[Serializer] | None:
@@ -34,5 +35,8 @@ def to_serializer_class(value: type | None) -> type[Serializer] | None:
     if isinstance(value, type) and issubclass(value, Serializer):
         return value
     if is_dataclass(value):
-        return dataclass_serializer_class(value)
+        # A dataclass resolves to a ``DataclassSerializer`` subclass, which is a
+        # ``Serializer``; the resolver is annotated for every declaration it
+        # passes through, so it cannot say that itself.
+        return cast("type[Serializer]", renderable_serializer_class(value))
     return None

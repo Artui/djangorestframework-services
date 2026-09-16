@@ -6,9 +6,9 @@ from typing import Any
 
 from rest_framework.serializers import BaseSerializer
 
+from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
-from rest_framework_services.views.utils import renderable_serializer_class
 from rest_framework_services.viewsets.utils import (
     _ActionSpecsMixin,
     resolve_action_spec_entry,

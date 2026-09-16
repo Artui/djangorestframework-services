@@ -10,14 +10,12 @@ from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.selectors.utils import dispatch_selector_for_spec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.spec_validation import validate_selector_spec
-from rest_framework_services.views.utils import (
-    renderable_serializer_class,
-    resolve_serializer_context,
-)
+from rest_framework_services.views.utils import resolve_serializer_context
 
 
 def selector_action(
