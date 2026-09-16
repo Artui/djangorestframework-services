@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.51.0] — 2026-09-16
+
 ### Added
 
 - **`renderable_serializer_class`**, exported from the package root and
@@ -68,8 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A row condition on a spec with `many=True` or a `collection_selector_spec` is
   refused at construction, and on an action that targets no row at `as_view()`.
 
-- **`SelectorSpec.affordances` answers "what can be done to each row" inside the
-  list query.** A mapping of name to the `ServiceSpec` being asked about; every
+- **`SelectorSpec.affordances` answers "what can be done to each row" for
+  whatever a selector returns.** A mapping of name to the `ServiceSpec` being asked about; every
   condition becomes a boolean annotation named `affordance__<name>__<code>`,
   merged into the **same single `.annotate()` call** as `annotations`, so a list
   of fifty rows with five conditions is still one query. Each annotation is the
@@ -3710,7 +3712,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.50.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.51.0...HEAD
+[0.51.0]: https://github.com/Artui/djangorestframework-services/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/Artui/djangorestframework-services/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/Artui/djangorestframework-services/compare/v0.48.0...v0.49.0
 [0.48.0]: https://github.com/Artui/djangorestframework-services/compare/v0.47.0...v0.48.0
