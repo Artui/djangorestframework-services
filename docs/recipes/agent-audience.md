@@ -50,6 +50,34 @@ losing `ModelSerializer`'s auto-generation, which is the whole point of keeping
 one serializer. DRF consults `style` only in `HTMLFormRenderer`, and only for
 its own keys, so **your REST responses do not change**.
 
+### On a dataclass output
+
+A bare `@dataclass` declared as `output_serializer` renders through a
+`DataclassSerializer` generated for it, and its projection is read from that
+serializer. A marking reaches a dataclass field the way any field option does,
+as `serializer_kwargs` in the field's metadata:
+
+```python
+from dataclasses import dataclass, field
+
+
+def marked(marking, **kwargs):
+    return field(metadata={"serializer_kwargs": {"style": {MARKING: marking}}}, **kwargs)
+
+
+@dataclass
+class AccountOut:
+    id: int = marked(FieldMarking.handle("Account handle for other tools."))
+    name: str = marked(FieldMarking.label())
+    etag: str = marked(FieldMarking.hidden(), default="")
+    tier: Tier = Tier.GOLD
+```
+
+An `Enum` field renders as a choice field whose display values are the member
+names, so it is substituted like any other choice: the agent reads `"GOLD"` and
+its schema says so, while the REST response keeps `"gold"`. Mark the field
+`FieldMarking.handle()` if another tool takes the value as input.
+
 ## Apply it
 
 An agent transport renders with

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import enum
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -55,13 +56,62 @@ def test_unmarked_serializer_projects_empty() -> None:
     assert build_audience_projection(_Plain).is_empty()
 
 
-def test_non_serializer_projects_empty() -> None:
+def test_unmarked_dataclass_and_none_project_empty() -> None:
     @dataclasses.dataclass
     class _Row:
         name: str
 
     assert build_audience_projection(_Row).is_empty()
     assert build_audience_projection(None).is_empty()
+
+
+def test_a_base_serializer_that_is_not_a_serializer_projects_empty() -> None:
+    """DRF's read-only pattern renders through ``to_representation`` and declares
+    no fields, so there is nothing to read a marking from. Holds the
+    ``issubclass(..., Serializer)`` conjunct: without it this is instantiated and
+    asked for ``fields`` it does not have."""
+
+    class _ReadOnly(serializers.BaseSerializer):
+        def to_representation(self, instance: object) -> object:
+            return str(instance)
+
+    assert build_audience_projection(_ReadOnly).is_empty()
+
+
+class _Tier(enum.Enum):
+    GOLD = "gold"
+
+
+@dataclasses.dataclass
+class _Address:
+    city: str
+    code: str = dataclasses.field(
+        default="",
+        metadata={"serializer_kwargs": {"style": {MARKING: FieldMarking.hidden()}}},
+    )
+
+
+@dataclasses.dataclass
+class _Account:
+    etag: str = dataclasses.field(
+        metadata={"serializer_kwargs": {"style": {MARKING: FieldMarking.hidden()}}}
+    )
+    tier: _Tier = _Tier.GOLD
+    address: _Address | None = None
+
+
+def test_a_dataclass_is_read_through_the_serializer_it_renders_with() -> None:
+    """A bare dataclass renders through a generated ``DataclassSerializer``, so
+    its projection is that serializer's: a marking passed to a field as
+    ``serializer_kwargs`` metadata is collected, an ``Enum`` field is a choice
+    field with its member names as labels, and a nested dataclass projects as a
+    nested serializer. The projection is what an agent transport hides by, so a
+    marking read nowhere is a hidden field shown."""
+    projection = build_audience_projection(_Account)
+
+    assert projection.audience("etag") is FieldAudience.HIDDEN
+    assert projection.choice_labels == {"tier": {"gold": "GOLD"}}
+    assert projection.nested["address"].audience("code") is FieldAudience.HIDDEN
 
 
 def test_marking_under_another_key_still_counts() -> None:
@@ -180,7 +230,7 @@ def test_an_override_clash_names_the_serializer_when_no_name_is_given() -> None:
 def test_overrides_apply_to_a_spec_that_renders_through_no_serializer() -> None:
     """``None`` projects empty, and an override is still the caller's to make.
 
-    A spec rendering a plain dataclass has nothing to mark up, but the mount's
+    A spec rendering no serializer has nothing to mark up, but the mount's
     declaration is about the payload, not about the serializer.
     """
     projection = build_audience_projection(None, overrides={"secret": FieldMarking.hidden()})

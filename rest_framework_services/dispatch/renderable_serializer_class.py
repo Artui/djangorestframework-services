@@ -31,9 +31,12 @@ def renderable_serializer_class(declared: type | None) -> type[BaseSerializer[An
 
     Every render site in this package resolves through it: ``render_spec_output``,
     the selector views' and viewsets' ``get_serializer_class()``,
-    ``@selector_action`` and a mutation's response. A transport that instantiates
-    an output declaration itself — to render a resource outside
-    ``render_spec_output``, say — calls this and instantiates what it returns:
+    ``@selector_action``, a mutation's response, and
+    [`build_audience_projection`][rest_framework_services.audience.build_audience_projection.build_audience_projection],
+    so an agent is shaped by the markings of the class it is actually rendered
+    with. A transport that instantiates an output declaration itself — to render a
+    resource outside ``render_spec_output``, say — calls this and instantiates what
+    it returns:
 
         serializer_class = renderable_serializer_class(spec.output_serializer)
         payload = serializer_class(

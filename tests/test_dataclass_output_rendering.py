@@ -15,6 +15,7 @@ declaration, checked by a real JSON Schema validator.
 
 from __future__ import annotations
 
+import enum
 from dataclasses import dataclass, field, fields
 from decimal import Decimal
 from typing import Any
@@ -38,12 +39,15 @@ from rest_framework_services import (
     ServiceSpec,
     ServiceViewSet,
     arender_spec_output,
+    audience_projection_for_spec,
+    render_for_audience,
     render_spec_output,
     selector_action,
     spec_to_json_schema,
 )
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
 from rest_framework_services.openapi import enable_openapi
+from rest_framework_services.types.field_marking import MARKING, FieldMarking
 
 
 @dataclass
@@ -390,4 +394,131 @@ class TestSchemaRenderAgreement:
     def test_list_payload_validates_against_its_schema(self) -> None:
         spec = _list_spec()
         payload = render_spec_output(spec, [_ada(), _grace()], many=True)
+        _assert_agrees(payload, spec_to_json_schema(spec, phase="output"))
+
+
+# ----- an agent reads the projection of the class the output renders through -----
+
+
+class _Tier(enum.Enum):
+    GOLD = "gold"
+    SILVER = "silver"
+
+
+def _marked(marking: FieldMarking, **kwargs: Any) -> Any:
+    """A dataclass field carrying a marking, the way ``DataclassSerializer`` takes
+    field options: as ``serializer_kwargs`` in the field's metadata."""
+    return field(metadata={"serializer_kwargs": {"style": {MARKING: marking}}}, **kwargs)
+
+
+@dataclass
+class _Account:
+    id: int = _marked(FieldMarking.handle("Pass to get_account."))
+    name: str = _marked(FieldMarking.label())
+    etag: str = _marked(FieldMarking.hidden(), default="W/1")
+    tier: _Tier = _Tier.GOLD
+    previous_tier: _Tier | None = None
+
+
+def _account_spec(kind: SelectorKind = SelectorKind.RETRIEVE) -> SelectorSpec[Any, Any]:
+    return SelectorSpec(kind=kind, output_serializer=_Account)
+
+
+# One account leaves the optional enum unset and one sets it, so both arms of
+# its ``anyOf`` are held against the payload.
+ACCOUNTS = (
+    _Account(id=1, name="Acme"),
+    _Account(id=2, name="Globex", tier=_Tier.SILVER, previous_tier=_Tier.GOLD),
+)
+
+
+def _agent_schema(kind: SelectorKind = SelectorKind.RETRIEVE) -> dict[str, Any]:
+    spec = _account_spec(kind)
+    schema = output_to_json_schema(
+        _Account, kind=kind, projection=audience_projection_for_spec(spec)
+    )
+    assert schema is not None
+    return schema
+
+
+class TestAgentProjection:
+    def test_a_hidden_field_is_dropped_for_an_agent_and_kept_for_the_browser(self) -> None:
+        spec = _account_spec()
+        assert "etag" not in render_for_audience(spec, ACCOUNTS[0])
+        assert render_spec_output(spec, ACCOUNTS[0])["etag"] == "W/1"
+
+    def test_a_hidden_field_is_dropped_from_every_row_of_a_list(self) -> None:
+        rows = render_for_audience(_account_spec(SelectorKind.LIST), list(ACCOUNTS), many=True)
+        assert [sorted(row) for row in rows] == [["id", "name", "previous_tier", "tier"]] * 2
+
+    def test_an_enum_is_spoken_for_an_agent_and_valued_for_the_browser(self) -> None:
+        spec = _account_spec()
+        agent = render_for_audience(spec, ACCOUNTS[1])
+        browser = render_spec_output(spec, ACCOUNTS[1])
+        assert (agent["tier"], agent["previous_tier"]) == ("SILVER", "GOLD")
+        assert (browser["tier"], browser["previous_tier"]) == ("silver", "gold")
+
+    def test_a_handle_is_neither_spoken_nor_hidden(self) -> None:
+        agent = render_for_audience(_account_spec(), ACCOUNTS[0])
+        assert (agent["id"], agent["name"]) == (1, "Acme")
+
+
+class TestAgentSchemaAgreement:
+    """The agent schema is annotated from the same projection the payload is
+    shaped by, so each marking is asserted on the schema *and* the payload
+    validated against it: a validator alone passes a schema that still names a
+    hidden field the payload merely omits."""
+
+    def test_the_hidden_field_is_absent_from_the_schema(self) -> None:
+        schema = _agent_schema()
+        assert "etag" not in schema["properties"]
+        assert "etag" not in schema.get("required", [])
+
+    def test_the_enum_is_declared_in_its_display_values(self) -> None:
+        properties = _agent_schema()["properties"]
+        assert properties["tier"] == {"enum": ["GOLD", "SILVER"]}
+        assert properties["previous_tier"] == {
+            "anyOf": [{"enum": ["GOLD", "SILVER"]}, {"type": "null"}]
+        }
+
+    def test_the_handle_carries_its_description(self) -> None:
+        assert _agent_schema()["properties"]["id"] == {
+            "type": "integer",
+            "description": "Pass to get_account.",
+        }
+
+    def test_retrieve_payloads_validate(self) -> None:
+        """Checks the payload was projected before validating it, because two
+        unprojected sides agree as well as two projected ones do."""
+        schema = _agent_schema()
+        for account in ACCOUNTS:
+            payload = render_for_audience(_account_spec(), account)
+            assert "etag" not in payload
+            assert payload["tier"] == account.tier.name
+            assert set(payload) == set(schema["properties"])
+            _assert_agrees(payload, schema)
+
+    def test_list_payload_validates(self) -> None:
+        payload = render_for_audience(_account_spec(SelectorKind.LIST), list(ACCOUNTS), many=True)
+        assert [row["previous_tier"] for row in payload] == [None, "GOLD"]
+        _assert_agrees(payload, _agent_schema(SelectorKind.LIST))
+
+
+class TestBrowserSchemaAgreement:
+    """The unprojected half, which the projection must not reach. These held
+    before the projection read dataclass markings and are here to keep holding."""
+
+    def test_retrieve_payloads_validate(self) -> None:
+        spec = _account_spec()
+        schema = spec_to_json_schema(spec, phase="output")
+        assert schema is not None
+        assert schema["properties"]["tier"] == {"enum": ["gold", "silver"]}
+        for account in ACCOUNTS:
+            payload = render_spec_output(spec, account)
+            assert set(payload) == set(schema["properties"])
+            _assert_agrees(payload, schema)
+
+    def test_list_payload_validates(self) -> None:
+        spec = _account_spec(SelectorKind.LIST)
+        payload = render_spec_output(spec, list(ACCOUNTS), many=True)
         _assert_agrees(payload, spec_to_json_schema(spec, phase="output"))
