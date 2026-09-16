@@ -21,6 +21,7 @@ from rest_framework_services.jsonschema.filterset_to_json_schema import filterse
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
 from rest_framework_services.jsonschema.serializer_to_json_schema import serializer_to_json_schema
 from rest_framework_services.jsonschema.spec_to_json_schema import spec_to_json_schema
+from rest_framework_services.registry.capability_manifest import capability_manifest
 from rest_framework_services.registry.spec_registry import SpecRegistry
 from rest_framework_services.selectors.utils import (
     apply_queryset_shaping,
@@ -55,6 +56,7 @@ _SURFACE = {
     "build_input_serializer": build_input_serializer,
     "build_input_serializer_from_data": build_input_serializer_from_data,
     "build_offline_context": build_offline_context,
+    "capability_manifest": capability_manifest,
     "dispatch_spec": dispatch_spec,
     "enforce_permissions": enforce_permissions,
     "filterset_to_json_schema": filterset_to_json_schema,
