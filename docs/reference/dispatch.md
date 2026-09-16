@@ -231,6 +231,19 @@ the HTTP path — see
 
 ::: rest_framework_services.dispatch.enforce_permissions.enforce_permissions
 
+### `enforce_affordances` / `aenforce_affordances`
+
+`dispatch_spec` checks a spec's `affordances` itself. A transport that runs a
+service **without** the core -- a chain step handed a pool it built, say -- calls
+one of these the way it calls `enforce_permissions`: after permissions and target
+resolution, before the spec's `preconditions`, which is the order the core uses.
+Skip it and a call the direct path refuses with `ActionUnavailable` succeeds on
+that path instead.
+
+::: rest_framework_services.dispatch.enforce_affordances.enforce_affordances
+
+::: rest_framework_services.dispatch.aenforce_affordances.aenforce_affordances
+
 ## Shared
 
 ### `resolve_callable_kwargs`

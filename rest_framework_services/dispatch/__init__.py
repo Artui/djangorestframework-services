@@ -7,6 +7,7 @@ orchestration; everything off the HTTP path composes these.
 """
 
 from rest_framework_services.dispatch.adispatch_spec import adispatch_spec
+from rest_framework_services.dispatch.aenforce_affordances import aenforce_affordances
 from rest_framework_services.dispatch.arender_for_audience import arender_for_audience
 from rest_framework_services.dispatch.arender_spec_output import arender_spec_output
 from rest_framework_services.dispatch.base_pool import base_pool
@@ -14,6 +15,7 @@ from rest_framework_services.dispatch.base_serializer_context import base_serial
 from rest_framework_services.dispatch.build_offline_context import build_offline_context
 from rest_framework_services.dispatch.combine_progress import combine_progress
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
+from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
 from rest_framework_services.dispatch.enforce_permissions import enforce_permissions
 
 # Must stay *after* ``base_pool``. Importing that module imports this one as
@@ -35,6 +37,7 @@ from rest_framework_services.dispatch.unguarded_specs import unguarded_specs
 
 __all__ = [
     "adispatch_spec",
+    "aenforce_affordances",
     "arender_for_audience",
     "arender_spec_output",
     "base_pool",
@@ -42,6 +45,7 @@ __all__ = [
     "build_offline_context",
     "combine_progress",
     "dispatch_spec",
+    "enforce_affordances",
     "enforce_permissions",
     "DEFAULT_PAGE_SIZE",
     "null_progress",

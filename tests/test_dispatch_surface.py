@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import rest_framework_services as pkg
 from rest_framework_services.dispatch.adispatch_spec import adispatch_spec
+from rest_framework_services.dispatch.aenforce_affordances import aenforce_affordances
 from rest_framework_services.dispatch.build_offline_context import build_offline_context
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
+from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
 from rest_framework_services.dispatch.enforce_permissions import enforce_permissions
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
@@ -51,6 +53,9 @@ _SURFACE = {
     "RegisteredSpec": RegisteredSpec,
     "SpecRegistry": SpecRegistry,
     "adispatch_spec": adispatch_spec,
+    # A transport that runs a service without the dispatch core -- a chain step --
+    # re-runs the affordance check through these, as it re-runs permissions.
+    "aenforce_affordances": aenforce_affordances,
     "apply_queryset_shaping": apply_queryset_shaping,
     "arun_selector": arun_selector,
     "arun_service": arun_service,
@@ -59,6 +64,7 @@ _SURFACE = {
     "build_offline_context": build_offline_context,
     "capability_manifest": capability_manifest,
     "dispatch_spec": dispatch_spec,
+    "enforce_affordances": enforce_affordances,
     "enforce_permissions": enforce_permissions,
     "filterset_to_json_schema": filterset_to_json_schema,
     "is_async": is_async,
