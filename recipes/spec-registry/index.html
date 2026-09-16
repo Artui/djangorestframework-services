@@ -548,6 +548,8 @@
       
         
       
+        
+      
     
     
     
@@ -729,6 +731,34 @@
     
   
     State rules with preconditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../affordances/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What can be done right now
   
 
     
@@ -997,6 +1027,17 @@
     <span class="md-ellipsis">
       
         Reading a registry back
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-whole-surface-as-one-document" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The whole surface as one document
       
     </span>
   </a>
@@ -1620,6 +1661,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#the-whole-surface-as-one-document" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The whole surface as one document
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1770,6 +1822,37 @@ that is neither a <code>ServiceSpec</code> nor a <code>SelectorSpec</code>. A <c
 is rejected too, with a pointer at the supported shape: register each of its
 variants under its own name, since a transport that projects one operation per
 name wants one operation per variant, not a union.</p>
+<h2 id="the-whole-surface-as-one-document">The whole surface as one document<a class="headerlink" href="#the-whole-surface-as-one-document" title="Permanent link">&para;</a></h2>
+<p><code>capability_manifest(registry)</code> describes every operation the registry holds —
+its name, whether it is a mutation or a query, its tags, its declared
+<code>idempotent</code>, its input and output JSON Schema, and the permission classes that
+guard it — as one JSON-native document:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">capability_manifest</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">manifest</span> <span class="o">=</span> <span class="n">capability_manifest</span><span class="p">(</span><span class="n">registry</span><span class="p">)</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">manifest</span><span class="p">[</span><span class="s2">&quot;operations&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="c1"># {&quot;name&quot;: &quot;list_orders&quot;, &quot;kind&quot;: &quot;query&quot;, &quot;tags&quot;: [&quot;public&quot;, &quot;read&quot;],</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="c1">#  &quot;idempotent&quot;: None, &quot;input_schema&quot;: {...}, &quot;output_schema&quot;: {...},</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1">#  &quot;guards&quot;: [{&quot;source&quot;: &quot;orders.permissions.IsStaff&quot;}]}</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">manifest</span><span class="p">[</span><span class="s2">&quot;unguarded&quot;</span><span class="p">]</span>  <span class="c1"># names whose permission_classes is None</span>
+</span></code></pre></div>
+<p>A mutation that declares <a href="../affordances/">affordances</a> lists them too, as
+<code>"affordances": [{"code": "order_shipped", "reason": "A shipped order cannot be
+cancelled.", "scope": "row"}]</code> — the codes a call can be refused with, the
+sentence each refusal says, and whether each is answered per row or for the
+operation as a whole. They are the same codes and sentences a rendered object's
+<code>affordances</code> answers carry and a 409 names, so a model reading the manifest
+learns what each refusal will say before it meets one. Both are declarations
+about the operation, never a row's state.</p>
+<p>The schemas are exactly what <code>spec_to_json_schema</code> produces, and the top-level
+<code>dialect</code> names that policy, so a manifest and the tool list a transport builds
+from the same registry describe each operation identically.</p>
+<p>Two things it deliberately is not. It names no principal and decides nothing: a
+guard is listed by its import path, because what a permission class grants is
+only known by running it against a caller. And it is not a document to serve to
+a client — it enumerates operations a given caller may not be able to see at
+all. Diff it in review, feed it to a test, or build a principal-scoped view on
+top of it; it reads no database, so building it is cheap.</p>
 <p>Full signatures in the <a href="../../reference/registry/">spec registry reference</a>.</p>
 
 

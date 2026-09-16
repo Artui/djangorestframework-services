@@ -546,6 +546,8 @@
       
         
       
+        
+      
     
     
     
@@ -729,6 +731,34 @@
     
   
     State rules with preconditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/affordances/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What can be done right now
   
 
     
@@ -2070,14 +2100,21 @@ most MCP clients reject outright.</p>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">handle_description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">max_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">affordances</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
         <p>Build a JSON Schema for an output serializer, or <code>None</code> when undeclared.</p>
 <p>Returns <code>None</code> when there is no <code>output_serializer</code> — callers shouldn't
-fabricate a misleading shape. <code>kind</code> / <code>paginate</code> make the schema match
+fabricate a misleading shape — and when the output is a <code>BaseSerializer</code>
+subclass that is not a <code>Serializer</code>, which renders but declares no fields.
+Anything that is neither a <code>BaseSerializer</code> subclass nor a dataclass type
+raises <code>TypeError</code>: <code>None</code> would read as "no output declared" for a
+declaration whose output cannot be rendered at all. A transport building
+schemas lazily, per listing request, meets that error there, so build them
+where the spec is registered. <code>kind</code> / <code>paginate</code> make the schema match
 what dispatch actually returns:</p>
 <ul>
 <li><code>kind=None</code> / <code>RETRIEVE</code> — the bare item schema.</li>
@@ -2120,6 +2157,16 @@ after a fixed number of appearances rather than recursing until the process
 dies; where the two disagree the tighter wins, so this still yields exactly
 the levels it names. Truncation is flat and self-contained — never <code>$defs</code>
 / <code>$ref</code>, which most MCP clients reject outright.</p>
+<p><code>affordances</code> is the rendering selector spec's <code>affordances</code> mapping, and
+declares the <code>affordances</code> object every rendered item then carries: per
+name, a required <code>available</code> boolean, plus the <code>code</code> -- enumerated from
+the declaration -- and <code>reason</code> a refused answer adds, with or without a
+<code>projection</code>, since the agent audience reads the same answers a browser
+does. Pass it wherever the payload is
+rendered by <code>render_spec_output</code> or <code>render_for_audience</code> from a spec that
+declares them;
+<a class="autorefs autorefs-internal" title="spec_to_json_schema" href="#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
+does so itself.</p>
 
 
     </div>
@@ -2239,13 +2286,15 @@ for custom field / filter / Python types — see
   
       dataclass
   " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> supplies its
-<code>output_selector_spec</code>'s <code>output_serializer</code> and <code>kind</code>, a
+<code>output_selector_spec</code>'s <code>output_serializer</code>, <code>kind</code> and <code>affordances</code>, a
 <a class="autorefs autorefs-internal" title="SelectorSpec
 
 
   
       dataclass
-  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> its own.</p>
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> its own.
+Declared <code>affordances</code> add the <code>affordances</code> object each rendered item
+carries, <code>reason</code> included -- the shape <code>render_spec_output</code> produces.</p>
 <p><code>max_depth</code> bounds how many serializer levels are described, truncating
 deeper ones to <code>{"type": "object"}</code>; <code>None</code>, the default, describes them
 all. It reaches the serializer-backed schemas — a <code>ServiceSpec</code>'s input

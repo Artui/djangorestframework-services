@@ -546,6 +546,8 @@
       
         
       
+        
+      
     
     
     
@@ -729,6 +731,34 @@
     
   
     State rules with preconditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/affordances/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What can be done right now
   
 
     
@@ -1511,6 +1541,34 @@
   </a>
   
     <nav class="md-nav" aria-label="base_serializer_context">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#renderable_serializer_class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        renderable_serializer_class
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.renderable_serializer_class.renderable_serializer_class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        renderable_serializer_class
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="renderable_serializer_class">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2841,6 +2899,34 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#renderable_serializer_class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        renderable_serializer_class
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.renderable_serializer_class.renderable_serializer_class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        renderable_serializer_class
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="renderable_serializer_class">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#dispatchresult" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4103,8 +4189,9 @@ transport to materialize / paginate in a thread.</p>
 <a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>:
 every transport renders the same way instead of re-implementing serializer + context
 plumbing. Reads the output serializer from <code>spec.output_serializer</code> (selector) or
-<code>spec.output_selector_spec.output_serializer</code> (service); when none is set the
-value passes through (list-coerced when <code>many=True</code> so a queryset evaluates).</p>
+<code>spec.output_selector_spec.output_serializer</code> (service), a raw dataclass type
+rendering through a <code>DataclassSerializer</code> for it; when none is set the value
+passes through (list-coerced when <code>many=True</code> so a queryset evaluates).</p>
 <p>The serializer <code>context</code> always carries DRF's baseline — <code>request</code> / <code>format</code>
 / <code>view</code>, from
 <a class="autorefs autorefs-internal" title="base_serializer_context" href="#rest_framework_services.dispatch.base_serializer_context.base_serializer_context"><code>base_serializer_context</code></a>
@@ -4116,6 +4203,20 @@ merged over that baseline.</p>
 <p>Pagination is the caller's job — pass the already-sliced page as <code>value</code>
 (and the same page object under the matching <code>extras</code> key) so an
 id-keyed batched context query reuses the page's result cache.</p>
+<p><strong>Affordances.</strong> When the selector spec rendered through declares
+<code>affordances</code>, each rendered object gains an <code>affordances</code> key: per
+declared name, <code>{"available": true}</code>, or <code>{"available": false, "code": ...,
+"reason": ...}</code> naming the first condition the row does not meet, or a bare
+<code>{"available": false}</code> for a row deleted before its answers were asked,
+which fails no condition and so has no sentence to report; <code>None</code> is not a
+row and carries none. The answers are read off the rows as the
+selector's dispatch left them -- annotations on a queryset's rows, or the
+answers it attached to rows a selector returned directly -- so rendering them
+costs no query; <code>many</code> rows are materialised once so the rows walked are the
+rows rendered.
+<a class="autorefs autorefs-internal" title="render_for_audience" href="#rest_framework_services.dispatch.render_for_audience.render_for_audience"><code>render_for_audience</code></a>
+renders the same answers, <code>reason</code> included. A spec declaring none renders
+exactly as before.</p>
 
 
     </div>
@@ -4236,6 +4337,10 @@ and pass it in.</p>
 <p>Render the agent's <strong>answer</strong> with this. A pipeline that feeds one spec's
 output into the next must keep rendering with <code>render_spec_output</code>, or the
 handles the next step reads by will have been projected away.</p>
+<p>Declared <code>affordances</code> pass through whole: <code>available</code>, the <code>code</code> a
+transport or client branches on, and the <code>reason</code> -- the sentence a model
+relays when it explains why an action is not possible, written for exactly
+that reader.</p>
 
 
     </div>
@@ -4595,6 +4700,62 @@ one, as the MCP server does.</p>
 <code>resolve_output_context</code> /
 <code>resolve_input_context</code>, so a
 provider keeps the final say on every key — including these three.</p>
+
+
+    </div>
+
+</div><h3 id="renderable_serializer_class"><code>renderable_serializer_class</code><a class="headerlink" href="#renderable_serializer_class" title="Permanent link">&para;</a></h3>
+<p>The class an <code>output_serializer</code> declaration renders through: a serializer
+class as declared, a bare dataclass wrapped in a <code>DataclassSerializer</code>.
+<code>render_spec_output</code> and the HTTP views resolve it themselves — a transport
+that instantiates an output declaration outside them resolves it here first,
+or a dataclass output raises where a serializer would have rendered.</p>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.renderable_serializer_class.renderable_serializer_class" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">renderable_serializer_class</span>
+
+
+<a href="#rest_framework_services.dispatch.renderable_serializer_class.renderable_serializer_class" class="headerlink" title="Permanent link">&para;</a></h2>
+          <div class="doc-overloads">
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">renderable_serializer_class</span><span class="p">(</span><span class="n">declared</span><span class="p">:</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div><div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">renderable_serializer_class</span><span class="p">(</span><span class="n">declared</span><span class="p">:</span> <span class="nb">type</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">BaseSerializer</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span>
+</span></code></pre></div>          </div>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">renderable_serializer_class</span><span class="p">(</span><span class="n">declared</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">BaseSerializer</span><span class="p">[</span><span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The class an <code>output_serializer</code> declaration renders through.</p>
+<p>A bare dataclass type is wrapped in a <code>DataclassSerializer</code> — the payload
+<a class="autorefs autorefs-internal" title="output_to_json_schema" href="../jsonschema/#rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema"><code>output_to_json_schema</code></a>
+already describes for it, field by field — and anything else comes back
+exactly as declared, <code>None</code> included. Instantiating the declaration directly
+works for a serializer and fails for a dataclass, whose own <code>__init__</code> is
+handed <code>many=</code> / <code>context=</code>; resolving it here first is what lets both
+shapes render.</p>
+<p>Every render site in this package resolves through it: <code>render_spec_output</code>,
+the selector views' and viewsets' <code>get_serializer_class()</code>,
+<code>@selector_action</code>, a mutation's response, and
+<a class="autorefs autorefs-internal" title="build_audience_projection" href="../audience/#rest_framework_services.audience.build_audience_projection.build_audience_projection"><code>build_audience_projection</code></a>,
+so an agent is shaped by the markings of the class it is actually rendered
+with. A transport that instantiates an output declaration itself — to render a
+resource outside <code>render_spec_output</code>, say — calls this and instantiates what
+it returns:</p>
+<div class="language-text highlight"><pre><span></span><code>serializer_class = renderable_serializer_class(spec.output_serializer)
+payload = serializer_class(
+    value, many=many, context=base_serializer_context(view=view, request=request)
+).data
+</code></pre></div>
+<p>A dataclass gets one class for the life of the process, so repeated calls
+return the same object.</p>
+<p>The pass-through is deliberate rather than a check. A <code>BaseSerializer</code>
+subclass is the ordinary case, and a declaration that is neither is refused
+where its schema is derived; refusing it here as well would break a caller
+that renders through a serializer-shaped factory without ever deriving one.</p>
 
 
     </div>

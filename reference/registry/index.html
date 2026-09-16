@@ -546,6 +546,8 @@
       
         
       
+        
+      
     
     
     
@@ -729,6 +731,34 @@
     
   
     State rules with preconditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/affordances/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What can be done right now
   
 
     
@@ -1506,6 +1536,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#capability_manifest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capability_manifest
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.capability_manifest.capability_manifest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capability_manifest
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#offlinecontract" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1848,6 +1900,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#capability_manifest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capability_manifest
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.registry.capability_manifest.capability_manifest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capability_manifest
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#offlinecontract" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1913,8 +1987,8 @@
 
 <h1 id="spec-registry">Spec registry<a class="headerlink" href="#spec-registry" title="Permanent link">&para;</a></h1>
 <p>A named, taggable home for a project's spec set, so each transport reads one
-source instead of enumerating the same specs again. Both symbols are importable
-from the top-level package.</p>
+source instead of enumerating the same specs again. Every symbol here is
+importable from the top-level package.</p>
 <p>For the task-shaped walkthrough — where the instance lives, multiple registries,
 filtered views — see the recipe
 <a href="../../recipes/spec-registry/">Declare specs once, project them to many transports</a>.</p>
@@ -2458,6 +2532,195 @@ where it should be declared.</p>
 
 
   </div>
+
+    </div>
+
+</div><h2 id="capability_manifest"><code>capability_manifest</code><a class="headerlink" href="#capability_manifest" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.registry.capability_manifest.capability_manifest" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">capability_manifest</span>
+
+
+<a href="#rest_framework_services.registry.capability_manifest.capability_manifest" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">capability_manifest</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">SpecRegistry</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">schema_registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Describe every operation in <code>registry</code>: what exists and what shape it takes.</p>
+<p>The surface a transport already derives piecemeal -- an MCP tool list, an agent
+toolset's descriptions, a frontend's action menu -- as one JSON-native
+document, derived from the registry rather than written by hand:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;version&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="s2">&quot;dialect&quot;</span><span class="p">:</span> <span class="s2">&quot;rest_framework_services.jsonschema/1&quot;</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="s2">&quot;operations&quot;</span><span class="p">:</span> <span class="p">[</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        <span class="p">{</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>            <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;refund_order&quot;</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>            <span class="s2">&quot;kind&quot;</span><span class="p">:</span> <span class="s2">&quot;mutation&quot;</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>            <span class="s2">&quot;tags&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span> <span class="s2">&quot;write&quot;</span><span class="p">],</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>            <span class="s2">&quot;idempotent&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>            <span class="s2">&quot;input_schema&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;object&quot;</span><span class="p">,</span> <span class="s2">&quot;properties&quot;</span><span class="p">:</span> <span class="p">{</span><span class="o">...</span><span class="p">}},</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>            <span class="s2">&quot;output_schema&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;object&quot;</span><span class="p">,</span> <span class="s2">&quot;properties&quot;</span><span class="p">:</span> <span class="p">{</span><span class="o">...</span><span class="p">}},</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>            <span class="s2">&quot;guards&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;source&quot;</span><span class="p">:</span> <span class="s2">&quot;orders.permissions.IsSupport&quot;</span><span class="p">}],</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>            <span class="s2">&quot;affordances&quot;</span><span class="p">:</span> <span class="p">[</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                <span class="p">{</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>                    <span class="s2">&quot;code&quot;</span><span class="p">:</span> <span class="s2">&quot;order_shipped&quot;</span><span class="p">,</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>                    <span class="s2">&quot;reason&quot;</span><span class="p">:</span> <span class="s2">&quot;A shipped order cannot be cancelled.&quot;</span><span class="p">,</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>                    <span class="s2">&quot;scope&quot;</span><span class="p">:</span> <span class="s2">&quot;row&quot;</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>                <span class="p">}</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>            <span class="p">],</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>        <span class="p">},</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>        <span class="o">...</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>    <span class="p">],</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    <span class="s2">&quot;unguarded&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;list_orders&quot;</span><span class="p">],</span>
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><strong>It names no principal and decides nothing</strong>, deliberately. It is the same
+for every caller, so it says which guards an operation carries and never what
+they grant: a permission class is code, and nothing short of running it
+against a principal answers that. A reader that understands a declarative
+policy can layer a decision onto each operation; this document is what such a
+reader starts from. For the same reason it is <strong>not a document to serve to a
+client</strong> -- it enumerates operations a given caller may be unable to see at
+all.</p>
+<p>Keys, per operation:</p>
+<ul>
+<li><code>name</code> -- the registry name, which is the operation's identity across
+  transports.</li>
+<li><code>kind</code> -- <code>"mutation"</code> for a <code>ServiceSpec</code>, <code>"query"</code> for a
+  <code>SelectorSpec</code>, derived by type exactly as the registry derives it.</li>
+<li><code>tags</code> -- sorted, so two manifests of one registry are byte-identical.</li>
+<li><code>idempotent</code> -- <code>ServiceSpec.idempotent</code> as declared, <code>None</code> included:
+  silence is not a claim, and a reader must be able to tell it from a declared
+  <code>False</code>. Always <code>None</code> on a query, which has no such declaration -- its
+  <code>kind</code> already says it changes nothing.</li>
+<li><code>input_schema</code> / <code>output_schema</code> -- exactly what
+  <a class="autorefs autorefs-internal" title="spec_to_json_schema" href="../jsonschema/#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
+  derives for each phase, so the document carries this package's schema
+  dialect rather than a second one; <code>output_schema</code> is <code>None</code> where no
+  output is declared. <code>dialect</code> names that policy at the top level.</li>
+<li><code>guards</code> -- one <code>{"source": &lt;dotted class path&gt;}</code> per permission class,
+  in declaration order; <code>None</code> where the spec declares none (<code>[]</code> is a
+  declared "no permissions" and stays distinguishable).</li>
+<li><code>affordances</code> -- one <code>{"code": ..., "reason": ..., "scope": ...}</code> per
+  <a class="autorefs autorefs-internal" title="Affordance
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.affordance.Affordance"><code>Affordance</code></a> a
+  mutation declares, in declaration order: the codes a call can be refused
+  with, and the sentence each refusal says. <code>scope</code> is <code>"row"</code> for a condition on the row, which is answered
+  per object, and <code>"operation"</code> for a callable one, which is answered
+  without a row and so can decide whether the operation is offered at all.
+  <code>None</code> where nothing is declared, and always on a query. The <code>code</code>
+  here is the same <code>code</code> a rendered object's <code>affordances</code> answer
+  carries and a 409 body names, and the <code>reason</code> is the same declared
+  sentence those carry beside it, so a model reading the manifest learns what
+  each refusal will say before it meets one. Both are declarations about the
+  operation, never a row's state.</li>
+</ul>
+<p><code>unguarded</code> is <code>unguarded_specs</code> over the same registry: the operations
+whose <code>permission_classes</code> is <code>None</code>, which have nothing to inherit off
+HTTP.</p>
+<p>Pure: it reads declarations and never the database, so building it at
+startup, in a management command, or in a test costs the schema walk and
+nothing else.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>registry</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="SpecRegistry (rest_framework_services.registry.spec_registry.SpecRegistry)" href="#rest_framework_services.registry.spec_registry.SpecRegistry">SpecRegistry</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The operations to describe, in registration order.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>schema_registry</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="JsonSchemaRegistry
+
+
+  
+      dataclass
+   (rest_framework_services.types.json_schema_registry.JsonSchemaRegistry)" href="../jsonschema/#rest_framework_services.types.json_schema_registry.JsonSchemaRegistry">JsonSchemaRegistry</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Consumer rules for custom field / filter / Python types,
+forwarded to the schema derivation -- the same object a transport
+passes to <code>spec_to_json_schema</code>, so the manifest and the transport
+describe a custom field identically.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="DEFAULT_JSON_SCHEMA_REGISTRY
+
+
+  
+      module-attribute
+   (rest_framework_services.types.json_schema_registry.DEFAULT_JSON_SCHEMA_REGISTRY)" href="../jsonschema/#rest_framework_services.types.json_schema_registry.DEFAULT_JSON_SCHEMA_REGISTRY">DEFAULT_JSON_SCHEMA_REGISTRY</a></code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="TypeError">TypeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>registry</code> is not a <code>SpecRegistry</code>. A bare <code>name -&gt; spec</code>
+mapping has no tags, so every operation would be reported untagged --
+a manifest that is quietly smaller than the one a registry produces.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
 
     </div>
 

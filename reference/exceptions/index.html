@@ -544,6 +544,8 @@
       
         
       
+        
+      
     
     
     
@@ -727,6 +729,34 @@
     
   
     State rules with preconditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/affordances/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What can be done right now
   
 
     
@@ -1511,6 +1541,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rest_framework_services.exceptions.action_unavailable.ActionUnavailable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ActionUnavailable
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#rest_framework_services.exceptions.additional_input_required.AdditionalInputRequired" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1608,6 +1649,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rest_framework_services.exceptions.action_unavailable.ActionUnavailable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ActionUnavailable
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#rest_framework_services.exceptions.additional_input_required.AdditionalInputRequired" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1667,8 +1719,15 @@ for the mapping.</p>
 
 
         <p>Raised by services to signal a business-rule failure.</p>
-<p>Carries an optional structured <code>detail</code> payload so the view layer can
-surface a meaningful response without the service depending on DRF.</p>
+<p>Carries a <code>message</code> and nothing else, so the view layer can surface it
+without the service depending on DRF. A structured payload belongs to a
+member that declares one:
+<a class="autorefs autorefs-internal" title="ServiceValidationError" href="#rest_framework_services.exceptions.service_validation_error.ServiceValidationError"><code>ServiceValidationError</code></a>
+carries a field-keyed <code>detail</code>,
+<a class="autorefs autorefs-internal" title="AdditionalInputRequired" href="#rest_framework_services.exceptions.additional_input_required.AdditionalInputRequired"><code>AdditionalInputRequired</code></a>
+a <code>schema</code>, and
+<a class="autorefs autorefs-internal" title="ActionUnavailable" href="#rest_framework_services.exceptions.action_unavailable.ActionUnavailable"><code>ActionUnavailable</code></a>
+a <code>code</code>.</p>
 
 
 
@@ -1851,6 +1910,78 @@ a state rule is usually exactly this kind of collision.</p>
 a transport that has never heard of it still handles a <code>ServiceError</code>, and one
 that wants to do better matches on the class. It must match <strong>before</strong> its
 generic <code>ServiceError</code> handler, or the subclass check swallows it.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.exceptions.action_unavailable.ActionUnavailable" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ActionUnavailable</span>
+
+
+<a href="#rest_framework_services.exceptions.action_unavailable.ActionUnavailable" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="ServiceConflict (rest_framework_services.exceptions.service_conflict.ServiceConflict)" href="#rest_framework_services.exceptions.service_conflict.ServiceConflict">ServiceConflict</a></code></p>
+
+
+
+        <p>The operation is not possible right now, for a reason with a stable name.</p>
+<p>Raised by the dispatcher when one of a spec's
+<a class="autorefs autorefs-internal" title="Affordance
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.affordance.Affordance"><code>Affordance</code></a> conditions is
+not met, carrying that affordance's <code>code</code> and its <code>reason</code> as the message.
+Over HTTP it is a <code>409</code> whose body is <code>{"detail": &lt;reason&gt;, "code": &lt;code&gt;}</code>.</p>
+<p>A <a class="autorefs autorefs-internal" title="ServiceConflict" href="#rest_framework_services.exceptions.service_conflict.ServiceConflict"><code>ServiceConflict</code></a>
+subclass rather than a <code>code=</code> argument on its parent, for three reasons. The
+<code>409</code> mapping needs no change, because a subclass is matched by its parent's
+branch. A transport that wants the code matches this class ahead of its
+generic conflict handler, and one that has never heard of it still reports a
+conflict. And a <code>ServiceConflict</code> raised by hand from a precondition genuinely
+has no code and never will, so a nullable <code>code</code> on the parent would be a
+field that lies at every other call site.</p>
+<p><code>code</code> names the rule and is what a transport or client branches on; the
+message is the affordance's <code>reason</code>, the sentence a person or a model is
+shown when the call is refused. A transport serving an agent should pass on
+both: the model can say the sentence, and the code is what stays stable when
+the sentence is reworded.</p>
+<p>Like every member, it must be matched <strong>before</strong> a generic <code>ServiceConflict</code>
+or <code>ServiceError</code> handler, or the subclass check swallows it.</p>
 
 
 

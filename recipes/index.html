@@ -548,6 +548,8 @@
       
         
       
+        
+      
     
     
     
@@ -729,6 +731,34 @@
     
   
     State rules with preconditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="affordances/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What can be done right now
   
 
     
@@ -1496,6 +1526,10 @@ the <a href="../quickstart/">Quickstart</a> and <a href="../concepts/">Concepts<
 <li><strong><a href="permissions/">Per-action permissions on the spec</a></strong> — set
   <code>permission_classes</code> per action without <code>if self.action == ...</code>
   branching in <code>get_permissions()</code>.</li>
+<li><strong><a href="affordances/">What can be done to this object right now</a></strong> — declare
+  the state an operation needs with <code>affordances</code>, refuse with a stable code
+  and a 409, report every row's answer inside the list query, and why a
+  condition on the row must be an ORM expression.</li>
 <li><strong><a href="queryset-shaping/">Per-spec queryset shaping</a></strong> — add
   <code>select_related</code> / <code>prefetch_related</code> / <code>annotations</code> to a selector
   spec, plus an <code>extend_queryset</code> callable for request-dependent

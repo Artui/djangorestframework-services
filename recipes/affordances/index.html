@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/recipes/bulk-mutations/">
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/recipes/affordances/">
       
       
-        <link rel="prev" href="../nested-writes/">
+        <link rel="prev" href="../preconditions/">
       
       
-        <link rel="next" href="../serializer-context/">
+        <link rel="next" href="../queryset-shaping/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Bulk & collection mutations - djangorestframework-services</title>
+        <title>What can be done right now - djangorestframework-services</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#bulk-collection-mutations" class="md-skip">
+        <a href="#what-can-be-done-to-this-object-right-now" class="md-skip">
           Skip to content
         </a>
       
@@ -116,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Bulk & collection mutations
+              What can be done right now
             
           </span>
         </div>
@@ -748,10 +748,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../affordances/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What can be done right now
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -767,6 +794,120 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#a-code-and-a-reason-are-two-different-things" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A code and a reason are two different things
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#two-kinds-of-condition-and-the-type-decides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two kinds of condition, and the type decides
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-it-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where it runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#asking-for-a-whole-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Asking for a whole list
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Asking for a whole list">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-selector-that-returns-rows-instead-of-a-queryset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A selector that returns rows instead of a queryset
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-client-reads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a client reads
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#it-is-a-check-not-a-lock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        It is a check, not a lock
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#declaring-nothing-costs-nothing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declaring nothing costs nothing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -860,37 +1001,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Bulk & collection mutations
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../bulk-mutations/" class="md-nav__link">
         
   
   
@@ -906,76 +1020,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#manytrue-a-list-body-in-a-list-out" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        many=True — a list body in, a list out
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#collection_selector_spec-operate-on-a-filtered-set" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        collection_selector_spec — operate on a filtered set
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="collection_selector_spec — operate on a filtered set">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#return-the-affected-set" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Return the affected set
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#permissions-failures" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Permissions &amp; failures
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1591,10 +1635,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#manytrue-a-list-body-in-a-list-out" class="md-nav__link">
+  <a href="#a-code-and-a-reason-are-two-different-things" class="md-nav__link">
     <span class="md-ellipsis">
       
-        many=True — a list body in, a list out
+        A code and a reason are two different things
       
     </span>
   </a>
@@ -1602,22 +1646,44 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#collection_selector_spec-operate-on-a-filtered-set" class="md-nav__link">
+  <a href="#two-kinds-of-condition-and-the-type-decides" class="md-nav__link">
     <span class="md-ellipsis">
       
-        collection_selector_spec — operate on a filtered set
+        Two kinds of condition, and the type decides
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="collection_selector_spec — operate on a filtered set">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-it-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where it runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#asking-for-a-whole-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Asking for a whole list
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Asking for a whole list">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#return-the-affected-set" class="md-nav__link">
+  <a href="#a-selector-that-returns-rows-instead-of-a-queryset" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Return the affected set
+        A selector that returns rows instead of a queryset
       
     </span>
   </a>
@@ -1630,10 +1696,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#permissions-failures" class="md-nav__link">
+  <a href="#what-a-client-reads" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Permissions &amp; failures
+        What a client reads
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#it-is-a-check-not-a-lock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        It is a check, not a lock
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#declaring-nothing-costs-nothing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declaring nothing costs nothing
       
     </span>
   </a>
@@ -1657,7 +1745,7 @@
 
 
   
-    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/recipes/bulk-mutations.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/recipes/affordances.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -1665,122 +1753,211 @@
   
 
 
-<h1 id="bulk-collection-mutations">Bulk &amp; collection mutations<a class="headerlink" href="#bulk-collection-mutations" title="Permanent link">&para;</a></h1>
-<p>Two <code>ServiceSpec</code> shapes cover the bulk cases a single-instance spec can't.
-They're mutually exclusive.</p>
-<h2 id="manytrue-a-list-body-in-a-list-out"><code>many=True</code> — a list body in, a list out<a class="headerlink" href="#manytrue-a-list-body-in-a-list-out" title="Permanent link">&para;</a></h2>
-<p>Validate the request body as a list, hand the <strong>validated list</strong> to the
-service, and render the result list. The service loops itself — one call, one
-round-trip where the ORM allows it.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">ServiceSpec</span><span class="p">,</span> <span class="n">SelectorKind</span><span class="p">,</span> <span class="n">SelectorSpec</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<h1 id="what-can-be-done-to-this-object-right-now">What can be done to this object right now<a class="headerlink" href="#what-can-be-done-to-this-object-right-now" title="Permanent link">&para;</a></h1>
+<p>Some operations exist and are permitted and still cannot happen: an order that
+shipped cannot be cancelled, a draft with no title cannot be published, refunds
+are closed while the books are. That is not a fact about the caller — a
+permission class answers that, with a 403 — but a fact about the world, and it
+refuses with a 409.</p>
+<p><code>affordances</code> declares those facts once, on the operation, so the same
+declaration decides whether the call is refused and what the refusal says.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">django.db.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Exists</span><span class="p">,</span> <span class="n">OuterRef</span><span class="p">,</span> <span class="n">Q</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">Affordance</span><span class="p">,</span> <span class="n">ServiceSpec</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nd">@dataclass</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">BookIn</span><span class="p">:</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">bulk_create_books</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">BookIn</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Book</span><span class="p">]:</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="k">return</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">bulk_create</span><span class="p">([</span><span class="n">Book</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="n">item</span><span class="o">.</span><span class="n">title</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">data</span><span class="p">])</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="k">class</span><span class="w"> </span><span class="nc">BulkCreateBooksView</span><span class="p">(</span><span class="n">ServiceCreateView</span><span class="p">):</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        <span class="n">service</span><span class="o">=</span><span class="n">bulk_create_books</span><span class="p">,</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">BookIn</span><span class="p">,</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>        <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>        <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span> <span class="n">output_serializer</span><span class="o">=</span><span class="n">BookSerializer</span>
-</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>        <span class="p">),</span>
-</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>    <span class="p">)</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">cancel_order</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">service</span><span class="o">=</span><span class="n">cancel</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">permission_classes</span><span class="o">=</span><span class="p">[</span><span class="n">IsOrderOwner</span><span class="p">],</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">affordances</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="n">Affordance</span><span class="p">(</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>            <span class="n">code</span><span class="o">=</span><span class="s2">&quot;order_shipped&quot;</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>            <span class="n">reason</span><span class="o">=</span><span class="s2">&quot;A shipped order cannot be cancelled.&quot;</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>            <span class="n">when</span><span class="o">=~</span><span class="n">Q</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">&quot;shipped&quot;</span><span class="p">),</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>        <span class="p">),</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>        <span class="n">Affordance</span><span class="p">(</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>            <span class="n">code</span><span class="o">=</span><span class="s2">&quot;refund_pending&quot;</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>            <span class="n">reason</span><span class="o">=</span><span class="s2">&quot;Wait for the pending refund to settle.&quot;</span><span class="p">,</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>            <span class="n">when</span><span class="o">=~</span><span class="n">Exists</span><span class="p">(</span><span class="n">Refund</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="n">OuterRef</span><span class="p">(</span><span class="s2">&quot;pk&quot;</span><span class="p">),</span> <span class="n">settled</span><span class="o">=</span><span class="kc">False</span><span class="p">)),</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>        <span class="p">),</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="p">],</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="p">)</span>
 </span></code></pre></div>
-<p><code>POST</code> a JSON array; you get a <code>201</code> with the rendered array. Under
-<code>atomic=True</code> (the default) any item's <code>ServiceError</code> rolls the whole batch
-back.</p>
-<h2 id="collection_selector_spec-operate-on-a-filtered-set"><code>collection_selector_spec</code> — operate on a filtered set<a class="headerlink" href="#collection_selector_spec-operate-on-a-filtered-set" title="Permanent link">&para;</a></h2>
-<p>The LIST-kind twin of <code>instance_selector_spec</code>. It resolves a <strong>scoped set</strong>
-(via the selector + <a href="../selector-filtering/"><code>filter_set</code></a>) and seeds it into the
-service as <code>collection</code>. Use it for instance-less bulk delete / update — no
-single <code>pk</code> in the URL.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">delete_collection</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">published_books</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">user</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Book</span><span class="p">]:</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="k">return</span> <span class="n">Book</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">for_user</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>  <span class="c1"># owner-scoped</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="k">class</span><span class="w"> </span><span class="nc">BulkDeleteBooksView</span><span class="p">(</span><span class="n">ServiceDeleteView</span><span class="p">):</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>        <span class="n">service</span><span class="o">=</span><span class="n">delete_collection</span><span class="p">(</span><span class="n">Book</span><span class="p">),</span>  <span class="c1"># collection.delete()</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>        <span class="n">collection_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">published_books</span><span class="p">,</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>            <span class="n">filter_set</span><span class="o">=</span><span class="n">BookFilterSet</span><span class="p">,</span>  <span class="c1"># ?status=draft&amp;… narrows the set</span>
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>        <span class="p">),</span>
-</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    <span class="p">)</span>
+<p><code>when</code> is true when the action <strong>is</strong> available. A caller whose call fails a
+condition gets
+<a class="autorefs autorefs-internal" title="ActionUnavailable" href="../../reference/exceptions/#rest_framework_services.exceptions.action_unavailable.ActionUnavailable"><code>ActionUnavailable</code></a>
+— over HTTP a <code>409</code> whose body names the rule:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span><span class="nt">&quot;detail&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;A shipped order cannot be cancelled.&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;order_shipped&quot;</span><span class="p">}</span>
 </span></code></pre></div>
-<p><code>DELETE /books/?status=draft</code> deletes the draft set. The filter comes from the
-query string; an <strong>empty</strong> set is a harmless no-op (idempotent). A bulk update
-is the same shape with a service that calls <code>collection.update(...)</code> (return a
-summary like <code>{"updated": n}</code> to get a <code>200</code> body instead of <code>204</code>).</p>
-<p>The two channels stay apart here exactly as they do on a single-instance
-mutation: the <strong>query string</strong> feeds <code>filter_set</code> and the <strong>body</strong> feeds
-<code>input_serializer</code>. A repeated parameter therefore survives whole, so a
-<code>MultipleChoiceFilter</code> or an <code>id__in</code> filter reads every value of
-<code>?id=1&amp;id=2&amp;id=3</code>; and a query parameter cannot stand in for a serializer field
-it happens to share a name with. Selector <em>arguments</em> come from the body and the
-route captures — <code>?status=</code> reaches <code>filter_set</code>, not a <code>status=</code> keyword on the
-selector.</p>
-<p><code>delete_collection</code> / <code>adelete_collection</code> are batteries-included; pass
-<code>soft_delete=lambda qs: qs.update(is_archived=True)</code> to archive instead.</p>
-<h3 id="return-the-affected-set">Return the affected set<a class="headerlink" href="#return-the-affected-set" title="Permanent link">&para;</a></h3>
-<p>By default a collection mutation renders whatever the service returns — a
-summary like <code>{"updated": n}</code>, or an empty <code>204</code>. To render the <strong>set itself</strong>,
-add an <code>output_selector_spec</code> with <code>kind=SelectorKind.LIST</code>: it re-fetches and
-renders a list — the output twin of the bulk input. Capture the affected pks
-<em>before</em> the write, since the collection's own filter may no longer match
-afterwards.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">publish_drafts</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">collection</span><span class="p">:</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Post</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">collection</span><span class="o">.</span><span class="n">values_list</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="n">flat</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">Post</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="n">ids</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">published</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="k">return</span> <span class="n">ids</span>  <span class="c1"># the service result → `result`</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">published_by_ids</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">QuerySet</span><span class="p">[</span><span class="n">Post</span><span class="p">]:</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="k">return</span> <span class="n">Post</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="k">class</span><span class="w"> </span><span class="nc">PublishDraftsView</span><span class="p">(</span><span class="n">ServiceUpdateView</span><span class="p">):</span>
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>        <span class="n">service</span><span class="o">=</span><span class="n">publish_drafts</span><span class="p">,</span>
-</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>        <span class="n">collection_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
-</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">all_posts</span><span class="p">,</span>
-</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>            <span class="n">filter_set</span><span class="o">=</span><span class="n">PostFilterSet</span><span class="p">,</span>
-</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>        <span class="p">),</span>
-</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>        <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span>
-</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>            <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>  <span class="c1"># ← renders a list, not one row</span>
-</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>            <span class="n">selector</span><span class="o">=</span><span class="n">published_by_ids</span><span class="p">,</span>
-</span><span id="__span-2-22"><a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>            <span class="n">output_serializer</span><span class="o">=</span><span class="n">PostSerializer</span><span class="p">,</span>
-</span><span id="__span-2-23"><a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>        <span class="p">),</span>
-</span><span id="__span-2-24"><a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>    <span class="p">)</span>
+<h2 id="a-code-and-a-reason-are-two-different-things">A code and a reason are two different things<a class="headerlink" href="#a-code-and-a-reason-are-two-different-things" title="Permanent link">&para;</a></h2>
+<p><code>code</code> is stable and machine-readable: it names the rule, never the state that
+tripped it. It is what a transport or a client branches on, and it does not
+change when somebody rewords the sentence.</p>
+<p><code>reason</code> is the sentence people and models both read: it is the message of the
+refusal a caller gets, and the sentence a model relays when it explains why an
+action is not possible. Write it for them — say what cannot be done and, where
+it helps, what would make it possible — and keep internal state out of it:
+which reviewer, which batch job, which ledger row is nobody's business but the
+code's. A sentence is for reading, not parsing, so branch on the code.</p>
+<p>Codes must be unique within a spec, because the code is the only way a reader
+tells one refusal from another.</p>
+<h2 id="two-kinds-of-condition-and-the-type-decides">Two kinds of condition, and the type decides<a class="headerlink" href="#two-kinds-of-condition-and-the-type-decides" title="Permanent link">&para;</a></h2>
+<p><strong>An ORM boolean expression is a condition on the row.</strong> A <code>Q</code>, an <code>Exists</code>, a
+lookup: it means exactly what <code>Order.objects.filter(when)</code> means, relations
+included, and it is answered in SQL. However many are declared, the row they
+apply to is checked with <strong>one</strong> query. A <code>NULL</code> is not true, so a condition over
+a missing relation reads as unavailable.</p>
+<p><strong>A callable is a condition on nothing in particular</strong> — "refunds are closed
+during month-end". It is resolved through the keyword pool like any other spec
+callable, returns a <code>bool</code>, and sees the pool's seeds and nothing else: <code>user</code>,
+<code>request</code>, <code>progress</code>, and any
+<a href="../../reference/types/#poolseeds">registered pool seed</a> such as a clock. A
+client argument never reaches it, even under a binding that spreads arguments
+into the pool — the caller does not get to decide whether the call is allowed.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">books_open</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">clock</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="k">return</span> <span class="n">clock</span><span class="p">()</span><span class="o">.</span><span class="n">day</span> <span class="o">&lt;</span> <span class="mi">28</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">Affordance</span><span class="p">(</span><span class="n">code</span><span class="o">=</span><span class="s2">&quot;books_closed&quot;</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="s2">&quot;Refunds reopen on the 1st.&quot;</span><span class="p">,</span> <span class="n">when</span><span class="o">=</span><span class="n">books_open</span><span class="p">)</span>
 </span></code></pre></div>
-<p><code>PUT /posts/?published=false</code> publishes the drafts and responds <code>200</code> with the
-JSON array of the now-published rows. <code>kind=LIST</code> on <code>output_selector_spec</code> is
-valid <strong>only</strong> alongside <code>collection_selector_spec</code> — a single-instance
-mutation returns one representation (<code>kind=RETRIEVE</code>, the default). The re-fetch
-runs inside the same transport-neutral <code>dispatch_spec</code>, so the MCP server
-renders the list identically.</p>
-<h2 id="permissions-failures">Permissions &amp; failures<a class="headerlink" href="#permissions-failures" title="Permanent link">&para;</a></h2>
+<p>A callable result is read for truth, so one that forgets to return refuses
+rather than allows.</p>
+<p><strong>A callable over the row is refused at construction</strong>, and that is the point of
+the design rather than a limitation of it. A Python predicate over the row has to
+run once per row, and a list that reports availability for fifty orders becomes
+fifty-one queries. Prefetching does not rescue it: a prefetched relation answers
+some reads from its cache and silently re-queries for others. A rule the ORM
+cannot express is not an affordance — keep it in
+<a href="../preconditions/"><code>preconditions</code></a>, where it is enforced and simply not
+advertised.</p>
+<p>For the same reason a callable may not name <code>instance</code>, <code>collection</code>, <code>data</code> or
+<code>serializer</code>. Those exist only once a call is being made, and an affordance is
+meant to be answerable without making one.</p>
+<h2 id="where-it-runs">Where it runs<a class="headerlink" href="#where-it-runs" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>permissions → target resolution → validation → affordances → preconditions → service
+</span></code></pre></div>
+<p><strong>After access, always.</strong> A refusal describes the row's state, and telling a
+caller who may not see the row what state it is in is a disclosure. A caller
+denied the row gets the 403 and nothing of the affordance.</p>
+<p><strong>Before <code>preconditions</code>.</strong> An affordance is the declared, advertisable form of
+the same kind of rule, so the one a client could have been told about is the one
+that answers.</p>
+<p><strong>In declaration order</strong>, stopping at the first unmet condition.</p>
+<p>A condition on the row needs one resolved row. It is refused on a spec with
+<code>many=True</code> or a <code>collection_selector_spec</code> at construction, and at <code>as_view()</code>
+on an action that targets no row (a create, a non-detail action). A callable condition works on every shape, bulk
+included.</p>
+<h2 id="asking-for-a-whole-list">Asking for a whole list<a class="headerlink" href="#asking-for-a-whole-list" title="Permanent link">&para;</a></h2>
+<p>A client deciding which buttons to render should not have to attempt each
+action on each row. <code>SelectorSpec.affordances</code> asks the question inside the
+list query itself:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">orders</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">selector</span><span class="o">=</span><span class="n">orders_for_user</span><span class="p">,</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">affordances</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;cancel&quot;</span><span class="p">:</span> <span class="n">cancel_order</span><span class="p">,</span> <span class="s2">&quot;refund&quot;</span><span class="p">:</span> <span class="n">refund_order</span><span class="p">},</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>The mapping holds the <strong>mutation specs themselves</strong>, keyed by a name you
+choose — not registry names, because a <code>ServiceSpec</code> does not know what it is
+called and the read path should not need a registry to find out. Every
+condition on those specs becomes one boolean annotation on each row, named
+<code>affordance__&lt;name&gt;__&lt;code&gt;</code> (<code>affordance__cancel__order_shipped</code>), and all of
+them join the <strong>same single <code>.annotate()</code> call</strong> as the spec's own
+<code>annotations</code>. Fifty orders with five conditions is still one query.</p>
+<p>Each annotation is the same correlated <code>Exists</code> the mutation evaluates when it
+is called, so the list and the call cannot disagree about a row. It also means
+the answer is read from the table:</p>
 <ul>
-<li><strong>Per-set</strong> — the view / spec <code>permission_classes</code> plus the scoped selector
-  authorize the action; there is no per-row <code>check_object_permissions</code> (a
-  per-row opt-in is a planned follow-up).</li>
-<li><strong>All-or-nothing</strong> — <code>atomic=True</code> makes the batch a single transaction.
-  Per-item partial-success responses are a tracked follow-up.</li>
+<li>a condition over a multi-valued relation neither duplicates the list's rows
+  nor inflates a <code>Count</code> you annotated beside it;</li>
+<li>a filtered <code>Prefetch</code> on the same relation — which would hide rows from a
+  Python predicate reading <code>order.lines.all()</code> — does not change the answer.</li>
 </ul>
-<p>A bulk spec runs through the same transport-neutral <code>dispatch_spec</code> the MCP
-server uses, so the rules are identical on and off HTTP.</p>
+<p>A callable condition has no row to vary with, so it is answered once per list
+and carried as a constant on every row.</p>
+<h3 id="a-selector-that-returns-rows-instead-of-a-queryset">A selector that returns rows instead of a queryset<a class="headerlink" href="#a-selector-that-returns-rows-instead-of-a-queryset" title="Permanent link">&para;</a></h3>
+<p>A selector does not have to return a <code>QuerySet</code> for its rows to be answered. A
+list, a generator, or a <code>RETRIEVE</code> selector's bare instance gets the same answers
+under the same <code>affordance__&lt;name&gt;__&lt;code&gt;</code> names, so everything that renders them
+reads them the same way:</p>
+<ul>
+<li><strong>Model instances</strong> are answered by <strong>one query per model class present</strong> —
+  <code>Model._base_manager.filter(pk__in=...)</code> annotated with the very same <code>Exists</code>
+  expressions — and carry the answers as attributes. Fifty instances with five
+  conditions is one extra query, not fifty. A row the table no longer holds
+  (deleted between the selector returning it and the check) carries <code>None</code> for
+  each condition on the row rather than <code>False</code>: a call against it would be
+  refused as not found, but it fails none of the conditions, so it must not be
+  reported as failing one. An instance with no primary key is refused when a
+  condition on the row needs finding it.</li>
+<li><strong>Mappings</strong> come back as <strong>new</strong> mappings with the callable answers added; the
+  selector's own objects are left alone. A condition on the row is refused on a
+  mapping, which has no model and no primary key to evaluate it against — return
+  model instances or a <code>QuerySet</code> instead.</li>
+<li><strong>Anything else</strong> is refused rather than having attributes written onto it.</li>
+</ul>
+<p>A generator is materialised once, and that list is what the dispatch returns.</p>
+<p>A generated name that collides with a key of <code>annotations</code>, or with another
+entry's, is refused at construction. <code>affordances</code> needs a <code>selector</code>, and is
+refused on an <code>instance_selector_spec</code> or <code>collection_selector_spec</code>, whose rows
+are acted on rather than returned. On an <code>output_selector_spec</code> it answers the
+row a mutation hands back.</p>
+<h2 id="what-a-client-reads">What a client reads<a class="headerlink" href="#what-a-client-reads" title="Permanent link">&para;</a></h2>
+<p>Every object rendered from a selector that declares <code>affordances</code> carries them
+under an <code>affordances</code> key — through <code>render_spec_output</code>, through the list,
+retrieve and <code>@selector_action</code> views, and in a mutation's response when its
+<code>output_selector_spec</code> declares them:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">,</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;shipped&quot;</span><span class="p">,</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">&quot;affordances&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nt">&quot;cancel&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">      </span><span class="nt">&quot;available&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">      </span><span class="nt">&quot;code&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;order_shipped&quot;</span><span class="p">,</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">      </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;A shipped order cannot be cancelled.&quot;</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="p">},</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">    </span><span class="nt">&quot;refund&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;available&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">}</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><code>available</code> is always there. An unavailable answer names the <strong>first</strong> unmet
+condition in declaration order — the same one a call would be refused with. The
+one exception is a row a selector returned directly that was deleted before its
+answers were asked: it reads <code>{"available": false}</code> with no <code>code</code> and no
+<code>reason</code>, because it fails none of the conditions and no sentence about it would
+be true. (A callable condition declared before the row conditions, and unmet,
+still reports its own code and reason; that sentence is true either way.)
+Reading the answers costs nothing: they are the annotations the list query
+already computed, or the answers attached to rows a selector returned directly.</p>
+<p><strong>An agent reads the same answers a browser does.</strong>
+<a class="autorefs autorefs-internal" title="render_for_audience" href="../../reference/dispatch/#rest_framework_services.dispatch.render_for_audience.render_for_audience"><code>render_for_audience</code></a>
+passes them through whole. A model speaks human language, so the <code>reason</code> is
+what it relays when it explains why an action is not possible, and the <code>code</code> is
+still there for the transport — or the model — to branch on. That is why the
+reason is written for people and models alike and keeps internal state out.</p>
+<p>The output schema declares the object too:
+<a class="autorefs autorefs-internal" title="spec_to_json_schema" href="../../reference/jsonschema/#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
+adds it, with <code>code</code> enumerated from the declaration so a client can switch on it
+exhaustively, and
+<a class="autorefs autorefs-internal" title="output_to_json_schema" href="../../reference/jsonschema/#rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema"><code>output_to_json_schema</code></a>
+takes the mapping as <code>affordances=</code> for a transport that builds its schema from
+the serializer. With or without a <code>projection</code> the object it declares is the
+same, <code>reason</code> included, because the payload is.</p>
+<p>Rendering refuses, rather than quietly dropping the answers, when the spec has no
+<code>output_serializer</code>, when the serializer already renders a field called
+<code>affordances</code>, or when the row being rendered did not come through the selector
+that computes them.</p>
+<h2 id="it-is-a-check-not-a-lock">It is a check, not a lock<a class="headerlink" href="#it-is-a-check-not-a-lock" title="Permanent link">&para;</a></h2>
+<p>The answer is correct at the moment of the call. Between the check and the
+service committing, another request can ship the order. If the service's
+correctness depends on the state, the service still enforces it — inside its
+transaction, with a <code>select_for_update</code> or a conditional update — and an
+affordance is what lets every client find out <em>before</em> trying.</p>
+<h2 id="declaring-nothing-costs-nothing">Declaring nothing costs nothing<a class="headerlink" href="#declaring-nothing-costs-nothing" title="Permanent link">&para;</a></h2>
+<p>A spec without <code>affordances</code> runs no query and, on the async path, takes no
+executor hop for them. A selector without <code>affordances</code> issues exactly the
+query it issued before, its rows carry no extra attribute, and its views, its
+rendered payloads and its schemas are what they were.</p>
+<p>Full signatures: <a href="../../reference/types/#affordance"><code>Affordance</code></a>,
+<a href="../../reference/exceptions/"><code>ActionUnavailable</code></a>.</p>
 
 
 

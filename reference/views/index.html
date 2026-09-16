@@ -546,6 +546,8 @@
       
         
       
+        
+      
     
     
     
@@ -729,6 +731,34 @@
     
   
     State rules with preconditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/affordances/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What can be done right now
   
 
     
@@ -1503,6 +1533,28 @@
     <span class="md-ellipsis">
       
         resolve_view_hooks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.add_affordances" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_affordances
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.list_with_affordances" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_with_affordances
       
     </span>
   </a>
@@ -2323,6 +2375,28 @@
     <span class="md-ellipsis">
       
         resolve_view_hooks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.add_affordances" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_affordances
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.list_with_affordances" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_with_affordances
       
     </span>
   </a>
@@ -3698,6 +3772,58 @@ bulk path), offered to the <code>input_data</code> providers that declare it.</p
           </tr>
       </tbody>
     </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.views.utils.add_affordances" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">add_affordances</span>
+
+
+<a href="#rest_framework_services.views.utils.add_affordances" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">add_affordances</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">many</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p><code>data</code> with the rendering spec's affordance answers, when it declares any.</p>
+<p><code>value</code> is what the serializer rendered -- the row, the page, or the
+queryset it iterated, whose result cache the second walk reuses. Nothing is
+added to a <code>None</code> value, which renders as nothing to carry answers.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.views.utils.list_with_affordances" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">list_with_affordances</span>
+
+
+<a href="#rest_framework_services.views.utils.list_with_affordances" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">list_with_affordances</span><span class="p">(</span><span class="n">view</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">spec</span><span class="p">:</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Response</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>DRF's <code>ListModelMixin.list</code>, with each rendered row carrying its answers.</p>
+<p>The same filter, paginate and serialize steps in the same order; the answers
+are added to the serialized rows before a paginator wraps them, so every
+paginator's envelope holds the same objects the unpaginated response does.</p>
 
 
     </div>

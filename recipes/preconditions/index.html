@@ -16,7 +16,7 @@
         <link rel="prev" href="../permissions/">
       
       
-        <link rel="next" href="../queryset-shaping/">
+        <link rel="next" href="../affordances/">
       
       
         
@@ -548,6 +548,8 @@
       
         
       
+        
+      
     
     
     
@@ -861,6 +863,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../affordances/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What can be done right now
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1849,9 +1879,12 @@ service's own loop, where you can report which item failed.</p>
 nothing sound to derive the text from — a function's <code>__name__</code> and <code>__doc__</code>
 are the only machine-readable strings on it, and generating agent-facing schema
 from either makes a docstring edit a wire-format change.</p>
-<p>If you want an agent to know an operation can fail this way, say so in
-<code>spec.metadata</code>, in the words you want it to read, and surface that from your
-own adapter. The retryable-vs-fatal distinction rides on the exception: a 409
+<p>If a rule can be written as an ORM expression over the row, or as a condition
+on nothing in particular, declare it as an <a href="../affordances/">affordance</a> instead:
+it is enforced at the same point, refuses with a stable code, and is the form
+that can be reported without attempting the call. Otherwise, if you want an
+agent to know an operation can fail this way, say so in <code>spec.metadata</code>, in the
+words you want it to read, and surface that from your own adapter. The retryable-vs-fatal distinction rides on the exception: a 409
 tells an agent the call could succeed later, a 403 tells it not to bother.</p>
 
 

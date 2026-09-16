@@ -546,6 +546,8 @@
       
         
       
+        
+      
     
     
     
@@ -729,6 +731,34 @@
     
   
     State rules with preconditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/affordances/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What can be done right now
   
 
     
@@ -1388,6 +1418,28 @@
     <span class="md-ellipsis">
       
         ServiceSpec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#affordance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Affordance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.affordance.Affordance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Affordance
       
     </span>
   </a>
@@ -2904,6 +2956,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#affordance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Affordance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.affordance.Affordance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Affordance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#polymorphicservicespec" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4374,13 +4448,15 @@ authoritative-<code>None</code> → 204 contract and
           <tr class="doc-section-item">
             <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.output_serializer">output_serializer</span></code></td>
             <td>
-                  <code><span title="type">type</span>[<span title="rest_framework.serializers.Serializer">Serializer</span>] | None</code>
+                  <code><span title="type">type</span> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>DRF <code>Serializer</code> subclass used by
-<code>get_serializer_class()</code> for this action. <code>None</code> falls back to
-DRF's standard <code>serializer_class</code>.</p>
+                <p>Renders the result: a DRF serializer class, or a bare
+dataclass type, which renders through a <code>DataclassSerializer</code> built
+for it — the payload its output schema already describes. It is what
+<code>get_serializer_class()</code> returns for this action. <code>None</code> falls
+back to DRF's standard <code>serializer_class</code>.</p>
               </div>
             </td>
           </tr>
@@ -4502,6 +4578,51 @@ no filtering. Reach for it only when the selector returns a
 QuerySet: for an aggregate / computed return the <code>?param</code> values
 are computation inputs, so use <code>kwargs</code> /
 <code>get_selector_kwargs()</code> instead.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.selector_spec.SelectorSpec.affordances">affordances</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+   (rest_framework_services.types.service_spec.ServiceSpec)" href="#rest_framework_services.types.service_spec.ServiceSpec">ServiceSpec</a>[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>]] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>What can be done to each row right now, answered inside
+the list query itself. A mapping from a name to the
+<a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a>
+whose <code>affordances</code> are being asked about -- the spec objects, not
+registry names, so the read path takes no registry dependency and the
+declaration stays the one the mutation enforces. Every condition on
+the row becomes one boolean annotation, merged into the <strong>same single
+<code>.annotate()</code> call</strong> as <code>annotations</code>, and evaluated as the same
+correlated <code>Exists</code> the mutation checks with, so a row reported
+available is a row the call lets through. A callable condition is
+answered once per dispatch and carried as a constant. The annotations
+are named <code>affordance__&lt;name&gt;__&lt;code&gt;</code>; a collision with a key of
+<code>annotations</code>, or between two entries, is refused at construction,
+because a generated annotation silently replacing a project's own is
+the worst way for this to fail. Being annotations, they read the table
+rather than any <code>prefetch_related</code> cache, whose filtered <code>Prefetch</code>
+would otherwise hide rows from the answer. Requires <code>selector</code>. A
+selector returning rows rather than a <code>QuerySet</code> -- a list, or a
+<code>RETRIEVE</code> selector's bare instance -- gets the same answers under the
+same names: model instances are answered by one query per model class
+and carry them as attributes, mappings come back as new mappings
+carrying the callable answers (a condition on the row is refused on a
+mapping, which has no primary key to find), and a generator is
+materialised into the list that flows on. <code>None</code> adds nothing to the
+query.</p>
               </div>
             </td>
           </tr>
@@ -5010,6 +5131,44 @@ a DRF <code>APIException</code> is mapped on HTTP only.</p>
             </td>
           </tr>
           <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.affordances">affordances</span></code></td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<a class="autorefs autorefs-internal" title="Affordance
+
+
+  
+      dataclass
+   (rest_framework_services.types.affordance.Affordance)" href="#rest_framework_services.types.affordance.Affordance">Affordance</a>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>What must be true for this operation to be possible right
+now, as a sequence of
+<a class="autorefs autorefs-internal" title="Affordance
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.affordance.Affordance"><code>Affordance</code></a>
+declarations. Checked in declaration order after the target guard and
+input validation and <strong>before</strong> <code>preconditions</code>; the first one not
+met raises
+<a class="autorefs autorefs-internal" title="ActionUnavailable" href="../exceptions/#rest_framework_services.exceptions.action_unavailable.ActionUnavailable"><code>ActionUnavailable</code></a>
+carrying its <code>code</code>, and the service does not run. Every condition
+on the row is answered by <strong>one</strong> query, however many are declared;
+a condition that is a callable runs off the event loop on the async
+path, as a precondition does. A condition on the row needs a single
+resolved row, so it is refused alongside <code>many=True</code> or a
+<code>collection_selector_spec</code>, and a dispatch that resolved none
+raises <code>ImproperlyConfigured</code>. It is a check at the moment of the
+call, not a lock: the service still re-validates whatever it relies
+on. <code>None</code> declares nothing and costs nothing -- no query, no call.
+Codes must be unique within a spec, because the code is how a reader
+tells the conditions apart.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
             <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.response_finalizer">response_finalizer</span></code></td>
             <td>
                   <code><span title="collections.abc.Callable">Callable</span>[..., <span title="rest_framework.response.Response">Response</span> | None] | None</code>
@@ -5059,6 +5218,185 @@ is stored exactly as given. See <a class="autorefs autorefs-internal" title="Sel
   
       dataclass
   " href="#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="affordance"><code>Affordance</code><a class="headerlink" href="#affordance" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.types.affordance.Affordance" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">Affordance</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.affordance.Affordance" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>What can be done to this object right now, declared once on the operation.</p>
+<p>A condition on a
+<a class="autorefs autorefs-internal" title="ServiceSpec
+
+
+  
+      dataclass
+  " href="#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> saying
+whether the mutation is possible <strong>as a fact about the world</strong>: an order that
+shipped cannot be cancelled, a draft with no title cannot be published, refunds
+are closed while the books are. Not a fact about the caller -- that is
+<code>permission_classes</code>, which refuses with a 403 and is always checked first.
+An affordance refuses with
+<a class="autorefs autorefs-internal" title="ActionUnavailable" href="../exceptions/#rest_framework_services.exceptions.action_unavailable.ActionUnavailable"><code>ActionUnavailable</code></a>,
+a 409.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">service</span><span class="o">=</span><span class="n">cancel_order</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">affordances</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        <span class="n">Affordance</span><span class="p">(</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>            <span class="n">code</span><span class="o">=</span><span class="s2">&quot;order_shipped&quot;</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>            <span class="n">reason</span><span class="o">=</span><span class="s2">&quot;A shipped order cannot be cancelled.&quot;</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>            <span class="n">when</span><span class="o">=~</span><span class="n">Q</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">&quot;shipped&quot;</span><span class="p">),</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="p">),</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="p">],</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span>
+</span></code></pre></div>
+<p><code>when</code> is true when the action <strong>is</strong> available, and its type decides what
+kind of condition it is -- derived, never declared, so it cannot drift from
+what it describes:</p>
+<ul>
+<li><strong>An ORM boolean expression</strong> -- a <code>Q</code>, an <code>Exists</code>, a lookup -- is a
+  condition on the row. It reads exactly as <code>Model.objects.filter(when)</code>
+  does, relations included, and is evaluated in SQL: one query for a single
+  object, and inside the list query itself when projected onto a selector's
+  rows. A row is available only when the condition is true; a <code>NULL</code> is not
+  true.</li>
+<li><strong>A callable</strong> is a condition on nothing in particular -- "refunds are
+  closed during month-end". It is resolved through the keyword pool like any
+  other spec callable and returns a <code>bool</code>, and it sees the pool's seeds
+  only: <code>user</code>, <code>request</code>, <code>progress</code> and any registered pool seed. Never
+  the call's target or input, and never a client argument -- the caller does
+  not get to decide whether the operation is available.</li>
+</ul>
+<p><strong>A Python callable over the row is refused, and that refusal is the design.</strong>
+A predicate the ORM cannot read has to run once per row, which turns every
+list that reports availability into one query per row, and prefetching does
+not fix it: a prefetched relation answers some reads from its cache and
+silently re-queries for others. A rule that cannot be computed for fifty rows
+in one query is not an affordance -- it stays in <code>preconditions</code>, where it
+is enforced and never advertised.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.affordance.Affordance.code">code</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Stable and machine-readable: it names the rule, never the state
+that tripped it, and it does not change when the sentence is
+reworded. What a transport or a client branches on.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.affordance.Affordance.reason">reason</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The sentence people and models both read -- in a rendered
+answer, and as the message of the <code>ActionUnavailable</code> a refused
+call raises. Write it for them: say what is not possible and, where
+it helps, what would make it possible, and keep internal state out
+of it, since every reader of the operation reads it.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.affordance.Affordance.when">when</span></code></td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The condition, as above.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="django.core.exceptions.ImproperlyConfigured">ImproperlyConfigured</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>code</code> or <code>reason</code> is not a non-empty string;
+<code>when</code> is an ORM expression that is not boolean; <code>when</code> is a
+callable naming <code>instance</code>, <code>collection</code>, <code>data</code> or
+<code>serializer</code>; or <code>when</code> is neither an expression nor a callable.</p>
               </div>
             </td>
           </tr>

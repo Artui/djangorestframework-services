@@ -546,6 +546,8 @@
       
         
       
+        
+      
     
     
     
@@ -729,6 +731,34 @@
     
   
     State rules with preconditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/affordances/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What can be done right now
   
 
     
@@ -1490,6 +1520,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.affordance_expression" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        affordance_expression
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#rest_framework_services.selectors.utils.materialize_retrieve" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1931,6 +1972,17 @@
     <span class="md-ellipsis">
       
         apply_queryset_shaping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.selectors.utils.affordance_expression" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        affordance_expression
       
     </span>
   </a>
@@ -2563,6 +2615,41 @@ rendering.</p>
           </tr>
       </tbody>
     </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.selectors.utils.affordance_expression" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">affordance_expression</span>
+
+
+<a href="#rest_framework_services.selectors.utils.affordance_expression" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">affordance_expression</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">],</span> <span class="n">when</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Exists</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The SQL answer to one affordance condition, for whichever row it is annotated on.</p>
+<p><code>Exists(&lt;the row, narrowed by pk&gt;.filter(when))</code> rather than the condition
+inline, for two reasons that both come from where this is spent. Inline, a
+condition spanning a multi-valued relation joins it into the outer query and
+<strong>duplicates the rows</strong> of the list it is annotated on, and an aggregate
+beside it counts across that join. Inside a correlated subquery the outer
+query gains no join at all. And the subquery gives the condition exactly the
+meaning it has in <code>Model.objects.filter(when)</code>, which is the reading an
+author already has for a <code>Q</code>.</p>
+<p><code>_base_manager</code> because the subquery only re-finds a row that has already
+been resolved: a default manager that hides rows would answer "unavailable"
+for a row the caller is looking at.</p>
+<p>The single-object check and the list projection both annotate this one
+expression, so the two cannot disagree about any row. Being SQL, it reads the
+table and never a <code>prefetch_related</code> cache, so a filtered <code>Prefetch</code> on
+the same relation cannot hide rows from the answer.</p>
 
 
     </div>

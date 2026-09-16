@@ -546,6 +546,8 @@
       
         
       
+        
+      
     
     
     
@@ -729,6 +731,34 @@
     
   
     State rules with preconditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/affordances/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What can be done right now
   
 
     
@@ -1791,7 +1821,7 @@ layers that one declaration by the same rule.</p>
 
     <div class="doc doc-contents first">
 
-        <p>Resolve one serializer class's agent presentation, recursing into children.</p>
+        <p>Resolve one output declaration's agent presentation, recursing into children.</p>
 <p>Reads
 <a class="autorefs autorefs-internal" title="FieldMarking
 
@@ -1808,9 +1838,21 @@ reused — see
   
       dataclass
   " href="../types/#rest_framework_services.types.audience_projection.AudienceProjection"><code>AudienceProjection</code></a>.</p>
-<p>A class that is not a DRF serializer (a plain <code>@dataclass</code> output, or
-<code>None</code>) yields an empty projection rather than an error: not every spec
-renders through a serializer, and nothing is marked up in those that don't.</p>
+<p><code>serializer_cls</code> is read as the class it renders through, resolved with
+<a class="autorefs autorefs-internal" title="renderable_serializer_class" href="../dispatch/#rest_framework_services.dispatch.renderable_serializer_class.renderable_serializer_class"><code>renderable_serializer_class</code></a>,
+so a bare <code>@dataclass</code> output is projected from the <code>DataclassSerializer</code>
+it is rendered with. Two consequences follow, both deliberate. A marking
+given to a dataclass field — <code>field(metadata={"serializer_kwargs": {"style":
+{MARKING: FieldMarking.hidden()}}})</code> — is collected like one on a serializer
+field, so hidden means hidden whichever way the output was declared. And an
+<code>Enum</code> field renders as a <code>ChoiceField</code> whose display values are the
+member names, so an agent reads <code>"GOLD"</code> where the browser reads
+<code>"gold"</code>: the substitution every <code>ChoiceField</code> gets, and mirrored into
+the schema by
+<a class="autorefs autorefs-internal" title="annotate_output_schema" href="#rest_framework_services.audience.annotate_output_schema.annotate_output_schema"><code>annotate_output_schema</code></a>.
+Mark the field <code>HANDLE</code> to keep the value for an agent too.</p>
+<p><code>None</code>, or anything else that does not resolve to a DRF <code>Serializer</code>,
+yields an empty projection rather than an error: there is nothing to mark up.</p>
 <p><code>overrides</code> layers a caller's markings on top, for the one case the
 serializer cannot express: a mount that needs what its sibling hides. They
 reach a transport as
