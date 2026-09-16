@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import functools
 import inspect
 from collections.abc import Callable, Mapping
-from typing import Any
+from dataclasses import is_dataclass
+from typing import Any, cast, overload
 
 from rest_framework.request import Request
+from rest_framework.serializers import BaseSerializer
+from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.types.unset import UNSET
 from rest_framework_services.types.view_hooks import ViewHooks
@@ -314,4 +318,67 @@ def resolve_view_hooks(
             action_hook=f"get_{action}_output_serializer_context" if action else None,
             extras={"result": result},
         ),
+    )
+
+
+@overload
+def renderable_serializer_class(declared: None) -> None: ...
+
+
+@overload
+def renderable_serializer_class(declared: type) -> type[BaseSerializer[Any]]: ...
+
+
+def renderable_serializer_class(declared: type | None) -> type[BaseSerializer[Any]] | None:
+    """The class an ``output_serializer`` declaration renders through.
+
+    A raw dataclass type is wrapped in a ``DataclassSerializer`` — the payload
+    ``output_to_json_schema`` already describes for it, field by field — and
+    anything else comes back exactly as declared. Every site that instantiates an
+    output declaration to render it resolves the class here first: the transport-
+    neutral render step, the HTTP views' ``get_serializer_class()``, the viewset
+    resolver, ``@selector_action`` and the mutation response. A site that
+    instantiates the declaration itself calls a dataclass's own ``__init__`` with
+    ``many=`` / ``context=``, which is how a dataclass output came to have a schema
+    and no way to render.
+
+    The pass-through is deliberate rather than a check. A ``BaseSerializer``
+    subclass is the ordinary case, and a declaration that is neither is refused
+    where its schema is derived; refusing it here as well would break a caller
+    that renders through a serializer-shaped factory without ever deriving one.
+    """
+    # Both conjuncts are needed: ``is_dataclass`` is also true of a dataclass
+    # *instance*, which is not a declaration this can wrap.
+    if isinstance(declared, type) and is_dataclass(declared):
+        return dataclass_serializer_class(declared)
+    return cast("type[BaseSerializer[Any]] | None", declared)
+
+
+# Cached per dataclass type, so each dataclass renders through one class for the
+# life of the process: the same class from every site above and from the OpenAPI
+# coercion, and no class pair built per render. Building one costs about a
+# quarter of rendering a small dataclass, and each is a reference cycle the
+# collector has to find.
+#
+# That is module-level state, which this package otherwise refuses for its
+# registries — and the reason does not apply here. A registry carries
+# configuration two mounts may need to differ on; this carries none. The class
+# holds only ``Meta.dataclass``, a pure function of the key, while
+# ``DataclassSerializer`` builds its fields per instance and reads DRF settings
+# as it does, so a cached class freezes no setting and cannot answer one mount
+# or one test with another's configuration. What the cache does cost is a
+# strong reference to every dataclass it has wrapped, which is bounded by the
+# declared outputs.
+@functools.cache
+def dataclass_serializer_class(dataclass_type: type) -> type[DataclassSerializer[Any]]:
+    """A ``DataclassSerializer`` subclass bound to ``dataclass_type``, one per type.
+
+    Shared by the render path and by the OpenAPI coercion of a dataclass
+    ``input_serializer`` / ``output_serializer``, so a dataclass is described and
+    rendered by the same class.
+    """
+    return type(
+        f"_AutoDataclassSerializer_{dataclass_type.__name__}",
+        (DataclassSerializer,),
+        {"Meta": type("Meta", (), {"dataclass": dataclass_type})},
     )

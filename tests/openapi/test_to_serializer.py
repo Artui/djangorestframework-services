@@ -8,6 +8,7 @@ from rest_framework import serializers
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.openapi._to_serializer import to_serializer_class
+from rest_framework_services.views.utils import renderable_serializer_class
 
 
 @dataclass
@@ -33,6 +34,10 @@ def test_dataclass_is_wrapped_in_dataclass_serializer() -> None:
     assert cls is not None
     assert issubclass(cls, DataclassSerializer)
     assert cls.Meta.dataclass is _Foo
+
+
+def test_dataclass_is_described_by_the_class_it_renders_through() -> None:
+    assert to_serializer_class(_Foo) is renderable_serializer_class(_Foo)
 
 
 def test_unrecognised_returns_none() -> None:

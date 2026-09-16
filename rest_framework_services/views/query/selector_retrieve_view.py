@@ -14,7 +14,11 @@ from rest_framework_services.selectors.utils import dispatch_selector_for_spec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.spec_validation import validate_selector_view_spec
-from rest_framework_services.views.utils import get_class_attr, layer_serializer_context
+from rest_framework_services.views.utils import (
+    get_class_attr,
+    layer_serializer_context,
+    renderable_serializer_class,
+)
 
 
 class SelectorRetrieveView(RetrieveModelMixin, GenericAPIView):
@@ -55,7 +59,7 @@ class SelectorRetrieveView(RetrieveModelMixin, GenericAPIView):
     def get_serializer_class(self) -> type[BaseSerializer[Any]]:
         s: SelectorSpec | None = get_class_attr(self, "spec")
         if isinstance(s, SelectorSpec) and s.output_serializer is not None:
-            return s.output_serializer
+            return renderable_serializer_class(s.output_serializer)
         return super().get_serializer_class()
 
     def get_serializer_context(self) -> dict[str, Any]:

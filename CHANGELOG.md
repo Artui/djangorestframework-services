@@ -30,6 +30,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   misdeclared spec can fail the whole listing. Build schemas at registration to
   keep the failure where the mistake is.
 
+- **A raw dataclass declared as `output_serializer` now renders, through a
+  `DataclassSerializer` built for it.** Its schema was already derived field by
+  field - `output_to_json_schema` and `spec_to_json_schema(phase="output")` walk a
+  dataclass type - but every render site instantiated the declaration as if it
+  were a serializer, calling the dataclass's own `__init__` with `many=` /
+  `context=`, so the first render raised `TypeError`. A spec advertised a payload
+  it could not produce. The payload it renders now validates against that schema.
+
+  The wrapping happens wherever an output declaration is instantiated:
+  `render_spec_output` and `arender_spec_output` (and so `render_for_audience`),
+  `get_serializer_class()` on `SelectorListView`, `SelectorRetrieveView` and the
+  viewsets, `@selector_action`, and a mutation's response, single or bulk. The
+  read views reach drf-spectacular through `get_serializer_class()`, so their
+  generated OpenAPI documents the dataclass too, where it used to drop the view.
+  A `Serializer` or `BaseSerializer` subclass renders exactly as before, and a
+  spec with no output still passes its value through.
+
+  Each dataclass gets one wrapper class for the process, shared with the OpenAPI
+  coercion of a dataclass input or output. `SelectorSpec.output_serializer` is
+  annotated `type | None`, matching `ServiceSpec.input_serializer`, since a
+  type checker would otherwise reject the declaration this makes work.
+
+  The agent projection still reads the declaration rather than the wrapper, so a
+  `FieldMarking` given to a dataclass field through `serializer_kwargs` metadata
+  is not applied by `render_for_audience`. Declare an output that needs markings
+  as a serializer.
+
 ## [0.50.0] — 2026-09-15
 
 ### Added

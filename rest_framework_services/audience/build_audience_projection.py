@@ -29,8 +29,10 @@ def build_audience_projection(
     [`AudienceProjection`][rest_framework_services.types.audience_projection.AudienceProjection].
 
     A class that is not a DRF serializer (a plain ``@dataclass`` output, or
-    ``None``) yields an empty projection rather than an error: not every spec
-    renders through a serializer, and nothing is marked up in those that don't.
+    ``None``) yields an empty projection rather than an error. ``None`` renders
+    nothing to mark up. A dataclass renders through a ``DataclassSerializer``
+    generated for it, but is read here as declared, so a marking passed to one
+    of its fields through ``serializer_kwargs`` metadata is not collected.
 
     ``overrides`` layers a caller's markings on top, for the one case the
     serializer cannot express: a mount that needs what its sibling hides. They
