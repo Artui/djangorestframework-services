@@ -80,10 +80,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   declared aggregate. A callable condition is answered once per dispatch and
   carried as a constant.
 
+  A selector returning rows rather than a `QuerySet` gets the same answers under
+  the same names. Model instances — a list, a generator (materialised once into
+  the list that flows on), or a `RETRIEVE` selector's bare instance — are answered
+  by **one query per model class present**, `_base_manager.filter(pk__in=...)`
+  annotated with the same `Exists` expressions, so a list of fifty instances with
+  five conditions costs one extra query; a row deleted before that query reads as
+  unavailable, and an instance with no primary key is refused when a condition on
+  the row needs to find it. Mappings come back as new mappings carrying the
+  callable answers; a condition on the row is refused on them, because a mapping
+  has no primary key to evaluate it against. Any other row type is refused.
+
   A generated name colliding with a key of `annotations` or with another entry's
-  is refused at construction. `affordances` needs a `selector` returning a
-  `QuerySet` and is refused on a nested target lookup at `as_view()`. A selector
-  declaring none issues the same query as before.
+  is refused at construction. `affordances` needs a `selector` and is refused on a
+  nested target lookup at `as_view()`. A selector declaring none issues the same
+  query as before.
 
 ### Fixed
 

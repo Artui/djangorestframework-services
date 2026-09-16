@@ -151,12 +151,33 @@ the answer is read from the table:
 A callable condition has no row to vary with, so it is answered once per list
 and carried as a constant on every row.
 
+### A selector that returns rows instead of a queryset
+
+A selector does not have to return a `QuerySet` for its rows to be answered. A
+list, a generator, or a `RETRIEVE` selector's bare instance gets the same answers
+under the same `affordance__<name>__<code>` names, so everything that renders them
+reads them the same way:
+
+- **Model instances** are answered by **one query per model class present** —
+  `Model._base_manager.filter(pk__in=...)` annotated with the very same `Exists`
+  expressions — and carry the answers as attributes. Fifty instances with five
+  conditions is one extra query, not fifty. A row the table no longer holds
+  (deleted between the selector returning it and the check) reads as unavailable,
+  since a call against it would be refused as not found. An instance with no
+  primary key is refused when a condition on the row needs finding it.
+- **Mappings** come back as **new** mappings with the callable answers added; the
+  selector's own objects are left alone. A condition on the row is refused on a
+  mapping, which has no model and no primary key to evaluate it against — return
+  model instances or a `QuerySet` instead.
+- **Anything else** is refused rather than having attributes written onto it.
+
+A generator is materialised once, and that list is what the dispatch returns.
+
 A generated name that collides with a key of `annotations`, or with another
-entry's, is refused at construction. `affordances` needs a `selector` returning
-a `QuerySet`, like the other shaping fields, and is refused on an
-`instance_selector_spec` or `collection_selector_spec`, whose rows are acted on
-rather than returned. On an `output_selector_spec` it annotates the row a
-mutation hands back.
+entry's, is refused at construction. `affordances` needs a `selector`, and is
+refused on an `instance_selector_spec` or `collection_selector_spec`, whose rows
+are acted on rather than returned. On an `output_selector_spec` it answers the
+row a mutation hands back.
 
 ## It is a check, not a lock
 

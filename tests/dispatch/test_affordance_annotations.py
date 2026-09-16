@@ -302,17 +302,6 @@ def test_a_registered_pool_seed_reaches_a_projected_condition() -> None:
 # --- refusals -------------------------------------------------------------------------
 
 
-@pytest.mark.django_db
-def test_a_selector_returning_rows_rather_than_a_queryset_is_refused() -> None:
-    spec = SelectorSpec(
-        kind=SelectorKind.LIST,
-        selector=lambda: list(Post.objects.all()),
-        affordances={"publish": PUBLISH},
-    )
-    with pytest.raises(ImproperlyConfigured, match="affordances are declared on the spec"):
-        dispatch_spec(spec, user=None, params={})
-
-
 def test_affordances_without_a_selector_are_refused_at_as_view() -> None:
     class _View(SelectorListView):
         queryset = Post.objects.all()

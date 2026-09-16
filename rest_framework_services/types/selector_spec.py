@@ -161,9 +161,15 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             because a generated annotation silently replacing a project's own is
             the worst way for this to fail. Being annotations, they read the table
             rather than any ``prefetch_related`` cache, whose filtered ``Prefetch``
-            would otherwise hide rows from the answer. Requires ``selector`` and a
-            ``QuerySet`` return, like the shaping fields. ``None`` adds nothing to
-            the query.
+            would otherwise hide rows from the answer. Requires ``selector``. A
+            selector returning rows rather than a ``QuerySet`` -- a list, or a
+            ``RETRIEVE`` selector's bare instance -- gets the same answers under the
+            same names: model instances are answered by one query per model class
+            and carry them as attributes, mappings come back as new mappings
+            carrying the callable answers (a condition on the row is refused on a
+            mapping, which has no primary key to find), and a generator is
+            materialised into the list that flows on. ``None`` adds nothing to the
+            query.
         kwargs: Provider (pool: ``view`` / ``request``) of extra kwargs merged
             into the pool the selector receives. Co-locating it with the spec
             lets each action declare its own contract, instead of
