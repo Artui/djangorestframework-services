@@ -53,7 +53,7 @@ from rest_framework_services.mutations import (
     create_from_input,
     update_from_input,
 )
-from rest_framework_services.registry import SpecRegistry
+from rest_framework_services.registry import SpecRegistry, capability_manifest
 from rest_framework_services.selectors import (
     AsyncSelector,
     ListSelector,
@@ -273,6 +273,7 @@ __all__ = [
     "build_offline_context",
     "call_selector",
     "call_service",
+    "capability_manifest",
     "combine_progress",
     "create_from_input",
     "create_model",
