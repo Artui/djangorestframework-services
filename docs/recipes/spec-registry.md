@@ -188,7 +188,8 @@ A mutation that declares [affordances](affordances.md) lists them too, as
 can be refused with, and whether each is answered per row or for the operation
 as a whole. They are the same codes a rendered object's `affordances` answers
 carry and a 409 names, so the manifest is the vocabulary those answers are drawn
-from. No reason appears: the manifest describes operations, never a row's state.
+from. No reason sentence appears: the manifest describes operations, never a
+row's state.
 
 The schemas are exactly what `spec_to_json_schema` produces, and the top-level
 `dialect` names that policy, so a manifest and the tool list a transport builds

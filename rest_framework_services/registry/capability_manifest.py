@@ -106,8 +106,10 @@ def capability_manifest(
       ``None`` where nothing is declared, and always on a query. The ``code``
       here is the same ``code`` a rendered object's ``affordances`` answer
       carries and a 409 body names, so the manifest lists the vocabulary those
-      answers are drawn from; no ``reason`` appears, because a surface document
-      describes the operation, never a row's state.
+      answers are drawn from. No reason sentence appears, because a surface
+      document describes the operation, never a row's state; a query's
+      ``output_schema`` still declares the ``reason`` *property* its rendered
+      answers carry.
 
     ``unguarded`` is ``unguarded_specs`` over the same registry: the operations
     whose ``permission_classes`` is ``None``, which have nothing to inherit off
