@@ -101,7 +101,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   spec a payload renders through declares `affordances`, each object gains an
   `affordances` key: per name, `{"available": true}`, or `{"available": false,
   "code": ..., "reason": ...}` naming the first unmet condition — the one a call
-  would be refused with. Through `render_spec_output` and its async twin, the
+  would be refused with — or a bare `{"available": false}` for a row deleted
+  before its answers were asked, which fails no condition and has no true
+  sentence to report. Through `render_spec_output` and its async twin, the
   selector list, retrieve and `@selector_action` views, and a mutation's
   response from its `output_selector_spec`, so a browser and an agent transport
   are served the same object. Reading the answers costs no query.

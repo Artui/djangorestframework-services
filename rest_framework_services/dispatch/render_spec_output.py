@@ -51,8 +51,10 @@ def render_spec_output(
     **Affordances.** When the selector spec rendered through declares
     ``affordances``, each rendered object gains an ``affordances`` key: per
     declared name, ``{"available": true}``, or ``{"available": false, "code": ...,
-    "reason": ...}`` naming the first condition the row does not meet; ``None`` is
-    not a row and carries none. The answers are read off the rows as the
+    "reason": ...}`` naming the first condition the row does not meet, or a bare
+    ``{"available": false}`` for a row deleted before its answers were asked,
+    which fails no condition and so has no sentence to report; ``None`` is not a
+    row and carries none. The answers are read off the rows as the
     selector's dispatch left them -- annotations on a queryset's rows, or the
     answers it attached to rows a selector returned directly -- so rendering them
     costs no query; ``many`` rows are materialised once so the rows walked are the

@@ -69,7 +69,8 @@ def affordance_schema(affordances: Mapping[str, ServiceSpec[Any, Any, Any]]) -> 
 
     One property per declared name, each an object whose ``available`` is always
     present and whose ``code`` -- enumerated from the declaration, so a client can
-    switch on it exhaustively -- and ``reason`` appear only when it is ``false``.
+    switch on it exhaustively -- and ``reason`` appear only when it is ``false``,
+    and not even then for a row that no longer exists.
     The same for every audience: a browser and a model both read the reason, and
     both branch, if at all, on the code.
     """
@@ -103,12 +104,24 @@ def _with_answers(
 def _answers(
     row: Any, affordances: Mapping[str, ServiceSpec[Any, Any, Any]]
 ) -> dict[str, dict[str, Any]]:
-    """Each declared name's answer for ``row``: the first unmet condition, in order."""
+    """Each declared name's answer for ``row``, walking its conditions in order.
+
+    ``True`` continues. ``False`` is the first unmet condition, reported with its
+    code and reason. ``None`` is a condition on the row asked of a row that no
+    longer exists: the answer is unavailable, with no code and no reason, because
+    no condition's sentence is true of a missing row. It stops the walk like any
+    refusal, so an unmet callable declared *earlier* still reports its own
+    sentence, which is true either way.
+    """
     answers: dict[str, dict[str, Any]] = {}
     for name, service_spec in affordances.items():
         answer: dict[str, Any] = {"available": True}
         for affordance in service_spec.affordances or ():
-            if not _flag(row, affordance_alias(name, affordance.code)):
+            flag = _flag(row, affordance_alias(name, affordance.code))
+            if flag is None:
+                answer = {"available": False}
+                break
+            if not flag:
                 answer = {"available": False, "code": affordance.code, _REASON: affordance.reason}
                 break
         answers[name] = answer

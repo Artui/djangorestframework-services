@@ -499,3 +499,85 @@ def test_the_manifest_lists_the_codes_a_mutation_can_answer_with() -> None:
     assert item["properties"]["affordances"]["properties"]["publish"]["properties"]["code"][
         "enum"
     ] == [entry["code"] for entry in operations["publish_post"]["affordances"]]
+
+
+# --- a row gone before its answers were asked ------------------------------------------
+
+CLOSED = Affordance(
+    code="books_closed", reason="Publishing is paused until the books close.", when=lambda: False
+)
+
+
+def _then_delete_the_first() -> list[Post]:
+    rows = list(_posts())
+    Post.objects.filter(pk=rows[0].pk).delete()
+    return rows
+
+
+def _vanishing(*affordances: Affordance) -> SelectorSpec[Any, Any]:
+    return _listing(
+        selector=_then_delete_the_first,
+        affordances={"publish": ServiceSpec(service=lambda: None, affordances=list(affordances))},
+    )
+
+
+def test_a_vanished_row_is_unavailable_with_no_code_and_no_reason(
+    two_posts: tuple[Post, Post],
+) -> None:
+    """No condition's sentence is true of a row that no longer exists, so none is
+    reported. The row that still exists is answered exactly as before."""
+    spec = _vanishing(UNPUBLISHED, BOOKS_OPEN)
+    rows = _rows(spec)
+
+    for render in (render_spec_output, render_for_audience):
+        payload = _wire(render(spec, rows, many=True))
+        assert payload[0]["affordances"] == {"publish": {"available": False}}
+        assert payload[1]["affordances"] == {"publish": _REFUSED}
+
+
+def test_a_vanished_row_stops_at_its_first_row_condition(two_posts: tuple[Post, Post]) -> None:
+    """Sized with an unmet callable declared *after* the row condition: the walk stops
+    at the missing row, so the later callable's sentence is not reported."""
+    spec = _vanishing(UNPUBLISHED, CLOSED)
+
+    payload = _wire(render_spec_output(spec, _rows(spec), many=True))
+
+    assert payload[0]["affordances"] == {"publish": {"available": False}}
+
+
+def test_a_vanished_row_still_reports_an_unmet_callable_declared_first(
+    two_posts: tuple[Post, Post],
+) -> None:
+    """A callable condition is not about the row: declared first and unmet, it is the
+    genuine first refusal, and its sentence is true whether or not the row exists."""
+    spec = _vanishing(CLOSED, UNPUBLISHED)
+    closed = {
+        "available": False,
+        "code": "books_closed",
+        "reason": "Publishing is paused until the books close.",
+    }
+
+    rows = _rows(spec)
+    for render in (render_spec_output, render_for_audience):
+        payload = _wire(render(spec, rows, many=True))
+        assert payload[0]["affordances"] == {"publish": closed}
+        assert payload[1]["affordances"] == {"publish": closed}
+
+
+def test_a_vanished_rows_answer_validates_against_the_generated_schemas(
+    two_posts: tuple[Post, Post],
+) -> None:
+    spec = _vanishing(UNPUBLISHED, BOOKS_OPEN)
+    rows = _rows(spec)
+    browser = spec_to_json_schema(spec, phase="output")
+    agent = output_to_json_schema(
+        _PostOut,
+        kind=SelectorKind.LIST,
+        projection=AudienceProjection(),
+        affordances=spec.affordances,
+    )
+
+    served = _wire(render_spec_output(spec, rows, many=True))
+    assert served[0]["affordances"] == {"publish": {"available": False}}
+    Draft202012Validator(browser).validate(served)
+    Draft202012Validator(agent).validate(_wire(render_for_audience(spec, rows, many=True)))

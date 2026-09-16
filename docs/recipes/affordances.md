@@ -204,7 +204,12 @@ retrieve and `@selector_action` views, and in a mutation's response when its
 ```
 
 `available` is always there. An unavailable answer names the **first** unmet
-condition in declaration order — the same one a call would be refused with.
+condition in declaration order — the same one a call would be refused with. The
+one exception is a row a selector returned directly that was deleted before its
+answers were asked: it reads `{"available": false}` with no `code` and no
+`reason`, because it fails none of the conditions and no sentence about it would
+be true. (A callable condition declared before the row conditions, and unmet,
+still reports its own code and reason; that sentence is true either way.)
 Reading the answers costs nothing: they are the annotations the list query
 already computed, or the answers attached to rows a selector returned directly.
 
