@@ -375,7 +375,7 @@ def _dispatch_service(
     elif extras:
         pool["data"] = data
 
-    call_affordances(spec, pool, instance=instance)
+    call_affordances(spec, pool, instance=instance, reserved=pool_seeds.reserved)
     with wire_named_errors(serializer):
         call_preconditions(spec, pool)
         result: Any = run_service(
@@ -466,7 +466,7 @@ def _dispatch_service_many(
     # only preconditions declaring ``user`` / ``request`` / the payload bind.
     # Per-item rules belong in the service's own loop. A row condition cannot be
     # declared on a bulk spec at all, so only callable affordances reach here.
-    call_affordances(spec, pool, instance=None)
+    call_affordances(spec, pool, instance=None, reserved=pool_seeds.reserved)
     with wire_named_errors(serializer):
         call_preconditions(spec, pool)
         result: Any = run_service(

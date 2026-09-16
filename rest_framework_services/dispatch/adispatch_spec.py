@@ -346,7 +346,7 @@ async def _adispatch_service(
     elif extras:
         pool["data"] = data
 
-    await acall_affordances(spec, pool, instance=instance)
+    await acall_affordances(spec, pool, instance=instance, reserved=pool_seeds.reserved)
     with wire_named_errors(serializer):
         await acall_preconditions(spec, pool)
         result: Any = await arun_service_callable(
@@ -456,7 +456,7 @@ async def _adispatch_service_many(
     if serializer is not None:
         pool["serializer"] = serializer
     # Bulk: once, no target — see the sync sibling.
-    await acall_affordances(spec, pool, instance=None)
+    await acall_affordances(spec, pool, instance=None, reserved=pool_seeds.reserved)
     with wire_named_errors(serializer):
         await acall_preconditions(spec, pool)
         result: Any = await arun_service_callable(

@@ -20,8 +20,10 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import BasePermission
 
 from rest_framework_services import (
+    DEFAULT_POOL_SEEDS,
     ActionUnavailable,
     Affordance,
+    ArgumentBinding,
     SelectorKind,
     SelectorSpec,
     ServiceConflict,
@@ -402,8 +404,75 @@ def test_a_catch_all_callable_never_sees_the_calls_target_or_input() -> None:
     )
     dispatch_spec(spec, user=None, params={"title": "x"}, instance=_post())
 
-    assert {"user", "request"} <= set(seen)
-    assert not {"instance", "collection", "data", "serializer"} & set(seen)
+    assert set(seen) == {"user", "request", "progress"}
+
+
+class _MonthEndIn(serializers.Serializer):
+    is_month_end = serializers.BooleanField()
+
+
+@pytest.mark.django_db
+def test_a_client_argument_never_reaches_a_condition() -> None:
+    """Under a spreading binding the caller's validated arguments sit in the pool
+    beside the seeds. Were they visible, the caller would decide whether the call is
+    allowed -- here, by claiming it is not month-end."""
+    seen: dict[str, Any] = {}
+
+    def month_end_closed(**kwargs: Any) -> bool:
+        seen.update(kwargs)
+        return False
+
+    spec = ServiceSpec(
+        service=lambda **_: None,
+        input_serializer=_MonthEndIn,
+        affordances=[Affordance(code="closed", reason="Closed.", when=month_end_closed)],
+    )
+    with pytest.raises(ActionUnavailable):
+        dispatch_spec(
+            spec,
+            user=None,
+            params={"is_month_end": False},
+            instance=_post(),
+            argument_binding=ArgumentBinding.SPREAD_CALLER_WINS,
+        )
+    assert "is_month_end" not in seen
+    assert set(seen) == {"user", "request", "progress"}
+
+
+@pytest.mark.django_db
+def test_a_registered_pool_seed_reaches_a_condition_by_name() -> None:
+    seeds = DEFAULT_POOL_SEEDS.extend(clock=lambda: "the 29th")
+    seen: dict[str, Any] = {}
+
+    def books_open(*, clock: str) -> bool:
+        seen["clock"] = clock
+        return False
+
+    spec = ServiceSpec(
+        service=_noop_service,
+        affordances=[Affordance(code="books_closed", reason="Closed.", when=books_open)],
+    )
+    with pytest.raises(ActionUnavailable, match="Closed."):
+        dispatch_spec(spec, user=None, params={}, instance=_post(), pool_seeds=seeds)
+    assert seen == {"clock": "the 29th"}
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_async_a_registered_pool_seed_reaches_a_condition_by_name() -> None:
+    seeds = DEFAULT_POOL_SEEDS.extend(clock=lambda: "the 29th")
+    seen: dict[str, Any] = {}
+
+    def books_open(*, clock: str) -> bool:
+        seen["clock"] = clock
+        return True
+
+    post = await Post.objects.acreate(title="draft")
+    spec = ServiceSpec(
+        service=_noop_service,
+        affordances=[Affordance(code="books_closed", reason="Closed.", when=books_open)],
+    )
+    await adispatch_spec(spec, user=None, params={}, instance=post, pool_seeds=seeds)
+    assert seen == {"clock": "the 29th"}
 
 
 @pytest.mark.django_db

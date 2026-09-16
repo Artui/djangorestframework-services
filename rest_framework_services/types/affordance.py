@@ -51,8 +51,10 @@ class Affordance:
       true.
     - **A callable** is a condition on nothing in particular -- "refunds are
       closed during month-end". It is resolved through the keyword pool like any
-      other spec callable and returns a ``bool``, and it may name ``user``,
-      ``request`` or a registered pool seed, never the call's target or input.
+      other spec callable and returns a ``bool``, and it sees the pool's seeds
+      only: ``user``, ``request``, ``progress`` and any registered pool seed. Never
+      the call's target or input, and never a client argument -- the caller does
+      not get to decide whether the operation is available.
 
     **A Python callable over the row is refused, and that refusal is the design.**
     A predicate the ORM cannot read has to run once per row, which turns every

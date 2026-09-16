@@ -63,8 +63,11 @@ a missing relation reads as unavailable.
 
 **A callable is a condition on nothing in particular** — "refunds are closed
 during month-end". It is resolved through the keyword pool like any other spec
-callable, returns a `bool`, and may name `user`, `request`, or a
-[registered pool seed](../reference/types.md#poolseeds) such as a clock:
+callable, returns a `bool`, and sees the pool's seeds and nothing else: `user`,
+`request`, `progress`, and any
+[registered pool seed](../reference/types.md#poolseeds) such as a clock. A
+client argument never reaches it, even under a binding that spreads arguments
+into the pool — the caller does not get to decide whether the call is allowed.
 
 ```python
 def books_open(*, clock) -> bool:
