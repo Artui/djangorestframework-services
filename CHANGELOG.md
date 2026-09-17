@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   described a single item before, which is neither the array HTTP takes nor
   anything a caller sending named arguments could pass. The capability manifest's
   `input_schema` is built by it and changes with it.
+- **`spec_to_json_schema(..., phase="output")` describes a `many=True` spec's
+  output as an array.** Its output selector is `RETRIEVE` by convention, since
+  that kind describes one row, and the schema followed the kind and described
+  an object for a result that is always the rendered list. The capability
+  manifest's `output_schema` changes with it.
 - **`argument_binding=ArgumentBinding.BUNDLE` is accepted on a `many=True`
   dispatch.** It names what a list payload already does, and refusing it made a
   caller whose default is `BUNDLE` special-case every `many=True` spec. The

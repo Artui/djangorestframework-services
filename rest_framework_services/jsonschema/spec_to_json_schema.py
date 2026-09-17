@@ -18,6 +18,7 @@ from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
 )
+from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 
@@ -252,7 +253,10 @@ def _output_schema(
             return None
         return output_to_json_schema(
             nested.output_serializer,
-            kind=nested.kind,
+            # A ``many=True`` service's output selector is ``RETRIEVE`` by
+            # convention, because its kind describes one row, and the result it
+            # renders is still the whole list.
+            kind=SelectorKind.LIST if spec.many else nested.kind,
             registry=registry,
             max_depth=max_depth,
             affordances=nested.affordances,

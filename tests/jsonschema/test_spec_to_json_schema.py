@@ -202,6 +202,26 @@ def test_service_output_list_kind_is_array() -> None:
     assert schema["type"] == "array"
 
 
+def test_a_many_service_output_is_an_array_whatever_its_selector_kind() -> None:
+    # A bulk spec renders through a ``RETRIEVE`` output selector by convention --
+    # its kind describes one row -- and the result is still the list, rendered
+    # item by item. Reading the kind alone described an object for a payload that
+    # is always an array.
+    spec = ServiceSpec(
+        service=_service,
+        many=True,
+        output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_Out),
+    )
+    assert spec_to_json_schema(spec, phase="output") == {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}},
+            "required": ["id"],
+        },
+    }
+
+
 def test_service_output_without_selector_spec_is_none() -> None:
     spec = ServiceSpec(service=_service)
     assert spec_to_json_schema(spec, phase="output") is None
