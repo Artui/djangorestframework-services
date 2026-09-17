@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A `many=True` spec can take its list as one named argument.** A caller whose
+  input is always an object of arguments, such as an agent tool call, can never
+  send the bare array an HTTP body is. `ServiceSpec.many_argument` names the
+  argument the list travels under, `"items"` by default, and
+  `dispatch_spec(..., many_as_argument=True)` / `adispatch_spec` read the list out
+  of it. The keyword is a no-op on a single-item spec and on a selector, so a
+  transport passes it on every call. The HTTP views never pass it and still take
+  the bare array.
+
+  Every validation error the list raises is keyed under the argument, with item
+  errors as a mapping of the invalid items' indexes on every supported DRF, which
+  is what a wrapper serializer declaring `items = Item(many=True)` answers on
+  current DRF; the argument missing, `null` or not a list answers as that field
+  would. An argument sent beside the list is refused with `UnknownArguments.REJECT`'s
+  wording whatever the policy, since the service receives only the list.
+  `ServiceSpec` refuses a `many_argument` that is not an ASCII identifier, and a
+  non-default one on a spec without `many=True`, at construction.
+
+### Changed
+
+- **`spec_to_json_schema` describes a `many=True` spec's input as that argument**:
+  an object with one required property, `many_argument`, holding an array of the
+  item schema, with no other properties. The array carries the list serializer's
+  `allow_empty`, `min_length` and `max_length` as `minItems` / `maxItems`. It
+  described a single item before, which is neither the array HTTP takes nor
+  anything a caller sending named arguments could pass. The capability manifest's
+  `input_schema` is built by it and changes with it.
+- **`argument_binding=ArgumentBinding.BUNDLE` is accepted on a `many=True`
+  dispatch.** It names what a list payload already does, and refusing it made a
+  caller whose default is `BUNDLE` special-case every `many=True` spec. The
+  `SPREAD_*` bindings still raise `ValueError`.
+
 ## [0.52.1] — 2026-09-16
 
 ### Added

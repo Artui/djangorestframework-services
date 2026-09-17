@@ -10,7 +10,9 @@ from typing import Any
 from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import BooleanField, Model, Value
+from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
+from rest_framework.settings import api_settings
 from typing_extensions import get_type_hints
 
 from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
@@ -332,18 +334,126 @@ def service_input_for_validated(
 
 
 def guard_many_argument_binding(argument_binding: ArgumentBinding) -> None:
-    """Reject a non-default ``argument_binding`` on a ``many=True`` dispatch.
+    """Reject a spreading ``argument_binding`` on a ``many=True`` dispatch.
 
     A bulk service is invoked once with the whole validated list as ``data``, so
     the ``SPREAD_*`` modes have no scalar client argument to act on. ``AUTO``
-    resolves to ``BUNDLE`` and is a no-op here, so it is always allowed.
+    resolves to ``BUNDLE`` here, and ``BUNDLE`` is exactly what a list payload does,
+    so both are allowed: refusing the explicit name for the behaviour that runs
+    would make a caller whose own default is ``BUNDLE`` special-case every
+    ``many=True`` spec, and a caller that forgot one path would fail only there.
     """
-    if argument_binding is not ArgumentBinding.AUTO:
+    # One branch arc for both members; ``BUNDLE`` is held by
+    # test_an_explicit_bundle_binding_is_accepted.
+    if argument_binding not in (ArgumentBinding.AUTO, ArgumentBinding.BUNDLE):
         raise ValueError(
             "argument_binding is not applicable with many=True: a bulk service "
             "receives the whole list as `data`, so there are no scalar client "
-            "arguments to spread. Pass argument_binding only on single-item specs."
+            "arguments to spread. Pass a SPREAD_* binding only on single-item specs."
         )
+
+
+def many_argument_items(spec: ServiceSpec[Any, Any, Any], params: Any) -> Any:
+    """The list a ``many=True`` spec validates, read out of an object of arguments.
+
+    Refuses what the documented workaround -- a wrapper serializer declaring
+    ``<many_argument> = Item(many=True)`` -- refuses before any item is looked at, in
+    DRF's own words, codes and nesting, so a client moving between the two sees the
+    same error: arguments that are not an object, the argument missing, ``null``, or
+    not a list. A non-list is refused here rather than left to the list serializer,
+    because a spec with no ``input_serializer`` has no list serializer to refuse it
+    and would iterate a string.
+    """
+    if not isinstance(params, Mapping):
+        raise ValidationError(
+            {
+                api_settings.NON_FIELD_ERRORS_KEY: [
+                    serializers.Serializer.default_error_messages["invalid"].format(
+                        datatype=type(params).__name__
+                    )
+                ]
+            },
+            code="invalid",
+        )
+    name: str = spec.many_argument
+    if name not in params:
+        raise ValidationError(
+            {name: [serializers.Field.default_error_messages["required"]]}, code="required"
+        )
+    items: Any = params[name]
+    if items is None:
+        raise ValidationError(
+            {name: [serializers.Field.default_error_messages["null"]]}, code="null"
+        )
+    if not isinstance(items, list):
+        raise ValidationError(
+            {
+                name: {
+                    api_settings.NON_FIELD_ERRORS_KEY: [
+                        serializers.ListSerializer.default_error_messages["not_a_list"].format(
+                            input_type=type(items).__name__
+                        )
+                    ]
+                }
+            },
+            code="not_a_list",
+        )
+    return items
+
+
+def refuse_arguments_beside_many(
+    spec: ServiceSpec[Any, Any, Any],
+    params: Mapping[str, Any],
+    *,
+    reserved: frozenset[str] = RESERVED_POOL_SEEDS,
+) -> None:
+    """Refuse any argument sent beside a ``many=True`` spec's list.
+
+    Whatever ``unknown_arguments`` says, because nothing beside the list has anywhere
+    to go: the service receives the list as its one ``data``, so ``IGNORE`` would drop
+    the argument without a trace and ``PASSTHROUGH`` has no slot to put it in. The
+    policy still governs the keys inside each item. The wording, the reserved-seed
+    exemption and the shape are ``UnknownArguments.REJECT``'s, which is what the
+    workaround answers the same call with under that policy.
+    """
+    # Held by test_the_list_under_the_default_argument_reaches_the_service (the name
+    # half) and test_a_reserved_seed_beside_the_list_is_not_an_unexpected_argument
+    # (the reserved half).
+    unexpected = sorted(key for key in params if key != spec.many_argument and key not in reserved)
+    if unexpected:
+        names = ", ".join(repr(key) for key in unexpected)
+        raise ValidationError({"non_field_errors": [f"Unexpected argument(s): {names}."]})
+
+
+@contextmanager
+def many_argument_errors(name: str | None) -> Iterator[None]:
+    """Key a list's validation errors under the argument it arrived as.
+
+    ``name`` is ``None`` for a caller that sent the bare list, whose errors pass
+    through as DRF raised them -- the HTTP body keeps the shape it always had.
+
+    Otherwise item errors are normalised to one shape before keying. DRF below 3.18
+    reports them as a list with an empty entry for every valid item; from 3.18 as a
+    mapping of the invalid items' indexes, as ``int`` keys. The mapping is what the
+    workaround produces on current DRF, and it names the failing rows without making
+    a client count past the valid ones, so a list becomes that mapping. Only item
+    errors are ever a list: the list serializer's own refusals (not a list, empty,
+    out of bounds) are a mapping under the non-field key on every version, and are
+    keyed unchanged.
+    """
+    if name is None:
+        yield
+        return
+    try:
+        yield
+    except ValidationError as exc:
+        detail: Any = exc.detail
+        # Held on the locked DRF by
+        # test_item_errors_reported_as_a_list_are_keyed_by_index_too, whose list
+        # serializer reports the older shape; on the floor, by every item-error test.
+        if isinstance(detail, list):
+            detail = {index: errors for index, errors in enumerate(detail) if errors}
+        raise ValidationError({name: detail}) from exc
 
 
 def guard_mapping_params(params: Any) -> None:
@@ -375,6 +485,7 @@ def resolve_service_many_input(
     *,
     unknown_arguments: UnknownArguments,
     reserved: frozenset[str] = RESERVED_POOL_SEEDS,
+    index_errors: bool = False,
 ) -> tuple[list[Any] | None, bool]:
     """Assemble the ``data`` list for a ``many=True`` dispatch, honouring
     ``unknown_arguments`` **per list element**.
@@ -383,19 +494,32 @@ def resolve_service_many_input(
     ``REJECT`` raises on the first offending item. ``has_data`` is ``False`` only
     for the degenerate no-serializer / no-extras case, where the pool must omit
     ``data`` entirely — exactly as the single-item path omits it.
+
+    ``index_errors`` keys that refusal by the item's index, the shape
+    ``many_argument_errors`` gives item validation errors, so a caller whose list
+    arrived as an argument learns which row to fix from either refusal. Off by
+    default: the bare-list path keeps the shape it always had.
     """
     child = serializer.child if serializer is not None else None
     validated = serializer.validated_data if serializer is not None else None
     data_items: list[Any] = []
     has_data = serializer is not None
     for index, raw_item in enumerate(params):
-        extras = resolve_unknown_arguments(
-            spec,
-            raw_item,
-            unknown_arguments=unknown_arguments,
-            serializer=child,
-            reserved=reserved,
-        )
+        try:
+            extras = resolve_unknown_arguments(
+                spec,
+                raw_item,
+                unknown_arguments=unknown_arguments,
+                serializer=child,
+                reserved=reserved,
+            )
+        except ValidationError as exc:
+            if not index_errors:
+                raise
+            # An ``int`` key, as DRF's own list serializer gives item errors from 3.18;
+            # the stubs type a detail mapping's keys as ``str`` only.
+            keyed: Any = {index: exc.detail}
+            raise ValidationError(keyed) from exc
         validated_item = validated[index] if validated is not None else None
         item_data, _spread = service_input_for_validated(validated_item, extras)
         data_items.append(item_data)

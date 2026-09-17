@@ -309,13 +309,57 @@ def serializer_for_schema(serializer_cls: type[serializers.Serializer]) -> seria
     with no view: reflection cannot report a field set that depends on who is
     asking, because at description time nobody is.
     """
+    return serializer_cls(context=_description_context())
+
+
+def list_constraints_for_schema(input_serializer: type | None) -> dict[str, int]:
+    """``minItems`` / ``maxItems`` for the list a ``many=True`` spec validates.
+
+    Read off the list serializer dispatch itself builds -- ``input_serializer`` called
+    with ``many=True`` -- rather than off the class, because DRF decides the list's
+    bounds in ``many_init`` and ``Meta.list_serializer_class``, and either can set
+    ``allow_empty`` / ``min_length`` / ``max_length`` in code a class attribute does
+    not show. All three exist on ``ListSerializer`` from DRF 3.14, this package's floor.
+    Built with the same description context ``serializer_for_schema`` passes, and for
+    the same reason: a list serializer reading ``context["request"]`` in ``__init__``
+    would otherwise raise here while dispatch builds it without complaint.
+
+    Only a ``Serializer`` subclass can declare either hook. A dataclass is validated
+    through a ``DataclassSerializer`` whose ``Meta`` the author does not write, and
+    ``None`` validates nothing, so both describe an unbounded list.
+    """
+    # ``issubclass`` raises on ``None`` rather than answering, so both halves are needed.
+    # Held by test_no_input_serializer_is_a_list_of_objects.
+    if not (
+        isinstance(input_serializer, type) and issubclass(input_serializer, serializers.Serializer)
+    ):
+        return {}
+    listed: Any = input_serializer(many=True, context=_description_context())
+    constraints: dict[str, int] = {}
+    # ``allow_empty=False`` is a minimum of one, which a larger ``min_length`` tightens
+    # and a smaller one (including ``0``) does not loosen.
+    minimum: int = max(listed.min_length or 0, 0 if listed.allow_empty else 1)
+    if minimum:
+        constraints["minItems"] = minimum
+    # ``is not None``, not truthiness: ``max_length=0`` is a bound DRF enforces.
+    if listed.max_length is not None:
+        constraints["maxItems"] = listed.max_length
+    return constraints
+
+
+def _description_context() -> dict[str, Any]:
+    """The serializer context a schema is described with: no view, no request.
+
+    One definition for both instantiations, so the list serializer a ``many=True``
+    spec validates with and the item serializer are described under the same context.
+    """
     # Genuine circular import, deliberately local: ``dispatch`` re-exports
     # helpers that reach back into this package, so importing it at module
     # scope executes a half-built package. ``build_audience_projection`` records
     # the same constraint.
     from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
 
-    return serializer_cls(context=base_serializer_context(view=None, request=None))
+    return base_serializer_context(view=None, request=None)
 
 
 def serializer_to_schema(

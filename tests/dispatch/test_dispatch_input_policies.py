@@ -364,13 +364,13 @@ class TestUnknownArgumentsBulk:
         )
         assert seen["data"] == [{"note": "a"}, {"note": "b"}]
 
-    def test_non_default_argument_binding_raises(self) -> None:
+    def test_a_spreading_argument_binding_raises(self) -> None:
         def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
             raise AssertionError("service must not run when binding is rejected")
 
         spec = ServiceSpec(service=bulk, input_serializer=_TitleSerializer, many=True, atomic=False)
         # A bulk service takes the whole list as ``data`` — there is nothing to
-        # spread, so a non-default binding is rejected rather than silently ignored.
+        # spread, so a spreading binding is rejected rather than silently ignored.
         with pytest.raises(ValueError, match="many=True"):
             dispatch_spec(
                 spec,
