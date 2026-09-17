@@ -2263,7 +2263,16 @@ for custom field / filter / Python types — see
   
       dataclass
   " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> → its
-    <code>input_serializer</code> (<code>spec.partial</code> honoured).</li>
+    <code>input_serializer</code> (<code>spec.partial</code> honoured). On a <code>many=True</code> spec that
+    schema describes one item, and the input is an object with a single required
+    property named by <code>spec.many_argument</code> -- <code>{"type": "array", "items":
+    &lt;item&gt;}</code>, with <code>minItems</code> / <code>maxItems</code> where the list serializer declares
+    <code>allow_empty=False</code> / <code>min_length</code> / <code>max_length</code> -- and
+    <code>additionalProperties: false</code>. A transport describing a tool passes
+    arguments as an object, which can never be the bare array the HTTP body is;
+    dispatch that input with <code>many_as_argument=True</code>. <code>partial</code> relaxes the
+    item and never the argument, which DRF requires under <code>partial</code> too, and
+    <code>max_depth</code> counts from the item, since the wrapper is not a serializer.</li>
 <li><a class="autorefs autorefs-internal" title="SelectorSpec
 
 

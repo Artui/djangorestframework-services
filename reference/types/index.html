@@ -4929,6 +4929,29 @@ and loops itself, so one call does the batch.</p>
             </td>
           </tr>
           <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.many_argument">many_argument</span></code></td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The one argument a <code>many=True</code> list travels under for a
+caller whose input is always an object of named arguments, and so
+can never be a bare array. <code>"items"</code> by default. HTTP never reads
+it: the request body stays the array itself. A caller that does
+passes <code>many_as_argument=True</code> to
+<a class="autorefs autorefs-internal" title="dispatch_spec" href="../dispatch/#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>,
+which reads the list out of that argument and keys every validation
+error under it, and
+<a class="autorefs autorefs-internal" title="spec_to_json_schema" href="../jsonschema/#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
+describes the input as an object with that one array property. Must
+be an ASCII identifier. Declaring a name other than the default
+without <code>many=True</code> raises <code>ImproperlyConfigured</code>: nothing would
+read it.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
             <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.document_service_error">document_service_error</span></code></td>
             <td>
                   <code><span title="bool">bool</span> | None</code>

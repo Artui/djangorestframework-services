@@ -3876,7 +3876,8 @@ one on the same result.</p>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">view_hooks</span><span class="p">:</span> <span class="n">ViewHooks</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">filter_data</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">many_as_argument</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -3993,7 +3994,8 @@ to execute.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The flat client input — a list on a <code>many=True</code> spec.</p>
+                <p>The flat client input — a list on a <code>many=True</code> spec, unless
+<code>many_as_argument</code> says it arrives as an object.</p>
               </div>
             </td>
             <td>
@@ -4067,9 +4069,10 @@ conflict, below the <code>spec.kwargs</code> provider.</p>
                 <p>Whether client input lands as a single <code>data</code> bundle or is
 spread as individual kwargs, and how it ranks against the author's
 <code>kwargs</code>. <code>AUTO</code> resolves per spec type (service → bundle, selector →
-spread). Meaningless on a <code>many=True</code> spec — the service receives the
-whole list as one <code>data</code> argument — where a non-default value raises
-<code>ValueError</code> rather than being ignored.</p>
+spread). A <code>many=True</code> spec always bundles — the service receives the
+whole list as one <code>data</code> argument — so <code>AUTO</code> and <code>BUNDLE</code> are
+accepted there and a <code>SPREAD_*</code> value raises <code>ValueError</code> rather than
+being ignored.</p>
               </div>
             </td>
             <td>
@@ -4192,6 +4195,37 @@ them would let a query parameter satisfy a serializer field.</p>
             </td>
             <td>
                   <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>many_as_argument</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether a <code>many=True</code> spec's list arrives under the
+argument <code>spec.many_argument</code> names, rather than as <code>params</code> itself.
+For a caller whose input is always an object of named arguments, which can
+never be the bare array an HTTP body is. It is a no-op on every other spec,
+so such a caller passes it on every dispatch and never branches on
+<code>spec.many</code>. With it, <code>params</code> must be an object holding that argument
+and nothing else -- whatever <code>unknown_arguments</code> says, since the service
+receives only the list; the policy still governs the keys inside each item
+-- and every validation error the list raises is keyed under the argument,
+with item errors as a mapping of the invalid items' indexes on every
+supported DRF. That is exactly what a serializer declaring
+<code>items = Item(many=True)</code> answers on current DRF, so a spec moving from
+that workaround keeps its error wire. A refusal the service or a
+precondition raises passes through as raised. Pair it with
+<a class="autorefs autorefs-internal" title="spec_to_json_schema" href="../jsonschema/#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>,
+which describes the same input.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
             </td>
           </tr>
       </tbody>
@@ -4317,7 +4351,8 @@ them would let a query parameter satisfy a serializer field.</p>
 </span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">view_hooks</span><span class="p">:</span> <span class="n">ViewHooks</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">filter_data</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">many_as_argument</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
