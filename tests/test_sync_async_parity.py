@@ -409,6 +409,29 @@ async def test_a_list_payload_to_a_single_item_spec_is_rejected_by_either_core()
         await adispatch_spec(spec, user=None, params=[1, 2])
 
 
+async def test_a_list_read_out_of_an_argument_agrees_across_the_cores() -> None:
+    """``many_as_argument`` is threaded through each core separately, and the list it
+    reads is what the service returns, so a core reading ``params`` itself would
+    refuse the object rather than agree."""
+    spec = ServiceSpec(
+        service=lambda *, data: [dict(item) for item in data],
+        input_serializer=_TitleInput,
+        many=True,
+        many_argument="posts",
+        atomic=False,
+    )
+    sync_summary, async_summary = await _dispatch_both(
+        spec,
+        lambda: {
+            "user": None,
+            "params": {"posts": [{"title": "a"}, {"title": "b"}]},
+            "many_as_argument": True,
+        },
+    )
+    assert sync_summary == async_summary
+    assert async_summary["value"] == [{"title": "a"}, {"title": "b"}]
+
+
 # --- the mutation tail ----------------------------------------------------
 #
 # ``DispatchResult`` documents six fields, three of which only the mutation path

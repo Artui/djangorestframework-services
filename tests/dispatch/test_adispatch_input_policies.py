@@ -170,7 +170,7 @@ class TestAUnknownArgumentsBulk:
         )
         assert seen["data"] == [{"title": "a", "note": "x"}]
 
-    async def test_non_default_argument_binding_raises(self) -> None:
+    async def test_a_spreading_argument_binding_raises(self) -> None:
         async def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
             raise AssertionError("service must not run when binding is rejected")
 

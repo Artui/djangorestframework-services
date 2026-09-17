@@ -20,7 +20,10 @@ from rest_framework_services.dispatch.utils import (
     clear_prefetch_cache,
     guard_many_argument_binding,
     guard_mapping_params,
+    many_argument_errors,
+    many_argument_items,
     merge_arguments,
+    refuse_arguments_beside_many,
     resolve_argument_binding,
     resolve_dispatch_kwargs,
     resolve_input_context,
@@ -69,6 +72,7 @@ def dispatch_spec(
     view_hooks: ViewHooks | None = None,
     instance: Any = UNSET,
     filter_data: Mapping[str, Any] | None = None,
+    many_as_argument: bool = False,
 ) -> DispatchResult:
     """Execute ``spec`` without a DRF view, returning a
     [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult].
@@ -98,7 +102,8 @@ def dispatch_spec(
             [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec]
             to execute.
         user: The acting user, seeded into every callable's pool.
-        params: The flat client input — a list on a ``many=True`` spec.
+        params: The flat client input — a list on a ``many=True`` spec, unless
+            ``many_as_argument`` says it arrives as an object.
         request: Forwarded only to user callables that declare it (``extend_queryset``,
             the context providers, ``kwargs``); a pure non-HTTP caller passes neither
             this nor ``view``.
@@ -112,9 +117,10 @@ def dispatch_spec(
         argument_binding: Whether client input lands as a single ``data`` bundle or is
             spread as individual kwargs, and how it ranks against the author's
             ``kwargs``. ``AUTO`` resolves per spec type (service → bundle, selector →
-            spread). Meaningless on a ``many=True`` spec — the service receives the
-            whole list as one ``data`` argument — where a non-default value raises
-            ``ValueError`` rather than being ignored.
+            spread). A ``many=True`` spec always bundles — the service receives the
+            whole list as one ``data`` argument — so ``AUTO`` and ``BUNDLE`` are
+            accepted there and a ``SPREAD_*`` value raises ``ValueError`` rather than
+            being ignored.
         unknown_arguments: Strictness about ``params`` keys outside the spec's declared
             set: ``IGNORE`` (drop), ``REJECT`` (raise), ``PASSTHROUGH`` (forward to the
             callable). Honoured **per list element** on a ``many=True`` spec.
@@ -138,6 +144,22 @@ def dispatch_spec(
             off HTTP one flat mapping is usually both, so this stays ``None``, whereas
             over HTTP the body validates and the **query string** filters, and merging
             them would let a query parameter satisfy a serializer field.
+        many_as_argument: Whether a ``many=True`` spec's list arrives under the
+            argument ``spec.many_argument`` names, rather than as ``params`` itself.
+            For a caller whose input is always an object of named arguments, which can
+            never be the bare array an HTTP body is. It is a no-op on every other spec,
+            so such a caller passes it on every dispatch and never branches on
+            ``spec.many``. With it, ``params`` must be an object holding that argument
+            and nothing else -- whatever ``unknown_arguments`` says, since the service
+            receives only the list; the policy still governs the keys inside each item
+            -- and every validation error the list raises is keyed under the argument,
+            with item errors as a mapping of the invalid items' indexes on every
+            supported DRF. That is exactly what a serializer declaring
+            ``items = Item(many=True)`` answers on current DRF, so a spec moving from
+            that workaround keeps its error wire. A refusal the service or a
+            precondition raises passes through as raised. Pair it with
+            [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema],
+            which describes the same input.
 
     Returns: The
         [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult]
@@ -163,6 +185,7 @@ def dispatch_spec(
             view_hooks=view_hooks,
             instance=instance,
             filter_data=filter_data,
+            many_as_argument=many_as_argument,
         )
     if isinstance(spec, SelectorSpec):
         return _dispatch_selector(
@@ -289,6 +312,7 @@ def _dispatch_service(
     view_hooks: ViewHooks | None,
     instance: Any,
     filter_data: Mapping[str, Any] | None,
+    many_as_argument: bool,
 ) -> DispatchResult:
     if spec.many:
         return _dispatch_service_many(
@@ -304,6 +328,7 @@ def _dispatch_service(
             on_target_resolved=on_target_resolved,
             progress=progress,
             view_hooks=view_hooks,
+            many_as_argument=many_as_argument,
         )
     guard_mapping_params(params)
 
@@ -428,29 +453,43 @@ def _dispatch_service_many(
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
     view_hooks: ViewHooks | None,
+    many_as_argument: bool,
 ) -> DispatchResult:
-    """Bulk list-payload: ``params`` is the array; the service gets the list."""
+    """Bulk list-payload: ``params`` is the array, or with ``many_as_argument`` an object
+    carrying it under ``spec.many_argument``; the service gets the list."""
     guard_many_argument_binding(argument_binding)
     call_target_guard(on_target_resolved, spec, None, user=user, request=request, view=view)
     input_context = resolve_input_context(spec, view=view, request=request, view_hooks=view_hooks)
-    params = apply_input_data(
-        params,
-        resolve_input_data(spec, view=view, request=request, instance=None, view_hooks=view_hooks),
+    input_data = resolve_input_data(
+        spec, view=view, request=request, instance=None, view_hooks=view_hooks
     )
-    serializer = build_input_serializer_from_data(
-        params,
-        spec.input_serializer,
-        partial=spec.partial or False,
-        many=True,
-        context=input_context,
+    # The name validation errors are keyed under; ``None`` for the bare list, whose
+    # errors keep the shape DRF gives them.
+    argument: str | None = spec.many_argument if many_as_argument else None
+    items: Any = apply_input_data(
+        many_argument_items(spec, params) if many_as_argument else params, input_data
     )
-    data, has_data = resolve_service_many_input(
-        spec,
-        serializer,
-        params,
-        unknown_arguments=unknown_arguments,
-        reserved=pool_seeds.reserved,
-    )
+    with many_argument_errors(argument):
+        serializer = build_input_serializer_from_data(
+            items,
+            spec.input_serializer,
+            partial=spec.partial or False,
+            many=True,
+            context=input_context,
+        )
+    # After validation, as the workaround's ``UnknownArguments.REJECT`` runs after its
+    # serializer, so a call wrong in both ways is answered the same way by either.
+    if many_as_argument:
+        refuse_arguments_beside_many(spec, params, reserved=pool_seeds.reserved)
+    with many_argument_errors(argument):
+        data, has_data = resolve_service_many_input(
+            spec,
+            serializer,
+            items,
+            unknown_arguments=unknown_arguments,
+            reserved=pool_seeds.reserved,
+            index_errors=many_as_argument,
+        )
     pool: dict[str, Any] = base_pool(
         seeds=pool_seeds,
         user=user,

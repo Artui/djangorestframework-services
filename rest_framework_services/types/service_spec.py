@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
@@ -17,6 +18,16 @@ from rest_framework_services.types.utils import is_row_condition, validate_metad
 InputT = TypeVar("InputT")
 ResultT = TypeVar("ResultT")
 ExtraT = TypeVar("ExtraT", bound=Mapping[str, object])
+
+# The default ``many_argument``: the field name the documented workaround gives the
+# list (``items = ItemSerializer(many=True)``), so a spec moving from the workaround
+# to ``many=True`` keeps the argument a caller sends.
+_DEFAULT_MANY_ARGUMENT = "items"
+# ASCII rather than ``str.isidentifier``, which admits any Unicode letter and so two
+# names that render identically -- a precomposed accent and a letter followed by a
+# combining one both pass -- while the JSON key a caller sends back compares them as
+# different strings.
+_MANY_ARGUMENT_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 @dataclass(frozen=True)
@@ -84,6 +95,19 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
         many: Validate the request body as a list and render the result list
             the same way. The service receives the validated list as ``data``
             and loops itself, so one call does the batch.
+        many_argument: The one argument a ``many=True`` list travels under for a
+            caller whose input is always an object of named arguments, and so
+            can never be a bare array. ``"items"`` by default. HTTP never reads
+            it: the request body stays the array itself. A caller that does
+            passes ``many_as_argument=True`` to
+            [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec],
+            which reads the list out of that argument and keys every validation
+            error under it, and
+            [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
+            describes the input as an object with that one array property. Must
+            be an ASCII identifier. Declaring a name other than the default
+            without ``many=True`` raises ``ImproperlyConfigured``: nothing would
+            read it.
         document_service_error: OpenAPI-only — whether the schema documents the
             422 [`ServiceError`][rest_framework_services.exceptions.service_error.ServiceError] response. No runtime effect; a service may
             always raise. ``None`` gates it on ``input_serializer is not None``,
@@ -227,6 +251,19 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     idempotent: bool | None = None
     partial: bool | None = None
     many: bool = False
+    # Naming (CLAUDE.md rule, third output — a genuinely new field). Prefixed
+    # ``many_`` because it is meaningless without ``many`` and reads as part of
+    # that declaration. ``argument`` because it names the one thing a caller
+    # passing named arguments sends -- the word ``ArgumentBinding`` and
+    # ``UnknownArguments`` already use for client input -- and because an HTTP
+    # body is not arguments, so the name does not suggest the body changed. Not
+    # ``many_field``, the runner-up: it mirrors the workaround's serializer field
+    # exactly, but reads as a field of the request body, which HTTP keeps a bare
+    # array. Not ``many_key``: in a bulk write that reads as the key identifying
+    # each row. A plain ``str`` defaulting to the name rather than ``None``
+    # meaning it, so every reader sees the value in force and no transport
+    # re-states the default.
+    many_argument: str = _DEFAULT_MANY_ARGUMENT
     document_service_error: bool | None = None
 
     # Input pipeline. The open ``...`` parameter specs are because every
@@ -276,7 +313,44 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
 
     def __post_init__(self) -> None:
         validate_metadata(self.metadata, label="ServiceSpec")
+        _validate_many_argument(self)
         _validate_affordances(self)
+
+
+def _validate_many_argument(spec: ServiceSpec[Any, Any, Any]) -> None:
+    """Refuse a ``many_argument`` no caller could send, or that nothing would read.
+
+    At construction, like ``affordances``: the name is only read by callers that never
+    mount the spec on a view, so ``as_view()`` would never see it.
+
+    The single-item refusal names a declaration **other than the default** rather
+    than any declaration. The field carries its default on every spec, so "declared"
+    and "left alone" are the same value; telling them apart would take a ``None``
+    default that every reader then resolves to ``"items"`` itself -- the drift one
+    declaration exists to prevent. What goes unrefused is writing the default out by
+    hand on a single-item spec, which states what that spec already carries.
+    """
+    name: Any = spec.many_argument
+    # Both halves are needed: the pattern raises ``TypeError`` on a non-string rather
+    # than refusing it. ``fullmatch``, not ``match``, or a valid prefix passes. Held by
+    # test_a_non_string_is_refused_with_the_same_refusal (the type half) and
+    # test_a_name_that_is_not_an_ascii_identifier_is_refused (the pattern half).
+    if not isinstance(name, str) or _MANY_ARGUMENT_NAME.fullmatch(name) is None:
+        raise ImproperlyConfigured(
+            f"ServiceSpec.many_argument must be an ASCII identifier (a letter or "
+            f"underscore, then letters, digits or underscores); got {name!r}. It is the "
+            "name a caller passing named arguments sends the list under."
+        )
+    # Held by test_a_declaration_on_a_list_payload_is_carried_verbatim (the ``many``
+    # half) and test_the_default_on_a_single_item_spec_is_not_a_declaration (the
+    # default half); test_a_declared_name_on_a_single_item_spec_is_refused holds both
+    # together.
+    if not spec.many and name != _DEFAULT_MANY_ARGUMENT:
+        raise ImproperlyConfigured(
+            f"ServiceSpec declares many_argument={name!r} without many=True. It names "
+            "the argument a list travels under, and a single-item spec takes no list; "
+            "set many=True or remove it."
+        )
 
 
 def _validate_affordances(spec: ServiceSpec[Any, Any, Any]) -> None:

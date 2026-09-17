@@ -10,11 +10,15 @@ from django.core.exceptions import ImproperlyConfigured
 from rest_framework_services.jsonschema.filterset_to_json_schema import filterset_to_json_schema
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
 from rest_framework_services.jsonschema.serializer_to_json_schema import serializer_to_json_schema
-from rest_framework_services.jsonschema.utils import callable_input_schema
+from rest_framework_services.jsonschema.utils import (
+    callable_input_schema,
+    list_constraints_for_schema,
+)
 from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
 )
+from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 
@@ -49,7 +53,16 @@ def spec_to_json_schema(
     ``phase="input"`` (default) returns the input-argument schema:
 
     - [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] → its
-        ``input_serializer`` (``spec.partial`` honoured).
+        ``input_serializer`` (``spec.partial`` honoured). On a ``many=True`` spec that
+        schema describes one item, and the input is an object with a single required
+        property named by ``spec.many_argument`` -- ``{"type": "array", "items":
+        <item>}``, with ``minItems`` / ``maxItems`` where the list serializer declares
+        ``allow_empty=False`` / ``min_length`` / ``max_length`` -- and
+        ``additionalProperties: false``. A transport describing a tool passes
+        arguments as an object, which can never be the bare array the HTTP body is;
+        dispatch that input with ``many_as_argument=True``. ``partial`` relaxes the
+        item and never the argument, which DRF requires under ``partial`` too, and
+        ``max_depth`` counts from the item, since the wrapper is not a serializer.
     - [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] → an
       object whose ``properties`` combine the selector callable's own annotated
       parameters (skipping the ``request`` / ``user`` / ``view`` transport seeds) with
@@ -185,12 +198,28 @@ def _input_schema(
     max_depth: int | None,
 ) -> dict[str, Any]:
     if isinstance(spec, ServiceSpec):
-        return serializer_to_json_schema(
+        item: dict[str, Any] = serializer_to_json_schema(
             spec.input_serializer,
             partial=bool(spec.partial),
             registry=registry,
             max_depth=max_depth,
         )
+        if not spec.many:
+            return item
+        return {
+            "type": "object",
+            "properties": {
+                spec.many_argument: {
+                    "type": "array",
+                    "items": item,
+                    **list_constraints_for_schema(spec.input_serializer),
+                }
+            },
+            "required": [spec.many_argument],
+            # The list is the whole input: dispatch refuses any argument beside it,
+            # so the schema says so rather than inviting one.
+            "additionalProperties": False,
+        }
     schema: dict[str, Any] = {"type": "object"}
     properties: dict[str, Any] = {}
     required: list[str] = []
@@ -224,7 +253,10 @@ def _output_schema(
             return None
         return output_to_json_schema(
             nested.output_serializer,
-            kind=nested.kind,
+            # A ``many=True`` service's output selector is ``RETRIEVE`` by
+            # convention, because its kind describes one row, and the result it
+            # renders is still the whole list.
+            kind=SelectorKind.LIST if spec.many else nested.kind,
             registry=registry,
             max_depth=max_depth,
             affordances=nested.affordances,

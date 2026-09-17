@@ -24,7 +24,10 @@ from rest_framework_services.dispatch.utils import (
     clear_prefetch_cache,
     guard_many_argument_binding,
     guard_mapping_params,
+    many_argument_errors,
+    many_argument_items,
     merge_arguments,
+    refuse_arguments_beside_many,
     resolve_argument_binding,
     resolve_dispatch_kwargs,
     resolve_input_context,
@@ -72,6 +75,7 @@ async def adispatch_spec(
     view_hooks: ViewHooks | None = None,
     instance: Any = UNSET,
     filter_data: Mapping[str, Any] | None = None,
+    many_as_argument: bool = False,
 ) -> DispatchResult:
     """Async
     [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec].
@@ -111,6 +115,7 @@ async def adispatch_spec(
             view_hooks=view_hooks,
             instance=instance,
             filter_data=filter_data,
+            many_as_argument=many_as_argument,
         )
     if isinstance(spec, SelectorSpec):
         return await _adispatch_selector(
@@ -246,6 +251,7 @@ async def _adispatch_service(
     view_hooks: ViewHooks | None,
     instance: Any,
     filter_data: Mapping[str, Any] | None,
+    many_as_argument: bool,
 ) -> DispatchResult:
     if spec.many:
         return await _adispatch_service_many(
@@ -261,6 +267,7 @@ async def _adispatch_service(
             on_target_resolved=on_target_resolved,
             progress=progress,
             view_hooks=view_hooks,
+            many_as_argument=many_as_argument,
         )
     guard_mapping_params(params)
 
@@ -406,6 +413,7 @@ async def _adispatch_service_many(
     on_target_resolved: TargetGuard | None,
     progress: ProgressReporter | None,
     view_hooks: ViewHooks | None,
+    many_as_argument: bool,
 ) -> DispatchResult:
     guard_many_argument_binding(argument_binding)
     await arun_off_loop(
@@ -414,32 +422,39 @@ async def _adispatch_service_many(
     input_context = await arun_off_loop(
         resolve_input_context, spec, view=view, request=request, view_hooks=view_hooks
     )
-    params = apply_input_data(
-        params,
-        await arun_off_loop(
-            resolve_input_data,
-            spec,
-            view=view,
-            request=request,
-            instance=None,
-            view_hooks=view_hooks,
-        ),
-    )
-    serializer = await arun_off_loop(
-        build_input_serializer_from_data,
-        params,
-        spec.input_serializer,
-        partial=spec.partial or False,
-        many=True,
-        context=input_context,
-    )
-    data, has_data = resolve_service_many_input(
+    input_data = await arun_off_loop(
+        resolve_input_data,
         spec,
-        serializer,
-        params,
-        unknown_arguments=unknown_arguments,
-        reserved=pool_seeds.reserved,
+        view=view,
+        request=request,
+        instance=None,
+        view_hooks=view_hooks,
     )
+    # See the sync sibling for the order: validation, then the arguments beside the list.
+    argument: str | None = spec.many_argument if many_as_argument else None
+    items: Any = apply_input_data(
+        many_argument_items(spec, params) if many_as_argument else params, input_data
+    )
+    with many_argument_errors(argument):
+        serializer = await arun_off_loop(
+            build_input_serializer_from_data,
+            items,
+            spec.input_serializer,
+            partial=spec.partial or False,
+            many=True,
+            context=input_context,
+        )
+    if many_as_argument:
+        refuse_arguments_beside_many(spec, params, reserved=pool_seeds.reserved)
+    with many_argument_errors(argument):
+        data, has_data = resolve_service_many_input(
+            spec,
+            serializer,
+            items,
+            unknown_arguments=unknown_arguments,
+            reserved=pool_seeds.reserved,
+            index_errors=many_as_argument,
+        )
     pool: dict[str, Any] = base_pool(
         seeds=pool_seeds,
         user=user,

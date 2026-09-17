@@ -149,3 +149,52 @@ class TestAffordances:
         spec = ServiceSpec(service=_noop, affordances=[_row()])
         with pytest.raises(ImproperlyConfigured, match="operates on a set"):
             replace(spec, many=True)
+
+
+class TestManyArgument:
+    """``many_argument``: the one argument a list travels under for a caller whose
+    input is always an object of named arguments."""
+
+    def test_defaults_to_items(self) -> None:
+        """The name the documented workaround uses, so moving to ``many=True`` keeps
+        the argument."""
+        assert ServiceSpec(service=_noop).many_argument == "items"
+        assert ServiceSpec(service=_noop, many=True).many_argument == "items"
+
+    def test_a_declaration_on_a_list_payload_is_carried_verbatim(self) -> None:
+        assert ServiceSpec(service=_noop, many=True, many_argument="rows").many_argument == "rows"
+
+    @pytest.mark.parametrize("name", ["rows", "_rows", "Rows2", "r"])
+    def test_an_ascii_identifier_is_accepted(self, name: str) -> None:
+        assert ServiceSpec(service=_noop, many=True, many_argument=name).many_argument == name
+
+    @pytest.mark.parametrize(
+        "name",
+        ["", "2rows", "line items", "line-items", "rows.v2", "éléments", "rows\n"],
+        ids=["empty", "leading-digit", "space", "hyphen", "dot", "non-ascii", "newline"],
+    )
+    def test_a_name_that_is_not_an_ascii_identifier_is_refused(self, name: str) -> None:
+        """Sized on ``many=True`` so the single-item refusal below cannot answer."""
+        with pytest.raises(ImproperlyConfigured, match="many_argument must be an ASCII identifier"):
+            ServiceSpec(service=_noop, many=True, many_argument=name)
+
+    def test_a_non_string_is_refused_with_the_same_refusal(self) -> None:
+        """Not a ``TypeError`` from the pattern: holds the ``isinstance`` half of the check."""
+        with pytest.raises(ImproperlyConfigured, match="many_argument must be an ASCII identifier"):
+            ServiceSpec(service=_noop, many=True, many_argument=3)  # type: ignore[arg-type]
+
+    def test_a_declared_name_on_a_single_item_spec_is_refused(self) -> None:
+        """A valid name, so only the single-item refusal can answer."""
+        with pytest.raises(
+            ImproperlyConfigured, match="declares many_argument='rows' without many=True"
+        ):
+            ServiceSpec(service=_noop, many_argument="rows")
+
+    def test_the_default_on_a_single_item_spec_is_not_a_declaration(self) -> None:
+        """Every single-item spec carries the default, so it cannot be refused."""
+        ServiceSpec(service=_noop, many=False, many_argument="items")
+
+    def test_the_check_reruns_on_replace(self) -> None:
+        spec = ServiceSpec(service=_noop, many=True, many_argument="rows")
+        with pytest.raises(ImproperlyConfigured, match="without many=True"):
+            replace(spec, many=False)
