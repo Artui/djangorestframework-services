@@ -883,6 +883,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#offering-an-operation-at-all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Offering an operation at all
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#it-is-a-check-not-a-lock" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1707,6 +1718,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#offering-an-operation-at-all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Offering an operation at all
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#it-is-a-check-not-a-lock" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1945,6 +1967,35 @@ same, <code>reason</code> included, because the payload is.</p>
 <code>output_serializer</code>, when the serializer already renders a field called
 <code>affordances</code>, or when the row being rendered did not come through the selector
 that computes them.</p>
+<h2 id="offering-an-operation-at-all">Offering an operation at all<a class="headerlink" href="#offering-an-operation-at-all" title="Permanent link">&para;</a></h2>
+<p>A callable condition does not vary with the row, so it also answers a question
+about the operation itself: is it worth offering right now? A transport that lists
+operations, such as an MCP server's tool list or an agent's toolset for its next
+step, can leave out one that no argument could make succeed:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">base_pool</span><span class="p">,</span> <span class="n">unmet_operation_affordance</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">pool</span> <span class="o">=</span> <span class="n">base_pool</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span> <span class="n">seeds</span><span class="o">=</span><span class="n">seeds</span><span class="p">)</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">offered</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">name</span><span class="p">:</span> <span class="n">spec</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">spec</span> <span class="ow">in</span> <span class="n">operations</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="k">if</span> <span class="n">unmet_operation_affordance</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">pool</span><span class="p">,</span> <span class="n">reserved</span><span class="o">=</span><span class="n">seeds</span><span class="o">.</span><span class="n">reserved</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><a class="autorefs autorefs-internal" title="unmet_operation_affordance" href="../../reference/dispatch/#rest_framework_services.dispatch.unmet_operation_affordance.unmet_operation_affordance"><code>unmet_operation_affordance</code></a>
+returns the first unmet callable condition in declaration order, or <code>None</code>. A
+condition on the row is skipped without a query, because there is no row yet,
+and is still answered for each object: on a selector's rows and at the call. A
+<code>SelectorSpec</code> always answers <code>None</code>, because its <code>affordances</code> describes other
+operations, not the selector.</p>
+<p>Build the pool the way the call's would be built, with the same <code>seeds</code>, and pass
+<code>reserved=seeds.reserved</code>. The list and the call then answer every condition from
+the same names, through one definition.</p>
+<p><strong>The answer is advisory.</strong> The call still enforces every affordance. If a
+condition flips just after the list is built, calling the stale entry gets the
+same <code>ActionUnavailable</code> a direct call would, with the code the list would now
+report. A condition driven by a clock has no event: it is answered when someone
+asks, and nothing announces the moment it flips. A transport that pushes list
+changes to its client needs another signal for when to ask again.</p>
 <h2 id="it-is-a-check-not-a-lock">It is a check, not a lock<a class="headerlink" href="#it-is-a-check-not-a-lock" title="Permanent link">&para;</a></h2>
 <p>The answer is correct at the moment of the call. Between the check and the
 service committing, another request can ship the order. If the service's
@@ -1953,7 +2004,8 @@ transaction, with a <code>select_for_update</code> or a conditional update — a
 affordance is what lets every client find out <em>before</em> trying.</p>
 <h2 id="declaring-nothing-costs-nothing">Declaring nothing costs nothing<a class="headerlink" href="#declaring-nothing-costs-nothing" title="Permanent link">&para;</a></h2>
 <p>A spec without <code>affordances</code> runs no query and, on the async path, takes no
-executor hop for them. A selector without <code>affordances</code> issues exactly the
+executor hop for them. Neither does asking <code>aunmet_operation_affordance</code> about a
+spec with no callable condition. A selector without <code>affordances</code> issues exactly the
 query it issued before, its rows carry no extra attribute, and its views, its
 rendered payloads and its schemas are what they were.</p>
 <p>Full signatures: <a href="../../reference/types/#affordance"><code>Affordance</code></a>,

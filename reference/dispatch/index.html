@@ -1886,6 +1886,73 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="aenforce_affordances">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#unmet_operation_affordance-aunmet_operation_affordance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        unmet_operation_affordance / aunmet_operation_affordance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.unmet_operation_affordance.unmet_operation_affordance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        unmet_operation_affordance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.aunmet_operation_affordance.aunmet_operation_affordance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        aunmet_operation_affordance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="aunmet_operation_affordance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operation_affordances" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        operation_affordances
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.operation_affordances.operation_affordances" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        operation_affordances
+      
+    </span>
+  </a>
+  
 </li>
       
         <li class="md-nav__item">
@@ -3332,6 +3399,73 @@
     <span class="md-ellipsis">
       
         aenforce_affordances
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="aenforce_affordances">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#unmet_operation_affordance-aunmet_operation_affordance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        unmet_operation_affordance / aunmet_operation_affordance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.unmet_operation_affordance.unmet_operation_affordance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        unmet_operation_affordance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.aunmet_operation_affordance.aunmet_operation_affordance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        aunmet_operation_affordance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="aunmet_operation_affordance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operation_affordances" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        operation_affordances
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.operation_affordances.operation_affordances" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        operation_affordances
       
     </span>
   </a>
@@ -6224,6 +6358,174 @@ so one that returns nothing refuses rather than allows.</p>
 <p>The row check is a query and a callable condition is user code, so the whole
 evaluation runs in the executor. A spec declaring none returns before the hop,
 so declaring nothing costs the async path nothing either.</p>
+
+
+    </div>
+
+</div><h3 id="unmet_operation_affordance-aunmet_operation_affordance"><code>unmet_operation_affordance</code> / <code>aunmet_operation_affordance</code><a class="headerlink" href="#unmet_operation_affordance-aunmet_operation_affordance" title="Permanent link">&para;</a></h3>
+<p>A transport deciding which operations to offer, such as an MCP server building
+its tool list or an agent assembling its toolset for a step, asks one of these
+before any call is attempted. They answer the conditions the capability manifest
+calls <code>"operation"</code> scope, the callables that need no row, and return the first
+one not met, or <code>None</code>. A condition on the row is skipped without a query. Build
+the pool with <code>base_pool</code> and the same <code>seeds=</code> the call would use, and pass
+<code>reserved=seeds.reserved</code>. The call answers a condition from those same names, so
+the two agree. The answer is advisory: <code>dispatch_spec</code> still enforces every
+affordance when the operation is called.</p>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.unmet_operation_affordance.unmet_operation_affordance" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">unmet_operation_affordance</span>
+
+
+<a href="#rest_framework_services.dispatch.unmet_operation_affordance.unmet_operation_affordance" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">unmet_operation_affordance</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">pool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">reserved</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">RESERVED_POOL_SEEDS</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Affordance</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The first of the spec's operation-scope affordances not met now, or <code>None</code>.</p>
+<p>For a transport deciding whether to offer an operation at all, before anyone
+attempts it: an MCP server building its tool list, an agent assembling the
+toolset for its next step. An operation whose answer is an
+<a class="autorefs autorefs-internal" title="Affordance
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.affordance.Affordance"><code>Affordance</code></a> cannot be
+called right now whatever it is called with, so offering it only invites a
+refusal.</p>
+<p>Only the callable conditions are asked -- the ones the capability manifest
+calls <code>"operation"</code> scope, answered without a row. A condition on the row
+is skipped without being evaluated, because at list time there is no row: it
+runs no query and needs no instance, and it goes on being answered per object
+where it always is, at the call and on a selector's rows. The callables are
+asked in declaration order and the first unmet one is returned, which is the
+one a call would be refused with when no row condition before it answers
+first. A callable's result is read for truth, so one that returns nothing is
+unmet here as it is refused at the call. An exception it raises propagates:
+this answers the question, and a condition that cannot be answered is not a
+<code>no</code>.</p>
+<p><strong>Build <code>pool</code> the way the call's would be.</strong> A condition sees
+<code>ambient_pool</code> of it -- the seeds, never a client argument -- through the
+same definition the call is refused by, so the two see the same names only
+if they are handed the same seeds:
+<a class="autorefs autorefs-internal" title="base_pool" href="#rest_framework_services.dispatch.base_pool.base_pool"><code>base_pool</code></a> with the
+same <code>seeds=</code>, and <code>reserved=seeds.reserved</code> here, or a condition reading
+a registered seed is asked without it.</p>
+<p><strong>The answer is advisory.</strong>
+<a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>
+still enforces every affordance at the call and remains the authority, so a
+list built a moment before a condition flips is answered, when the stale
+entry is called, by an
+<a class="autorefs autorefs-internal" title="ActionUnavailable" href="../exceptions/#rest_framework_services.exceptions.action_unavailable.ActionUnavailable"><code>ActionUnavailable</code></a>
+carrying the <code>code</code> this would return if asked again then (or a row
+condition's, where one declared earlier refuses first). A condition driven by a
+clock has no event: it is answered when asked, and nothing announces the
+moment it flips. A transport that can push list changes to its client needs
+something else to tell it when to ask again.</p>
+<p>A <code>SelectorSpec</code> is accepted and answers <code>None</code>: its <code>affordances</code> maps
+names to <em>other</em> operations, to be projected onto its rows, and is never a
+condition on the selector itself -- so a transport passes whatever spec it
+holds rather than branching on its type and risking reading that mapping as
+the selector's own.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.aunmet_operation_affordance.aunmet_operation_affordance" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">aunmet_operation_affordance</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-async"><code>async</code></small>
+  </span>
+
+<a href="#rest_framework_services.dispatch.aunmet_operation_affordance.aunmet_operation_affordance" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">aunmet_operation_affordance</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">pool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">reserved</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">RESERVED_POOL_SEEDS</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Affordance</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p><code>unmet_operation_affordance</code> for the async path.</p>
+<p>A callable condition is user code and may query, so the evaluation runs in
+the executor, as <code>aenforce_affordances</code> runs it. A spec with no condition
+answered at list time -- nothing in
+<a class="autorefs autorefs-internal" title="operation_affordances" href="#rest_framework_services.dispatch.operation_affordances.operation_affordances"><code>operation_affordances</code></a>
+-- returns before the hop: a transport asks this for every operation it
+lists, and most declare nothing, so declaring nothing costs the async path
+nothing either.</p>
+<p><strong>Where the hop lands decides who closes what the condition opened.</strong> It is a
+thread-sensitive <code>sync_to_async</code>. Inside Django's request cycle that is the
+request's own thread, and Django closes the connections it opened when the
+request finishes. Outside it -- a long-lived agent run, a worker with its own
+event loop -- there is no request context, and unless the loop was started
+from sync code through <code>async_to_sync</code>, asgiref runs the hop on its one
+process-wide thread. Django's connections are per thread, so a connection
+opened there stays open after this returns, the event loop's thread cannot
+reach it, and every later hop that lands on that thread inherits it. A
+caller that must release what a condition opened makes its own hop and calls
+<code>unmet_operation_affordance</code> inside it, releasing the connection in that
+same hop.</p>
+
+
+    </div>
+
+</div><h3 id="operation_affordances"><code>operation_affordances</code><a class="headerlink" href="#operation_affordances" title="Permanent link">&para;</a></h3>
+<p>The conditions those two would ask, before anything is asked. An empty answer
+means there is nothing to ask at list time, so a transport can skip building a
+pool, or making a thread hop of its own, for most of the operations it lists.</p>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.operation_affordances.operation_affordances" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">operation_affordances</span>
+
+
+<a href="#rest_framework_services.dispatch.operation_affordances.operation_affordances" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">operation_affordances</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Affordance</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The operation-scope affordances <code>spec</code> declares, in declaration order.</p>
+<p>The callable ones: the conditions the capability manifest calls
+<code>"operation"</code> scope, answered without a row. A condition on the row is left
+out, and so is anything on a <code>SelectorSpec</code>, which answers <code>()</code>: its
+<code>affordances</code> maps names to <em>other</em> operations, to be projected onto its
+rows, and reading that mapping as the selector's own conditions would answer
+a question about some other operation. A spec declaring none answers <code>()</code>
+too.</p>
+<p>A transport uses this to decide cheaply whether there is anything to ask at
+list time before it builds a pool or takes a thread hop: most operations
+declare nothing, and an empty answer means
+<a class="autorefs autorefs-internal" title="unmet_operation_affordance" href="#rest_framework_services.dispatch.unmet_operation_affordance.unmet_operation_affordance"><code>unmet_operation_affordance</code></a>
+would return <code>None</code> without running anything. Both that function and its
+async twin select their conditions here, so a transport's shortcut and the
+answer it skips cannot disagree about which conditions there are.</p>
 
 
     </div>
