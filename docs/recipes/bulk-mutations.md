@@ -37,6 +37,74 @@ class BulkCreateBooksView(ServiceCreateView):
 `atomic=True` (the default) any item's `ServiceError` rolls the whole batch
 back.
 
+### Off HTTP: the list as one named argument
+
+A tool call's arguments are always a JSON object, so a caller that only sends
+named arguments can never send the bare array an HTTP body is. For that caller
+the list travels under one argument instead, `items` unless the spec names
+another:
+
+```python
+spec = ServiceSpec(
+    service=bulk_create_books,
+    input_serializer=BookIn,
+    many=True,
+    many_argument="books",  # optional; the default is "items"
+)
+
+schema = spec_to_json_schema(spec, phase="input")
+result = dispatch_spec(
+    spec, user=user, params={"books": [{"title": "Dune"}]}, many_as_argument=True
+)
+```
+
+The two halves describe the same input. `spec_to_json_schema` wraps the item
+schema in an object with that one required property and nothing else, carrying
+the list's own bounds from `allow_empty`, `min_length` and `max_length` as
+`minItems` / `maxItems`:
+
+```json
+{
+  "type": "object",
+  "properties": {"books": {"type": "array", "items": {"...": "the BookIn schema"}}},
+  "required": ["books"],
+  "additionalProperties": false
+}
+```
+
+`many_as_argument=True` makes `dispatch_spec` read the list out of that
+argument. It is a no-op on a single-item spec and on a selector, so a transport
+passes it on every call rather than branching on `spec.many`. HTTP never passes
+it: a view still validates the request body as the bare array.
+
+Every validation error the list raises comes back keyed under the argument, in
+the shape a wrapper serializer declaring `books = BookIn(many=True)` produces on
+current DRF. Item errors name only the invalid items, by index, on every DRF
+this package supports, where DRF below 3.18 would otherwise report a list with
+an empty entry for each valid item:
+
+```json
+{"books": {"1": {"title": ["This field may not be blank."]}}}
+```
+
+The argument missing, `null`, not a list, empty when the list may not be, or
+outside its length bounds answers the way that field would:
+`{"books": ["This field is required."]}`, or
+`{"books": {"non_field_errors": ["This list may not be empty."]}}`. An argument
+sent beside the list is refused as `UnknownArguments.REJECT` refuses one,
+whatever `unknown_arguments` says, because the service receives only the list
+and the argument would have nowhere to go; the policy still decides what
+happens to an undeclared key inside an item. A refusal the service or a
+precondition raises is passed on as raised.
+
+A spec that took a list through that wrapper can declare `many=True` instead
+and keep its error wire, as long as the wrapper's field was named `items` or
+the spec names it with `many_argument`. Below DRF 3.18 the wrapper itself
+reported item errors as a list, so there the index mapping is new. Two calls the
+wrapper let through are refused: an argument beside the list under any policy
+but `REJECT`, and, under `REJECT`, an undeclared key inside an item, which the
+wrapper never looked at.
+
 ## `collection_selector_spec` — operate on a filtered set
 
 The LIST-kind twin of `instance_selector_spec`. It resolves a **scoped set**

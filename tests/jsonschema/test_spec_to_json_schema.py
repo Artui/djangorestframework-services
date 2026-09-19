@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+from typing import Any
 
 import django_filters
 import pytest
@@ -199,6 +200,26 @@ def test_service_output_list_kind_is_array() -> None:
     schema = spec_to_json_schema(spec, phase="output")
     assert schema is not None
     assert schema["type"] == "array"
+
+
+def test_a_many_service_output_is_an_array_whatever_its_selector_kind() -> None:
+    # A bulk spec renders through a ``RETRIEVE`` output selector by convention --
+    # its kind describes one row -- and the result is still the list, rendered
+    # item by item. Reading the kind alone described an object for a payload that
+    # is always an array.
+    spec = ServiceSpec(
+        service=_service,
+        many=True,
+        output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_Out),
+    )
+    assert spec_to_json_schema(spec, phase="output") == {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}},
+            "required": ["id"],
+        },
+    }
 
 
 def test_service_output_without_selector_spec_is_none() -> None:
@@ -500,3 +521,179 @@ class TestJsonSchemaMetadataFragment:
         )
         spec = ServiceSpec(service=_service, output_selector_spec=out)
         assert "title" not in (spec_to_json_schema(spec, phase="output") or {})
+
+
+class _Line(serializers.Serializer):
+    sku = serializers.CharField()
+    quantity = serializers.IntegerField()
+
+
+class _NonEmptyLines(serializers.ListSerializer):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs.setdefault("allow_empty", False)
+        super().__init__(*args, **kwargs)
+
+
+class _NonEmptyLine(_Line):
+    class Meta:
+        list_serializer_class = _NonEmptyLines
+
+
+class _BoundedLines(serializers.ListSerializer):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs.setdefault("min_length", 2)
+        kwargs.setdefault("max_length", 5)
+        super().__init__(*args, **kwargs)
+
+
+class _BoundedLine(_Line):
+    class Meta:
+        list_serializer_class = _BoundedLines
+
+
+class _NonEmptyShortLines(serializers.ListSerializer):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs.setdefault("allow_empty", False)
+        kwargs.setdefault("min_length", 0)
+        kwargs.setdefault("max_length", 0)
+        super().__init__(*args, **kwargs)
+
+
+class _NonEmptyShortLine(_Line):
+    class Meta:
+        list_serializer_class = _NonEmptyShortLines
+
+
+class _LinesReadingTheRequest(serializers.ListSerializer):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        # Routine over HTTP, where the key is always there.
+        self.request = self.context["request"]
+
+
+class _LineReadingTheRequest(_Line):
+    class Meta:
+        list_serializer_class = _LinesReadingTheRequest
+
+
+_LINE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"sku": {"type": "string"}, "quantity": {"type": "integer"}},
+    "required": ["sku", "quantity"],
+}
+
+
+class TestManyInput:
+    """A ``many=True`` spec takes its list under one argument, because a caller whose
+    input is an object of named arguments cannot send a bare array."""
+
+    def test_the_list_is_wrapped_under_the_default_argument(self) -> None:
+        spec = ServiceSpec(service=_service, input_serializer=_Line, many=True)
+        assert spec_to_json_schema(spec) == {
+            "type": "object",
+            "properties": {"items": {"type": "array", "items": _LINE_SCHEMA}},
+            "required": ["items"],
+            "additionalProperties": False,
+        }
+
+    def test_a_declared_argument_names_the_property(self) -> None:
+        spec = ServiceSpec(
+            service=_service, input_serializer=_Line, many=True, many_argument="lines"
+        )
+        schema = spec_to_json_schema(spec)
+        assert schema is not None
+        assert list(schema["properties"]) == ["lines"]
+        assert schema["required"] == ["lines"]
+
+    def test_a_single_item_spec_is_not_wrapped(self) -> None:
+        spec = ServiceSpec(service=_service, input_serializer=_Line)
+        assert spec_to_json_schema(spec) == _LINE_SCHEMA
+
+    def test_a_dataclass_item_is_wrapped(self) -> None:
+        spec = ServiceSpec(service=_service, input_serializer=_Create, many=True)
+        schema = spec_to_json_schema(spec)
+        assert schema is not None
+        assert schema["properties"]["items"] == {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}, "count": {"type": "integer"}},
+                "required": ["name"],
+            },
+        }
+
+    def test_no_input_serializer_is_a_list_of_objects(self) -> None:
+        spec = ServiceSpec(service=_service, many=True)
+        schema = spec_to_json_schema(spec)
+        assert schema is not None
+        assert schema["properties"]["items"] == {"type": "array", "items": {"type": "object"}}
+
+    def test_partial_relaxes_the_item_and_never_the_argument(self) -> None:
+        """The list itself is the payload, and DRF refuses a missing one under partial too."""
+        spec = ServiceSpec(service=_service, input_serializer=_Line, many=True, partial=True)
+        schema = spec_to_json_schema(spec)
+        assert schema is not None
+        assert "required" not in schema["properties"]["items"]["items"]
+        assert schema["required"] == ["items"]
+
+    def test_a_list_that_may_not_be_empty_has_a_minimum_of_one(self) -> None:
+        spec = ServiceSpec(service=_service, input_serializer=_NonEmptyLine, many=True)
+        schema = spec_to_json_schema(spec)
+        assert schema is not None
+        assert schema["properties"]["items"]["minItems"] == 1
+        assert "maxItems" not in schema["properties"]["items"]
+
+    def test_length_bounds_are_carried(self) -> None:
+        spec = ServiceSpec(service=_service, input_serializer=_BoundedLine, many=True)
+        schema = spec_to_json_schema(spec)
+        assert schema is not None
+        assert schema["properties"]["items"]["minItems"] == 2
+        assert schema["properties"]["items"]["maxItems"] == 5
+
+    def test_the_tighter_minimum_wins_and_a_zero_maximum_is_carried(self) -> None:
+        """``allow_empty=False`` beats ``min_length=0``; ``max_length=0`` is a bound, not
+        silence, so it is read by ``is not None`` rather than truthiness."""
+        spec = ServiceSpec(service=_service, input_serializer=_NonEmptyShortLine, many=True)
+        schema = spec_to_json_schema(spec)
+        assert schema is not None
+        assert schema["properties"]["items"]["minItems"] == 1
+        assert schema["properties"]["items"]["maxItems"] == 0
+
+    def test_an_unconstrained_list_declares_no_bounds(self) -> None:
+        spec = ServiceSpec(service=_service, input_serializer=_Line, many=True)
+        schema = spec_to_json_schema(spec)
+        assert schema is not None
+        assert set(schema["properties"]["items"]) == {"type", "items"}
+
+    def test_the_list_serializer_is_built_with_the_description_context(self) -> None:
+        """The list serializer dispatch validates with is the one described, context
+        included -- a list serializer reading ``context["request"]`` is described rather
+        than raising ``KeyError``."""
+        spec = ServiceSpec(service=_service, input_serializer=_LineReadingTheRequest, many=True)
+        schema = spec_to_json_schema(spec)
+        assert schema is not None
+        assert schema["properties"]["items"]["items"] == _LINE_SCHEMA
+
+    def test_max_depth_counts_from_the_item(self) -> None:
+        """The wrapper is not a serializer level, so ``max_depth=1`` still publishes the
+        item's own fields."""
+        spec = ServiceSpec(service=_service, input_serializer=_NestedIO, many=True)
+        schema = spec_to_json_schema(spec, max_depth=1)
+        assert schema is not None
+        assert schema["properties"]["items"]["items"] == {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}, "inner": {"type": "object"}},
+            "required": ["id", "inner"],
+        }
+
+    def test_a_metadata_fragment_annotates_the_wrapper(self) -> None:
+        spec = ServiceSpec(
+            service=_service,
+            input_serializer=_Line,
+            many=True,
+            metadata={"json_schema": {"input": {"description": "Add lines."}}},
+        )
+        schema = spec_to_json_schema(spec)
+        assert schema is not None
+        assert schema["description"] == "Add lines."
+        assert schema["additionalProperties"] is False
