@@ -8,7 +8,7 @@ from typing import Any
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model
 
-from rest_framework_services.dispatch.utils import ambient_pool, resolve_dispatch_kwargs
+from rest_framework_services.dispatch.utils import answer_operation_condition
 from rest_framework_services.exceptions.action_unavailable import ActionUnavailable
 from rest_framework_services.exceptions.service_not_found import ServiceNotFound
 from rest_framework_services.selectors.utils import affordance_expression
@@ -64,8 +64,7 @@ def enforce_affordances(
                 row_flags = _row_affordance_flags(instance, affordances)
             available: Any = row_flags[index]
         else:
-            ambient = ambient_pool(pool, reserved=reserved)
-            available = affordance.when(**resolve_dispatch_kwargs(affordance.when, ambient))
+            available = answer_operation_condition(affordance.when, pool, reserved=reserved)
         if not available:
             raise ActionUnavailable(affordance.reason, code=affordance.code)
 

@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.0] — 2026-09-19
+
+### Added
+
+- **`unmet_operation_affordance`, `aunmet_operation_affordance` and
+  `operation_affordances`**, exported from the package root and
+  `rest_framework_services.dispatch`, tell a transport whether to offer an
+  operation at all. Given a spec and the pool its call would receive,
+  they return the first unmet affordance that is a callable (the conditions the
+  capability manifest calls `"operation"` scope), or `None`. They need no instance
+  and do not attempt the call. A condition on the row is skipped without a query. A
+  `SelectorSpec` is accepted and answers `None`, since its `affordances` describe
+  other operations. The async twin takes no executor hop for a spec with no
+  callable condition. `operation_affordances(spec)` returns those callable
+  conditions in declaration order, and `()` for a `SelectorSpec` or a spec that
+  declares none. A transport checks it to skip building a pool, or taking a
+  thread hop of its own, when there is nothing to ask. The async twin's docstring
+  explains where its executor hop runs. Outside Django's request cycle it runs on
+  asgiref's shared thread, which keeps any connection a condition opens, so a
+  caller that must release connections makes its own hop and calls the sync
+  function inside it.
+
+  A tool list or an agent's toolset for one step can now leave out an operation
+  that no argument could make succeed. Nothing public answered that question.
+  `enforce_affordances` refuses rather than answers, and with no instance it raises
+  `ImproperlyConfigured` once it reaches a condition on the row. The
+  alternative was for each transport to copy the rule for which names a condition
+  may see, and then a condition asked at list time could see different names than
+  the same condition enforced at the call. Refusing a call, projecting a condition
+  onto a list and this new check now all answer a callable condition through one
+  internal helper, so the three cannot drift apart. The answer is advisory:
+  `dispatch_spec` still enforces every affordance at the call.
+
 ## [0.53.0] — 2026-09-17
 
 ### Added
@@ -3801,7 +3834,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.53.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.54.0...HEAD
+[0.54.0]: https://github.com/Artui/djangorestframework-services/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/Artui/djangorestframework-services/compare/v0.52.1...v0.53.0
 [0.52.1]: https://github.com/Artui/djangorestframework-services/compare/v0.52.0...v0.52.1
 [0.52.0]: https://github.com/Artui/djangorestframework-services/compare/v0.51.0...v0.52.0

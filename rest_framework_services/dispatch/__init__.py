@@ -10,6 +10,9 @@ from rest_framework_services.dispatch.adispatch_spec import adispatch_spec
 from rest_framework_services.dispatch.aenforce_affordances import aenforce_affordances
 from rest_framework_services.dispatch.arender_for_audience import arender_for_audience
 from rest_framework_services.dispatch.arender_spec_output import arender_spec_output
+from rest_framework_services.dispatch.aunmet_operation_affordance import (
+    aunmet_operation_affordance,
+)
 from rest_framework_services.dispatch.base_pool import base_pool
 from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
 from rest_framework_services.dispatch.build_offline_context import build_offline_context
@@ -24,6 +27,7 @@ from rest_framework_services.dispatch.enforce_permissions import enforce_permiss
 # to a module object rather than the function. Alphabetical order happens to be
 # correct here; if these are ever reordered, keep this one last of the two.
 from rest_framework_services.dispatch.null_progress import null_progress
+from rest_framework_services.dispatch.operation_affordances import operation_affordances
 from rest_framework_services.dispatch.paginate_output import (
     DEFAULT_PAGE_SIZE,
     paginate_output,
@@ -34,12 +38,16 @@ from rest_framework_services.dispatch.renderable_serializer_class import (
     renderable_serializer_class,
 )
 from rest_framework_services.dispatch.unguarded_specs import unguarded_specs
+from rest_framework_services.dispatch.unmet_operation_affordance import (
+    unmet_operation_affordance,
+)
 
 __all__ = [
     "adispatch_spec",
     "aenforce_affordances",
     "arender_for_audience",
     "arender_spec_output",
+    "aunmet_operation_affordance",
     "base_pool",
     "base_serializer_context",
     "build_offline_context",
@@ -49,9 +57,11 @@ __all__ = [
     "enforce_permissions",
     "DEFAULT_PAGE_SIZE",
     "null_progress",
+    "operation_affordances",
     "paginate_output",
     "render_for_audience",
     "render_spec_output",
     "renderable_serializer_class",
     "unguarded_specs",
+    "unmet_operation_affordance",
 ]

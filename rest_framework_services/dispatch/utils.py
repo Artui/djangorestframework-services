@@ -571,6 +571,24 @@ def ambient_pool(pool: Mapping[str, Any], *, reserved: frozenset[str]) -> dict[s
     }
 
 
+def answer_operation_condition(
+    when: Callable[..., Any], pool: Mapping[str, Any], *, reserved: frozenset[str]
+) -> bool:
+    """One callable affordance condition, answered against ``pool`` and read for truth.
+
+    Three places ask a condition on nothing in particular: the call, refusing it
+    (``enforce_affordances``); a list, projecting it onto every row
+    (``split_affordances``); and a transport deciding whether to offer the
+    operation at all (``unmet_operation_affordance``). All three answer it here,
+    so they cannot disagree about which names the condition sees -- the
+    ``ambient_pool`` of whatever pool the caller holds, taken here rather than by
+    each caller -- nor about what counts as met: a callable that returns nothing
+    is unmet in all three, not in two of them.
+    """
+    ambient = ambient_pool(pool, reserved=reserved)
+    return bool(when(**resolve_dispatch_kwargs(when, ambient)))
+
+
 def split_affordances(
     affordances: Mapping[str, ServiceSpec[Any, Any, Any]],
     pool: Mapping[str, Any],
@@ -584,10 +602,9 @@ def split_affordances(
     -- and both build it with ``affordance_expression``, the correlated ``Exists``
     the single-object check also runs, so every path agrees about every row by
     construction rather than by a test. A callable condition has no row to vary
-    with, so it is answered once, here, against the same ``ambient_pool`` the call
-    reads, whatever the selector returned.
+    with, so it is answered once, here, by the same ``answer_operation_condition``
+    the call is refused by, whatever the selector returned.
     """
-    ambient = ambient_pool(pool, reserved=reserved)
     row_conditions: dict[str, Any] = {}
     constants: dict[str, bool] = {}
     for name, service_spec in affordances.items():
@@ -596,8 +613,7 @@ def split_affordances(
             if is_row_condition(affordance.when):
                 row_conditions[alias] = affordance.when
                 continue
-            answer = affordance.when(**resolve_dispatch_kwargs(affordance.when, ambient))
-            constants[alias] = bool(answer)
+            constants[alias] = answer_operation_condition(affordance.when, pool, reserved=reserved)
     return row_conditions, constants
 
 
