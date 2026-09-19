@@ -234,6 +234,42 @@ Rendering refuses, rather than quietly dropping the answers, when the spec has n
 `affordances`, or when the row being rendered did not come through the selector
 that computes them.
 
+## Offering an operation at all
+
+A callable condition does not vary with the row, so it also answers a question
+about the operation itself: is it worth offering right now? A transport that lists
+operations, such as an MCP server's tool list or an agent's toolset for its next
+step, can leave out one that no argument could make succeed:
+
+```python
+from rest_framework_services import base_pool, unmet_operation_affordance
+
+pool = base_pool(user=user, request=request, seeds=seeds)
+offered = {
+    name: spec
+    for name, spec in operations.items()
+    if unmet_operation_affordance(spec, pool, reserved=seeds.reserved) is None
+}
+```
+
+[`unmet_operation_affordance`][rest_framework_services.dispatch.unmet_operation_affordance.unmet_operation_affordance]
+returns the first unmet callable condition in declaration order, or `None`. A
+condition on the row is skipped without a query, because there is no row yet,
+and is still answered for each object: on a selector's rows and at the call. A
+`SelectorSpec` always answers `None`, because its `affordances` describes other
+operations, not the selector.
+
+Build the pool the way the call's would be built, with the same `seeds`, and pass
+`reserved=seeds.reserved`. The list and the call then answer every condition from
+the same names, through one definition.
+
+**The answer is advisory.** The call still enforces every affordance. If a
+condition flips just after the list is built, calling the stale entry gets the
+same `ActionUnavailable` a direct call would, with the code the list would now
+report. A condition driven by a clock has no event: it is answered when someone
+asks, and nothing announces the moment it flips. A transport that pushes list
+changes to its client needs another signal for when to ask again.
+
 ## It is a check, not a lock
 
 The answer is correct at the moment of the call. Between the check and the
@@ -245,7 +281,8 @@ affordance is what lets every client find out *before* trying.
 ## Declaring nothing costs nothing
 
 A spec without `affordances` runs no query and, on the async path, takes no
-executor hop for them. A selector without `affordances` issues exactly the
+executor hop for them. Neither does asking `aunmet_operation_affordance` about a
+spec with no callable condition. A selector without `affordances` issues exactly the
 query it issued before, its rows carry no extra attribute, and its views, its
 rendered payloads and its schemas are what they were.
 

@@ -19,6 +19,7 @@ from rest_framework_services.dispatch import (
     aenforce_affordances,
     arender_for_audience,
     arender_spec_output,
+    aunmet_operation_affordance,
     base_pool,
     base_serializer_context,
     build_offline_context,
@@ -32,6 +33,7 @@ from rest_framework_services.dispatch import (
     render_spec_output,
     renderable_serializer_class,
     unguarded_specs,
+    unmet_operation_affordance,
 )
 from rest_framework_services.exceptions import (
     ActionUnavailable,
@@ -273,6 +275,7 @@ __all__ = [
     "arender_spec_output",
     "arun_selector",
     "arun_service",
+    "aunmet_operation_affordance",
     "aupdate_from_input",
     "aupdate_model",
     "base_pool",
@@ -313,6 +316,7 @@ __all__ = [
     "service_action",
     "spec_to_json_schema",
     "unguarded_specs",
+    "unmet_operation_affordance",
     "update_from_input",
     "update_model",
     "validate_channel_names",

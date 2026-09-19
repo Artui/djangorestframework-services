@@ -28,6 +28,7 @@ from rest_framework_services.selectors.utils import (
 )
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
+from rest_framework_services.types.affordance import Affordance
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.marked_input_keys import marked_input_keys
 from rest_framework_services.types.offline_context import OfflineContext
@@ -571,6 +572,44 @@ def ambient_pool(pool: Mapping[str, Any], *, reserved: frozenset[str]) -> dict[s
     }
 
 
+def answer_operation_condition(
+    when: Callable[..., Any], pool: Mapping[str, Any], *, reserved: frozenset[str]
+) -> bool:
+    """One callable affordance condition, answered against ``pool`` and read for truth.
+
+    Three places ask a condition on nothing in particular: the call, refusing it
+    (``enforce_affordances``); a list, projecting it onto every row
+    (``split_affordances``); and a transport deciding whether to offer the
+    operation at all (``unmet_operation_affordance``). All three answer it here,
+    so they cannot disagree about which names the condition sees -- the
+    ``ambient_pool`` of whatever pool the caller holds, taken here rather than by
+    each caller -- nor about what counts as met: a callable that returns nothing
+    is unmet in all three, not in two of them.
+    """
+    ambient = ambient_pool(pool, reserved=reserved)
+    return bool(when(**resolve_dispatch_kwargs(when, ambient)))
+
+
+def operation_conditions(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
+) -> tuple[Affordance, ...]:
+    """The affordances on ``spec`` that are answered without a row, in declaration order.
+
+    The callable ones: the conditions the capability manifest calls
+    ``"operation"`` scope. A ``SelectorSpec`` has none of its own -- its
+    ``affordances`` maps names to *other* operations, to be projected onto its
+    rows -- so reading that mapping as the selector's conditions would answer a
+    question about some other operation. Shared by the sync and async list-time
+    checks, so the one that decides whether to hop to the executor and the one
+    that runs there select the same conditions.
+    """
+    if isinstance(spec, SelectorSpec):
+        return ()
+    return tuple(
+        affordance for affordance in spec.affordances or () if not is_row_condition(affordance.when)
+    )
+
+
 def split_affordances(
     affordances: Mapping[str, ServiceSpec[Any, Any, Any]],
     pool: Mapping[str, Any],
@@ -584,10 +623,9 @@ def split_affordances(
     -- and both build it with ``affordance_expression``, the correlated ``Exists``
     the single-object check also runs, so every path agrees about every row by
     construction rather than by a test. A callable condition has no row to vary
-    with, so it is answered once, here, against the same ``ambient_pool`` the call
-    reads, whatever the selector returned.
+    with, so it is answered once, here, by the same ``answer_operation_condition``
+    the call is refused by, whatever the selector returned.
     """
-    ambient = ambient_pool(pool, reserved=reserved)
     row_conditions: dict[str, Any] = {}
     constants: dict[str, bool] = {}
     for name, service_spec in affordances.items():
@@ -596,8 +634,7 @@ def split_affordances(
             if is_row_condition(affordance.when):
                 row_conditions[alias] = affordance.when
                 continue
-            answer = affordance.when(**resolve_dispatch_kwargs(affordance.when, ambient))
-            constants[alias] = bool(answer)
+            constants[alias] = answer_operation_condition(affordance.when, pool, reserved=reserved)
     return row_conditions, constants
 
 

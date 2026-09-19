@@ -58,11 +58,17 @@ from rest_framework_services.dispatch.adispatch_spec import (
     _aresolve_target,
 )
 from rest_framework_services.dispatch.aenforce_affordances import aenforce_affordances
+from rest_framework_services.dispatch.aunmet_operation_affordance import (
+    aunmet_operation_affordance,
+)
 from rest_framework_services.dispatch.dispatch_spec import (
     _resolve_instance,
     _resolve_target,
 )
 from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
+from rest_framework_services.dispatch.unmet_operation_affordance import (
+    unmet_operation_affordance,
+)
 from tests.testapp.models import Catalog, Post, Section
 
 # --- the harness ---------------------------------------------------------
@@ -188,6 +194,7 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
         (_resolve_target, _aresolve_target),
         (_resolve_instance, _aresolve_instance),
         (enforce_affordances, aenforce_affordances),
+        (unmet_operation_affordance, aunmet_operation_affordance),
     ],
     ids=[
         "dispatch_spec",
@@ -196,6 +203,7 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
         "resolve_target",
         "resolve_instance",
         "enforce_affordances",
+        "unmet_operation_affordance",
     ],
 )
 def test_an_async_twin_takes_the_same_arguments_as_its_sync_twin(

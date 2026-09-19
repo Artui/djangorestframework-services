@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`unmet_operation_affordance` and `aunmet_operation_affordance`**, exported from
+  the package root and `rest_framework_services.dispatch`, tell a transport whether
+  to offer an operation at all. Given a spec and the pool its call would receive,
+  they return the first unmet affordance that is a callable (the conditions the
+  capability manifest calls `"operation"` scope), or `None`. They need no instance
+  and do not attempt the call. A condition on the row is skipped without a query. A
+  `SelectorSpec` is accepted and answers `None`, since its `affordances` describe
+  other operations. The async twin takes no executor hop for a spec with no
+  callable condition.
+
+  A tool list or an agent's toolset for one step can now leave out an operation
+  that no argument could make succeed. Nothing public answered that question.
+  `enforce_affordances` refuses rather than answers, and with no instance it raises
+  `ImproperlyConfigured` once it reaches a condition on the row. The
+  alternative was for each transport to copy the rule for which names a condition
+  may see, and then a condition asked at list time could see different names than
+  the same condition enforced at the call. Refusing a call, projecting a condition
+  onto a list and this new check now all answer a callable condition through one
+  internal helper, so the three cannot drift apart. The answer is advisory:
+  `dispatch_spec` still enforces every affordance at the call.
+
 ## [0.53.0] — 2026-09-17
 
 ### Added

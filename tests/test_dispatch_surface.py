@@ -13,12 +13,18 @@ from __future__ import annotations
 import rest_framework_services as pkg
 from rest_framework_services.dispatch.adispatch_spec import adispatch_spec
 from rest_framework_services.dispatch.aenforce_affordances import aenforce_affordances
+from rest_framework_services.dispatch.aunmet_operation_affordance import (
+    aunmet_operation_affordance,
+)
 from rest_framework_services.dispatch.build_offline_context import build_offline_context
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
 from rest_framework_services.dispatch.enforce_permissions import enforce_permissions
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
+from rest_framework_services.dispatch.unmet_operation_affordance import (
+    unmet_operation_affordance,
+)
 from rest_framework_services.is_async import is_async
 from rest_framework_services.jsonschema.filterset_to_json_schema import filterset_to_json_schema
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
@@ -65,6 +71,9 @@ _SURFACE = {
     "apply_queryset_shaping": apply_queryset_shaping,
     "arun_selector": arun_selector,
     "arun_service": arun_service,
+    # A transport deciding which operations to offer -- a tool list, an agent's
+    # toolset -- asks these, rather than re-deriving which names a condition sees.
+    "aunmet_operation_affordance": aunmet_operation_affordance,
     "build_input_serializer": build_input_serializer,
     "build_input_serializer_from_data": build_input_serializer_from_data,
     "build_offline_context": build_offline_context,
@@ -87,6 +96,7 @@ _SURFACE = {
     "run_service": run_service,
     "serializer_to_json_schema": serializer_to_json_schema,
     "spec_to_json_schema": spec_to_json_schema,
+    "unmet_operation_affordance": unmet_operation_affordance,
     "validate_input": validate_input,
 }
 

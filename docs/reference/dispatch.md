@@ -244,6 +244,22 @@ that path instead.
 
 ::: rest_framework_services.dispatch.aenforce_affordances.aenforce_affordances
 
+### `unmet_operation_affordance` / `aunmet_operation_affordance`
+
+A transport deciding which operations to offer, such as an MCP server building
+its tool list or an agent assembling its toolset for a step, asks one of these
+before any call is attempted. They answer the conditions the capability manifest
+calls `"operation"` scope, the callables that need no row, and return the first
+one not met, or `None`. A condition on the row is skipped without a query. Build
+the pool with `base_pool` and the same `seeds=` the call would use, and pass
+`reserved=seeds.reserved`. The call answers a condition from those same names, so
+the two agree. The answer is advisory: `dispatch_spec` still enforces every
+affordance when the operation is called.
+
+::: rest_framework_services.dispatch.unmet_operation_affordance.unmet_operation_affordance
+
+::: rest_framework_services.dispatch.aunmet_operation_affordance.aunmet_operation_affordance
+
 ## Shared
 
 ### `resolve_callable_kwargs`
