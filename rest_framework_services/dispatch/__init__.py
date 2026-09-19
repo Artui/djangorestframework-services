@@ -27,6 +27,7 @@ from rest_framework_services.dispatch.enforce_permissions import enforce_permiss
 # to a module object rather than the function. Alphabetical order happens to be
 # correct here; if these are ever reordered, keep this one last of the two.
 from rest_framework_services.dispatch.null_progress import null_progress
+from rest_framework_services.dispatch.operation_affordances import operation_affordances
 from rest_framework_services.dispatch.paginate_output import (
     DEFAULT_PAGE_SIZE,
     paginate_output,
@@ -56,6 +57,7 @@ __all__ = [
     "enforce_permissions",
     "DEFAULT_PAGE_SIZE",
     "null_progress",
+    "operation_affordances",
     "paginate_output",
     "render_for_audience",
     "render_spec_output",

@@ -20,6 +20,7 @@ from rest_framework_services.dispatch.build_offline_context import build_offline
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
 from rest_framework_services.dispatch.enforce_permissions import enforce_permissions
+from rest_framework_services.dispatch.operation_affordances import operation_affordances
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.dispatch.unmet_operation_affordance import (
@@ -85,6 +86,10 @@ _SURFACE = {
     "is_async": is_async,
     "is_queryset": is_queryset,
     "materialize_retrieve": materialize_retrieve,
+    # A transport skips building a pool or taking a thread hop for an operation
+    # with nothing to ask at list time by reading this, rather than re-deriving
+    # which conditions are answered without a row.
+    "operation_affordances": operation_affordances,
     "output_to_json_schema": output_to_json_schema,
     "render_spec_output": render_spec_output,
     # A transport that renders an output declaration outside ``render_spec_output``

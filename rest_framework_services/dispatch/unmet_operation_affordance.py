@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from rest_framework_services.dispatch.utils import (
-    answer_operation_condition,
-    operation_conditions,
-)
+from rest_framework_services.dispatch.operation_affordances import operation_affordances
+from rest_framework_services.dispatch.utils import answer_operation_condition
 from rest_framework_services.types.affordance import Affordance
 from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -67,7 +65,7 @@ def unmet_operation_affordance(
     holds rather than branching on its type and risking reading that mapping as
     the selector's own.
     """
-    for affordance in operation_conditions(spec):
+    for affordance in operation_affordances(spec):
         if not answer_operation_condition(affordance.when, pool, reserved=reserved):
             return affordance
     return None

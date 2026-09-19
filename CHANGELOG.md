@@ -9,15 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`unmet_operation_affordance` and `aunmet_operation_affordance`**, exported from
-  the package root and `rest_framework_services.dispatch`, tell a transport whether
-  to offer an operation at all. Given a spec and the pool its call would receive,
+- **`unmet_operation_affordance`, `aunmet_operation_affordance` and
+  `operation_affordances`**, exported from the package root and
+  `rest_framework_services.dispatch`, tell a transport whether to offer an
+  operation at all. Given a spec and the pool its call would receive,
   they return the first unmet affordance that is a callable (the conditions the
   capability manifest calls `"operation"` scope), or `None`. They need no instance
   and do not attempt the call. A condition on the row is skipped without a query. A
   `SelectorSpec` is accepted and answers `None`, since its `affordances` describe
   other operations. The async twin takes no executor hop for a spec with no
-  callable condition.
+  callable condition. `operation_affordances(spec)` returns those callable
+  conditions in declaration order, and `()` for a `SelectorSpec` or a spec that
+  declares none. A transport checks it to skip building a pool, or taking a
+  thread hop of its own, when there is nothing to ask. The async twin's docstring
+  explains where its executor hop runs. Outside Django's request cycle it runs on
+  asgiref's shared thread, which keeps any connection a condition opens, so a
+  caller that must release connections makes its own hop and calls the sync
+  function inside it.
 
   A tool list or an agent's toolset for one step can now leave out an operation
   that no argument could make succeed. Nothing public answered that question.

@@ -28,7 +28,6 @@ from rest_framework_services.selectors.utils import (
 )
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
-from rest_framework_services.types.affordance import Affordance
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.marked_input_keys import marked_input_keys
 from rest_framework_services.types.offline_context import OfflineContext
@@ -588,26 +587,6 @@ def answer_operation_condition(
     """
     ambient = ambient_pool(pool, reserved=reserved)
     return bool(when(**resolve_dispatch_kwargs(when, ambient)))
-
-
-def operation_conditions(
-    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
-) -> tuple[Affordance, ...]:
-    """The affordances on ``spec`` that are answered without a row, in declaration order.
-
-    The callable ones: the conditions the capability manifest calls
-    ``"operation"`` scope. A ``SelectorSpec`` has none of its own -- its
-    ``affordances`` maps names to *other* operations, to be projected onto its
-    rows -- so reading that mapping as the selector's conditions would answer a
-    question about some other operation. Shared by the sync and async list-time
-    checks, so the one that decides whether to hop to the executor and the one
-    that runs there select the same conditions.
-    """
-    if isinstance(spec, SelectorSpec):
-        return ()
-    return tuple(
-        affordance for affordance in spec.affordances or () if not is_row_condition(affordance.when)
-    )
 
 
 def split_affordances(

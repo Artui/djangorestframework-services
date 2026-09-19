@@ -260,6 +260,14 @@ affordance when the operation is called.
 
 ::: rest_framework_services.dispatch.aunmet_operation_affordance.aunmet_operation_affordance
 
+### `operation_affordances`
+
+The conditions those two would ask, before anything is asked. An empty answer
+means there is nothing to ask at list time, so a transport can skip building a
+pool, or making a thread hop of its own, for most of the operations it lists.
+
+::: rest_framework_services.dispatch.operation_affordances.operation_affordances
+
 ## Shared
 
 ### `resolve_callable_kwargs`
