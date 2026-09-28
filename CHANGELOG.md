@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`adispatch_spec` calls a spec's `progress_reporter` provider off the event
+  loop.** It was the one callable a spec carries that the async core still called
+  on the loop, so a provider that queried raised `SynchronousOnlyOperation` before
+  the selector or service had run, while the same spec dispatched normally through
+  `dispatch_spec`. The field's documented use is a task record, and finding or
+  creating that record is a query. The provider now runs in Django's
+  thread-sensitive executor, as every other provider and hook does on the async
+  path. The sync core is unchanged. So is the fan-out: the transport's reporter
+  and the spec's sink are still combined, each isolated from the other's failure.
+
 ## [0.54.0] — 2026-09-19
 
 ### Added

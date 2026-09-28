@@ -88,9 +88,9 @@ async def adispatch_spec(
 
     That rule covers **every** callable a spec carries, not just the selector /
     service: ``kwargs`` providers, ``extend_queryset``, ``filter_set``,
-    ``input_serializer_context``, a callable ``success_status``,
-    ``preconditions``, and the ``on_target_resolved`` guard all run in the
-    executor (see
+    ``input_data``, ``input_serializer_context``, the ``progress_reporter``
+    provider, a callable ``success_status``, ``preconditions``, and the
+    ``on_target_resolved`` guard all run in the executor (see
     ``arun_off_loop``). None of them
     can be ``async def`` — a spec is written once for both transports — so any
     that queries would otherwise raise ``SynchronousOnlyOperation`` here and
@@ -166,8 +166,16 @@ async def _adispatch_selector(
         seeds=pool_seeds,
         user=user,
         request=request,
-        progress=resolve_progress(
-            spec, progress, user=user, request=request, view=view, view_hooks=view_hooks
+        # The spec's ``progress_reporter`` is a provider, and building a sink for
+        # a task record or an audit row is a query — off the loop like the others.
+        progress=await arun_off_loop(
+            resolve_progress,
+            spec,
+            progress,
+            user=user,
+            request=request,
+            view=view,
+            view_hooks=view_hooks,
         ),
     )
     merge_arguments(
@@ -332,8 +340,14 @@ async def _adispatch_service(
         seeds=pool_seeds,
         user=user,
         request=request,
-        progress=resolve_progress(
-            spec, progress, user=user, request=request, view=view, view_hooks=view_hooks
+        progress=await arun_off_loop(
+            resolve_progress,
+            spec,
+            progress,
+            user=user,
+            request=request,
+            view=view,
+            view_hooks=view_hooks,
         ),
     )
     merge_arguments(
@@ -459,8 +473,14 @@ async def _adispatch_service_many(
         seeds=pool_seeds,
         user=user,
         request=request,
-        progress=resolve_progress(
-            spec, progress, user=user, request=request, view=view, view_hooks=view_hooks
+        progress=await arun_off_loop(
+            resolve_progress,
+            spec,
+            progress,
+            user=user,
+            request=request,
+            view=view,
+            view_hooks=view_hooks,
         ),
     )
     pool.update(
