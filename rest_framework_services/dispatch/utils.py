@@ -802,6 +802,10 @@ def resolve_progress(
     The pool is deliberately small: the full pool is not built yet — this is one
     of its seeds — so the provider cannot see validated ``data`` or the resolved
     ``instance``.
+
+    The provider is user code that may query — a task record is found or created
+    before any report is sent — so ``adispatch_spec`` runs this whole function
+    through ``arun_off_loop``, as it does every provider a spec carries.
     """
     # A view is just another transport from the core's point of view, so its hook
     # merges on the same footing as the caller's ``progress``.
@@ -1025,8 +1029,9 @@ async def arun_off_loop(fn: Callable[..., Any], /, *args: Any, **kwargs: Any) ->
 
     The async dispatch path must route **every user-supplied sync callable**
     through here — ``kwargs`` providers, ``extend_queryset``, ``filter_set``,
-    serializer-context providers, a callable ``success_status``. None of them may
-    be async, so calling one from the event loop raises
+    serializer-context providers, the ``progress_reporter`` provider, a callable
+    ``success_status``. None of them may be async, so calling one from the event
+    loop raises
     ``SynchronousOnlyOperation`` the moment it touches the ORM — a failure that
     surfaces only under the async transport, only for specs that happen to query.
     ``thread_sensitive=True`` puts them in the same executor as the surrounding

@@ -13,6 +13,7 @@ they may legitimately be async, so they go through ``arun_callable`` instead.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from typing import Any
 
 import pytest
@@ -70,6 +71,34 @@ def _service(*, data: Any = None, **kwargs: Any) -> Any:
     return Post.objects.first()
 
 
+def _recorder(into: list[Any], *, tag: Any = None) -> Any:
+    def report(
+        progress: float,
+        *,
+        total: float | None = None,
+        message: str | None = None,
+        meta: Mapping[str, Any] | None = None,
+    ) -> None:
+        into.append((tag, progress))
+
+    return report
+
+
+def _task_record_reporter(into: list[Any]) -> Callable[..., Any]:
+    """A ``progress_reporter`` provider that queries while building its sink.
+
+    The field's documented use is a task record, and finding or creating the
+    record is a query made by the provider itself, before any report is sent.
+    The row count it saw is stamped on every report, so a test can tell that the
+    sink it built is the one the callable reported into.
+    """
+
+    def provider() -> Any:
+        return _recorder(into, tag=_count_posts())
+
+    return provider
+
+
 @pytest.mark.django_db(transaction=True)
 class TestSelectorPathStaysOffTheLoop:
     async def test_filter_set_that_queries(self) -> None:
@@ -97,6 +126,23 @@ class TestSelectorPathStaysOffTheLoop:
         spec = SelectorSpec(kind=SelectorKind.LIST, selector=selector, kwargs=_scope_provider)
         result = await adispatch_spec(spec, user=None, params={})
         assert await result.value.acount() == 1
+
+    async def test_progress_reporter_provider_that_queries(self) -> None:
+        await Post.objects.acreate(title="a")
+        seen: list[Any] = []
+
+        def selector(*, progress: Any) -> QuerySet[Post]:
+            progress(1)
+            return _all_posts()
+
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=selector,
+            progress_reporter=_task_record_reporter(seen),
+        )
+        result = await adispatch_spec(spec, user=None, params={})
+        assert await result.value.acount() == 1
+        assert seen == [(1, 1)]
 
     async def test_retrieve_shaping_that_queries(self) -> None:
         post = await Post.objects.acreate(title="a")
@@ -165,6 +211,25 @@ class TestServicePathStaysOffTheLoop:
         result = await adispatch_spec(spec, user=None, params={})
         assert result.value == 1
 
+    async def test_progress_reporter_provider_that_queries(self) -> None:
+        await Post.objects.acreate(title="a")
+        seen: list[Any] = []
+
+        def service(*, progress: Any, **kwargs: Any) -> str:
+            progress(1)
+            return "done"
+
+        spec = ServiceSpec(
+            service=service, progress_reporter=_task_record_reporter(seen), atomic=False
+        )
+        # With a transport reporter beside it: the provider moving off the loop
+        # must not change the fan-out, so both sinks still get the report.
+        result = await adispatch_spec(
+            spec, user=None, params={}, progress=_recorder(seen, tag="transport")
+        )
+        assert result.value == "done"
+        assert seen == [("transport", 1), (1, 1)]
+
     async def test_input_serializer_context_provider_that_queries(self) -> None:
         await Post.objects.acreate(title="a")
         spec = ServiceSpec(
@@ -205,3 +270,21 @@ class TestBulkPathStaysOffTheLoop:
         result = await adispatch_spec(spec, user=None, params=[])
         assert result.value == [1]
         assert result.status == 201
+
+    async def test_progress_reporter_provider_that_queries(self) -> None:
+        await Post.objects.acreate(title="a")
+        seen: list[Any] = []
+
+        def bulk_service(*, progress: Any, **kwargs: Any) -> list[str]:
+            progress(1)
+            return ["done"]
+
+        spec = ServiceSpec(
+            service=bulk_service,
+            many=True,
+            progress_reporter=_task_record_reporter(seen),
+            atomic=False,
+        )
+        result = await adispatch_spec(spec, user=None, params=[])
+        assert result.value == ["done"]
+        assert seen == [(1, 1)]
