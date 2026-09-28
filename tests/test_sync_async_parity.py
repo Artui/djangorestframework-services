@@ -595,6 +595,45 @@ async def test_a_form_encoded_body_validates_the_same_on_either_core() -> None:
     assert async_summary["value"] == {"title": "Alice"}
 
 
+# --- a spec-level progress sink that queries ------------------------------
+#
+# ``progress_reporter`` is a provider, and the use its field documents -- a task
+# record -- queries before any report is sent. The sync core calls the provider in
+# the caller's thread, where the query is ordinary; the async core has to take it
+# off the loop, or a spec that works over HTTP raises ``SynchronousOnlyOperation``
+# over an async transport, before its selector or service has run at all.
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_progress_reporter_that_queries_runs_on_either_core() -> None:
+    await Post.objects.acreate(title="a")
+    reports: list[Any] = []
+
+    def provider() -> Any:
+        rows = Post.objects.count()
+
+        def report(
+            progress: float,
+            *,
+            total: float | None = None,
+            message: str | None = None,
+            meta: Mapping[str, Any] | None = None,
+        ) -> None:
+            reports.append((rows, progress))
+
+        return report
+
+    def selector(*, progress: Any) -> QuerySet[Post]:
+        progress(1)
+        return Post.objects.order_by("id")
+
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=selector, progress_reporter=provider)
+    sync_summary, async_summary = await _dispatch_both(spec, lambda: {"user": None, "params": {}})
+    assert sync_summary == async_summary
+    # One report per core, each into the sink its own provider built after querying.
+    assert reports == [(1, 1), (1, 1)]
+
+
 # --- the render twins -----------------------------------------------------
 #
 # ``view_hooks`` is how a view's ``get_output_serializer_context`` chain reaches
