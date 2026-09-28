@@ -230,7 +230,9 @@ class TestThePrimaryKeyGuardReadsTheSentinelAsAbsent:
                 children={"sections": ChildSpec(model=Section, fk="catalog")},
             )
 
-        assert "which this write did not match" in excinfo.value.detail["sections"][0]
+        # ``[0]`` is the row in either of DRF's shapes, its index or its position.
+        [message] = excinfo.value.detail["sections"][0]
+        assert "which this write did not match" in message
 
 
 @pytest.mark.django_db(transaction=True)

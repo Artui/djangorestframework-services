@@ -105,7 +105,18 @@ ALLOWED_DRF_IMPORTS: dict[str, frozenset[str]] = {
             "rest_framework.serializers",
         }
     ),
-    "mutations/utils.py": frozenset({"rest_framework.exceptions"}),
+    # ``rest_framework`` and ``rest_framework.settings`` are read for one answer:
+    # which shape DRF's ``ListSerializer`` gives a failing row in this project, so
+    # a relation write's row error agrees with a nested serializer's in the same
+    # API. That is DRF's decision by definition -- its setting where it has one,
+    # its release where it does not -- so there is nothing neutral to read instead.
+    "mutations/utils.py": frozenset(
+        {
+            "rest_framework",
+            "rest_framework.exceptions",
+            "rest_framework.settings",
+        }
+    ),
     "selectors/acall_selector.py": frozenset({"rest_framework.request"}),
     "selectors/call_selector.py": frozenset({"rest_framework.request"}),
     "selectors/utils.py": frozenset(

@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A relation write's row error now has the shape DRF's `ListSerializer` gives
+  in the same project.** This changes the wire for consumers on DRF 3.18 or later
+  with the default settings. A failing row in a `children=` collection, a generic
+  relation or a many-to-many was always reported as a list as long as the payload,
+  with `{}` against the rows that passed: `{"sections": [{}, {"title": [...]}]}`.
+  DRF keys a nested serializer's failing rows by index from 3.18.0 on, so one API
+  answered the same mistake in two shapes, depending on whether the serializer or
+  the write refused it. The write now follows DRF. It uses
+  `LIST_SERIALIZER_ERRORS_AS_DICT` where DRF has that setting (3.18.1 on, default
+  `True`). Where DRF does not have it, the DRF release decides: 3.18.0 keys by
+  index, and every release before 3.18 uses the list. On 3.18 with the default
+  settings, the example above is now `{"sections": {1: {"title": [...]}}}`. A
+  project on DRF before 3.18, or one that sets
+  `LIST_SERIALIZER_ERRORS_AS_DICT = False`, sees no change. A relation holding
+  one row has no position and is unchanged. A client that reads the list needs
+  changing. Rendered as JSON, the index keys are strings (`"1"`), as they are in a
+  nested serializer's errors.
+
+### Fixed
+
+- **The primary-key guard and a scope miss name the row they refused.** A nested
+  row carrying a primary key that nothing matched, and a many-to-many row whose
+  `match_key` names nothing in `scope`, were reported under the relation alone,
+  as `{"sections": ["references Section [42], ..."]}`. Every other row failure
+  names its row, and these two did not say which row in the payload was at
+  fault. Both are now addressed like any other row failure, with the message as
+  the row's one complaint: `{"sections": {1: ["references Section [42], ..."]}}`
+  (or the aligned list, per the change above). The relation is still named once.
+- **The async mutation helpers refuse a sync row slot by name, before it runs.** A
+  `create_service`, `update_service` or `delete_service` that is not `async def`,
+  reached through `acreate_from_input`, `aupdate_from_input` or
+  `adelete_relations`, failed without naming the slot or the relation. A slot that
+  queried raised `SynchronousOnlyOperation`. One that did not query ran its whole
+  body, side effects included, and then raised `TypeError: object NoneType can't
+  be used in 'await' expression`. It now raises `ImproperlyConfigured` naming the
+  relation and the slot, and the slot does not run. The slot contract is
+  unchanged: the spec classes already said these must be `async def`.
+- **A validation error keyed by row index keeps its wire names inside the rows.**
+  The dispatcher renames a refusal's keys to the names the request used. It
+  walked a collection's errors only in the list shape, so in DRF's index-keyed
+  shape the `int` key matched no field, and every field inside the row kept its
+  model name. That shape is the one a relation write now produces on current DRF.
+  An `int` key is now read as a row position, and the row beneath it is renamed
+  like a row of the list.
+
 ## [0.54.0] — 2026-09-19
 
 ### Added

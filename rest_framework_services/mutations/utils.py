@@ -13,9 +13,12 @@ from asgiref.sync import sync_to_async
 from django.apps import apps
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.db.models import Model
+from rest_framework import VERSION as DRF_VERSION
 from rest_framework.exceptions import ValidationError
+from rest_framework.settings import api_settings
 
 from rest_framework_services.exceptions.service_validation_error import ServiceValidationError
+from rest_framework_services.is_async import is_async
 from rest_framework_services.services._resolve_m2m import resolve_m2m
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
@@ -492,7 +495,7 @@ def _omitted(value: Any) -> bool:
 def _reject_unmatched_reference(
     item: dict[str, Any],
     spec: _RowSpec,
-    relation: str,
+    path: _RowPath,
 ) -> None:
     """Refuse a nested row that names a primary key nothing matched.
 
@@ -506,6 +509,9 @@ def _reject_unmatched_reference(
     Refused rather than stripped, because quietly creating a different row does
     the opposite of what was asked. A non-primary ``match_key`` is untouched,
     so declaring one still upserts.
+
+    Addressed through ``path`` like every other row failure, so a refused row in
+    a collection is named by its index rather than only by its relation.
     """
     named: dict[str, Any] = {
         key: item[key]
@@ -515,14 +521,14 @@ def _reject_unmatched_reference(
     if not named:
         return
     raise ServiceValidationError(
-        {
-            relation: [
+        path.namespace(
+            [
                 f"references {spec.model.__name__} {sorted(named.values())!r}, which this "
                 f"write did not match. Saving a new row under a primary key would "
                 f"overwrite the row that holds it, so it is refused. Send a row this "
                 f"relation may match, or omit the identifier to create a new one."
             ]
-        }
+        )
     )
 
 
@@ -553,6 +559,29 @@ def _matched_row_exclude_fields(spec: _RowSpec) -> list[str]:
 
 # --- where a row's error lands -------------------------------------------
 
+# The installed DRF's major and minor release, which decides a collection's error
+# shape wherever DRF offers no setting to ask instead. See ``_keys_rows_by_index``.
+_DRF_RELEASE: tuple[int, ...] = tuple(int(part) for part in DRF_VERSION.split(".")[:2])
+
+
+def _keys_rows_by_index() -> bool:
+    """Whether the installed DRF, as configured, keys a list's item errors by index.
+
+    A consumer validating ``items = ItemIn(many=True)`` and writing the rows
+    through a relation spec receives both refusals from one API, so a relation's
+    row error follows whatever ``ListSerializer`` does there. DRF has answered two
+    ways: a list as long as the incoming one, empty against the valid rows,
+    through 3.17; a mapping of the failing rows' indexes from 3.18.0. 3.18.1 added
+    ``LIST_SERIALIZER_ERRORS_AS_DICT`` (default ``True``) as the way back to the
+    list until 3.20 removes it. So the setting answers where DRF has it, and the
+    release answers where it does not -- which is not "the list" everywhere,
+    because 3.18.0 shipped the mapping with no setting at all.
+
+    Read per call rather than once, because DRF reloads its settings when
+    ``REST_FRAMEWORK`` changes and a project's tests do change it.
+    """
+    return bool(getattr(api_settings, "LIST_SERIALIZER_ERRORS_AS_DICT", _DRF_RELEASE >= (3, 18)))
+
 
 @dataclass(frozen=True)
 class _RowPath:
@@ -568,13 +597,17 @@ class _RowPath:
     def namespace(self, detail: Any) -> dict[str, Any]:
         """Put ``detail`` under the relation name, at this row's position.
 
-        The shape is DRF's ``ListSerializer`` — a list as long as the incoming
-        one, empty dicts against the other rows. ``detail`` passes through
-        untouched: a service may raise a string or a list rather than a field
-        map, and reshaping either would invent a field name it never named.
+        The shape is the one DRF's ``ListSerializer`` uses in the same project
+        (``_keys_rows_by_index`` says which): ``{index: detail}`` for the failing
+        row alone, or a list as long as the incoming one with empty dicts against
+        the other rows. ``detail`` passes through untouched: a service may raise
+        a string or a list rather than a field map, and reshaping either would
+        invent a field name it never named.
         """
         if self.index is None:
             return {self.relation: detail}
+        if _keys_rows_by_index():
+            return {self.relation: {self.index: detail}}
         aligned: list[Any] = [{} for _ in range(self.length)]
         aligned[self.index] = detail
         return {self.relation: aligned}
@@ -640,8 +673,29 @@ def _run_child_service(fn: Callable[..., Any], pool: dict[str, Any]) -> Any:
     return run_service(fn, resolve_callable_kwargs(fn, pool), atomic=False)
 
 
-async def _arun_child_service(fn: Callable[..., Awaitable[Any]], pool: dict[str, Any]) -> Any:
-    """Async variant of ``_run_child_service`` (the slot must be ``async def``)."""
+async def _arun_child_service(
+    fn: Callable[..., Awaitable[Any]],
+    pool: dict[str, Any],
+    *,
+    relation: str,
+    slot: str,
+) -> Any:
+    """Async variant of ``_run_child_service``, which refuses a slot it cannot await.
+
+    ``arun_service`` awaits whatever ``fn`` returns, so a sync slot handed
+    through fails without naming itself: with ``SynchronousOnlyOperation`` if it
+    queries, and otherwise only *after* its whole body has run, on awaiting its
+    ``None``. Checked before the call, so neither happens and the refusal names
+    the spec entry to fix. Refused rather than bridged, because the slot
+    contract in these loops is ``async def`` -- the spec classes say so -- and
+    this is where it stops being a sentence nobody checks.
+    """
+    if not is_async(fn):
+        raise ImproperlyConfigured(
+            f"relations[{relation!r}]: {slot} is a sync callable, and the async "
+            "helpers await every row slot. Declare it with async def, or write "
+            "this relation through the sync helpers."
+        )
     return await arun_service(fn, resolve_callable_kwargs(fn, pool), atomic=False)
 
 
@@ -670,16 +724,24 @@ async def _aremove_one_child(
     child: Model,
     spec: _OwnedRowSpec,
     *,
+    relation: str,
     parent: Model,
     context: Mapping[str, Any] | None,
     unlink: bool,
 ) -> tuple[RelationOutcome, Any]:
-    """Async variant of ``_remove_one_child``."""
+    """Async variant of ``_remove_one_child``.
+
+    Also takes ``relation``, which the sync twin has no use for: it is what a
+    ``delete_service`` the async loop cannot await is refused under.
+    """
     if spec.delete_service is None:
         return await aremove_child(child, _link_fields(spec), unlink=unlink)
     pk = child.pk
     await _arun_child_service(
-        spec.delete_service, _child_pool(context, instance=child, parent=parent)
+        spec.delete_service,
+        _child_pool(context, instance=child, parent=parent),
+        relation=relation,
+        slot="delete_service",
     )
     return (RelationOutcome.REMOVED, pk)
 
@@ -835,7 +897,7 @@ def _write_forward_relation(
     item = coerce_to_dict(value)
     row_m2m = resolve_m2m(spec.m2m, item)
     path = _RowPath(relation)
-    target = _match_scoped_target(item, spec, relation=relation, context=context)
+    target = _match_scoped_target(item, spec, path=path, context=context)
     if target is None:
         row = _create_row(item, spec, path=path, seeds={}, context=context, m2m=row_m2m)
         return (
@@ -859,7 +921,7 @@ async def _awrite_forward_relation(
     item = coerce_to_dict(value)
     row_m2m = resolve_m2m(spec.m2m, item)
     path = _RowPath(relation)
-    target = await _amatch_scoped_target(item, spec, relation=relation, context=context)
+    target = await _amatch_scoped_target(item, spec, path=path, context=context)
     if target is None:
         row = await _acreate_row(item, spec, path=path, seeds={}, context=context, m2m=row_m2m)
         return (
@@ -905,7 +967,7 @@ def _resolve_scope(
 
 
 def _scoped_match_miss(
-    relation: str,
+    path: _RowPath,
     spec: _ScopedSpec,
     key: Any,
 ) -> ServiceValidationError:
@@ -913,16 +975,17 @@ def _scoped_match_miss(
 
     Never a create: the payload still carries the key, so a ``pk`` naming an
     out-of-scope row would be written straight back onto that row by
-    ``Model.save()`` — exactly the row the scope protects.
+    ``Model.save()`` — exactly the row the scope protects. Addressed through
+    ``path``, so a many-to-many row is named by its index.
     """
     return ServiceValidationError(
-        {
-            relation: [
+        path.namespace(
+            [
                 f"No {spec.model.__name__} with {spec.match_key}={key!r} is available to "
                 "write: it does not exist, or it is outside the scope this relation may "
                 "write. Omit the key to create a new one."
             ]
-        }
+        )
     )
 
 
@@ -930,7 +993,7 @@ def _match_scoped_target(
     item: dict[str, Any],
     spec: _ScopedSpec,
     *,
-    relation: str,
+    path: _RowPath,
     context: Mapping[str, Any] | None,
 ) -> Any:
     """The in-scope row this payload updates, or ``None`` to create one.
@@ -938,13 +1001,13 @@ def _match_scoped_target(
     ``None`` means no match key was sent at all; a key matching nothing in
     scope raises rather than falling through to a create.
     """
-    resolved = _resolve_scope(item, spec, relation=relation, context=context)
+    resolved = _resolve_scope(item, spec, relation=path.relation, context=context)
     if resolved is None:
         return None
     queryset, key = resolved
     target = queryset.filter(**{spec.match_key: key}).first()
     if target is None:
-        raise _scoped_match_miss(relation, spec, key)
+        raise _scoped_match_miss(path, spec, key)
     return target
 
 
@@ -952,17 +1015,17 @@ async def _amatch_scoped_target(
     item: dict[str, Any],
     spec: _ScopedSpec,
     *,
-    relation: str,
+    path: _RowPath,
     context: Mapping[str, Any] | None,
 ) -> Any:
     """Async variant of ``_match_scoped_target``."""
-    resolved = _resolve_scope(item, spec, relation=relation, context=context)
+    resolved = _resolve_scope(item, spec, relation=path.relation, context=context)
     if resolved is None:
         return None
     queryset, key = resolved
     target = await queryset.filter(**{spec.match_key: key}).afirst()
     if target is None:
-        raise _scoped_match_miss(relation, spec, key)
+        raise _scoped_match_miss(path, spec, key)
     return target
 
 
@@ -1095,6 +1158,7 @@ async def _awrite_reverse_one_to_one(
         status, pk = await _aremove_one_child(
             existing,
             spec,
+            relation=relation,
             parent=parent,
             context=context,
             unlink=_unlinks_orphans(spec, relation=relation),
@@ -1217,7 +1281,7 @@ def _write_m2m_relation(
     for index, item in enumerate(rows):
         row_m2m = resolve_m2m(spec.m2m, item)
         path = _RowPath(relation, index, len(rows))
-        match = _match_scoped_target(item, spec, relation=relation, context=context)
+        match = _match_scoped_target(item, spec, path=path, context=context)
         if match is None:
             row = _create_row(
                 item,
@@ -1277,14 +1341,14 @@ def _create_row(
     arrive already built and why the primary-key guard sits here, ahead of the
     ``create_service`` dispatch: no kind can reach a create without passing it,
     and a declared service is not handed the key either. Keep the guard outside
-    the ``try`` — it names the relation itself, which the block would then name
-    a second time.
+    the ``try`` — it addresses its refusal through ``path`` itself, which the
+    block would then do a second time.
     """
     # Lazy import: genuine recursion cycle — the parent helpers call this loop,
     # and it calls them again for each row.
     from rest_framework_services.mutations.create_from_input import create_from_input
 
-    _reject_unmatched_reference(data, spec, path.relation)
+    _reject_unmatched_reference(data, spec, path)
     if spec.create_service is not None:
         try:
             return _run_child_service(spec.create_service, _child_pool(context, data=data, **seeds))
@@ -1318,11 +1382,14 @@ async def _acreate_row(
     # Lazy import: genuine recursion cycle — see ``_create_row``.
     from rest_framework_services.mutations.acreate_from_input import acreate_from_input
 
-    _reject_unmatched_reference(data, spec, path.relation)
+    _reject_unmatched_reference(data, spec, path)
     if spec.create_service is not None:
         try:
             return await _arun_child_service(
-                spec.create_service, _child_pool(context, data=data, **seeds)
+                spec.create_service,
+                _child_pool(context, data=data, **seeds),
+                relation=path.relation,
+                slot="create_service",
             )
         except _ROW_WRITE_ERRORS as exc:
             raise _namespaced_row_error(exc, path) from exc
@@ -1403,6 +1470,8 @@ async def _aupdate_row(
             returned = await _arun_child_service(
                 spec.update_service,
                 _child_pool(context, data=data, instance=instance, **seeds),
+                relation=path.relation,
+                slot="update_service",
             )
         except _ROW_WRITE_ERRORS as exc:
             raise _namespaced_row_error(exc, path) from exc
@@ -1569,7 +1638,7 @@ async def _awrite_m2m_relation(
     for index, item in enumerate(rows):
         row_m2m = resolve_m2m(spec.m2m, item)
         path = _RowPath(relation, index, len(rows))
-        match = await _amatch_scoped_target(item, spec, relation=relation, context=context)
+        match = await _amatch_scoped_target(item, spec, path=path, context=context)
         if match is None:
             row = await _acreate_row(
                 item,
@@ -1617,7 +1686,9 @@ async def _aremove_orphans(
         if key in matched:
             continue
         removals.append(
-            await _aremove_one_child(child, spec, parent=parent, context=context, unlink=unlink)
+            await _aremove_one_child(
+                child, spec, relation=relation, parent=parent, context=context, unlink=unlink
+            )
         )
     return removals
 
@@ -1735,7 +1806,9 @@ async def _adelete_owned_collection(
     async for child in getattr(parent, relation).all():
         await adelete_relations(child, nested, context=context)
         removals.append(
-            await _aremove_one_child(child, spec, parent=parent, context=context, unlink=unlink)
+            await _aremove_one_child(
+                child, spec, relation=relation, parent=parent, context=context, unlink=unlink
+            )
         )
     return ChildCollectionChange(relation=relation, **_collect_removals(removals))
 
@@ -1771,7 +1844,12 @@ async def _adelete_owned_row(
         return RelatedObjectChange(relation=relation)
     await adelete_relations(row, merge_relations(spec.children, spec.relations), context=context)
     status, pk = await _aremove_one_child(
-        row, spec, parent=parent, context=context, unlink=_unlinks_orphans(spec, relation=relation)
+        row,
+        spec,
+        relation=relation,
+        parent=parent,
+        context=context,
+        unlink=_unlinks_orphans(spec, relation=relation),
     )
     return RelatedObjectChange(relation=relation, outcome=status, pk=pk)
 

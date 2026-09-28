@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 
 from rest_framework_services import (
@@ -371,3 +372,64 @@ class TestAsyncChildServices:
         )
         assert deltas[0].removed == (orphan.pk,)
         assert archived == [(orphan.pk, catalog), (orphan.pk, catalog)]
+
+
+@pytest.mark.django_db(transaction=True)
+class TestTheAsyncLoopRefusesASyncSlot:
+    """A slot the async loop cannot await is refused by name, before it runs.
+
+    Handed through, a sync slot that queries fails with
+    ``SynchronousOnlyOperation`` and one that does not runs its whole body first
+    and then fails with ``TypeError`` on awaiting its ``None`` -- neither naming
+    the relation or the slot, and the second after the body's side effects.
+    """
+
+    async def test_a_create_service_that_never_queries(self) -> None:
+        ran: list[Any] = []
+
+        def create_section(*, data: dict[str, Any]) -> None:
+            ran.append(data)
+
+        with pytest.raises(
+            ImproperlyConfigured,
+            match=r"relations\['sections'\]: create_service is a sync callable",
+        ):
+            await acreate_from_input(
+                Catalog,
+                {"name": "c", "sections": [{"title": "s"}]},
+                children=_sections(create_service=create_section),
+            )
+        assert ran == []
+
+    async def test_an_update_service_that_queries(self) -> None:
+        catalog = await Catalog.objects.acreate(name="c")
+        section = await Section.objects.acreate(catalog=catalog, title="s")
+
+        def update_section(*, instance: Section) -> None:
+            instance.save()
+
+        with pytest.raises(
+            ImproperlyConfigured,
+            match=r"relations\['sections'\]: update_service is a sync callable",
+        ):
+            await aupdate_from_input(
+                catalog,
+                {"sections": [{"pk": section.pk, "title": "t"}]},
+                children=_sections(update_service=update_section, mode="merge"),
+            )
+
+    async def test_a_delete_service(self) -> None:
+        catalog = await Catalog.objects.acreate(name="c")
+        await Note.objects.acreate(catalog=catalog, body="orphan")
+
+        def archive(*, instance: Note) -> None: ...
+
+        notes = {"notes": ChildSpec(model=Note, fk="catalog", delete_service=archive)}
+        with pytest.raises(
+            ImproperlyConfigured, match=r"relations\['notes'\]: delete_service is a sync callable"
+        ):
+            await aupdate_from_input(catalog, {"notes": []}, children=notes)
+        with pytest.raises(
+            ImproperlyConfigured, match=r"relations\['notes'\]: delete_service is a sync callable"
+        ):
+            await adelete_relations(catalog, notes, context={})

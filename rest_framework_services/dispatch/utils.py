@@ -1108,13 +1108,18 @@ def _wire_named_detail(detail: Any, names: dict[str, tuple[str, Any]]) -> Any:
 
     A key with no entry passes through untouched, which is what keeps
     ``non_field_errors`` and anything else a service invented intact -- the
-    walk renames what it can name and never guesses. A list is walked without
-    descending a level, because that is the shape a collection's error already
-    has: one entry per incoming row, each keyed like the row.
+    walk renames what it can name and never guesses. A collection's error is
+    walked without descending a level, in either of the shapes DRF gives one:
+    a list with an entry per incoming row, or a mapping keyed by the failing
+    rows' indexes. Each row is keyed like the row. An ``int`` key is how the
+    second is told apart, and it is unambiguous: a field name is a string.
     """
     if isinstance(detail, dict):
-        renamed: dict[str, Any] = {}
+        renamed: dict[Any, Any] = {}
         for key, value in detail.items():
+            if isinstance(key, int):
+                renamed[key] = _wire_named_detail(value, names)
+                continue
             wire_name, nested = names.get(key, (key, None))
             renamed[wire_name] = _wire_named_detail(value, nested) if nested else value
         return renamed

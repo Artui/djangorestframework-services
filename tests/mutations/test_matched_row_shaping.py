@@ -270,6 +270,7 @@ class TestAFieldMapOntoTheKeyIsRefusedWhereItWouldBeUnreachable:
 
 @pytest.mark.django_db
 class TestARowsWriteFailsAsThatRow:
+    @pytest.mark.usefixtures("rows_keyed_by_index")
     def test_a_django_value_error_is_named_rather_than_escaping(self) -> None:
         # The backstop. Django raises a bare ``ValueError`` -- no ``detail`` to
         # namespace -- when a row's own data cannot be written at all, and
@@ -285,8 +286,8 @@ class TestARowsWriteFailsAsThatRow:
 
         detail = excinfo.value.detail
         assert isinstance(detail, dict)
-        # Reported against the second row, in a list as long as the incoming one.
-        assert detail["posts"][0] == {}
+        # Reported against the second row, and only against it.
+        assert list(detail["posts"]) == [1]
         assert "not-a-number" in str(detail["posts"][1])
 
     def test_a_matched_row_fails_as_that_row_too(self) -> None:

@@ -92,7 +92,9 @@ The rule is narrow, and worth knowing exactly:
 - **`source="*"` and dotted `source="author.name"` are skipped** — neither is a
   key of `validated_data`, so neither can be a key of an error about it.
 - **The detail's shape is untouched.** A string stays a string, a list stays a
-  list of the same length, and a collection keeps its row alignment.
+  list of the same length, and a collection keeps its rows where they were —
+  in either of DRF's shapes for one, an aligned list or a mapping keyed by row
+  index, whose `int` keys are never mistaken for field names.
 - **No serializer, no rename.** A spec with no `input_serializer` has only one
   vocabulary, and calling the mutation helpers directly is unaffected entirely.
 

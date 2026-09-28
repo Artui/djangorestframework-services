@@ -56,7 +56,9 @@ class ChildSpec(RelationSpec):
     seeds. Those seeds — ``data`` / ``instance`` / ``parent`` — are applied **after**
     the context, so a context key of the same name cannot outrank them, the precedence
     form of the rule ``RESERVED_POOL_SEEDS`` states for the dispatcher's pools. In the
-    async loops the slot must be an ``async def``: the async path is awaited end to end.
+    async loops the slot must be an ``async def``: the async path is awaited end to end,
+    so a sync one is refused with ``ImproperlyConfigured``, naming the relation and the
+    slot, before it runs.
 
     A declared slot owns that row **entirely**: ``field_map``,
     ``exclude_fields``, ``m2m`` and the nested ``children`` / ``relations``
