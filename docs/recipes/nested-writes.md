@@ -401,19 +401,31 @@ differ, and a single slot would have to fake `instance=None`. Nested services
 run with `atomic=False`: the calling service's atomic block already wraps the
 whole tree, and a block per row would only buy a savepoint per row. In the
 async helpers the slot must be an `async def` — the async path is awaited end to
-end, and a sync callable there fails on an un-awaitable return.
+end, so a sync callable there is refused with `ImproperlyConfigured` naming the
+relation and the slot, before it runs.
 
 ## When a row's write is refused
 
 An error a row's write raises arrives under the relation that carried it, in the
-shape DRF's `ListSerializer` uses:
+shape DRF's `ListSerializer` uses in the same project — so a nested serializer's
+refusal and a relation write's refusal of the same row read alike:
 
 ```python
-# a collection: a list as long as the one you sent, {} against the rows that passed
-{"posts": [{}, {"title": ["Too rude."]}]}
+# a collection: keyed by the index of each row that failed
+{"posts": {1: {"title": ["Too rude."]}}}
 
 # a relation holding one row: the payload under the name
 {"profile": {"bio": ["Too long."]}}
+```
+
+The collection shape is DRF's decision, followed rather than chosen. From DRF
+3.18 it keys the failing rows by index, as above; `LIST_SERIALIZER_ERRORS_AS_DICT
+= False` (3.18.1 on, until DRF 3.20 removes it) and every DRF before 3.18 give
+the older list instead — as long as the one you sent, `{}` against the rows that
+passed:
+
+```python
+{"posts": [{}, {"title": ["Too rude."]}]}
 ```
 
 Namespacing it is not decoration. A row shares field names with its parent — an
@@ -427,13 +439,13 @@ collection otherwise never says *which* row was refused.
   list gets a string or a list back, at the relation (and position) it came
   from; the library never reshapes it into a field map it did not name.
 - Names nest as you walk them, so a grandchild reads
-  `{"posts": [{"comments": [{"body": ["Too long."]}]}]}`.
+  `{"posts": {0: {"comments": {0: {"body": ["Too long."]}}}}}`.
 
 The library's own refusals — the [primary-key
 guard](#a-nested-create-may-not-carry-a-primary-key), a [`scope`](#scope) that
-matched nothing — already name their relation and are unchanged; they report the
-message under the relation name rather than against a row, because they are
-about the payload rather than about a row's write.
+matched nothing — are addressed the same way, with the message as the row's one
+complaint: `{"posts": {1: ["references Post [42], which this write did not
+match. ..."]}}`.
 
 The relation name here is the map key, which is also the key the payload is read
 from. Where a serializer aliased the nested field — `writer =

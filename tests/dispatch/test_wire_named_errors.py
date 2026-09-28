@@ -119,6 +119,25 @@ class TestTheRenameReachesEveryDepth:
 
         assert excinfo.value.detail == {"chapters": [{}, {"heading": ["Too rude."]}]}
 
+    def test_a_collection_keyed_by_index_is_renamed_inside_its_rows(self) -> None:
+        # DRF's other form for a collection, and the one it defaults to from
+        # 3.18: an ``int`` key is a row's position, never a field, so the row
+        # beneath it is named by the same serializer the list form's rows are.
+        spec = ServiceSpec(
+            service=_refuse({"sections": {1: {"title": ["Too rude."]}}}),
+            input_serializer=_CatalogInput,
+        )
+
+        with pytest.raises(ServiceValidationError) as excinfo:
+            dispatch_spec(
+                spec,
+                user=None,
+                params={"name": "c", "chapters": [{"heading": "a"}, {"heading": "b"}]},
+            )
+
+        assert excinfo.value.detail == {"chapters": {1: {"heading": ["Too rude."]}}}
+
+    @pytest.mark.usefixtures("rows_keyed_by_index")
     def test_it_meets_a_real_nested_write(self) -> None:
         """End to end: the relation spec names the model, the caller sees the wire."""
 
@@ -140,7 +159,7 @@ class TestTheRenameReachesEveryDepth:
         with pytest.raises(ServiceValidationError) as excinfo:
             dispatch_spec(spec, user=None, params={"name": "c", "chapters": [{"heading": "a"}]})
 
-        assert excinfo.value.detail == {"chapters": [{"heading": ["Too rude."]}]}
+        assert excinfo.value.detail == {"chapters": {0: {"heading": ["Too rude."]}}}
 
 
 @pytest.mark.django_db
