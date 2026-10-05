@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 from django.conf import settings
+from django.http import HttpResponse, JsonResponse
 from django.test import override_settings
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
@@ -292,6 +293,29 @@ def test_the_http_body_carries_the_schema_as_it_was_raised(entry: str) -> None:
     assert json.loads(response.content) == {"detail": "Confirm the purge.", "schema": _PURGE_SCHEMA}
 
 
+class _PurgeResolverLastViewSet(GenericViewSet, ActionSerializerResolver):
+    """``ActionSerializerResolver`` listed after ``GenericViewSet``, whose
+    ``APIView.handle_exception`` then comes first in the MRO."""
+
+    queryset = Author.objects.all()
+
+    @service_action(_PURGE_SPEC, detail=False, methods=["post"])
+    def purge(self, request):  # type: ignore[no-untyped-def]
+        """Replaced by service_action."""
+
+
+@pytest.mark.django_db
+def test_action_serializer_resolver_restores_the_schema_only_before_generic_viewset() -> None:
+    """The restore is a ``handle_exception`` override, so it runs only where
+    the resolver precedes DRF's view in the bases; listed after, DRF's own
+    method answers and never calls it."""
+    body = json.loads(
+        _respond(_PurgeResolverLastViewSet.as_view({"post": "purge"}), "post", False).content
+    )
+
+    assert body["schema"]["confirmed"] == {"type": "boolean", "default": "False"}
+
+
 @pytest.mark.django_db
 def test_a_viewset_with_no_drfs_base_serves_the_schema_as_drf_coerces_it() -> None:
     """The restore lives on drfs' bases, and ``@service_action`` is a decorator,
@@ -332,6 +356,13 @@ def _bodiless(exc: Exception, context: dict[str, Any]) -> Response | None:
     if not isinstance(exc, APIException):
         return None
     return Response(status=exc.status_code)
+
+
+def _plain_django(exc: Exception, context: dict[str, Any]) -> HttpResponse | None:
+    """A handler answering with a Django response, which carries no ``.data``."""
+    if not isinstance(exc, APIException):
+        return None
+    return JsonResponse({"error": str(exc.detail)}, status=exc.status_code)
 
 
 _seen: list[Exception] = []
@@ -377,6 +408,17 @@ def test_a_handler_that_answers_with_no_body_is_left_alone() -> None:
 
     assert response.status_code == 422
     assert response.data is None
+
+
+def test_a_handler_answering_with_a_django_response_is_left_alone() -> None:
+    """``EXCEPTION_HANDLER`` may return any ``HttpResponse``; DRF serves it as
+    it is, so there is no ``.data`` to read a ``schema`` key from."""
+    with _handled_by("_plain_django"):
+        response = _PurgeView.as_view()(_factory.post("/", {}, format="json"))
+
+    assert response.status_code == 422
+    assert isinstance(response, JsonResponse)
+    assert set(json.loads(response.content)) == {"error"}
 
 
 def test_the_exception_keeps_drfs_shape_after_the_body_is_restored() -> None:

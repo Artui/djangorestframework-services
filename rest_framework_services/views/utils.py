@@ -363,23 +363,27 @@ def list_with_affordances(view: Any, spec: SelectorSpec[Any, Any]) -> Response:
     return Response(add_affordances(spec, serializer.data, queryset, many=True))
 
 
-class JsonNullResponse(Response):
+class _JsonNullResponse(Response):
     """The ``200`` an ``allow_none`` RETRIEVE serves for a miss: a JSON ``null`` body.
 
-    ``Response(None)`` is not that. DRF's ``JSONRenderer`` renders ``None`` as an
-    empty body, and ``Response`` then deletes the ``Content-Type`` it had set, so
-    a client received ``200`` with no body and no media type, and
+    ``Response(None)`` alone is not that. DRF's ``JSONRenderer`` renders ``None``
+    as an empty body, and ``Response`` then deletes the ``Content-Type`` it had
+    set, so a client received ``200`` with no body and no media type, and
     ``response.json()`` raised on a contract that promises ``null``.
 
     The fix is a response rather than a renderer because a response acts *after*
     negotiation, and only on the branch that builds it. The view's
     ``renderer_classes`` -- and a project's ``DEFAULT_RENDERER_CLASSES``, which
     may name a JSON renderer of its own -- stay exactly as configured, and a found
-    row never comes through here. When the negotiated renderer is a
-    ``JSONRenderer``, subclasses included, the body is the literal ``null`` under
-    that renderer's media type, which is the header DRF sets on a
-    ``JSONRenderer``'s other bodies. Any other renderer -- the browsable API, a
-    plain-text one -- renders ``None`` exactly as it did.
+    row never comes through here.
+
+    The negotiated renderer still renders the miss, so whatever it makes of
+    ``None`` is served: an envelope renderer's ``{"data": null}``, the browsable
+    API's page, a plain-text renderer's text. Only an *empty* body from a
+    ``JSONRenderer``, subclasses included, becomes the literal ``null``, under
+    the ``Content-Type`` DRF gives that renderer's other bodies: its media type,
+    with ``; charset=`` when it declares one. Any other renderer's empty body is
+    served as DRF serves it.
     """
 
     def __init__(self) -> None:
@@ -387,8 +391,22 @@ class JsonNullResponse(Response):
 
     @property
     def rendered_content(self) -> Any:
-        renderer: Any = getattr(self, "accepted_renderer", None)
-        if not isinstance(renderer, JSONRenderer):
-            return super().rendered_content
-        self["Content-Type"] = renderer.media_type
+        rendered: Any = super().rendered_content
+        renderer: Any = self.accepted_renderer
+        # One boolean, so each operand is held by a named test in
+        # tests/views/test_selector_retrieve_view.py: ``rendered`` by
+        # test_a_json_renderer_that_wraps_none_keeps_its_wrapper, and the
+        # renderer type by
+        # test_a_non_json_renderer_that_renders_none_as_nothing_still_does.
+        if rendered or not isinstance(renderer, JSONRenderer):
+            return rendered
+        # DRF deleted the header it had set, because the body was empty. Set it
+        # back the way ``Response.rendered_content`` built it; this response
+        # never takes a ``content_type``, so the renderer's own is the one.
+        # The charset half is held by
+        # test_a_charset_renderer_serves_a_miss_under_the_header_of_a_found_row.
+        charset: str | None = renderer.charset
+        self["Content-Type"] = (
+            renderer.media_type if charset is None else f"{renderer.media_type}; charset={charset}"
+        )
         return b"null"

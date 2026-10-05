@@ -139,8 +139,10 @@ is built the way DRF builds every detail, so each leaf of the schema in it is an
 (drf-standardized-errors does) works unchanged. The schema as raised is kept on
 the exception's `schema` attribute, and drfs' views and viewsets put it back
 into the body *after* your handler has built the response: only when the
-response is a dict with a `schema` key of its own, so a handler that reshapes
-the body keeps the body it built.
+response's data is a dict with a `schema` key of its own, so a handler that
+reshapes the body keeps the body it built. A handler that answers with a plain
+Django response, a `JsonResponse` say, has no data to restore into, and is
+served exactly as it built it.
 
 That restore lives on drfs' view and viewset bases: `ServiceCreateView`,
 `ServiceUpdateView`, `ServiceDeleteView`, every viewset mixin, `ServiceViewSet`,
@@ -157,7 +159,12 @@ except APIException as exc:
 
 The same holds for a direct `map_service_error(...)` caller and for a
 `@service_action` on a viewset that takes none of drfs' bases. For the latter,
-adding `ActionSerializerResolver` to its bases is enough.
+adding `ActionSerializerResolver` to its bases is enough, listed **before**
+`GenericViewSet`. The restore is a `handle_exception` override, so it runs only
+where it comes first in the method resolution order:
+`class Purge(ActionSerializerResolver, GenericViewSet)` serves the schema as
+raised, while `class Purge(GenericViewSet, ActionSerializerResolver)` resolves
+`handle_exception` to DRF's `APIView` and still serves it stringified.
 
 **The answer comes back as ordinary input.** An HTTP client re-submits with
 `confirmed` in the body. A transport that asks interactively — MCP, say — merges

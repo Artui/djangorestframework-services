@@ -89,9 +89,11 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
   `RETRIEVE` `@selector_action` render `200` with the body `null` and
   `Content-Type: application/json`, skipping the output serializer — for
   singleton-style resources that legitimately may not exist yet. Content
-  negotiation still applies: only a negotiated JSON renderer is given the
-  literal, and any other renderer (the browsable API, say) renders the miss as
-  it renders `None`. Its output
+  negotiation still applies, and the negotiated renderer still renders the
+  miss: only the empty body a JSON renderer gives `None` becomes the literal,
+  under the `Content-Type` that renderer gives a found row, so an envelope
+  renderer still serves `{"data": null}` and any other renderer (the browsable
+  API, say) renders the miss as it renders `None`. Its output
   schema says so: `spec_to_json_schema(spec, phase="output")` types the item
   `["object", "null"]`. Ignored on nested specs: `output_selector_spec` keeps
   its authoritative-`None` → 204 contract, and `instance_selector_spec` always

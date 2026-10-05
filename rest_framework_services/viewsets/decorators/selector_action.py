@@ -16,7 +16,7 @@ from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.spec_validation import validate_selector_spec
 from rest_framework_services.views.utils import (
-    JsonNullResponse,
+    _JsonNullResponse,
     add_affordances,
     resolve_serializer_context,
 )
@@ -79,7 +79,7 @@ def selector_action(
                     # it would publish a row of empty fields for a row that does
                     # not exist, so the miss is the same ``null`` the retrieve
                     # view and mixin serve.
-                    return JsonNullResponse()
+                    return _JsonNullResponse()
                 serializer = _build_serializer(
                     self, spec, instance, many=False, extras={"instance": instance}
                 )

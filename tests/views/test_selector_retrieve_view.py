@@ -222,10 +222,59 @@ class _VendorJSONAuthorView(_NullableAuthorView):
     renderer_classes = [_VendorJSONRenderer]
 
 
+class _EnvelopeJSONRenderer(JSONRenderer):
+    """A renderer wrapping every payload, ``None`` included, the way
+    djangorestframework-jsonapi serves ``{"data": null}``."""
+
+    def render(
+        self,
+        data: Any,
+        accepted_media_type: str | None = None,
+        renderer_context: Mapping[str, Any] | None = None,
+    ) -> bytes:
+        return super().render({"data": data}, accepted_media_type, renderer_context)
+
+
+class _EnvelopeAuthorView(_NullableAuthorView):
+    renderer_classes = [_EnvelopeJSONRenderer]
+
+
+class _CharsetJSONRenderer(JSONRenderer):
+    """A JSON renderer declaring a charset, which DRF appends to its media type."""
+
+    charset = "utf-8"
+
+
+class _CharsetAuthorView(_NullableAuthorView):
+    renderer_classes = [_CharsetJSONRenderer]
+
+
+class _SilentNoneRenderer(BaseRenderer):
+    """A non-JSON renderer that, like ``JSONRenderer``, renders ``None`` as nothing."""
+
+    media_type = "text/plain"
+    format = "txt"
+
+    def render(
+        self,
+        data: Any,
+        accepted_media_type: str | None = None,
+        renderer_context: Mapping[str, Any] | None = None,
+    ) -> bytes:
+        return b"" if data is None else repr(data).encode()
+
+
+class _SilentNoneAuthorView(_NullableAuthorView):
+    renderer_classes = [_SilentNoneRenderer]
+
+
 urlpatterns = [
     path("authors/<int:pk>/", _NullableAuthorView.as_view()),
     path("negotiating/<int:pk>/", _NegotiatingAuthorView.as_view()),
     path("vendor/<int:pk>/", _VendorJSONAuthorView.as_view()),
+    path("envelope/<int:pk>/", _EnvelopeAuthorView.as_view()),
+    path("charset/<int:pk>/", _CharsetAuthorView.as_view()),
+    path("silent/<int:pk>/", _SilentNoneAuthorView.as_view()),
 ]
 
 # The browsable API needs a template engine, which the shared test settings do
@@ -263,6 +312,33 @@ class TestAllowNoneOnTheWire:
         response = APIClient().get("/vendor/99999/")
         assert response.content == b"null"
         assert response["Content-Type"] == "application/vnd.example+json"
+
+    def test_a_json_renderer_that_wraps_none_keeps_its_wrapper(self) -> None:
+        """The negotiated renderer still renders the miss; ``null`` stands in
+        only for the empty body ``JSONRenderer`` itself gives ``None``."""
+        author = Author.objects.create(name="Ada")
+        found = APIClient().get(f"/envelope/{author.pk}/")
+        miss = APIClient().get("/envelope/99999/")
+        assert found.content == f'{{"data":{{"id":{author.pk},"name":"Ada"}}}}'.encode()
+        assert miss.status_code == 200
+        assert miss.content == b'{"data":null}'
+        assert miss["Content-Type"] == found["Content-Type"] == "application/json"
+
+    def test_a_charset_renderer_serves_a_miss_under_the_header_of_a_found_row(self) -> None:
+        author = Author.objects.create(name="Ada")
+        found = APIClient().get(f"/charset/{author.pk}/")
+        miss = APIClient().get("/charset/99999/")
+        assert found["Content-Type"] == "application/json; charset=utf-8"
+        assert miss["Content-Type"] == found["Content-Type"]
+        assert miss.content == b"null"
+
+    def test_a_non_json_renderer_that_renders_none_as_nothing_still_does(self) -> None:
+        """Only a ``JSONRenderer``'s empty body becomes ``null``; any other
+        renderer's is left exactly as DRF serves it, with no media type."""
+        response = APIClient().get("/silent/99999/")
+        assert response.status_code == 200
+        assert response.content == b""
+        assert "Content-Type" not in response
 
     def test_negotiation_still_picks_a_non_json_renderer(self) -> None:
         response = APIClient().get("/negotiating/99999/", HTTP_ACCEPT="text/plain")

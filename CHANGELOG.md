@@ -115,13 +115,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mapped exception's `detail` keeps DRF's shape, every leaf an `ErrorDetail`, so
   a custom `EXCEPTION_HANDLER` sees what it saw before, and drfs' views and
   viewsets put the schema back after that handler has built the response, only
-  where the body is a dict with a `schema` key. A direct caller of
-  `map_service_error` or `call_service(map_errors=True)` has no view to do that,
-  and reads the schema as raised off the exception's new `schema` attribute. A
-  `@service_action` on a viewset with none of drfs' bases still serves the
-  stringified schema; adding `ActionSerializerResolver` to its bases fixes it.
-  MCP and Pydantic-AI already kept the schema intact; HTTP was the one route
-  that changed it.
+  where the body is a dict with a `schema` key. A handler that answers with a
+  plain Django response, which has no `.data`, is served as it built it. A
+  direct caller of `map_service_error` or `call_service(map_errors=True)` has no
+  view to do that, and reads the schema as raised off the exception's new
+  `schema` attribute. A `@service_action` on a viewset with none of drfs' bases
+  still serves the stringified schema. Adding `ActionSerializerResolver` to its
+  bases fixes it when it is listed before `GenericViewSet`; listed after, DRF's
+  own `handle_exception` answers first. MCP and Pydantic-AI already kept the
+  schema intact; HTTP was the one route that changed it.
 - **`paginate_output` pages a manager.** A LIST selector returning
   `Model.objects` was served whole unpaged and raised `'Manager' object is not
   subscriptable` as soon as a transport paged it: the manager was counted and
@@ -142,12 +144,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `200` with a JSON `null` body, but DRF's `JSONRenderer` renders `None` as no
   bytes at all, and DRF then drops the `Content-Type` header. The client received
   `200` with an empty body and no media type, and `response.json()` raised. The
-  miss is now `null` with `Content-Type: application/json`, or the media type of
-  whichever `JSONRenderer` subclass was negotiated. A non-JSON renderer, the
-  browsable API included, renders the miss as before. A found row renders exactly
-  as before. A `RETRIEVE` `@selector_action` with `allow_none=True` was worse: it
-  passed the `None` to its serializer and served a row of empty fields, such as
-  `{"name": ""}`, for a row that does not exist. It now serves the same `null`.
+  negotiated renderer still renders the miss, and where a `JSONRenderer`,
+  subclasses included, renders it as no bytes, the body is now `null` under the
+  `Content-Type` that renderer gives a found row: `application/json`, or its own
+  media type, with `; charset=` when it declares a charset. A JSON renderer that
+  wraps `None`, such as an envelope serving `{"data": null}`, serves its own body
+  as before. A non-JSON renderer, the browsable API included, renders the miss as
+  before. A found row renders exactly as before. A `RETRIEVE` `@selector_action`
+  with `allow_none=True` was worse: it passed the `None` to its serializer and
+  served a row of empty fields, such as `{"name": ""}`, for a row that does not
+  exist. It now serves the same `null`.
 
 ## [0.54.0] — 2026-09-19
 
