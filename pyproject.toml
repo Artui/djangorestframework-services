@@ -38,7 +38,10 @@ dependencies = [
     # service / selector Protocols (PEP 692). Already required transitively
     # by ``djangorestframework-dataclasses``; declared here explicitly so we
     # don't depend on a transitive contract.
-    "typing-extensions>=4.6",
+    # 4.13 is the release whose ``get_type_hints`` stops wrapping a
+    # ``None``-defaulted parameter in ``Optional[...]`` on Python 3.10, which
+    # otherwise hides every schema marker on such a parameter.
+    "typing-extensions>=4.13",
 ]
 
 [project.optional-dependencies]

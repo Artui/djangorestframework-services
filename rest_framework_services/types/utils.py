@@ -1,17 +1,20 @@
 """Internal helpers shared across the ``types`` package.
 
-``pk_input_targets`` is the one exception to the package name: the write
+``pk_input_targets`` is one exception to the package name: the write
 path shares it, so the three spellings of a primary key are written down
-once rather than agreed between two modules.
+once rather than agreed between two modules. ``callable_type_hints`` is the
+other: the input-schema reflection shares it, so the schema and dispatch read
+a callable's markers off the same annotations.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any, Final
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model
+from typing_extensions import get_type_hints
 
 from rest_framework_services.types.relation_mode import RelationMode
 from rest_framework_services.types.relation_orphan import RelationOrphan
@@ -190,3 +193,31 @@ def affordance_alias(name: str, code: str) -> str:
     name, which ``annotate`` would silently overwrite on every instance.
     """
     return f"affordance__{name}__{code}"
+
+
+def callable_type_hints(fn: Callable[..., Any]) -> dict[str, Any]:
+    """The resolved annotations of a service / selector's parameters, markers kept.
+
+    The one place a callable's annotations are read for the schema markers
+    (``InputRequired``, ``NotClientInput``, ``InputDescription``), by both the
+    input-schema reflection and dispatch, so the two cannot disagree about which
+    keys are required or hidden.
+
+    ``include_extras`` keeps the ``Annotated`` metadata the markers ride in,
+    which the default would strip.
+
+    It is ``typing_extensions.get_type_hints`` rather than ``typing``'s on
+    purpose. On Python 3.10, ``typing.get_type_hints`` wraps any parameter whose
+    default is ``None`` in ``Optional[...]``, so ``Annotated[int | None,
+    NotClientInput] = None`` comes back as ``Optional[Annotated[...]]`` and the
+    marker is no longer at the top where it is read: the key was advertised,
+    accepted under ``UnknownArguments.REJECT`` and never required. Python 3.11
+    stopped adding it, and ``typing_extensions`` 4.13 backports that, which is
+    why that is the declared floor. The annotation comes back as written on
+    every supported Python; an ``Optional`` the author wrote is kept.
+
+    Raises whatever resolution raises (an unresolvable forward reference is a
+    ``NameError``): each caller decides what an unreadable annotation means for
+    it.
+    """
+    return get_type_hints(fn, include_extras=True)

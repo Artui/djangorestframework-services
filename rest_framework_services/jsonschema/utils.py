@@ -29,6 +29,7 @@ from rest_framework_services.types.read_input_description import read_input_desc
 from rest_framework_services.types.read_schema_markers import read_schema_markers
 from rest_framework_services.types.typed_dict_input import typed_dict_input
 from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
+from rest_framework_services.types.utils import callable_type_hints
 
 # How many times one serializer class may appear on the walk's current path
 # before the next appearance is truncated. Counting *appearances* rather than
@@ -605,9 +606,10 @@ def callable_input_schema(
     it was written for.
     """
     try:
-        # ``include_extras`` is required: the schema markers ride in the
-        # ``Annotated`` metadata, which the default would strip.
-        hints = get_type_hints(fn, include_extras=True)
+        # The markers ride in ``Annotated`` metadata, which a plain read would
+        # strip, and on Python 3.10 ``typing`` buries under ``Optional`` for a
+        # ``None`` default; the helper's docstring has the detail.
+        hints = callable_type_hints(fn)
     except Exception:  # noqa: BLE001 — unresolvable forward refs → untyped, never fatal
         hints = {}
     # A supplied name is dropped exactly where a skipped one is. Held by

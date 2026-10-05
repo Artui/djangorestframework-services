@@ -186,3 +186,44 @@ def test_a_described_unpack_key_beside_not_client_input_is_refused() -> None:
 def test_a_described_key_that_is_skipped_is_not_advertised() -> None:
     properties, _required = callable_input_schema(_seeded_described, skip=frozenset({"user"}))
     assert properties == {"pk": {"type": "integer", "description": "The widget id."}}
+
+
+def _none_defaulted(
+    *,
+    secret: Annotated[int | None, NotClientInput] = None,
+    must: Annotated[int | None, InputRequired] = None,
+    note: Annotated[str | None, InputDescription("Free text.")] = None,
+    limit: int = None,  # type: ignore[assignment]
+) -> None: ...
+
+
+# Python 3.10's ``typing.get_type_hints`` wraps a parameter whose default is
+# ``None`` in ``Optional[...]`` (3.11 stopped), which buries the ``Annotated``
+# carrying each marker and nests a second ``anyOf`` around the type. The four
+# tests below hold each consequence on every supported Python.
+
+
+def test_a_none_defaulted_not_client_input_is_not_advertised() -> None:
+    properties, _required = callable_input_schema(_none_defaulted)
+    assert "secret" not in properties
+
+
+def test_a_none_defaulted_input_required_is_required() -> None:
+    _properties, required = callable_input_schema(_none_defaulted)
+    assert required == ["must"]
+
+
+def test_a_none_defaulted_description_is_kept() -> None:
+    properties, _required = callable_input_schema(_none_defaulted)
+    assert properties["note"] == {
+        "anyOf": [{"type": "string"}, {"type": "null"}],
+        "description": "Free text.",
+    }
+
+
+def test_a_none_default_states_the_annotation_as_written() -> None:
+    # One ``anyOf`` where the annotation admits ``None``, and none where it
+    # does not: the default is a value, not a second declaration of the type.
+    properties, _required = callable_input_schema(_none_defaulted)
+    assert properties["must"] == {"anyOf": [{"type": "integer"}, {"type": "null"}]}
+    assert properties["limit"] == {"type": "integer"}

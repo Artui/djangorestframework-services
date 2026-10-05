@@ -56,6 +56,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **On Python 3.10, a schema marker on a parameter that defaults to `None` is
+  honoured.** Python 3.10's `typing.get_type_hints` wraps every parameter whose
+  default is `None` in `Optional[...]`, which 3.11 stopped doing. So a parameter
+  declared `Annotated[int | None, NotClientInput] = None` was read as
+  `Optional[Annotated[...]]`, its marker was no longer where it is looked for,
+  and on 3.10 every marker on such a parameter was ignored, as it had been since
+  the markers came to ordinary parameters in 0.28.0. The serious half is
+  `NotClientInput`: the key was advertised to clients in the input schema, and
+  under `UnknownArguments.REJECT` a client's value for it was accepted instead
+  of refused and reached the selector or service, unless a `kwargs=` provider
+  supplied the key under a binding that lets the provider win. Under the default
+  `IGNORE` delivery is unchanged, since the marker never blocks a value, but the
+  schema asked clients for the key. `InputRequired` on such a parameter was
+  neither listed in `required` nor enforced at dispatch, so the callable ran with
+  the default. An `InputDescription` was dropped, and the type was wrapped in a
+  second `anyOf` with `null`. Annotations are now read through
+  `typing_extensions.get_type_hints`, which backports 3.11's behaviour, so a
+  callable is reflected and dispatched the same way on every supported Python.
+  That also means an unmarked `limit: int = None` is advertised as an `integer`
+  on 3.10, as it already was on 3.11 and later. `Unpack[TypedDict]` keys were
+  never affected, because a `TypedDict` key has no default. The
+  `typing-extensions` floor rises from 4.6 to 4.13, the first release with that
+  backport.
 - **`adispatch_spec` calls a spec's `progress_reporter` provider off the event
   loop.** It was the one callable a spec carries that the async core still called
   on the loop, so a provider that queried raised `SynchronousOnlyOperation` before

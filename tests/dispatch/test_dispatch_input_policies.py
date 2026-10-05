@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
 from django.db.models import QuerySet
@@ -13,6 +13,7 @@ from rest_framework.permissions import BasePermission
 
 from rest_framework_services import (
     ArgumentBinding,
+    NotClientInput,
     SelectorKind,
     SelectorSpec,
     ServiceSpec,
@@ -297,6 +298,45 @@ class TestUnknownArguments:
         )
         # Dataclass ``data`` stays intact; the extra reaches the callable via the spread.
         assert seen == {"data_title": "x", "note": "spread"}
+
+    def test_reject_refuses_a_not_client_input_key(self) -> None:
+        # The provider owns ``team_role``, so a caller supplying it is passing
+        # an argument the spec never offered it, which is what REJECT refuses.
+        def scoped(*, team_role: Annotated[str, NotClientInput]) -> list[str]:
+            return [team_role]
+
+        spec = SelectorSpec(
+            selector=scoped, kind=SelectorKind.LIST, kwargs=lambda **_kw: {"team_role": "member"}
+        )
+        with pytest.raises(ValidationError) as excinfo:
+            dispatch_spec(
+                spec,
+                user=None,
+                params={"team_role": "admin"},
+                unknown_arguments=UnknownArguments.REJECT,
+            )
+        assert excinfo.value.detail == {
+            "non_field_errors": ["Unexpected argument(s): 'team_role'."]
+        }
+
+    def test_reject_refuses_a_none_defaulted_not_client_input_key(self) -> None:
+        # Python 3.10's ``typing.get_type_hints`` wraps a ``None``-defaulted
+        # parameter in ``Optional[...]``, hiding the marker: the key then
+        # counted as declared and the caller's value reached the selector.
+        def scoped(*, team_role: Annotated[str | None, NotClientInput] = None) -> list[Any]:
+            return [team_role]
+
+        spec = SelectorSpec(selector=scoped, kind=SelectorKind.LIST)
+        with pytest.raises(ValidationError) as excinfo:
+            dispatch_spec(
+                spec,
+                user=None,
+                params={"team_role": "admin"},
+                unknown_arguments=UnknownArguments.REJECT,
+            )
+        assert excinfo.value.detail == {
+            "non_field_errors": ["Unexpected argument(s): 'team_role'."]
+        }
 
 
 # ------------------------------------------------------ unknown arguments (bulk)

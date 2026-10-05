@@ -108,3 +108,31 @@ async def test_async_dispatch_accepts_a_satisfied_requirement() -> None:
     ctx = build_offline_context(None, {}, kwargs={"project_pk": 4})
     result = await adispatch_spec(_spec(), user=None, params={}, request=ctx.request, view=ctx.view)
     assert result.value == [(4, None)]
+
+
+def _none_defaulted(*, project_pk: Annotated[int | None, InputRequired] = None) -> list[Any]:
+    return [project_pk]
+
+
+# Python 3.10's ``typing.get_type_hints`` wraps a ``None``-defaulted parameter in
+# ``Optional[...]``, hiding the marker: the selector then ran with the default.
+
+
+def test_a_none_defaulted_required_key_is_enforced() -> None:
+    ctx = build_offline_context(None, {})
+    spec = SelectorSpec(selector=_none_defaulted, kind="list")
+    with pytest.raises(ServiceValidationError) as excinfo:
+        dispatch_spec(spec, user=None, params={}, request=ctx.request, view=ctx.view)
+    assert excinfo.value.detail == {
+        "non_field_errors": ["Missing required argument(s): 'project_pk'."]
+    }
+
+
+async def test_async_dispatch_enforces_a_none_defaulted_required_key() -> None:
+    ctx = build_offline_context(None, {})
+    spec = SelectorSpec(selector=_none_defaulted, kind="list")
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await adispatch_spec(spec, user=None, params={}, request=ctx.request, view=ctx.view)
+    assert excinfo.value.detail == {
+        "non_field_errors": ["Missing required argument(s): 'project_pk'."]
+    }
