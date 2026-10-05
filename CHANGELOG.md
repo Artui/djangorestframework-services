@@ -62,6 +62,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model name. That shape is the one a relation write now produces on current DRF.
   An `int` key is now read as a row position, and the row beneath it is renamed
   like a row of the list.
+- **A projected choice field's schema states the type of its displays.** With a
+  projection, a choice field is described in the displays the payload carries,
+  but the `type` the walk stated beside the values was kept. An `IntegerChoices`
+  field projected as `"Low"` was still described as `"type": "integer"`, so the
+  projected payload failed the schema advertised for it, on every transport
+  that serves both. The type is now restated from the displays: `string` when
+  every display is a string, with `"null"` kept where the stated type admitted
+  it. A `MultipleChoiceField`'s items are restated the same way.
+- **A display two choices share is listed once in a projected schema.** Django
+  allows two values one display, and the projected `oneOf` listed that display
+  once per value. A row served it matched two entries, and `oneOf` admits a value
+  that matches exactly one, so the row failed its schema. Each display is now
+  listed once, where first seen. Repeats are compared as JSON compares them, so
+  `True` and `1` stay two entries.
+- **The HTTP `422` for `AdditionalInputRequired` carries the schema as it was
+  raised.** DRF turns every leaf of an error detail into a string, so the body's
+  `schema` arrived with `"default": "False"` for `False` and `"maximum": "3"` for
+  `3`. It was no longer JSON Schema, and a client building a form from it read a
+  boolean default as a non-empty string. The body is still `{"detail": ...,
+  "schema": ...}`, and `detail` is unchanged. The mapped exception's
+  `get_codes()` and `get_full_details()` describe the message the DRF way and
+  carry the schema as data, since DRF's own walk would look for a code on every
+  schema value. MCP and Pydantic-AI already kept the schema intact; HTTP was the
+  one route that changed it.
+- **`paginate_output` pages a manager.** A LIST selector returning
+  `Model.objects` was served whole unpaged and raised `'Manager' object is not
+  subscriptable` as soon as a transport paged it: the manager was counted and
+  then could not be sliced. A manager is now paged as its `.all()`. That
+  includes one built with `BaseManager.from_queryset`, which is not a `Manager`.
+- **An `allow_none` RETRIEVE's output schema admits the `null` it serves.** A miss
+  is presented as `None`, and the schema said `"type": "object"` alone, so the
+  served value failed it. `spec_to_json_schema(spec, phase="output")` now types
+  the item `["object", "null"]` for a `SelectorSpec` with `allow_none=True` and
+  `kind=RETRIEVE`. `output_to_json_schema` takes the new keyword
+  `allow_none: bool = False`, because it is handed a serializer and a `kind`
+  rather than the spec. Its default leaves every existing caller's schema as it
+  was. A list is unchanged whatever `allow_none` says. So is a `ServiceSpec`'s
+  nested `output_selector_spec`, whose `allow_none` dispatch ignores.
 
 ## [0.54.0] — 2026-09-19
 

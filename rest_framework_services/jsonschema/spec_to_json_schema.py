@@ -79,6 +79,9 @@ def spec_to_json_schema(
     [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] its own.
     Declared ``affordances`` add the ``affordances`` object each rendered item
     carries, ``reason`` included -- the shape ``render_spec_output`` produces.
+    An ``allow_none`` RETRIEVE ``SelectorSpec`` presents ``None`` for a miss, so
+    its item's type is ``["object", "null"]``. A ``ServiceSpec``'s nested
+    ``output_selector_spec.allow_none`` is not read, as dispatch does not read it.
 
     ``max_depth`` bounds how many serializer levels are described, truncating
     deeper ones to ``{"type": "object"}``; ``None``, the default, describes them
@@ -267,4 +270,7 @@ def _output_schema(
         registry=registry,
         max_depth=max_depth,
         affordances=spec.affordances,
+        # Only here: a ``ServiceSpec``'s nested ``allow_none`` is ignored by
+        # dispatch, so the branch above passes none.
+        allow_none=spec.allow_none,
     )

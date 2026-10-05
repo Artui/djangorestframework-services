@@ -34,6 +34,7 @@ def output_to_json_schema(
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
     max_depth: int | None = None,
     affordances: Mapping[str, ServiceSpec[Any, Any, Any]] | None = None,
+    allow_none: bool = False,
 ) -> dict[str, Any] | None:
     """Build a JSON Schema for an output serializer, or ``None`` when undeclared.
 
@@ -91,6 +92,20 @@ def output_to_json_schema(
     declares them;
     [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
     does so itself.
+
+    ``allow_none`` states the ``null`` an ``allow_none`` RETRIEVE presents for a
+    miss: for ``kind=None`` / ``RETRIEVE`` the item's ``"type"`` becomes
+    ``["object", "null"]``, every other keyword kept beside it. It is added
+    last, after the projection and the ``affordances`` property, because those
+    describe the row and the ``null`` is the absence of one. A list never
+    presents ``None``, so for ``kind=LIST`` it changes nothing, paged or not.
+    Off by default, which is the schema every caller got before it existed:
+    this function takes a serializer and a ``kind``, never the spec, so the
+    caller says whether a miss is presented.
+    [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
+    passes a ``SelectorSpec``'s own ``allow_none``. A transport whose protocol
+    needs an object at the root -- an MCP tool's ``outputSchema`` -- leaves it
+    off and states the empty case in its own terms.
     """
     item_schema: dict[str, Any] | None = _item_schema(output_serializer, registry, max_depth)
     if item_schema is None:
@@ -112,7 +127,12 @@ def output_to_json_schema(
             "required": [*item_schema.get("required", []), AFFORDANCES_KEY],
         }
     if kind is not SelectorKind.LIST:
-        return item_schema
+        # A type list rather than an ``anyOf`` of two schemas: the node is one
+        # shape that may also be absent, and a reader picking a widget, or a
+        # model picking a value, reads ``type`` first. Every item root is
+        # typed ``object`` -- a serializer, a dataclass and a truncated node
+        # all are -- so there is no other spelling to merge into.
+        return {**item_schema, "type": [item_schema["type"], "null"]} if allow_none else item_schema
     array_schema: dict[str, Any] = {"type": "array", "items": item_schema}
     if not paginate:
         return array_schema

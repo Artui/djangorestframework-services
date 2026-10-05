@@ -90,6 +90,12 @@ what a page is. Everything that *is* about what a page is lives here: the clamps
 at both ends, the count taken before the slice, and the reported `page` being
 the one actually served.
 
+`rows` is a queryset, a manager or a sized, sliceable sequence. A queryset is
+counted with `COUNT` and sliced lazily; a manager — `Model.objects`, which a
+LIST selector may return as it is — is paged as its `.all()`; a `list` or
+`tuple` is paged in memory. Anything else raises `TypeError`, since there is
+nothing to count and nothing to slice.
+
 ::: rest_framework_services.dispatch.paginate_output.paginate_output
 
 ### `DEFAULT_PAGE_SIZE`

@@ -87,10 +87,11 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
   case. `False` (the default) raises `NotFound`. `True` expresses a
   nullable-resource contract: the retrieve view / viewset mixin renders
   `200` with a JSON `null` body, skipping the output serializer — for
-  singleton-style resources that legitimately may not exist yet. Ignored
-  on nested specs: `output_selector_spec` keeps its authoritative-`None`
-  → 204 contract, and `instance_selector_spec` always 404s (a mutation
-  against a missing row is not a nullable read).
+  singleton-style resources that legitimately may not exist yet. Its output
+  schema says so: `spec_to_json_schema(spec, phase="output")` types the item
+  `["object", "null"]`. Ignored on nested specs: `output_selector_spec` keeps
+  its authoritative-`None` → 204 contract, and `instance_selector_spec` always
+  404s (a mutation against a missing row is not a nullable read).
 - **`output_serializer`** — a DRF serializer class, or a bare `@dataclass`
   (auto-wrapped in `DataclassSerializer`, so it renders the payload its
   output schema describes), used by `get_serializer_class()` for this

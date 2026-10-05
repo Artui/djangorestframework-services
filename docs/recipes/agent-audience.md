@@ -121,9 +121,12 @@ registers its tools up front should build it **once at registration** and pass
 it to every render, as above.
 
 A substituted choice field is re-declared in the schema in its *display* values,
-because that is what the payload now carries. If another tool takes that field
-as input, mark it `FieldMarking.handle()` — that suppresses the substitution on
-both sides and keeps the constant.
+because that is what the payload now carries. The `type` beside them follows: an
+`IntegerChoices` field spoken as `"Low"` is described as a `string`, keeping
+`"null"` where the field's type admitted it. Two values sharing one display list
+it once, so the row carrying it matches one `oneOf` entry rather than two. If
+another tool takes that field as input, mark it `FieldMarking.handle()` — that
+suppresses the substitution on both sides and keeps the constant.
 
 ## Format a value for the agent
 

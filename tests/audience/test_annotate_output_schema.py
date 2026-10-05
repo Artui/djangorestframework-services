@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from typing import Any
+
+import pytest
 from rest_framework import serializers
 
 from rest_framework_services.audience.annotate_output_schema import annotate_output_schema
@@ -171,6 +174,147 @@ class TestSpokenChoiceSchemas:
         assert properties["listed"] == {"enum": ["Awaiting review", "Paid"]}
         # Nothing enum-shaped to rewrite; the rule is respected as written.
         assert properties["opaque"] == {"type": "string"}
+
+
+LOW: dict[Any, str] = {1: "Low"}
+
+
+def _spoken(subschema: dict[str, Any], labels: dict[Any, str] = LOW) -> Any:
+    schema = {"type": "object", "properties": {"p": subschema}}
+    projection = AudienceProjection(choice_labels={"p": labels})
+    return annotate_output_schema(schema, projection)["properties"]["p"]
+
+
+class TestRestatedType:
+    """A display is a string, so a stated ``type`` follows the values now listed.
+
+    Left as the walk stated it, an integer choice spoken as ``"Low"`` is
+    described as an integer, and the projected payload fails the projected
+    schema.
+    """
+
+    def test_an_integer_spoken_whole_is_a_string(self) -> None:
+        assert _spoken({"type": "integer", "oneOf": [{"const": 1, "title": "Low"}]}) == {
+            "type": "string",
+            "oneOf": [{"const": "Low"}],
+        }
+
+    def test_a_nullable_integer_keeps_its_null(self) -> None:
+        subschema = {"type": ["integer", "null"], "oneOf": [{"const": 1}, {"const": None}]}
+
+        assert _spoken(subschema) == {
+            "type": ["string", "null"],
+            "oneOf": [{"const": "Low"}, {"const": None}],
+        }
+
+    def test_null_is_stated_last_wherever_it_was_listed(self) -> None:
+        subschema = {"type": ["null", "integer"], "enum": [None, 1]}
+
+        assert _spoken(subschema) == {"type": ["string", "null"], "enum": [None, "Low"]}
+
+    def test_null_is_kept_where_the_stated_type_admitted_it(self) -> None:
+        """Read off the type, not the values: here the null is admitted by an
+        entry with no constant, and the restated type must not refuse it."""
+        subschema = {
+            "type": ["integer", "null"],
+            "oneOf": [{"const": 1, "title": "Low"}, {"type": "null"}],
+        }
+
+        assert _spoken(subschema)["type"] == ["string", "null"]
+
+    def test_a_type_that_refused_null_still_refuses_it(self) -> None:
+        """The restated type admits what the stated one did, in display terms,
+        and nothing more."""
+        subschema = {"type": "integer", "enum": [1, None]}
+
+        assert _spoken(subschema) == {"type": "string", "enum": ["Low", None]}
+
+    def test_a_value_left_unspoken_keeps_its_type_beside_the_string(self) -> None:
+        subschema = {"type": "integer", "enum": [1, 2]}
+
+        assert _spoken(subschema) == {"type": ["string", "integer"], "enum": ["Low", 2]}
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [(True, "boolean"), (2.5, "number"), (3, "integer"), ("x", "string")],
+    )
+    def test_each_json_type_is_named_as_json_names_it(self, value: Any, expected: str) -> None:
+        assert _spoken({"type": "string", "enum": [value]}, {"other": "Other"})["type"] == expected
+
+    def test_a_value_json_has_no_scalar_type_for_leaves_the_type_as_stated(self) -> None:
+        """Only a type it can name is restated; anything else is left as written."""
+        subschema = {"type": "array", "enum": [(1, 2)]}
+
+        assert _spoken(subschema) == subschema
+
+    def test_only_a_null_left_to_type_leaves_the_type_as_stated(self) -> None:
+        """Nothing but ``None`` is listed and the stated type refused it, so
+        there is no type to restate it as."""
+        subschema = {"type": "integer", "enum": [None]}
+
+        assert _spoken(subschema) == subschema
+
+    def test_a_one_of_with_no_constant_keeps_its_type(self) -> None:
+        """Nothing listed to restate the type from. Nullable, so that restating
+        it from nothing would leave ``"null"`` alone and refuse every string."""
+        subschema = {"type": ["string", "null"], "oneOf": [{"pattern": "^a"}]}
+
+        assert _spoken(subschema) == subschema
+
+    def test_an_untyped_choice_states_no_type(self) -> None:
+        """Nothing was claimed, so there is nothing to contradict."""
+        assert _spoken({"enum": [1]}) == {"enum": ["Low"]}
+
+
+class TestSharedDisplays:
+    """Django lets two values share one display, and a reader is told it once.
+
+    Listed twice, a ``oneOf`` matches a row served that display under both
+    entries, and ``oneOf`` admits only a value valid under exactly one.
+    """
+
+    LABELS: dict[Any, str] = {"live": "Published", "legacy": "Draft", "draft": "Draft"}
+
+    def test_an_enum_lists_each_display_once_in_first_seen_order(self) -> None:
+        subschema = {"type": "string", "enum": ["live", "legacy", "draft"]}
+
+        assert _spoken(subschema, self.LABELS) == {
+            "type": "string",
+            "enum": ["Published", "Draft"],
+        }
+
+    def test_a_one_of_lists_each_display_once(self) -> None:
+        subschema = {
+            "oneOf": [
+                {"const": "legacy", "title": "Draft"},
+                {"const": "draft", "title": "Draft"},
+                {"const": "live", "title": "Published"},
+            ]
+        }
+
+        assert _spoken(subschema, self.LABELS) == {
+            "oneOf": [{"const": "Draft"}, {"const": "Published"}]
+        }
+
+    def test_a_one_of_member_with_no_constant_keeps_its_place(self) -> None:
+        subschema = {"oneOf": [{"type": "null"}, {"const": "live", "title": "Published"}]}
+
+        assert _spoken(subschema, self.LABELS) == {
+            "oneOf": [{"type": "null"}, {"const": "Published"}]
+        }
+
+    def test_a_boolean_is_not_the_number_python_says_it_equals(self) -> None:
+        """``True == 1`` in Python and not in JSON, so both stay listed and a
+        row served either still matches."""
+        assert _spoken({"enum": [True, 1, "x"]}, {"x": "Ex"}) == {"enum": [True, 1, "Ex"]}
+
+    def test_a_boolean_and_the_number_it_equals_stay_two_constants(self) -> None:
+        """The ``oneOf`` spelling of the test above, the one a duplicate breaks."""
+        subschema = {"oneOf": [{"const": True}, {"const": 1}, {"const": "x", "title": "Ex"}]}
+
+        assert _spoken(subschema, {"x": "Ex"}) == {
+            "oneOf": [{"const": True}, {"const": 1}, {"const": "Ex"}]
+        }
 
 
 def test_an_unlabelled_handle_says_nothing_by_default() -> None:

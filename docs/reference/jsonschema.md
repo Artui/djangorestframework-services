@@ -15,6 +15,25 @@ produces DRF serializer classes for DRF's own OpenAPI generators.
 
 ::: rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema
 
+### A miss that is served as `null`
+
+An `allow_none` RETRIEVE presents `None` when its selector finds nothing, so its
+schema has to admit `null` as well as the row. `allow_none=True` states it as a
+type list, leaving every other keyword in place:
+
+```python
+output_to_json_schema(InvoiceSerializer, kind=SelectorKind.RETRIEVE, allow_none=True)
+# {"type": ["object", "null"], "properties": {...}, "required": [...]}
+```
+
+The function takes a serializer, not a spec, so the caller says whether a miss
+is served. `spec_to_json_schema(spec, phase="output")` passes a `SelectorSpec`'s
+own `allow_none`. A list never presents `None`, so `kind=LIST` is unchanged
+whatever `allow_none` says. The default is `False`, which is the schema every
+caller got before the parameter existed. A protocol that needs an object at the
+root, such as an MCP tool's `outputSchema`, can leave it off and describe the
+empty result in its own terms.
+
 ## `filterset_to_json_schema`
 
 ::: rest_framework_services.jsonschema.filterset_to_json_schema.filterset_to_json_schema

@@ -8,9 +8,12 @@ from typing import Any
 import django_filters
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+from jsonschema import Draft202012Validator
 from rest_framework import serializers
 from typing_extensions import NotRequired, TypedDict, Unpack
 
+from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
+from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.jsonschema.spec_to_json_schema import spec_to_json_schema
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -238,6 +241,60 @@ def test_selector_output_reads_own_serializer_and_kind() -> None:
 
 def test_selector_output_retrieve_kind_is_item() -> None:
     spec = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_Out)
+    assert spec_to_json_schema(spec, phase="output") == {
+        "type": "object",
+        "properties": {"id": {"type": "integer"}},
+        "required": ["id"],
+    }
+
+
+def test_an_allow_none_retrieve_admits_the_null_it_serves() -> None:
+    """A miss is presented as ``None``, so the schema says ``null`` too.
+
+    Read off the payload a miss actually renders and checked with a real
+    validator: the schema said ``object`` alone, and every transport serving
+    the miss served a value its own advertised schema refused.
+    """
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        allow_none=True,
+        selector=lambda: None,
+        output_serializer=_Out,
+    )
+    result = dispatch_spec(spec, user=None, params={})
+    payload = render_spec_output(spec, result.value)
+    schema = spec_to_json_schema(spec, phase="output")
+
+    assert payload is None
+    assert schema == {
+        "type": ["object", "null"],
+        "properties": {"id": {"type": "integer"}},
+        "required": ["id"],
+    }
+    assert not list(Draft202012Validator(schema).iter_errors(payload))
+    assert not list(Draft202012Validator(schema).iter_errors({"id": 1}))
+
+
+def test_an_allow_none_list_is_still_an_array() -> None:
+    """``allow_none`` is a RETRIEVE knob; a list never presents ``None``."""
+    spec = SelectorSpec(kind=SelectorKind.LIST, allow_none=True, output_serializer=_Out)
+
+    assert spec_to_json_schema(spec, phase="output") == {
+        "type": "array",
+        "items": {"type": "object", "properties": {"id": {"type": "integer"}}, "required": ["id"]},
+    }
+
+
+def test_a_nested_output_selectors_allow_none_is_not_read() -> None:
+    """Dispatch ignores ``allow_none`` on a ``ServiceSpec``'s output selector, so
+    the schema does too."""
+    spec = ServiceSpec(
+        service=_service,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, allow_none=True, output_serializer=_Out
+        ),
+    )
+
     assert spec_to_json_schema(spec, phase="output") == {
         "type": "object",
         "properties": {"id": {"type": "integer"}},

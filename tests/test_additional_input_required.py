@@ -7,13 +7,16 @@ lives here is a service being able to say it without importing one.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
 from rest_framework import serializers
+from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (  # noqa: I001
     AdditionalInputRequired,
+    ServiceCreateView,
     ServiceError,
     ServiceSpec,
     ServiceValidationError,
@@ -132,3 +135,33 @@ def test_a_plain_service_error_is_unchanged() -> None:
 
     assert mapped.status_code == 422
     assert mapped.detail == "nope"
+
+
+_PURGE_SCHEMA: dict[str, Any] = {
+    "confirmed": {"type": "boolean", "default": False},
+    "batches": {"type": "integer", "minimum": 1, "maximum": 3},
+    "mode": {"enum": ["soft", None]},
+}
+
+
+def _purge() -> None:
+    raise AdditionalInputRequired("Confirm the purge.", schema=_PURGE_SCHEMA)
+
+
+class _PurgeView(ServiceCreateView):
+    spec = ServiceSpec(service=_purge, atomic=False)
+
+
+def test_the_http_body_carries_the_schema_as_it_was_raised() -> None:
+    """Read off the rendered bytes, which is what a client parses.
+
+    DRF coerces every leaf of an exception's detail to ``ErrorDetail``, a
+    ``str``, so the schema used to arrive with ``"default": "False"`` and
+    ``"maximum": "3"``: no longer JSON Schema, and a client rendering a form from
+    it read a boolean default as a non-empty string.
+    """
+    response = _PurgeView.as_view()(APIRequestFactory().post("/", {}, format="json"))
+    response.render()
+
+    assert response.status_code == 422
+    assert json.loads(response.content) == {"detail": "Confirm the purge.", "schema": _PURGE_SCHEMA}

@@ -124,6 +124,19 @@ def delete_rows(*, data):
 it back under. A transport that can put the question to a human renders it; one
 that cannot still has a message worth showing.
 
+Over HTTP the `422` body carries both, the schema exactly as it was raised:
+
+```json
+{"detail": "412 rows match. Confirm to proceed.", "schema": {"confirmed": {"type": "boolean"}}}
+```
+
+A `"default": false` stays a boolean and a `"maximum": 3` a number. DRF turns
+every leaf of an error detail into a string, so the mapped exception sets the
+schema on its detail after DRF has done that to the message, and answers
+`get_codes()` and `get_full_details()` with the message the DRF way and the
+schema as data. Without a schema, the body is the plain `{"detail": ...}` of any
+other `422`.
+
 **The answer comes back as ordinary input.** An HTTP client re-submits with
 `confirmed` in the body. A transport that asks interactively — MCP, say — merges
 the answer into the parameters before dispatch. Either way the service reads it

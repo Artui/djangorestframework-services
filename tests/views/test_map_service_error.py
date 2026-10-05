@@ -72,6 +72,23 @@ class TestMapServiceError:
         assert isinstance(exc, _ServiceAPIException)
         assert exc.status_code == drf_status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_a_schema_is_carried_as_raised_and_drfs_walks_still_answer(self) -> None:
+        """DRF reads ``.code`` off every leaf of a detail in ``get_codes`` and
+        ``get_full_details``, and a schema value has none, so both are answered
+        by the mapped exception: the message the DRF way, the schema as data."""
+        schema = {"confirmed": {"type": "boolean", "default": False}}
+        exc = map_service_error(AdditionalInputRequired("Confirm to proceed.", schema=schema))
+
+        assert exc.status_code == drf_status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert exc.detail == {"detail": "Confirm to proceed.", "schema": schema}
+        assert exc.detail["detail"].code == "service_error"
+        assert exc.detail["schema"]["confirmed"]["default"] is False
+        assert exc.get_codes() == {"detail": "service_error", "schema": schema}
+        assert exc.get_full_details() == {
+            "detail": {"message": "Confirm to proceed.", "code": "service_error"},
+            "schema": schema,
+        }
+
     def test_the_generic_branch_is_last(self) -> None:
         """Every member is a ``ServiceError``, so the order *is* the mapping.
 

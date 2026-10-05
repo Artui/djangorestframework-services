@@ -16,6 +16,11 @@ Both annotate the field rather than asserting anything about its value, so
 neither stops being true when the value is rendered differently.
 """
 
+_SCALAR_TYPES: Final = ((bool, "boolean"), (int, "integer"), (float, "number"), (str, "string"))
+"""JSON's name for each kind of value a choice can hold, ``bool`` before the
+``int`` it subclasses. ``None`` is handled apart: whether a restated type admits
+``"null"`` is read off the type that was stated, and it is named last."""
+
 
 def annotate_output_schema(
     schema: dict[str, Any] | None,
@@ -34,10 +39,14 @@ def annotate_output_schema(
       says what it is for in the schema a model reads without that wording
       leaking into the browsable API;
     - a substituted choice field is re-declared in terms of its **display**
-      values, because that is what the projected payload now carries. The
-      constant is gone from the response by design — a field another tool takes
-      as input should be marked ``HANDLE``, which suppresses the substitution on
-      both sides.
+      values, because that is what the projected payload now carries. A
+      ``type`` stated beside them is restated as the types of the displays,
+      so an integer choice spoken as ``"Low"`` is described as a ``string``,
+      with ``"null"`` kept where the stated type admitted it. A display two
+      values share is listed once, so a row served it matches one ``oneOf``
+      entry rather than two. The constant is gone from the response by design
+      — a field another tool takes as input should be marked ``HANDLE``, which
+      suppresses the substitution on both sides.
     - a formatted field is re-declared as the type its
       [`ValueFormatter`][rest_framework_services.types.value_formatter.ValueFormatter]
       says it produces, plus whatever that declaration adds about the shape of
@@ -133,6 +142,12 @@ def _spoken_schema(schema: dict[str, Any], labels: Mapping[Any, str]) -> dict[st
     did. ``title`` is dropped with the constant it annotated — repeating the
     value it now equals teaches nothing.
 
+    Django allows two values one display, and a display is listed once, where
+    first seen: ``oneOf`` admits a value valid under exactly one entry, so a
+    display listed twice would refuse every row served it. A ``oneOf`` entry
+    with no ``const`` is kept wherever it stands. The type stated beside the
+    values is restated by ``_retyped``.
+
     A ``MultipleChoiceField`` arrives as an array wrapping its member schema, so
     the rewrite descends one level. A union arrives as ``anyOf`` — the shape an
     ``X | None`` annotation is described in, which is how a dataclass output's
@@ -145,16 +160,85 @@ def _spoken_schema(schema: dict[str, Any], labels: Mapping[Any, str]) -> dict[st
     if "anyOf" in schema:
         return {**schema, "anyOf": [_spoken_schema(member, labels) for member in schema["anyOf"]]}
     if "enum" in schema:
-        return {**schema, "enum": [labels.get(value, value) for value in schema["enum"]]}
+        values: list[Any] = []
+        for value in schema["enum"]:
+            display = labels.get(value, value)
+            if not _is_listed(display, values):
+                values.append(display)
+        return _retyped({**schema, "enum": values}, values)
     if "oneOf" in schema:
-        return {
-            **schema,
-            "oneOf": [
-                {"const": labels.get(entry["const"], entry["const"])} if "const" in entry else entry
-                for entry in schema["oneOf"]
-            ],
-        }
+        one_of: list[Any] = []
+        consts: list[Any] = []
+        for entry in schema["oneOf"]:
+            if "const" not in entry:
+                one_of.append(entry)
+                continue
+            display = labels.get(entry["const"], entry["const"])
+            if not _is_listed(display, consts):
+                consts.append(display)
+                one_of.append({"const": display})
+        return _retyped({**schema, "oneOf": one_of}, consts)
     return schema
+
+
+def _is_listed(value: Any, listed: list[Any]) -> bool:
+    """Whether ``value`` is already in ``listed``, as JSON Schema compares values.
+
+    ``True == 1`` in Python and not in JSON Schema, where a boolean is never a
+    number, so dropping one as a repeat of the other would refuse every row
+    served it.
+    """
+    # One branch to coverage, so each condition is held by its own test:
+    # TestSharedDisplays.test_an_enum_lists_each_display_once_in_first_seen_order
+    # (the first: without it every value after the first is a repeat) and
+    # TestSharedDisplays.test_a_boolean_is_not_the_number_python_says_it_equals
+    # (the second).
+    return any(
+        value == seen and isinstance(value, bool) is isinstance(seen, bool) for seen in listed
+    )
+
+
+def _retyped(schema: dict[str, Any], values: list[Any]) -> dict[str, Any]:
+    """``schema`` with any stated ``type`` restated as the types of ``values``.
+
+    The walk states a choice's type beside its values, and a display is a
+    string whatever the value it replaced was, so an integer choice spoken as
+    ``"Low"`` would otherwise be described as an integer and the projected
+    payload would fail the projected schema.
+
+    ``"null"`` is kept exactly where the stated type admitted it, and named
+    last. It is read off the type rather than the values because the type is
+    what admitted or refused a null before, and a ``oneOf`` may admit one
+    through an entry with no ``const``: the restated type admits what the
+    stated one did, in display terms, and nothing more.
+
+    A schema that states no type claims nothing to contradict, one listing no
+    value has nothing to restate it from, and a value JSON has no scalar name
+    for — or nothing but a null the type refused — leaves the type as written
+    rather than guessed at.
+    """
+    # One branch to coverage, so each condition is held by its own test:
+    # TestRestatedType.test_an_untyped_choice_states_no_type (the first) and
+    # TestRestatedType.test_a_one_of_with_no_constant_keeps_its_type (the second).
+    if "type" not in schema or not values:
+        return schema
+    names: list[str] = []
+    for value in values:
+        if value is None:
+            continue
+        name = next(
+            (json_name for kind, json_name in _SCALAR_TYPES if isinstance(value, kind)), None
+        )
+        if name is None:
+            return schema
+        if name not in names:
+            names.append(name)
+    stated = schema["type"]
+    if "null" in (stated if isinstance(stated, list) else [stated]):
+        names.append("null")
+    if not names:
+        return schema
+    return {**schema, "type": names[0] if len(names) == 1 else names}
 
 
 def _description(
