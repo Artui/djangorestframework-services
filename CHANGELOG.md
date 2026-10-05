@@ -64,12 +64,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sending an instance lookup's key to a service that declares a collection lookup,
   or a lookup's key inside a `many=True` item, is now refused with
   `Unexpected argument(s)` where the key used to be admitted and ignored. Under
-  `PASSTHROUGH` that key now reaches the service as an extra. An instance lookup
-  beside a collection lookup no longer opens the declared set when it has a
-  `filter_set` or a bare `**kwargs`, and no longer makes `REJECT` raise
-  `ImproperlyConfigured` when its `**kwargs` annotation cannot be resolved,
-  because it is never read. A service without `many=True` that declares only one
-  of the two lookups is unchanged.
+  `PASSTHROUGH` that key now reaches the service as an extra. A lookup that is
+  never read, an instance lookup beside a collection lookup or either lookup on a
+  `many=True` spec, no longer opens the declared set when it has a `filter_set`
+  or a bare `**kwargs`, so on such a `many=True` spec `REJECT` now refuses every
+  item key outside the input serializer; nor does it make `REJECT` raise
+  `ImproperlyConfigured` when its `**kwargs` annotation cannot be resolved. A
+  name the collection lookup marks `NotClientInput` is no longer admitted because
+  the instance lookup beside it declares the same name plainly. A service without
+  `many=True` that declares only one of the two lookups is unchanged.
 
 ### Fixed
 

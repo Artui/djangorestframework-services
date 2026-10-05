@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -24,6 +24,7 @@ from rest_framework_services.dispatch.utils import (
     view_url_kwargs,
 )
 from rest_framework_services.types.argument_binding import ArgumentBinding
+from rest_framework_services.types.not_client_input import NotClientInput
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -50,6 +51,14 @@ def _by_pk(*, pk: int) -> Any:
 
 def _by_parent(*, parent_pk: int) -> Any:
     return parent_pk
+
+
+def _by_parent_in_scope(*, parent_pk: int, tenant: Annotated[str, NotClientInput]) -> Any:
+    return parent_pk, tenant
+
+
+def _by_pk_in_tenant(*, pk: int, tenant: str) -> Any:
+    return pk, tenant
 
 
 def _open_selector(**_kwargs: Any) -> Any: ...
@@ -308,6 +317,24 @@ class TestDeclaredInputKeys:
             collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_by_parent),
         )
         assert declared_input_keys(spec, serializer=serializer) == {"title", "parent_pk"}
+
+    def test_a_name_the_collection_lookup_hides_is_not_admitted_by_the_instance_one(
+        self,
+    ) -> None:
+        # ``NotClientInput`` takes a name out of the declared set, so ``REJECT``
+        # refuses a caller supplying it. Unioning both lookups put it back
+        # whenever the instance lookup beside it declared the same name plainly,
+        # although that lookup is never called.
+        spec = ServiceSpec(
+            service=_service,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_by_pk_in_tenant
+            ),
+            collection_selector_spec=SelectorSpec(
+                kind=SelectorKind.LIST, selector=_by_parent_in_scope
+            ),
+        )
+        assert declared_input_keys(spec, serializer=None) == {"parent_pk"}
 
     def test_service_collection_lookup_without_selector_does_not_fall_back(self) -> None:
         # A collection spec with no selector is still the one dispatch takes (it

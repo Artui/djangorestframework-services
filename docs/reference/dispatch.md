@@ -159,7 +159,9 @@ its `pk` is refused under `REJECT` and comes back as an extra under
 `PASSTHROUGH`, and it cannot open the set or make `REJECT` unenforceable.
 Without a collection lookup, the instance lookup's keys are declared. A
 `many=True` spec resolves no target, so neither lookup's keys are declared for
-its items.
+its items, and an open or unresolvable lookup on it no longer opens the set.
+The set is read from the spec alone, so a direct caller passing `instance=`,
+which skips the lookup, still has that lookup's keys admitted.
 
 ::: rest_framework_services.types.unknown_arguments.UnknownArguments
 

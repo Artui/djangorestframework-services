@@ -219,7 +219,9 @@ def declared_input_keys(
       ``test_reject_refuses_a_lookup_key_inside_an_item``.
     - A declared ``collection_selector_spec`` is the lookup, and dispatch never
       calls ``instance_selector_spec`` beside it, so that lookup's ``pk`` is not
-      admitted. Held by ``test_service_collection_lookup_wins_over_instance_lookup``.
+      admitted. Held by ``test_service_collection_lookup_wins_over_instance_lookup``,
+      and for a name the collection lookup marks ``NotClientInput`` by
+      ``test_a_name_the_collection_lookup_hides_is_not_admitted_by_the_instance_one``.
       The test is on the nested spec, not on its ``selector``: dispatch refuses a
       collection spec with no selector rather than falling back to the instance
       lookup, and so does this. Held by
@@ -228,8 +230,13 @@ def declared_input_keys(
       ``test_service_serializer_fields_plus_nested``.
 
     A lookup dispatch does not call is not read here either: an open one (a
-    ``filter_set`` or a bare ``**kwargs``) beside a collection lookup leaves the set
-    closed, and one whose ``**kwargs`` annotation cannot be resolved raises nothing.
+    ``filter_set`` or a bare ``**kwargs``) beside a collection lookup, or on a
+    ``many=True`` spec, leaves the set closed, and one whose ``**kwargs``
+    annotation cannot be resolved raises nothing.
+
+    Read from the spec alone, because it is also what a transport advertises, so a
+    direct caller passing ``instance=``, which skips the lookup, still has that
+    lookup's keys admitted. No view passes an ``instance`` where the two differ.
 
     ``None`` means the set is not enumerable, so nothing can be flagged unknown.
     Propagates ``_UnresolvedExtras`` when a callable it reads has a ``**kwargs``
