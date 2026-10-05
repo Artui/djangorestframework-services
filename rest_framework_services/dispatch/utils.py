@@ -453,7 +453,10 @@ def many_argument_errors(name: str | None) -> Iterator[None]:
         # serializer reports the older shape; on the floor, by every item-error test.
         if isinstance(detail, list):
             detail = {index: errors for index, errors in enumerate(detail) if errors}
-        raise ValidationError({name: detail}) from exc
+        # Annotated because the stubs admit only ``str`` keys in a detail, while
+        # the ``int``-keyed mapping above is the one DRF 3.18 raises itself.
+        keyed: dict[str, Any] = {name: detail}
+        raise ValidationError(keyed) from exc
 
 
 def guard_mapping_params(params: Any) -> None:
