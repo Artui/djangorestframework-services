@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
-from rest_framework.test import APIRequestFactory
+from rest_framework.routers import SimpleRouter
+from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework.viewsets import GenericViewSet
 
 from rest_framework_services import (
@@ -133,3 +135,28 @@ def test_the_three_bypass_sites_disclose_the_dropped_filter_backends() -> None:
         doc = site.__doc__ or ""
         assert "filter_backends" in doc, f"{site.__qualname__} does not disclose the bypass"
         assert "filter_queryset" in doc, f"{site.__qualname__} does not name what is skipped"
+
+
+_router = SimpleRouter()
+_router.register("authors", _NullableRetrieve, basename="nullable-author")
+urlpatterns = _router.urls
+
+
+@pytest.mark.urls(__name__)
+@pytest.mark.django_db
+class TestAllowNoneOnTheWire:
+    """What a client receives, read from the rendered bytes, not ``response.data``."""
+
+    def test_a_miss_serves_a_json_null_body(self) -> None:
+        response = APIClient().get("/authors/99999/")
+        assert response.status_code == 200
+        assert response.content == b"null"
+        assert json.loads(response.content) is None
+        assert response["Content-Type"] == "application/json"
+
+    def test_a_found_row_renders_exactly_as_before(self) -> None:
+        author = Author.objects.create(name="Ada")
+        response = APIClient().get(f"/authors/{author.pk}/")
+        assert response.status_code == 200
+        assert response["Content-Type"] == "application/json"
+        assert response.content == f'{{"id":{author.pk},"name":"Ada"}}'.encode()

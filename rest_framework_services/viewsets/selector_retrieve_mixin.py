@@ -9,7 +9,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from rest_framework_services.selectors.utils import dispatch_selector_for_spec
-from rest_framework_services.views.utils import add_affordances
+from rest_framework_services.views.utils import JsonNullResponse, add_affordances
 from rest_framework_services.viewsets.utils import (
     _ActionSpecsMixin,
     resolve_action_selector_spec,
@@ -55,7 +55,7 @@ class SelectorRetrieveMixin(RetrieveModelMixin, _ActionSpecsMixin):
         # a row with its affordance answers, which DRF's ``retrieve`` cannot add.
         instance = self.get_object()
         if instance is None:
-            return Response(None)
+            return JsonNullResponse()
         serializer = self.get_serializer(instance)  # ty: ignore[unresolved-attribute]
         return Response(add_affordances(spec, serializer.data, instance, many=False))
 

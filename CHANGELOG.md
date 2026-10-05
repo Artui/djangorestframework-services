@@ -137,6 +137,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than the spec. Its default leaves every existing caller's schema as it
   was. A list is unchanged whatever `allow_none` says. So is a `ServiceSpec`'s
   nested `output_selector_spec`, whose `allow_none` dispatch ignores.
+- **An `allow_none` RETRIEVE miss over HTTP now serves the body `null`, where
+  it was empty.** The retrieve view and the retrieve viewset mixin documented a
+  `200` with a JSON `null` body, but DRF's `JSONRenderer` renders `None` as no
+  bytes at all, and DRF then drops the `Content-Type` header. The client received
+  `200` with an empty body and no media type, and `response.json()` raised. The
+  miss is now `null` with `Content-Type: application/json`, or the media type of
+  whichever `JSONRenderer` subclass was negotiated. A non-JSON renderer, the
+  browsable API included, renders the miss as before. A found row renders exactly
+  as before. A `RETRIEVE` `@selector_action` with `allow_none=True` was worse: it
+  passed the `None` to its serializer and served a row of empty fields, such as
+  `{"name": ""}`, for a row that does not exist. It now serves the same `null`.
 
 ## [0.54.0] — 2026-09-19
 

@@ -85,9 +85,13 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
   / default DRF behaviour".
 - **`allow_none`** — `RETRIEVE`-only knob for the `None` / missing-object
   case. `False` (the default) raises `NotFound`. `True` expresses a
-  nullable-resource contract: the retrieve view / viewset mixin renders
-  `200` with a JSON `null` body, skipping the output serializer — for
-  singleton-style resources that legitimately may not exist yet. Its output
+  nullable-resource contract: the retrieve view, the viewset mixin and a
+  `RETRIEVE` `@selector_action` render `200` with the body `null` and
+  `Content-Type: application/json`, skipping the output serializer — for
+  singleton-style resources that legitimately may not exist yet. Content
+  negotiation still applies: only a negotiated JSON renderer is given the
+  literal, and any other renderer (the browsable API, say) renders the miss as
+  it renders `None`. Its output
   schema says so: `spec_to_json_schema(spec, phase="output")` types the item
   `["object", "null"]`. Ignored on nested specs: `output_selector_spec` keeps
   its authoritative-`None` → 204 contract, and `instance_selector_spec` always

@@ -6,6 +6,7 @@ import inspect
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from rest_framework.renderers import JSONRenderer
 from rest_framework.request import Request
 from rest_framework.response import Response
 
@@ -360,3 +361,34 @@ def list_with_affordances(view: Any, spec: SelectorSpec[Any, Any]) -> Response:
         return view.get_paginated_response(add_affordances(spec, serializer.data, page, many=True))
     serializer = view.get_serializer(queryset, many=True)
     return Response(add_affordances(spec, serializer.data, queryset, many=True))
+
+
+class JsonNullResponse(Response):
+    """The ``200`` an ``allow_none`` RETRIEVE serves for a miss: a JSON ``null`` body.
+
+    ``Response(None)`` is not that. DRF's ``JSONRenderer`` renders ``None`` as an
+    empty body, and ``Response`` then deletes the ``Content-Type`` it had set, so
+    a client received ``200`` with no body and no media type, and
+    ``response.json()`` raised on a contract that promises ``null``.
+
+    The fix is a response rather than a renderer because a response acts *after*
+    negotiation, and only on the branch that builds it. The view's
+    ``renderer_classes`` -- and a project's ``DEFAULT_RENDERER_CLASSES``, which
+    may name a JSON renderer of its own -- stay exactly as configured, and a found
+    row never comes through here. When the negotiated renderer is a
+    ``JSONRenderer``, subclasses included, the body is the literal ``null`` under
+    that renderer's media type, which is the header DRF sets on a
+    ``JSONRenderer``'s other bodies. Any other renderer -- the browsable API, a
+    plain-text one -- renders ``None`` exactly as it did.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(None)
+
+    @property
+    def rendered_content(self) -> Any:
+        renderer: Any = getattr(self, "accepted_renderer", None)
+        if not isinstance(renderer, JSONRenderer):
+            return super().rendered_content
+        self["Content-Type"] = renderer.media_type
+        return b"null"

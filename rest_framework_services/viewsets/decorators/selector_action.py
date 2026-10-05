@@ -15,7 +15,11 @@ from rest_framework_services.selectors.utils import dispatch_selector_for_spec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.spec_validation import validate_selector_spec
-from rest_framework_services.views.utils import add_affordances, resolve_serializer_context
+from rest_framework_services.views.utils import (
+    JsonNullResponse,
+    add_affordances,
+    resolve_serializer_context,
+)
 
 
 def selector_action(
@@ -39,7 +43,9 @@ def selector_action(
     when pagination is configured and serialized ``many=True`` otherwise;
     ``SelectorKind.RETRIEVE`` is a detail action (``detail=True``) whose
     selector returns a single object, or ``None`` / raises
-    ``ObjectDoesNotExist`` for a 404. For a URL shape
+    ``ObjectDoesNotExist`` for a 404 -- or, when the spec sets
+    ``allow_none=True``, a ``200`` with a JSON ``null`` body, the output
+    serializer skipped, as the retrieve view and mixin serve it. For a URL shape
     that doesn't match the response shape, fall back to DRF's plain ``@action``
     and write the dispatch yourself.
 
@@ -67,6 +73,13 @@ def selector_action(
         def handler(self: Any, request: Request, *args: Any, **kwargs: Any) -> Response:
             if is_retrieve:
                 instance = dispatch_selector_for_spec(self, spec)
+                if instance is None:
+                    # Only an ``allow_none`` spec gets here with ``None``; any
+                    # other miss raised ``NotFound`` inside dispatch. Serializing
+                    # it would publish a row of empty fields for a row that does
+                    # not exist, so the miss is the same ``null`` the retrieve
+                    # view and mixin serve.
+                    return JsonNullResponse()
                 serializer = _build_serializer(
                     self, spec, instance, many=False, extras={"instance": instance}
                 )

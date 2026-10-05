@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping
 from typing import Any
 
 import pytest
-from rest_framework.test import APIRequestFactory
+from django.urls import path
+from rest_framework.renderers import BaseRenderer, JSONRenderer
+from rest_framework.test import APIClient, APIRequestFactory
 
 from rest_framework_services import SelectorKind, SelectorRetrieveView, SelectorSpec
 from tests.testapp.models import Author
@@ -187,3 +191,88 @@ class TestAllowNone:
     def test_default_still_renders_404(self) -> None:
         response = _RetrieveAuthorView.as_view()(factory.get("/"), pk=99999)
         assert response.status_code == 404
+
+
+class _PlainTextRenderer(BaseRenderer):
+    """A second, non-JSON renderer, to show negotiation still picks it."""
+
+    media_type = "text/plain"
+    format = "txt"
+
+    def render(
+        self,
+        data: Any,
+        accepted_media_type: str | None = None,
+        renderer_context: Mapping[str, Any] | None = None,
+    ) -> bytes:
+        return f"plain:{data!r}".encode()
+
+
+class _NegotiatingAuthorView(_NullableAuthorView):
+    renderer_classes = [JSONRenderer, _PlainTextRenderer]
+
+
+class _VendorJSONRenderer(JSONRenderer):
+    """A project's own JSON renderer, under a media type of its own."""
+
+    media_type = "application/vnd.example+json"
+
+
+class _VendorJSONAuthorView(_NullableAuthorView):
+    renderer_classes = [_VendorJSONRenderer]
+
+
+urlpatterns = [
+    path("authors/<int:pk>/", _NullableAuthorView.as_view()),
+    path("negotiating/<int:pk>/", _NegotiatingAuthorView.as_view()),
+    path("vendor/<int:pk>/", _VendorJSONAuthorView.as_view()),
+]
+
+# The browsable API needs a template engine, which the shared test settings do
+# not configure; these tests add one so an HTML request can render at all.
+_BROWSABLE_TEMPLATES = [
+    {"BACKEND": "django.template.backends.django.DjangoTemplates", "APP_DIRS": True}
+]
+
+
+@pytest.mark.urls(__name__)
+@pytest.mark.django_db
+class TestAllowNoneOnTheWire:
+    """What a client receives, read from the rendered bytes, not ``response.data``."""
+
+    def test_a_miss_serves_a_json_null_body(self) -> None:
+        response = APIClient().get("/authors/99999/")
+        assert response.status_code == 200
+        assert response.content == b"null"
+        assert json.loads(response.content) is None
+        assert response["Content-Type"] == "application/json"
+
+    def test_a_found_row_renders_exactly_as_before(self) -> None:
+        author = Author.objects.create(name="Ada")
+        response = APIClient().get(f"/authors/{author.pk}/")
+        assert response.status_code == 200
+        assert response["Content-Type"] == "application/json"
+        assert response.content == f'{{"id":{author.pk},"name":"Ada"}}'.encode()
+
+    def test_an_indented_json_request_is_still_null(self) -> None:
+        response = APIClient().get("/authors/99999/", HTTP_ACCEPT="application/json; indent=4")
+        assert response.content == b"null"
+        assert response["Content-Type"] == "application/json"
+
+    def test_a_json_renderer_subclass_serves_null_under_its_own_media_type(self) -> None:
+        response = APIClient().get("/vendor/99999/")
+        assert response.content == b"null"
+        assert response["Content-Type"] == "application/vnd.example+json"
+
+    def test_negotiation_still_picks_a_non_json_renderer(self) -> None:
+        response = APIClient().get("/negotiating/99999/", HTTP_ACCEPT="text/plain")
+        assert response.status_code == 200
+        assert response["Content-Type"] == "text/plain; charset=utf-8"
+        assert response.content == b"plain:None"
+
+    def test_the_browsable_api_still_renders_a_miss(self, settings: Any) -> None:
+        settings.TEMPLATES = _BROWSABLE_TEMPLATES
+        response = APIClient().get("/authors/99999/", HTTP_ACCEPT="text/html")
+        assert response.status_code == 200
+        assert response["Content-Type"] == "text/html; charset=utf-8"
+        assert b"<html" in response.content

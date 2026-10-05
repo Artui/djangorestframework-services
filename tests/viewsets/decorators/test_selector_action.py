@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
 from rest_framework.exceptions import NotFound
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.test import APIRequestFactory
+from rest_framework.routers import SimpleRouter
+from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework.viewsets import GenericViewSet
 
 from rest_framework_services import SelectorKind, SelectorSpec, selector_action
@@ -301,3 +303,61 @@ class TestSelectorAction:
 
         assert _View.listing.detail is False  # type: ignore[attr-defined]
         assert _View.card.detail is True  # type: ignore[attr-defined]
+
+
+def _nullable_author(*, pk: int) -> Author | None:
+    return Author.objects.filter(pk=pk).first()
+
+
+class _NullableCardViewSet(GenericViewSet):
+    serializer_class = AuthorSerializer
+    queryset = Author.objects.all()
+
+    @selector_action(
+        SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_nullable_author, allow_none=True),
+    )
+    def card(self, request, pk=None):  # type: ignore[no-untyped-def]
+        """Stubbed."""
+
+    @selector_action(
+        SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=_nullable_author,
+            output_serializer=AuthorSerializer,
+            allow_none=True,
+        ),
+        url_path="declared-card",
+    )
+    def declared_card(self, request, pk=None):  # type: ignore[no-untyped-def]
+        """Stubbed."""
+
+
+_router = SimpleRouter()
+_router.register("authors", _NullableCardViewSet, basename="nullable-card")
+urlpatterns = _router.urls
+
+
+@pytest.mark.urls(__name__)
+@pytest.mark.django_db
+class TestAllowNoneOnTheWire:
+    """An ``allow_none`` RETRIEVE action's miss is a ``null``, never a serialized nothing.
+
+    Both serializer routes are covered, because the action builds its serializer
+    one of two ways and each turned ``None`` into a row of empty fields.
+    """
+
+    @pytest.mark.parametrize("action", ["card", "declared-card"])
+    def test_a_miss_serves_a_json_null_body(self, action: str) -> None:
+        response = APIClient().get(f"/authors/99999/{action}/")
+        assert response.status_code == 200
+        assert response.content == b"null"
+        assert json.loads(response.content) is None
+        assert response["Content-Type"] == "application/json"
+
+    @pytest.mark.parametrize("action", ["card", "declared-card"])
+    def test_a_found_row_renders_exactly_as_before(self, action: str) -> None:
+        author = Author.objects.create(name="Ada")
+        response = APIClient().get(f"/authors/{author.pk}/{action}/")
+        assert response.status_code == 200
+        assert response["Content-Type"] == "application/json"
+        assert response.content == f'{{"id":{author.pk},"name":"Ada"}}'.encode()

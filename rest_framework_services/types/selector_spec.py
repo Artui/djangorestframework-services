@@ -73,8 +73,9 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
         allow_none: RETRIEVE-only knob for the ``None`` / missing-object case.
             ``False`` raises ``NotFound``;
             ``True`` expresses a nullable-resource contract, where the
-            standalone retrieve view and the retrieve viewset mixin render
-            ``200`` with a JSON ``null`` body and skip the output serializer.
+            standalone retrieve view, the retrieve viewset mixin and a
+            ``RETRIEVE`` ``@selector_action`` render ``200`` with a JSON
+            ``null`` body and skip the output serializer.
             **Ignored** when the spec is nested:
             ``ServiceSpec.output_selector_spec`` keeps its
             authoritative-``None`` → 204 contract and
