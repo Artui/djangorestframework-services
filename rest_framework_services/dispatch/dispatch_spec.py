@@ -132,8 +132,9 @@ def dispatch_spec(
             ``spec.progress_reporter`` declares.
         view_hooks: The calling DRF view's resolved hook-chain layers. HTTP-only.
         instance: A target the caller resolved itself, skipping the target lookup
-            (``instance_selector_spec`` and ``collection_selector_spec`` alike). ``None`` is a *supplied* value (a create), which
-            is why the default is a sentinel.
+            (``instance_selector_spec`` and ``collection_selector_spec`` alike).
+            ``None`` is a *supplied* value (a create), which is why the default is a
+            sentinel.
         filter_data: The data the ``filter_set`` reads, wherever one can be
             declared — a selector's own filtering, a service's ``instance_`` /
             ``collection_selector_spec`` target lookup, and its output-selector
