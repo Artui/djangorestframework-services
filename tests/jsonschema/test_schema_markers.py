@@ -7,7 +7,7 @@ its selector Protocol under PEP 692, which is the whole reason the markers exist
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -227,3 +227,21 @@ def test_a_none_default_states_the_annotation_as_written() -> None:
     properties, _required = callable_input_schema(_none_defaulted)
     assert properties["must"] == {"anyOf": [{"type": "integer"}, {"type": "null"}]}
     assert properties["limit"] == {"type": "integer"}
+
+
+def _author_optional(
+    *,
+    plain: int | None = None,
+    spelled: Optional[str] = None,  # noqa: UP045 - the typing spelling is the point
+) -> None: ...
+
+
+def test_a_none_default_keeps_an_optional_the_author_wrote() -> None:
+    # The fix drops only the ``Optional`` 3.10 adds; one the author wrote is the
+    # type, in either spelling. Unwrapping every ``Optional`` on a ``None``
+    # default instead passes the four tests above and fails this one.
+    properties, _required = callable_input_schema(_author_optional)
+    assert properties == {
+        "plain": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+        "spelled": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+    }
