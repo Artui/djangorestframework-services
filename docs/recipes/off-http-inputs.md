@@ -90,6 +90,13 @@ channel above, or a `spec.kwargs` provider. The marker says the value must
 arrive, not where from. A provider that *declines* with `UNSET` does not satisfy
 it — declining removes the key from the pool entirely.
 
+A plain keyword parameter is the other case. `get_widget(user, *, pk)` cannot run
+without `pk` either, and its signature already says so, because `pk` has no
+default. A transport that passes `supplied=` to `spec_to_json_schema` advertises
+such a parameter as required without a marker, and drops the names it fills
+itself. Without `supplied`, only the marker makes a parameter required. See
+[what a transport supplies](../reference/jsonschema.md#what-a-transport-supplies-supplied).
+
 !!! note "Off-HTTP only, by design"
     Enforcement lives in `dispatch_spec` / `adispatch_spec`. On the HTTP path the
     route *is* the guarantee — a capture the URLconf doesn't declare is a wiring

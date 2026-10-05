@@ -71,6 +71,50 @@ that leans on the docstring alone. An un-annotated parameter is still surfaced b
 name (untyped `{}`); a `filter_set` field wins over a callable parameter of the
 same name.
 
+### What a transport supplies: `supplied=`
+
+Read on its own, a selector's signature cannot say which parameters a caller
+sends and which the transport fills. `task_by_pk(user, *, pk)` and
+`outstanding(user, *, currency)` look alike, yet a client must send `pk`, while
+`currency` arrives from a pool seed. So by default every reflected parameter is
+optional unless it carries `InputRequired`. A lookup without a default is then
+advertised as optional, and a call without it fails with `TypeError: ...
+missing 1 required keyword-only argument: 'pk'`. A seed is advertised as an
+input that the seed then overrides.
+
+A transport describing its own tools does know which names it fills: its
+transport seeds, the registered pool seeds, the names its `kwargs=` providers
+return, and the URL kwargs it resolves. It passes them as `supplied`:
+
+```python
+spec_to_json_schema(spec, phase="input", supplied=frozenset({"currency", "tenant"}))
+```
+
+A frozenset, including an empty one, opts into the transport rule for the
+selector callable's reflected parameters:
+
+| Parameter | Without `supplied` | With `supplied` |
+|---|---|---|
+| name in `supplied` | optional property | **dropped** from `properties` and `required`, marked or not |
+| no default, not supplied | optional property | **required** |
+| has a default | optional | optional |
+| `InputRequired` | required | required, unless supplied |
+| `NotClientInput`, `request` / `user` / `view` | not advertised | not advertised |
+| `**kwargs: Unpack[TypedDict]` key | as its `TypedDict` declares | dropped if supplied, otherwise as its `TypedDict` declares |
+
+A `TypedDict` key has no default to read, so its totality (`Required` /
+`NotRequired`) remains its declaration. `None`, the default, keeps the output
+byte-identical to what it was before `supplied` existed, so a reader that does
+not know what is filled for it (drfs' own capability manifest, for one) is
+unchanged.
+
+`supplied` reaches reflected callable parameters and nothing else. A
+`ServiceSpec`'s input is its `input_serializer`, the output phase reflects no
+parameters, and a `filter_set` field is read from the caller's own params, so
+all three are the same with or without it. To describe a service tool's target
+lookup, reflect its `instance_selector_spec` or `collection_selector_spec` (a
+`SelectorSpec`) with the names the transport fills there.
+
 ### What an annotation publishes
 
 The mapping from a Python annotation is structural, so a declaration a caller

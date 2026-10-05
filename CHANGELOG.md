@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.55.0] — 2026-10-05
 
+### Added
+
+- **`spec_to_json_schema(..., supplied=...)` lets a transport say which names it
+  fills.** A selector's input schema reflects its callable's parameters, and on
+  its own a signature cannot tell a caller input from a value the transport
+  supplies. So every reflected parameter was optional unless marked
+  `InputRequired`. A lookup like `task_by_pk(user, *, pk)` was advertised with
+  `pk` optional, and a call without it raised `TypeError`. A pool seed such as a
+  `currency` was advertised as an input, which the seed then overrode. The new
+  keyword-only `supplied: frozenset[str] | None = None` carries what the
+  transport knows: its seeds, registered pool seeds, the names its `kwargs=`
+  providers return, and URL kwargs. A name in `supplied` is dropped from
+  `properties` and `required`, marked or not. Any other parameter with no
+  default becomes required. A parameter with a default stays optional,
+  `InputRequired` stays required, `NotClientInput` and the `request` / `user` /
+  `view` seeds stay unadvertised, and an `Unpack[TypedDict]` key keeps the
+  requiredness its `TypedDict` declares unless it is supplied. With the default
+  `None`, the schema is byte-identical to before for every existing call, the
+  capability manifest's included. `supplied` reaches only the selector callable's
+  reflected parameters. A `ServiceSpec`'s input serializer, the output phase and
+  a `filter_set` field are unchanged by it.
+
 ### Changed
 
 - **A relation write's row error now has the shape DRF's `ListSerializer` gives

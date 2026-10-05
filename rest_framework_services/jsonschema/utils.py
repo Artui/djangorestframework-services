@@ -567,6 +567,7 @@ def callable_input_schema(
     *,
     skip: frozenset[str] = frozenset(),
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
+    supplied: frozenset[str] | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
     """JSON Schema ``(properties, required)`` for a callable's declared inputs.
 
@@ -578,10 +579,22 @@ def callable_input_schema(
     ``skip`` drops transport seeds (``request`` / ``user`` / ``view``) from
     both ordinary parameters and expanded keys, and ``required`` never contains
     a skipped name. ``InputRequired`` / ``NotClientInput`` /
-    ``InputDescription`` markers apply to both alike. Requiredness of an
-    ordinary parameter is never inferred from its default: the framework may
-    supply it from the kwargs pool rather than from caller input, so only the
-    marker may declare it.
+    ``InputDescription`` markers apply to both alike.
+
+    ``supplied`` is the transport's statement of which names it fills itself,
+    and it decides whether requiredness is inferred from a default:
+
+    - ``None`` (the default) infers nothing. Without that statement any
+      parameter may be filled from the kwargs pool rather than by the caller,
+      so only ``InputRequired`` (or a required ``TypedDict`` key) declares one
+      required, exactly as before ``supplied`` existed.
+    - A frozenset is that statement. Its names are dropped like ``skip``'s,
+      from ordinary parameters and expanded keys, marked or not, because the
+      transport fills them and a caller cannot replace them. Every *other*
+      ordinary parameter with no default joins ``required``, because a call
+      without it raises ``TypeError`` and nothing else will supply it. An
+      expanded key has no default to read; its ``TypedDict`` totality already
+      is its declaration, so it keeps it.
 
     An ``InputDescription`` lands on the property as ``description``, the same
     key the serializer path fills from ``help_text``. It is read *before* the
@@ -595,6 +608,11 @@ def callable_input_schema(
         hints = get_type_hints(fn, include_extras=True)
     except Exception:  # noqa: BLE001 — unresolvable forward refs → untyped, never fatal
         hints = {}
+    # A supplied name is dropped exactly where a skipped one is. Held by
+    # ``test_a_supplied_name_is_dropped_from_properties_and_required`` (an
+    # ordinary parameter) and ``test_a_supplied_typed_dict_key_is_dropped``
+    # (an expanded key).
+    dropped: frozenset[str] = skip | (supplied or frozenset())
     properties: dict[str, Any] = {}
     required: list[str] = []
     for name, parameter in inspect.signature(fn).parameters.items():
@@ -602,24 +620,36 @@ def callable_input_schema(
             typed_dict = unpack_typed_dict(hints.get(name))
             if typed_dict is not None:
                 td_props, td_required = _typed_dict_to_schema(
-                    typed_dict, skip=skip, registry=registry
+                    typed_dict, skip=dropped, registry=registry
                 )
                 properties.update(td_props)
                 required.extend(td_required)
             continue
-        if name in skip or parameter.kind is inspect.Parameter.VAR_POSITIONAL:
+        if name in dropped or parameter.kind is inspect.Parameter.VAR_POSITIONAL:
             continue
-        if name not in hints:
+        marked_required = False
+        if name in hints:
+            _underlying, marked_required, hidden = read_schema_markers(hints[name])
+            description = read_input_description(hints[name])
+            if hidden:
+                continue
+            properties[name] = _python_type_to_schema(hints[name], registry)
+            if description is not None:
+                properties[name]["description"] = description
+        else:
             properties[name] = {}
-            continue
-        _underlying, marked_required, hidden = read_schema_markers(hints[name])
-        description = read_input_description(hints[name])
-        if hidden:
-            continue
-        properties[name] = _python_type_to_schema(hints[name], registry)
-        if description is not None:
-            properties[name]["description"] = description
-        if marked_required:
+        # "Not supplied" is settled above: a supplied name never gets here. The
+        # rest is one boolean, so coverage cannot see a deleted operand; each
+        # is held by a named test in tests/jsonschema/test_spec_to_json_schema.py:
+        # - ``marked_required``: ``test_input_required_is_required_either_way``
+        #   (``limit`` has a default, so only the marker can require it).
+        # - ``supplied is not None``: ``test_the_default_reflection_is_byte_identical``
+        #   (without it, the default would start inferring).
+        # - ``parameter.default is inspect.Parameter.empty``:
+        #   ``test_a_defaulted_parameter_stays_optional``.
+        if marked_required or (
+            supplied is not None and parameter.default is inspect.Parameter.empty
+        ):
             required.append(name)
     return properties, required
 
@@ -633,7 +663,8 @@ def _typed_dict_to_schema(
     """``(properties, required)`` for the keys of an ``Unpack``-ed ``TypedDict``.
 
     A skipped key is dropped from ``required`` too, so a required-but-skipped
-    key is never advertised as a caller input. ``InputRequired`` is the usable
+    key is never advertised as a caller input. ``skip`` arrives here already
+    joined with a transport's ``supplied`` names. ``InputRequired`` is the usable
     way to mark a key required here, because a genuinely required
     ``TypedDict`` key breaks the callable's Protocol conformance under PEP 692.
     ``InputDescription`` is the usable way to describe one, because a
