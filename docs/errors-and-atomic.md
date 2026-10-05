@@ -130,12 +130,34 @@ Over HTTP the `422` body carries both, the schema exactly as it was raised:
 {"detail": "412 rows match. Confirm to proceed.", "schema": {"confirmed": {"type": "boolean"}}}
 ```
 
-A `"default": false` stays a boolean and a `"maximum": 3` a number. DRF turns
-every leaf of an error detail into a string, so the mapped exception sets the
-schema on its detail after DRF has done that to the message, and answers
-`get_codes()` and `get_full_details()` with the message the DRF way and the
-schema as data. Without a schema, the body is the plain `{"detail": ...}` of any
-other `422`.
+A `"default": false` stays a boolean and a `"maximum": 3` a number. Without a
+schema, the body is the plain `{"detail": ...}` of any other `422`.
+
+**Your `EXCEPTION_HANDLER` sees DRF's shape.** The mapped exception's `detail`
+is built the way DRF builds every detail, so each leaf of the schema in it is an
+`ErrorDetail` string with a `code`, and a handler that walks `detail` for codes
+(drf-standardized-errors does) works unchanged. The schema as raised is kept on
+the exception's `schema` attribute, and drfs' views and viewsets put it back
+into the body *after* your handler has built the response: only when the
+response is a dict with a `schema` key of its own, so a handler that reshapes
+the body keeps the body it built.
+
+That restore lives on drfs' view and viewset bases: `ServiceCreateView`,
+`ServiceUpdateView`, `ServiceDeleteView`, every viewset mixin, `ServiceViewSet`,
+`SelectorViewSet` and `ActionSerializerResolver`, including a
+`@service_action` on any of them. Anything else that holds the mapped exception
+reads the native schema off it, because there is no view to restore it:
+
+```python
+try:
+    call_service(purge, request=request, map_errors=True)
+except APIException as exc:
+    schema = getattr(exc, "schema", None)  # as raised; None for any other error
+```
+
+The same holds for a direct `map_service_error(...)` caller and for a
+`@service_action` on a viewset that takes none of drfs' bases. For the latter,
+adding `ActionSerializerResolver` to its bases is enough.
 
 **The answer comes back as ordinary input.** An HTTP client re-submits with
 `confirmed` in the body. A transport that asks interactively — MCP, say — merges

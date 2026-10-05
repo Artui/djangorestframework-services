@@ -43,34 +43,24 @@ class _AdditionalInputAPIException(_ServiceAPIException):
     [`AdditionalInputRequired`][rest_framework_services.exceptions.additional_input_required.AdditionalInputRequired]
     carrying a schema answers with: ``{"detail": <message>, "schema": <schema>}``.
 
-    The schema is set on ``detail`` after construction rather than passed in,
-    because DRF coerces every leaf of a detail it is given to ``ErrorDetail``,
-    which is a ``str``. Passed in, ``"default": False`` reached the client as
-    ``"False"`` and ``"maximum": 3`` as ``"3"``, so the body was no longer JSON
-    Schema and a client rendering a form from it read a boolean default as a
-    non-empty string. The message is still coerced, so ``detail`` keeps the
-    ``ErrorDetail`` and code every other ``422`` has.
+    ``detail`` is built the way DRF builds every other one, so each leaf of the
+    schema in it is an ``ErrorDetail``, a ``str`` with a ``code``. That is the
+    contract a configured ``EXCEPTION_HANDLER`` is written against: handlers
+    such as drf-standardized-errors walk ``detail`` and read ``.code`` off every
+    leaf, and a schema carried with its native ``False`` and ``3`` in it turned
+    their ``422`` into a ``500``.
 
-    ``get_codes`` and ``get_full_details`` are answered here for the same
-    reason: DRF's own walk reads ``.code`` off every leaf, and a schema value has
-    none. Both describe the message as DRF does and carry the schema as it was
-    raised, since it is data rather than an error with a code.
+    The schema as raised is kept on ``schema``, because a ``str`` leaf is no
+    longer JSON Schema: ``"default": "False"`` is a non-empty string to a client
+    rendering a form. drfs' own views and viewsets put it back into the body
+    after the handler has built the response (see
+    ``views.mutation.utils._ServesRaisedSchema``); anything else holding this
+    exception reads it here.
     """
 
     def __init__(self, message: str, schema: Mapping[str, Any]) -> None:
-        super().__init__()
-        self.message = drf_exceptions.ErrorDetail(message, code=self.default_code)
         self.schema: dict[str, Any] = dict(schema)
-        self.detail = {"detail": self.message, "schema": self.schema}
-
-    def get_codes(self) -> dict[str, Any]:
-        return {"detail": self.message.code, "schema": self.schema}
-
-    def get_full_details(self) -> dict[str, Any]:
-        return {
-            "detail": {"message": self.message, "code": self.message.code},
-            "schema": self.schema,
-        }
+        super().__init__({"detail": message, "schema": self.schema})
 
 
 class _ConflictAPIException(drf_exceptions.APIException):
@@ -120,8 +110,8 @@ def map_service_error(exc: ServiceError) -> drf_exceptions.APIException:
     if isinstance(exc, AdditionalInputRequired) and exc.schema is not None:
         # A mapping detail renders as the object itself, so ``detail`` keeps the
         # shape a client already reads and ``schema`` joins it rather than
-        # replacing it, served as it was raised. Only when there is a schema: the
-        # error is valid without one, and growing the body unconditionally would
-        # change every plain message into an object for no gain.
+        # replacing it. Only when there is a schema: the error is valid without
+        # one, and growing the body unconditionally would change every plain
+        # message into an object for no gain.
         return _AdditionalInputAPIException(str(exc), exc.schema)
     return _ServiceAPIException(str(exc))

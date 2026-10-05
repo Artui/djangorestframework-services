@@ -84,16 +84,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   serves both values, when both are selected, as that one display twice. Its
   array no longer claims `uniqueItems`, which held for the stored values and
   not for their displays.
-- **The HTTP `422` for `AdditionalInputRequired` carries the schema as it was
-  raised.** DRF turns every leaf of an error detail into a string, so the body's
-  `schema` arrived with `"default": "False"` for `False` and `"maximum": "3"` for
-  `3`. It was no longer JSON Schema, and a client building a form from it read a
-  boolean default as a non-empty string. The body is still `{"detail": ...,
-  "schema": ...}`, and `detail` is unchanged. The mapped exception's
-  `get_codes()` and `get_full_details()` describe the message the DRF way and
-  carry the schema as data, since DRF's own walk would look for a code on every
-  schema value. MCP and Pydantic-AI already kept the schema intact; HTTP was the
-  one route that changed it.
+- **A drfs view or viewset serves an `AdditionalInputRequired` schema as it was
+  raised.** DRF turns every leaf of an error detail into a string, so the `422`
+  body's `schema` arrived with `"default": "False"` for `False` and
+  `"maximum": "3"` for `3`. It was no longer JSON Schema, and a client building
+  a form from it read a boolean default as a non-empty string. The body is still
+  `{"detail": ..., "schema": ...}`, now with the schema's own values in it. The
+  mapped exception's `detail` keeps DRF's shape, every leaf an `ErrorDetail`, so
+  a custom `EXCEPTION_HANDLER` sees what it saw before, and drfs' views and
+  viewsets put the schema back after that handler has built the response, only
+  where the body is a dict with a `schema` key. A direct caller of
+  `map_service_error` or `call_service(map_errors=True)` has no view to do that,
+  and reads the schema as raised off the exception's new `schema` attribute. A
+  `@service_action` on a viewset with none of drfs' bases still serves the
+  stringified schema; adding `ActionSerializerResolver` to its bases fixes it.
+  MCP and Pydantic-AI already kept the schema intact; HTTP was the one route
+  that changed it.
 - **`paginate_output` pages a manager.** A LIST selector returning
   `Model.objects` was served whole unpaged and raised `'Manager' object is not
   subscriptable` as soon as a transport paged it: the manager was counted and

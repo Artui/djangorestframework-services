@@ -13,6 +13,7 @@ from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
+from rest_framework_services.views.mutation.utils import _ServesRaisedSchema
 from rest_framework_services.views.spec_validation import (
     is_overridden,
     validate_filter_set_no_backend_conflict,
@@ -225,7 +226,7 @@ def _validate_action_spec(view_cls: type, action: str, spec: object) -> None:
         _validate_custom_action_spec(view_cls, action, spec, label=label)
 
 
-class _ActionSpecsMixin:
+class _ActionSpecsMixin(_ServesRaisedSchema):
     """Declares the ``action_specs`` class attribute shared by all viewset mixins.
 
     All per-action mixins and
