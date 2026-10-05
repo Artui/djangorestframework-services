@@ -264,3 +264,29 @@ def test_a_display_two_choices_share_validates_against_its_schema(stage: str) ->
 
     _assert_agrees(payload, schema)
     assert schema["properties"]["stage"]["oneOf"] == [{"const": "Draft"}, {"const": "Published"}]
+
+
+class _Stages(serializers.Serializer):
+    """A ``MultipleChoiceField`` over choices sharing a display: both stored
+    values may be selected, and both are served as that one display."""
+
+    stages = serializers.MultipleChoiceField(choices=STAGES)
+
+
+STAGES_PROJECTION = build_audience_projection(_Stages)
+
+
+def test_two_selected_values_sharing_a_display_validate_against_their_schema() -> None:
+    """The array states ``uniqueItems``, which held for the stored values and
+    does not for their displays: ``["legacy", "draft"]`` is served as
+    ``["Draft", "Draft"]``. The payload keeps both, because two distinct values
+    are selected, so the schema stops claiming the displays are unique."""
+    payload = project_payload({"stages": ["legacy", "draft"]}, STAGES_PROJECTION)
+    schema: Any = output_to_json_schema(_Stages, projection=STAGES_PROJECTION)
+
+    assert payload == {"stages": ["Draft", "Draft"]}
+    _assert_agrees(payload, schema)
+    assert schema["properties"]["stages"]["items"]["oneOf"] == [
+        {"const": "Draft"},
+        {"const": "Published"},
+    ]

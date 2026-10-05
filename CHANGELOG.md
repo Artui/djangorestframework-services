@@ -71,13 +71,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   projected payload failed the schema advertised for it, on every transport
   that serves both. The type is now restated from the displays: `string` when
   every display is a string, with `"null"` kept where the stated type admitted
-  it. A `MultipleChoiceField`'s items are restated the same way.
+  it. A `MultipleChoiceField`'s items are restated the same way. Beside a
+  `oneOf` entry that admits more than its constants, which only a hand-written
+  registry rule or override produces, the type is left as written, because
+  narrowing it would refuse what that entry admits.
 - **A display two choices share is listed once in a projected schema.** Django
   allows two values one display, and the projected `oneOf` listed that display
   once per value. A row served it matched two entries, and `oneOf` admits a value
   that matches exactly one, so the row failed its schema. Each display is now
   listed once, where first seen. Repeats are compared as JSON compares them, so
-  `True` and `1` stay two entries.
+  `True` and `1` stay two entries. A `MultipleChoiceField` over such choices
+  serves both values, when both are selected, as that one display twice. Its
+  array no longer claims `uniqueItems`, which held for the stored values and
+  not for their displays.
 - **The HTTP `422` for `AdditionalInputRequired` carries the schema as it was
   raised.** DRF turns every leaf of an error detail into a string, so the body's
   `schema` arrived with `"default": "False"` for `False` and `"maximum": "3"` for
@@ -97,7 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is presented as `None`, and the schema said `"type": "object"` alone, so the
   served value failed it. `spec_to_json_schema(spec, phase="output")` now types
   the item `["object", "null"]` for a `SelectorSpec` with `allow_none=True` and
-  `kind=RETRIEVE`. `output_to_json_schema` takes the new keyword
+  `kind=RETRIEVE`, and so does the capability manifest's `output_schema`, which
+  is built from it. `output_to_json_schema` takes the new keyword
   `allow_none: bool = False`, because it is handed a serializer and a `kind`
   rather than the spec. Its default leaves every existing caller's schema as it
   was. A list is unchanged whatever `allow_none` says. So is a `ServiceSpec`'s

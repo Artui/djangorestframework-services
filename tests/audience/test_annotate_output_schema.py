@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from jsonschema import Draft202012Validator
 from rest_framework import serializers
 
 from rest_framework_services.audience.annotate_output_schema import annotate_output_schema
@@ -222,6 +223,13 @@ class TestRestatedType:
 
         assert _spoken(subschema)["type"] == ["string", "null"]
 
+    def test_a_type_stated_as_null_alone_still_admits_it(self) -> None:
+        """A scalar ``"null"`` is a stated type admitting null, as a list
+        naming it is."""
+        subschema = {"type": "null", "enum": [None, 1]}
+
+        assert _spoken(subschema) == {"type": ["string", "null"], "enum": [None, "Low"]}
+
     def test_a_type_that_refused_null_still_refuses_it(self) -> None:
         """The restated type admits what the stated one did, in display terms,
         and nothing more."""
@@ -255,11 +263,34 @@ class TestRestatedType:
         assert _spoken(subschema) == subschema
 
     def test_a_one_of_with_no_constant_keeps_its_type(self) -> None:
-        """Nothing listed to restate the type from. Nullable, so that restating
-        it from nothing would leave ``"null"`` alone and refuse every string."""
         subschema = {"type": ["string", "null"], "oneOf": [{"pattern": "^a"}]}
 
         assert _spoken(subschema) == subschema
+
+    def test_a_choice_listing_nothing_keeps_its_type(self) -> None:
+        """Nothing listed to restate the type from. Nullable, so that restating
+        it from nothing would leave ``"null"`` alone in place of the type."""
+        subschema = {"type": ["string", "null"], "enum": []}
+
+        assert _spoken(subschema) == subschema
+
+    def test_an_entry_admitting_more_than_its_constants_keeps_the_type(self) -> None:
+        """An entry with no ``const`` admits values the displays say nothing
+        about, so narrowing the type to the displays' would refuse them: ``7``
+        matched ``minimum`` and was an integer, and would no longer be one of
+        the types stated."""
+        subschema = {
+            "type": ["integer", "null"],
+            "oneOf": [{"const": 1, "title": "Low"}, {"minimum": 5}],
+        }
+
+        spoken = _spoken(subschema)
+
+        assert spoken == {
+            "type": ["integer", "null"],
+            "oneOf": [{"const": "Low"}, {"minimum": 5}],
+        }
+        assert Draft202012Validator(spoken).is_valid(7)
 
     def test_an_untyped_choice_states_no_type(self) -> None:
         """Nothing was claimed, so there is nothing to contradict."""
@@ -294,6 +325,22 @@ class TestSharedDisplays:
 
         assert _spoken(subschema, self.LABELS) == {
             "oneOf": [{"const": "Draft"}, {"const": "Published"}]
+        }
+
+    def test_an_array_of_shared_displays_stops_claiming_unique_items(self) -> None:
+        subschema = {"type": "array", "items": {"enum": ["legacy", "draft"]}, "uniqueItems": True}
+
+        assert _spoken(subschema, self.LABELS) == {"type": "array", "items": {"enum": ["Draft"]}}
+
+    def test_an_array_of_distinct_displays_keeps_unique_items(self) -> None:
+        """The condition of the drop: no two values collapsed, so the displays
+        served for distinct values are distinct too."""
+        subschema = {"type": "array", "items": {"enum": ["legacy", "live"]}, "uniqueItems": True}
+
+        assert _spoken(subschema, self.LABELS) == {
+            "type": "array",
+            "items": {"enum": ["Draft", "Published"]},
+            "uniqueItems": True,
         }
 
     def test_a_one_of_member_with_no_constant_keeps_its_place(self) -> None:

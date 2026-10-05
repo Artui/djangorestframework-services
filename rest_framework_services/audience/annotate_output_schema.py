@@ -42,9 +42,11 @@ def annotate_output_schema(
       values, because that is what the projected payload now carries. A
       ``type`` stated beside them is restated as the types of the displays,
       so an integer choice spoken as ``"Low"`` is described as a ``string``,
-      with ``"null"`` kept where the stated type admitted it. A display two
-      values share is listed once, so a row served it matches one ``oneOf``
-      entry rather than two. The constant is gone from the response by design
+      with ``"null"`` kept where the stated type admitted it, and left as
+      written beside a ``oneOf`` entry that admits more than its constants. A
+      display two values share is listed once, so a row served it matches one
+      ``oneOf`` entry rather than two, and an array of such choices no longer
+      claims ``uniqueItems``. The constant is gone from the response by design
       — a field another tool takes as input should be marked ``HANDLE``, which
       suppresses the substitution on both sides.
     - a formatted field is re-declared as the type its
@@ -149,14 +151,27 @@ def _spoken_schema(schema: dict[str, Any], labels: Mapping[Any, str]) -> dict[st
     values is restated by ``_retyped``.
 
     A ``MultipleChoiceField`` arrives as an array wrapping its member schema, so
-    the rewrite descends one level. A union arrives as ``anyOf`` — the shape an
-    ``X | None`` annotation is described in, which is how a dataclass output's
-    optional ``Enum`` field reaches here — and each member is rewritten, the
-    null one passing through untouched.
+    the rewrite descends one level. Its ``uniqueItems`` held for the stored
+    values and not for their displays: where the member's values collapse
+    onto fewer displays, two values selected together are served as one
+    display twice, and the payload keeps both because both are selected, so
+    the array stops claiming its items are unique. A union arrives as
+    ``anyOf`` — the shape an ``X | None`` annotation is described in, which is
+    how a dataclass output's optional ``Enum`` field reaches here — and each
+    member is rewritten, the null one passing through untouched. The
+    union's own ``type``, where one is stated, is left as written.
     """
     items = schema.get("items")
     if isinstance(items, dict):
-        return {**schema, "items": _spoken_schema(items, labels)}
+        spoken_items = _spoken_schema(items, labels)
+        spoken = {**schema, "items": spoken_items}
+        if _listed_count(spoken_items) < _listed_count(items):
+            # Held by TestSharedDisplays.test_an_array_of_shared_displays_stops_claiming_unique_items
+            # (the drop) and test_an_array_of_distinct_displays_keeps_unique_items
+            # (the condition), end to end by
+            # test_two_selected_values_sharing_a_display_validate_against_their_schema.
+            spoken.pop("uniqueItems", None)
+        return spoken
     if "anyOf" in schema:
         return {**schema, "anyOf": [_spoken_schema(member, labels) for member in schema["anyOf"]]}
     if "enum" in schema:
@@ -177,8 +192,25 @@ def _spoken_schema(schema: dict[str, Any], labels: Mapping[Any, str]) -> dict[st
             if not _is_listed(display, consts):
                 consts.append(display)
                 one_of.append({"const": display})
-        return _retyped({**schema, "oneOf": one_of}, consts)
+        spoken = {**schema, "oneOf": one_of}
+        # An entry with no ``const`` admits values the displays say nothing
+        # about, so a type narrowed to the displays' would refuse them; one
+        # whose type is ``"null"`` admits only the null ``_retyped`` keeps.
+        # One branch to coverage, so each condition is held by its own test:
+        # TestRestatedType.test_an_integer_spoken_whole_is_a_string (the first:
+        # without it every entry keeps the type) and
+        # TestRestatedType.test_null_is_kept_where_the_stated_type_admitted_it
+        # (the second).
+        if any("const" not in entry and entry.get("type") != "null" for entry in one_of):
+            return spoken
+        return _retyped(spoken, consts)
     return schema
+
+
+def _listed_count(schema: dict[str, Any]) -> int:
+    """How many values a choice schema lists, across a union's members."""
+    members: list[Any] = schema.get("anyOf", [schema])
+    return sum(len(member.get("enum", ())) + len(member.get("oneOf", ())) for member in members)
 
 
 def _is_listed(value: Any, listed: list[Any]) -> bool:
@@ -206,11 +238,13 @@ def _retyped(schema: dict[str, Any], values: list[Any]) -> dict[str, Any]:
     ``"Low"`` would otherwise be described as an integer and the projected
     payload would fail the projected schema.
 
-    ``"null"`` is kept exactly where the stated type admitted it, and named
-    last. It is read off the type rather than the values because the type is
-    what admitted or refused a null before, and a ``oneOf`` may admit one
-    through an entry with no ``const``: the restated type admits what the
-    stated one did, in display terms, and nothing more.
+    ``"null"`` is kept exactly where the stated type admitted it, as a list
+    naming it or as ``"null"`` alone, and named last. It is read off the type
+    rather than the values because the type is what admitted or refused a null
+    before, and a ``oneOf`` may admit one through an entry whose type is
+    ``"null"``: the restated type admits what the stated one did, in display
+    terms, and nothing more. A ``oneOf`` entry admitting anything else is never
+    passed here, because narrowing the type would refuse what that entry admits.
 
     A schema that states no type claims nothing to contradict, one listing no
     value has nothing to restate it from, and a value JSON has no scalar name
@@ -219,7 +253,7 @@ def _retyped(schema: dict[str, Any], values: list[Any]) -> dict[str, Any]:
     """
     # One branch to coverage, so each condition is held by its own test:
     # TestRestatedType.test_an_untyped_choice_states_no_type (the first) and
-    # TestRestatedType.test_a_one_of_with_no_constant_keeps_its_type (the second).
+    # TestRestatedType.test_a_choice_listing_nothing_keeps_its_type (the second).
     if "type" not in schema or not values:
         return schema
     names: list[str] = []
@@ -234,6 +268,9 @@ def _retyped(schema: dict[str, Any], values: list[Any]) -> dict[str, Any]:
         if name not in names:
             names.append(name)
     stated = schema["type"]
+    # Both spellings of a stated null: TestRestatedType.test_a_nullable_integer_keeps_its_null
+    # (a list naming it) and TestRestatedType.test_a_type_stated_as_null_alone_still_admits_it
+    # (``"null"`` alone).
     if "null" in (stated if isinstance(stated, list) else [stated]):
         names.append("null")
     if not names:
