@@ -7,7 +7,7 @@ its selector Protocol under PEP 692, which is the whole reason the markers exist
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -186,3 +186,62 @@ def test_a_described_unpack_key_beside_not_client_input_is_refused() -> None:
 def test_a_described_key_that_is_skipped_is_not_advertised() -> None:
     properties, _required = callable_input_schema(_seeded_described, skip=frozenset({"user"}))
     assert properties == {"pk": {"type": "integer", "description": "The widget id."}}
+
+
+def _none_defaulted(
+    *,
+    secret: Annotated[int | None, NotClientInput] = None,
+    must: Annotated[int | None, InputRequired] = None,
+    note: Annotated[str | None, InputDescription("Free text.")] = None,
+    limit: int = None,  # type: ignore[assignment]
+) -> None: ...
+
+
+# Python 3.10's ``typing.get_type_hints`` wraps a parameter whose default is
+# ``None`` in ``Optional[...]`` (3.11 stopped), which buries the ``Annotated``
+# carrying each marker and nests a second ``anyOf`` around the type. The four
+# tests below hold each consequence on every supported Python.
+
+
+def test_a_none_defaulted_not_client_input_is_not_advertised() -> None:
+    properties, _required = callable_input_schema(_none_defaulted)
+    assert "secret" not in properties
+
+
+def test_a_none_defaulted_input_required_is_required() -> None:
+    _properties, required = callable_input_schema(_none_defaulted)
+    assert required == ["must"]
+
+
+def test_a_none_defaulted_description_is_kept() -> None:
+    properties, _required = callable_input_schema(_none_defaulted)
+    assert properties["note"] == {
+        "anyOf": [{"type": "string"}, {"type": "null"}],
+        "description": "Free text.",
+    }
+
+
+def test_a_none_default_states_the_annotation_as_written() -> None:
+    # One ``anyOf`` where the annotation admits ``None``, and none where it
+    # does not: the default is a value, not a second declaration of the type.
+    properties, _required = callable_input_schema(_none_defaulted)
+    assert properties["must"] == {"anyOf": [{"type": "integer"}, {"type": "null"}]}
+    assert properties["limit"] == {"type": "integer"}
+
+
+def _author_optional(
+    *,
+    plain: int | None = None,
+    spelled: Optional[str] = None,  # noqa: UP045 - the typing spelling is the point
+) -> None: ...
+
+
+def test_a_none_default_keeps_an_optional_the_author_wrote() -> None:
+    # The fix drops only the ``Optional`` 3.10 adds; one the author wrote is the
+    # type, in either spelling. Unwrapping every ``Optional`` on a ``None``
+    # default instead passes the four tests above and fails this one.
+    properties, _required = callable_input_schema(_author_optional)
+    assert properties == {
+        "plain": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+        "spelled": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+    }

@@ -15,6 +15,25 @@ produces DRF serializer classes for DRF's own OpenAPI generators.
 
 ::: rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema
 
+### A miss that is served as `null`
+
+An `allow_none` RETRIEVE presents `None` when its selector finds nothing, so its
+schema has to admit `null` as well as the row. `allow_none=True` states it as a
+type list, leaving every other keyword in place:
+
+```python
+output_to_json_schema(InvoiceSerializer, kind=SelectorKind.RETRIEVE, allow_none=True)
+# {"type": ["object", "null"], "properties": {...}, "required": [...]}
+```
+
+The function takes a serializer, not a spec, so the caller says whether a miss
+is served. `spec_to_json_schema(spec, phase="output")` passes a `SelectorSpec`'s
+own `allow_none`. A list never presents `None`, so `kind=LIST` is unchanged
+whatever `allow_none` says. The default is `False`, which is the schema every
+caller got before the parameter existed. A protocol that needs an object at the
+root, such as an MCP tool's `outputSchema`, can leave it off and describe the
+empty result in its own terms.
+
 ## `filterset_to_json_schema`
 
 ::: rest_framework_services.jsonschema.filterset_to_json_schema.filterset_to_json_schema
@@ -51,6 +70,64 @@ like `get_widget(user, pk)` advertises `pk` instead of a bare `{"type": "object"
 that leans on the docstring alone. An un-annotated parameter is still surfaced by
 name (untyped `{}`); a `filter_set` field wins over a callable parameter of the
 same name.
+
+### What a transport supplies: `supplied=`
+
+Read on its own, a selector's signature cannot say which parameters a caller
+sends and which the transport fills. `task_by_pk(user, *, pk)` and
+`outstanding(user, *, currency)` look alike, yet a client must send `pk`, while
+`currency` arrives from a pool seed. So by default every reflected parameter is
+optional unless it carries `InputRequired`. A lookup without a default is then
+advertised as optional, and a call without it fails with `TypeError: ...
+missing 1 required keyword-only argument: 'pk'`. A seed is advertised as an
+input that the seed then overrides.
+
+A transport describing its own tools does know which names it fills: its
+registered pool seeds, the names its `kwargs=` providers return, and the URL
+kwargs it resolves. It passes them as `supplied`:
+
+```python
+spec_to_json_schema(spec, phase="input", supplied=frozenset({"currency", "tenant"}))
+```
+
+The seeds every transport reserves need no listing. A name in
+[`RESERVED_POOL_SEEDS`][rest_framework_services.types.reserved_pool_seeds]
+(`progress`, `data`, `instance` and the rest) is one client input can never
+take: the pool's `request`, `user` and `progress` are filled over whatever a
+caller sends, and a selector's params never reach the others. So under
+`supplied` those names are dropped as if listed, and a transport lists only what
+it fills beyond them.
+
+A frozenset, including an empty one, opts into the transport rule for the
+selector callable's reflected parameters:
+
+| Parameter | Without `supplied` | With `supplied` |
+|---|---|---|
+| name in `supplied` | property, required only as its markers say | **dropped** from `properties` and `required`, marked or not |
+| no default, not supplied | optional property | **required** |
+| no default, positional-only | optional property | optional property |
+| has a default | optional | optional |
+| `InputRequired` | required | required, unless supplied or reserved |
+| `NotClientInput`, `request` / `user` / `view` | not advertised | not advertised |
+| any other name in `RESERVED_POOL_SEEDS`, such as `progress` | property, required only as its markers say | **dropped**, as if supplied |
+| `**kwargs: Unpack[TypedDict]` key | as its `TypedDict` declares | dropped if supplied or reserved, otherwise as its `TypedDict` declares |
+
+A positional-only parameter stays optional because dispatch binds the pool by
+keyword: no input a caller sends can fill one, so requiring it would ask for
+what cannot be passed.
+
+A `TypedDict` key has no default to read, so its totality (`Required` /
+`NotRequired`) remains its declaration. `None`, the default, keeps the output
+byte-identical to what it was before `supplied` existed, so a reader that does
+not know what is filled for it (drfs' own capability manifest, for one) is
+unchanged.
+
+`supplied` reaches reflected callable parameters and nothing else. A
+`ServiceSpec`'s input is its `input_serializer`, the output phase reflects no
+parameters, and a `filter_set` field is read from the caller's own params, so
+all three are the same with or without it. To describe a service tool's target
+lookup, reflect its `instance_selector_spec` or `collection_selector_spec` (a
+`SelectorSpec`) with the names the transport fills there.
 
 ### What an annotation publishes
 

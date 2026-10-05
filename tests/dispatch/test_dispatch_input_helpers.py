@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -24,6 +24,7 @@ from rest_framework_services.dispatch.utils import (
     view_url_kwargs,
 )
 from rest_framework_services.types.argument_binding import ArgumentBinding
+from rest_framework_services.types.not_client_input import NotClientInput
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -46,6 +47,18 @@ def _service(**_kwargs: object) -> None: ...
 
 def _by_pk(*, pk: int) -> Any:
     return pk
+
+
+def _by_parent(*, parent_pk: int) -> Any:
+    return parent_pk
+
+
+def _by_parent_in_scope(*, parent_pk: int, tenant: Annotated[str, NotClientInput]) -> Any:
+    return parent_pk, tenant
+
+
+def _by_pk_in_tenant(*, pk: int, tenant: str) -> Any:
+    return pk, tenant
 
 
 def _open_selector(**_kwargs: Any) -> Any: ...
@@ -284,6 +297,107 @@ class TestDeclaredInputKeys:
             ),
         )
         assert declared_input_keys(spec, serializer=None) is None
+
+    def test_service_collection_lookup_alone_declares_its_keys(self) -> None:
+        serializer = SimpleNamespace(fields={"title": object()})
+        spec = ServiceSpec(
+            service=_service,
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_by_parent),
+        )
+        assert declared_input_keys(spec, serializer=serializer) == {"title", "parent_pk"}
+
+    def test_service_collection_lookup_wins_over_instance_lookup(self) -> None:
+        # Dispatch resolves the target through the collection lookup and never
+        # calls the instance one beside it, so the instance lookup's ``pk`` is
+        # read by nothing and is not declared input.
+        serializer = SimpleNamespace(fields={"title": object()})
+        spec = ServiceSpec(
+            service=_service,
+            instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_by_pk),
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_by_parent),
+        )
+        assert declared_input_keys(spec, serializer=serializer) == {"title", "parent_pk"}
+
+    def test_a_name_the_collection_lookup_hides_is_not_admitted_by_the_instance_one(
+        self,
+    ) -> None:
+        # ``NotClientInput`` takes a name out of the declared set, so ``REJECT``
+        # refuses a caller supplying it. Unioning both lookups put it back
+        # whenever the instance lookup beside it declared the same name plainly,
+        # although that lookup is never called.
+        spec = ServiceSpec(
+            service=_service,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_by_pk_in_tenant
+            ),
+            collection_selector_spec=SelectorSpec(
+                kind=SelectorKind.LIST, selector=_by_parent_in_scope
+            ),
+        )
+        assert declared_input_keys(spec, serializer=None) == {"parent_pk"}
+
+    def test_service_collection_lookup_without_selector_does_not_fall_back(self) -> None:
+        # A collection spec with no selector is still the one dispatch takes (it
+        # refuses it there); it never falls back to the instance lookup.
+        spec = ServiceSpec(
+            service=_service,
+            instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_by_pk),
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST),
+        )
+        assert declared_input_keys(spec, serializer=None) == set()
+
+    def test_service_open_instance_filter_set_beside_collection_lookup_stays_closed(
+        self,
+    ) -> None:
+        spec = ServiceSpec(
+            service=_service,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_by_pk, filter_set=_FilterSet
+            ),
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_by_parent),
+        )
+        assert declared_input_keys(spec, serializer=None) == {"parent_pk"}
+
+    def test_service_open_instance_kwargs_beside_collection_lookup_stays_closed(self) -> None:
+        spec = ServiceSpec(
+            service=_service,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_open_selector
+            ),
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_by_parent),
+        )
+        assert declared_input_keys(spec, serializer=None) == {"parent_pk"}
+
+    def test_service_unresolvable_instance_lookup_beside_collection_lookup_is_not_read(
+        self,
+    ) -> None:
+        # The instance lookup is never called, so an annotation nobody resolves
+        # cannot make the surface unknown.
+        spec = ServiceSpec(
+            service=_service,
+            instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_find_orders),
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_by_parent),
+        )
+        assert declared_input_keys(spec, serializer=None) == {"parent_pk"}
+
+    def test_service_many_declares_no_lookup_keys(self) -> None:
+        # A ``many=True`` dispatch resolves no target at all, so neither lookup
+        # is called and only the item serializer's fields are declared.
+        serializer = SimpleNamespace(fields={"title": object()})
+        spec = ServiceSpec(
+            service=_service,
+            many=True,
+            instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_by_pk),
+        )
+        assert declared_input_keys(spec, serializer=serializer) == {"title"}
+
+    def test_service_many_ignores_an_unreadable_lookup(self) -> None:
+        spec = ServiceSpec(
+            service=_service,
+            many=True,
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_find_orders),
+        )
+        assert declared_input_keys(spec, serializer=None) == set()
 
 
 class TestResolveUnknownArguments:

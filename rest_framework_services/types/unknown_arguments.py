@@ -10,7 +10,9 @@ class UnknownArguments(Enum):
 
     The *declared set* is derived from the spec without any transport knowledge: a
     [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]'s
-    ``input_serializer`` fields plus the keys its nested target selectors consume; a
+    ``input_serializer`` fields plus the keys of the one target lookup dispatch calls
+    (its ``collection_selector_spec`` when declared, else its
+    ``instance_selector_spec``, and neither for ``many=True``); a
     [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec]'s
     ``selector`` parameters. When the set cannot be enumerated — a callable that
     declares ``**kwargs``, or a duck-typed ``filter_set`` whose fields are opaque to the

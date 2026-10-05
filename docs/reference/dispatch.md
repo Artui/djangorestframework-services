@@ -90,6 +90,12 @@ what a page is. Everything that *is* about what a page is lives here: the clamps
 at both ends, the count taken before the slice, and the reported `page` being
 the one actually served.
 
+`rows` is a queryset, a manager or a sized, sliceable sequence. A queryset is
+counted with `COUNT` and sliced lazily; a manager — `Model.objects`, which a
+LIST selector may return as it is — is paged as its `.all()`; a `list` or
+`tuple` is paged in memory. Anything else raises `TypeError`, since there is
+nothing to count and nothing to slice.
+
 ::: rest_framework_services.dispatch.paginate_output.paginate_output
 
 ### `DEFAULT_PAGE_SIZE`
@@ -145,6 +151,18 @@ ranks against the spec author's `kwargs`.
 
 How strict `dispatch_spec` is about `params` keys outside the spec's declared
 set — drop them, reject them, or pass them through to the callable.
+
+A `ServiceSpec`'s declared set takes lookup keys from the one target lookup
+dispatch calls, never from both. A `collection_selector_spec` is that lookup
+whenever one is declared, so an `instance_selector_spec` beside it is not read:
+its `pk` is refused under `REJECT` and comes back as an extra under
+`PASSTHROUGH`, and it cannot open the set or make `REJECT` unenforceable.
+Without a collection lookup, the instance lookup's keys are declared. A
+`many=True` spec resolves no target, so neither lookup's keys are declared for
+its items, and a lookup on it cannot open the set or make `REJECT`
+unenforceable.
+The set is read from the spec alone, so a direct caller passing `instance=`,
+which skips the lookup, still has that lookup's keys admitted.
 
 ::: rest_framework_services.types.unknown_arguments.UnknownArguments
 

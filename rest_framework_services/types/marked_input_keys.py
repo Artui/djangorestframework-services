@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable
-from typing import Any, get_type_hints
+from typing import Any
 
 from rest_framework_services.types.read_schema_markers import read_schema_markers
 from rest_framework_services.types.typed_dict_input import typed_dict_input
 from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
+from rest_framework_services.types.utils import callable_type_hints
 
 
 def marked_input_keys(fn: Callable[..., Any]) -> tuple[frozenset[str], frozenset[str]]:
@@ -27,7 +28,7 @@ def marked_input_keys(fn: Callable[..., Any]) -> tuple[frozenset[str], frozenset
     best-effort throughout this package.
     """
     try:
-        hints = get_type_hints(fn, include_extras=True)
+        hints = callable_type_hints(fn)
     except Exception:  # noqa: BLE001 — never fatal, see the docstring
         return frozenset(), frozenset()
     required: set[str] = set()

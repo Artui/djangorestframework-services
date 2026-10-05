@@ -12,6 +12,8 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from django.db.models import QuerySet
+from django.db.models.manager import BaseManager
 
 from rest_framework_services.dispatch.paginate_output import (
     DEFAULT_PAGE_SIZE,
@@ -111,6 +113,34 @@ def test_a_queryset_is_counted_not_materialized() -> None:
 
     assert (page.total, page.page, page.total_pages, page.has_next) == (5, 2, 3, True)
     assert [author.name for author in page.items] == ["a2", "a3"]
+
+
+@pytest.mark.django_db
+def test_a_manager_is_paged_as_its_queryset() -> None:
+    """A LIST selector may return ``Model.objects``, which the unpaged path
+    serves whole. It counts and cannot be sliced, so paging it raised
+    ``'Manager' object is not subscriptable`` after the count had run."""
+    Author.objects.bulk_create([Author(name=f"a{index}") for index in range(5)])
+
+    page = paginate_output(Author.objects, page=2, limit=2)
+
+    assert (page.total, page.page, page.total_pages, page.has_next) == (5, 2, 3, True)
+    assert isinstance(page.items, QuerySet)
+    assert len(page.items) == 2
+
+
+@pytest.mark.django_db
+def test_a_manager_built_on_base_manager_is_paged_too() -> None:
+    """``BaseManager.from_queryset`` builds a manager that is not a ``Manager``,
+    and is counted like one, so it is paged as its ``.all()`` as well."""
+    Author.objects.bulk_create([Author(name=f"a{index}") for index in range(3)])
+    manager: Any = BaseManager.from_queryset(QuerySet)()
+    manager.model = Author
+
+    page = paginate_output(manager, limit=2)
+
+    assert (page.total, page.page, page.has_next) == (3, 1, True)
+    assert len(page.items) == 2
 
 
 def test_a_tuple_is_paginated_in_memory() -> None:

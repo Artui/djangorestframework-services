@@ -16,6 +16,7 @@ from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.spec_validation import validate_selector_view_spec
 from rest_framework_services.views.utils import (
+    _JsonNullResponse,
     add_affordances,
     get_class_attr,
     layer_serializer_context,
@@ -114,6 +115,6 @@ class SelectorRetrieveView(RetrieveModelMixin, GenericAPIView):
         # a row with its affordance answers, which DRF's ``retrieve`` cannot add.
         instance = self.get_object()
         if instance is None:
-            return Response(None)
+            return _JsonNullResponse()
         serializer = self.get_serializer(instance)
         return Response(add_affordances(s, serializer.data, instance, many=False))

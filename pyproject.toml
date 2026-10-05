@@ -38,7 +38,10 @@ dependencies = [
     # service / selector Protocols (PEP 692). Already required transitively
     # by ``djangorestframework-dataclasses``; declared here explicitly so we
     # don't depend on a transitive contract.
-    "typing-extensions>=4.6",
+    # 4.13 is the release whose ``get_type_hints`` stops wrapping a
+    # ``None``-defaulted parameter in ``Optional[...]`` on Python 3.10, which
+    # otherwise hides every schema marker on such a parameter.
+    "typing-extensions>=4.13",
 ]
 
 [project.optional-dependencies]
@@ -183,7 +186,7 @@ root = ["./rest_framework_services"]
 # CHANGELOG [Unreleased] block under a new dated heading. Run via
 # `uvx bump-my-version` (no permanent dependency added to the project).
 [tool.bumpversion]
-current_version = "0.54.0"
+current_version = "0.55.0"
 allow_dirty = false
 commit = false
 tag = false

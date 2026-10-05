@@ -11,6 +11,9 @@ framework-agnostic error types.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any
+
 from rest_framework import exceptions as drf_exceptions
 from rest_framework import status as drf_status
 
@@ -33,6 +36,31 @@ class _ServiceAPIException(drf_exceptions.APIException):
     status_code = drf_status.HTTP_422_UNPROCESSABLE_ENTITY
     default_detail = "Service error."
     default_code = "service_error"
+
+
+class _AdditionalInputAPIException(_ServiceAPIException):
+    """The ``422`` an
+    [`AdditionalInputRequired`][rest_framework_services.exceptions.additional_input_required.AdditionalInputRequired]
+    carrying a schema answers with: ``{"detail": <message>, "schema": <schema>}``.
+
+    ``detail`` is built the way DRF builds every other one, so each leaf of the
+    schema in it is an ``ErrorDetail``, a ``str`` with a ``code``. That is the
+    contract a configured ``EXCEPTION_HANDLER`` is written against: handlers
+    such as drf-standardized-errors walk ``detail`` and read ``.code`` off every
+    leaf, and a schema carried with its native ``False`` and ``3`` in it turned
+    their ``422`` into a ``500``.
+
+    The schema as raised is kept on ``schema``, because a ``str`` leaf is no
+    longer JSON Schema: ``"default": "False"`` is a non-empty string to a client
+    rendering a form. drfs' own views and viewsets put it back into the body
+    after the handler has built the response (see
+    ``views.mutation.utils._ServesRaisedSchema``); anything else holding this
+    exception reads it here.
+    """
+
+    def __init__(self, message: str, schema: Mapping[str, Any]) -> None:
+        self.schema: dict[str, Any] = dict(schema)
+        super().__init__({"detail": message, "schema": self.schema})
 
 
 class _ConflictAPIException(drf_exceptions.APIException):
@@ -85,5 +113,5 @@ def map_service_error(exc: ServiceError) -> drf_exceptions.APIException:
         # replacing it. Only when there is a schema: the error is valid without
         # one, and growing the body unconditionally would change every plain
         # message into an object for no gain.
-        return _ServiceAPIException({"detail": str(exc), "schema": dict(exc.schema)})
+        return _AdditionalInputAPIException(str(exc), exc.schema)
     return _ServiceAPIException(str(exc))

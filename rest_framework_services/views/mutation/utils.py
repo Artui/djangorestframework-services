@@ -35,6 +35,7 @@ from rest_framework_services.views.mutation.apply_response_finalizer import (
     apply_response_finalizer,
 )
 from rest_framework_services.views.mutation.map_service_error import (
+    _AdditionalInputAPIException,
     map_service_error,
 )
 from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
@@ -477,3 +478,51 @@ def resolve_mutation_instance(
     if instance_spec is not None and instance_spec.selector is not None:
         return UNSET
     return view.get_object()
+
+
+class _ServesRaisedSchema:
+    """Puts an ``AdditionalInputRequired`` schema back into the body as it was raised.
+
+    The mapped exception's ``detail`` is DRF's, every leaf an ``ErrorDetail``
+    string, because that is what the configured ``EXCEPTION_HANDLER`` walks; the
+    schema itself rides on its ``schema`` attribute. This runs *after* that
+    handler has built the response, so the handler sees what it always saw, and
+    the client still gets JSON Schema rather than ``"default": "False"``.
+
+    Inherited by ``MutationFlowMixin`` (the three mutation views and the
+    viewset mixins) and ``_ActionSpecsMixin`` (every drfs viewset base,
+    ``ActionSerializerResolver`` included), which between them are every class
+    drfs ships that maps a ``ServiceError`` into a response. Defined once, so a
+    class inheriting both runs it once. ``@service_action`` on a viewset with
+    none of those bases is the one route it cannot reach: a decorator has no
+    hold on the class's ``handle_exception``. Nor can it run where such a base
+    comes *after* DRF's view in the bases, as in
+    ``class V(GenericViewSet, ActionSerializerResolver)``: ``APIView``'s own
+    ``handle_exception`` answers first and never calls this one. Held by
+    test_action_serializer_resolver_restores_the_schema_only_before_generic_viewset.
+    """
+
+    def handle_exception(self, exc: Exception) -> Response:
+        response: Response = super().handle_exception(exc)  # ty: ignore[unresolved-attribute]
+        # Typed ``Response`` as DRF's stubs type it, but a configured
+        # ``EXCEPTION_HANDLER`` may answer with any Django response, which DRF
+        # serves as it is; only DRF's ``Response`` has a ``.data``.
+        data: Any = getattr(response, "data", None)
+        # Each condition is held by its own test in tests/test_additional_input_required.py:
+        # the exception type by test_another_error_naming_a_schema_field_is_left_alone,
+        # the dict by test_a_handler_that_answers_with_no_body_is_left_alone (a
+        # ``Response`` whose ``data`` is ``None``) and by
+        # test_a_handler_answering_with_a_django_response_is_left_alone (no
+        # ``.data`` at all, read above as ``None``), and the key by
+        # test_a_handler_reading_every_leafs_code_answers_with_its_own_body.
+        if (
+            isinstance(exc, _AdditionalInputAPIException)
+            and isinstance(data, dict)
+            and "schema" in data
+        ):
+            # A new dict rather than an assignment into the old one: under DRF's
+            # default handler ``response.data`` *is* ``exc.detail``, and the
+            # exception should keep describing itself the DRF way. Held by
+            # test_the_exception_keeps_drfs_shape_after_the_body_is_restored.
+            response.data = {**data, "schema": exc.schema}
+        return response

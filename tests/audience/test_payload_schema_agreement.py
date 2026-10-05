@@ -215,3 +215,78 @@ def test_an_unmarked_serializer_is_untouched_on_both_sides() -> None:
 def test_a_marked_but_unformatted_declaration_never_reaches_the_new_path() -> None:
     """Every existing assertion in this suite runs on this projection, unchanged."""
     assert all(PROJECTION.formatter(name) is None for name in PROJECTION.fields)
+
+
+PRIORITIES = [(1, "Low"), (2, "High")]
+STAGES = [("legacy", "Draft"), ("draft", "Draft"), ("live", "Published")]
+
+
+class _Ticket(serializers.Serializer):
+    """The shapes a ``ModelSerializer`` builds from an ``IntegerChoices`` field."""
+
+    priority = serializers.ChoiceField(choices=PRIORITIES)
+    levels = serializers.MultipleChoiceField(choices=PRIORITIES)
+
+
+class _Stage(serializers.Serializer):
+    """A ``TextChoices`` field whose two values share a display, alone, so the
+    shared display is the only thing its schema could refuse."""
+
+    stage = serializers.ChoiceField(choices=STAGES)
+
+
+TICKET_PROJECTION = build_audience_projection(_Ticket)
+STAGE_PROJECTION = build_audience_projection(_Stage)
+
+
+def test_an_integer_choice_spoken_as_its_display_validates_against_its_schema() -> None:
+    """A display is a string, so the projected schema says ``string``.
+
+    The walk states ``"type": "integer"`` beside integer choices, and keeping it
+    beside the spoken ``oneOf`` made ``"Low"`` fail its own schema. The array
+    of a ``MultipleChoiceField`` states the same type on its items.
+    """
+    payload = project_payload({"priority": 1, "levels": [1, 2]}, TICKET_PROJECTION)
+    schema: Any = output_to_json_schema(_Ticket, projection=TICKET_PROJECTION)
+
+    assert payload == {"priority": "Low", "levels": ["Low", "High"]}
+    _assert_agrees(payload, schema)
+    assert schema["properties"]["priority"]["type"] == "string"
+    assert schema["properties"]["levels"]["items"]["type"] == "string"
+
+
+@pytest.mark.parametrize("stage", [value for value, _ in STAGES])
+def test_a_display_two_choices_share_validates_against_its_schema(stage: str) -> None:
+    """``oneOf`` admits a value valid under exactly one entry, so a display
+    listed once per value that carries it refused every row served it."""
+    payload = project_payload({"stage": stage}, STAGE_PROJECTION)
+    schema: Any = output_to_json_schema(_Stage, projection=STAGE_PROJECTION)
+
+    _assert_agrees(payload, schema)
+    assert schema["properties"]["stage"]["oneOf"] == [{"const": "Draft"}, {"const": "Published"}]
+
+
+class _Stages(serializers.Serializer):
+    """A ``MultipleChoiceField`` over choices sharing a display: both stored
+    values may be selected, and both are served as that one display."""
+
+    stages = serializers.MultipleChoiceField(choices=STAGES)
+
+
+STAGES_PROJECTION = build_audience_projection(_Stages)
+
+
+def test_two_selected_values_sharing_a_display_validate_against_their_schema() -> None:
+    """The array states ``uniqueItems``, which held for the stored values and
+    does not for their displays: ``["legacy", "draft"]`` is served as
+    ``["Draft", "Draft"]``. The payload keeps both, because two distinct values
+    are selected, so the schema stops claiming the displays are unique."""
+    payload = project_payload({"stages": ["legacy", "draft"]}, STAGES_PROJECTION)
+    schema: Any = output_to_json_schema(_Stages, projection=STAGES_PROJECTION)
+
+    assert payload == {"stages": ["Draft", "Draft"]}
+    _assert_agrees(payload, schema)
+    assert schema["properties"]["stages"]["items"]["oneOf"] == [
+        {"const": "Draft"},
+        {"const": "Published"},
+    ]

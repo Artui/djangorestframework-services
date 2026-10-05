@@ -217,6 +217,25 @@ def test_schemas_are_the_kernel_derivation_verbatim() -> None:
         assert operation["output_schema"] == spec_to_json_schema(spec, phase="output")
 
 
+def test_an_allow_none_retrieve_states_the_null_it_serves() -> None:
+    """Built from ``spec_to_json_schema``, so the manifest says ``null`` where the
+    derivation does, rather than restating an object root a transport needs."""
+
+    class _Profile(serializers.Serializer):
+        bio = serializers.CharField()
+
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        allow_none=True,
+        selector=lambda: None,
+        output_serializer=_Profile,
+    )
+
+    operation = capability_manifest(_registry(("profile", spec, ())))["operations"][0]
+
+    assert operation["output_schema"]["type"] == ["object", "null"]
+
+
 def test_an_undeclared_output_is_none_rather_than_a_fabricated_shape() -> None:
     registry = _registry(("op", _refund_spec(output_selector_spec=None), ()))
     assert capability_manifest(registry)["operations"][0]["output_schema"] is None

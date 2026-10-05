@@ -209,23 +209,56 @@ def declared_input_keys(
     """The set of ``params`` keys ``spec`` declares as input, or ``None`` if open.
 
     Derived from the spec alone — no transport knowledge. A ``ServiceSpec``
-    declares its ``input_serializer`` fields plus whatever its nested target
-    selectors consume (e.g. the ``pk`` an ``instance_selector_spec`` reads).
+    declares its ``input_serializer`` fields plus the keys of the **one** target
+    lookup dispatch calls, chosen by the precedence ``_resolve_target`` applies, so
+    a key is admitted only when something reads it:
+
+    - ``many=True`` resolves no target at all (``_dispatch_service_many`` never
+      reaches ``_resolve_target``), so neither nested lookup contributes. Held by
+      ``test_service_many_declares_no_lookup_keys``, and through dispatch by
+      ``test_reject_refuses_a_lookup_key_inside_an_item``.
+    - A declared ``collection_selector_spec`` is the lookup, and dispatch never
+      calls ``instance_selector_spec`` beside it, so that lookup's ``pk`` is not
+      admitted. Held by ``test_service_collection_lookup_wins_over_instance_lookup``,
+      and for a name the collection lookup marks ``NotClientInput`` by
+      ``test_a_name_the_collection_lookup_hides_is_not_admitted_by_the_instance_one``.
+      The test is on the nested spec, not on its ``selector``: dispatch refuses a
+      collection spec with no selector rather than falling back to the instance
+      lookup, and so does this. Held by
+      ``test_service_collection_lookup_without_selector_does_not_fall_back``.
+    - Otherwise ``instance_selector_spec`` (e.g. the ``pk`` it reads). Held by
+      ``test_service_serializer_fields_plus_nested``.
+
+    A lookup dispatch does not call is not read here either: an open one (a
+    ``filter_set`` or a bare ``**kwargs``) beside a collection lookup, or on a
+    ``many=True`` spec, leaves the set closed, and one whose ``**kwargs``
+    annotation cannot be resolved raises nothing.
+
+    Read from the spec alone, because it is also what a transport advertises, so a
+    direct caller passing ``instance=``, which skips the lookup, still has that
+    lookup's keys admitted. No view passes an ``instance`` where the two differ.
+
     ``None`` means the set is not enumerable, so nothing can be flagged unknown.
-    Propagates ``_UnresolvedExtras`` when a callable's ``**kwargs`` annotation cannot
-    be resolved — "unknown surface", which is not the same as "open".
+    Propagates ``_UnresolvedExtras`` when a callable it reads has a ``**kwargs``
+    annotation that cannot be resolved — "unknown surface", which is not the same as
+    "open".
     """
     if isinstance(spec, SelectorSpec):
         if spec.filter_set is not None:
             return None
         return _callable_param_names(spec.selector) if spec.selector is not None else set()
     declared: set[str] = set(serializer.fields) if serializer is not None else set()
-    for nested in (spec.instance_selector_spec, spec.collection_selector_spec):
-        consumed = _selector_consumed_keys(nested)
-        if consumed is None:
-            return None
-        declared |= consumed
-    return declared
+    if spec.many:
+        return declared
+    target = (
+        spec.collection_selector_spec
+        if spec.collection_selector_spec is not None
+        else spec.instance_selector_spec
+    )
+    consumed = _selector_consumed_keys(target)
+    if consumed is None:
+        return None
+    return declared | consumed
 
 
 def resolve_unknown_arguments(
@@ -453,7 +486,10 @@ def many_argument_errors(name: str | None) -> Iterator[None]:
         # serializer reports the older shape; on the floor, by every item-error test.
         if isinstance(detail, list):
             detail = {index: errors for index, errors in enumerate(detail) if errors}
-        raise ValidationError({name: detail}) from exc
+        # Annotated because the stubs admit only ``str`` keys in a detail, while
+        # the ``int``-keyed mapping above is the one DRF 3.18 raises itself.
+        keyed: dict[str, Any] = {name: detail}
+        raise ValidationError(keyed) from exc
 
 
 def guard_mapping_params(params: Any) -> None:

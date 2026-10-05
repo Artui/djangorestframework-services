@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.db.models.manager import BaseManager
+
 from rest_framework_services.selectors.utils import is_queryset
 from rest_framework_services.types.output_page import OutputPage
 
@@ -41,10 +43,22 @@ def paginate_output(
     ``OFFSET``, which a backend either scans towards or rejects outright with a
     ``DatabaseError`` this does not catch.
 
+    A queryset is counted with ``COUNT`` and sliced lazily, so the page's
+    ``items`` is still a queryset. A manager — ``Model.objects``, which a LIST
+    selector may return and the unpaged path serves whole — is paged as its
+    ``.all()``, since it counts and cannot be sliced.
+
     Raises:
         TypeError: If ``rows`` is neither a queryset nor a sized, sliceable
             sequence — there is nothing to count and nothing to slice.
     """
+    if isinstance(rows, BaseManager):
+        # ``BaseManager`` rather than ``Manager``, because ``is_queryset``
+        # counts every ``BaseManager`` and one built with
+        # ``BaseManager.from_queryset`` is not a ``Manager``. Counted, and then
+        # refused at the slice, without this: test_a_manager_is_paged_as_its_queryset
+        # and test_a_manager_built_on_base_manager_is_paged_too.
+        rows = rows.all()
     served_limit: int = max(1, DEFAULT_PAGE_SIZE if limit is None else limit)
     if max_page_size is not None:
         served_limit = min(served_limit, max_page_size)

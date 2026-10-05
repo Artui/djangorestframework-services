@@ -124,6 +124,48 @@ def delete_rows(*, data):
 it back under. A transport that can put the question to a human renders it; one
 that cannot still has a message worth showing.
 
+Over HTTP the `422` body carries both, the schema exactly as it was raised:
+
+```json
+{"detail": "412 rows match. Confirm to proceed.", "schema": {"confirmed": {"type": "boolean"}}}
+```
+
+A `"default": false` stays a boolean and a `"maximum": 3` a number. Without a
+schema, the body is the plain `{"detail": ...}` of any other `422`.
+
+**Your `EXCEPTION_HANDLER` sees DRF's shape.** The mapped exception's `detail`
+is built the way DRF builds every detail, so each leaf of the schema in it is an
+`ErrorDetail` string with a `code`, and a handler that walks `detail` for codes
+(drf-standardized-errors does) works unchanged. The schema as raised is kept on
+the exception's `schema` attribute, and drfs' views and viewsets put it back
+into the body *after* your handler has built the response: only when the
+response's data is a dict with a `schema` key of its own, so a handler that
+reshapes the body keeps the body it built. A handler that answers with a plain
+Django response, a `JsonResponse` say, has no data to restore into, and is
+served exactly as it built it.
+
+That restore lives on drfs' view and viewset bases: `ServiceCreateView`,
+`ServiceUpdateView`, `ServiceDeleteView`, every viewset mixin, `ServiceViewSet`,
+`SelectorViewSet` and `ActionSerializerResolver`, including a
+`@service_action` on any of them. Anything else that holds the mapped exception
+reads the native schema off it, because there is no view to restore it:
+
+```python
+try:
+    call_service(purge, request=request, map_errors=True)
+except APIException as exc:
+    schema = getattr(exc, "schema", None)  # as raised; None for any other error
+```
+
+The same holds for a direct `map_service_error(...)` caller and for a
+`@service_action` on a viewset that takes none of drfs' bases. For the latter,
+adding `ActionSerializerResolver` to its bases is enough, listed **before**
+`GenericViewSet`. The restore is a `handle_exception` override, so it runs only
+where it comes first in the method resolution order:
+`class Purge(ActionSerializerResolver, GenericViewSet)` serves the schema as
+raised, while `class Purge(GenericViewSet, ActionSerializerResolver)` resolves
+`handle_exception` to DRF's `APIView` and still serves it stringified.
+
 **The answer comes back as ordinary input.** An HTTP client re-submits with
 `confirmed` in the body. A transport that asks interactively — MCP, say — merges
 the answer into the parameters before dispatch. Either way the service reads it

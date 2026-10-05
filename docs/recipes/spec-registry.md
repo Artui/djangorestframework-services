@@ -194,7 +194,10 @@ about the operation, never a row's state.
 
 The schemas are exactly what `spec_to_json_schema` produces, and the top-level
 `dialect` names that policy, so a manifest and the tool list a transport builds
-from the same registry describe each operation identically.
+from the same registry describe the same operations. A transport may restate a
+schema for its protocol: an `allow_none` RETRIEVE's output schema here is
+`["object", "null"]`, where an MCP tool's `outputSchema` must keep an object root
+and states the empty result in MCP's own terms.
 
 Two things it deliberately is not. It names no principal and decides nothing: a
 guard is listed by its import path, because what a permission class grants is

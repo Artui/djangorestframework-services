@@ -9,8 +9,10 @@ from rest_framework import serializers
 
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
+from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
+from rest_framework_services.types.service_spec import ServiceSpec
 
 
 class _Out(serializers.Serializer):
@@ -101,6 +103,49 @@ def test_list_with_pagination_is_envelope() -> None:
         },
         "required": ["items", "page", "totalPages", "hasNext"],
     }
+
+
+class TestAllowNone:
+    """``allow_none`` states the ``null`` an ``allow_none`` RETRIEVE presents
+    for a miss. Off by default, so a caller passing nothing is unchanged."""
+
+    NULLABLE_ITEM = {**_ITEM, "type": ["object", "null"]}
+
+    @pytest.mark.parametrize("kind", [None, SelectorKind.RETRIEVE])
+    def test_one_row_admits_null(self, kind: SelectorKind | None) -> None:
+        assert output_to_json_schema(_Out, kind=kind, allow_none=True) == self.NULLABLE_ITEM
+
+    def test_a_dataclass_item_admits_null_too(self) -> None:
+        assert output_to_json_schema(_OutDC, allow_none=True) == self.NULLABLE_ITEM
+
+    def test_off_by_default(self) -> None:
+        assert output_to_json_schema(_Out, kind=SelectorKind.RETRIEVE) == _ITEM
+
+    @pytest.mark.parametrize("paginate", [False, True])
+    def test_a_list_never_presents_none_so_is_unchanged(self, paginate: bool) -> None:
+        """The condition that keeps ``null`` off a list, paged or not."""
+        assert output_to_json_schema(
+            _Out, kind=SelectorKind.LIST, paginate=paginate, allow_none=True
+        ) == output_to_json_schema(_Out, kind=SelectorKind.LIST, paginate=paginate)
+
+    def test_null_is_added_after_the_row_is_described(self) -> None:
+        """The projection and the ``affordances`` property describe the row, and
+        the ``null`` is the absence of one, so both are kept beside it."""
+        projection = AudienceProjection(choice_labels={"id": {1: "One"}})
+        affordances = {"publish": ServiceSpec(service=lambda: None)}
+
+        schema = output_to_json_schema(
+            _Out, projection=projection, affordances=affordances, allow_none=True
+        )
+        row = output_to_json_schema(_Out, projection=projection, affordances=affordances)
+
+        assert schema is not None
+        assert row is not None
+        assert schema == {**row, "type": ["object", "null"]}
+        assert schema["required"] == ["id", "affordances"]
+
+    def test_an_undeclared_output_is_still_none(self) -> None:
+        assert output_to_json_schema(None, allow_none=True) is None
 
 
 def test_output_serializer_reading_request_context_is_described() -> None:

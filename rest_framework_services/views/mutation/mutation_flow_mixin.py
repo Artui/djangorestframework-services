@@ -9,10 +9,13 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from rest_framework_services.types.service_spec import ServiceSpec
-from rest_framework_services.views.mutation.utils import dispatch_mutation_for_spec
+from rest_framework_services.views.mutation.utils import (
+    _ServesRaisedSchema,
+    dispatch_mutation_for_spec,
+)
 
 
-class MutationFlowMixin:
+class MutationFlowMixin(_ServesRaisedSchema):
     """Provides ``_run_mutation`` for service-backed views and viewset mixins.
 
     The flow itself lives in ``dispatch_mutation_for_spec``, so

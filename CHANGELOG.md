@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.55.0] — 2026-10-05
+
+### Added
+
+- **`spec_to_json_schema(..., supplied=...)` lets a transport say which names it
+  fills.** A selector's input schema reflects its callable's parameters, and on
+  its own a signature cannot tell a caller input from a value the transport
+  supplies. So every reflected parameter was optional unless marked
+  `InputRequired`. A lookup like `task_by_pk(user, *, pk)` was advertised with
+  `pk` optional, and a call without it raised `TypeError`. A pool seed such as a
+  `currency` was advertised as an input, which the seed then overrode. The new
+  keyword-only `supplied: frozenset[str] | None = None` carries what the
+  transport knows: its registered pool seeds, the names its `kwargs=` providers
+  return, and URL kwargs. A name in `supplied` is dropped from `properties` and
+  `required`, marked or not, and so is every name in `RESERVED_POOL_SEEDS`
+  (`progress`, `data` and the rest) without being listed, because client input
+  can never take one. Any other parameter with no default becomes required,
+  unless it is positional-only, which dispatch's keyword binding can never fill.
+  A parameter with a default stays optional, `InputRequired` stays required,
+  `NotClientInput` and the `request` / `user` / `view` seeds stay unadvertised,
+  and an `Unpack[TypedDict]` key keeps the requiredness its `TypedDict` declares
+  unless it is supplied or reserved. With the default
+  `None`, the schema is byte-identical to before for every existing call, the
+  capability manifest's included. `supplied` reaches only the selector callable's
+  reflected parameters. A `ServiceSpec`'s input serializer, the output phase and
+  a `filter_set` field are unchanged by it.
+
 ### Changed
 
 - **A relation write's row error now has the shape DRF's `ListSerializer` gives
@@ -26,9 +53,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one row has no position and is unchanged. A client that reads the list needs
   changing. Rendered as JSON, the index keys are strings (`"1"`), as they are in a
   nested serializer's errors.
+- **A service's declared input now names only the target lookup dispatch calls.**
+  `declared_input_keys` used to admit the keys of both nested lookups, so a
+  `ServiceSpec` declaring an `instance_selector_spec` beside a
+  `collection_selector_spec` admitted the instance lookup's `pk`, although
+  dispatch resolves the target through the collection lookup and never calls the
+  instance one beside it. It now admits the collection lookup's keys when one is
+  declared and the instance lookup's otherwise, and a `many=True` spec, which
+  resolves no target, admits neither. Under `UnknownArguments.REJECT`, a caller
+  sending an instance lookup's key to a service that declares a collection lookup,
+  or a lookup's key inside a `many=True` item, is now refused with
+  `Unexpected argument(s)` where the key used to be admitted and ignored. Under
+  `PASSTHROUGH` that key now reaches the service as an extra. A lookup that is
+  never read, an instance lookup beside a collection lookup or either lookup on a
+  `many=True` spec, no longer opens the declared set when it has a `filter_set`
+  or a bare `**kwargs`, so on such a `many=True` spec `REJECT` now refuses every
+  item key outside the input serializer; nor does it make `REJECT` raise
+  `ImproperlyConfigured` when its `**kwargs` annotation cannot be resolved. A
+  name the collection lookup marks `NotClientInput` is no longer admitted because
+  the instance lookup beside it declares the same name plainly. A service without
+  `many=True` that declares only one of the two lookups is unchanged.
 
 ### Fixed
 
+- **On Python 3.10, a schema marker on a parameter that defaults to `None` is
+  honoured.** Python 3.10's `typing.get_type_hints` wraps every parameter whose
+  default is `None` in `Optional[...]`, which 3.11 stopped doing. So a parameter
+  declared `Annotated[int | None, NotClientInput] = None` was read as
+  `Optional[Annotated[...]]`, its marker was no longer where it is looked for,
+  and on 3.10 every marker on such a parameter was ignored, as it had been since
+  the markers came to ordinary parameters in 0.28.0. The serious half is
+  `NotClientInput`: the key was advertised to clients in the input schema, and
+  under `UnknownArguments.REJECT` a client's value for it was accepted instead
+  of refused and reached the selector or service, unless a `kwargs=` provider
+  supplied the key under a binding that lets the provider win. Under the default
+  `IGNORE` delivery is unchanged, since the marker never blocks a value, but the
+  schema asked clients for the key. `InputRequired` on such a parameter was
+  neither listed in `required` nor enforced at dispatch, so the callable ran with
+  the default. An `InputDescription` was dropped, and the type was wrapped in a
+  second `anyOf` with `null`. Annotations are now read through
+  `typing_extensions.get_type_hints`, which backports 3.11's behaviour, so a
+  callable is reflected and dispatched the same way on every supported Python.
+  That also means an unmarked `limit: int = None` is advertised as an `integer`
+  on 3.10, as it already was on 3.11 and later. `Unpack[TypedDict]` keys were
+  never affected, because a `TypedDict` key has no default. The
+  `typing-extensions` floor rises from 4.6 to 4.13, the first release with that
+  backport.
 - **`adispatch_spec` calls a spec's `progress_reporter` provider off the event
   loop.** It was the one callable a spec carries that the async core still called
   on the loop, so a provider that queried raised `SynchronousOnlyOperation` before
@@ -62,6 +132,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model name. That shape is the one a relation write now produces on current DRF.
   An `int` key is now read as a row position, and the row beneath it is renamed
   like a row of the list.
+- **A projected choice field's schema states the type of its displays.** With a
+  projection, a choice field is described in the displays the payload carries,
+  but the `type` the walk stated beside the values was kept. An `IntegerChoices`
+  field projected as `"Low"` was still described as `"type": "integer"`, so the
+  projected payload failed the schema advertised for it, on every transport
+  that serves both. The type is now restated from the displays: `string` when
+  every display is a string, with `"null"` kept where the stated type admitted
+  it. A `MultipleChoiceField`'s items are restated the same way. Beside a
+  `oneOf` entry that admits more than its constants, which only a hand-written
+  registry rule or override produces, the type is left as written, because
+  narrowing it would refuse what that entry admits.
+- **A display two choices share is listed once in a projected schema.** Django
+  allows two values one display, and the projected `oneOf` listed that display
+  once per value. A row served it matched two entries, and `oneOf` admits a value
+  that matches exactly one, so the row failed its schema. Each display is now
+  listed once, where first seen. Repeats are compared as JSON compares them, so
+  `True` and `1` stay two entries. A `MultipleChoiceField` over such choices
+  serves both values, when both are selected, as that one display twice. Its
+  array no longer claims `uniqueItems`, which held for the stored values and
+  not for their displays.
+- **A drfs view or viewset serves an `AdditionalInputRequired` schema as it was
+  raised.** DRF turns every leaf of an error detail into a string, so the `422`
+  body's `schema` arrived with `"default": "False"` for `False` and
+  `"maximum": "3"` for `3`. It was no longer JSON Schema, and a client building
+  a form from it read a boolean default as a non-empty string. The body is still
+  `{"detail": ..., "schema": ...}`, now with the schema's own values in it. The
+  mapped exception's `detail` keeps DRF's shape, every leaf an `ErrorDetail`, so
+  a custom `EXCEPTION_HANDLER` sees what it saw before, and drfs' views and
+  viewsets put the schema back after that handler has built the response, only
+  where the body is a dict with a `schema` key. A handler that answers with a
+  plain Django response, which has no `.data`, is served as it built it. A
+  direct caller of `map_service_error` or `call_service(map_errors=True)` has no
+  view to do that, and reads the schema as raised off the exception's new
+  `schema` attribute. A `@service_action` on a viewset with none of drfs' bases
+  still serves the stringified schema. Adding `ActionSerializerResolver` to its
+  bases fixes it when it is listed before `GenericViewSet`; listed after, DRF's
+  own `handle_exception` answers first. MCP and Pydantic-AI already kept the
+  schema intact; HTTP was the one route that changed it.
+- **`paginate_output` pages a manager.** A LIST selector returning
+  `Model.objects` was served whole unpaged and raised `'Manager' object is not
+  subscriptable` as soon as a transport paged it: the manager was counted and
+  then could not be sliced. A manager is now paged as its `.all()`. That
+  includes one built with `BaseManager.from_queryset`, which is not a `Manager`.
+- **An `allow_none` RETRIEVE's output schema admits the `null` it serves.** A miss
+  is presented as `None`, and the schema said `"type": "object"` alone, so the
+  served value failed it. `spec_to_json_schema(spec, phase="output")` now types
+  the item `["object", "null"]` for a `SelectorSpec` with `allow_none=True` and
+  `kind=RETRIEVE`, and so does the capability manifest's `output_schema`, which
+  is built from it. `output_to_json_schema` takes the new keyword
+  `allow_none: bool = False`, because it is handed a serializer and a `kind`
+  rather than the spec. Its default leaves every existing caller's schema as it
+  was. A list is unchanged whatever `allow_none` says. So is a `ServiceSpec`'s
+  nested `output_selector_spec`, whose `allow_none` dispatch ignores.
+- **An `allow_none` RETRIEVE miss over HTTP now serves the body `null`, where
+  it was empty.** The retrieve view and the retrieve viewset mixin documented a
+  `200` with a JSON `null` body, but DRF's `JSONRenderer` renders `None` as no
+  bytes at all, and DRF then drops the `Content-Type` header. The client received
+  `200` with an empty body and no media type, and `response.json()` raised. The
+  negotiated renderer still renders the miss, and where a `JSONRenderer`,
+  subclasses included, renders it as no bytes, the body is now `null` under the
+  `Content-Type` that renderer gives a found row: `application/json`, or its own
+  media type, with `; charset=` when it declares a charset. A JSON renderer that
+  wraps `None`, such as an envelope serving `{"data": null}`, serves its own body
+  as before. A non-JSON renderer, the browsable API included, renders the miss as
+  before. A found row renders exactly as before. A `RETRIEVE` `@selector_action`
+  with `allow_none=True` was worse: it passed the `None` to its serializer and
+  served a row of empty fields, such as `{"name": ""}`, for a row that does not
+  exist. It now serves the same `null`.
 
 ## [0.54.0] — 2026-09-19
 
@@ -3890,7 +4028,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.54.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.55.0...HEAD
+[0.55.0]: https://github.com/Artui/djangorestframework-services/compare/v0.54.0...v0.55.0
 [0.54.0]: https://github.com/Artui/djangorestframework-services/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/Artui/djangorestframework-services/compare/v0.52.1...v0.53.0
 [0.52.1]: https://github.com/Artui/djangorestframework-services/compare/v0.52.0...v0.52.1

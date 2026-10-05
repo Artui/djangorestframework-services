@@ -18,15 +18,18 @@ from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
 )
+from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 
 # Pool seeds the transport injects rather than the caller supplying them, so
 # they are skipped when reflecting a selector's parameters. A param filled by a
-# ``spec.kwargs`` provider can't be skipped statically (a callable, not a known
-# key set) and is surfaced anyway — harmless, since every reflected property is
-# optional.
+# ``spec.kwargs`` provider can't be skipped from here (a callable, not a known
+# key set); a transport that knows which names it fills says so with
+# ``supplied=``, and without that statement no parameter is inferred required.
+# Under ``supplied=`` the reserved pool seeds are dropped too, joined to the
+# statement rather than listed here, so the default reflection is unchanged.
 _SELECTOR_SEED_PARAMS: frozenset[str] = frozenset({"request", "user", "view"})
 
 # The one ``metadata`` key this package reads, and the only two keys allowed
@@ -42,6 +45,7 @@ def spec_to_json_schema(
     phase: Literal["input", "output"] = "input",
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
     max_depth: int | None = None,
+    supplied: frozenset[str] | None = None,
 ) -> dict[str, Any] | None:
     """Derive a JSON Schema from a spec, reading the right serializer off it.
 
@@ -73,12 +77,53 @@ def spec_to_json_schema(
       URL kwarg read from ``extras`` is discoverable off-HTTP rather than a hidden
       ``KeyError``. Introspecting a ``filter_set`` needs the ``[filter]`` extra.
 
+    ``supplied`` is for a transport describing its own tools, and names what that
+    transport fills itself beyond the seeds every transport reserves: its
+    registered pool seeds, the names a ``kwargs=`` provider returns, URL kwargs.
+    ``None``, the default, leaves the reflection exactly as it was without it:
+    every reflected parameter is optional unless ``InputRequired`` (or a required
+    ``TypedDict`` key) says otherwise, because a reader that does not know what the
+    transport fills cannot tell a caller input from a pool value. A frozenset is
+    that knowledge, and applies it to the selector callable's reflected parameters:
+
+    - a name in ``supplied`` is dropped from ``properties`` and ``required``, marked
+      or not -- the transport fills it, and the client cannot replace it;
+    - so is every name in
+      [`RESERVED_POOL_SEEDS`][rest_framework_services.types.reserved_pool_seeds]
+      (``progress``, ``data`` and the rest), without being listed, because client
+      input can never take one: the pool's ``request``, ``user`` and ``progress``
+      are filled over whatever a caller sends, and a selector's params never
+      reach the others;
+    - any other parameter with no default that can be passed by keyword joins
+      ``required``: nothing but the caller's input is left to fill it, and the call
+      raises ``TypeError`` without it -- so ``task_by_pk(user, *, pk)`` advertises
+      ``pk`` as required rather than as an option. A positional-only one is
+      advertised and never required, because dispatch passes everything by
+      keyword and no input can fill it;
+    - a parameter with a default stays optional, ``InputRequired`` stays required,
+      and ``NotClientInput`` and the ``request`` / ``user`` / ``view`` seeds stay
+      unadvertised;
+    - an expanded ``TypedDict`` key has no default to read, so a supplied or
+      reserved one is dropped and any other keeps the requiredness its
+      ``TypedDict`` declares.
+
+    It reaches nothing else. A ``ServiceSpec``'s input is its ``input_serializer``,
+    whose fields are not reflected parameters, and ``phase="output"`` reflects no
+    parameters at all; both are the same with or without ``supplied``. So is a
+    ``filter_set`` field, which the filter reads from the caller's input. A
+    transport reflecting a nested ``instance_selector_spec`` or
+    ``collection_selector_spec`` passes that ``SelectorSpec`` itself, with the names
+    it fills there.
+
     ``phase="output"`` returns the output schema, or ``None`` when undeclared: a
     [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] supplies its
     ``output_selector_spec``'s ``output_serializer``, ``kind`` and ``affordances``, a
     [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] its own.
     Declared ``affordances`` add the ``affordances`` object each rendered item
     carries, ``reason`` included -- the shape ``render_spec_output`` produces.
+    An ``allow_none`` RETRIEVE ``SelectorSpec`` presents ``None`` for a miss, so
+    its item's type is ``["object", "null"]``. A ``ServiceSpec``'s nested
+    ``output_selector_spec.allow_none`` is not read, as dispatch does not read it.
 
     ``max_depth`` bounds how many serializer levels are described, truncating
     deeper ones to ``{"type": "object"}``; ``None``, the default, describes them
@@ -142,7 +187,7 @@ def spec_to_json_schema(
     """
     fragment: Mapping[str, Any] | None = _metadata_fragment(spec, phase)
     derived: dict[str, Any] | None = (
-        _input_schema(spec, registry, max_depth)
+        _input_schema(spec, registry, max_depth, supplied)
         if phase == "input"
         else _output_schema(spec, registry, max_depth)
     )
@@ -196,6 +241,7 @@ def _input_schema(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     registry: JsonSchemaRegistry,
     max_depth: int | None,
+    supplied: frozenset[str] | None,
 ) -> dict[str, Any]:
     if isinstance(spec, ServiceSpec):
         item: dict[str, Any] = serializer_to_json_schema(
@@ -225,7 +271,17 @@ def _input_schema(
     required: list[str] = []
     if spec.selector is not None:
         callable_props, callable_required = callable_input_schema(
-            spec.selector, skip=_SELECTOR_SEED_PARAMS, registry=registry
+            spec.selector,
+            skip=_SELECTOR_SEED_PARAMS,
+            registry=registry,
+            # The reserved seeds join a transport's statement rather than
+            # ``skip``: client input can never take one (the pool's ``progress``
+            # is filled over whatever a caller sends, and a selector's params
+            # never reach the rest), so a transport need not list them, while
+            # ``None`` stays the reflection it always was. Held by
+            # test_reserved_pool_seeds_are_dropped_without_being_supplied and
+            # test_reserved_pool_seeds_reflect_as_before_without_supplied.
+            supplied=None if supplied is None else supplied | RESERVED_POOL_SEEDS,
         )
         properties.update(callable_props)
         required.extend(callable_required)
@@ -236,7 +292,8 @@ def _input_schema(
     if properties:
         schema["properties"] = properties
     if required:
-        # Only ``Unpack[TypedDict]`` extras contribute requiredness; dedupe
+        # Markers, required ``TypedDict`` keys and, under ``supplied``, a
+        # parameter without a default contribute requiredness; dedupe
         # defensively.
         schema["required"] = list(dict.fromkeys(required))
     return schema
@@ -267,4 +324,7 @@ def _output_schema(
         registry=registry,
         max_depth=max_depth,
         affordances=spec.affordances,
+        # Only here: a ``ServiceSpec``'s nested ``allow_none`` is ignored by
+        # dispatch, so the branch above passes none.
+        allow_none=spec.allow_none,
     )
