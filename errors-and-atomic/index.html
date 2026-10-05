@@ -1893,7 +1893,9 @@ on field name drops them.</p>
 <li><strong><code>source="*"</code> and dotted <code>source="author.name"</code> are skipped</strong> — neither is a
   key of <code>validated_data</code>, so neither can be a key of an error about it.</li>
 <li><strong>The detail's shape is untouched.</strong> A string stays a string, a list stays a
-  list of the same length, and a collection keeps its row alignment.</li>
+  list of the same length, and a collection keeps its rows where they were —
+  in either of DRF's shapes for one, an aligned list or a mapping keyed by row
+  index, whose <code>int</code> keys are never mistaken for field names.</li>
 <li><strong>No serializer, no rename.</strong> A spec with no <code>input_serializer</code> has only one
   vocabulary, and calling the mutation helpers directly is unaffected entirely.</li>
 </ul>
@@ -1917,6 +1919,39 @@ found</strong>, so it cannot be expressed as a required field on the serializer:
 <p><code>schema</code> describes what is missing, keyed by the input name the service expects
 it back under. A transport that can put the question to a human renders it; one
 that cannot still has a message worth showing.</p>
+<p>Over HTTP the <code>422</code> body carries both, the schema exactly as it was raised:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span><span class="nt">&quot;detail&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;412 rows match. Confirm to proceed.&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;schema&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;confirmed&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;boolean&quot;</span><span class="p">}}}</span>
+</span></code></pre></div>
+<p>A <code>"default": false</code> stays a boolean and a <code>"maximum": 3</code> a number. Without a
+schema, the body is the plain <code>{"detail": ...}</code> of any other <code>422</code>.</p>
+<p><strong>Your <code>EXCEPTION_HANDLER</code> sees DRF's shape.</strong> The mapped exception's <code>detail</code>
+is built the way DRF builds every detail, so each leaf of the schema in it is an
+<code>ErrorDetail</code> string with a <code>code</code>, and a handler that walks <code>detail</code> for codes
+(drf-standardized-errors does) works unchanged. The schema as raised is kept on
+the exception's <code>schema</code> attribute, and drfs' views and viewsets put it back
+into the body <em>after</em> your handler has built the response: only when the
+response's data is a dict with a <code>schema</code> key of its own, so a handler that
+reshapes the body keeps the body it built. A handler that answers with a plain
+Django response, a <code>JsonResponse</code> say, has no data to restore into, and is
+served exactly as it built it.</p>
+<p>That restore lives on drfs' view and viewset bases: <code>ServiceCreateView</code>,
+<code>ServiceUpdateView</code>, <code>ServiceDeleteView</code>, every viewset mixin, <code>ServiceViewSet</code>,
+<code>SelectorViewSet</code> and <code>ActionSerializerResolver</code>, including a
+<code>@service_action</code> on any of them. Anything else that holds the mapped exception
+reads the native schema off it, because there is no view to restore it:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">try</span><span class="p">:</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">call_service</span><span class="p">(</span><span class="n">purge</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span> <span class="n">map_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">except</span> <span class="n">APIException</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">schema</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="s2">&quot;schema&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>  <span class="c1"># as raised; None for any other error</span>
+</span></code></pre></div>
+<p>The same holds for a direct <code>map_service_error(...)</code> caller and for a
+<code>@service_action</code> on a viewset that takes none of drfs' bases. For the latter,
+adding <code>ActionSerializerResolver</code> to its bases is enough, listed <strong>before</strong>
+<code>GenericViewSet</code>. The restore is a <code>handle_exception</code> override, so it runs only
+where it comes first in the method resolution order:
+<code>class Purge(ActionSerializerResolver, GenericViewSet)</code> serves the schema as
+raised, while <code>class Purge(GenericViewSet, ActionSerializerResolver)</code> resolves
+<code>handle_exception</code> to DRF's <code>APIView</code> and still serves it stringified.</p>
 <p><strong>The answer comes back as ordinary input.</strong> An HTTP client re-submits with
 <code>confirmed</code> in the body. A transport that asks interactively — MCP, say — merges
 the answer into the parameters before dispatch. Either way the service reads it
@@ -1930,14 +1965,14 @@ its generic <code>ServiceError</code> handler, or the subclass check will swallo
 <em>"the resource exists but is in the wrong state"</em>. The default mapping
 is <code>422 Unprocessable Entity</code>, which is exactly what HTTP says about
 this case.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;account is locked&quot;</span><span class="p">)</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;invoice already finalised&quot;</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;account is locked&quot;</span><span class="p">)</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">raise</span> <span class="n">ServiceError</span><span class="p">(</span><span class="s2">&quot;invoice already finalised&quot;</span><span class="p">)</span>
 </span></code></pre></div>
 <h3 id="servicenotfound-and-serviceconflict"><code>ServiceNotFound</code> and <code>ServiceConflict</code><a class="headerlink" href="#servicenotfound-and-serviceconflict" title="Permanent link">&para;</a></h3>
 <p>Two shapes of failure common enough to name, so a transport can tell them apart
 without a status code on the exception:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">raise</span> <span class="n">ServiceNotFound</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No event </span><span class="si">{</span><span class="n">data</span><span class="o">.</span><span class="n">event_id</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>  <span class="c1"># absent, or not yours to see</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">raise</span> <span class="n">ServiceConflict</span><span class="p">(</span><span class="s2">&quot;That slot is already taken.&quot;</span><span class="p">)</span>  <span class="c1"># the state collides</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">raise</span> <span class="n">ServiceNotFound</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No event </span><span class="si">{</span><span class="n">data</span><span class="o">.</span><span class="n">event_id</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>  <span class="c1"># absent, or not yours to see</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">raise</span> <span class="n">ServiceConflict</span><span class="p">(</span><span class="s2">&quot;That slot is already taken.&quot;</span><span class="p">)</span>  <span class="c1"># the state collides</span>
 </span></code></pre></div>
 <p><code>ServiceNotFound</code> answers the same way for <em>absent</em> and for <em>not yours</em> on
 purpose: a <code>403</code> on a row the caller cannot see confirms that the row exists.</p>
@@ -1964,12 +1999,12 @@ view, you catch <code>ServiceError</code> / <code>ServiceValidationError</code> 
 <h2 id="atomic-transactions">Atomic transactions<a class="headerlink" href="#atomic-transactions" title="Permanent link">&para;</a></h2>
 <p>By default every service call is wrapped in <code>transaction.atomic()</code>.
 Opt out per spec — <code>atomic</code> lives on <code>ServiceSpec</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ImportView</span><span class="p">(</span><span class="n">ServiceCreateView</span><span class="p">):</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>        <span class="n">service</span><span class="o">=</span><span class="n">run_import</span><span class="p">,</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">ImportInput</span><span class="p">,</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="n">atomic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># the import service handles its own savepoints</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ImportView</span><span class="p">(</span><span class="n">ServiceCreateView</span><span class="p">):</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>        <span class="n">service</span><span class="o">=</span><span class="n">run_import</span><span class="p">,</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>        <span class="n">input_serializer</span><span class="o">=</span><span class="n">ImportInput</span><span class="p">,</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>        <span class="n">atomic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># the import service handles its own savepoints</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="p">)</span>
 </span></code></pre></div>
 <p>When to opt out:</p>
 <ul>

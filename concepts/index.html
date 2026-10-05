@@ -2144,12 +2144,19 @@ everything a read action needs:</p>
   / default DRF behaviour".</li>
 <li><strong><code>allow_none</code></strong> — <code>RETRIEVE</code>-only knob for the <code>None</code> / missing-object
   case. <code>False</code> (the default) raises <code>NotFound</code>. <code>True</code> expresses a
-  nullable-resource contract: the retrieve view / viewset mixin renders
-  <code>200</code> with a JSON <code>null</code> body, skipping the output serializer — for
-  singleton-style resources that legitimately may not exist yet. Ignored
-  on nested specs: <code>output_selector_spec</code> keeps its authoritative-<code>None</code>
-  → 204 contract, and <code>instance_selector_spec</code> always 404s (a mutation
-  against a missing row is not a nullable read).</li>
+  nullable-resource contract: the retrieve view, the viewset mixin and a
+  <code>RETRIEVE</code> <code>@selector_action</code> render <code>200</code> with the body <code>null</code> and
+  <code>Content-Type: application/json</code>, skipping the output serializer — for
+  singleton-style resources that legitimately may not exist yet. Content
+  negotiation still applies, and the negotiated renderer still renders the
+  miss: only the empty body a JSON renderer gives <code>None</code> becomes the literal,
+  under the <code>Content-Type</code> that renderer gives a found row, so an envelope
+  renderer still serves <code>{"data": null}</code> and any other renderer (the browsable
+  API, say) renders the miss as it renders <code>None</code>. Its output
+  schema says so: <code>spec_to_json_schema(spec, phase="output")</code> types the item
+  <code>["object", "null"]</code>. Ignored on nested specs: <code>output_selector_spec</code> keeps
+  its authoritative-<code>None</code> → 204 contract, and <code>instance_selector_spec</code> always
+  404s (a mutation against a missing row is not a nullable read).</li>
 <li><strong><code>output_serializer</code></strong> — a DRF serializer class, or a bare <code>@dataclass</code>
   (auto-wrapped in <code>DataclassSerializer</code>, so it renders the payload its
   output schema describes), used by <code>get_serializer_class()</code> for this

@@ -4436,8 +4436,9 @@ other non-DRF caller.</p>
                 <p>RETRIEVE-only knob for the <code>None</code> / missing-object case.
 <code>False</code> raises <code>NotFound</code>;
 <code>True</code> expresses a nullable-resource contract, where the
-standalone retrieve view and the retrieve viewset mixin render
-<code>200</code> with a JSON <code>null</code> body and skip the output serializer.
+standalone retrieve view, the retrieve viewset mixin and a
+<code>RETRIEVE</code> <code>@selector_action</code> render <code>200</code> with a JSON
+<code>null</code> body and skip the output serializer.
 <strong>Ignored</strong> when the spec is nested:
 <code>ServiceSpec.output_selector_spec</code> keeps its
 authoritative-<code>None</code> → 204 contract and
@@ -5912,7 +5913,9 @@ idiom), drawn from the mutation helpers' opaque <code>context=</code> plus the l
 seeds. Those seeds — <code>data</code> / <code>instance</code> / <code>parent</code> — are applied <strong>after</strong>
 the context, so a context key of the same name cannot outrank them, the precedence
 form of the rule <code>RESERVED_POOL_SEEDS</code> states for the dispatcher's pools. In the
-async loops the slot must be an <code>async def</code>: the async path is awaited end to end.</p>
+async loops the slot must be an <code>async def</code>: the async path is awaited end to end,
+so a sync one is refused with <code>ImproperlyConfigured</code>, naming the relation and the
+slot, before it runs.</p>
 <p>A declared slot owns that row <strong>entirely</strong>: <code>field_map</code>,
 <code>exclude_fields</code>, <code>m2m</code> and the nested <code>children</code> / <code>relations</code>
 maps configure the default mutation-helper call, so a <code>create_service</code> /

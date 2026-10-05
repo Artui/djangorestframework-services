@@ -1792,6 +1792,13 @@ already maps, instead of a bare <code>KeyError</code> that none of them do.</p>
 channel above, or a <code>spec.kwargs</code> provider. The marker says the value must
 arrive, not where from. A provider that <em>declines</em> with <code>UNSET</code> does not satisfy
 it — declining removes the key from the pool entirely.</p>
+<p>A plain keyword parameter is the other case. <code>get_widget(user, *, pk)</code> cannot run
+without <code>pk</code> either, and its signature already says so, because <code>pk</code> has no
+default. A transport that passes <code>supplied=</code> to <code>spec_to_json_schema</code> advertises
+such a parameter as required without a marker, and drops the names it fills
+itself along with the reserved pool seeds, which no caller can send. Without
+<code>supplied</code>, only the marker makes a parameter required. See
+<a href="../../reference/jsonschema/#what-a-transport-supplies-supplied">what a transport supplies</a>.</p>
 <div class="admonition note">
 <p class="admonition-title">Off-HTTP only, by design</p>
 <p>Enforcement lives in <code>dispatch_spec</code> / <code>adispatch_spec</code>. On the HTTP path the

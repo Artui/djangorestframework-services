@@ -1846,7 +1846,10 @@ learns what each refusal will say before it meets one. Both are declarations
 about the operation, never a row's state.</p>
 <p>The schemas are exactly what <code>spec_to_json_schema</code> produces, and the top-level
 <code>dialect</code> names that policy, so a manifest and the tool list a transport builds
-from the same registry describe each operation identically.</p>
+from the same registry describe the same operations. A transport may restate a
+schema for its protocol: an <code>allow_none</code> RETRIEVE's output schema here is
+<code>["object", "null"]</code>, where an MCP tool's <code>outputSchema</code> must keep an object root
+and states the empty result in MCP's own terms.</p>
 <p>Two things it deliberately is not. It names no principal and decides nothing: a
 guard is listed by its import path, because what a permission class grants is
 only known by running it against a caller. And it is not a document to serve to

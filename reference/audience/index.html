@@ -1976,10 +1976,16 @@ applies to the payload.</p>
   says what it is for in the schema a model reads without that wording
   leaking into the browsable API;</li>
 <li>a substituted choice field is re-declared in terms of its <strong>display</strong>
-  values, because that is what the projected payload now carries. The
-  constant is gone from the response by design — a field another tool takes
-  as input should be marked <code>HANDLE</code>, which suppresses the substitution on
-  both sides.</li>
+  values, because that is what the projected payload now carries. A
+  <code>type</code> stated beside them is restated as the types of the displays,
+  so an integer choice spoken as <code>"Low"</code> is described as a <code>string</code>,
+  with <code>"null"</code> kept where the stated type admitted it, and left as
+  written beside a <code>oneOf</code> entry that admits more than its constants. A
+  display two values share is listed once, so a row served it matches one
+  <code>oneOf</code> entry rather than two, and an array of such choices no longer
+  claims <code>uniqueItems</code>. The constant is gone from the response by design
+  — a field another tool takes as input should be marked <code>HANDLE</code>, which
+  suppresses the substitution on both sides.</li>
 <li>a formatted field is re-declared as the type its
   <a class="autorefs autorefs-internal" title="ValueFormatter
 

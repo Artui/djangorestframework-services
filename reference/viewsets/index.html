@@ -2582,7 +2582,9 @@ flowing through <code>self.paginate_queryset</code> / <code>self.get_paginated_r
 when pagination is configured and serialized <code>many=True</code> otherwise;
 <code>SelectorKind.RETRIEVE</code> is a detail action (<code>detail=True</code>) whose
 selector returns a single object, or <code>None</code> / raises
-<code>ObjectDoesNotExist</code> for a 404. For a URL shape
+<code>ObjectDoesNotExist</code> for a 404 -- or, when the spec sets
+<code>allow_none=True</code>, a <code>200</code> with a JSON <code>null</code> body, the output
+serializer skipped, as the retrieve view and mixin serve it. For a URL shape
 that doesn't match the response shape, fall back to DRF's plain <code>@action</code>
 and write the dispatch yourself.</p>
 <p>Output serialization uses <code>spec.output_serializer</code> when set, falling back

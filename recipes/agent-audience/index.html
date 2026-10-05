@@ -1979,9 +1979,13 @@ way this recipe does puts you on the road they are already on.</p>
 registers its tools up front should build it <strong>once at registration</strong> and pass
 it to every render, as above.</p>
 <p>A substituted choice field is re-declared in the schema in its <em>display</em> values,
-because that is what the payload now carries. If another tool takes that field
-as input, mark it <code>FieldMarking.handle()</code> — that suppresses the substitution on
-both sides and keeps the constant.</p>
+because that is what the payload now carries. The <code>type</code> beside them follows: an
+<code>IntegerChoices</code> field spoken as <code>"Low"</code> is described as a <code>string</code>, keeping
+<code>"null"</code> where the field's type admitted it. Two values sharing one display list
+it once, so the row carrying it matches one <code>oneOf</code> entry rather than two, and
+a <code>MultipleChoiceField</code> over them drops <code>uniqueItems</code>, since two selected values
+are served as that display twice. If another tool takes that field as input, mark it <code>FieldMarking.handle()</code> — that
+suppresses the substitution on both sides and keeps the constant.</p>
 <h2 id="format-a-value-for-the-agent">Format a value for the agent<a class="headerlink" href="#format-a-value-for-the-agent" title="Permanent link">&para;</a></h2>
 <p>An agent reading <code>2026-01-31T13:00:00Z</code> out to a person is doing the same thing
 it does with <code>PENDING_REVIEW</code>: repeating a machine's spelling because nothing
