@@ -591,10 +591,12 @@ def callable_input_schema(
     - A frozenset is that statement. Its names are dropped like ``skip``'s,
       from ordinary parameters and expanded keys, marked or not, because the
       transport fills them and a caller cannot replace them. Every *other*
-      ordinary parameter with no default joins ``required``, because a call
-      without it raises ``TypeError`` and nothing else will supply it. An
-      expanded key has no default to read; its ``TypedDict`` totality already
-      is its declaration, so it keeps it.
+      ordinary parameter with no default that can be passed by keyword joins
+      ``required``, because nothing else will supply it and a call without it
+      raises ``TypeError``. A positional-only one is never inferred required:
+      dispatch binds the pool by keyword, so no input can fill it. An expanded
+      key has no default to read; its ``TypedDict`` totality already is its
+      declaration, so it keeps it.
 
     An ``InputDescription`` lands on the property as ``description``, the same
     key the serializer path fills from ``help_text``. It is read *before* the
@@ -647,8 +649,13 @@ def callable_input_schema(
         #   (without it, the default would start inferring).
         # - ``parameter.default is inspect.Parameter.empty``:
         #   ``test_a_defaulted_parameter_stays_optional``.
+        # - ``parameter.kind is not POSITIONAL_ONLY``:
+        #   ``test_a_positional_only_parameter_is_reflected_but_never_inferred_required``
+        #   (dispatch binds its pool by keyword, so no caller input can fill one).
         if marked_required or (
-            supplied is not None and parameter.default is inspect.Parameter.empty
+            supplied is not None
+            and parameter.default is inspect.Parameter.empty
+            and parameter.kind is not inspect.Parameter.POSITIONAL_ONLY
         ):
             required.append(name)
     return properties, required

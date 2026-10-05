@@ -94,7 +94,8 @@ A plain keyword parameter is the other case. `get_widget(user, *, pk)` cannot ru
 without `pk` either, and its signature already says so, because `pk` has no
 default. A transport that passes `supplied=` to `spec_to_json_schema` advertises
 such a parameter as required without a marker, and drops the names it fills
-itself. Without `supplied`, only the marker makes a parameter required. See
+itself along with the reserved pool seeds, which no caller can send. Without
+`supplied`, only the marker makes a parameter required. See
 [what a transport supplies](../reference/jsonschema.md#what-a-transport-supplies-supplied).
 
 !!! note "Off-HTTP only, by design"

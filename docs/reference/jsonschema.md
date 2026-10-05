@@ -83,24 +83,38 @@ missing 1 required keyword-only argument: 'pk'`. A seed is advertised as an
 input that the seed then overrides.
 
 A transport describing its own tools does know which names it fills: its
-transport seeds, the registered pool seeds, the names its `kwargs=` providers
-return, and the URL kwargs it resolves. It passes them as `supplied`:
+registered pool seeds, the names its `kwargs=` providers return, and the URL
+kwargs it resolves. It passes them as `supplied`:
 
 ```python
 spec_to_json_schema(spec, phase="input", supplied=frozenset({"currency", "tenant"}))
 ```
+
+The seeds every transport reserves need no listing. A name in
+[`RESERVED_POOL_SEEDS`][rest_framework_services.types.reserved_pool_seeds]
+(`progress`, `data`, `instance` and the rest) is one client input can never
+take: the pool's `request`, `user` and `progress` are filled over whatever a
+caller sends, and a selector's params never reach the others. So under
+`supplied` those names are dropped as if listed, and a transport lists only what
+it fills beyond them.
 
 A frozenset, including an empty one, opts into the transport rule for the
 selector callable's reflected parameters:
 
 | Parameter | Without `supplied` | With `supplied` |
 |---|---|---|
-| name in `supplied` | optional property | **dropped** from `properties` and `required`, marked or not |
+| name in `supplied` | property, required only as its markers say | **dropped** from `properties` and `required`, marked or not |
 | no default, not supplied | optional property | **required** |
+| no default, positional-only | optional property | optional property |
 | has a default | optional | optional |
-| `InputRequired` | required | required, unless supplied |
+| `InputRequired` | required | required, unless supplied or reserved |
 | `NotClientInput`, `request` / `user` / `view` | not advertised | not advertised |
-| `**kwargs: Unpack[TypedDict]` key | as its `TypedDict` declares | dropped if supplied, otherwise as its `TypedDict` declares |
+| any other name in `RESERVED_POOL_SEEDS`, such as `progress` | property, required only as its markers say | **dropped**, as if supplied |
+| `**kwargs: Unpack[TypedDict]` key | as its `TypedDict` declares | dropped if supplied or reserved, otherwise as its `TypedDict` declares |
+
+A positional-only parameter stays optional because dispatch binds the pool by
+keyword: no input a caller sends can fill one, so requiring it would ask for
+what cannot be passed.
 
 A `TypedDict` key has no default to read, so its totality (`Required` /
 `NotRequired`) remains its declaration. `None`, the default, keeps the output

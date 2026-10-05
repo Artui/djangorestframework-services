@@ -14,6 +14,7 @@ from rest_framework import serializers
 from typing_extensions import NotRequired, TypedDict, Unpack
 
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
+from rest_framework_services.dispatch.null_progress import null_progress
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.jsonschema.spec_to_json_schema import spec_to_json_schema
 from rest_framework_services.registry.capability_manifest import capability_manifest
@@ -804,6 +805,12 @@ class _MarkedExtras(TypedDict, total=False):
 def _nested_marked(**extras: Unpack[_MarkedExtras]): ...
 
 
+def _reporting(user, *, pk: int, progress, data): ...
+
+
+def _positional(token, /, *, pk: int): ...
+
+
 def _retrieve(selector: Any) -> SelectorSpec[Any, Any]:
     return SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector)
 
@@ -850,6 +857,54 @@ class TestSupplied:
         # ``token`` has no default, yet stays out of both: a provider fills it.
         schema = spec_to_json_schema(_retrieve(_provider_owned), supplied=frozenset())
         assert schema == {"type": "object"}
+
+    def test_reserved_pool_seeds_are_dropped_without_being_supplied(self) -> None:
+        # ``base_pool`` always fills ``progress``, and ``data`` is never taken
+        # from a selector's params, so a client can send neither. Neither has a
+        # default, so listing them as required asked for what cannot be sent.
+        schema = spec_to_json_schema(_retrieve(_reporting), supplied=frozenset())
+        assert schema == {
+            "type": "object",
+            "properties": {"pk": {"type": "integer"}},
+            "required": ["pk"],
+        }
+
+    def test_reserved_pool_seeds_reflect_as_before_without_supplied(self) -> None:
+        assert json.dumps(spec_to_json_schema(_retrieve(_reporting))) == json.dumps(
+            {
+                "type": "object",
+                "properties": {"pk": {"type": "integer"}, "progress": {}, "data": {}},
+            }
+        )
+
+    def test_a_client_value_never_reaches_a_reserved_pool_seed(self) -> None:
+        # What the two tests above rely on: the seed is filled over the caller's
+        # value, and a selector's params never reach the others at all.
+        seen: dict[str, Any] = {}
+
+        def _status(*, pk: int, progress: Any, data: Any = None) -> dict[str, Any]:
+            seen.update(progress=progress, data=data)
+            return {"pk": pk}
+
+        params = {"pk": 1, "progress": "client", "data": "client"}
+        dispatch_spec(_retrieve(_status), user=None, params=params)
+        assert seen == {"progress": null_progress, "data": None}
+
+    def test_a_positional_only_parameter_is_reflected_but_never_inferred_required(
+        self,
+    ) -> None:
+        # Dispatch binds a pool by keyword, so nothing a caller sends can fill
+        # ``token``: requiring it would ask for what cannot be passed.
+        schema = spec_to_json_schema(_retrieve(_positional), supplied=frozenset())
+        assert schema == {
+            "type": "object",
+            "properties": {"token": {}, "pk": {"type": "integer"}},
+            "required": ["pk"],
+        }
+        assert spec_to_json_schema(_retrieve(_positional)) == {
+            "type": "object",
+            "properties": {"token": {}, "pk": {"type": "integer"}},
+        }
 
     def test_a_supplied_typed_dict_key_is_dropped(self) -> None:
         schema = spec_to_json_schema(_retrieve(_nested), supplied=frozenset({"project_pk"}))

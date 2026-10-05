@@ -18,6 +18,7 @@ from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
 )
+from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -27,6 +28,8 @@ from rest_framework_services.types.service_spec import ServiceSpec
 # ``spec.kwargs`` provider can't be skipped from here (a callable, not a known
 # key set); a transport that knows which names it fills says so with
 # ``supplied=``, and without that statement no parameter is inferred required.
+# Under ``supplied=`` the reserved pool seeds are dropped too, joined to the
+# statement rather than listed here, so the default reflection is unchanged.
 _SELECTOR_SEED_PARAMS: frozenset[str] = frozenset({"request", "user", "view"})
 
 # The one ``metadata`` key this package reads, and the only two keys allowed
@@ -75,24 +78,34 @@ def spec_to_json_schema(
       ``KeyError``. Introspecting a ``filter_set`` needs the ``[filter]`` extra.
 
     ``supplied`` is for a transport describing its own tools, and names what that
-    transport fills itself: its seeds, the registered pool seeds, the names a
-    ``kwargs=`` provider returns, URL kwargs. ``None``, the default, leaves the
-    reflection exactly as it was without it: every reflected parameter is optional
-    unless ``InputRequired`` (or a required ``TypedDict`` key) says otherwise,
-    because a reader that does not know what the transport fills cannot tell a
-    caller input from a pool value. A frozenset is that knowledge, and applies it to
-    the selector callable's reflected parameters:
+    transport fills itself beyond the seeds every transport reserves: its
+    registered pool seeds, the names a ``kwargs=`` provider returns, URL kwargs.
+    ``None``, the default, leaves the reflection exactly as it was without it:
+    every reflected parameter is optional unless ``InputRequired`` (or a required
+    ``TypedDict`` key) says otherwise, because a reader that does not know what the
+    transport fills cannot tell a caller input from a pool value. A frozenset is
+    that knowledge, and applies it to the selector callable's reflected parameters:
 
     - a name in ``supplied`` is dropped from ``properties`` and ``required``, marked
       or not -- the transport fills it, and the client cannot replace it;
-    - any other parameter with no default joins ``required``, because a call
-      without it raises ``TypeError`` -- so ``task_by_pk(user, *, pk)`` advertises
-      ``pk`` as required rather than as an option;
+    - so is every name in
+      [`RESERVED_POOL_SEEDS`][rest_framework_services.types.reserved_pool_seeds]
+      (``progress``, ``data`` and the rest), without being listed, because client
+      input can never take one: the pool's ``request``, ``user`` and ``progress``
+      are filled over whatever a caller sends, and a selector's params never
+      reach the others;
+    - any other parameter with no default that can be passed by keyword joins
+      ``required``: nothing but the caller's input is left to fill it, and the call
+      raises ``TypeError`` without it -- so ``task_by_pk(user, *, pk)`` advertises
+      ``pk`` as required rather than as an option. A positional-only one is
+      advertised and never required, because dispatch passes everything by
+      keyword and no input can fill it;
     - a parameter with a default stays optional, ``InputRequired`` stays required,
       and ``NotClientInput`` and the ``request`` / ``user`` / ``view`` seeds stay
       unadvertised;
-    - an expanded ``TypedDict`` key has no default to read, so a supplied one is
-      dropped and any other keeps the requiredness its ``TypedDict`` declares.
+    - an expanded ``TypedDict`` key has no default to read, so a supplied or
+      reserved one is dropped and any other keeps the requiredness its
+      ``TypedDict`` declares.
 
     It reaches nothing else. A ``ServiceSpec``'s input is its ``input_serializer``,
     whose fields are not reflected parameters, and ``phase="output"`` reflects no
@@ -258,7 +271,17 @@ def _input_schema(
     required: list[str] = []
     if spec.selector is not None:
         callable_props, callable_required = callable_input_schema(
-            spec.selector, skip=_SELECTOR_SEED_PARAMS, registry=registry, supplied=supplied
+            spec.selector,
+            skip=_SELECTOR_SEED_PARAMS,
+            registry=registry,
+            # The reserved seeds join a transport's statement rather than
+            # ``skip``: client input can never take one (the pool's ``progress``
+            # is filled over whatever a caller sends, and a selector's params
+            # never reach the rest), so a transport need not list them, while
+            # ``None`` stays the reflection it always was. Held by
+            # test_reserved_pool_seeds_are_dropped_without_being_supplied and
+            # test_reserved_pool_seeds_reflect_as_before_without_supplied.
+            supplied=None if supplied is None else supplied | RESERVED_POOL_SEEDS,
         )
         properties.update(callable_props)
         required.extend(callable_required)
