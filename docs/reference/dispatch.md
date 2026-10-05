@@ -152,6 +152,15 @@ ranks against the spec author's `kwargs`.
 How strict `dispatch_spec` is about `params` keys outside the spec's declared
 set — drop them, reject them, or pass them through to the callable.
 
+A `ServiceSpec`'s declared set takes lookup keys from the one target lookup
+dispatch calls, never from both. A `collection_selector_spec` is that lookup
+whenever one is declared, so an `instance_selector_spec` beside it is not read:
+its `pk` is refused under `REJECT` and comes back as an extra under
+`PASSTHROUGH`, and it cannot open the set or make `REJECT` unenforceable.
+Without a collection lookup, the instance lookup's keys are declared. A
+`many=True` spec resolves no target, so neither lookup's keys are declared for
+its items.
+
 ::: rest_framework_services.types.unknown_arguments.UnknownArguments
 
 ### `TargetGuard`

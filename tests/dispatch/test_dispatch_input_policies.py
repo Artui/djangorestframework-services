@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import BasePermission
+from typing_extensions import TypedDict, Unpack
 
 from rest_framework_services import (
     ArgumentBinding,
@@ -41,6 +43,44 @@ def _post_qs_by_pk(*, pk: int) -> QuerySet[Post]:
 
 def _all_posts() -> QuerySet[Post]:
     return Post.objects.all().order_by("id")
+
+
+def _posts_titled(*, title: str) -> QuerySet[Post]:
+    return Post.objects.filter(title=title).order_by("id")
+
+
+def _open_post_lookup(**kwargs: Any) -> QuerySet[Post]:
+    return Post.objects.filter(**kwargs)
+
+
+if TYPE_CHECKING:
+    # Only the type checker sees it, so the runtime cannot resolve the annotation
+    # that names it: the routine ``from __future__ import annotations`` idiom.
+    class _TenantExtras(TypedDict, total=False):
+        tenant: str
+
+
+def _post_for_tenant(*, pk: int, **extras: Unpack[_TenantExtras]) -> QuerySet[Post]:
+    return Post.objects.filter(pk=pk)
+
+
+def _counting_collection_spec(instance_lookup: Any, ran: list[int]) -> ServiceSpec[Any, Any, Any]:
+    """A spec declaring **both** target lookups, the collection one keyed on ``title``.
+
+    Dispatch resolves the target through the collection lookup and never calls the
+    instance one beside it; the service records the size of the set it received.
+    """
+
+    def svc(*, collection: QuerySet[Post]) -> dict[str, int]:
+        ran.append(collection.count())
+        return {"n": collection.count()}
+
+    return ServiceSpec(
+        service=svc,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=instance_lookup),
+        collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_posts_titled),
+        atomic=False,
+    )
 
 
 # ---------------------------------------------------------------- argument binding
@@ -219,6 +259,99 @@ class TestUnknownArguments:
         )
         assert result.value.title == "fresh"
 
+    def test_reject_refuses_the_instance_lookup_key_beside_a_collection_lookup(self) -> None:
+        post = Post.objects.create(title="a")
+        ran: list[int] = []
+        spec = _counting_collection_spec(_post_qs_by_pk, ran)
+
+        # The collection lookup's own key is declared input.
+        dispatch_spec(
+            spec, user=None, params={"title": "a"}, unknown_arguments=UnknownArguments.REJECT
+        )
+        assert ran == [1]
+        # The instance lookup's ``pk`` is read by nothing beside a collection lookup,
+        # so it is refused rather than admitted and silently ignored.
+        with pytest.raises(ValidationError) as exc:
+            dispatch_spec(
+                spec,
+                user=None,
+                params={"title": "a", "pk": post.pk},
+                unknown_arguments=UnknownArguments.REJECT,
+            )
+        assert exc.value.detail == {"non_field_errors": ["Unexpected argument(s): 'pk'."]}
+        assert ran == [1]
+
+    def test_passthrough_returns_the_instance_lookup_key_beside_a_collection_lookup(
+        self,
+    ) -> None:
+        seen: dict[str, Any] = {}
+
+        def svc(
+            *, collection: QuerySet[Post], data: dict[str, Any] | None = None
+        ) -> dict[str, Any]:
+            seen["data"] = data
+            return {}
+
+        spec = ServiceSpec(
+            service=svc,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk
+            ),
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_posts_titled),
+            atomic=False,
+        )
+        dispatch_spec(
+            spec,
+            user=None,
+            params={"title": "a", "pk": 7},
+            unknown_arguments=UnknownArguments.PASSTHROUGH,
+        )
+        # ``title`` went to the collection lookup; ``pk`` is an extra like any other.
+        assert seen["data"] == {"pk": 7}
+
+    def test_reject_is_not_opened_by_an_open_instance_lookup_beside_a_collection_lookup(
+        self,
+    ) -> None:
+        ran: list[int] = []
+        spec = _counting_collection_spec(_open_post_lookup, ran)
+        with pytest.raises(ValidationError) as exc:
+            dispatch_spec(
+                spec,
+                user=None,
+                params={"title": "a", "bogus": 1},
+                unknown_arguments=UnknownArguments.REJECT,
+            )
+        assert exc.value.detail == {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}
+        assert ran == []
+
+    def test_reject_does_not_read_an_unresolvable_instance_lookup_beside_a_collection_lookup(
+        self,
+    ) -> None:
+        # Never called, so its unresolvable ``**extras`` cannot make REJECT
+        # unenforceable for a spec whose target is the collection.
+        ran: list[int] = []
+        spec = _counting_collection_spec(_post_for_tenant, ran)
+        result = dispatch_spec(
+            spec, user=None, params={"title": "a"}, unknown_arguments=UnknownArguments.REJECT
+        )
+        assert result.value == {"n": 0}
+
+    def test_reject_still_refuses_an_unresolvable_instance_lookup_on_its_own(self) -> None:
+        # The other half of the precedence: with no collection lookup, the
+        # instance one is what dispatch calls, so its surface still decides.
+        spec = ServiceSpec(
+            service=lambda *, instance: instance,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_post_for_tenant
+            ),
+            atomic=False,
+        )
+        post = Post.objects.create(title="a")
+        with pytest.raises(ImproperlyConfigured, match="REJECT cannot be enforced"):
+            dispatch_spec(
+                spec, user=None, params={"pk": post.pk}, unknown_arguments=UnknownArguments.REJECT
+            )
+
     def test_reject_is_open_for_filtered_selector(self) -> None:
         class _FilterSet:
             def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
@@ -359,6 +492,30 @@ class TestUnknownArgumentsBulk:
                 unknown_arguments=UnknownArguments.REJECT,
             )
         assert Post.objects.count() == 0
+
+    def test_reject_refuses_a_lookup_key_inside_an_item(self) -> None:
+        # A ``many=True`` dispatch resolves no target, so a declared instance
+        # lookup is never called and its ``pk`` in an item is read by nothing.
+        def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
+            raise AssertionError("service must not run when an item is rejected")
+
+        spec = ServiceSpec(
+            service=bulk,
+            input_serializer=_TitleSerializer,
+            many=True,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk
+            ),
+            atomic=False,
+        )
+        with pytest.raises(ValidationError) as exc:
+            dispatch_spec(
+                spec,
+                user=None,
+                params=[{"title": "a", "pk": 1}],
+                unknown_arguments=UnknownArguments.REJECT,
+            )
+        assert exc.value.detail == {"non_field_errors": ["Unexpected argument(s): 'pk'."]}
 
     def test_passthrough_folds_extras_into_each_item(self) -> None:
         seen: dict[str, Any] = {}

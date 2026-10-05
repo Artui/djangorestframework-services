@@ -40,6 +40,10 @@ def _all_posts() -> QuerySet[Post]:
     return Post.objects.all().order_by("id")
 
 
+def _posts_titled(*, title: str) -> QuerySet[Post]:
+    return Post.objects.filter(title=title).order_by("id")
+
+
 class _DenyObject(BasePermission):
     def has_permission(self, request: Any, view: Any) -> bool:
         return True
@@ -135,6 +139,67 @@ class TestAUnknownArguments:
             unknown_arguments=UnknownArguments.PASSTHROUGH,
         )
         assert seen["data"] == {"note": "kept"}
+
+    async def test_reject_refuses_the_instance_lookup_key_beside_a_collection_lookup(
+        self,
+    ) -> None:
+        post = await Post.objects.acreate(title="a")
+        ran: list[int] = []
+
+        async def svc(*, collection: QuerySet[Post]) -> dict[str, int]:
+            ran.append(await collection.acount())
+            return {}
+
+        spec = ServiceSpec(
+            service=svc,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk
+            ),
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_posts_titled),
+            atomic=False,
+        )
+        await adispatch_spec(
+            spec, user=None, params={"title": "a"}, unknown_arguments=UnknownArguments.REJECT
+        )
+        assert ran == [1]
+        # Dispatch never calls the instance lookup beside a collection one, so its
+        # ``pk`` is refused rather than admitted and silently ignored.
+        with pytest.raises(ValidationError) as exc:
+            await adispatch_spec(
+                spec,
+                user=None,
+                params={"title": "a", "pk": post.pk},
+                unknown_arguments=UnknownArguments.REJECT,
+            )
+        assert exc.value.detail == {"non_field_errors": ["Unexpected argument(s): 'pk'."]}
+        assert ran == [1]
+
+    async def test_passthrough_returns_the_instance_lookup_key_beside_a_collection_lookup(
+        self,
+    ) -> None:
+        seen: dict[str, Any] = {}
+
+        async def svc(
+            *, collection: QuerySet[Post], data: dict[str, Any] | None = None
+        ) -> dict[str, Any]:
+            seen["data"] = data
+            return {}
+
+        spec = ServiceSpec(
+            service=svc,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk
+            ),
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_posts_titled),
+            atomic=False,
+        )
+        await adispatch_spec(
+            spec,
+            user=None,
+            params={"title": "a", "pk": 7},
+            unknown_arguments=UnknownArguments.PASSTHROUGH,
+        )
+        assert seen["data"] == {"pk": 7}
 
 
 @pytest.mark.django_db(transaction=True)

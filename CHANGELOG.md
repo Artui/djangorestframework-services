@@ -53,6 +53,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one row has no position and is unchanged. A client that reads the list needs
   changing. Rendered as JSON, the index keys are strings (`"1"`), as they are in a
   nested serializer's errors.
+- **A service's declared input now names only the target lookup dispatch calls.**
+  `declared_input_keys` used to admit the keys of both nested lookups, so a
+  `ServiceSpec` declaring an `instance_selector_spec` beside a
+  `collection_selector_spec` admitted the instance lookup's `pk`, although
+  dispatch resolves the target through the collection lookup and never calls the
+  instance one beside it. It now admits the collection lookup's keys when one is
+  declared and the instance lookup's otherwise, and a `many=True` spec, which
+  resolves no target, admits neither. Under `UnknownArguments.REJECT`, a caller
+  sending an instance lookup's key to a service that declares a collection lookup,
+  or a lookup's key inside a `many=True` item, is now refused with
+  `Unexpected argument(s)` where the key used to be admitted and ignored. Under
+  `PASSTHROUGH` that key now reaches the service as an extra. An instance lookup
+  beside a collection lookup no longer opens the declared set when it has a
+  `filter_set` or a bare `**kwargs`, and no longer makes `REJECT` raise
+  `ImproperlyConfigured` when its `**kwargs` annotation cannot be resolved,
+  because it is never read. A service without `many=True` that declares only one
+  of the two lookups is unchanged.
 
 ### Fixed
 
