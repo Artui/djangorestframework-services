@@ -10,6 +10,7 @@ from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from rest_framework_services.dispatch.apply_input_data import apply_input_data
 from rest_framework_services.dispatch.base_pool import base_pool
 from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
+from rest_framework_services.dispatch.strip_hidden_inputs import strip_hidden_inputs
 from rest_framework_services.dispatch.utils import (
     COLLECTION_SOURCE,
     INSTANCE_SOURCE,
@@ -103,7 +104,12 @@ def dispatch_spec(
             to execute.
         user: The acting user, seeded into every callable's pool.
         params: The flat client input — a list on a ``many=True`` spec, unless
-            ``many_as_argument`` says it arrives as an object.
+            ``many_as_argument`` says it arrives as an object. A key the callable
+            marks ``NotClientInput`` is never spread from it, under any
+            ``unknown_arguments`` policy (``REJECT`` on a closed spec refuses it
+            outright), so only a ``spec.kwargs`` provider, a route capture, a
+            registered pool seed or the parameter's default fills one; see
+            [`NotClientInput`][rest_framework_services.types.not_client_input].
         request: Forwarded only to user callables that declare it (``extend_queryset``,
             the context providers, ``kwargs``); a pure non-HTTP caller passes neither
             this nor ``view``.
@@ -141,10 +147,15 @@ def dispatch_spec(
             re-fetch. On the target lookups that makes it a scoping channel: a
             ``filter_set`` there narrows the row a mutation may reach, and one bound
             to the wrong mapping validates clean (every filter field is optional) and
-            narrows nothing. Only meaningful when ``params`` is not the filter source:
-            off HTTP one flat mapping is usually both, so this stays ``None``, whereas
-            over HTTP the body validates and the **query string** filters, and merging
-            them would let a query parameter satisfy a serializer field.
+            narrows nothing. ``None`` makes a selector's own ``filter_set`` and a
+            target lookup's read ``params``, because their fields are declared input:
+            off HTTP one flat mapping is usually both channels, whereas over HTTP the
+            body validates and the **query string** filters, and merging them would
+            let a query parameter satisfy a serializer field. The output re-fetch has
+            no such fallback. Its fields are not part of the service's input, so with
+            ``None`` its ``filter_set`` is bound to an empty mapping, as an HTTP
+            request with no query string binds it, and the call's arguments never
+            filter the result.
         many_as_argument: Whether a ``many=True`` spec's list arrives under the
             argument ``spec.many_argument`` names, rather than as ``params`` itself.
             For a caller whose input is always an object of named arguments, which can
@@ -250,7 +261,10 @@ def _dispatch_selector(
         pool,
         binding=binding,
         reserved=pool_seeds.reserved,
-        spread_source=params,
+        # A key the selector marks ``NotClientInput`` leaves the caller's input
+        # before the spread, so neither the binding's precedence nor a provider
+        # declining with ``UNSET`` can let the caller's value back in.
+        spread_source=strip_hidden_inputs(params, spec.selector),
         provider_kwargs=resolve_service_kwargs(
             spec, view=view, request=request, view_hooks=view_hooks
         ),
@@ -366,12 +380,19 @@ def _dispatch_service(
         context=input_context,
         instance=instance,
     )
-    extras = resolve_unknown_arguments(
-        spec,
-        params,
-        unknown_arguments=unknown_arguments,
-        serializer=serializer,
-        reserved=pool_seeds.reserved,
+    # The policy sees a ``NotClientInput`` key first, so ``REJECT`` on a closed
+    # spec still refuses it; only what ``PASSTHROUGH`` would forward loses it.
+    extras = dict(
+        strip_hidden_inputs(
+            resolve_unknown_arguments(
+                spec,
+                params,
+                unknown_arguments=unknown_arguments,
+                serializer=serializer,
+                reserved=pool_seeds.reserved,
+            ),
+            spec.service,
+        )
     )
     data, spread_source = service_input(serializer, extras)
 
@@ -388,7 +409,9 @@ def _dispatch_service(
         pool,
         binding=binding,
         reserved=pool_seeds.reserved,
-        spread_source=spread_source,
+        # A field the input serializer declares stays in ``data``, which is that
+        # serializer's payload; it still never fills a hidden parameter.
+        spread_source=strip_hidden_inputs(spread_source, spec.service),
         provider_kwargs=resolve_service_kwargs(
             spec, view=view, request=request, view_hooks=view_hooks
         ),
@@ -417,7 +440,7 @@ def _dispatch_service(
         pool_seeds=pool_seeds,
         request=request,
         view=view,
-        params=filter_data if filter_data is not None else params,
+        filter_data=filter_data,
     )
 
     # A callable ``spec.success_status`` keys on the *service's* return value
@@ -543,11 +566,17 @@ def _resolve_target(
     is a valid no-op (never ``"missing"``).
 
     ``params`` is the nested selector's *argument* channel; ``filter_data`` is
-    the one its ``filter_set`` reads, resolved here exactly as the output
-    re-fetch resolves it. That split is what lets a scoping ``filter_set`` on a
-    nested target spec narrow the row a mutation may reach — bound against the
-    body instead, every one of django-filter's optional fields is absent, the
-    set validates clean, and the filter never narrows anything.
+    the one its ``filter_set`` reads. That split is what lets a scoping
+    ``filter_set`` on a nested target spec narrow the row a mutation may reach —
+    bound against the body instead, every one of django-filter's optional fields
+    is absent, the set validates clean, and the filter never narrows anything.
+
+    Without ``filter_data`` the lookup's ``filter_set`` falls back to ``params``,
+    unlike the output re-fetch, which then reads nothing. The difference is
+    whether the fields are declared input: a target lookup carrying a
+    ``filter_set`` makes the service's declared set open, and a transport
+    reflects the lookup's ``SelectorSpec`` to advertise them, while nothing
+    declares or advertises the output selector's.
     """
     filters = params if filter_data is None else filter_data
     coll_spec = spec.collection_selector_spec
@@ -598,7 +627,11 @@ def _resolve_collection(
         # Reserved seeds stripped from the client spread, as ``merge_arguments``
         # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
         # dispatcher in the pool deciding *which row* is mutated.
-        **strip_reserved_seeds(params, reserved=pool_seeds.reserved),
+        # And a name the lookup marks ``NotClientInput``: the caller never fills
+        # one, while the route capture below and the provider still can.
+        **strip_hidden_inputs(
+            strip_reserved_seeds(params, reserved=pool_seeds.reserved), coll_spec.selector
+        ),
         **view_url_kwargs(view, reserved=pool_seeds.reserved),
     }
     pool.update(resolve_provider(coll_spec.kwargs, {"view": view, "request": request}))
@@ -625,7 +658,7 @@ def _run_output_selector(
     pool_seeds: PoolSeeds,
     request: Any,
     view: Any,
-    params: Mapping[str, Any],
+    filter_data: Mapping[str, Any] | None,
 ) -> tuple[Any, bool]:
     """Re-fetch + shape the service result through ``output_selector_spec``.
 
@@ -634,6 +667,17 @@ def _run_output_selector(
     alongside ``collection_selector_spec`` — returns the shaped set untouched so
     the transport renders it ``many=True``. With no output selector the service
     return passes through as a single value.
+
+    Its ``filter_set`` reads ``filter_data`` and nothing else. The call's
+    arguments are the service's input, and neither the input schema nor
+    ``UnknownArguments.REJECT`` knows this selector's filter fields, so reading
+    them here would make an undeclared argument change the result. Without
+    ``filter_data`` the set is bound to an empty mapping -- what an HTTP request
+    with no query string binds -- rather than skipped, so a ``FilterSet`` that
+    scopes in its own ``filter_queryset`` still runs; and never to
+    ``request.query_params``, the fallback ``apply_queryset_shaping`` would take
+    for ``None``, since off HTTP there is often no request at all. Held by
+    ``test_without_filter_data_the_re_read_binds_an_empty_mapping``.
     """
     out_spec = spec.output_selector_spec
     if out_spec is None or out_spec.selector is None:
@@ -656,7 +700,7 @@ def _run_output_selector(
         selected,
         view=view,
         request=request,
-        params=params,
+        params=filter_data if filter_data is not None else {},
         source_label=OUTPUT_SOURCE,
         pool=pool,
         reserved=pool_seeds.reserved,
@@ -692,7 +736,11 @@ def _resolve_instance(
         # Reserved seeds stripped from the client spread, as ``merge_arguments``
         # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
         # dispatcher in the pool deciding *which row* is mutated.
-        **strip_reserved_seeds(params, reserved=pool_seeds.reserved),
+        # And a name the lookup marks ``NotClientInput``: the caller never fills
+        # one, while the route capture below and the provider still can.
+        **strip_hidden_inputs(
+            strip_reserved_seeds(params, reserved=pool_seeds.reserved), instance_spec.selector
+        ),
         **view_url_kwargs(view, reserved=pool_seeds.reserved),
     }
     pool.update(resolve_provider(instance_spec.kwargs, {"view": view, "request": request}))

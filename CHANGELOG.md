@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A caller's value for a `NotClientInput` key no longer reaches the callable.**
+  The marker dropped the key from the schema, and `UnknownArguments.REJECT`
+  refused it on a closed spec, but everywhere else dispatch delivered it: under
+  `IGNORE` (the default), under `PASSTHROUGH`, and under `REJECT` on an open
+  selector (a `filter_set` or a bare `**kwargs`). A hidden key with a default and
+  no provider was settable by any off-HTTP caller, and `SPREAD_CALLER_WINS` let a
+  caller's value beat the provider's. `dispatch_spec` and `adispatch_spec` now
+  drop it from the caller's input before the spread, under every policy, at each
+  site that spreads one: a `SelectorSpec`'s selector, a single-item service's
+  spread and the extras `PASSTHROUGH` forwards, and a service's
+  `instance_selector_spec` / `collection_selector_spec` lookup. A provider, a
+  route capture, a registered pool seed or the parameter's default still fills
+  the key, and a provider declining with `UNSET` now leaves the default rather
+  than the caller's value. `REJECT` still refuses the key on a closed spec. A
+  caller that filled a hidden key through `params`, such as a task runner or a
+  test, now loses the value without an error; move it to a `kwargs=` provider or
+  a registered pool seed. Over HTTP, selector views and mutation services spread
+  nothing and are unchanged, but a mutation's `instance_selector_spec` or
+  `collection_selector_spec` is resolved from the request body, so a body's value
+  for a key the lookup marks hidden is dropped there too. A route capture of that
+  name still fills it.
+- **Off HTTP, a service's output re-read is no longer filtered by the call's
+  arguments.** With no `filter_data`, the `output_selector_spec`'s `filter_set`
+  read the arguments, so a key that changed the result was not in the input
+  schema and was refused by `REJECT`. It now reads only `filter_data`, which the
+  HTTP path fills from the query string, and without one it is bound to an empty
+  mapping, as a request with no query string would bind it. A transport that
+  relied on filtering the re-read through the arguments now gets it unfiltered.
+  A selector's own `filter_set` and a target lookup's still fall back to the
+  arguments, because their fields are declared input.
+
 ## [0.55.0] — 2026-10-05
 
 ### Added

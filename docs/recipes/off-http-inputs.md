@@ -115,18 +115,35 @@ class WidgetExtras(HttpExtras[MyUser], total=False):
     team_role: Annotated[str, NotClientInput]  # resolved by spec.kwargs
 ```
 
-`team_role` disappears from `properties`, and because it is no longer a declared
-input, `UnknownArguments.REJECT` treats a caller that supplies it as passing an
-unknown argument. Delivery is untouched: the provider still fills it in.
+`team_role` disappears from `properties`, and the caller's value for it never
+reaches the callable. `dispatch_spec` / `adispatch_spec` drop it from the caller's
+input before the spread, under every `UnknownArguments` policy:
 
-!!! warning "Hiding a key is not what makes it safe"
-    The security property is the `SPREAD_AUTHOR_WINS` precedence — the author's
-    provider overrides caller input — not the absence of an advertisement. Two
-    corollaries survive unchanged: a provider owning a **scoping** key must always
-    resolve it and never decline via `UNSET` (declining lets the caller's value
-    through, which for a scoping key is a cross-scope read), and opting into
-    `SPREAD_CALLER_WINS` on a scoped spec voids the guarantee whether or not the
-    key is hidden.
+| The caller sends `team_role`, and the spec is… | What happens |
+| --- | --- |
+| closed (no `filter_set`, no bare `**kwargs`), under `REJECT` | refused: `Unexpected argument(s): 'team_role'.` |
+| closed, under `IGNORE` or `PASSTHROUGH` | the value is dropped |
+| open, under any policy | the value is dropped |
+
+The provider still fills it in. So can a route capture (`view.kwargs`, or
+`build_offline_context(kwargs=…)` off HTTP), a registered pool seed, or the
+parameter's own default; those are channels the caller does not control. The
+same holds for a service whose input is spread, which never receives the key from
+`PASSTHROUGH` either, and for a service's `instance_selector_spec` /
+`collection_selector_spec` lookup, whose pool is spread from the caller's
+arguments. Over HTTP a selector view spreads nothing, so the lookups are the one
+place the marker changes what an HTTP request can do: a request body's value for a
+key the lookup marks hidden is dropped there too.
+
+!!! warning "What is left to decide the value"
+    Because the caller's value is gone before the precedence is applied, neither
+    `SPREAD_CALLER_WINS` nor a provider declining with `UNSET` can let it back in.
+    What a declining provider leaves is the parameter's default. For a **scoping**
+    key whose default reads as "everything", that is still a cross-scope read, so
+    a provider owning a scoping key must always resolve it. A key the callable
+    does *not* mark is still decided by the precedence: under
+    `SPREAD_AUTHOR_WINS` the provider overrides caller input, and opting into
+    `SPREAD_CALLER_WINS` on a scoped spec gives the caller the last word.
 
 Marking a key both `InputRequired` and `NotClientInput` raises — the caller cannot
 be required to supply a value it is never told about.
@@ -212,7 +229,7 @@ pagination names on top.
 | --- | --- |
 | read by the callable from its own `**extras` | nothing — reflection covers it |
 | …and the spec can't run without it | `Annotated[T, InputRequired]` |
-| …and the caller must never set it | `Annotated[T, NotClientInput]` |
+| …and the caller must never set it | `Annotated[T, NotClientInput]`, filled by a provider, a route capture, a pool seed or the default |
 | …and the name alone doesn't say what it is for | `Annotated[T, InputDescription("…")]` |
 | read only by a `spec.kwargs` provider off `view.kwargs` | `UrlKwarg(..., required=…)` |
 | read off `request.query_params` to shape output | `QueryParam(...)` |

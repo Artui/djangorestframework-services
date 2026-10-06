@@ -11,6 +11,7 @@ from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from rest_framework_services.dispatch.aenforce_affordances import aenforce_affordances
 from rest_framework_services.dispatch.apply_input_data import apply_input_data
 from rest_framework_services.dispatch.base_pool import base_pool
+from rest_framework_services.dispatch.strip_hidden_inputs import strip_hidden_inputs
 from rest_framework_services.dispatch.utils import (
     COLLECTION_SOURCE,
     INSTANCE_SOURCE,
@@ -182,7 +183,10 @@ async def _adispatch_selector(
         pool,
         binding=binding,
         reserved=pool_seeds.reserved,
-        spread_source=params,
+        # A key the selector marks ``NotClientInput`` leaves the caller's input
+        # before the spread, so neither the binding's precedence nor a provider
+        # declining with ``UNSET`` can let the caller's value back in.
+        spread_source=strip_hidden_inputs(params, spec.selector),
         provider_kwargs=await arun_off_loop(
             resolve_service_kwargs, spec, view=view, request=request, view_hooks=view_hooks
         ),
@@ -326,12 +330,19 @@ async def _adispatch_service(
         context=input_context,
         instance=instance,
     )
-    extras = resolve_unknown_arguments(
-        spec,
-        params,
-        unknown_arguments=unknown_arguments,
-        serializer=serializer,
-        reserved=pool_seeds.reserved,
+    # The policy sees a ``NotClientInput`` key first, so ``REJECT`` on a closed
+    # spec still refuses it; only what ``PASSTHROUGH`` would forward loses it.
+    extras = dict(
+        strip_hidden_inputs(
+            resolve_unknown_arguments(
+                spec,
+                params,
+                unknown_arguments=unknown_arguments,
+                serializer=serializer,
+                reserved=pool_seeds.reserved,
+            ),
+            spec.service,
+        )
     )
     data, spread_source = service_input(serializer, extras)
 
@@ -354,7 +365,9 @@ async def _adispatch_service(
         pool,
         binding=binding,
         reserved=pool_seeds.reserved,
-        spread_source=spread_source,
+        # A field the input serializer declares stays in ``data``, which is that
+        # serializer's payload; it still never fills a hidden parameter.
+        spread_source=strip_hidden_inputs(spread_source, spec.service),
         provider_kwargs=await arun_off_loop(
             resolve_service_kwargs, spec, view=view, request=request, view_hooks=view_hooks
         ),
@@ -386,7 +399,7 @@ async def _adispatch_service(
         pool_seeds=pool_seeds,
         request=request,
         view=view,
-        params=filter_data if filter_data is not None else params,
+        filter_data=filter_data,
     )
 
     # A callable ``spec.success_status`` keys on the *service's* return value
@@ -543,7 +556,11 @@ async def _aresolve_target(
             # Reserved seeds stripped from the client spread, as ``merge_arguments``
             # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
             # dispatcher in the pool deciding *which row* is mutated.
-            **strip_reserved_seeds(params, reserved=pool_seeds.reserved),
+            # And a name the lookup marks ``NotClientInput``: the caller never fills
+            # one, while the route capture below and the provider still can.
+            **strip_hidden_inputs(
+                strip_reserved_seeds(params, reserved=pool_seeds.reserved), coll_spec.selector
+            ),
             **view_url_kwargs(view, reserved=pool_seeds.reserved),
         }
         pool.update(
@@ -586,12 +603,14 @@ async def _arun_output_selector(
     pool_seeds: PoolSeeds,
     request: Any,
     view: Any,
-    params: Mapping[str, Any],
+    filter_data: Mapping[str, Any] | None,
 ) -> tuple[Any, bool]:
     """Async :func:`~...dispatch.dispatch_spec._run_output_selector`.
 
     Same ``(value, is_list)`` contract and ``kind`` semantics; a ``LIST`` output
-    stays the lazy shaped queryset and a ``RETRIEVE`` awaits ``.afirst()``.
+    stays the lazy shaped queryset and a ``RETRIEVE`` awaits ``.afirst()``. Its
+    ``filter_set`` reads ``filter_data`` alone, bound to an empty mapping without
+    one; see the sync sibling for why the call's arguments are not a fallback.
     """
     out_spec = spec.output_selector_spec
     if out_spec is None or out_spec.selector is None:
@@ -613,7 +632,7 @@ async def _arun_output_selector(
         selected,
         view=view,
         request=request,
-        params=params,
+        params=filter_data if filter_data is not None else {},
         source_label=OUTPUT_SOURCE,
         pool=pool,
         reserved=pool_seeds.reserved,
@@ -644,7 +663,11 @@ async def _aresolve_instance(
         # Reserved seeds stripped from the client spread, as ``merge_arguments``
         # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
         # dispatcher in the pool deciding *which row* is mutated.
-        **strip_reserved_seeds(params, reserved=pool_seeds.reserved),
+        # And a name the lookup marks ``NotClientInput``: the caller never fills
+        # one, while the route capture below and the provider still can.
+        **strip_hidden_inputs(
+            strip_reserved_seeds(params, reserved=pool_seeds.reserved), instance_spec.selector
+        ),
         **view_url_kwargs(view, reserved=pool_seeds.reserved),
     }
     pool.update(
