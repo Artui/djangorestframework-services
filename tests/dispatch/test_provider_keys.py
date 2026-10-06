@@ -15,7 +15,17 @@ from __future__ import annotations
 
 import sys
 import types
-from typing import TYPE_CHECKING, Annotated, Any, Generic, Optional, TypeVar, Union
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    ForwardRef,
+    Generic,
+    Optional,
+    TypeVar,
+    Union,
+    get_type_hints,
+)
 
 import pytest
 from typing_extensions import NotRequired, ReadOnly, Required, TypedDict
@@ -23,6 +33,7 @@ from typing_extensions import NotRequired, ReadOnly, Required, TypedDict
 from rest_framework_services.dispatch.provider_keys import provider_keys
 from rest_framework_services.types.provider_keys import ProviderKeys
 from rest_framework_services.types.unset import UNSET, UnsetType
+from tests.dispatch.provider_keys_fixtures import passthrough
 
 if TYPE_CHECKING:
     # Annotation-only imports, where a linter's type-checking rules move them.
@@ -297,6 +308,25 @@ def test_a_value_type_that_does_not_resolve_makes_only_its_key_declinable() -> N
     assert provider_keys(_hidden_value_provider) == (frozenset({"region"}), frozenset({"tenant"}))
 
 
+# A forward reference built by hand carries no module, where every one the
+# class and functional syntaxes build does. It resolves in the module that
+# defined the ``TypedDict``, which is the only reading that needs that module.
+_HandBuiltScope = TypedDict(  # noqa: UP013
+    "_HandBuiltScope",
+    {"regions": ForwardRef("list[UnsetType]")},
+)
+
+
+def _hand_built_provider() -> _HandBuiltScope:
+    return {"regions": []}
+
+
+def test_a_forward_reference_without_a_module_resolves_where_the_typed_dict_was_defined() -> None:
+    # Resolved, ``regions`` is a list and filled; unresolved, it would read as
+    # one the provider may decline.
+    assert provider_keys(_hand_built_provider) == (frozenset({"regions"}), _NOTHING)
+
+
 # ---------- A generic ``TypedDict`` is read with its alias's arguments ----------
 
 
@@ -312,22 +342,70 @@ def _nested_declining_generic_provider() -> _NestedGenericScope[UnsetType]:
     return {"tenant": UNSET}
 
 
+def _nested_union_generic_provider() -> _NestedGenericScope[str | UnsetType]:
+    return {"tenant": UNSET}
+
+
 @pytest.mark.parametrize(
     "provider",
-    [_declining_generic_provider, _nested_declining_generic_provider],
-    ids=["argument-is-the-value", "argument-inside-a-union"],
+    [
+        _declining_generic_provider,
+        _nested_declining_generic_provider,
+        _nested_union_generic_provider,
+        passthrough(_declining_generic_provider),
+    ],
+    ids=[
+        "argument-is-the-value",
+        "argument-inside-a-union",
+        "union-argument-inside-a-union",
+        "decorated-elsewhere",
+    ],
 )
 def test_a_generic_typed_dicts_arguments_decide_which_keys_may_be_declined(provider: Any) -> None:
     # ``tenant: _T`` read off the origin is the bare type variable. The alias
-    # says what it stands for, at whatever depth it appears.
+    # says what it stands for, at whatever depth it appears, and what it stands
+    # for is walked in turn: in ``union-argument-inside-a-union`` the argument
+    # is itself a union, met inside ``_T | None``, so it is not enough to ask
+    # whether a substituted argument *is* ``UnsetType``. ``decorated-elsewhere``
+    # is the first case behind a wrapper from another module, whose globals
+    # know no ``_GenericScope``: the annotation resolves in the decorated
+    # function's.
     assert provider_keys(provider) == (_NOTHING, frozenset({"tenant"}))
 
 
-def _free_generic_provider() -> _GenericScope:  # the bare alias, under test
-    return {"tenant": "acme"}
+# ---------- A subclass binds a generic ``TypedDict``'s parameters ----------
+
+_U = TypeVar("_U")
 
 
 class _ConcreteScope(_GenericScope[str]):
+    region: str
+
+
+class _DecliningScope(_GenericScope[str | UnsetType]):
+    # No alias says what ``tenant: _T`` stands for; the class statement does,
+    # and only ``__orig_bases__`` remembers it. Its own hints keep ``_T``.
+    region: str
+
+
+class _DecliningSubScope(_DecliningScope):
+    # One level further, through a base that is a class rather than an alias.
+    note: str
+
+
+class _RelayScope(_GenericScope[_U], Generic[_U]):
+    # Hands its own parameter on, so its alias decides what ``_T`` is.
+    region: str
+
+
+class _OptionalRelayScope(_GenericScope[_U | None], Generic[_U]):
+    # Hands its parameter on inside a union, which is substituted there.
+    region: str
+
+
+class _RecurringScope(_GenericScope[_T | UnsetType], Generic[_T]):
+    # The same type variable at both levels, its base's bound in terms of its
+    # own. ``tenant`` is declared on the base, so it reads the base's binding.
     region: str
 
 
@@ -335,13 +413,86 @@ def _concrete_provider() -> _ConcreteScope:
     return {"tenant": "acme", "region": "eu"}
 
 
+def _declining_subclass_provider() -> _DecliningScope:
+    return {"tenant": UNSET, "region": "eu"}
+
+
+def _declining_sub_subclass_provider() -> _DecliningSubScope:
+    return {"tenant": UNSET, "region": "eu", "note": ""}
+
+
+def _relaying_provider() -> _RelayScope[str | UnsetType]:
+    return {"tenant": UNSET, "region": "eu"}
+
+
+def _filling_relaying_provider() -> _RelayScope[str]:
+    return {"tenant": "acme", "region": "eu"}
+
+
+def _optional_relaying_provider() -> _OptionalRelayScope[str | UnsetType]:
+    return {"tenant": UNSET, "region": "eu"}
+
+
+def _recurring_provider() -> _RecurringScope[str]:
+    return {"tenant": UNSET, "region": "eu"}
+
+
+def _bare_recurring_provider() -> _RecurringScope:  # the bare alias, under test
+    return {"tenant": UNSET, "region": "eu"}
+
+
+_FILLED_TENANT = (frozenset({"tenant", "region"}), _NOTHING)
+_DECLINABLE_TENANT = (frozenset({"region"}), frozenset({"tenant"}))
+
+
 @pytest.mark.parametrize(
-    "provider", [_free_generic_provider, _concrete_provider], ids=["bare-alias", "subclass"]
+    ("provider", "keys"),
+    [
+        (_concrete_provider, _FILLED_TENANT),
+        (_declining_subclass_provider, _DECLINABLE_TENANT),
+        (_declining_sub_subclass_provider, (frozenset({"region", "note"}), frozenset({"tenant"}))),
+        (_relaying_provider, _DECLINABLE_TENANT),
+        (_filling_relaying_provider, _FILLED_TENANT),
+        (_optional_relaying_provider, _DECLINABLE_TENANT),
+        (_recurring_provider, _DECLINABLE_TENANT),
+        (_bare_recurring_provider, _DECLINABLE_TENANT),
+    ],
+    ids=[
+        "binds-a-filled-type",
+        "binds-a-declinable-type",
+        "through-a-class-base",
+        "relays-a-declinable-type",
+        "relays-a-filled-type",
+        "relays-inside-a-union",
+        "rebinds-its-own-type-variable",
+        "bare-rebinding",
+    ],
 )
-def test_a_type_variable_no_alias_substitutes_is_filled(provider: Any) -> None:
-    # ``_ConcreteScope`` is why: its own hints keep ``tenant: _T`` though its
-    # type is ``str``, so reading a free type variable as one that may be
-    # ``UNSET`` would offer the caller a key this provider always fills.
+def test_a_subclass_binding_decides_which_keys_may_be_declined(
+    provider: Any, keys: tuple[frozenset[str], frozenset[str]]
+) -> None:
+    # Reading ``tenant: _T`` as free in any of these would count it filled, and
+    # a provider returning ``UNSET`` for it would then leave a parameter nobody
+    # was asked for: the call fails with a ``TypeError``.
+    assert provider_keys(provider) == keys
+
+
+def _free_generic_provider() -> _GenericScope:  # the bare alias, under test
+    return {"tenant": "acme"}
+
+
+def _free_relaying_provider() -> _RelayScope:  # the bare alias, under test
+    return {"tenant": "acme", "region": "eu"}
+
+
+@pytest.mark.parametrize(
+    "provider", [_free_generic_provider, _free_relaying_provider], ids=["bare-alias", "bare-relay"]
+)
+def test_a_type_variable_nothing_binds_is_filled(provider: Any) -> None:
+    # Whether a free ``_T`` may be ``UNSET`` is not written anywhere. Filled
+    # hides the key from the caller, and the provider decides it. Declinable
+    # would let a transport whose caller's value wins put that value where the
+    # provider was meant to decide, such as a tenant.
     filled, declinable = provider_keys(provider) or (_NOTHING, _NOTHING)
 
     assert "tenant" in filled
@@ -387,3 +538,83 @@ def test_lazily_evaluated_annotations_are_read_one_at_a_time(
         frozenset({"region"}),
         frozenset({"tenant", "note"}),
     )
+
+
+# ---------- A PEP 695 generic ``TypedDict`` under postponed annotations ----------
+
+_PEP_695_SOURCE = """
+from __future__ import annotations
+
+from typing_extensions import TypedDict
+
+from rest_framework_services.types.unset import UnsetType
+
+
+class Scope[T](TypedDict):
+    tenant: T
+    tags: list[T]
+
+
+class Declining(Scope[str | UnsetType]):
+    ...
+
+
+class Recurring[T](Scope[T | UnsetType]):
+    ...
+
+
+def provider() -> {annotation}:
+    return {{}}
+"""
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 syntax is new in 3.12")
+@pytest.mark.parametrize(
+    ("annotation", "keys"),
+    [
+        ("Scope[str]", (frozenset({"tenant", "tags"}), _NOTHING)),
+        ("Scope[str | UnsetType]", (frozenset({"tags"}), frozenset({"tenant"}))),
+        ("Scope", (frozenset({"tenant", "tags"}), _NOTHING)),
+        ("Declining", (frozenset({"tags"}), frozenset({"tenant"}))),
+        ("Recurring[str]", (frozenset({"tags"}), frozenset({"tenant"}))),
+    ],
+    ids=["filled", "declinable", "bare-alias", "subclass", "same-name-rebound"],
+)
+def test_a_pep_695_type_parameter_is_read_as_the_class_declares_it(
+    monkeypatch: pytest.MonkeyPatch,
+    annotation: str,
+    keys: tuple[frozenset[str], frozenset[str]],
+) -> None:
+    # ``T`` lives in ``Scope.__type_params__``, never in the module, so the
+    # string ``"T"`` a postponed annotation leaves resolves only beside them.
+    # ``tags: list[T]`` is always filled with a list once ``T`` resolves, and a
+    # value that does not resolve reads as declinable, so ``tags`` filled is
+    # what shows the keys were read by resolution rather than by failing to.
+    # Compiled afresh for each case: up to 3.13 a forward reference can keep
+    # the value it last resolved to, and one case must not answer for the next.
+    # ``same-name-rebound`` has two parameters named ``T``; the one that
+    # declares ``tenant`` is ``Scope``'s, bound to ``str | UnsetType``.
+    module = types.ModuleType("pep_695_providers")
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    source = _PEP_695_SOURCE.format(annotation=annotation)
+    exec(compile(source, module.__name__, "exec", dont_inherit=True), module.__dict__)
+
+    assert provider_keys(module.provider) == keys
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 syntax is new in 3.12")
+def test_a_type_parameter_resolved_elsewhere_first_does_not_decide_the_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # ``Scope`` and ``Recurring`` share one forward reference ``"T"``, and up
+    # to 3.13 it answers with the value it last resolved to whenever it is
+    # resolved again in one namespace. Resolving ``Recurring``'s hints first leaves
+    # ``Recurring``'s ``T`` there, which nothing binds under ``Scope[...]``, so
+    # a reader that let it answer would count ``tenant`` filled.
+    module = types.ModuleType("pep_695_primed_providers")
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    source = _PEP_695_SOURCE.format(annotation="Scope[str | UnsetType]")
+    exec(compile(source, module.__name__, "exec", dont_inherit=True), module.__dict__)
+    get_type_hints(module.Recurring)
+
+    assert provider_keys(module.provider) == (frozenset({"tags"}), frozenset({"tenant"}))

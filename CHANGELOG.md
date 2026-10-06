@@ -32,9 +32,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     readable. A `TypedDict` value that does not resolve makes only its own key
     declinable. Python 3.14's lazily evaluated annotations are read the same
     way.
-  - **A generic `TypedDict` alias is read with its arguments.**
+  - **A generic `TypedDict` is read with whatever binds its parameters.**
     `-> Scope[str | UnsetType]` declines `Scope`'s `tenant: T`, which the copies
-    read as the bare type variable and counted as filled.
+    read as the bare type variable and counted as filled. A subclass binding is
+    followed through `__orig_bases__`: `class Declining(Scope[str | UnsetType])`,
+    and `Relay(Scope[U], Generic[U])` returned as `Relay[str | UnsetType]`, both
+    decline `tenant`, where the copies hid it and a provider returning `UNSET`
+    for it left the call short a parameter. A PEP 695 `class Scope[T](TypedDict)`
+    under `from __future__ import annotations` resolves `T` beside the class's
+    type parameters, where the copies failed to resolve it and offered every
+    such key to the caller, `-> Scope[str]` included. A type variable nothing
+    binds, as in a bare `-> Scope`, counts as filled: filled keeps the decision
+    with the provider, where declinable would let a caller's value into a key
+    such as a tenant.
+
+### Changed
+
+- **The `typing-extensions` floor rises from 4.13 to 4.14.** On Python 3.14,
+  4.13's `get_annotations` hands the standard library a format number it
+  reserves for internal use and raises, so `provider_keys` read every typed
+  provider as untyped there. 4.14 is the first release that reads annotations
+  in the `FORWARDREF` format on 3.14.
 
 ## [0.55.0] — 2026-10-05
 

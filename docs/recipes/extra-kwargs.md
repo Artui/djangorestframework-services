@@ -171,9 +171,19 @@ reads three things:
 Each annotation costs only what it says. A parameter typed with a name imported
 only under `if TYPE_CHECKING:`, where a linter's type-checking rules move it,
 leaves the keys readable. A `TypedDict` value that does not resolve makes only
-its own key one the provider may decline. A generic `TypedDict` is read with its
-alias's arguments, so `-> Scope[str | UnsetType]` reads `Scope`'s `tenant: T`
-as the written-out `tenant: str | UnsetType`.
+its own key one the provider may decline. A generic `TypedDict` is read with
+whatever binds its parameters, so `-> Scope[str | UnsetType]` reads `Scope`'s
+`tenant: T` as the written-out `tenant: str | UnsetType`. So does a subclass
+that binds them, `class Declining(Scope[str | UnsetType])`, and one that hands
+its own parameter on, `class Relay(Scope[U], Generic[U])` returned as
+`Relay[str | UnsetType]`. A PEP 695 `class Scope[T](TypedDict)` reads the same
+under `from __future__ import annotations`.
+
+A type variable nothing binds, as in a bare `-> Scope`, counts as filled.
+Whether it may be `UNSET` is written nowhere, and filled keeps the decision with
+the provider by hiding the key from the caller. Declinable would let a transport
+whose caller's value wins put that value in a key the provider was meant to
+decide, such as a tenant.
 
 ## Add a clock for tests
 
