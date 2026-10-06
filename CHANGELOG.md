@@ -216,16 +216,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   capability manifest's `output_schema` built from it, described an object with
   required fields, so that `None` failed the schema stated for it. Such a spec's
   output schema is now typed `["object", "null"]`, with no declaration needed.
-- **A service's output schema describes the shape dispatch renders, not the
-  `kind` its output declaration names.** An `output_selector_spec` with no
-  `selector` re-reads nothing, so dispatch presents the service's own return as
-  one value, and the HTTP view and every transport render it as one. A `LIST`
-  declaration of that kind still published an array, in `spec_to_json_schema`
-  and in the capability manifest's `output_schema`, which the value served
-  against it never matched. The nested `kind` now counts only where the
-  `output_selector_spec` has a `selector`; without one the schema describes one
-  value, and `many=True` is an array as before.
-
 - **A `@service_action` serves an `AdditionalInputRequired` schema as it was
   raised, on any viewset.** The restore that keeps a `422`'s `schema` JSON
   Schema, rather than a schema with every leaf turned into a string by DRF, was

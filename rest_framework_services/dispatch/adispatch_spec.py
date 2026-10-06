@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
@@ -39,6 +39,7 @@ from rest_framework_services.dispatch.utils import (
     resolve_unknown_arguments,
     service_extras,
     service_input,
+    service_return_as_list,
     shape_queryset,
     strip_hidden_inputs,
     strip_reserved_seeds,
@@ -633,7 +634,7 @@ async def _arun_output_selector(
         # Held by test_the_services_own_return_is_presented_as_a_list (the ``LIST``
         # arm) and test_a_retrieve_declaration_with_no_re_read_is_still_one_value.
         if out_spec.kind is SelectorKind.LIST:
-            return _service_return_as_list(spec, result), True
+            return service_return_as_list(spec, result), True
         return result, False
     pool: dict[str, Any] = {
         # No live reporter, deliberately: a lookup has no progress to report, and
@@ -665,25 +666,6 @@ async def _arun_output_selector(
     if out_spec.kind is SelectorKind.LIST:
         return selected, True
     return (await amaterialize_retrieve(selected)), False
-
-
-def _service_return_as_list(spec: ServiceSpec[Any, Any, Any], result: Any) -> Any:
-    """The sync core's ``_service_return_as_list``, which says why each return is refused.
-
-    Pure Python with no query, so the event loop can run it. Kept word for word,
-    and ``test_a_refused_list_return_reads_the_same_on_either_core`` holds the two
-    copies to one message.
-    """
-    if isinstance(result, Mapping | str | bytes) or not isinstance(result, Iterable):
-        label = getattr(spec.service, "__qualname__", repr(spec.service))
-        raise ImproperlyConfigured(
-            "output_selector_spec declares kind=LIST with no selector, so the service's "
-            f"own return is the list presented, and {label} returned "
-            f"{type(result).__name__}, which is neither a QuerySet nor an iterable of "
-            "rows. Return the rows, or declare kind=SelectorKind.RETRIEVE to present one "
-            "value. The service has already run, so its write stands."
-        )
-    return result
 
 
 async def _aresolve_instance(

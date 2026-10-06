@@ -171,7 +171,11 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             instance (the service returns the written row, the selector
             re-fetches it with the relations the response needs, and
             ``output_serializer`` renders it); LIST re-fetches and renders a set
-            and is valid only alongside ``collection_selector_spec``. ``None``
+            and is valid over HTTP only alongside ``collection_selector_spec``.
+            Either with no ``selector`` re-fetches nothing: RETRIEVE presents the
+            service's return as one value, and LIST presents it as the set, so it
+            must iterate rows (a mapping, a ``str`` or ``None`` raises
+            ``ImproperlyConfigured`` after the service has run). ``None``
             renders the service's return value directly. The nested ``kwargs``
             is ignored — the surrounding mutation's chains apply — and the nested
             ``permission_classes`` / ``preconditions`` are refused at
@@ -185,7 +189,8 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             schema that does not admit it. A spec whose ``output_selector_spec``
             has a ``selector`` admits ``null`` whatever this says, because the
             re-read can find no row. A result that is a list (``many=True``, or
-            a ``LIST`` re-read) is never ``None``, so it is not read there. The
+            an ``output_selector_spec`` declaring ``LIST``, with a ``selector``
+            or without) is never ``None``, so it is not read there. The
             nested ``output_selector_spec.allow_none`` is still not read; this is
             the declaration. One answer for all of it:
             [`can_present_nothing`][rest_framework_services.can_present_nothing.can_present_nothing].

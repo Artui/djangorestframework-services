@@ -307,8 +307,10 @@ def _spread_parameter_keys(
     ``NotClientInput`` and no ``view``) are the input, less the reserved seeds
     client input can never carry. A bare ``**kwargs`` is open, and an unresolvable
     annotated one raises ``_UnresolvedExtras``; ``service_extras`` decides what an
-    open surface takes. ``many=True`` never reaches here, since it resolves no
-    target and spreads nothing.
+    open surface takes. A ``many=True`` spec reaches here only under a binding
+    that resolves to ``BUNDLE``, and gets the empty set: a ``SPREAD_*`` binding
+    beside ``many`` is refused before any item is read
+    (``test_a_serializer_less_many_spec_is_never_dispatched_spread``).
 
     Each condition is one conjunct of a single branch arc, which coverage cannot
     see, so each names the test that fails without it (in
@@ -1545,3 +1547,34 @@ def wire_named_errors(serializer: Any) -> Iterator[None]:
         yield
     except (ServiceValidationError, ValidationError) as exc:
         raise wire_named_error(exc, serializer) from exc
+
+
+def service_return_as_list(spec: ServiceSpec[Any, Any, Any], result: Any) -> Any:
+    """``result``, once it is a set of rows a ``LIST`` declaration can present.
+
+    The declaration says the service returns the set, so a return that cannot be
+    one is the author's error: a mapping, a ``str`` or ``bytes`` (iterable, but by
+    key or character rather than by row), anything else that does not iterate, and
+    ``None``, since a list is empty rather than absent. It is raised as
+    ``ImproperlyConfigured``, as every other declaration dispatch finds it cannot
+    honour is, an affordance answered over a ``LIST`` result that is no set of rows
+    among them. That is not a refusal: the service has run and its write stands,
+    so it must not reach a caller as a validation error saying nothing happened.
+
+    The test is one arc to coverage, so each member is a row of
+    ``test_a_return_that_is_not_a_set_of_rows_is_the_authors_error``, which fails
+    without it: ``mapping``, ``str``, ``bytes``, ``non-iterable`` and ``none``. Both
+    cores call it, and it runs no query, so the async core calls it on the event
+    loop; ``test_a_refused_list_return_reads_the_same_on_either_core`` holds the
+    two to one message.
+    """
+    if isinstance(result, Mapping | str | bytes) or not isinstance(result, Iterable):
+        label = getattr(spec.service, "__qualname__", repr(spec.service))
+        raise ImproperlyConfigured(
+            "output_selector_spec declares kind=LIST with no selector, so the service's "
+            f"own return is the list presented, and {label} returned "
+            f"{type(result).__name__}, which is neither a QuerySet nor an iterable of "
+            "rows. Return the rows, or declare kind=SelectorKind.RETRIEVE to present one "
+            "value. The service has already run, so its write stands."
+        )
+    return result
