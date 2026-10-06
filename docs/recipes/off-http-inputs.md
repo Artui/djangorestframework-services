@@ -98,11 +98,26 @@ itself along with the reserved pool seeds, which no caller can send. Without
 `supplied`, only the marker makes a parameter required. See
 [what a transport supplies](../reference/jsonschema.md#what-a-transport-supplies-supplied).
 
-!!! note "Off-HTTP only, by design"
-    Enforcement lives in `dispatch_spec` / `adispatch_spec`. On the HTTP path the
-    route *is* the guarantee — a capture the URLconf doesn't declare is a wiring
-    bug, not caller input. The marker exists precisely because off-HTTP there is
-    no route to provide that guarantee.
+Dispatch enforces that one without a marker too. A parameter with no default that
+nothing filled — the caller did not send it, a `kwargs=` provider declined it with
+`UNSET`, or there is no provider — is refused with the same
+`ServiceValidationError` rather than reaching the callable as a `TypeError`, and
+one message lists every missing name, marked or not:
+`{"non_field_errors": ["Missing required argument(s): 'pk', 'tenant'."]}`. A
+parameter with a default, `**kwargs`, and a positional-only parameter are never
+missing. Neither is a reserved pool seed such as `data` or `instance`: client
+input cannot carry one, so requiring it is a configuration error rather than an
+argument a caller could send, and dispatch leaves it to fail as one. An
+affordance's `when` condition is not checked this way either, since it sees only
+the seeds and no caller argument could fill it.
+
+!!! note "Over HTTP, the route and `as_view()` come first"
+    Both checks live in the dispatch core, which the HTTP views share, so they run
+    there too. They rarely fire: the route guarantees its captures, and
+    `as_view()` refuses a required parameter nothing could feed. What reaches them
+    over HTTP is a declared `kwargs=` provider or view hook that leaves a
+    parameter out, answered as the `400` above rather than a server error. The
+    marker exists because off HTTP there is no route to provide that guarantee.
 
 ## Hiding provider-owned inputs: `NotClientInput`
 

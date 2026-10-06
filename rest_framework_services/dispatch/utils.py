@@ -308,26 +308,80 @@ def resolve_unknown_arguments(
     return unknown
 
 
-def resolve_dispatch_kwargs(fn: Callable[..., Any], pool: dict[str, Any]) -> dict[str, Any]:
-    """``resolve_callable_kwargs`` plus the ``InputRequired`` check.
+def _unfilled_parameters(fn: Callable[..., Any], pool: Mapping[str, Any]) -> set[str]:
+    """Parameters of ``fn`` that must be passed and that ``pool`` does not fill.
+
+    Each condition below is one conjunct of a single branch arc, which coverage
+    cannot see, so each names the test that fails without it (in
+    ``tests/dispatch/test_unfilled_parameters.py``):
+
+    - a keyword-passable kind: ``**kwargs`` takes whatever arrives and a
+      positional-only parameter is never passed by name, so no caller value could
+      fill either. ``test_var_keyword_is_never_missing``,
+      ``test_a_positional_only_parameter_is_not_reported``.
+    - no default. ``test_a_defaulted_parameter_is_never_missing``.
+    - absent from the pool. ``test_the_caller_fills_what_the_provider_declined``.
+    - not a reserved seed: client input is stripped of those, so naming one would
+      ask the caller for a value dispatch throws away. Requiring one is an author
+      error, left to fail as one.
+      ``test_a_missing_reserved_seed_is_not_reported_as_an_argument``.
+
+    The built-in set is enough, with no ``PoolSeeds.reserved`` to thread through:
+    ``base_pool`` resolves every name a project registers into every pool it
+    builds, so a registered seed is never absent.
+    """
+    passable = (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    return {
+        name
+        for name, parameter in inspect.signature(fn).parameters.items()
+        if parameter.kind in passable
+        and parameter.default is inspect.Parameter.empty
+        and name not in pool
+        and name not in RESERVED_POOL_SEEDS
+    }
+
+
+def resolve_dispatch_kwargs(
+    fn: Callable[..., Any], pool: dict[str, Any], *, refuse_unfilled: bool = True
+) -> dict[str, Any]:
+    """``resolve_callable_kwargs``, refusing an argument the pool does not carry.
+
+    Two kinds of name count as missing, and one message lists them all, sorted:
+
+    - an ``InputRequired`` key, marked on a parameter or inside an unpacked
+      ``**kwargs`` ``TypedDict``;
+    - with ``refuse_unfilled``, a parameter with no default that nothing filled: a
+      read the caller did not send, a ``kwargs=`` provider that declined it with
+      ``UNSET``, or no provider at all. ``**kwargs``, a parameter with a default,
+      a positional-only parameter and a reserved seed are never missing (see
+      ``_unfilled_parameters``).
 
     Must run against the **fully assembled** pool: any channel (caller params,
-    URL kwargs, the ``spec.kwargs`` provider) satisfies the marker, which says
-    the value must arrive, not where from.
+    URL kwargs, the ``spec.kwargs`` provider) satisfies either, since the marker
+    says the value must arrive, not where from.
 
     Raises
     [`ServiceValidationError`][rest_framework_services.exceptions.service_validation_error.ServiceValidationError]
-    rather than letting the callable raise ``KeyError``, because every transport maps
-    the former to a caller-visible validation failure and none maps the latter.
+    rather than letting the callable raise ``KeyError`` or ``TypeError``, because
+    every transport maps the former to a caller-visible validation failure and none
+    maps the latter.
 
-    Off-HTTP only, deliberately: the HTTP path assembles its pools in
-    ``selectors.utils`` / ``views.mutation.utils``, where the route is the
-    guarantee.
+    Every transport reaches this, HTTP included, since the views dispatch through
+    the same core. Over HTTP ``as_view()`` refuses a parameter nothing could feed,
+    so only a declared provider or hook that leaves one out gets this far; held by
+    ``test_over_http_a_hook_that_leaves_a_parameter_out_is_refused_too``.
+
+    ``refuse_unfilled=False`` is for a callable whose pool carries no client input
+    (an affordance condition sees only the seeds), where an unfilled parameter is
+    the author's to fix and naming it would ask the caller for a value they cannot
+    send. Held by ``test_an_affordance_condition_is_not_asked_of_the_caller``.
     """
     required, _hidden = marked_input_keys(fn)
-    missing = sorted(key for key in required if key not in pool)
+    missing = {key for key in required if key not in pool}
+    if refuse_unfilled:
+        missing |= _unfilled_parameters(fn, pool)
     if missing:
-        names = ", ".join(repr(key) for key in missing)
+        names = ", ".join(repr(key) for key in sorted(missing))
         raise ServiceValidationError(
             {"non_field_errors": [f"Missing required argument(s): {names}."]}
         )
@@ -622,7 +676,9 @@ def answer_operation_condition(
     is unmet in all three, not in two of them.
     """
     ambient = ambient_pool(pool, reserved=reserved)
-    return bool(when(**resolve_dispatch_kwargs(when, ambient)))
+    # No client input reaches the ambient pool, so a parameter it does not fill is
+    # the author's; refusing it would ask the caller for a value they cannot send.
+    return bool(when(**resolve_dispatch_kwargs(when, ambient, refuse_unfilled=False)))
 
 
 def split_affordances(

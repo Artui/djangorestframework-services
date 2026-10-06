@@ -16,6 +16,7 @@ from typing_extensions import NotRequired, TypedDict, Unpack
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.dispatch.null_progress import null_progress
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
+from rest_framework_services.exceptions.service_validation_error import ServiceValidationError
 from rest_framework_services.jsonschema.spec_to_json_schema import spec_to_json_schema
 from rest_framework_services.registry.capability_manifest import capability_manifest
 from rest_framework_services.registry.spec_registry import SpecRegistry
@@ -817,9 +818,10 @@ def _retrieve(selector: Any) -> SelectorSpec[Any, Any]:
 
 class TestSupplied:
     def test_a_lookup_without_a_default_is_required(self) -> None:
-        # Advertised as optional before, while a call without it raises.
-        with pytest.raises(TypeError, match="required keyword-only argument: 'pk'"):
+        # Advertised as optional before, while a call without it is refused.
+        with pytest.raises(ServiceValidationError) as refused:
             dispatch_spec(_retrieve(_task_by_pk), user=None, params={})
+        assert refused.value.detail == {"non_field_errors": ["Missing required argument(s): 'pk'."]}
         schema = spec_to_json_schema(_retrieve(_task_by_pk), supplied=frozenset())
         assert schema == {
             "type": "object",

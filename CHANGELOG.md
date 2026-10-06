@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A parameter that nothing filled is refused as a missing argument, not a
+  `TypeError`.** A selector, service, target lookup or precondition parameter
+  with no default reached the callable without a value when the caller did not
+  send it and nothing else supplied it: a `kwargs=` provider that declined it with
+  `UNSET`, or no provider at all. The callable then raised `TypeError`, which
+  every transport built on `dispatch_spec` passed on as a crash, where an
+  `InputRequired` key in the same position was already refused cleanly.
+  `dispatch_spec` and `adispatch_spec` now refuse both the same way, with one
+  `ServiceValidationError` listing every missing name, sorted:
+  `{"non_field_errors": ["Missing required argument(s): 'tenant'."]}`. A
+  parameter with a default, `**kwargs` and a positional-only parameter are never
+  missing. Neither is a reserved pool seed such as `data` or `instance`, which
+  client input cannot carry, so requiring one still fails as the configuration
+  error it is, and neither is a parameter of an affordance's `when` condition,
+  which sees only the seeds. HTTP views dispatch through the same core, so a
+  declared `kwargs=` provider or view hook that leaves a parameter out is now a
+  `400` there too, rather than a server error.
+
 ## [0.55.0] — 2026-10-05
 
 ### Added
