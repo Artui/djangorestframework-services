@@ -2,12 +2,27 @@
 
 from __future__ import annotations
 
-import pytest
-from django.http import HttpRequest, QueryDict
+from collections.abc import Callable
+from typing import Any
 
+import pytest
+from asgiref.sync import async_to_sync
+from django.db.models import QuerySet
+from django.http import HttpRequest, QueryDict
+from rest_framework import serializers
+
+from rest_framework_services import (
+    DispatchResult,
+    SelectorKind,
+    SelectorSpec,
+    adispatch_spec,
+    dispatch_spec,
+    render_spec_output,
+)
 from rest_framework_services.dispatch.build_offline_context import build_offline_context
 from rest_framework_services.types.offline_context import OfflineContext
 from rest_framework_services.types.offline_service_view import OfflineServiceView
+from tests.testapp.models import Post
 
 _USER = object()
 
@@ -142,3 +157,127 @@ def test_query_params_replace_a_wrapped_requests_get() -> None:
     # The replacement is scoped to the wrapped copy.
     assert base.GET["a"] == "1"
     assert "b" not in base.GET
+
+
+# --- what the synthetic query string reaches ------------------------------------
+#
+# It reaches whatever reads ``request.query_params`` itself: a serializer, or a
+# request-scoped FilterSet. It is not what dispatch binds a ``filter_set`` to, so
+# a caller wanting the query string to filter passes it as ``filter_data``.
+
+
+def _sync(spec: Any, **kwargs: Any) -> DispatchResult:
+    return dispatch_spec(spec, user=None, **kwargs)
+
+
+def _async(spec: Any, **kwargs: Any) -> DispatchResult:
+    return async_to_sync(adispatch_spec)(spec, user=None, **kwargs)
+
+
+Dispatch = Callable[..., DispatchResult]
+_CORES = pytest.mark.parametrize("dispatch", [_sync, _async], ids=["sync", "async"])
+
+
+def _published_from(queryset: QuerySet[Post], source: Any) -> QuerySet[Post]:
+    raw = source.get("published")
+    if raw is None:
+        return queryset
+    return queryset.filter(published=str(raw).lower() == "true")
+
+
+class _ReadsItsData:
+    """Duck-typed FilterSet narrowing by ``published`` in the data it is bound to."""
+
+    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
+        self.qs = _published_from(queryset, data)
+
+
+class _ReadsTheRequest:
+    """A request-scoped FilterSet: it ignores its data and reads the query string,
+    as one does that scopes itself behind ``DjangoFilterBackend``."""
+
+    def __init__(self, *, data: Any, queryset: QuerySet[Post], request: Any) -> None:
+        self.qs = _published_from(queryset, request.query_params)
+
+
+def _all_posts() -> QuerySet[Post]:
+    return Post.objects.order_by("id")
+
+
+def _titles(result: DispatchResult) -> list[str]:
+    return [post.title for post in result.value]
+
+
+@pytest.fixture
+def unpublished_requested() -> OfflineContext:
+    Post.objects.create(title="shipped", published=True)
+    Post.objects.create(title="draft", published=False)
+    return build_offline_context(None, query_params={"published": "false"})
+
+
+@pytest.mark.django_db
+@_CORES
+def test_a_request_scoped_filter_set_reads_the_synthetic_query_string(
+    dispatch: Dispatch, unpublished_requested: OfflineContext
+) -> None:
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts, filter_set=_ReadsTheRequest)
+    context = unpublished_requested
+
+    result = dispatch(spec, params={}, request=context.request, view=context.view)
+
+    assert _titles(result) == ["draft"]
+
+
+@pytest.mark.django_db
+@_CORES
+def test_a_filter_set_is_bound_to_params_not_the_synthetic_query_string(
+    dispatch: Dispatch, unpublished_requested: OfflineContext
+) -> None:
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts, filter_set=_ReadsItsData)
+    context = unpublished_requested
+
+    result = dispatch(spec, params={}, request=context.request, view=context.view)
+
+    assert _titles(result) == ["shipped", "draft"]
+
+
+@pytest.mark.django_db
+@_CORES
+def test_passing_the_query_string_as_filter_data_filters_on_it(
+    dispatch: Dispatch, unpublished_requested: OfflineContext
+) -> None:
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts, filter_set=_ReadsItsData)
+    context = unpublished_requested
+
+    result = dispatch(
+        spec,
+        params={},
+        request=context.request,
+        view=context.view,
+        filter_data=context.request.query_params,
+    )
+
+    assert _titles(result) == ["draft"]
+
+
+class _FieldsFromTheQueryString(serializers.Serializer):
+    """Field selection read off the request, as django-restql does."""
+
+    title = serializers.CharField()
+    published = serializers.BooleanField()
+
+    def to_representation(self, instance: Any) -> dict[str, Any]:
+        wanted = self.context["request"].query_params.get("fields")
+        rendered = super().to_representation(instance)
+        return {key: value for key, value in rendered.items() if wanted is None or key == wanted}
+
+
+@pytest.mark.django_db
+def test_a_serializer_branching_on_query_params_reads_the_synthetic_query_string() -> None:
+    post = Post.objects.create(title="shipped", published=True)
+    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_FieldsFromTheQueryString)
+    context = build_offline_context(None, query_params={"fields": "title"})
+
+    rendered = render_spec_output(spec, post, request=context.request, view=context.view)
+
+    assert rendered == {"title": "shipped"}

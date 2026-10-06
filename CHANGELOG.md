@@ -71,6 +71,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read as unmarked. The same `as_view()` read refuses an input marked both
   `InputRequired` and `NotClientInput`, which every call already refused.
 
+- **A caller's value for a `NotClientInput` key no longer reaches the callable.**
+  The marker dropped the key from the schema, and `UnknownArguments.REJECT`
+  refused it on a closed spec, but everywhere else dispatch delivered it: under
+  `IGNORE` (the default), under `PASSTHROUGH`, and under `REJECT` on an open
+  selector (a `filter_set` or a bare `**kwargs`). A hidden key with a default and
+  no provider was settable by any off-HTTP caller, and `SPREAD_CALLER_WINS` let a
+  caller's value beat the provider's. `dispatch_spec` and `adispatch_spec` now
+  drop it from the caller's input before the spread, under every policy, at each
+  site that spreads one: a `SelectorSpec`'s selector, a single-item service's
+  spread and the extras `PASSTHROUGH` forwards, and a service's
+  `instance_selector_spec` / `collection_selector_spec` lookup. A provider, a
+  route capture, a registered pool seed or the parameter's default still fills
+  the key, and a provider declining with `UNSET` now leaves the default rather
+  than the caller's value. A service's `input_data`, or a `get_input_data` view
+  hook, fills it too: that value is the server's, merged over the caller's input
+  with its keys winning, so it is never dropped, and where the caller sends the
+  same key the server's value is the one that arrives. It reaches the service
+  through an input serializer field of that name under every policy, as a
+  `PASSTHROUGH` extra, and through a spread service's bare `**kwargs`; a closed
+  spec with no such field still drops it under `IGNORE`, and `REJECT`, which
+  judges the merged arguments, still refuses it there, as it refuses any
+  `input_data` key nothing declares. `REJECT` still refuses the caller's value on
+  a closed spec. A caller that filled a hidden key through `params`, such as a
+  task runner or a test, now loses the value without an error where the parameter
+  has a default, and fails with the callable's own `TypeError` (a `500` over
+  HTTP) where it has none, which is not named as a missing argument. Move the
+  value to a `kwargs=` provider, `input_data` or a registered pool seed. Over
+  HTTP, selector views and mutation services spread nothing and are unchanged,
+  but a mutation's `instance_selector_spec` or `collection_selector_spec` is
+  resolved from the request body, so a body's value for a key the lookup marks
+  hidden is dropped there too: a mutation that answered `200` for a body carrying
+  a required one now answers `500`. A route capture of that name still fills it.
+- **Off HTTP, a service's output re-read is no longer filtered by the call's
+  arguments.** With no `filter_data`, the `output_selector_spec`'s `filter_set`
+  read the arguments, so a key that changed the result was not in the input
+  schema and was refused by `REJECT`. It now reads only `filter_data`, which the
+  HTTP path fills from the query string, and without one it is bound to an empty
+  mapping, as a request with no query string would bind it. A transport that
+  relied on filtering the re-read through the arguments now gets it unfiltered.
+  A selector's own `filter_set` and a target lookup's still fall back to the
+  arguments, because their fields are declared input.
+
 ### Fixed
 
 - **A schema marker inside an `X | None` the author wrote is honoured.**
@@ -152,6 +194,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   body is not declared anywhere the schema reads, and a raw value it returns,
   a bulk destroy's count say, is served as a `200` the schema does not show.
 
+- **A parameter that nothing filled is refused as a missing argument, not a
+  `TypeError`.** A selector, service, target lookup or precondition parameter
+  with no default reached the callable without a value when the caller did not
+  send it and nothing else supplied it: a `kwargs=` provider that declined it with
+  `UNSET`, or no provider at all. The callable then raised `TypeError`, which
+  every transport built on `dispatch_spec` passed on as a crash, where an
+  `InputRequired` key in the same position was already refused cleanly.
+  `dispatch_spec` and `adispatch_spec` now refuse both the same way, with one
+  `ServiceValidationError` listing every missing name, sorted:
+  `{"non_field_errors": ["Missing required argument(s): 'tenant'."]}`. Only a
+  parameter the caller could fill is named. A parameter with a default,
+  `**kwargs` and a positional-only parameter are never missing, and neither is a
+  reserved pool seed such as `data` or `instance`, a `NotClientInput` parameter,
+  `view`, or any parameter of a `functools.wraps` wrapper that takes `**kwargs`
+  and may fill it itself; each of those that nothing fills still fails as the
+  `TypeError` it was. Two callables are not checked at all, because no caller
+  input reaches their pool: an affordance's `when` condition, and the
+  `output_selector_spec` re-read, which also runs after the service's write has
+  committed, so a refusal there would report a write that happened as one that
+  did not. Over HTTP only a mutation view maps the refusal: it answers `400`
+  where it answered `500`, for a declared `kwargs=` provider or view hook that
+  leaves a service or precondition parameter out, and for a target lookup
+  parameter nothing fills, which `as_view()` never checks. A selector view still
+  answers `500`.
+- **A caller's `view` no longer reaches a selector or service.** No pool carries
+  `view`, and the input schema already hid it from a selector's parameters, but
+  it was not a reserved seed, so a caller's `{"view": ...}` was spread into the
+  pool and a callable declaring `view` received it, over a `kwargs=` provider's
+  value under `SPREAD_CALLER_WINS`. `dispatch_spec` and `adispatch_spec` now treat
+  it as every callable marking it `NotClientInput`: the caller's value is dropped
+  at every site that spreads caller input, `REJECT` refuses it as
+  `Unexpected argument(s): 'view'.` on a closed spec, and a required `view`
+  nothing filled is not named as a missing argument. A provider, a view hook and
+  a route capture of that name still fill it. Over HTTP a selector view spreads
+  nothing and is unchanged; a request body's `view` no longer reaches a
+  mutation's `instance_selector_spec` or `collection_selector_spec` lookup.
+- **A spread service with no input serializer receives the arguments its own
+  signature declares.** For a `ServiceSpec` that is not `many=True` and has no
+  `input_serializer`, dispatched with a `SPREAD_*` `argument_binding`, only the
+  target lookup's keys counted as declared input, so the service's own
+  parameters were unknown arguments. Under `IGNORE`, the default, a `reason` the
+  caller sent was dropped, so the call failed as though it had never been sent,
+  and under `REJECT` it was refused as unexpected; only `PASSTHROUGH` delivered
+  it. `dispatch_spec` and `adispatch_spec` now declare
+  the service's keyword parameters and `Unpack[TypedDict]` keys beside the
+  lookup's, less the reserved pool seeds (registered ones included),
+  positional-only parameters, `NotClientInput` keys and `view`, and deliver the
+  caller's values for them under every policy. A required one left out is
+  missing under every policy. A bare `**kwargs` makes the set open, so every key
+  the caller sent reaches the service except the reserved seeds and the target
+  lookup's keys, which reach it only by name: the lookup consumed `pk` to find the
+  `instance`, so `def update(*, instance, **changes)` does not find it in
+  `changes`, while `def update(*, instance, pk, **changes)` receives it. An
+  annotated `**kwargs` that cannot be resolved is taken the same way under
+  `IGNORE` and `PASSTHROUGH`, and makes `REJECT` raise `ImproperlyConfigured`.
+  A service that declares `data` receives the parameters it took by name there,
+  beside the `PASSTHROUGH` extras. `BUNDLE`, which `AUTO` resolves to for a
+  service, a spec with an `input_serializer` and a `many=True` spec keep the set
+  they had.
 
 ## [0.55.0] — 2026-10-05
 

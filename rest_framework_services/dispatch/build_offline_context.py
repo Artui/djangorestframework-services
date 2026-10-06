@@ -68,8 +68,14 @@ def build_offline_context(
             ``view.kwargs``. Pass every route capture a spec depends on.
         query_params: Seeds the request's ``GET`` ``QueryDict``, the source
             ``request.query_params`` reads — how read-shaping params that are not spec
-            inputs reach the serializer offline (``SelectorSpec.filter_set``, a
-            serializer branching on ``query_params``). Values are stringified as on
+            inputs reach the serializer offline: a serializer branching on
+            ``query_params``, and a request-scoped ``FilterSet`` reading
+            ``self.request.query_params`` itself. It is not what a ``filter_set`` is
+            bound to: ``dispatch_spec`` binds a ``SelectorSpec``'s own, and a target
+            lookup's, to ``filter_data``, else to ``params``, and a service's
+            ``output_selector_spec.filter_set`` to ``filter_data``, else to an empty
+            mapping. To filter from this query string, pass
+            ``filter_data=context.request.query_params``. Values are stringified as on
             HTTP; a list / tuple becomes a multi-valued param. **Replaces** a wrapped
             ``http_request``'s ``GET`` — on the copy that is wrapped, so the caller's
             own ``GET`` still reads its real query string afterwards.
