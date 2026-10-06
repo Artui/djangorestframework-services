@@ -236,6 +236,19 @@ def test_an_allow_none_retrieve_states_the_null_it_serves() -> None:
     assert operation["output_schema"]["type"] == ["object", "null"]
 
 
+def test_a_list_output_declaration_without_a_selector_states_one_value() -> None:
+    """No ``selector`` runs no re-read, so dispatch serves the service's own return
+    as one value; the manifest states that, as the derivation does, rather than the
+    declared ``LIST``."""
+    spec = _refund_spec(
+        output_selector_spec=SelectorSpec(kind=SelectorKind.LIST, output_serializer=_OrderOutput)
+    )
+
+    operation = capability_manifest(_registry(("refund", spec, ())))["operations"][0]
+
+    assert operation["output_schema"]["type"] == "object"
+
+
 def test_an_undeclared_output_is_none_rather_than_a_fabricated_shape() -> None:
     registry = _registry(("op", _refund_spec(output_selector_spec=None), ()))
     assert capability_manifest(registry)["operations"][0]["output_schema"] is None

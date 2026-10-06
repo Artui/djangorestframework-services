@@ -278,17 +278,8 @@ class TestBulkUpdateCollection:
 
 
 class TestBulkValidation:
-    def test_many_and_collection_mutually_exclusive(self) -> None:
-        class _View(ServiceCreateView):
-            spec = ServiceSpec(
-                service=_bulk_create,
-                input_serializer=_PostIn,
-                many=True,
-                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts),
-            )
-
-        with pytest.raises(ImproperlyConfigured, match="mutually exclusive"):
-            _View.as_view()
+    # ``many`` beside a ``collection_selector_spec`` is refused when the spec is
+    # built, before any view sees it: tests/types/test_service_spec.py.
 
     def test_collection_selector_must_be_list_kind(self) -> None:
         class _View(ServiceDeleteView):

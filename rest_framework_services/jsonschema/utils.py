@@ -501,7 +501,9 @@ def _python_type_to_schema(
     ``registry.python_types`` rules are matched by identity and win first. The
     ``Annotated[...]`` wrapper is stripped before anything else so markers do not
     push a typed annotation into the fallback; the markers themselves are read by
-    the callers that care.
+    the callers that care. Stripping goes through ``read_schema_markers``, so an
+    ``Annotated`` inside one ``Optional`` is stripped with its ``null`` branch
+    kept.
 
     Handled structurally, because a caller that declared this much deserves to
     have it published: the JSON scalars, ``None``, the stdlib scalars DRF

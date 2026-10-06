@@ -27,12 +27,49 @@ output_to_json_schema(InvoiceSerializer, kind=SelectorKind.RETRIEVE, allow_none=
 ```
 
 The function takes a serializer, not a spec, so the caller says whether a miss
-is served. `spec_to_json_schema(spec, phase="output")` passes a `SelectorSpec`'s
-own `allow_none`. A list never presents `None`, so `kind=LIST` is unchanged
+is served. `spec_to_json_schema(spec, phase="output")` asks
+[`can_present_nothing`](#can_present_nothing) of the spec and passes its answer.
+A list never presents `None`, so `kind=LIST` is unchanged
 whatever `allow_none` says. The default is `False`, which is the schema every
 caller got before the parameter existed. A protocol that needs an object at the
 root, such as an MCP tool's `outputSchema`, can leave it off and describe the
 empty result in its own terms.
+
+## `can_present_nothing`
+
+::: rest_framework_services.can_present_nothing.can_present_nothing
+
+### When a service presents nothing
+
+A single-row `ServiceSpec` presents `None` in two ways, and its output schema
+admits `null` for both:
+
+- **Its output re-read finds no row.** An `output_selector_spec` with a
+  `selector` re-reads the row the service wrote, and dispatch materializes that
+  re-read with `.first()`, so a selector that filters the row out yields `None`.
+  This needs no declaration.
+- **The service returns `None` and declares it.** With no re-read, dispatch
+  presents the service's own return. `allow_none=True` on the `ServiceSpec`
+  says that return may be `None`:
+
+```python
+ServiceSpec(
+    service=touch_tasks,  # returns None
+    allow_none=True,
+    output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=TaskOut),
+)
+# spec_to_json_schema(spec, phase="output")["type"] == ["object", "null"]
+```
+
+Without the declaration the schema stays strict, and an undeclared `None` is
+not refused in this release: dispatch presents it, against a schema that does
+not admit it. `allow_none` on the nested `output_selector_spec` is still not
+read, and a result that is a list (`many=True`, or a `LIST` re-read) is never
+`None` whatever either flag says.
+
+The capability manifest's `output_schema` is the same schema. A transport
+advertising an output schema of its own should ask `can_present_nothing(spec)`
+rather than derive the answer again, so every route states the same `null`.
 
 ## `filterset_to_json_schema`
 
@@ -184,6 +221,60 @@ entirely and so leaves the sentence no caller to reach, and refused twice on one
 input, because a schema publishes one description and picking a winner would be
 an arbitrary rule to memorise. See
 [the off-HTTP inputs recipe](../recipes/off-http-inputs.md#describing-an-input-inputdescription).
+
+### Where a marker may sit
+
+`InputRequired`, `NotClientInput` and `InputDescription` are read on the
+outermost layer of an input's annotation, or inside **one** `Optional` written
+around it. These two declare the same nullable, hidden key, and both are read:
+
+```python
+def team_tasks(*, team: Annotated[int | None, NotClientInput] = None): ...
+def team_tasks(*, team: Annotated[int, NotClientInput] | None = None): ...
+```
+
+`Optional[Annotated[int, NotClientInput]]` is the second spelling too, and the
+same holds for an `Unpack[TypedDict]` key. The type keeps its `null` branch, so
+an `InputRequired` key spelled this way publishes as required and nullable.
+
+Anything wider raises `ImproperlyConfigured` rather than guessing what the marker
+was meant to cover: a union with another member beside the marked one
+(`Annotated[int, NotClientInput] | str`), two marked members, or a marker nested
+inside a container or under another `Annotated` (`list[Annotated[int,
+NotClientInput]]`). The refusal names the spelling that works. Another library's
+`Annotated` metadata is not placed, and stays legal at any depth.
+
+A view, viewset or `@service_action` mounting the spec raises it from
+`as_view()`, so the app fails at URL-conf load rather than on every request.
+Off HTTP, a spec no view mounts raises it where its markers are first read: at
+schema generation, or on each `dispatch_spec` call. The spec's constructor does
+not, because an annotation naming a class declared further down the module
+does not resolve yet when the spec is built.
+
+### What a service's output schema describes
+
+A `ServiceSpec`'s output schema reads the serializer and `affordances` off its
+`output_selector_spec`, and describes the shape dispatch renders, which is not
+always the `kind` that spec names:
+
+- `many=True` renders the whole list, so the schema is an array whatever the
+  nested `kind`.
+- An `output_selector_spec` with a `selector` re-reads the service's result, and
+  its `kind` decides: one row for `RETRIEVE`, an array for `LIST`.
+- Without a `selector` nothing is re-read. Dispatch presents the service's own
+  return as one value, so the schema describes one value even where the nested
+  `kind` is `LIST`:
+
+```python
+ServiceSpec(
+    service=archive_task,  # returns one task
+    output_selector_spec=SelectorSpec(kind=SelectorKind.LIST, output_serializer=TaskOut),
+)
+# spec_to_json_schema(spec, phase="output")["type"] == "object"
+```
+
+This is the same shape the HTTP view renders and every transport reads off
+`result.kind`, and the capability manifest's `output_schema` states it too.
 
 ## A spec-level title and description
 
