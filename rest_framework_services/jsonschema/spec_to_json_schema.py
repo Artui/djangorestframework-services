@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from django.core.exceptions import ImproperlyConfigured
 
+from rest_framework_services.can_present_nothing import can_present_nothing
 from rest_framework_services.jsonschema.filterset_to_json_schema import filterset_to_json_schema
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
 from rest_framework_services.jsonschema.serializer_to_json_schema import serializer_to_json_schema
@@ -121,9 +122,14 @@ def spec_to_json_schema(
     [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] its own.
     Declared ``affordances`` add the ``affordances`` object each rendered item
     carries, ``reason`` included -- the shape ``render_spec_output`` produces.
-    An ``allow_none`` RETRIEVE ``SelectorSpec`` presents ``None`` for a miss, so
-    its item's type is ``["object", "null"]``. A ``ServiceSpec``'s nested
-    ``output_selector_spec.allow_none`` is not read, as dispatch does not read it.
+    Where dispatch may present ``None``, the item's type is ``["object", "null"]``,
+    as
+    [`can_present_nothing`][rest_framework_services.can_present_nothing.can_present_nothing]
+    answers it: an ``allow_none`` RETRIEVE ``SelectorSpec``'s miss, a single-row
+    ``ServiceSpec`` whose ``output_selector_spec`` re-reads through a ``selector``
+    that may find no row, and a ``ServiceSpec`` declaring ``allow_none=True``. A
+    ``ServiceSpec``'s nested ``output_selector_spec.allow_none`` is not read, as
+    dispatch does not read it.
 
     ``max_depth`` bounds how many serializer levels are described, truncating
     deeper ones to ``{"type": "object"}``; ``None``, the default, describes them
@@ -317,6 +323,7 @@ def _output_schema(
             registry=registry,
             max_depth=max_depth,
             affordances=nested.affordances,
+            allow_none=can_present_nothing(spec),
         )
     return output_to_json_schema(
         spec.output_serializer,
@@ -324,7 +331,7 @@ def _output_schema(
         registry=registry,
         max_depth=max_depth,
         affordances=spec.affordances,
-        # Only here: a ``ServiceSpec``'s nested ``allow_none`` is ignored by
-        # dispatch, so the branch above passes none.
-        allow_none=spec.allow_none,
+        # The same question as the branch above, asked of the same function, so the
+        # schema and every transport calling it answer it alike.
+        allow_none=can_present_nothing(spec),
     )

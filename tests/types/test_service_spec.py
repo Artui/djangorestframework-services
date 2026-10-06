@@ -198,3 +198,74 @@ class TestManyArgument:
         spec = ServiceSpec(service=_noop, many=True, many_argument="rows")
         with pytest.raises(ImproperlyConfigured, match="without many=True"):
             replace(spec, many=False)
+
+
+def _instance_lookup(*, pk: int) -> Any:
+    return pk
+
+
+def _collection_lookup() -> list[Any]:
+    return []
+
+
+def _instance_spec() -> SelectorSpec[Any, Any]:
+    return SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_instance_lookup)
+
+
+def _collection_spec() -> SelectorSpec[Any, Any]:
+    return SelectorSpec(kind=SelectorKind.LIST, selector=_collection_lookup)
+
+
+class TestTargetLookups:
+    """An instance lookup dispatch would never call is refused when the spec is built.
+
+    At construction, so ``dispatch_spec`` callers that never mount a view are covered.
+    """
+
+    def test_both_target_lookups_are_refused(self) -> None:
+        with pytest.raises(ImproperlyConfigured) as exc:
+            ServiceSpec(
+                service=_noop,
+                instance_selector_spec=_instance_spec(),
+                collection_selector_spec=_collection_spec(),
+            )
+        message = str(exc.value)
+        assert "instance_selector_spec" in message
+        assert "collection_selector_spec" in message
+        assert "never calls the instance one" in message
+
+    def test_an_instance_lookup_on_a_list_payload_is_refused(self) -> None:
+        with pytest.raises(ImproperlyConfigured) as exc:
+            ServiceSpec(
+                service=_noop,
+                many=True,
+                input_serializer=AuthorSerializer,
+                instance_selector_spec=_instance_spec(),
+            )
+        message = str(exc.value)
+        assert "instance_selector_spec with many=True" in message
+        # Sized so the pair check cannot be the one answering: there is no
+        # collection lookup here.
+        assert "collection_selector_spec" not in message
+
+    @pytest.mark.parametrize(
+        "fields",
+        [
+            {"instance_selector_spec": _instance_spec()},
+            {"collection_selector_spec": _collection_spec()},
+            {"many": True, "collection_selector_spec": _collection_spec()},
+            {"many": True},
+        ],
+        ids=["instance-only", "collection-only", "many-with-collection", "many-alone"],
+    )
+    def test_one_target_lookup_is_accepted(self, fields: dict[str, Any]) -> None:
+        # ``many`` beside a collection lookup is a different refusal, made where a
+        # view validates the spec; it is not this check's to make.
+        spec = ServiceSpec(service=_noop, **fields)
+        for name, value in fields.items():
+            assert getattr(spec, name) is value
+
+    def test_the_check_reruns_on_replace(self) -> None:
+        spec = ServiceSpec(service=_noop, collection_selector_spec=_collection_spec())
+        with pytest.raises(ImproperlyConfigured, match="never calls the instance one"):
+            replace(spec, instance_selector_spec=_instance_spec())

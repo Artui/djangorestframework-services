@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`ServiceSpec(allow_none=True)` declares that a service may present nothing.**
+  A service with no output re-read presents its own return, and `dispatch_spec`
+  passes a `None` return through, but its output schema described an object with
+  required fields and never admitted `null`. `allow_none=True` says the return
+  may be `None`, and `spec_to_json_schema(spec, phase="output")` and the
+  capability manifest's `output_schema` then type the row `["object", "null"]`.
+  It is the name `SelectorSpec` already uses for the same fact about its result.
+  It is off by default, and an undeclared `None` is not refused in this release:
+  dispatch still presents it, against a schema that does not admit it. A result
+  that is a list (`many=True`, or a `LIST` re-read) is never `None`, so the flag
+  changes nothing there. `allow_none` on the nested `output_selector_spec` is
+  still not read.
+- **`can_present_nothing(spec)` answers whether a spec's dispatch may present
+  `None`**, for a `SelectorSpec` and a `ServiceSpec` alike, so the output schema
+  and every transport advertising one give the same answer instead of each
+  deriving it. A list result never does. A `RETRIEVE` selector does under
+  `allow_none`. A single-row service does when its `output_selector_spec`
+  re-reads through a `selector`, and otherwise when it declares
+  `allow_none=True`. `spec_to_json_schema` asks it for both kinds of spec.
+  Exported from the package root.
+
+### Changed
+
+- **A `ServiceSpec` declaring an instance lookup that dispatch never calls is
+  refused when it is built.** `instance_selector_spec` beside
+  `collection_selector_spec` passed validation, but dispatch resolves the target
+  through the collection lookup and never calls the instance one, so a service
+  requiring `instance` passed `as_view()` and then raised `TypeError` on every
+  call. Beside `many=True` the instance lookup was dead the same way, since a
+  list payload resolves no target. Both now raise `ImproperlyConfigured` from the
+  constructor, naming the fields, so the refusal holds for `dispatch_spec` and
+  every transport rather than only where a view validates the spec. A spec that
+  declared either pair constructed before and raises now; drop the lookup
+  dispatch was not calling.
+- **A schema marker placed deeper than one `Optional` is refused.**
+  `InputRequired`, `NotClientInput` and `InputDescription` were read only when
+  `Annotated` was the outermost layer of the annotation, and silently ignored
+  anywhere else. They are now read on that layer or inside one `Optional` around
+  it (see Fixed), and anywhere wider raises `ImproperlyConfigured` naming the
+  spelling that works: a union with another member beside the marked one
+  (`Annotated[int, NotClientInput] | str`), two marked members, or a marker
+  nested in a container or under another `Annotated`
+  (`list[Annotated[int, NotClientInput]]`). Another library's `Annotated`
+  metadata is unaffected at any depth. An annotation that relied on a marker
+  being ignored there raises now.
+
+### Fixed
+
+- **A schema marker inside an `X | None` the author wrote is honoured.**
+  `Annotated[int, NotClientInput] | None` declares what
+  `Annotated[int | None, NotClientInput]` does, but only the second was read: the
+  first was reflected and dispatched as if unmarked. A `NotClientInput` key was
+  advertised in the input schema and, under `UnknownArguments.REJECT`, a
+  client's value for it was accepted and reached the selector or service. An
+  `InputRequired` key was neither listed in `required` nor enforced, and an
+  `InputDescription` was dropped. The markers are now read through one level of
+  `Optional`, spelled with `|` or `Optional[...]`, on a parameter and on an
+  `Unpack[TypedDict]` key alike, and the type keeps its `null` branch.
+- **A service whose output re-read can find no row admits `null` in its output
+  schema.** An `output_selector_spec` with a `selector` re-reads the row the
+  service wrote, and dispatch materializes that re-read with `.first()`, so a
+  selector that filters the row out presents `None`. The output schema, and the
+  capability manifest's `output_schema` built from it, described an object with
+  required fields, so that `None` failed the schema stated for it. Such a spec's
+  output schema is now typed `["object", "null"]`, with no declaration needed.
+
 ## [0.55.0] — 2026-10-05
 
 ### Added

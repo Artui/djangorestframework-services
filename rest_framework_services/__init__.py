@@ -13,6 +13,7 @@ from rest_framework_services.audience import (
     build_audience_projection,
     project_payload,
 )
+from rest_framework_services.can_present_nothing import can_present_nothing
 from rest_framework_services.dispatch import (
     DEFAULT_PAGE_SIZE,
     adispatch_spec,
@@ -287,6 +288,7 @@ __all__ = [
     "build_offline_context",
     "call_selector",
     "call_service",
+    "can_present_nothing",
     "capability_manifest",
     "combine_progress",
     "create_from_input",

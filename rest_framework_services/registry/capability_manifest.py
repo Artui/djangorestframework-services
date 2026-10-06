@@ -99,7 +99,10 @@ def capability_manifest(
       [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
       derives for each phase, so the document carries this package's schema
       dialect rather than a second one; ``output_schema`` is ``None`` where no
-      output is declared. ``dialect`` names that policy at the top level.
+      output is declared. A single-row ``output_schema`` admits ``null`` where
+      [`can_present_nothing`][rest_framework_services.can_present_nothing.can_present_nothing]
+      says dispatch may present ``None``. ``dialect`` names that policy at the
+      top level.
     - ``guards`` -- one ``{"source": <dotted class path>}`` per permission class,
       in declaration order; ``None`` where the spec declares none (``[]`` is a
       declared "no permissions" and stays distinguishable).

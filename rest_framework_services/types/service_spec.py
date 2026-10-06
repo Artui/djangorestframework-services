@@ -63,6 +63,10 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     authorize per-set — the view / spec ``permission_classes`` plus the scoped
     selector, with no per-row check.
 
+    A spec declares at most one target lookup. ``instance_selector_spec`` beside
+    ``collection_selector_spec`` or ``many=True`` is refused at construction,
+    because dispatch would never call it.
+
     Attributes:
         service: The callable the action runs.
         atomic: Run the dispatch in a transaction.
@@ -145,6 +149,10 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             and the nested ``permission_classes`` / ``preconditions`` are
             *refused* at ``as_view()`` — the dispatching spec's permissions are
             the ones checked, so declaring them here would guard nothing.
+            Refused with ``ImproperlyConfigured`` when the spec is built beside
+            ``collection_selector_spec`` (dispatch resolves the target through
+            the collection lookup and never calls this one) or beside
+            ``many=True`` (a list payload resolves no target).
         collection_selector_spec: The LIST-kind twin of
             ``instance_selector_spec``. Its resolved set is seeded into the pool
             as ``collection`` to ``.delete()`` / ``.update()`` / iterate, for an
@@ -165,6 +173,19 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             is ignored — the surrounding mutation's chains apply — and the nested
             ``permission_classes`` / ``preconditions`` are refused at
             ``as_view()`` rather than silently ignored.
+        allow_none: Declare that the service may present nothing: it returns
+            ``None`` and no output re-read replaces it. The output schema
+            [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
+            states then admits ``null`` beside the row. ``False`` by default, and
+            an undeclared ``None`` is not refused: dispatch passes the service's
+            return through either way, so an undeclared one is served against a
+            schema that does not admit it. A spec whose ``output_selector_spec``
+            has a ``selector`` admits ``null`` whatever this says, because the
+            re-read can find no row. A result that is a list (``many=True``, or
+            a ``LIST`` re-read) is never ``None``, so it is not read there. The
+            nested ``output_selector_spec.allow_none`` is still not read; this is
+            the declaration. One answer for all of it:
+            [`can_present_nothing`][rest_framework_services.can_present_nothing.can_present_nothing].
         kwargs: Provider (pool: ``view`` / ``request``) of extra kwargs merged
             into the pool the service receives. Co-locating it with the spec
             lets each action declare its own contract, instead of
@@ -277,6 +298,13 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
 
     # Output pipeline.
     output_selector_spec: SelectorSpec[Any, Any] | None = None
+    # Naming (CLAUDE.md rule, first output): the flag ``SelectorSpec`` already
+    # carries for the same fact about the result it presents, so one word says
+    # "this may be nothing" on both specs and every transport reads one name. On
+    # the service spec itself rather than as a meaning given to the nested
+    # ``output_selector_spec.allow_none``: the nested spec describes the re-read,
+    # and a service with no re-read is exactly the case that needs saying.
+    allow_none: bool = False
 
     # Cross-cutting.
     kwargs: Callable[..., ExtraT] | None = None
@@ -314,6 +342,7 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     def __post_init__(self) -> None:
         validate_metadata(self.metadata, label="ServiceSpec")
         _validate_many_argument(self)
+        _validate_target_lookups(self)
         _validate_affordances(self)
 
 
@@ -350,6 +379,36 @@ def _validate_many_argument(spec: ServiceSpec[Any, Any, Any]) -> None:
             f"ServiceSpec declares many_argument={name!r} without many=True. It names "
             "the argument a list travels under, and a single-item spec takes no list; "
             "set many=True or remove it."
+        )
+
+
+def _validate_target_lookups(spec: ServiceSpec[Any, Any, Any]) -> None:
+    """Refuse an ``instance_selector_spec`` that dispatch would never call.
+
+    Dispatch resolves a spec's target through ``collection_selector_spec`` when it
+    has one, and resolves no target at all for a ``many=True`` list payload, so in
+    either company the instance lookup is a declaration nothing reads. Left alone, a
+    service that requires ``instance`` passes every check and then raises
+    ``TypeError`` on every call.
+
+    At construction rather than at ``as_view()``, like ``many_argument`` and
+    ``affordances``: ``dispatch_spec`` and the off-HTTP transports run specs no view
+    ever validates, and each of them would otherwise find the dead lookup per call.
+    """
+    if spec.instance_selector_spec is None:
+        return
+    if spec.collection_selector_spec is not None:
+        raise ImproperlyConfigured(
+            "ServiceSpec declares both instance_selector_spec and "
+            "collection_selector_spec. Dispatch resolves the target through the "
+            "collection lookup and never calls the instance one, so the "
+            "instance_selector_spec would be ignored; declare one target lookup."
+        )
+    if spec.many:
+        raise ImproperlyConfigured(
+            "ServiceSpec declares instance_selector_spec with many=True. A list "
+            "payload resolves no target, so dispatch never calls the instance lookup; "
+            "remove instance_selector_spec, or drop many=True to operate on one row."
         )
 
 

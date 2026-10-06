@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, get_args, get_origin
+import types
+from typing import Annotated, Any, Union, get_args, get_origin
 
 from django.core.exceptions import ImproperlyConfigured
 
 from rest_framework_services.types.input_description import InputDescription
-from rest_framework_services.types.not_client_input import NotClientInput
+from rest_framework_services.types.read_schema_markers import read_schema_markers
 
 
 def read_input_description(annotation: Any) -> str | None:
@@ -33,14 +34,15 @@ def read_input_description(annotation: Any) -> str | None:
       it is merely useless — but a declaration that is silently ignored is
       exactly what this package refuses elsewhere, and the fix (delete one of
       the two markers) is obvious once it is named.
+
+    Placed by the rule ``read_schema_markers`` states: on the annotation itself or
+    inside one ``Optional`` around it (``Annotated[int, InputDescription("...")] |
+    None``), and refused anywhere deeper. That function is called first, so it is
+    the one that refuses, and the two readers cannot disagree about placement.
     """
-    if get_origin(annotation) is not Annotated:
-        return None
-    # ``Annotated[T, ...]`` always carries the underlying type first, then >=1
-    # metadata entries.
-    _underlying, *metadata = get_args(annotation)
+    _underlying, _required, hidden = read_schema_markers(annotation)
     declared: list[InputDescription] = [
-        entry for entry in metadata if isinstance(entry, InputDescription)
+        entry for entry in _layer_metadata(annotation) if isinstance(entry, InputDescription)
     ]
     if not declared:
         return None
@@ -50,13 +52,31 @@ def read_input_description(annotation: Any) -> str | None:
             "A schema publishes one description, so keep the sentence that says what "
             "the input is for and drop the rest."
         )
-    if any(entry is NotClientInput for entry in metadata):
+    if hidden:
         raise ImproperlyConfigured(
             f"{annotation!r}: an input cannot be both described and NotClientInput — the "
             "key is dropped from the schema, so the description has no caller to reach. "
             "Drop the description, or drop NotClientInput if the caller should see the key."
         )
     return declared[0].text
+
+
+def _layer_metadata(annotation: Any) -> tuple[Any, ...]:
+    """The metadata of the ``Annotated`` layer ``read_schema_markers`` reads.
+
+    Located again rather than returned by that function, whose return shape is
+    public. It has already refused a marker anywhere but that layer, so a union
+    reaching here either is one ``Optional`` around it, or carries no marker in
+    any member and so no description in whichever member is looked at. The first
+    member that is not ``None`` is therefore the layer when there is one.
+    """
+    if get_origin(annotation) in (Union, types.UnionType):
+        annotation = next(member for member in get_args(annotation) if member is not type(None))
+    if get_origin(annotation) is not Annotated:
+        return ()
+    # ``Annotated[T, ...]`` always carries the underlying type first, then >=1
+    # metadata entries.
+    return get_args(annotation)[1:]
 
 
 __all__ = ["read_input_description"]
