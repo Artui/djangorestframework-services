@@ -78,9 +78,9 @@ sends and which the transport fills. `task_by_pk(user, *, pk)` and
 `outstanding(user, *, currency)` look alike, yet a client must send `pk`, while
 `currency` arrives from a pool seed. So by default every reflected parameter is
 optional unless it carries `InputRequired`. A lookup without a default is then
-advertised as optional, and a call without it fails with `TypeError: ...
-missing 1 required keyword-only argument: 'pk'`. A seed is advertised as an
-input that the seed then overrides.
+advertised as optional, and a call without it is refused with
+`Missing required argument(s): 'pk'.` A seed is advertised as an input that the
+seed then overrides.
 
 A transport describing its own tools does know which names it fills: its
 registered pool seeds, the names its `kwargs=` providers return, and the URL
