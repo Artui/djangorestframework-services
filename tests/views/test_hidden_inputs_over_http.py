@@ -123,6 +123,48 @@ def test_a_route_capture_still_fills_a_hidden_collection_lookup_key(seen: list[A
     assert seen == ["route-team"]
 
 
+def _post_for_required_team(*, pk: int, team: Annotated[str, NotClientInput]) -> QuerySet[Post]:
+    return Post.objects.filter(pk=pk, title=team)
+
+
+class _RequiredTeamView(ServiceUpdateView):
+    queryset = Post.objects.all()
+    spec = ServiceSpec(
+        service=_touch,
+        instance_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_post_for_required_team
+        ),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=PostSerializer
+        ),
+        atomic=False,
+    )
+
+
+@pytest.mark.django_db
+def test_the_bodys_value_for_a_required_hidden_lookup_key_leaves_the_type_error() -> None:
+    """With no default, dropping the body's value is not silent: the lookup raises its
+    own ``TypeError``, which DRF does not handle, so Django answers ``500``. It is
+    not refused as a missing argument, because the body cannot fill it."""
+    post = Post.objects.create(title="alpha")
+
+    with pytest.raises(TypeError, match="team"):
+        _RequiredTeamView.as_view()(
+            factory.patch("/", {"team": "alpha"}, format="json"), pk=post.pk
+        )
+
+
+@pytest.mark.django_db
+def test_a_route_capture_fills_a_required_hidden_lookup_key() -> None:
+    post = Post.objects.create(title="alpha")
+
+    response = _RequiredTeamView.as_view()(
+        factory.patch("/", {"team": "other-team"}, format="json"), pk=post.pk, team="alpha"
+    )
+
+    assert response.status_code == 200
+
+
 # --- ``view`` ---------------------------------------------------------------------
 
 

@@ -27,8 +27,8 @@ provider supplies from request state, which the caller has no business setting.
 
 So a marked key is filled only by a channel the caller does not control: a
 ``spec.kwargs`` provider, a route capture (``view.kwargs``, or
-``build_offline_context(kwargs=…)`` off HTTP), a registered pool seed, or the
-parameter's own default. A provider that declines with ``UNSET`` therefore leaves
+``build_offline_context(kwargs=…)`` off HTTP), a registered pool seed, a service's
+``input_data``, or the parameter's own default. A provider that declines with ``UNSET`` therefore leaves
 the default in place, never the caller's value. That moves the hazard rather than
 removing it: a scoping key whose default reads as "everything" must have a provider
 that always resolves it.
@@ -45,6 +45,17 @@ a field the ``input_serializer`` declares under the same name stays in ``data``,
 which is that serializer's payload, while the parameter is still not filled from
 it. Over HTTP a selector view spreads nothing, so only the target lookups, whose
 pool is spread from the request body, see the difference there.
+
+A value ``input_data`` supplies for a marked key is the server's, not the
+caller's. ``input_data`` (with the ``get_input_data`` view hooks) is the spec
+author's own code, merged over the caller's input with its keys winning, so
+dispatch never drops that value, and where the caller sends the same key the
+server's value is the one that arrives: the caller's never does. It reaches the
+service through an ``input_serializer`` field of that name under every policy, as
+a ``PASSTHROUGH`` extra, and through a spread service's bare ``**kwargs``. The key is still not declared input, so
+on a closed spec with no such field ``IGNORE`` drops it and ``REJECT``, which
+judges the merged arguments, refuses it, as it refuses any ``input_data`` key
+nothing declares.
 
 Its counterpart is ``InputRequired``, which marks a
 key mandatory. A key marked with both is a contradiction and raises at

@@ -10,7 +10,6 @@ from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from rest_framework_services.dispatch.apply_input_data import apply_input_data
 from rest_framework_services.dispatch.base_pool import base_pool
 from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
-from rest_framework_services.dispatch.strip_hidden_inputs import strip_hidden_inputs
 from rest_framework_services.dispatch.utils import (
     COLLECTION_SOURCE,
     INSTANCE_SOURCE,
@@ -37,6 +36,7 @@ from rest_framework_services.dispatch.utils import (
     service_extras,
     service_input,
     shape_queryset,
+    strip_hidden_inputs,
     strip_reserved_seeds,
     view_url_kwargs,
     wire_named_errors,
@@ -368,12 +368,10 @@ def _dispatch_service(
     instance = target if mode == "instance" else None
 
     input_context = resolve_input_context(spec, view=view, request=request, view_hooks=view_hooks)
-    params = apply_input_data(
-        params,
-        resolve_input_data(
-            spec, view=view, request=request, instance=instance, view_hooks=view_hooks
-        ),
+    server_input = resolve_input_data(
+        spec, view=view, request=request, instance=instance, view_hooks=view_hooks
     )
+    params = apply_input_data(params, server_input)
     serializer = build_input_serializer_from_data(
         params,
         spec.input_serializer,
@@ -385,6 +383,7 @@ def _dispatch_service(
     # spec still refuses it; only what the service would be handed loses it. With
     # no input serializer under a spreading binding, that is the caller's values
     # for the service's own parameters as well as what ``PASSTHROUGH`` forwards.
+    # A key ``input_data`` wrote holds the server's value, so both strips keep it.
     extras = dict(
         strip_hidden_inputs(
             service_extras(
@@ -402,6 +401,7 @@ def _dispatch_service(
                 reserved=pool_seeds.reserved,
             ),
             spec.service,
+            server_supplied=server_input,
         )
     )
     data, spread_source = service_input(serializer, extras)
@@ -420,8 +420,11 @@ def _dispatch_service(
         binding=binding,
         reserved=pool_seeds.reserved,
         # A field the input serializer declares stays in ``data``, which is that
-        # serializer's payload; it still never fills a hidden parameter.
-        spread_source=strip_hidden_inputs(spread_source, spec.service),
+        # serializer's payload; it fills a hidden parameter only when ``input_data``
+        # supplied it, so that the value validated is the server's.
+        spread_source=strip_hidden_inputs(
+            spread_source, spec.service, server_supplied=server_input
+        ),
         provider_kwargs=resolve_service_kwargs(
             spec, view=view, request=request, view_hooks=view_hooks
         ),

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Awaitable, Callable, Iterable, Iterator, Mapping
+from collections.abc import Awaitable, Callable, Collection, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
 
@@ -100,6 +100,59 @@ def strip_reserved_seeds(
     It defaults to the built-ins so a caller with no registry is unaffected.
     """
     return {key: value for key, value in params.items() if key not in reserved}
+
+
+def strip_hidden_inputs(
+    params: Mapping[str, Any],
+    fn: Callable[..., Any],
+    *,
+    server_supplied: Collection[str] = frozenset(),
+) -> Mapping[str, Any]:
+    """Drop the keys ``fn`` marks ``NotClientInput``, and ``view``, from a caller's mapping.
+
+    The marker says the caller never supplies the key, so dispatch removes the
+    caller's value before it can be spread into ``fn``'s pool, whatever the
+    ``UnknownArguments`` policy and whatever the binding's precedence. Apply it to
+    the caller's mapping only, never to the pool: a ``spec.kwargs`` provider, a
+    route capture, a registered pool seed and the parameter's default are all
+    still how such a key is filled.
+
+    ``view`` goes the same way for every ``fn``, marked or not (see
+    ``hidden_input_keys``): no pool carries it and the input schema hides it, so a
+    caller's value would otherwise be the only one a selector declaring it ever
+    received, and on ``SPREAD_CALLER_WINS`` it would outrank a provider's. Held by
+    ``test_a_callers_view_never_reaches_a_selector`` and the tests beside it in
+    ``tests/dispatch/test_dispatch_view_input.py``.
+
+    **``server_supplied`` names the keys ``input_data`` wrote into the mapping**, and
+    those are kept. ``input_data`` is the spec author's own code, merged onto the
+    caller's input before validation with its keys winning (``apply_input_data``),
+    so for each of those keys the mapping holds the server's value and no longer
+    the caller's: keeping it lets the server's value reach the callable wherever an
+    unmarked key's value would, and lets no caller value through. This is the one
+    place that decides it, because by the time the mapping reaches a strip the
+    merge has made the two indistinguishable. Held by
+    ``test_input_data_fills_a_hidden_parameter_of_an_open_spread_service`` and the
+    tests beside it in ``tests/dispatch/test_dispatch_hidden_inputs.py``.
+
+    Both cores call it at every site where caller input is spread into a pool --
+    a selector's own spread, a single-item service's spread and the extras it is
+    handed beyond its input serializer (the ``PASSTHROUGH`` extras, and with no
+    serializer under a ``SPREAD_*`` binding the caller's values for its own
+    parameters, all of them when it declares a bare ``**kwargs``), and the two
+    target lookups, whose pools are built by hand. Only the two service sites pass
+    ``server_supplied``: the target lookups resolve before ``input_data`` runs, and
+    a ``SelectorSpec`` has no ``input_data``. A ``many=True`` service spreads
+    nothing: its items reach it inside the one ``data`` list and never as keyword
+    arguments.
+
+    Returns ``params`` itself when it carries none of those keys, which is nearly
+    always, so the common case neither copies nor changes the mapping's type.
+    """
+    hidden = hidden_input_keys(fn).difference(server_supplied)
+    if hidden.isdisjoint(params):
+        return params
+    return {key: value for key, value in params.items() if key not in hidden}
 
 
 def view_url_kwargs(view: Any, *, reserved: frozenset[str] = RESERVED_POOL_SEEDS) -> dict[str, Any]:
@@ -582,8 +635,9 @@ def service_extras(
     gets it (``_lookup_parameter_names``). An annotated ``**kwargs`` that cannot be
     resolved is taken the same way, the open reading ``resolve_unknown_arguments``
     gives the permissive policies (under ``REJECT`` dispatch has raised before this
-    runs). The caller strips ``NotClientInput`` keys and ``view`` from the result,
-    as from any extras.
+    runs). The caller strips the caller's values for ``NotClientInput`` keys and
+    ``view`` from the result, as from any extras, and keeps the ones ``input_data``
+    supplied (``strip_hidden_inputs``).
 
     Each step names the test that fails without it (in
     ``tests/dispatch/test_dispatch_spread_parameters.py``):

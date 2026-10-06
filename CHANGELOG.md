@@ -22,14 +22,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `instance_selector_spec` / `collection_selector_spec` lookup. A provider, a
   route capture, a registered pool seed or the parameter's default still fills
   the key, and a provider declining with `UNSET` now leaves the default rather
-  than the caller's value. `REJECT` still refuses the key on a closed spec. A
-  caller that filled a hidden key through `params`, such as a task runner or a
-  test, now loses the value without an error; move it to a `kwargs=` provider or
-  a registered pool seed. Over HTTP, selector views and mutation services spread
-  nothing and are unchanged, but a mutation's `instance_selector_spec` or
-  `collection_selector_spec` is resolved from the request body, so a body's value
-  for a key the lookup marks hidden is dropped there too. A route capture of that
-  name still fills it.
+  than the caller's value. A service's `input_data`, or a `get_input_data` view
+  hook, fills it too: that value is the server's, merged over the caller's input
+  with its keys winning, so it is never dropped, and where the caller sends the
+  same key the server's value is the one that arrives. It reaches the service
+  through an input serializer field of that name under every policy, as a
+  `PASSTHROUGH` extra, and through a spread service's bare `**kwargs`; a closed
+  spec with no such field still drops it under `IGNORE`, and `REJECT`, which
+  judges the merged arguments, still refuses it there, as it refuses any
+  `input_data` key nothing declares. `REJECT` still refuses the caller's value on
+  a closed spec. A caller that filled a hidden key through `params`, such as a
+  task runner or a test, now loses the value without an error where the parameter
+  has a default, and fails with the callable's own `TypeError` (a `500` over
+  HTTP) where it has none, which is not named as a missing argument. Move the
+  value to a `kwargs=` provider, `input_data` or a registered pool seed. Over
+  HTTP, selector views and mutation services spread nothing and are unchanged,
+  but a mutation's `instance_selector_spec` or `collection_selector_spec` is
+  resolved from the request body, so a body's value for a key the lookup marks
+  hidden is dropped there too: a mutation that answered `200` for a body carrying
+  a required one now answers `500`. A route capture of that name still fills it.
 - **Off HTTP, a service's output re-read is no longer filtered by the call's
   arguments.** With no `filter_data`, the `output_selector_spec`'s `filter_set`
   read the arguments, so a key that changed the result was not in the input

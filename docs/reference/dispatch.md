@@ -238,12 +238,16 @@ queryset runs only the class-level check, never `has_object_permission`.
 
 **Read-shaping over the offline path.** Pass `query_params=` to seed the synthetic
 request's `GET` `QueryDict` — the source `request.query_params` reads. That is how
-read-shaping params that are *not* spec inputs reach the serializer off-HTTP:
-`SelectorSpec.filter_set` (when you don't hand `filter_data` in another way), and
-any serializer that branches on `request.query_params` (django-restql field
-selection, custom serializers). It does **not** make DRF `filter_backends`
-(`SearchFilter` / `OrderingFilter`) run — the offline path never calls
-`filter_queryset`; `filter_set` is the drf-services-native equivalent.
+read-shaping params that are *not* spec inputs reach the serializer off-HTTP: any
+serializer that branches on `request.query_params` (django-restql field selection,
+custom serializers), and a request-scoped `FilterSet` that reads
+`self.request.query_params` itself. It is not what a `filter_set` is bound to:
+`dispatch_spec` binds a `SelectorSpec`'s own `filter_set`, and a target lookup's,
+to `filter_data`, else to `params`, and a service's `output_selector_spec.filter_set`
+to `filter_data`, else to an empty mapping. To filter from the synthetic query
+string, pass `filter_data=context.request.query_params`. It does **not** make DRF
+`filter_backends` (`SearchFilter` / `OrderingFilter`) run — the offline path never
+calls `filter_queryset`; `filter_set` is the drf-services-native equivalent.
 
 ### `OfflineHttpRequest`
 

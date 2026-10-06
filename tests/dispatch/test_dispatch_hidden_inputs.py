@@ -4,7 +4,7 @@ The marker drops a key from the schema, and dispatch drops the caller's value fo
 it before the spread, on both cores and under every ``UnknownArguments`` policy.
 The key can still be filled by a channel the caller does not control: a
 ``spec.kwargs`` provider, a route capture (``build_offline_context(kwargs=…)``), a
-registered pool seed, or the parameter's own default.
+registered pool seed, a service's ``input_data``, or the parameter's own default.
 
 Each test runs through ``dispatch_spec`` and ``adispatch_spec`` alike, because each
 core assembles its own pools and so strips on its own.
@@ -292,6 +292,189 @@ def test_a_many_services_items_keep_a_hidden_key(dispatch: Dispatch) -> None:
     )
 
     assert result.value == {"team": "own-team", "data": [{"title": "x", "team": "other-team"}]}
+
+
+def _required_team(*, team: Annotated[str, NotClientInput]) -> str:
+    return team
+
+
+@_CORES
+def test_a_callers_value_for_a_required_hidden_parameter_leaves_the_callables_type_error(
+    dispatch: Dispatch,
+) -> None:
+    """With no default to fall back on, dropping the caller's value is not silent: the
+    callable raises its own ``TypeError``, which is not named as a missing argument
+    because no value the caller sends could fill it."""
+    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_required_team)
+
+    with pytest.raises(TypeError, match="team"):
+        dispatch(spec, params={"team": "other-team"})
+
+
+# --- a value input_data supplies -----------------------------------------
+#
+# ``input_data`` is the spec author's own code, merged onto the caller's input with
+# its keys winning. So its value for a hidden key is not client input, and the strip
+# leaves it: it reaches the service wherever an unmarked key's value would. A
+# caller's value for the same key never arrives, because the merge has already
+# replaced it with the server's. Each test runs with and without the caller's value.
+
+
+def _server_team(**_: Any) -> dict[str, str]:
+    return {"team": "server-team"}
+
+
+def _team_beside_var_keyword(
+    *, team: Annotated[str, NotClientInput] = "own-team", **_rest: Any
+) -> str:
+    return team
+
+
+_CALLER_SENDS_TOO = pytest.mark.parametrize(
+    "params", [{}, {"team": "other-team"}], ids=["server-only", "caller-too"]
+)
+_EVERY_POLICY = pytest.mark.parametrize(
+    "policy", list(UnknownArguments), ids=lambda policy: policy.name.lower()
+)
+
+
+@_CORES
+@_CALLER_SENDS_TOO
+@_EVERY_POLICY
+def test_input_data_fills_a_hidden_parameter_of_an_open_spread_service(
+    dispatch: Dispatch, params: dict[str, Any], policy: UnknownArguments
+) -> None:
+    """A bare ``**kwargs`` opens the set, so no policy drops or refuses the key, and
+    the strip is the only thing that could stop the server's value."""
+    spec = ServiceSpec(service=_team_beside_var_keyword, input_data=_server_team, atomic=False)
+
+    result = dispatch(
+        spec,
+        params=params,
+        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+        unknown_arguments=policy,
+    )
+
+    assert result.value == "server-team"
+
+
+@_CORES
+@_CALLER_SENDS_TOO
+@pytest.mark.parametrize(
+    "binding",
+    [ArgumentBinding.SPREAD_AUTHOR_WINS, ArgumentBinding.SPREAD_CALLER_WINS],
+    ids=["author-wins", "caller-wins"],
+)
+def test_passthrough_forwards_input_datas_hidden_key_to_a_closed_service(
+    dispatch: Dispatch, params: dict[str, Any], binding: ArgumentBinding
+) -> None:
+    """Closed, the hidden key is undeclared, so ``PASSTHROUGH`` is what forwards it,
+    into the spread and into ``data`` alike. ``SPREAD_CALLER_WINS`` has no caller
+    value left to rank."""
+    spec = ServiceSpec(service=_record_team, input_data=_server_team, atomic=False)
+
+    result = dispatch(
+        spec,
+        params=params,
+        argument_binding=binding,
+        unknown_arguments=UnknownArguments.PASSTHROUGH,
+    )
+
+    assert result.value == {"team": "server-team", "data": {"team": "server-team"}}
+
+
+@_CORES
+@_CALLER_SENDS_TOO
+def test_passthrough_folds_input_datas_hidden_key_into_a_bundled_services_data(
+    dispatch: Dispatch, params: dict[str, Any]
+) -> None:
+    """``BUNDLE`` spreads nothing, so the forwarded key reaches ``data`` alone and the
+    parameter keeps its default, as an unmarked key's value would."""
+    spec = ServiceSpec(service=_record_team, input_data=_server_team, atomic=False)
+
+    result = dispatch(spec, params=params, unknown_arguments=UnknownArguments.PASSTHROUGH)
+
+    assert result.value == {"team": "own-team", "data": {"team": "server-team"}}
+
+
+@_CORES
+@_CALLER_SENDS_TOO
+@_EVERY_POLICY
+def test_input_data_fills_a_hidden_parameter_through_a_serializer_field(
+    dispatch: Dispatch, params: dict[str, Any], policy: UnknownArguments
+) -> None:
+    """The serializer declares ``team``, so every policy admits it, and the value it
+    validates is the server's, merged in before validation. That is the one value a
+    field of that name may hand the hidden parameter."""
+    spec = ServiceSpec(
+        service=_record_team,
+        input_serializer=_TeamSerializer,
+        input_data=_server_team,
+        atomic=False,
+    )
+
+    result = dispatch(
+        spec,
+        params=params,
+        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+        unknown_arguments=policy,
+    )
+
+    assert result.value == {"team": "server-team", "data": {"team": "server-team"}}
+
+
+def _server_team_and_note(**_: Any) -> dict[str, str]:
+    return {"team": "server-team", "note": "server-note"}
+
+
+@_CORES
+@_CALLER_SENDS_TOO
+@pytest.mark.parametrize(
+    "binding",
+    [ArgumentBinding.BUNDLE, ArgumentBinding.SPREAD_AUTHOR_WINS],
+    ids=["bundle", "author-wins"],
+)
+def test_reject_refuses_input_datas_keys_where_nothing_declares_them(
+    dispatch: Dispatch, params: dict[str, Any], binding: ArgumentBinding
+) -> None:
+    """``REJECT`` judges the merged arguments, so it cannot tell the server's key
+    from the caller's either. On a closed spec it refuses an ``input_data`` key that
+    nothing declares, marked or not: the unmarked ``note`` is refused beside
+    ``team``."""
+    spec = ServiceSpec(service=_record_team, input_data=_server_team_and_note, atomic=False)
+
+    with pytest.raises(ValidationError) as excinfo:
+        dispatch(
+            spec,
+            params=params,
+            argument_binding=binding,
+            unknown_arguments=UnknownArguments.REJECT,
+        )
+
+    assert excinfo.value.detail == {"non_field_errors": ["Unexpected argument(s): 'note', 'team'."]}
+
+
+@_CORES
+@_CALLER_SENDS_TOO
+@pytest.mark.parametrize(
+    "binding",
+    [ArgumentBinding.BUNDLE, ArgumentBinding.SPREAD_AUTHOR_WINS],
+    ids=["bundle", "author-wins"],
+)
+def test_ignore_drops_input_datas_keys_where_nothing_declares_them(
+    dispatch: Dispatch, params: dict[str, Any], binding: ArgumentBinding
+) -> None:
+    """The marker keeps ``team`` out of the declared set, so on a closed spec
+    ``IGNORE`` drops the server's value as it drops the unmarked ``note``. It is the
+    policy that drops it, not the strip, and the caller's value does not arrive
+    in its place."""
+    spec = ServiceSpec(service=_record_team, input_data=_server_team_and_note, atomic=False)
+
+    result = dispatch(
+        spec, params=params, argument_binding=binding, unknown_arguments=UnknownArguments.IGNORE
+    )
+
+    assert result.value == {"team": "own-team", "data": None}
 
 
 # --- a service's target lookups ------------------------------------------

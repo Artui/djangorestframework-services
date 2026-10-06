@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
 from asgiref.sync import sync_to_async
@@ -41,6 +41,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework_services import (
     DEFAULT_POOL_SEEDS,
     DispatchResult,
+    NotClientInput,
     SelectorKind,
     SelectorSpec,
     ServiceSpec,
@@ -56,6 +57,7 @@ from rest_framework_services import (
 from rest_framework_services.dispatch.adispatch_spec import (
     _aresolve_instance,
     _aresolve_target,
+    _arun_output_selector,
 )
 from rest_framework_services.dispatch.aenforce_affordances import aenforce_affordances
 from rest_framework_services.dispatch.aunmet_operation_affordance import (
@@ -64,6 +66,7 @@ from rest_framework_services.dispatch.aunmet_operation_affordance import (
 from rest_framework_services.dispatch.dispatch_spec import (
     _resolve_instance,
     _resolve_target,
+    _run_output_selector,
 )
 from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
 from rest_framework_services.dispatch.unmet_operation_affordance import (
@@ -193,6 +196,7 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
         (render_for_audience, arender_for_audience),
         (_resolve_target, _aresolve_target),
         (_resolve_instance, _aresolve_instance),
+        (_run_output_selector, _arun_output_selector),
         (enforce_affordances, aenforce_affordances),
         (unmet_operation_affordance, aunmet_operation_affordance),
     ],
@@ -202,6 +206,7 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
         "render_for_audience",
         "resolve_target",
         "resolve_instance",
+        "run_output_selector",
         "enforce_affordances",
         "unmet_operation_affordance",
     ],
@@ -264,6 +269,28 @@ async def test_params_cannot_shadow_the_user_in_collection_resolution_on_either_
     )
     assert sync_summary == async_summary
     assert seen == [real, real]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_params_cannot_fill_a_hidden_key_in_target_resolution_on_either_core() -> None:
+    """The same hand-built pool, stripped of a ``NotClientInput`` key as well as of
+    the seeds: each core strips it itself, so each needs the check."""
+    seen: list[Any] = []
+    post = await Post.objects.acreate(title="p")
+
+    def target(*, pk: Any, team: Annotated[str, NotClientInput] = "own-team") -> QuerySet[Post]:
+        seen.append(team)
+        return Post.objects.filter(pk=pk)
+
+    spec = ServiceSpec(
+        service=lambda *, instance: None,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=target),
+    )
+    sync_summary, async_summary = await _dispatch_both(
+        spec, lambda: {"user": None, "params": {"pk": post.pk, "team": "client-supplied"}}
+    )
+    assert sync_summary == async_summary
+    assert seen == ["own-team", "own-team"]
 
 
 @pytest.mark.django_db(transaction=True)

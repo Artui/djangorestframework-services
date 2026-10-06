@@ -225,9 +225,9 @@ input before the spread, under every `UnknownArguments` policy:
 | open, under any policy | the value is dropped |
 
 The provider still fills it in. So can a route capture (`view.kwargs`, or
-`build_offline_context(kwargs=…)` off HTTP), a registered pool seed, or the
-parameter's own default; those are channels the caller does not control. The
-same holds for a service whose input is spread, which never receives the key from
+`build_offline_context(kwargs=…)` off HTTP), a registered pool seed, a service's
+`input_data`, or the parameter's own default; those are channels the caller does
+not control. The same holds for a service whose input is spread, which never receives the key from
 `PASSTHROUGH` either, and for a service's `instance_selector_spec` /
 `collection_selector_spec` lookup, whose pool is spread from the caller's
 arguments. Over HTTP a selector view spreads nothing, so the lookups are the one
@@ -238,10 +238,24 @@ A hidden parameter with no default that nothing fills is not named as a missing
 argument either: the caller could not send it, so the call fails as the author's
 `TypeError`.
 
+`input_data` (or a `get_input_data` view hook) is the spec author's own code, merged
+over the caller's input with its keys winning, so its value for a hidden key is the
+server's and is never dropped. Where the caller sends the same key, the server's
+value is the one that arrives. It reaches the service through an input serializer
+field of that name under every policy, as a `PASSTHROUGH` extra, and through a
+spread service's bare `**kwargs`. The marker still keeps the key out of the declared
+set, so on a closed spec with no such field `IGNORE` drops it and `REJECT`, which
+judges the merged arguments, refuses it, as it refuses any `input_data` key nothing
+declares.
+
 !!! warning "What is left to decide the value"
     Because the caller's value is gone before the precedence is applied, neither
     `SPREAD_CALLER_WINS` nor a provider declining with `UNSET` can let it back in.
-    What a declining provider leaves is the parameter's default. For a **scoping**
+    What a declining provider leaves is the parameter's default. A caller that used
+    to fill the key through its arguments, such as a task runner or a test, loses
+    the value the same way: silently where the parameter has a default, and with
+    the callable's own `TypeError` where it has none, which over HTTP is a `500`.
+    Move such a value to a provider, `input_data` or a pool seed. For a **scoping**
     key whose default reads as "everything", that is still a cross-scope read, so
     a provider owning a scoping key must always resolve it. A key the callable
     does *not* mark is still decided by the precedence: under

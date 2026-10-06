@@ -8,7 +8,7 @@ from django.http import QueryDict
 from typing_extensions import TypedDict, Unpack
 
 from rest_framework_services import NotClientInput
-from rest_framework_services.dispatch.strip_hidden_inputs import strip_hidden_inputs
+from rest_framework_services.dispatch.utils import strip_hidden_inputs
 
 
 def _unmarked(*, team: str = "own-team") -> str:
@@ -58,3 +58,20 @@ def test_a_mapping_carrying_no_hidden_key_comes_back_unchanged() -> None:
     params = QueryDict("limit=3")
 
     assert strip_hidden_inputs(params, _marked) is params
+
+
+def test_a_key_the_server_supplied_is_kept() -> None:
+    """``input_data`` wrote the value, so it is the server's, not the caller's."""
+    params = {"team": "server-team", "limit": 3}
+
+    assert strip_hidden_inputs(params, _marked, server_supplied={"team"}) is params
+
+
+def test_only_the_server_supplied_key_is_kept() -> None:
+    """The server supplying one hidden key does not let the caller's others through."""
+    params = {"team": "server-team", "view": "spoofed", "limit": 3}
+
+    assert strip_hidden_inputs(params, _marked, server_supplied={"team"}) == {
+        "team": "server-team",
+        "limit": 3,
+    }
