@@ -34,6 +34,12 @@ class UnknownArguments(Enum):
       policy that *must* live inside ``dispatch_spec`` — it needs the seam
       between validation and pool construction that a wrapper cannot reach.
 
+    A key the callable marks
+    [`NotClientInput`][rest_framework_services.types.not_client_input] is outside
+    the declared set, so ``REJECT`` refuses it on a closed spec. Under every other
+    policy, and on an open spec, dispatch drops the caller's value for it before the
+    spread: ``IGNORE`` drops it as it says, and ``PASSTHROUGH`` never forwards it.
+
     Callers strip their own transport-only keys (pagination, ordering, output
     format) before calling, so the declared-set check sees only spec inputs.
     """
