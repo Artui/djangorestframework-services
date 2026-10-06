@@ -3,7 +3,7 @@
 At the package root, beside ``is_async``, because no one subpackage owns the
 question: dispatch is what presents the ``None``, the JSON Schema and the
 capability manifest state it, and every transport advertising an output schema
-asks it too.
+should ask it too.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ def can_present_nothing(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any
     The question an output schema has to answer before it admits ``null``, asked
     in one place so that this package's
     [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
-    and every transport advertising an output schema give the same answer:
+    and every transport advertising an output schema can give the same answer:
 
     - A result that is a list is never ``None``, only empty: a ``LIST``
       ``SelectorSpec``, a ``many=True`` ``ServiceSpec``, and a ``ServiceSpec``

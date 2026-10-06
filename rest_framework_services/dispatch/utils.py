@@ -398,11 +398,6 @@ def declared_input_keys(
     service's surface is not read, so an unresolvable one raises nothing. Held by
     ``test_an_open_lookup_leaves_reject_enforceable_beside_an_unresolvable_service``.
 
-    A lookup dispatch does not call is not read here either: an open one (a
-    ``filter_set`` or a bare ``**kwargs``) beside a collection lookup, or on a
-    ``many=True`` spec, leaves the set closed, and one whose ``**kwargs``
-    annotation cannot be resolved raises nothing.
-
     Read from the spec alone, because it is also what a transport advertises, so a
     direct caller passing ``instance=``, which skips the lookup, still has that
     lookup's keys admitted. No view passes an ``instance`` where the two differ.

@@ -320,6 +320,10 @@ request:
 - A required parameter is not framework-provided and the view has no
   `kwargs=` provider, no `get_<action>_*_kwargs`, and no `get_*_kwargs` —
   the parameter would be silently dropped at request time.
+- A schema marker (`InputRequired`, `NotClientInput`, `InputDescription`)
+  sits anywhere wider than `Annotated` itself or one `Optional` around it, or
+  one input is marked both `InputRequired` and `NotClientInput`. The marker
+  would otherwise be ignored, or every call refused.
 
 The validator is permissive when the user has plugged in an extras source
 (the framework can't statically introspect what those provide). Strict
