@@ -10,6 +10,7 @@ from typing import Any, TypeVar, Union, get_args, get_origin
 
 from typing_extensions import Format, get_annotations, get_type_hints
 
+from rest_framework_services.types.provider_keys import ProviderKeys
 from rest_framework_services.types.unset import UnsetType
 
 # The two runtime spellings of a union, ``Union[a, b]`` and ``a | b``: separate
@@ -21,7 +22,7 @@ _UNIONS: tuple[Any, ...] = (Union, UnionType)
 
 def provider_keys(
     provider: Callable[..., Any] | None,
-) -> tuple[frozenset[str], frozenset[str]] | None:
+) -> ProviderKeys | None:
     """The names ``provider`` fills and those it may decline, or ``None`` if it does not say.
 
     The static half of the ``kwargs=`` provider contract, whose runtime half is
@@ -33,24 +34,21 @@ def provider_keys(
     for them, and to know which calls to refuse before dispatch, rather than
     keeping a copy of this reader.
 
-    Returns ``(filled, declinable)``, two disjoint sets that together are every
-    key of the ``TypedDict``:
+    Returns a
+    [`ProviderKeys`][rest_framework_services.types.provider_keys.ProviderKeys],
+    ``(filled, declinable)``: two disjoint sets that together are every key of
+    the ``TypedDict``, the keys the provider always answers for and the keys
+    whose value admits ``UnsetType``, which it may decline with ``UNSET``. It
+    unpacks as a pair and names each set, so ``keys.filled`` reads as well as
+    ``filled, declinable = keys``.
 
-    - ``filled``: the keys the provider always answers for, ``NotRequired`` ones
-      included, since the provider owns them, so a transport need not ask the
-      caller for them.
-    - ``declinable``: the keys whose value admits ``UnsetType``
-      (``tenant: str | UnsetType``). The provider may return ``UNSET`` for one,
-      which dispatch removes from the pool, so the caller's value is the one
-      the callable receives. Such a key is the caller's to send, but not
-      required of it, since the provider may fill it after all.
-
-    ``(frozenset(), frozenset())`` for ``provider=None``: a spec with no
-    provider fills nothing. ``None`` when the provider says nothing about its keys -- no return
-    annotation, a plain ``dict``, a lambda, or a return annotation that does not
-    resolve -- so it may fill any name, and a transport requires none of them
-    for lacking a default. Held by ``test_a_spec_without_a_provider_fills_nothing``
-    and ``test_a_provider_whose_return_says_nothing_is_untyped``.
+    ``ProviderKeys(frozenset(), frozenset())`` for ``provider=None``: a spec with
+    no provider fills nothing. ``None`` when the provider says nothing about its
+    keys -- no return annotation, a plain ``dict``, a lambda, or a return
+    annotation that does not resolve -- so it may fill any name, and a transport
+    requires none of them for lacking a default. Held by
+    ``test_a_spec_without_a_provider_fills_nothing`` and
+    ``test_a_provider_whose_return_says_nothing_is_untyped``.
 
     **Each annotation costs only what it says.** The return annotation is
     resolved on its own, so a parameter annotation naming a type imported only
@@ -82,7 +80,7 @@ def provider_keys(
     ``typing_extensions.TypedDict`` on the older Pythons this package supports.
     """
     if provider is None:
-        return frozenset(), frozenset()
+        return ProviderKeys(frozenset(), frozenset())
     try:
         returned = _resolve(
             get_annotations(provider, format=Format.FORWARDREF).get("return"),
@@ -103,7 +101,7 @@ def provider_keys(
     declinable = frozenset(
         name for name in names if _may_decline(values.get(name), namespace, arguments)
     )
-    return names - declinable, declinable
+    return ProviderKeys(names - declinable, declinable)
 
 
 def _may_decline(annotation: Any, namespace: dict[str, Any], arguments: Mapping[Any, Any]) -> bool:

@@ -152,19 +152,21 @@ catalogue and notes on type-checker support.
 The provider's return annotation is read before it runs, by
 [`provider_keys`][rest_framework_services.dispatch.provider_keys.provider_keys].
 That is how a transport serving a selector off HTTP, such as an MCP tool or an
-agent toolset, knows which names not to ask its caller for. It reads three
-things:
+agent toolset, knows which names not to ask its caller for. Its answer is a
+[`ProviderKeys`][rest_framework_services.types.provider_keys.ProviderKeys], with
+`filled` and `declinable` sets of key names that also unpack as a pair. It
+reads three things:
 
 - **Every key of the `TypedDict` is one the provider fills**, optional keys
-  included, since the provider owns them.
-- **A key whose value admits `UnsetType` is one it may decline.** Return
-  `UNSET` for it and dispatch drops the key from the pool, so the caller's
-  value is the one the callable receives. Only a union counts:
-  `tenant: str | UnsetType` may be declined, while
+  included, since the provider owns them. These are `filled`.
+- **A key whose value admits `UnsetType` is one it may decline**, and moves
+  from `filled` to `declinable`. Return `UNSET` for it and dispatch drops the
+  key from the pool, so the caller's value is the one the callable receives.
+  Only a union counts: `tenant: str | UnsetType` may be declined, while
   `regions: list[str | UnsetType]` is always filled with a list.
 - **A provider whose return says nothing may fill any name**: one with no
   return annotation, a plain `dict`, a lambda, or a return annotation that does
-  not resolve.
+  not resolve. The answer is `None` rather than a `ProviderKeys`.
 
 Each annotation costs only what it says. A parameter typed with a name imported
 only under `if TYPE_CHECKING:`, where a linter's type-checking rules move it,

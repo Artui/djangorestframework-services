@@ -313,7 +313,14 @@ else:
     # send and is not required of it, since the provider may fill it after all.
 ```
 
+The answer is a [`ProviderKeys`](#providerkeys), a `NamedTuple`, so a caller
+that would rather not unpack it reads `keys.filled` and `keys.declinable`.
+
 ::: rest_framework_services.dispatch.provider_keys.provider_keys
+
+### `ProviderKeys`
+
+::: rest_framework_services.types.provider_keys.ProviderKeys
 
 ### `is_async`
 

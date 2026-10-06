@@ -44,6 +44,7 @@ from rest_framework_services.selectors.utils import (
 )
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
+from rest_framework_services.types.provider_keys import ProviderKeys
 from rest_framework_services.types.registered_spec import RegisteredSpec
 from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
 from rest_framework_services.views.mutation.utils import (
@@ -56,6 +57,9 @@ from rest_framework_services.views.utils import resolve_callable_kwargs
 
 # Blessed name → the leaf-module original it must alias.
 _SURFACE = {
+    # What ``provider_keys`` answers, so a transport can annotate the value it
+    # holds without importing from a leaf module.
+    "ProviderKeys": ProviderKeys,
     # Adapters are told to import this rather than keep a copy of the seed
     # names, so it has to be reachable from the same place as the rest of
     # the dispatch surface.

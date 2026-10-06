@@ -16,10 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pool. Both spec transports read that to build a selector's input schema, and
   each kept its own copy of the reader. This is that reader, public, as the
   static half of the contract whose runtime half dispatch already owns. It
-  returns `(filled, declinable)`, two disjoint sets of key names, or
-  `(frozenset(), frozenset())` for no provider, or `None` for a provider whose
-  return says nothing about its keys, which may fill any name. It reads three
-  things differently from the copies it replaces:
+  returns a `ProviderKeys`, a `NamedTuple` of two disjoint sets of key names,
+  `filled` and `declinable`, which reads by field name and still unpacks as
+  `filled, declinable = ...`. Both sets are empty for no provider, and the
+  answer is `None` for a provider whose return says nothing about its keys,
+  which may fill any name. It reads three things differently from the copies it
+  replaces:
   - **A key holding `UnsetType` inside a container is filled.**
     `regions: list[str | UnsetType]` always comes back as a list, and dispatch
     drops a key only when its value is `UNSET`. Only a union's alternatives are

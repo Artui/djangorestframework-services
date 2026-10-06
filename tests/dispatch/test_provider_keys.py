@@ -21,6 +21,7 @@ import pytest
 from typing_extensions import NotRequired, ReadOnly, Required, TypedDict
 
 from rest_framework_services.dispatch.provider_keys import provider_keys
+from rest_framework_services.types.provider_keys import ProviderKeys
 from rest_framework_services.types.unset import UNSET, UnsetType
 
 if TYPE_CHECKING:
@@ -214,6 +215,25 @@ class _NoneableScope(TypedDict):
 
 def _noneable_provider() -> _NoneableScope:
     return {"tenant": None, "region": "eu"}
+
+
+@pytest.mark.parametrize(
+    ("provider", "filled", "declinable"),
+    [(None, _NOTHING, _NOTHING), (_maybe_provider, frozenset({"region"}), frozenset({"tenant"}))],
+    ids=["no-provider", "typed-provider"],
+)
+def test_the_answer_names_its_two_sets_and_still_unpacks(
+    provider: Any, filled: frozenset[str], declinable: frozenset[str]
+) -> None:
+    # The Pydantic-AI toolset reads the two sets by name and the MCP server
+    # unpacks them, so one answer serves both call sites. One case per return
+    # statement, so neither can go back to a bare tuple.
+    keys = provider_keys(provider)
+
+    assert isinstance(keys, ProviderKeys)
+    assert (keys.filled, keys.declinable) == (filled, declinable)
+    unpacked_filled, unpacked_declinable = keys
+    assert (unpacked_filled, unpacked_declinable) == (filled, declinable)
 
 
 def test_a_union_that_does_not_admit_unset_is_still_filled() -> None:
