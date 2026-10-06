@@ -26,9 +26,10 @@ provider supplies from request state, which the caller has no business setting.
   spread from the caller's arguments too.
 
 So a marked key is filled only by a channel the caller does not control: a
-``spec.kwargs`` provider, a route capture (``view.kwargs``, or
-``build_offline_context(kwargs=…)`` off HTTP), a registered pool seed, a service's
-``input_data``, or the parameter's own default. A provider that declines with ``UNSET`` therefore leaves
+``spec.kwargs`` provider, a registered pool seed, a service's ``input_data``, the
+parameter's own default, or, for a selector or a target lookup, a route capture
+(``view.kwargs``, or ``build_offline_context(kwargs=…)`` off HTTP). A route capture
+never reaches a service's own parameters. A provider that declines with ``UNSET`` therefore leaves
 the default in place, never the caller's value. That moves the hazard rather than
 removing it: a scoping key whose default reads as "everything" must have a provider
 that always resolves it.

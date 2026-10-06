@@ -113,11 +113,12 @@ def dispatch_spec(
             to execute.
         user: The acting user, seeded into every callable's pool.
         params: The flat client input — a list on a ``many=True`` spec, unless
-            ``many_as_argument`` says it arrives as an object. A key the callable
-            marks ``NotClientInput`` is never spread from it, under any
-            ``unknown_arguments`` policy (``REJECT`` on a closed spec refuses it
-            outright), so only a ``spec.kwargs`` provider, a route capture, a
-            registered pool seed or the parameter's default fills one; see
+            ``many_as_argument`` says it arrives as an object. A key that any
+            callable in the call marks ``NotClientInput`` is never spread from
+            it, under any ``unknown_arguments`` policy (``REJECT`` on a closed spec
+            refuses it outright), so only a ``spec.kwargs`` provider, a registered
+            pool seed, a service's ``input_data``, the parameter's default or, for
+            a selector or a target lookup, a route capture fills one; see
             [`NotClientInput`][rest_framework_services.types.not_client_input].
         request: Forwarded only to user callables that declare it (``extend_queryset``,
             the context providers, ``kwargs``); a pure non-HTTP caller passes neither
