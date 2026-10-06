@@ -45,6 +45,10 @@ def _all_posts() -> QuerySet[Post]:
     return Post.objects.all().order_by("id")
 
 
+def _posts_titled(*, title: str) -> QuerySet[Post]:
+    return Post.objects.filter(title=title).order_by("id")
+
+
 if TYPE_CHECKING:
     # Only the type checker sees it, so the runtime cannot resolve the annotation
     # that names it: the routine ``from __future__ import annotations`` idiom.
@@ -247,6 +251,60 @@ class TestUnknownArguments:
                 spec, user=None, params={"pk": post.pk}, unknown_arguments=UnknownArguments.REJECT
             )
 
+    def test_reject_admits_the_collection_lookup_keys_and_nothing_else(self) -> None:
+        Post.objects.create(title="a")
+        ran: list[int] = []
+
+        def svc(*, collection: QuerySet[Post]) -> dict[str, int]:
+            ran.append(collection.count())
+            return {}
+
+        spec = ServiceSpec(
+            service=svc,
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_posts_titled),
+            atomic=False,
+        )
+        # The collection lookup is what dispatch calls, so the ``title`` it reads is
+        # declared input.
+        dispatch_spec(
+            spec, user=None, params={"title": "a"}, unknown_arguments=UnknownArguments.REJECT
+        )
+        assert ran == [1]
+        with pytest.raises(ValidationError) as exc:
+            dispatch_spec(
+                spec,
+                user=None,
+                params={"title": "a", "bogus": 1},
+                unknown_arguments=UnknownArguments.REJECT,
+            )
+        assert exc.value.detail == {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}
+        assert ran == [1]
+
+    def test_passthrough_forwards_a_key_the_collection_lookup_does_not_read(self) -> None:
+        Post.objects.create(title="a")
+        seen: dict[str, Any] = {}
+
+        def svc(
+            *, collection: QuerySet[Post], data: dict[str, Any] | None = None
+        ) -> dict[str, Any]:
+            seen["titles"] = [post.title for post in collection]
+            seen["data"] = data
+            return {}
+
+        spec = ServiceSpec(
+            service=svc,
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_posts_titled),
+            atomic=False,
+        )
+        dispatch_spec(
+            spec,
+            user=None,
+            params={"title": "a", "note": "kept"},
+            unknown_arguments=UnknownArguments.PASSTHROUGH,
+        )
+        # ``title`` went to the collection lookup; ``note`` is an extra.
+        assert seen == {"titles": ["a"], "data": {"note": "kept"}}
+
     def test_reject_is_open_for_filtered_selector(self) -> None:
         class _FilterSet:
             def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
@@ -389,19 +447,14 @@ class TestUnknownArgumentsBulk:
         assert Post.objects.count() == 0
 
     def test_reject_refuses_a_lookup_key_inside_an_item(self) -> None:
-        # A ``many=True`` dispatch resolves no target, so a declared lookup is
-        # never called and its ``pk`` in an item is read by nothing. (An instance
-        # lookup beside ``many`` is refused when the spec is built.)
+        # A ``many=True`` dispatch resolves no target, so a lookup's ``pk`` in an
+        # item is read by nothing. Either lookup beside ``many`` is refused when the
+        # spec is built (tests/types/test_service_spec.py), so the spec here declares
+        # none, and the key is refused through the ``spec.many`` branch.
         def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
             raise AssertionError("service must not run when an item is rejected")
 
-        spec = ServiceSpec(
-            service=bulk,
-            input_serializer=_TitleSerializer,
-            many=True,
-            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_post_qs_by_pk),
-            atomic=False,
-        )
+        spec = ServiceSpec(service=bulk, input_serializer=_TitleSerializer, many=True, atomic=False)
         with pytest.raises(ValidationError) as exc:
             dispatch_spec(
                 spec,

@@ -298,24 +298,13 @@ class TestDeclaredInputKeys:
         assert declared_input_keys(spec, serializer=serializer) == {"title", "parent_pk"}
 
     def test_service_many_declares_no_lookup_keys(self) -> None:
-        # A ``many=True`` dispatch resolves no target at all, so the lookup beside
-        # it is never called and only the item serializer's fields are declared.
-        # (An instance lookup beside ``many`` is refused when the spec is built.)
+        # A ``many=True`` dispatch resolves no target at all, so only the item
+        # serializer's fields are declared. Either lookup beside ``many`` is refused
+        # when the spec is built (tests/types/test_service_spec.py), so the spec here
+        # declares none, and this holds the ``spec.many`` branch's answer.
         serializer = SimpleNamespace(fields={"title": object()})
-        spec = ServiceSpec(
-            service=_service,
-            many=True,
-            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_by_parent),
-        )
+        spec = ServiceSpec(service=_service, many=True)
         assert declared_input_keys(spec, serializer=serializer) == {"title"}
-
-    def test_service_many_ignores_an_unreadable_lookup(self) -> None:
-        spec = ServiceSpec(
-            service=_service,
-            many=True,
-            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_find_orders),
-        )
-        assert declared_input_keys(spec, serializer=None) == set()
 
 
 class TestResolveUnknownArguments:

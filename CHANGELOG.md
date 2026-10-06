@@ -22,27 +22,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   changes nothing there. `allow_none` on the nested `output_selector_spec` is
   still not read.
 - **`can_present_nothing(spec)` answers whether a spec's dispatch may present
-  `None`**, for a `SelectorSpec` and a `ServiceSpec` alike, so the output schema
-  and every transport advertising one give the same answer instead of each
-  deriving it. A list result never does. A `RETRIEVE` selector does under
+  `None`**, for a `SelectorSpec` and a `ServiceSpec` alike. A list result never
+  does. A `RETRIEVE` selector does under
   `allow_none`. A single-row service does when its `output_selector_spec`
   re-reads through a `selector`, and otherwise when it declares
-  `allow_none=True`. `spec_to_json_schema` asks it for both kinds of spec.
-  Exported from the package root.
+  `allow_none=True`. `spec_to_json_schema` asks it for both kinds of spec, and
+  a transport advertising an output schema of its own should ask it rather than
+  derive the answer again, so every route states the same `null`. Exported from
+  the package root.
 
 ### Changed
 
-- **A `ServiceSpec` declaring an instance lookup that dispatch never calls is
+- **A `ServiceSpec` declaring a target lookup that dispatch never calls is
   refused when it is built.** `instance_selector_spec` beside
   `collection_selector_spec` passed validation, but dispatch resolves the target
   through the collection lookup and never calls the instance one, so a service
   requiring `instance` passed `as_view()` and then raised `TypeError` on every
-  call. Beside `many=True` the instance lookup was dead the same way, since a
-  list payload resolves no target. Both now raise `ImproperlyConfigured` from the
-  constructor, naming the fields, so the refusal holds for `dispatch_spec` and
-  every transport rather than only where a view validates the spec. A spec that
-  declared either pair constructed before and raises now; drop the lookup
-  dispatch was not calling.
+  call. Beside `many=True` either lookup was dead the same way, since a list
+  payload resolves no target: an instance lookup passed `as_view()` as well, and
+  a collection lookup, which `as_view()` already refused, passed `dispatch_spec`
+  and every off-HTTP transport. All three pairs now raise `ImproperlyConfigured`
+  from the constructor, naming the fields, so the refusal holds for
+  `dispatch_spec` and every transport rather than only where a view validates
+  the spec, and `as_view()` no longer checks `many` beside
+  `collection_selector_spec` itself. A spec that declared any of the pairs
+  constructed before and raises now; drop the lookup dispatch was not calling.
 - **A schema marker placed deeper than one `Optional` is refused.**
   `InputRequired`, `NotClientInput` and `InputDescription` were read only when
   `Annotated` was the outermost layer of the annotation, and silently ignored
@@ -54,6 +58,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`list[Annotated[int, NotClientInput]]`). Another library's `Annotated`
   metadata is unaffected at any depth. An annotation that relied on a marker
   being ignored there raises now.
+
+  Where it raises: `as_view()` refuses it, for a standalone view, a viewset and
+  `@service_action` alike, so an app mounting such a spec fails at URL-conf load
+  rather than on every request. It reads every callable dispatch binds from the
+  keyword pool: the `service` or `selector`, its `preconditions`, a callable
+  affordance condition, and the `selector` of each target lookup and output
+  re-read. Off HTTP, a spec no view mounts is refused where its markers are first
+  read: at schema generation, or on every `dispatch_spec` call. It is not
+  refused when the spec is built, because an annotation naming a class or
+  `TypedDict` declared further down the module does not resolve yet and would be
+  read as unmarked. The same `as_view()` read refuses an input marked both
+  `InputRequired` and `NotClientInput`, which every call already refused.
 
 ### Fixed
 

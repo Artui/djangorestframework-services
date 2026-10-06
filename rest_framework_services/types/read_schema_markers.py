@@ -12,8 +12,12 @@ from rest_framework_services.types.input_required import InputRequired
 from rest_framework_services.types.not_client_input import NotClientInput
 
 _NONE_TYPE = type(None)
-# Both spellings of a union: ``Optional[X]`` / ``Union[X, None]`` are
-# ``typing.Union`` and ``X | None`` is ``types.UnionType`` until 3.14 unifies them.
+# Both union types. Before 3.14, ``X | None`` is a ``types.UnionType`` only when
+# ``X`` is a class or a builtin generic (``int | None``, ``list[...] | None``). Over
+# a typing form the ``|`` is that form's own, which returns a ``typing.Union`` as
+# ``Optional[X]`` does, so ``Annotated[...] | None`` -- the one ``Optional`` read
+# through below -- is a ``typing.Union`` in either spelling. 3.14 makes the two one
+# type. Held by test_an_annotated_member_makes_a_typing_union.
 _UNION_ORIGINS: tuple[Any, ...] = (Union, types.UnionType)
 
 

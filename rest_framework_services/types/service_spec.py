@@ -63,9 +63,10 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
     authorize per-set — the view / spec ``permission_classes`` plus the scoped
     selector, with no per-row check.
 
-    A spec declares at most one target lookup. ``instance_selector_spec`` beside
-    ``collection_selector_spec`` or ``many=True`` is refused at construction,
-    because dispatch would never call it.
+    A spec declares at most one target lookup, and a ``many=True`` spec declares
+    none. ``instance_selector_spec`` beside ``collection_selector_spec``, and
+    either lookup beside ``many=True``, is refused at construction, because
+    dispatch would never call it.
 
     Attributes:
         service: The callable the action runs.
@@ -162,7 +163,9 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             ``parent_pk``; route captures win on conflict, so a filter value
             cannot override the route scope. Its ``permission_classes`` /
             ``preconditions`` are refused at ``as_view()`` for the same reason as
-            ``instance_selector_spec``'s.
+            ``instance_selector_spec``'s. Refused with ``ImproperlyConfigured``
+            when the spec is built beside ``many=True``: a list payload resolves
+            no target, so dispatch never calls it.
         output_selector_spec: The output pipeline as one nested spec. Its
             ``kind`` declares response cardinality: RETRIEVE re-fetches a single
             instance (the service returns the written row, the selector
@@ -382,34 +385,48 @@ def _validate_many_argument(spec: ServiceSpec[Any, Any, Any]) -> None:
         )
 
 
+# What dropping ``many=True`` would make of each lookup, for the refusal below.
+_LOOKUP_WITHOUT_MANY: dict[str, str] = {
+    "instance_selector_spec": "operate on one row",
+    "collection_selector_spec": "operate on the set it resolves",
+}
+
+
 def _validate_target_lookups(spec: ServiceSpec[Any, Any, Any]) -> None:
-    """Refuse an ``instance_selector_spec`` that dispatch would never call.
+    """Refuse a target lookup that dispatch would never call.
 
     Dispatch resolves a spec's target through ``collection_selector_spec`` when it
-    has one, and resolves no target at all for a ``many=True`` list payload, so in
-    either company the instance lookup is a declaration nothing reads. Left alone, a
-    service that requires ``instance`` passes every check and then raises
-    ``TypeError`` on every call.
+    has one, so beside it the instance lookup is a declaration nothing reads. A
+    ``many=True`` list payload resolves no target at all (``_dispatch_service_many``
+    never reaches ``_resolve_target``, sync or async), so beside it *either* lookup
+    is. Left alone, a service that requires ``instance`` or ``collection`` passes
+    every check and then raises ``TypeError`` on every call, and a client's key for
+    the dead lookup is refused under ``UnknownArguments.REJECT`` as read by nothing.
 
     At construction rather than at ``as_view()``, like ``many_argument`` and
     ``affordances``: ``dispatch_spec`` and the off-HTTP transports run specs no view
     ever validates, and each of them would otherwise find the dead lookup per call.
     """
-    if spec.instance_selector_spec is None:
-        return
-    if spec.collection_selector_spec is not None:
+    # One arc to coverage, so each operand is named: deleting the first refuses a
+    # collection lookup alone, deleting the second an instance lookup alone, and
+    # test_one_target_lookup_is_accepted[collection-only] / [instance-only] fail.
+    if spec.instance_selector_spec is not None and spec.collection_selector_spec is not None:
         raise ImproperlyConfigured(
             "ServiceSpec declares both instance_selector_spec and "
             "collection_selector_spec. Dispatch resolves the target through the "
             "collection lookup and never calls the instance one, so the "
             "instance_selector_spec would be ignored; declare one target lookup."
         )
-    if spec.many:
-        raise ImproperlyConfigured(
-            "ServiceSpec declares instance_selector_spec with many=True. A list "
-            "payload resolves no target, so dispatch never calls the instance lookup; "
-            "remove instance_selector_spec, or drop many=True to operate on one row."
-        )
+    if not spec.many:
+        return
+    for name, without_many in _LOOKUP_WITHOUT_MANY.items():
+        if getattr(spec, name) is not None:
+            noun = name.split("_", 1)[0]
+            raise ImproperlyConfigured(
+                f"ServiceSpec declares {name} with many=True. A list payload resolves "
+                f"no target, so dispatch never calls the {noun} lookup; remove {name}, "
+                f"or drop many=True to {without_many}."
+            )
 
 
 def _validate_affordances(spec: ServiceSpec[Any, Any, Any]) -> None:

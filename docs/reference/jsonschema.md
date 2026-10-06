@@ -67,9 +67,9 @@ not admit it. `allow_none` on the nested `output_selector_spec` is still not
 read, and a result that is a list (`many=True`, or a `LIST` re-read) is never
 `None` whatever either flag says.
 
-The capability manifest's `output_schema` is the same schema, and a transport
-advertising an output schema of its own asks `can_present_nothing` rather than
-deriving the answer again, so every route states the same `null`.
+The capability manifest's `output_schema` is the same schema. A transport
+advertising an output schema of its own should ask `can_present_nothing(spec)`
+rather than derive the answer again, so every route states the same `null`.
 
 ## `filterset_to_json_schema`
 
@@ -243,6 +243,13 @@ was meant to cover: a union with another member beside the marked one
 inside a container or under another `Annotated` (`list[Annotated[int,
 NotClientInput]]`). The refusal names the spelling that works. Another library's
 `Annotated` metadata is not placed, and stays legal at any depth.
+
+A view, viewset or `@service_action` mounting the spec raises it from
+`as_view()`, so the app fails at URL-conf load rather than on every request.
+Off HTTP, a spec no view mounts raises it where its markers are first read: at
+schema generation, or on each `dispatch_spec` call. The spec's constructor does
+not, because an annotation naming a class declared further down the module
+does not resolve yet when the spec is built.
 
 ### What a service's output schema describes
 

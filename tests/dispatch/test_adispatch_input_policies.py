@@ -40,6 +40,10 @@ def _all_posts() -> QuerySet[Post]:
     return Post.objects.all().order_by("id")
 
 
+def _posts_titled(*, title: str) -> QuerySet[Post]:
+    return Post.objects.filter(title=title).order_by("id")
+
+
 class _DenyObject(BasePermission):
     def has_permission(self, request: Any, view: Any) -> bool:
         return True
@@ -119,6 +123,62 @@ class TestAUnknownArguments:
                 params={"title": "x", "bogus": 1},
                 unknown_arguments=UnknownArguments.REJECT,
             )
+
+    async def test_reject_admits_the_collection_lookup_keys_and_nothing_else(self) -> None:
+        await Post.objects.acreate(title="a")
+        ran: list[int] = []
+
+        async def svc(*, collection: QuerySet[Post]) -> dict[str, int]:
+            ran.append(await collection.acount())
+            return {}
+
+        spec = ServiceSpec(
+            service=svc,
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_posts_titled),
+            atomic=False,
+        )
+        # The collection lookup is what dispatch calls, so the ``title`` it reads is
+        # declared input.
+        await adispatch_spec(
+            spec, user=None, params={"title": "a"}, unknown_arguments=UnknownArguments.REJECT
+        )
+        assert ran == [1]
+        with pytest.raises(ValidationError) as exc:
+            await adispatch_spec(
+                spec,
+                user=None,
+                params={"title": "a", "bogus": 1},
+                unknown_arguments=UnknownArguments.REJECT,
+            )
+        assert exc.value.detail == {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}
+        assert ran == [1]
+
+    async def test_passthrough_forwards_a_key_the_collection_lookup_does_not_read(
+        self,
+    ) -> None:
+        await Post.objects.acreate(title="a")
+        seen: dict[str, Any] = {}
+
+        async def svc(
+            *, collection: QuerySet[Post], data: dict[str, Any] | None = None
+        ) -> dict[str, Any]:
+            seen["titles"] = [post.title async for post in collection]
+            seen["data"] = data
+            return {}
+
+        spec = ServiceSpec(
+            service=svc,
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_posts_titled),
+            atomic=False,
+        )
+        await adispatch_spec(
+            spec,
+            user=None,
+            params={"title": "a", "note": "kept"},
+            unknown_arguments=UnknownArguments.PASSTHROUGH,
+        )
+        # ``title`` went to the collection lookup; ``note`` is an extra.
+        assert seen == {"titles": ["a"], "data": {"note": "kept"}}
 
     async def test_passthrough_no_serializer_seeds_data(self) -> None:
         seen: dict[str, Any] = {}

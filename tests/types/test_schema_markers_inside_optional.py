@@ -14,7 +14,7 @@ tree without the fix.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Annotated, Any, Optional, Union, get_args
+from typing import Annotated, Any, Optional, Union, get_args, get_origin
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -40,8 +40,10 @@ _NULLABLE_INTEGER = {"anyOf": [{"type": "integer"}, {"type": "null"}]}
 
 # --------------------------------------------------------------- the selectors
 # One per (marker, spelling, surface). The pipe and ``Optional`` spellings are both
-# covered because they are different objects at runtime (``types.UnionType`` and
-# ``typing.Union``), and a reader that recognised one would still miss the other.
+# covered because an author writes either. With an ``Annotated`` member both build a
+# ``typing.Union``, since the ``|`` is ``Annotated``'s own: a ``types.UnionType`` is
+# only what ``|`` builds over classes before 3.14 (see
+# test_an_annotated_member_makes_a_typing_union).
 
 
 def _hidden_pipe(*, team: Annotated[int, NotClientInput] | None = None) -> Any:
@@ -61,6 +63,13 @@ def _required_optional(*, limit: Optional[Annotated[int, InputRequired]] = None)
 
 
 def _described_pipe(*, limit: Annotated[int, InputDescription("Page size")] | None = None) -> Any:
+    return limit
+
+
+def _described_none_first(
+    *, limit: None | Annotated[int, InputDescription("Page size")] = None
+) -> Any:
+    # ``None`` first, so the layer is not the union's first member.
     return limit
 
 
@@ -172,18 +181,42 @@ class TestInputRequiredInsideOptional:
 
 
 @pytest.mark.parametrize(
-    "selector",
-    [_described_pipe, _described_optional, _described_pipe_key, _described_optional_key],
-    ids=_SURFACES,
+    ("selector", "nullable_integer"),
+    [
+        (_described_pipe, _NULLABLE_INTEGER),
+        (_described_optional, _NULLABLE_INTEGER),
+        (_described_pipe_key, _NULLABLE_INTEGER),
+        (_described_optional_key, _NULLABLE_INTEGER),
+        # The author's order is kept, so ``null`` comes first here.
+        (_described_none_first, {"anyOf": [{"type": "null"}, {"type": "integer"}]}),
+    ],
+    ids=[*_SURFACES, "parameter-none-first"],
 )
-def test_a_description_inside_optional_is_published(selector: Any) -> None:
+def test_a_description_inside_optional_is_published(
+    selector: Any, nullable_integer: dict[str, Any]
+) -> None:
     assert _input_schema(selector)["properties"]["limit"] == {
-        **_NULLABLE_INTEGER,
+        **nullable_integer,
         "description": "Page size",
     }
 
 
 # --------------------------------------------------------------- the readers
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        Annotated[int, NotClientInput] | None,
+        None | Annotated[int, NotClientInput],
+        Optional[Annotated[int, NotClientInput]],  # noqa: UP045 -- the spelling under test
+    ],
+    ids=["pipe", "none-first-pipe", "optional"],
+)
+def test_an_annotated_member_makes_a_typing_union(annotation: Any) -> None:
+    # What the readers' union handling rests on, on every supported Python: ``|``
+    # beside an ``Annotated`` member builds the object ``Optional[...]`` does.
+    assert get_origin(annotation) is Union
 
 
 class TestReadThroughOneOptional:
@@ -302,3 +335,13 @@ class TestWiderPlacementIsRefused:
 
         with pytest.raises(ImproperlyConfigured, match="schema marker"):
             _input_schema(selector)
+
+    def test_dispatch_refuses_a_spec_no_view_has_validated(self) -> None:
+        # Off HTTP nothing runs ``as_view()``'s check, so the dispatch read is where
+        # such a spec is refused, on each call.
+        def selector(*, team: list[Annotated[int, NotClientInput]] | None = None) -> Any:
+            return team
+
+        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector)
+        with pytest.raises(ImproperlyConfigured, match="schema marker"):
+            dispatch_spec(spec, user=None, params={})
