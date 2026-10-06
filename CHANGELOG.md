@@ -59,6 +59,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which sees only the seeds. HTTP views dispatch through the same core, so a
   declared `kwargs=` provider or view hook that leaves a parameter out is now a
   `400` there too, rather than a server error.
+- **A spread service with no input serializer receives the arguments its own
+  signature declares.** For a `ServiceSpec` that is not `many=True` and has no
+  `input_serializer`, dispatched with a `SPREAD_*` `argument_binding`, only the
+  target lookup's keys counted as declared input, so the service's own
+  parameters were unknown arguments. Under `IGNORE`, the default, a `reason` the
+  caller sent was dropped, so the call failed as though it had never been sent,
+  and under `REJECT` it was refused as unexpected; only `PASSTHROUGH` delivered
+  it. `dispatch_spec` and `adispatch_spec` now declare
+  the service's keyword parameters and `Unpack[TypedDict]` keys beside the
+  lookup's, less the reserved pool seeds (registered ones included),
+  positional-only parameters and `NotClientInput` keys, and deliver the
+  caller's values for them under every policy. A required one left out is
+  missing under every policy. A bare `**kwargs` makes the set open, so every key
+  the caller sent reaches the service, the lookup's `pk` included; an annotated
+  `**kwargs` that cannot be resolved makes `REJECT` raise `ImproperlyConfigured`.
+  A service that declares `data` receives the parameters it took by name there,
+  beside the `PASSTHROUGH` extras. `BUNDLE`, which `AUTO` resolves to for a
+  service, a spec with an `input_serializer` and a `many=True` spec keep the set
+  they had.
 
 ## [0.55.0] — 2026-10-05
 

@@ -8,7 +8,8 @@ other way, and a caller has to be *told* they exist.
 
 This recipe covers the four pieces: making a URL-derived input discoverable,
 declaring it **required**, hiding an input the caller has no business setting,
-and saying in prose what one is for.
+and saying in prose what one is for. It also says which inputs a spread service
+with no input serializer declares.
 
 ## The channel: `build_offline_context(kwargs=…)`
 
@@ -118,6 +119,63 @@ the seeds and no caller argument could fill it.
     over HTTP is a declared `kwargs=` provider or view hook that leaves a
     parameter out, answered as the `400` above rather than a server error. The
     marker exists because off HTTP there is no route to provide that guarantee.
+
+## A spread service with no input serializer
+
+A `ServiceSpec` with no `input_serializer`, dispatched with a `SPREAD_*`
+`argument_binding`, has nothing but its service's signature to read the caller's
+input against. So the service's own parameters are declared input, beside the
+keys of the target lookup:
+
+```python
+def close_ticket(*, instance: Ticket, reason: str, notify: bool = False) -> Ticket: ...
+
+
+spec = ServiceSpec(
+    service=close_ticket,
+    instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=ticket_by_pk),
+)
+dispatch_spec(
+    spec,
+    user=user,
+    params={"pk": 7, "reason": "duplicate"},
+    argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+)
+```
+
+`pk` goes to the lookup and `reason` to the service, under every
+`UnknownArguments` policy. Leaving `reason` out is
+`Missing required argument(s): 'reason'.` under every policy too, and `notify`
+keeps its default unless the caller sends it.
+
+| The caller sends… | `IGNORE` | `REJECT` | `PASSTHROUGH` |
+| --- | --- | --- | --- |
+| a parameter of the service | delivered | delivered | delivered |
+| a key neither the service nor the lookup declares | dropped | refused | delivered |
+
+A parameter counts when the caller could fill it by name: a keyword parameter,
+or a key of an `Unpack[TypedDict]` `**kwargs`. These do not count, and so are
+unknown keys:
+
+- a reserved pool seed such as `user`, `data` or `instance`, or a seed your
+  `PoolSeeds` registers. The pool's value fills it, never the caller's;
+- a positional-only parameter, which dispatch never passes by name;
+- a `NotClientInput` parameter, whose value the caller never supplies (see
+  below).
+
+A bare `**kwargs` declares every name, so the set is open: nothing is refused or
+dropped, and every key the caller sent reaches the service, the lookup's `pk`
+included. An annotated `**kwargs` whose `TypedDict` cannot be resolved at runtime
+makes `REJECT` raise `ImproperlyConfigured`, as it does on a selector, and the
+other two policies treat it as open.
+
+With no serializer, a service that declares `data` receives what the spread
+carries: the parameters it took by name, plus the `PASSTHROUGH` extras.
+
+Every other spec keeps the set it had. Under `BUNDLE`, which `AUTO` resolves to
+for a service, nothing is spread, so a service parameter is still an unknown key
+there. An `input_serializer` declares the input itself, and a `many=True` spec
+takes its items in one list.
 
 ## Hiding provider-owned inputs: `NotClientInput`
 

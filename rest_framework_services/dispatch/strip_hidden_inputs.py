@@ -19,9 +19,11 @@ def strip_hidden_inputs(params: Mapping[str, Any], fn: Callable[..., Any]) -> Ma
     still how such a key is filled.
 
     Both cores call it at every site where caller input is spread into a pool --
-    a selector's own spread, a single-item service's spread and its
-    ``PASSTHROUGH`` extras, and the two target lookups, whose pools are built by
-    hand. A ``many=True`` service spreads nothing: its items reach it inside the
+    a selector's own spread, a single-item service's spread and the extras it is
+    handed beyond its input serializer (the ``PASSTHROUGH`` extras, and with no
+    serializer under a ``SPREAD_*`` binding the caller's values for its own
+    parameters, all of them when it declares a bare ``**kwargs``), and the two
+    target lookups, whose pools are built by hand. A ``many=True`` service spreads nothing: its items reach it inside the
     one ``data`` list and never as keyword arguments.
 
     Returns ``params`` itself when ``fn`` marks nothing, which is nearly always, so

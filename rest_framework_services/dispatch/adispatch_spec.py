@@ -38,6 +38,7 @@ from rest_framework_services.dispatch.utils import (
     resolve_service_kwargs,
     resolve_service_many_input,
     resolve_unknown_arguments,
+    service_extras,
     service_input,
     shape_queryset,
     strip_reserved_seeds,
@@ -331,14 +332,23 @@ async def _adispatch_service(
         instance=instance,
     )
     # The policy sees a ``NotClientInput`` key first, so ``REJECT`` on a closed
-    # spec still refuses it; only what ``PASSTHROUGH`` would forward loses it.
+    # spec still refuses it; only what the service would be handed loses it. With
+    # no input serializer under a spreading binding, that is the caller's values
+    # for the service's own parameters as well as what ``PASSTHROUGH`` forwards.
     extras = dict(
         strip_hidden_inputs(
-            resolve_unknown_arguments(
+            service_extras(
                 spec,
                 params,
-                unknown_arguments=unknown_arguments,
-                serializer=serializer,
+                resolve_unknown_arguments(
+                    spec,
+                    params,
+                    unknown_arguments=unknown_arguments,
+                    serializer=serializer,
+                    reserved=pool_seeds.reserved,
+                    argument_binding=argument_binding,
+                ),
+                argument_binding=argument_binding,
                 reserved=pool_seeds.reserved,
             ),
             spec.service,

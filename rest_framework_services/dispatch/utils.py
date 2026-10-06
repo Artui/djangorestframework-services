@@ -167,8 +167,13 @@ def _callable_param_names(fn: Callable[..., Any]) -> set[str] | None:
     for its policy.
 
     Keys marked ``NotClientInput`` are excluded as
-    provider-owned and never advertised. Delivery is unaffected — this feeds the
-    unknown-argument check only, never the kwargs pool.
+    provider-owned and never advertised.
+
+    It feeds the unknown-argument check, and for one spec it also decides delivery:
+    a ``SPREAD_*`` service with no ``input_serializer`` takes the caller's input as
+    these parameters, so ``service_extras`` lets into its pool the caller's values
+    for exactly these names (see ``_spread_parameter_keys``). Everywhere else the
+    pool is filled as before, and this only says which keys are unknown.
     """
     parameters = inspect.signature(fn).parameters
     names: set[str] = set()
@@ -201,33 +206,76 @@ def _selector_consumed_keys(sel_spec: SelectorSpec[Any, Any] | None) -> set[str]
     return _callable_param_names(sel_spec.selector)
 
 
+def _spread_parameter_keys(
+    spec: ServiceSpec[Any, Any, Any],
+    *,
+    argument_binding: ArgumentBinding,
+    reserved: frozenset[str],
+) -> set[str] | None:
+    """The service parameters a caller fills on ``spec``; ``None`` if open.
+
+    Non-empty only for a spec that spreads with nothing else to read the caller's
+    input: no ``input_serializer``, and a binding that resolves to a ``SPREAD_*``
+    mode. There the service's own caller-suppliable parameters
+    (``_callable_param_names``: keyword-passable, ``Unpack[TypedDict]`` keys, no
+    ``NotClientInput``) are the input, less the reserved seeds client input can
+    never carry. A bare ``**kwargs`` is open, and an unresolvable annotated one
+    raises ``_UnresolvedExtras``. ``many=True`` never reaches here, since it
+    resolves no target and spreads nothing.
+
+    Each condition is one conjunct of a single branch arc, which coverage cannot
+    see, so each names the test that fails without it (in
+    ``tests/dispatch/test_dispatch_spread_parameters.py``):
+
+    - no ``input_serializer``: with one, the serializer declares the input and a
+      parameter it does not name stays unknown.
+      ``test_a_serializer_still_declares_the_input_under_reject``.
+    - a ``SPREAD_*`` binding: ``BUNDLE`` (and ``AUTO``, which resolves to it for a
+      service) spreads nothing, so admitting a parameter would admit a value no
+      parameter receives. ``test_a_bundled_service_still_declares_only_the_lookup``.
+    - less ``reserved``: the caller's ``user`` or ``data`` would otherwise land in
+      the ``data`` the service receives.
+      ``test_a_reserved_seed_is_never_taken_from_the_caller``.
+    """
+    binding = resolve_argument_binding(spec, argument_binding)
+    if spec.input_serializer is not None or binding is ArgumentBinding.BUNDLE:
+        return set()
+    names = _callable_param_names(spec.service)
+    return None if names is None else names - reserved
+
+
 def declared_input_keys(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     *,
     serializer: Any,
+    argument_binding: ArgumentBinding = ArgumentBinding.AUTO,
+    reserved: frozenset[str] = RESERVED_POOL_SEEDS,
 ) -> set[str] | None:
     """The set of ``params`` keys ``spec`` declares as input, or ``None`` if open.
 
-    Derived from the spec alone — no transport knowledge. A ``ServiceSpec``
-    declares its ``input_serializer`` fields plus the keys of the **one** target
-    lookup dispatch calls, chosen by the precedence ``_resolve_target`` applies, so
-    a key is admitted only when something reads it:
+    Derived from the spec and the dispatch's ``argument_binding`` — no transport
+    knowledge. A ``ServiceSpec`` declares its ``input_serializer`` fields plus the
+    keys of the **one** target lookup dispatch calls, chosen by the precedence
+    ``_resolve_target`` applies, so a key is admitted only when something reads it:
 
     - ``many=True`` resolves no target at all (``_dispatch_service_many`` never
       reaches ``_resolve_target``), so neither nested lookup contributes. Held by
       ``test_service_many_declares_no_lookup_keys``, and through dispatch by
       ``test_reject_refuses_a_lookup_key_inside_an_item``.
-    - A declared ``collection_selector_spec`` is the lookup, and dispatch never
-      calls ``instance_selector_spec`` beside it, so that lookup's ``pk`` is not
-      admitted. Held by ``test_service_collection_lookup_wins_over_instance_lookup``,
-      and for a name the collection lookup marks ``NotClientInput`` by
-      ``test_a_name_the_collection_lookup_hides_is_not_admitted_by_the_instance_one``.
-      The test is on the nested spec, not on its ``selector``: dispatch refuses a
-      collection spec with no selector rather than falling back to the instance
-      lookup, and so does this. Held by
-      ``test_service_collection_lookup_without_selector_does_not_fall_back``.
+    - A declared ``collection_selector_spec`` is the lookup; an instance lookup
+      beside it is refused at construction.
     - Otherwise ``instance_selector_spec`` (e.g. the ``pk`` it reads). Held by
       ``test_service_serializer_fields_plus_nested``.
+
+    A spec with no ``input_serializer`` dispatched under a ``SPREAD_*`` binding also
+    declares its service's own parameters (``_spread_parameter_keys``), because
+    nothing else reads the caller's input there; a bare ``**kwargs`` opens the set
+    (``test_a_bare_var_keyword_opens_the_set``).
+    ``argument_binding`` defaults to ``AUTO``, which is ``BUNDLE`` for a service, so
+    a caller that does not pass it gets the set without them. The lookup is read
+    first: when it is open, the set is open whatever the service declares, and the
+    service's surface is not read, so an unresolvable one raises nothing. Held by
+    ``test_an_open_lookup_leaves_reject_enforceable_beside_an_unresolvable_service``.
 
     A lookup dispatch does not call is not read here either: an open one (a
     ``filter_set`` or a bare ``**kwargs``) beside a collection lookup, or on a
@@ -258,7 +306,10 @@ def declared_input_keys(
     consumed = _selector_consumed_keys(target)
     if consumed is None:
         return None
-    return declared | consumed
+    parameters = _spread_parameter_keys(spec, argument_binding=argument_binding, reserved=reserved)
+    if parameters is None:
+        return None
+    return declared | consumed | parameters
 
 
 def resolve_unknown_arguments(
@@ -268,12 +319,15 @@ def resolve_unknown_arguments(
     unknown_arguments: UnknownArguments,
     serializer: Any,
     reserved: frozenset[str] = RESERVED_POOL_SEEDS,
+    argument_binding: ArgumentBinding = ArgumentBinding.AUTO,
 ) -> dict[str, Any]:
     """Enforce the unknown-argument policy; return ``PASSTHROUGH`` extras (else ``{}``).
 
     ``PASSTHROUGH`` returns the undeclared key/values so the caller can fold them
     into the dispatched callable's input. Reserved pool seeds are never
-    considered unknown.
+    considered unknown. ``argument_binding`` is the dispatch's, since it decides
+    whether a service's own parameters are declared (see ``declared_input_keys``);
+    its ``AUTO`` default leaves them out of a service's set.
 
     When a callable's ``**kwargs`` annotation cannot be resolved, its accepted keys
     are unknown rather than unrestricted. ``REJECT`` — whose entire purpose is to
@@ -285,7 +339,9 @@ def resolve_unknown_arguments(
     if unknown_arguments is UnknownArguments.IGNORE:
         return {}
     try:
-        declared = declared_input_keys(spec, serializer=serializer)
+        declared = declared_input_keys(
+            spec, serializer=serializer, argument_binding=argument_binding, reserved=reserved
+        )
     except _UnresolvedExtras as exc:
         if unknown_arguments is UnknownArguments.REJECT:
             raise ImproperlyConfigured(
@@ -388,6 +444,58 @@ def resolve_dispatch_kwargs(
     return resolve_callable_kwargs(fn, pool)
 
 
+def service_extras(
+    spec: ServiceSpec[Any, Any, Any],
+    params: Mapping[str, Any],
+    passthrough: dict[str, Any],
+    *,
+    argument_binding: ArgumentBinding,
+    reserved: frozenset[str],
+) -> dict[str, Any]:
+    """What a single-item service takes from the caller beyond its input serializer.
+
+    ``passthrough`` is what ``resolve_unknown_arguments`` returned, and is the whole
+    answer for every spec but one. A spec with no ``input_serializer`` dispatched
+    under a ``SPREAD_*`` binding also takes the caller's values for its service's
+    own parameters, since ``declared_input_keys`` admits those names and nothing
+    else reads them. ``service_input`` then makes the result both ``data`` and the
+    spread, as it does every serializer-less input, so ``data`` mirrors what a
+    dict-validating serializer would hand over: the declared names, plus what
+    ``PASSTHROUGH`` forwards. The two never share a key, because a declared name is
+    never an extra.
+
+    A bare ``**kwargs`` declares every name, so every key the caller sent is taken,
+    a lookup's ``pk`` included; an annotated one that cannot be resolved is taken
+    the same way, the open reading ``resolve_unknown_arguments`` gives the
+    permissive policies (under ``REJECT`` dispatch has raised before this runs).
+    Reserved seeds never are. The caller strips ``NotClientInput`` keys from the
+    result, as from any extras.
+
+    Each step names the test that fails without it (in
+    ``tests/dispatch/test_dispatch_spread_parameters.py``):
+
+    - the declared names: ``test_a_sent_parameter_is_delivered_under_every_policy``.
+    - the ``PASSTHROUGH`` extras beside them:
+      ``test_data_carries_the_parameters_beside_the_passthrough_extras``.
+    - an unresolvable surface read as open rather than raised:
+      ``test_an_unresolvable_var_keyword_is_open_to_the_permissive_policies``.
+    - every key from an open surface:
+      ``test_a_bare_var_keyword_takes_every_argument_under_every_policy``, which
+      also holds the reserved seeds out of it.
+    - the dispatch's own ``reserved``, so a registered seed is held out too:
+      ``test_a_registered_seed_is_never_taken_from_the_caller``.
+    """
+    try:
+        names = _spread_parameter_keys(spec, argument_binding=argument_binding, reserved=reserved)
+    except _UnresolvedExtras:
+        names = None
+    if names is None:
+        taken = strip_reserved_seeds(params, reserved=reserved)
+    else:
+        taken = {key: value for key, value in params.items() if key in names}
+    return {**taken, **passthrough}
+
+
 def service_input(serializer: Any, extras: dict[str, Any]) -> tuple[Any, Mapping[str, Any]]:
     """Return ``(data, spread_source)`` for a service pool, folding in PASSTHROUGH ``extras``.
 
@@ -398,7 +506,9 @@ def service_input(serializer: Any, extras: dict[str, Any]) -> tuple[Any, Mapping
     - dataclass-validated input (opaque to the spread) — ``data`` is the
       dataclass instance unchanged; ``extras`` can reach a callable only via the
       spread, so a ``BUNDLE`` dataclass mutation drops them, by design.
-    - no ``input_serializer`` — ``data`` is the ``extras`` dict, or ``None``.
+    - no ``input_serializer`` — ``data`` is the ``extras`` dict, or ``None``. Under a
+      ``SPREAD_*`` binding ``service_extras`` has put the caller's values for the
+      service's own parameters there, beside what ``PASSTHROUGH`` forwards.
     """
     validated = serializer.validated_data if serializer is not None else None
     return service_input_for_validated(validated, extras)
