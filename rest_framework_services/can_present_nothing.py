@@ -25,8 +25,10 @@ def can_present_nothing(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any
 
     - A result that is a list is never ``None``, only empty: a ``LIST``
       ``SelectorSpec``, a ``many=True`` ``ServiceSpec``, and a ``ServiceSpec``
-      whose ``output_selector_spec`` re-reads a ``LIST``. ``allow_none`` is not
-      read on any of them.
+      whose ``output_selector_spec`` declares ``LIST``, with a ``selector`` to
+      re-read through or without one. With none, dispatch presents the service's
+      own return as the list, and refuses a ``None`` return there as the author's
+      error rather than presenting it. ``allow_none`` is not read on any of them.
     - A ``RETRIEVE`` ``SelectorSpec`` presents ``None`` for a miss under
       ``allow_none=True``; without it dispatch answers the miss as
       ``not_found``.
@@ -51,12 +53,18 @@ def can_present_nothing(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any
     if spec.many:
         return False
     nested = spec.output_selector_spec
-    # One arc again: test_a_service_with_no_output_spec_answers_its_own_allow_none
-    # holds ``nested is not None`` (without it ``None.selector`` raises), and
-    # test_a_re_read_spec_without_a_selector_is_no_re_read holds the selector.
-    if nested is not None and nested.selector is not None:
-        # The re-read decides what is presented: a row it may not find, or a set.
-        return nested.kind is not SelectorKind.LIST
+    if nested is None:
+        return spec.allow_none
+    if nested.kind is SelectorKind.LIST:
+        # A set, re-read or the service's own: held by the truth table's
+        # ``service-list-declared-but-no-re-read-allow-none`` row.
+        return False
+    if nested.selector is not None:
+        # A row the re-read may not find.
+        return True
+    # Held by test_a_re_read_spec_without_a_selector_is_no_re_read: without the
+    # selector test above, a ``RETRIEVE`` declaration with nothing to re-read
+    # would admit a ``None`` its service never declared.
     return spec.allow_none
 
 

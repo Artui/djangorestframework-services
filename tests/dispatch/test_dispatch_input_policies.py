@@ -450,7 +450,7 @@ class TestUnknownArgumentsBulk:
         # A ``many=True`` dispatch resolves no target, so a lookup's ``pk`` in an
         # item is read by nothing. Either lookup beside ``many`` is refused when the
         # spec is built (tests/types/test_service_spec.py), so the spec here declares
-        # none, and the key is refused through the ``spec.many`` branch.
+        # none, and with no lookup to admit it the key is refused.
         def bulk(*, data: list[dict[str, Any]]) -> list[Post]:
             raise AssertionError("service must not run when an item is rejected")
 

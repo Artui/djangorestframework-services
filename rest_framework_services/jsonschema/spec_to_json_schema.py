@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Mapping
 from typing import Any, Literal
 
 from django.core.exceptions import ImproperlyConfigured
 
 from rest_framework_services.can_present_nothing import can_present_nothing
+from rest_framework_services.dispatch.utils import resolve_argument_binding
 from rest_framework_services.jsonschema.filterset_to_json_schema import filterset_to_json_schema
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
 from rest_framework_services.jsonschema.serializer_to_json_schema import serializer_to_json_schema
@@ -15,6 +17,7 @@ from rest_framework_services.jsonschema.utils import (
     callable_input_schema,
     list_constraints_for_schema,
 )
+from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
@@ -33,6 +36,13 @@ from rest_framework_services.types.service_spec import ServiceSpec
 # statement rather than listed here, so the default reflection is unchanged.
 _SELECTOR_SEED_PARAMS: frozenset[str] = frozenset({"request", "user", "view"})
 
+# What a spreading service's reflection never lists, ``supplied`` or not: the
+# reserved seeds, which dispatch strips from every spread, and the transport
+# seeds, ``view`` among them, which no caller supplies. It is new, so unlike the
+# selector reflection there is no earlier shape to keep, and the list is exactly
+# what dispatch declares.
+_SERVICE_SEED_PARAMS: frozenset[str] = RESERVED_POOL_SEEDS | _SELECTOR_SEED_PARAMS
+
 # The one ``metadata`` key this package reads, and the only two keys allowed
 # under it. They are spelled exactly like the ``phase=`` argument below so a
 # reader has nothing new to learn.
@@ -47,6 +57,7 @@ def spec_to_json_schema(
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
     max_depth: int | None = None,
     supplied: frozenset[str] | None = None,
+    argument_binding: ArgumentBinding = ArgumentBinding.AUTO,
 ) -> dict[str, Any] | None:
     """Derive a JSON Schema from a spec, reading the right serializer off it.
 
@@ -58,7 +69,12 @@ def spec_to_json_schema(
     ``phase="input"`` (default) returns the input-argument schema:
 
     - [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] → its
-        ``input_serializer`` (``spec.partial`` honoured). On a ``many=True`` spec that
+        ``input_serializer`` (``spec.partial`` honoured), a bare ``{"type": "object"}``
+        without one, and, with no ``input_serializer`` under a spreading
+        ``argument_binding``, the service's own parameters (below). The target
+        lookup's keys, such as the ``pk`` an ``instance_selector_spec`` reads, are
+        not in it: a transport reflects that ``SelectorSpec`` itself and merges
+        them. On a ``many=True`` spec that
         schema describes one item, and the input is an object with a single required
         property named by ``spec.many_argument`` -- ``{"type": "array", "items":
         <item>}``, with ``minItems`` / ``maxItems`` where the list serializer declares
@@ -108,13 +124,31 @@ def spec_to_json_schema(
       reserved one is dropped and any other keeps the requiredness its
       ``TypedDict`` declares.
 
-    It reaches nothing else. A ``ServiceSpec``'s input is its ``input_serializer``,
-    whose fields are not reflected parameters, and ``phase="output"`` reflects no
-    parameters at all; both are the same with or without ``supplied``. So is a
-    ``filter_set`` field, which the filter reads from the caller's input. A
-    transport reflecting a nested ``instance_selector_spec`` or
-    ``collection_selector_spec`` passes that ``SelectorSpec`` itself, with the names
-    it fills there.
+    It applies the same way to a spreading service's reflected parameters, and
+    reaches nothing else. A ``ServiceSpec``'s ``input_serializer`` has fields rather
+    than reflected parameters, and ``phase="output"`` reflects no parameters at all;
+    both are the same with or without ``supplied``. So is a ``filter_set`` field,
+    which the filter reads from the caller's input. A transport reflecting a nested
+    ``instance_selector_spec`` or ``collection_selector_spec`` passes that
+    ``SelectorSpec`` itself, with the names it fills there.
+
+    ``argument_binding`` is the binding the transport dispatches a ``ServiceSpec``
+    with, and it decides one thing: whether a service with no ``input_serializer``
+    takes the caller's input as its own parameters. Under a binding that resolves
+    to ``SPREAD_AUTHOR_WINS`` or ``SPREAD_CALLER_WINS`` dispatch declares those
+    parameters as the input, so ``UnknownArguments.REJECT`` admits them, and the
+    schema lists them, reflected as a selector's are: keyword-passable parameters
+    and the keys of a ``**kwargs: Unpack[SomeExtras]``, less ``NotClientInput``,
+    positional-only parameters, ``view``, the ``request`` / ``user`` seeds and
+    every name in ``RESERVED_POOL_SEEDS``, with ``supplied`` deciding requiredness
+    as it does for a selector. The property names are exactly the keys dispatch
+    declares for the same spec and binding. A bare ``**kwargs`` lists what the
+    service names and states no ``additionalProperties``, although dispatch then
+    admits every key; drfs closes an input schema only around a ``many`` list, and
+    leaves closure to a transport's own policy. ``AUTO``, the default, resolves to
+    ``BUNDLE`` for a service, which spreads nothing, so a caller that does not pass
+    it gets the schema it always had. A ``SelectorSpec``'s input, a ``many=True``
+    spec's, one with an ``input_serializer`` and ``phase="output"`` do not read it.
 
     ``phase="output"`` returns the output schema, or ``None`` when undeclared: a
     [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] supplies its
@@ -197,7 +231,7 @@ def spec_to_json_schema(
     """
     fragment: Mapping[str, Any] | None = _metadata_fragment(spec, phase)
     derived: dict[str, Any] | None = (
-        _input_schema(spec, registry, max_depth, supplied)
+        _input_schema(spec, registry, max_depth, supplied, argument_binding)
         if phase == "input"
         else _output_schema(spec, registry, max_depth)
     )
@@ -252,8 +286,11 @@ def _input_schema(
     registry: JsonSchemaRegistry,
     max_depth: int | None,
     supplied: frozenset[str] | None,
+    argument_binding: ArgumentBinding,
 ) -> dict[str, Any]:
     if isinstance(spec, ServiceSpec):
+        if _takes_its_parameters(spec, argument_binding):
+            return _parameter_schema(spec.service, registry, supplied)
         item: dict[str, Any] = serializer_to_json_schema(
             spec.input_serializer,
             partial=bool(spec.partial),
@@ -309,6 +346,61 @@ def _input_schema(
     return schema
 
 
+def _takes_its_parameters(
+    spec: ServiceSpec[Any, Any, Any], argument_binding: ArgumentBinding
+) -> bool:
+    """Whether the caller's input to ``spec`` is its service's own parameters.
+
+    The condition under which dispatch declares them (``_spread_parameter_keys``
+    in ``dispatch/utils.py``), read the same way. One arc to coverage, so each
+    conjunct names the test in ``tests/jsonschema/test_spread_service_input_schema.py``
+    that fails without it:
+
+    - not ``many``: a list is the whole input, and dispatch refuses a spreading
+      binding beside it. ``test_a_many_spec_keeps_its_list_wrapper``.
+    - no ``input_serializer``: with one, the serializer declares the input.
+      ``test_a_serializer_still_declares_the_input``.
+    - a binding that does not resolve to ``BUNDLE``: ``BUNDLE`` spreads nothing,
+      and ``AUTO`` is ``BUNDLE`` for a service.
+      ``test_an_explicit_bundle_lists_no_parameter`` and
+      ``test_auto_is_the_schema_a_service_always_had``.
+    """
+    return (
+        not spec.many
+        and spec.input_serializer is None
+        and resolve_argument_binding(spec, argument_binding) is not ArgumentBinding.BUNDLE
+    )
+
+
+def _parameter_schema(
+    service: Any, registry: JsonSchemaRegistry, supplied: frozenset[str] | None
+) -> dict[str, Any]:
+    """A spreading service's own parameters, as the object a caller sends.
+
+    A positional-only parameter is skipped rather than advertised, as it is for a
+    selector, because dispatch binds by keyword, does not declare one, and so
+    ``REJECT`` would refuse the key this listed. Held by the ``positional-only``
+    row of ``test_the_properties_are_the_keys_dispatch_declares``.
+    """
+    positional_only: frozenset[str] = frozenset(
+        name
+        for name, parameter in inspect.signature(service).parameters.items()
+        if parameter.kind is inspect.Parameter.POSITIONAL_ONLY
+    )
+    properties, required = callable_input_schema(
+        service,
+        skip=_SERVICE_SEED_PARAMS | positional_only,
+        registry=registry,
+        supplied=supplied,
+    )
+    schema: dict[str, Any] = {"type": "object"}
+    if properties:
+        schema["properties"] = properties
+    if required:
+        schema["required"] = list(dict.fromkeys(required))
+    return schema
+
+
 def _output_schema(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     registry: JsonSchemaRegistry,
@@ -344,22 +436,19 @@ def _rendered_kind(
     """The kind a service spec's result is rendered as, which its output schema states.
 
     Dispatch decides it and reports it as ``result.kind``, which the HTTP view and
-    every transport render from, so the schema follows dispatch rather than the
-    declaration:
+    every transport render from, so the schema follows dispatch:
 
     - A ``many=True`` service renders the whole list. Its output selector is
       ``RETRIEVE`` by convention, because that kind describes one row.
-    - An output selector with a ``selector`` re-reads the result, and its ``kind``
-      says whether the re-read is one row or a set.
-    - Without a ``selector`` nothing is re-read: dispatch presents the service's
-      own return as one value, whatever ``kind`` the declaration names.
+    - Otherwise the nested ``kind`` says it, with a ``selector`` or without one.
+      A re-read is one row or a set as its ``kind`` says, and with nothing to
+      re-read the service's own return is presented as that ``kind`` says: one
+      value under ``RETRIEVE``, and a list under ``LIST``, which dispatch refuses
+      to present from a return that is no set of rows.
     """
+    # Held by test_a_many_service_output_is_an_array_whatever_its_selector_kind, and
+    # the nested ``kind`` without a selector by
+    # test_the_schema_the_kind_and_the_predicate_agree.
     if spec.many:
         return SelectorKind.LIST
-    if nested.selector is None:
-        # Held by test_a_list_output_declaration_without_a_selector_is_one_value,
-        # and by the manifest's and the predicate table's rows for the same spec:
-        # without this, a ``LIST`` declaration with nothing to re-read through
-        # publishes an array for the single value dispatch serves.
-        return SelectorKind.RETRIEVE
     return nested.kind

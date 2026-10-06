@@ -33,6 +33,7 @@ from typing import Annotated, Any
 import pytest
 from asgiref.sync import sync_to_async
 from django.contrib.auth.models import User
+from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model, QuerySet
 from django.http import QueryDict
 from rest_framework import serializers
@@ -498,6 +499,42 @@ async def test_the_mutation_tail_agrees_across_the_cores() -> None:
     assert async_summary["service_result"] == {"renamed": True}
     assert async_summary["instance"] == ("Post", post.pk)
     assert async_summary["data"] == {"title": "after"}
+
+
+# --- a LIST output with nothing to re-read ---------------------------------
+
+
+def _posts_as_rows() -> list[Post]:
+    return list(Post.objects.order_by("pk"))
+
+
+_LIST_WITHOUT_A_SELECTOR = SelectorSpec(kind=SelectorKind.LIST)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_services_own_list_agrees_across_the_cores() -> None:
+    post = await Post.objects.acreate(title="listed")
+    spec = ServiceSpec(
+        service=_posts_as_rows, output_selector_spec=_LIST_WITHOUT_A_SELECTOR, atomic=False
+    )
+    sync_summary, async_summary = await _dispatch_both(spec, lambda: {"user": None, "params": {}})
+    assert sync_summary == async_summary
+    assert async_summary["kind"] == "list"
+    assert async_summary["value"] == [("Post", post.pk)]
+
+
+async def test_a_refused_list_return_reads_the_same_on_either_core() -> None:
+    # Each core keeps its own copy of the check, so this is what holds them to one
+    # message. Nothing is written, so no database is needed.
+    spec = ServiceSpec(
+        service=lambda: {"id": 1}, output_selector_spec=_LIST_WITHOUT_A_SELECTOR, atomic=False
+    )
+    with pytest.raises(ImproperlyConfigured) as sync_refusal:
+        await sync_to_async(dispatch_spec, thread_sensitive=True)(spec, user=None, params={})
+    with pytest.raises(ImproperlyConfigured) as async_refusal:
+        await adispatch_spec(spec, user=None, params={})
+    assert str(sync_refusal.value) == str(async_refusal.value)
+    assert "returned dict" in str(async_refusal.value)
 
 
 # --- the mutated target's stale prefetch ----------------------------------

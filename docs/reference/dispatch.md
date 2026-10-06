@@ -130,6 +130,17 @@ or a dataclass output raises where a serializer would have rendered.
 
 ::: rest_framework_services.types.dispatch_result.DispatchResult
 
+A `ServiceSpec`'s `kind` is `"list"` for a `many=True` spec, and otherwise
+whenever its `output_selector_spec` declares `kind=SelectorKind.LIST`, with a
+`selector` to re-read through or without one. Without one, the `value` is the
+service's own return, passed through as it came: a `QuerySet` stays lazy, as a
+re-read one does, and a list or a generator is the same object. A return that is no set
+of rows (a mapping, a `str` or `bytes`, `None`, anything that does not iterate)
+raises `ImproperlyConfigured` naming the declaration and the type returned,
+after the service has written; see
+[what a service's output schema describes](jsonschema.md#what-a-services-output-schema-describes),
+which states the same array.
+
 ## Input policies
 
 Three optional, caller-side policies let a transport map its wire onto a spec

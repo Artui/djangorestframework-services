@@ -384,9 +384,15 @@ def declared_input_keys(
     ``_resolve_target`` applies, so a key is admitted only when something reads it:
 
     - ``many=True`` resolves no target at all (``_dispatch_service_many`` never
-      reaches ``_resolve_target``), so neither nested lookup contributes. Held by
-      ``test_service_many_declares_no_lookup_keys``, and through dispatch by
-      ``test_reject_refuses_a_lookup_key_inside_an_item``.
+      reaches ``_resolve_target``), and needs no branch of its own to say so:
+      either lookup beside ``many`` is refused when the spec is built, so there is
+      no lookup to read, and ``guard_many_argument_binding`` refuses a ``SPREAD_*``
+      binding before an item is read, so the per-item check runs under ``AUTO``,
+      which is ``BUNDLE`` for a service and declares none of its parameters. What
+      is left is the item serializer's fields. Held by
+      ``test_service_many_declares_no_lookup_keys``, through dispatch by
+      ``test_reject_refuses_a_lookup_key_inside_an_item``, and the refusal by
+      ``test_a_serializer_less_many_spec_is_never_dispatched_spread``.
     - A declared ``collection_selector_spec`` is the lookup; an instance lookup
       beside it is refused at construction.
     - Otherwise ``instance_selector_spec`` (e.g. the ``pk`` it reads). Held by
@@ -416,8 +422,6 @@ def declared_input_keys(
             return None
         return _callable_param_names(spec.selector) if spec.selector is not None else set()
     declared: set[str] = set(serializer.fields) if serializer is not None else set()
-    if spec.many:
-        return declared
     consumed = _selector_consumed_keys(_target_lookup(spec))
     if consumed is None:
         return None

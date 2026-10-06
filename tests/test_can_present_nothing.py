@@ -85,7 +85,7 @@ _TABLE: list[Any] = [
     ),
     pytest.param(
         _service(_re_read(LIST, selector=False), allow_none=True),
-        True,
+        False,
         id="service-list-declared-but-no-re-read-allow-none",
     ),
     # ServiceSpec, a RETRIEVE re-read

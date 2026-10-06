@@ -674,3 +674,23 @@ def test_a_many_spec_still_refuses_a_parameter_inside_an_item(dispatch: Dispatch
     )
 
     assert detail == {"non_field_errors": ["Unexpected argument(s): 'reason'."]}
+
+
+@_CORES
+@_SPREADS
+@_POLICIES
+def test_a_serializer_less_many_spec_is_never_dispatched_spread(
+    dispatch: Dispatch, binding: ArgumentBinding, policy: UnknownArguments
+) -> None:
+    """Why ``declared_input_keys`` needs no ``many`` branch: the spreading binding is
+    refused before an item is read, so no item ever reaches the service's own
+    parameters, and the per-item check runs under ``AUTO`` alone."""
+
+    def bulk(*, data: Any = None, reason: str = "none") -> int:
+        raise AssertionError("a refused binding must not reach the service")
+
+    spec = ServiceSpec(service=bulk, many=True, atomic=False)
+    with pytest.raises(ValueError, match="many=True"):
+        dispatch(
+            spec, params=[{"reason": "dup"}], argument_binding=binding, unknown_arguments=policy
+        )

@@ -202,6 +202,24 @@ does on a selector, and the other two policies treat it as open, the same way.
 With no serializer, a service that declares `data` receives what the spread
 carries: the parameters it took by name, plus the `PASSTHROUGH` extras.
 
+The input schema says the same when it is told the binding. Pass the one you
+dispatch with to `spec_to_json_schema`, and it lists the service's parameters,
+exactly the set the table above calls declared:
+
+```python
+spec_to_json_schema(spec, argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS)
+# {"type": "object",
+#  "properties": {"reason": {"type": "string"}, "notify": {"type": "boolean"}}}
+```
+
+The lookup's `pk` is not in it: a transport merges a target lookup's keys
+itself, by reflecting the lookup's `SelectorSpec`. A bare `**kwargs` lists the
+parameters the service names and states no `additionalProperties`, so a
+transport decides from its own policy whether to close the tool. Without the
+argument, `AUTO` is `BUNDLE` and the schema is the bare `{"type": "object"}` it
+always was. See
+[a spreading service's own parameters](../reference/jsonschema.md#a-spreading-services-own-parameters-argument_binding).
+
 Every other spec keeps the set it had. Under `BUNDLE`, which `AUTO` resolves to
 for a service, nothing is spread, so a service parameter is still an unknown key
 there. An `input_serializer` declares the input itself, and a `many=True` spec

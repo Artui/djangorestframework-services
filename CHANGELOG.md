@@ -74,6 +74,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     provider, where declinable would let a caller's value into a key such as a
     tenant. Not read: a PEP 696 default on a type variable, and a key a
     subclass redeclares, which reads as its base declared it.
+- **`spec_to_json_schema(spec, argument_binding=...)` lists a spreading
+  service's own parameters as its input.** A `ServiceSpec` with no
+  `input_serializer`, dispatched under a `SPREAD_*` binding, takes the caller's
+  input as its service's parameters, and `UnknownArguments.REJECT` admits them,
+  but its input schema was a bare `{"type": "object"}` that named none of them.
+  Passed the binding a transport dispatches with, the schema now lists them,
+  reflected as a selector's parameters are: keyword parameters and
+  `Unpack[TypedDict]` keys, less `NotClientInput`, positional-only parameters,
+  `view` and the reserved pool seeds, with `supplied=` deciding requiredness as
+  it does for a selector. The property names are exactly the keys dispatch
+  declares for the same spec and binding. The target lookup's keys, such as
+  `pk`, are not in it, and transports keep merging them; a bare `**kwargs` lists
+  what the service names and adds no `additionalProperties`. `AUTO`, the
+  default, resolves to `BUNDLE` for a service, so a caller that does not pass
+  the argument gets the schema it got before. A `SelectorSpec`, a `many=True`
+  spec, a spec with an `input_serializer` and the output phase do not read it.
 
 ### Changed
 
@@ -321,6 +337,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   beside the `PASSTHROUGH` extras. `BUNDLE`, which `AUTO` resolves to for a
   service, a spec with an `input_serializer` and a `many=True` spec keep the set
   they had.
+- **A service whose output is declared `LIST` with nothing to re-read presents
+  its return as a list.** `output_selector_spec=SelectorSpec(kind=LIST)` with no
+  `selector` re-reads nothing, and dispatch passed the service's return through
+  as one value, reporting `kind="instance"`, though the declaration says the
+  return is a set. Over HTTP, where that declaration is valid beside a
+  `collection_selector_spec`, the view rendered the rows the service returned as
+  a single row and failed with an `AttributeError` reading a field off the
+  list. `dispatch_spec` and `adispatch_spec` now report `kind="list"` with the
+  return passed through as it came, a `QuerySet` still lazy, so the HTTP view
+  renders it row by row and every transport reads the same kind. The output
+  schema and the capability manifest's `output_schema` are an array for it, and
+  `can_present_nothing` answers `False`, `allow_none=True` or not, because a
+  list is empty rather than `None`. A return that is no set of rows, meaning a
+  mapping, a `str` or `bytes`, `None` or anything that does not iterate, now
+  raises `ImproperlyConfigured` naming the declaration and the type returned.
+  It is raised after the service has run and its `atomic` block has closed, so
+  the write stands: it is the author's error, not a refusal of the call. A
+  collection mutation under that declaration whose service returned `None`
+  answered with an empty body, and now raises. A `RETRIEVE` declaration with no
+  `selector` still presents the return as one value.
 
 ## [0.55.0] — 2026-10-05
 

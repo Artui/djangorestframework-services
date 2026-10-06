@@ -64,8 +64,8 @@ ServiceSpec(
 Without the declaration the schema stays strict, and an undeclared `None` is
 not refused in this release: dispatch presents it, against a schema that does
 not admit it. `allow_none` on the nested `output_selector_spec` is still not
-read, and a result that is a list (`many=True`, or a `LIST` re-read) is never
-`None` whatever either flag says.
+read, and a result that is a list (`many=True`, or a `LIST` output declaration,
+re-read or not) is never `None` whatever either flag says.
 
 The capability manifest's `output_schema` is the same schema. A transport
 advertising an output schema of its own should ask `can_present_nothing(spec)`
@@ -159,12 +159,56 @@ byte-identical to what it was before `supplied` existed, so a reader that does
 not know what is filled for it (drfs' own capability manifest, for one) is
 unchanged.
 
-`supplied` reaches reflected callable parameters and nothing else. A
-`ServiceSpec`'s input is its `input_serializer`, the output phase reflects no
-parameters, and a `filter_set` field is read from the caller's own params, so
+`supplied` reaches reflected callable parameters and nothing else: a
+selector's, and a spreading service's (below). A `ServiceSpec`'s
+`input_serializer` has fields rather than parameters, the output phase reflects
+no parameters, and a `filter_set` field is read from the caller's own params, so
 all three are the same with or without it. To describe a service tool's target
 lookup, reflect its `instance_selector_spec` or `collection_selector_spec` (a
 `SelectorSpec`) with the names the transport fills there.
+
+### A spreading service's own parameters: `argument_binding=`
+
+A `ServiceSpec`'s input schema is its `input_serializer`'s. A service with no
+serializer, dispatched under a `SPREAD_*` `argument_binding`, has nothing but its
+own signature to read the caller's input, so dispatch declares the service's
+parameters as that input, and `UnknownArguments.REJECT` admits them. A transport
+passes the binding it dispatches with, and the schema lists the same parameters:
+
+```python
+def close_ticket(*, instance, reason: str, note: str = "", user) -> Ticket: ...
+
+
+spec = ServiceSpec(service=close_ticket, instance_selector_spec=ticket_by_pk)
+
+spec_to_json_schema(spec, argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS)
+# {"type": "object",
+#  "properties": {"reason": {"type": "string"}, "note": {"type": "string"}}}
+```
+
+They are reflected the way a selector's are, through the same function:
+keyword-passable parameters and the keys of a `**kwargs: Unpack[TypedDict]`,
+with `NotClientInput`, positional-only parameters, `view`, and every name in
+`RESERVED_POOL_SEEDS` (`instance`, `user` and the rest) left out. The property
+names are exactly the keys dispatch declares for that spec and binding. Without
+`supplied` only a marker requires a parameter, as for a selector, because a
+`kwargs=` provider may fill one; with it, a parameter with no default is
+required, and a supplied name is dropped.
+
+Three things are not in it:
+
+- **The target lookup's keys.** The `pk` that `ticket_by_pk` reads belongs to
+  the lookup, not the service. Transports merge it themselves, by reflecting the
+  lookup's `SelectorSpec`, as they do beside an `input_serializer`.
+- **Closure.** A bare `**kwargs` makes dispatch admit every key, and the schema
+  lists the parameters the service names without `additionalProperties`. drfs
+  states `additionalProperties: false` only around a `many=True` list, and a
+  transport closes a tool's input, or not, from its own policy.
+- **Anything under `AUTO`.** `AUTO`, the default, is `BUNDLE` for a service, and
+  `BUNDLE` spreads nothing, so a caller that does not pass the argument gets the
+  schema it always had: `{"type": "object"}` with no serializer. A `many=True`
+  spec, one with an `input_serializer`, a `SelectorSpec` and the output phase do
+  not read it.
 
 ### What an annotation publishes
 
@@ -254,27 +298,37 @@ does not resolve yet when the spec is built.
 ### What a service's output schema describes
 
 A `ServiceSpec`'s output schema reads the serializer and `affordances` off its
-`output_selector_spec`, and describes the shape dispatch renders, which is not
-always the `kind` that spec names:
+`output_selector_spec`, and describes the shape dispatch renders:
 
 - `many=True` renders the whole list, so the schema is an array whatever the
   nested `kind`.
 - An `output_selector_spec` with a `selector` re-reads the service's result, and
   its `kind` decides: one row for `RETRIEVE`, an array for `LIST`.
-- Without a `selector` nothing is re-read. Dispatch presents the service's own
-  return as one value, so the schema describes one value even where the nested
-  `kind` is `LIST`:
+- Without a `selector` nothing is re-read, and dispatch presents the service's
+  own return as the nested `kind` says: one value for `RETRIEVE`, and for `LIST`
+  a list, which a list operation returning its rows declares:
 
 ```python
 ServiceSpec(
-    service=archive_task,  # returns one task
+    service=publish_tasks,  # returns the tasks it published
+    collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=drafts),
     output_selector_spec=SelectorSpec(kind=SelectorKind.LIST, output_serializer=TaskOut),
 )
-# spec_to_json_schema(spec, phase="output")["type"] == "object"
+# spec_to_json_schema(spec, phase="output")["type"] == "array"
 ```
 
 This is the same shape the HTTP view renders and every transport reads off
 `result.kind`, and the capability manifest's `output_schema` states it too.
+
+Under a `LIST` declaration with no `selector`, the service has to return the
+rows: a `QuerySet`, a list, a generator or another iterable. A mapping, a `str`
+or `bytes`, `None`, or anything that does not iterate is refused with
+`ImproperlyConfigured` naming the declaration and the type that came back,
+because it is the author's error rather than the caller's. **The service has
+already run when it is raised**, and its own `atomic` block has closed, so
+dispatch does not undo what it wrote. It is not a refusal: a caller must not
+read it as nothing having changed, or retry it as though the call had been
+turned away.
 
 ## A spec-level title and description
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
@@ -90,6 +90,10 @@ def dispatch_spec(
       mutation flow: resolve the target via ``instance_selector_spec`` (from ``params``)
       → validate ``input_serializer`` → run the service → re-fetch through
       ``output_selector_spec`` → result. A missing instance yields ``kind="not_found"``.
+      With no ``selector`` on the ``output_selector_spec`` nothing is re-fetched, and
+      the service's own return is the result: ``kind="list"`` under a ``LIST``
+      declaration, which refuses a return that is no set of rows with
+      ``ImproperlyConfigured`` after the service has written.
     - A [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] runs
       the read flow: invoke the selector → apply queryset shaping (``select_related`` …
       ``filter_set``) → for ``RETRIEVE`` materialize via ``.first()`` and honour
@@ -677,9 +681,16 @@ def _run_output_selector(
 
     Returns ``(value, is_list)``, the cardinality driven by the nested ``kind``:
     ``RETRIEVE`` collapses a queryset via ``.first()``; ``LIST`` — valid only
-    alongside ``collection_selector_spec`` — returns the shaped set untouched so
-    the transport renders it ``many=True``. With no output selector the service
-    return passes through as a single value.
+    alongside ``collection_selector_spec`` over HTTP — returns the shaped set
+    untouched so the transport renders it ``many=True``. With no output selector
+    spec the service return passes through as a single value.
+
+    A nested spec with no ``selector`` re-reads nothing, so the service's own
+    return is presented, and the nested ``kind`` still says what that return is:
+    one value under ``RETRIEVE``, and under ``LIST`` a set, passed through as it
+    came (a ``QuerySet`` stays lazy, as a re-read one does) and reported as a list.
+    A ``LIST`` return that is no set of rows is refused by
+    ``_service_return_as_list``.
 
     Its ``filter_set`` reads ``filter_data`` and nothing else. The call's
     arguments are the service's input, and neither the input schema nor
@@ -693,7 +704,13 @@ def _run_output_selector(
     ``test_without_filter_data_the_re_read_binds_an_empty_mapping``.
     """
     out_spec = spec.output_selector_spec
-    if out_spec is None or out_spec.selector is None:
+    if out_spec is None:
+        return result, False
+    if out_spec.selector is None:
+        # Held by test_the_services_own_return_is_presented_as_a_list (the ``LIST``
+        # arm) and test_a_retrieve_declaration_with_no_re_read_is_still_one_value.
+        if out_spec.kind is SelectorKind.LIST:
+            return _service_return_as_list(spec, result), True
         return result, False
     # The nested spec's kwargs / permissions are the surrounding mutation's; the
     # service return joins the pool as both ``result`` and ``instance``.
@@ -726,6 +743,37 @@ def _run_output_selector(
     if out_spec.kind is SelectorKind.LIST:
         return selected, True
     return materialize_retrieve(selected), False
+
+
+def _service_return_as_list(spec: ServiceSpec[Any, Any, Any], result: Any) -> Any:
+    """``result``, once it is a set of rows a ``LIST`` declaration can present.
+
+    The declaration says the service returns the set, so a return that cannot be
+    one is the author's error: a mapping, a ``str`` or ``bytes`` (iterable, but by
+    key or character rather than by row), anything else that does not iterate, and
+    ``None``, since a list is empty rather than absent. It is raised as
+    ``ImproperlyConfigured``, as every other declaration dispatch finds it cannot
+    honour is, an affordance answered over a ``LIST`` result that is no set of rows
+    among them. That is not a refusal: the service has run and its write stands,
+    so it must not reach a caller as a validation error saying nothing happened.
+
+    The test is one arc to coverage, so each member is a row of
+    ``test_a_return_that_is_not_a_set_of_rows_is_the_authors_error``, which fails
+    without it: ``mapping``, ``str``, ``bytes``, ``non-iterable`` and ``none``. The
+    async core keeps a copy, ``adispatch_spec._service_return_as_list``, and
+    ``test_a_refused_list_return_reads_the_same_on_either_core`` holds the two to
+    one message.
+    """
+    if isinstance(result, Mapping | str | bytes) or not isinstance(result, Iterable):
+        label = getattr(spec.service, "__qualname__", repr(spec.service))
+        raise ImproperlyConfigured(
+            "output_selector_spec declares kind=LIST with no selector, so the service's "
+            f"own return is the list presented, and {label} returned "
+            f"{type(result).__name__}, which is neither a QuerySet nor an iterable of "
+            "rows. Return the rows, or declare kind=SelectorKind.RETRIEVE to present one "
+            "value. The service has already run, so its write stands."
+        )
+    return result
 
 
 def _resolve_instance(

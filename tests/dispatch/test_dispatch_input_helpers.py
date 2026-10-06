@@ -301,7 +301,7 @@ class TestDeclaredInputKeys:
         # A ``many=True`` dispatch resolves no target at all, so only the item
         # serializer's fields are declared. Either lookup beside ``many`` is refused
         # when the spec is built (tests/types/test_service_spec.py), so the spec here
-        # declares none, and this holds the ``spec.many`` branch's answer.
+        # declares none, and under ``AUTO`` the service's parameters join nothing.
         serializer = SimpleNamespace(fields={"title": object()})
         spec = ServiceSpec(service=_service, many=True)
         assert declared_input_keys(spec, serializer=serializer) == {"title"}

@@ -216,29 +216,32 @@ def test_service_output_list_re_read_is_array() -> None:
 
 
 @pytest.mark.django_db
-def test_a_list_output_declaration_without_a_selector_is_one_value() -> None:
-    """No ``selector`` means no re-read, so the declared ``LIST`` is not what is served.
+def test_a_list_output_declaration_without_a_selector_is_an_array() -> None:
+    """No ``selector`` means no re-read, so the service's own return is what is served,
+    and the declared ``LIST`` says that return is a set.
 
-    Dispatch presents the service's own return as one value and reports
-    ``kind="instance"``, which is what the HTTP view and every transport render
-    from. Checked against that rendered payload with a real validator: reading
-    the nested ``kind`` alone published an array, and the one object served
-    against it never matched.
+    Dispatch presents it as a list and reports ``kind="list"``, which is what the
+    HTTP view and every transport render from. Checked against that rendered payload
+    with a real validator, so the schema and the value served against it cannot
+    disagree about the shape.
     """
     nested = SelectorSpec(kind=SelectorKind.LIST, output_serializer=_Out)
-    spec = ServiceSpec(service=lambda: {"id": 1}, output_selector_spec=nested)
+    spec = ServiceSpec(service=lambda: [{"id": 1}], output_selector_spec=nested)
     result = dispatch_spec(spec, user=None, params={})
     payload = render_spec_output(spec, result.value, many=result.kind == "list")
     schema = spec_to_json_schema(spec, phase="output")
 
-    assert result.kind == "instance"
-    assert payload == {"id": 1}
+    assert result.kind == "list"
+    assert payload == [{"id": 1}]
     assert schema is not None
     assert not list(Draft202012Validator(schema).iter_errors(payload))
     assert schema == {
-        "type": "object",
-        "properties": {"id": {"type": "integer"}},
-        "required": ["id"],
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}},
+            "required": ["id"],
+        },
     }
 
 

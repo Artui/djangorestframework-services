@@ -496,7 +496,11 @@ class BulkDeleteBooksView(ServiceDeleteView):
 
 To render the affected set instead of a summary, give that collection target an
 `output_selector_spec` whose `kind` is `SelectorKind.LIST` — it re-fetches and
-renders the rows as a list. Full walkthrough in the
+renders the rows as a list. Without a `selector` it re-fetches nothing and
+renders the rows the service returned, as a list, so the service must return
+them: a `QuerySet`, a list or another iterable of rows. Anything else, `None`
+included, raises `ImproperlyConfigured` naming the declaration, after the
+service has written. Full walkthrough in the
 [bulk & collection mutations recipe](recipes/bulk-mutations.md).
 
 ## Dispatch
@@ -669,6 +673,13 @@ whether `success_status` is set explicitly. The full matrix:
 | `None` | with `output_serializer` (no selector) | update flows render the *in-memory instance* through the serializer at `success_status` (DRF `UpdateAPIView` shape). A create, a destroy and a non-detail `@service_action` have no row to present: empty body at the explicitly-set `spec.success_status`, else `204`. Destroy never resurrects the deleted instance |
 | a value or `None` | with `selector` that returns `None`, with or without an `output_serializer` | the selector's `None` is authoritative → empty body at `204` (always, even with a custom `success_status`) |
 | `None` | `None` | empty body at the explicitly-set `spec.success_status`, else `204` |
+
+Where the `output_selector_spec` is `kind=SelectorKind.LIST`, which over HTTP is
+valid only beside a `collection_selector_spec`, the first row renders the
+service's return as a list, row by row, and the fourth does not apply: a list is
+never `None`, so a `None` return is refused as the author's error, as is any
+return that is no set of rows. Off HTTP, `dispatch_spec` reports the same list
+as `kind="list"`.
 
 A single-row service with no output re-read presents its own return;
 `allow_none=True` on the `ServiceSpec` declares it may be `None`, and its output
