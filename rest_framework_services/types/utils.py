@@ -4,18 +4,26 @@
 path shares it, so the three spellings of a primary key are written down
 once rather than agreed between two modules. ``callable_type_hints`` is the
 other: the input-schema reflection shares it, so the schema and dispatch read
-a callable's markers off the same annotations.
+a callable's markers off the same annotations, and ``typed_dict_input`` reads a
+``TypedDict``'s keys through the same ``annotation_hints``.
 """
 
 from __future__ import annotations
 
+import builtins
+import inspect
+import re
+import sys
 from collections.abc import Callable, Mapping
-from typing import Any, Final
+from types import SimpleNamespace
+from typing import Annotated, Any, Final, ForwardRef, get_args
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model
-from typing_extensions import get_type_hints
+from typing_extensions import Format, get_annotations, get_type_hints
 
+from rest_framework_services.types.input_required import InputRequired
+from rest_framework_services.types.not_client_input import NotClientInput
 from rest_framework_services.types.relation_mode import RelationMode
 from rest_framework_services.types.relation_orphan import RelationOrphan
 
@@ -196,28 +204,214 @@ def affordance_alias(name: str, code: str) -> str:
 
 
 def callable_type_hints(fn: Callable[..., Any]) -> dict[str, Any]:
-    """The resolved annotations of a service / selector's parameters, markers kept.
+    """The annotations of a service / selector's parameters, each read on its own, markers kept.
 
     The one place a callable's annotations are read for the schema markers
     (``InputRequired``, ``NotClientInput``, ``InputDescription``), by both the
     input-schema reflection and dispatch, so the two cannot disagree about which
-    keys are required or hidden.
+    keys are required or hidden. ``typed_dict_input`` reads the keys of a
+    ``TypedDict`` through the same ``annotation_hints``, so an ``Unpack``-ed key is
+    read by the same rule as a parameter.
 
-    ``include_extras`` keeps the ``Annotated`` metadata the markers ride in,
-    which the default would strip.
+    **It never raises for an annotation that does not resolve.** Each name is
+    resolved alone, so a parameter typed with a name imported only under ``if
+    TYPE_CHECKING:`` costs that parameter and nothing else. Resolved all at once,
+    as they were, one such name failed the whole read, and every reader took the
+    callable as unmarked: its ``NotClientInput`` keys were advertised and took the
+    caller's value, and its ``InputRequired`` keys were optional. The name that
+    does not resolve is still read for its markers (``_read_unresolved``).
 
-    It is ``typing_extensions.get_type_hints`` rather than ``typing``'s on
-    purpose. On Python 3.10, ``typing.get_type_hints`` wraps any parameter whose
-    default is ``None`` in ``Optional[...]``, so ``Annotated[int | None,
-    NotClientInput] = None`` comes back as ``Optional[Annotated[...]]`` and the
-    marker is no longer at the top where it is read: the key was advertised,
-    accepted under ``UnknownArguments.REJECT`` and never required. Python 3.11
-    stopped adding it, and ``typing_extensions`` 4.13 backports that, which is
-    why that is the declared floor. The annotation comes back as written on
-    every supported Python; an ``Optional`` the author wrote is kept.
-
-    Raises whatever resolution raises (an unresolvable forward reference is a
-    ``NameError``): each caller decides what an unreadable annotation means for
-    it.
+    The ``Annotated`` metadata the markers ride in is kept, which ``get_type_hints``
+    strips by default. And each annotation is resolved apart from its callable, so
+    no default is in sight: on Python 3.10, ``typing.get_type_hints`` wraps a
+    parameter whose default is ``None`` in ``Optional[...]``, which put an
+    ``Annotated[int | None, NotClientInput] = None`` marker below where it is read.
+    ``test_not_client_input_survives_a_none_default`` and
+    ``test_input_required_survives_a_none_default`` hold that on 3.10.
     """
-    return get_type_hints(fn, include_extras=True)
+    return annotation_hints(fn)
+
+
+def annotation_hints(owner: Any) -> dict[str, Any]:
+    """Every annotation ``owner`` declares, each resolved on its own, markers kept.
+
+    ``owner`` is a callable, or a ``TypedDict`` whose keys are read the same way.
+    Its annotations are taken in the ``FORWARDREF`` format, which hands back each
+    one without evaluating the others: as written under postponed annotations, and
+    on Python 3.14, where annotations are evaluated lazily, with a forward
+    reference wherever a name does not resolve. Each is then resolved where it was
+    written (``_namespaces``), and one that does not resolve is read by
+    ``_read_unresolved``.
+
+    A class is read base by base along its MRO, as ``get_type_hints`` reads one,
+    so a dataclass taken as a callable keeps the markers its bases declared, each
+    resolved in its own base's module
+    (``test_a_class_reads_each_bases_annotations_where_it_was_written``). A
+    ``TypedDict`` carries its inherited keys itself, and its MRO holds none of
+    the classes it inherits them from.
+
+    One whose annotations cannot be taken at all, such as one whose
+    ``__annotations__`` is not a dict, has none here, as it had when
+    ``get_type_hints`` raised for it
+    (``test_annotations_that_cannot_be_taken_read_as_none``).
+    """
+    hints: dict[str, Any] = {}
+    for declarer in reversed(getattr(owner, "__mro__", (owner,))):
+        try:
+            annotations = get_annotations(declarer, format=Format.FORWARDREF)
+        except Exception:  # noqa: BLE001 — nothing to read, see the docstring
+            continue
+        namespace, local = _namespaces(declarer)
+        hints.update((name, _read(value, namespace, local)) for name, value in annotations.items())
+    return hints
+
+
+def resolved_annotation(owner: Any, name: str) -> Any:
+    """``owner``'s annotation for ``name``, resolved, or whatever resolving it raised.
+
+    For a reader that must tell an annotation that resolves from one that does
+    not, and reads one name to do it: a ``**kwargs: Unpack[SomeExtras]``
+    annotation is a callable's whole keyword surface, so one that does not resolve
+    leaves the surface unknown, while another parameter that does not resolve
+    leaves it known.
+    """
+    namespace, local = _namespaces(owner)
+    return _resolve(get_annotations(owner, format=Format.FORWARDREF)[name], namespace, local)
+
+
+def _namespaces(owner: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+    """``(globals, locals)`` to resolve ``owner``'s annotations in.
+
+    A callable's globals are those of the function it wraps, as ``get_type_hints``
+    takes them; a class has none of its own, so it reads its module's. The locals
+    are ``owner``'s PEP 695 type parameters, kept apart from the globals and built
+    afresh for every read: up to 3.13 a forward reference answers with the value
+    it last resolved to whenever it is evaluated again with one namespace standing
+    for both.
+    """
+    namespace = getattr(inspect.unwrap(owner), "__globals__", None)
+    if namespace is None:
+        module = sys.modules.get(getattr(owner, "__module__", None) or "")
+        namespace = getattr(module, "__dict__", {})
+    local = {parameter.__name__: parameter for parameter in getattr(owner, "__type_params__", ())}
+    return namespace, local
+
+
+def _read(annotation: Any, namespace: dict[str, Any], local: dict[str, Any]) -> Any:
+    try:
+        return _resolve(annotation, namespace, local)
+    except Exception:  # noqa: BLE001 — read as far as it goes instead
+        return _read_unresolved(annotation, namespace, local)
+
+
+def _resolve(annotation: Any, namespace: dict[str, Any], local: dict[str, Any]) -> Any:
+    """``annotation`` resolved the way ``get_type_hints`` resolves one, ``Annotated`` kept.
+
+    ``get_type_hints`` resolves every form an annotation arrives in here: a
+    string, a forward reference, which resolves in its own module when it names
+    one, as a ``TypedDict`` key inherited from another module's class does, and an
+    evaluated annotation with a forward reference inside. It resolves all of an
+    object's annotations at once, so it is handed a holder carrying only this one.
+    """
+    holder = SimpleNamespace(__annotations__={"value": annotation})
+    return get_type_hints(holder, globalns=namespace, localns=local, include_extras=True)["value"]
+
+
+def _read_unresolved(annotation: Any, namespace: dict[str, Any], local: dict[str, Any]) -> Any:
+    """An annotation that does not resolve, read as far as it evaluates.
+
+    Its markers are what matter here: a ``NotClientInput`` read as absent
+    advertises the key and lets the caller's value reach the callable, and an
+    ``InputRequired`` read as absent lets a call through without the key.
+
+    **First, evaluated with stand-ins.** What does not resolve is nearly always a
+    name imported under ``if TYPE_CHECKING:``, while the markers are imported at
+    runtime. So the annotation's text is evaluated with every name nothing defines
+    standing in for ``Any``: ``Annotated[Owner, NotClientInput] | None`` reads as
+    ``Annotated[Any, NotClientInput] | None``. The markers then sit where
+    ``read_schema_markers`` looks for them, so one placed too deep is still
+    refused, and the rest of the type reaches the schema. The standard library's
+    ``FORWARDREF`` evaluation does not get this far: up to 3.13 it keeps the whole
+    text as one forward reference when any name in it does not resolve, and 3.14's
+    does the same for that spelling
+    (``test_forwardref_evaluation_keeps_the_whole_text_as_one_reference``). An
+    annotation that is already an object with a forward reference inside (a quoted
+    name, without postponed annotations) carries its markers as objects, and is
+    kept as it is.
+
+    **Then, by name.** What the stand-ins cannot reach is text: an attribute of a
+    name that did not resolve (``models.Owner``), a forward reference the
+    evaluation leaves in place, and the name of a marker that is itself what did
+    not resolve. A marker there is honoured by its name, failing closed: unread
+    text naming ``NotClientInput`` hides the key, and text naming ``InputRequired``
+    requires it, with ``Any`` for its type. Text is the last resort because it
+    cannot place a marker, and cannot read an ``InputDescription``'s text
+    (``misplaced`` in ``test_a_named_marker_is_honoured``, ``described`` in
+    ``test_the_schema_hides_and_requires_by_name``).
+
+    Each source of text is held by a case of ``test_a_named_marker_is_honoured``:
+    a failed evaluation by ``team``, a forward reference left inside by
+    ``nested``, an evaluation that is itself text by ``quoted``; and a stand-in's
+    name by ``test_a_marker_whose_own_name_does_not_resolve_is_read_by_name``.
+    """
+    text = (
+        annotation if isinstance(annotation, str) else getattr(annotation, "__forward_arg__", None)
+    )
+    if text is None:
+        value: Any = annotation
+        unread: list[str] = []
+    else:
+        # A forward reference built from a ``TypedDict`` key names the module the
+        # key was written in, which for an inherited key is not the class's own
+        # (``test_an_inherited_key_is_read_where_its_class_was_written``).
+        module = sys.modules.get(getattr(annotation, "__forward_module__", None) or "")
+        scope = getattr(module, "__dict__", namespace)
+        stand_ins = _StandIns(local, scope)
+        try:
+            # The same evaluation ``get_type_hints`` gives this text, with only
+            # the names nothing defines replaced.
+            value = eval(text, scope, stand_ins)
+        except Exception:  # noqa: BLE001 — what the stand-ins cannot reach is read by name
+            value, unread = Any, [text]
+        else:
+            unread = stand_ins.missing
+    named = set(_MARKER_NAMES.findall(" ".join([*unread, *_forward_ref_texts(value)])))
+    markers = tuple(marker for name, marker in _MARKERS if name in named)
+    return Annotated[(Any, *markers)] if markers else value
+
+
+# The markers read by name when only text is left of them. ``InputDescription`` is
+# not among them: its text cannot be read off a name.
+_MARKERS: Final = (("InputRequired", InputRequired), ("NotClientInput", NotClientInput))
+_MARKER_NAMES: Final = re.compile(r"\b(InputRequired|NotClientInput)\b")
+
+
+class _StandIns(dict[str, Any]):
+    """The locals ``_read_unresolved`` evaluates in: a name nothing defines is ``Any``.
+
+    ``eval`` looks a name up in its locals first, and a ``dict`` subclass answers a
+    missing key through ``__missing__``, so this sees every name the text uses. It
+    answers from the type parameters it holds, then the namespace, then the
+    builtins, and only then with the stand-in, recording the name in ``missing``
+    so a marker's name can still be read.
+    """
+
+    def __init__(self, local: dict[str, Any], namespace: dict[str, Any]) -> None:
+        super().__init__(local)
+        self.namespace = namespace
+        self.missing: list[str] = []
+
+    def __missing__(self, name: str) -> Any:
+        if name in self.namespace:
+            return self.namespace[name]
+        if hasattr(builtins, name):
+            return getattr(builtins, name)
+        self.missing.append(name)
+        return Any
+
+
+def _forward_ref_texts(value: Any) -> list[str]:
+    """The text of every forward reference left in ``value``, and of ``value`` if it is text."""
+    if isinstance(value, (str, ForwardRef)):
+        return [getattr(value, "__forward_arg__", value)]
+    return [text for arg in get_args(value) for text in _forward_ref_texts(arg)]

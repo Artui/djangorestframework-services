@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any, get_args, get_origin
 
-from typing_extensions import NotRequired, Required, get_type_hints
+from typing_extensions import NotRequired, Required
+
+from rest_framework_services.types.utils import annotation_hints
 
 
 def typed_dict_input(td: type) -> tuple[dict[str, Any], frozenset[str]]:
@@ -26,8 +28,14 @@ def typed_dict_input(td: type) -> tuple[dict[str, Any], frozenset[str]]:
     ``NotRequired`` demotes a key to optional, an explicit ``Required`` promotes
     it. Keys are intersected with the resolved hint set so a stale
     ``__required_keys__`` entry can't leak a phantom key.
+
+    **Each key is resolved on its own** (``annotation_hints``), so a key whose
+    annotation names something imported only under ``if TYPE_CHECKING:`` costs
+    that key alone: its siblings keep their markers and their ``NotRequired``. The
+    key itself is read as far as it evaluates, with what does not resolve standing
+    in for ``Any``, so ``NotRequired[Owner]`` is still optional.
     """
-    hints = get_type_hints(td, include_extras=True)
+    hints = annotation_hints(td)
     required: set[str] = set(getattr(td, "__required_keys__", frozenset()))
     field_types: dict[str, Any] = {}
     for name, hint in hints.items():

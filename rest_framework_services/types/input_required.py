@@ -30,6 +30,13 @@ client, an LLM tool call) that the input is mandatory, and makes ``dispatch_spec
 when it is absent — instead of the bare ``KeyError`` the callable would otherwise raise
 from deep inside dispatch, which no transport maps to a useful error.
 
+An annotation that does not resolve at runtime does not hide the marker either. A
+name imported only under ``if TYPE_CHECKING:`` costs only the parameter or key it
+annotates; that one is read with the name standing in for ``Any``, so
+``Annotated[Owner, InputRequired]`` is still required, and where even that cannot
+reach the marker, an annotation whose text names ``InputRequired`` is required by
+that name.
+
 Its counterpart is ``NotClientInput``, which hides a
 key from the schema entirely. A key marked with both is a contradiction and
 raises at schema-generation time.

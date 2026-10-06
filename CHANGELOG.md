@@ -175,6 +175,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `InputDescription` was dropped. The markers are now read through one level of
   `Optional`, spelled with `|` or `Optional[...]`, on a parameter and on an
   `Unpack[TypedDict]` key alike, and the type keeps its `null` branch.
+- **One annotation that does not resolve at runtime no longer hides every schema
+  marker on its callable.** The callable's annotations were resolved together,
+  so a parameter typed with a class imported under `if TYPE_CHECKING:` failed
+  the lot, and every reader took the callable as unmarked: a `NotClientInput`
+  parameter beside it was advertised in the input schema and the caller's value
+  reached the selector or service under `IGNORE`, `PASSTHROUGH` and `REJECT`
+  alike, an `InputRequired` one was neither listed nor enforced, and `as_view()`
+  mounted a misplaced or contradictory marker it would otherwise refuse. A
+  `TypedDict` lost the markers on every key the same way when one key did not
+  resolve. Each parameter and key is now resolved on its own, so the failure
+  costs only that name, and its own markers are still read: with the names that
+  do not resolve standing in for `Any`, and where even that cannot reach them,
+  by name, failing closed, so an annotation naming `NotClientInput` is hidden
+  and one naming `InputRequired` is required. `REJECT` no longer refuses to run
+  on a typed or open `**kwargs` because an unrelated parameter does not
+  resolve. A `**kwargs: Unpack[Extras]` whose `TypedDict` itself does not
+  resolve is still unknown: none of its keys is hidden, `REJECT` raises
+  `ImproperlyConfigured` and the other policies deliver what the caller sent.
 - **A service whose output re-read can find no row admits `null` in its output
   schema.** An `output_selector_spec` with a `selector` re-reads the row the
   service wrote, and dispatch materializes that re-read with `.first()`, so a

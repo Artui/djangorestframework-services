@@ -372,7 +372,8 @@ class TestServiceActionValidation:
 
 
 # Module level, so ``from __future__ import annotations`` leaves every hint below
-# resolvable: a marker in a hint that cannot be resolved is not read at all.
+# resolvable: a hint that cannot be resolved is read only as far as it evaluates
+# (see test_schema_markers_beside_unresolved_annotations.py).
 def _misplaced(*, team: list[Annotated[int, NotClientInput]] | None = None) -> list[Any]:
     """A marker inside a container: read by nothing, refused wherever it is read."""
     return []

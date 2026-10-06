@@ -58,6 +58,10 @@ transport-controlled, never caller input.
     argument, so an unresolvable one raises `ImproperlyConfigured` on dispatch
     rather than quietly letting every argument through. The permissive policies
     read an unresolvable annotation as an open `**kwargs`, as they always have.
+    Only the `**kwargs` annotation itself counts here: another parameter, or
+    another key of the `TypedDict`, naming something imported under
+    `if TYPE_CHECKING:` leaves the surface known, because each annotation is
+    resolved on its own.
 
 ## Requiredness: `InputRequired`
 
@@ -264,6 +268,24 @@ declares.
 
 Marking a key both `InputRequired` and `NotClientInput` raises — the caller cannot
 be required to supply a value it is never told about.
+
+!!! note "Annotations that do not resolve at runtime"
+    Each annotation is read on its own, so a parameter or key typed with a name
+    imported only under `if TYPE_CHECKING:` costs only itself: the markers on every
+    other parameter and key are hidden, required and enforced as written. Its own
+    markers are read with that name standing in for `Any`, so
+    `Annotated[Owner, NotClientInput] | None` is hidden and
+    `Annotated[Owner, InputRequired]` is required. Where even that cannot reach a
+    marker, as in `Annotated[models.Owner, NotClientInput]` with `models` imported
+    for type checking only, the marker is honoured by its name, which fails closed:
+    an annotation whose text names `NotClientInput` is hidden, and one naming
+    `InputRequired` is required. Read that way, an `InputDescription` is not
+    published and a marker placed too deep is not refused, so import the names a
+    marked annotation uses at runtime where you can. The one thing that stays
+    unknown is a `**kwargs: Unpack[Extras]` whose `TypedDict` does not resolve:
+    nothing says which keys it has, so none is hidden, `REJECT` refuses to run on
+    it and the other policies deliver what the caller sent (see the warning about
+    importing the `TypedDict` at runtime, above).
 
 ### `view` is never caller input
 

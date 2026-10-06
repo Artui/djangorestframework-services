@@ -13,7 +13,6 @@ from django.db.models import BooleanField, Model, Value
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.settings import api_settings
-from typing_extensions import get_type_hints
 
 from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
 from rest_framework_services.dispatch.combine_progress import combine_progress
@@ -44,6 +43,7 @@ from rest_framework_services.types.utils import (
     PER_CALL_POOL_NAMES,
     affordance_alias,
     is_row_condition,
+    resolved_annotation,
 )
 from rest_framework_services.types.view_hooks import ViewHooks
 from rest_framework_services.views.utils import resolve_callable_kwargs
@@ -245,7 +245,9 @@ def _callable_param_names(fn: Callable[..., Any]) -> set[str] | None:
     ``from __future__ import annotations`` makes routine — raises
     ``_UnresolvedExtras`` rather than reporting the callable as open: the surface is
     unknown, not unrestricted, and the caller decides what an unknown surface means
-    for its policy.
+    for its policy. Only that annotation is resolved, so another parameter that
+    does not resolve leaves the surface known
+    (``test_reject_reads_an_unpacked_typed_dict_beside_an_unresolved_name``).
 
     Keys marked ``NotClientInput`` are excluded as provider-owned and never
     advertised, and so is ``view``, which no caller supplies either
@@ -264,10 +266,12 @@ def _callable_param_names(fn: Callable[..., Any]) -> set[str] | None:
             if p.annotation is inspect.Parameter.empty:
                 return None
             try:
-                hints = get_type_hints(fn)
+                # This annotation alone: another parameter that does not resolve
+                # says nothing about the keyword surface.
+                annotation = resolved_annotation(fn, name)
             except Exception as exc:  # noqa: BLE001 — any resolution failure is opaque
                 raise _UnresolvedExtras(fn, name, exc) from exc
-            typed_dict = unpack_typed_dict(hints.get(name))
+            typed_dict = unpack_typed_dict(annotation)
             if typed_dict is None:
                 return None
             names |= set(typed_dict_input(typed_dict)[0])

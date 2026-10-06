@@ -57,6 +57,17 @@ on a closed spec with no such field ``IGNORE`` drops it and ``REJECT``, which
 judges the merged arguments, refuses it, as it refuses any ``input_data`` key
 nothing declares.
 
+**An annotation that does not resolve at runtime does not hide the marker.** A
+name imported only under ``if TYPE_CHECKING:`` costs only the parameter or key it
+annotates, and every other one is read as written. The one it annotates is read
+with that name standing in for ``Any``, so ``Annotated[Owner, NotClientInput] |
+None`` is hidden; where even that cannot reach the marker (``models.Owner``, or a
+marker inside a quoted string), an annotation whose text names ``NotClientInput``
+is hidden by that name. A ``**kwargs: Unpack[Extras]`` whose ``TypedDict`` itself
+does not resolve hides nothing, because nothing says which keys it has:
+``UnknownArguments.REJECT`` refuses to run on it, and the other policies deliver
+what the caller sent.
+
 Its counterpart is ``InputRequired``, which marks a
 key mandatory. A key marked with both is a contradiction and raises at
 schema-generation time.

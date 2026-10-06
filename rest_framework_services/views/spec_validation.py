@@ -580,11 +580,15 @@ def _refuse_misplaced_schema_markers(
     because the read resolves the callable's annotations and a spec is routinely
     built before they resolve: under ``from __future__ import annotations`` a
     ``TypedDict`` or class declared further down the module than the spec is a
-    ``NameError`` when the spec is built, and ``marked_input_keys`` reads an
-    annotation it cannot resolve as carrying no marker. A check there would pass
-    exactly those specs, so module order would decide whether the declaration was
-    refused at startup or on every call. ``as_view()`` runs once every module is
-    imported. Off HTTP no view runs it, so a spec that is never mounted is refused
+    ``NameError`` when the spec is built. ``marked_input_keys`` reads an
+    annotation it cannot resolve only as far as it evaluates, and a ``TypedDict``
+    that does not resolve yet as having no keys, so a marker it cannot reach there
+    is not placed. A check there would pass exactly those specs, so module order
+    would decide whether the declaration was refused at startup or on every call.
+    ``as_view()`` runs once every module is imported. An annotation that never
+    resolves, such as a name imported under ``if TYPE_CHECKING:``, costs only its
+    own name here as in dispatch, so the markers beside it are still checked
+    (``test_as_view_refuses_what_dispatch_would``). Off HTTP no view runs it, so a spec that is never mounted is refused
     where its markers are first read: at schema generation, or on each dispatch.
     """
     for where, fn in _marker_reading_callables(spec, label=label):
