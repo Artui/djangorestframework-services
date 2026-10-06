@@ -144,11 +144,14 @@ reshapes the body keeps the body it built. A handler that answers with a plain
 Django response, a `JsonResponse` say, has no data to restore into, and is
 served exactly as it built it.
 
-That restore lives on drfs' view and viewset bases: `ServiceCreateView`,
-`ServiceUpdateView`, `ServiceDeleteView`, every viewset mixin, `ServiceViewSet`,
-`SelectorViewSet` and `ActionSerializerResolver`, including a
-`@service_action` on any of them. Anything else that holds the mapped exception
-reads the native schema off it, because there is no view to restore it:
+Every route drfs ships restores it: `ServiceCreateView`, `ServiceUpdateView`,
+`ServiceDeleteView`, every viewset mixin, `ServiceViewSet`, `SelectorViewSet`,
+`ActionSerializerResolver`, and a `@service_action` on **any** viewset, DRF's
+own `GenericViewSet` and `ViewSet` included, whatever order its bases are listed
+in. Your handler runs once per request on every one of them, a handler that
+declines the error (returns `None`) included. Anything else that holds the
+mapped exception reads the native schema off it, because there is no view to
+restore it:
 
 ```python
 try:
@@ -157,14 +160,7 @@ except APIException as exc:
     schema = getattr(exc, "schema", None)  # as raised; None for any other error
 ```
 
-The same holds for a direct `map_service_error(...)` caller and for a
-`@service_action` on a viewset that takes none of drfs' bases. For the latter,
-adding `ActionSerializerResolver` to its bases is enough, listed **before**
-`GenericViewSet`. The restore is a `handle_exception` override, so it runs only
-where it comes first in the method resolution order:
-`class Purge(ActionSerializerResolver, GenericViewSet)` serves the schema as
-raised, while `class Purge(GenericViewSet, ActionSerializerResolver)` resolves
-`handle_exception` to DRF's `APIView` and still serves it stringified.
+The same holds for a direct `map_service_error(...)` caller.
 
 **The answer comes back as ordinary input.** An HTTP client re-submits with
 `confirmed` in the body. A transport that asks interactively — MCP, say — merges

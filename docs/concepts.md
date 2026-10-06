@@ -654,14 +654,17 @@ whether `success_status` is set explicitly. The full matrix:
 | Service returns | `output_selector_spec` | Response |
 |---|---|---|
 | a value | with `output_serializer` (no selector) | serialized value at `success_status` (default 200/201) |
-| a value | with `selector` | selector re-fetches (shaping applied, QuerySet materialized via `.first()`); result serialized at `success_status` |
+| a value | with `selector` | selector re-fetches (shaping applied, QuerySet materialized via `.first()`); result serialized at `success_status`. A re-fetch that finds nothing answers as a selector returning `None`, below |
 | a value | `None` | the raw value at `success_status` — only useful for JSON-native returns (dicts, lists) |
-| `None` | with `output_serializer` (no selector) | update flows render the *in-memory instance* through the serializer at `success_status` (DRF `UpdateAPIView` shape); destroy never resurrects the deleted instance — empty body |
-| `None` | with `selector` that returns `None` | the selector's `None` is authoritative → empty body at `204` (always, even with a custom `success_status`) |
+| `None` | with `output_serializer` (no selector) | update flows render the *in-memory instance* through the serializer at `success_status` (DRF `UpdateAPIView` shape). A create, a destroy and a non-detail `@service_action` have no row to present: empty body at the explicitly-set `spec.success_status`, else `204`. Destroy never resurrects the deleted instance |
+| a value or `None` | with `selector` that returns `None`, with or without an `output_serializer` | the selector's `None` is authoritative → empty body at `204` (always, even with a custom `success_status`) |
 | `None` | `None` | empty body at the explicitly-set `spec.success_status`, else `204` |
 
-Two consequences worth knowing:
+Three consequences worth knowing:
 
+- An `output_serializer` only ever renders a value. Nothing to present is an
+  empty body, never the serializer's blank and default fields for a row that
+  does not exist.
 - A destroy (or any no-output mutation) can carry a custom
   `success_status` and still send an empty body.
 - **Stale fetch-time annotations:** when the service mutates in place

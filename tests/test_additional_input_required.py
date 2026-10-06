@@ -16,11 +16,11 @@ from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.test import override_settings
 from rest_framework import serializers
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ErrorDetail
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
 from rest_framework.views import exception_handler
-from rest_framework.viewsets import GenericViewSet
+from rest_framework.viewsets import GenericViewSet, ViewSet
 
 from rest_framework_services import (  # noqa: I001
     ActionSerializerResolver,
@@ -295,7 +295,8 @@ def test_the_http_body_carries_the_schema_as_it_was_raised(entry: str) -> None:
 
 class _PurgeResolverLastViewSet(GenericViewSet, ActionSerializerResolver):
     """``ActionSerializerResolver`` listed after ``GenericViewSet``, whose
-    ``APIView.handle_exception`` then comes first in the MRO."""
+    ``APIView.handle_exception`` then comes first in the MRO, so drfs' override
+    is inherited and never runs."""
 
     queryset = Author.objects.all()
 
@@ -304,30 +305,106 @@ class _PurgeResolverLastViewSet(GenericViewSet, ActionSerializerResolver):
         """Replaced by service_action."""
 
 
-@pytest.mark.django_db
-def test_action_serializer_resolver_restores_the_schema_only_before_generic_viewset() -> None:
-    """The restore is a ``handle_exception`` override, so it runs only where
-    the resolver precedes DRF's view in the bases; listed after, DRF's own
-    method answers and never calls it."""
-    body = json.loads(
-        _respond(_PurgeResolverLastViewSet.as_view({"post": "purge"}), "post", False).content
+class _PurgeBareViewSet(ViewSet):
+    """DRF's lightest viewset: no queryset, no ``get_object``."""
+
+    @service_action(_PURGE_SPEC, detail=False, methods=["post"])
+    def purge(self, request):  # type: ignore[no-untyped-def]
+        """Replaced by service_action."""
+
+
+class _PurgeOverridingViewSet(ServiceViewSet):
+    """A drfs base whose ``handle_exception`` is its own, calling up to drfs'."""
+
+    queryset = Author.objects.all()
+
+    def handle_exception(self, exc):  # type: ignore[no-untyped-def]
+        return super().handle_exception(exc)
+
+    @service_action(_PURGE_SPEC, detail=False, methods=["post"])
+    def purge(self, request):  # type: ignore[no-untyped-def]
+        """Replaced by service_action."""
+
+
+class _PurgePolymorphicPlainViewSet(GenericViewSet):
+    """No drfs base, and the error raised while choosing the variant."""
+
+    queryset = Author.objects.all()
+
+    @service_action(
+        PolymorphicServiceSpec(discriminator=_purge, specs={"only": _PURGE_SPEC}),
+        detail=False,
+        methods=["post"],
     )
+    def purge(self, request):  # type: ignore[no-untyped-def]
+        """Replaced by service_action."""
 
-    assert body["schema"]["confirmed"] == {"type": "boolean", "default": "False"}
+
+# Every way a ``@service_action`` can sit on a viewset, keyed by its bases.
+_ACTION_BASES: dict[str, Any] = {
+    "ServiceViewSet": _PurgeViewSet,
+    "ActionSerializerResolver, GenericViewSet": _PurgeResolverViewSet,
+    "GenericViewSet": _PurgePlainViewSet,
+    "ViewSet": _PurgeBareViewSet,
+    "GenericViewSet, ActionSerializerResolver": _PurgeResolverLastViewSet,
+    "ServiceViewSet overriding handle_exception": _PurgeOverridingViewSet,
+    "GenericViewSet, PolymorphicServiceSpec": _PurgePolymorphicPlainViewSet,
+}
 
 
-@pytest.mark.django_db
-def test_a_viewset_with_no_drfs_base_serves_the_schema_as_drf_coerces_it() -> None:
-    """The restore lives on drfs' bases, and ``@service_action`` is a decorator,
-    so a viewset that takes none of them answers as a direct caller of
-    ``map_service_error`` sees it: every leaf a string. The documented remedy is
-    to compose any drfs base, ``ActionSerializerResolver`` being the lightest."""
-    body = json.loads(
-        _respond(_PurgePlainViewSet.as_view({"post": "purge"}), "post", False).content
+def _purge_through(bases: str) -> Any:
+    response = _ACTION_BASES[bases].as_view({"post": "purge"})(
+        _factory.post("/", {}, format="json")
     )
+    response.render()
+    return response
 
-    assert body["schema"]["confirmed"] == {"type": "boolean", "default": "False"}
-    assert body["schema"]["batches"]["maximum"] == "3"
+
+@pytest.mark.parametrize("bases", list(_ACTION_BASES))
+def test_service_action_serves_the_schema_as_raised_on_any_viewset(bases: str) -> None:
+    """The same action answers with the same body whichever viewset declares it.
+
+    The restore used to be a ``handle_exception`` override on drfs' bases, which
+    a decorated method on DRF's own viewsets never reaches, and which DRF's
+    method shadows where a drfs base is listed after ``GenericViewSet``. Those
+    served ``"default": "False"`` and ``"maximum": "3"``. The configured handler
+    runs exactly once on every route, and sees DRF's ``ErrorDetail`` leaves.
+    """
+    _seen.clear()
+    with _handled_by("_recording"):
+        response = _purge_through(bases)
+
+    assert response.status_code == 422
+    assert json.loads(response.content) == {"detail": "Confirm the purge.", "schema": _PURGE_SCHEMA}
+    assert len(_seen) == 1
+    leaf = _seen[0].detail["schema"]["confirmed"]["default"]  # ty: ignore[unresolved-attribute]
+    assert isinstance(leaf, ErrorDetail)
+    assert leaf == "False"
+
+
+_declined: list[Exception] = []
+
+
+def _declining(exc: Exception, context: dict[str, Any]) -> Response | None:
+    """A handler that answers nothing, so DRF re-raises the error."""
+    _declined.append(exc)
+    return None
+
+
+@pytest.mark.parametrize("bases", list(_ACTION_BASES))
+def test_a_handler_declining_the_error_runs_once_on_any_viewset(bases: str) -> None:
+    """A handler returning ``None`` makes DRF's ``handle_exception`` re-raise, and
+    the request fails with the mapped error, having run the handler once. The
+    decorator re-raises rather than answering the error itself: a re-raise from
+    inside the action would reach ``APIView.dispatch``, which hands it to the
+    handler a second time on every viewset whose own method does not restore.
+    """
+    _declined.clear()
+    with _handled_by("_declining"), pytest.raises(APIException) as caught:
+        _purge_through(bases)
+
+    assert len(_declined) == 1
+    assert caught.value.schema == _PURGE_SCHEMA  # ty: ignore[unresolved-attribute]
 
 
 def _flatten(detail: Any, attr: str = "") -> Iterator[dict[str, Any]]:

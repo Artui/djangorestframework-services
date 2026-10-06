@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A `@service_action` serves an `AdditionalInputRequired` schema as it was
+  raised, on any viewset.** The restore that keeps a `422`'s `schema` JSON
+  Schema, rather than a schema with every leaf turned into a string by DRF, was
+  a `handle_exception` override on drfs' bases. A decorated method on DRF's own
+  `GenericViewSet` or `ViewSet` never reached it, and nor did one on a viewset
+  listing `ActionSerializerResolver` after `GenericViewSet`, where DRF's method
+  comes first. Those served `"default": "False"` and `"maximum": "3"`, and a
+  client building a form reads `"False"` as a non-empty string. The decorator
+  now restores the schema itself on whatever viewset declares the action, so
+  the documented workaround of adding a drfs base before `GenericViewSet` is no
+  longer needed. The configured `EXCEPTION_HANDLER` still runs once per request
+  and still sees DRF's `ErrorDetail` leaves, and a handler that declines the
+  error by returning `None` still fails the request having run once.
+- **A mutation with nothing to present answers with an empty body, whether or
+  not it declares an `output_serializer`.** Over HTTP, a mutation rendered its
+  `output_selector_spec`'s `output_serializer` before asking whether there was a
+  value. So once the nested spec declared one, `None` became a row of blank and
+  default field values, `{"id": null, "title": ""}`, for a row that does not
+  exist. A create or a non-detail `@service_action` whose service returned
+  `None` sent that row under its `201` or `200`. A re-read that found no row
+  sent it in place of the authoritative empty `204`, and a destroy sent it as
+  the body of its `204`. Each now answers as the same spec without a serializer
+  always has: an empty `204` when the re-read returns `None`, and otherwise an
+  empty body at an explicitly set `success_status`, else `204`. An update whose
+  service mutates in place and returns `None` still renders its target. The
+  same blank row was fixed for `render_spec_output` in 0.52.1 and for a
+  `RETRIEVE` `@selector_action` in 0.55.0, and this was the path left.
+
 ## [0.55.0] — 2026-10-05
 
 ### Added

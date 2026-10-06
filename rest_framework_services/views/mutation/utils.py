@@ -191,8 +191,9 @@ def render_mutation_response(
     nothing that isn't: resolve the success status against the *action's* default
     (201 create / 200 update / 204 destroy), which the core cannot know; fall
     back to the in-memory ``instance`` when an in-place update returned ``None``;
-    render through the output serializer or emit a body-less response; apply
-    ``spec.response_finalizer`` (2xx, pre-render).
+    render a value through the output serializer, or emit a body-less response
+    when there is no value to render, whether or not a serializer is declared;
+    apply ``spec.response_finalizer`` (2xx, pre-render).
 
     ``render_instance_on_none`` is the caller's update-vs-destroy intent — read
     it as "the target still exists". Deliberately **not** a spec field and **not**
@@ -238,18 +239,25 @@ def render_mutation_response(
         drf_status.HTTP_204_NO_CONTENT if spec.success_status is None else resolved_status
     )
 
-    if output_serializer is not None:
+    # Whether there is a value comes before how to render one. A serializer over
+    # ``None`` builds a row of blank and default field values for no row, which
+    # is what a create, a re-read finding nothing and a destroy all answered with
+    # once the nested spec declared an ``output_serializer``. ``None`` here is
+    # what is left after the update fallback above, so an update that mutated in
+    # place still renders its target.
+    if value is None:
+        if selector_ran:
+            # A selector that returned ``None`` is an authoritative no-content result.
+            response = Response(status=drf_status.HTTP_204_NO_CONTENT)
+        else:
+            response = Response(status=resolved_empty_status)
+    elif output_serializer is not None:
         rendered: Any = output_serializer(value, context=output_context(value)).data
         response = Response(
             add_affordances(spec, rendered, value, many=False), status=resolved_status
         )
-    elif value is not None:
-        response = Response(value, status=resolved_status)
-    elif selector_ran:
-        # A selector that returned ``None`` is an authoritative no-content result.
-        response = Response(status=drf_status.HTTP_204_NO_CONTENT)
     else:
-        response = Response(status=resolved_empty_status)
+        response = Response(value, status=resolved_status)
 
     return apply_response_finalizer(
         spec.response_finalizer,
@@ -480,49 +488,66 @@ def resolve_mutation_instance(
     return view.get_object()
 
 
-class _ServesRaisedSchema:
-    """Puts an ``AdditionalInputRequired`` schema back into the body as it was raised.
+def restore_raised_schema(exc: Exception, response: Response) -> Response:
+    """Put an ``AdditionalInputRequired`` schema back into the body as it was raised.
 
     The mapped exception's ``detail`` is DRF's, every leaf an ``ErrorDetail``
     string, because that is what the configured ``EXCEPTION_HANDLER`` walks; the
-    schema itself rides on its ``schema`` attribute. This runs *after* that
-    handler has built the response, so the handler sees what it always saw, and
-    the client still gets JSON Schema rather than ``"default": "False"``.
+    schema itself rides on its ``schema`` attribute. Called with the response
+    that handler built, so the handler sees what it always saw, and the client
+    still gets JSON Schema rather than ``"default": "False"``. Any other
+    exception, and any response without a ``schema`` key of its own, comes back
+    as it was.
+
+    Called from two places, which between them cover every route drfs ships to a
+    mapped ``ServiceError``: ``_ServesRaisedSchema`` below, for drfs' views and
+    viewset bases, and ``@service_action``, which installs it on whatever viewset
+    the action is declared on. Restoring twice is restoring once, which is what
+    a ``@service_action`` on a drfs base does.
+    """
+    # Typed ``Response`` as DRF's stubs type it, but a configured
+    # ``EXCEPTION_HANDLER`` may answer with any Django response, which DRF
+    # serves as it is; only DRF's ``Response`` has a ``.data``.
+    data: Any = getattr(response, "data", None)
+    # Each condition is held by its own test in tests/test_additional_input_required.py:
+    # the exception type by test_another_error_naming_a_schema_field_is_left_alone,
+    # the dict by test_a_handler_that_answers_with_no_body_is_left_alone (a
+    # ``Response`` whose ``data`` is ``None``) and by
+    # test_a_handler_answering_with_a_django_response_is_left_alone (no
+    # ``.data`` at all, read above as ``None``), and the key by
+    # test_a_handler_reading_every_leafs_code_answers_with_its_own_body.
+    if (
+        isinstance(exc, _AdditionalInputAPIException)
+        and isinstance(data, dict)
+        and "schema" in data
+    ):
+        # A new dict rather than an assignment into the old one: under DRF's
+        # default handler ``response.data`` *is* ``exc.detail``, and the
+        # exception should keep describing itself the DRF way. Held by
+        # test_the_exception_keeps_drfs_shape_after_the_body_is_restored.
+        response.data = {**data, "schema": exc.schema}
+    return response
+
+
+class _ServesRaisedSchema:
+    """Runs ``restore_raised_schema`` over every response ``handle_exception`` builds.
 
     Inherited by ``MutationFlowMixin`` (the three mutation views and the
     viewset mixins) and ``_ActionSpecsMixin`` (every drfs viewset base,
     ``ActionSerializerResolver`` included), which between them are every class
     drfs ships that maps a ``ServiceError`` into a response. Defined once, so a
-    class inheriting both runs it once. ``@service_action`` on a viewset with
-    none of those bases is the one route it cannot reach: a decorator has no
-    hold on the class's ``handle_exception``. Nor can it run where such a base
-    comes *after* DRF's view in the bases, as in
-    ``class V(GenericViewSet, ActionSerializerResolver)``: ``APIView``'s own
-    ``handle_exception`` answers first and never calls this one. Held by
-    test_action_serializer_resolver_restores_the_schema_only_before_generic_viewset.
+    class inheriting both runs it once.
+
+    It runs only where it precedes DRF's view in the bases: in
+    ``class V(GenericViewSet, ActionSerializerResolver)``, ``APIView``'s own
+    ``handle_exception`` answers first and never calls this one. Nothing drfs
+    ships is composed that way, and the one route a user can compose so,
+    ``@service_action``, restores the schema itself on any viewset. Held by
+    test_service_action_serves_the_schema_as_raised_on_any_viewset.
     """
 
     def handle_exception(self, exc: Exception) -> Response:
-        response: Response = super().handle_exception(exc)  # ty: ignore[unresolved-attribute]
-        # Typed ``Response`` as DRF's stubs type it, but a configured
-        # ``EXCEPTION_HANDLER`` may answer with any Django response, which DRF
-        # serves as it is; only DRF's ``Response`` has a ``.data``.
-        data: Any = getattr(response, "data", None)
-        # Each condition is held by its own test in tests/test_additional_input_required.py:
-        # the exception type by test_another_error_naming_a_schema_field_is_left_alone,
-        # the dict by test_a_handler_that_answers_with_no_body_is_left_alone (a
-        # ``Response`` whose ``data`` is ``None``) and by
-        # test_a_handler_answering_with_a_django_response_is_left_alone (no
-        # ``.data`` at all, read above as ``None``), and the key by
-        # test_a_handler_reading_every_leafs_code_answers_with_its_own_body.
-        if (
-            isinstance(exc, _AdditionalInputAPIException)
-            and isinstance(data, dict)
-            and "schema" in data
-        ):
-            # A new dict rather than an assignment into the old one: under DRF's
-            # default handler ``response.data`` *is* ``exc.detail``, and the
-            # exception should keep describing itself the DRF way. Held by
-            # test_the_exception_keeps_drfs_shape_after_the_body_is_restored.
-            response.data = {**data, "schema": exc.schema}
-        return response
+        return restore_raised_schema(
+            exc,
+            super().handle_exception(exc),  # ty: ignore[unresolved-attribute]
+        )

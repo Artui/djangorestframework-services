@@ -171,6 +171,33 @@ class TestServiceDeleteView:
         assert response.status_code == 200
         assert response.data == {"deleted": author.pk}
 
+    @pytest.mark.parametrize(("success_status", "expected"), [(None, 204), (202, 202)])
+    def test_an_output_serializer_never_renders_the_deleted_row(
+        self, success_status: int | None, expected: int
+    ) -> None:
+        """A destroy whose service returns ``None`` sends an empty body even where
+        the spec declares an ``output_serializer``, at the explicitly-set
+        ``success_status``, else ``204``. Rendering the serializer over ``None``
+        sent a row of blank fields under the ``204``."""
+
+        class _View(ServiceDeleteView):
+            queryset = Author.objects.all()
+            spec = ServiceSpec(
+                service=_delete_author,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
+                success_status=success_status,
+                atomic=False,
+            )
+
+        author = Author.objects.create(name="x")
+        response = _View.as_view()(factory.delete("/"), pk=author.pk)
+        assert response.status_code == expected
+        assert response.data is None
+        assert response.render().content == b""
+        assert not Author.objects.filter(pk=author.pk).exists()
+
     def test_none_returning_service_honors_custom_success_status_with_empty_body(
         self,
     ) -> None:
