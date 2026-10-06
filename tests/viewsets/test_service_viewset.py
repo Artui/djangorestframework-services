@@ -546,7 +546,10 @@ class TestServiceViewSetEdgeCases:
         author = Author.objects.create(name="Z")
         view = _View.as_view({"delete": "destroy"})
         response = view(factory.delete("/"), pk=author.pk)
-        assert response.status_code == 204
+        # A row to present is a body, and a ``204`` carries none: the defaulted
+        # destroy status becomes ``200``, as it does on the bulk path.
+        assert response.status_code == 200
+        assert response.data == {"id": author.pk, "name": "Z"}
 
     def test_get_serializer_class_falls_back_for_other_actions(self) -> None:
         class _View(ServiceViewSet):

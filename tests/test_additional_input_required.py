@@ -29,6 +29,7 @@ from rest_framework_services import (  # noqa: I001
     SelectorKind,
     SelectorSpec,
     SelectorViewSet,
+    ServiceCreateMixin,
     ServiceCreateView,
     ServiceDeleteView,
     ServiceError,
@@ -382,6 +383,80 @@ def test_service_action_serves_the_schema_as_raised_on_any_viewset(bases: str) -
     assert leaf == "False"
 
 
+class _PurgeRedactingViewSet(ServiceViewSet):
+    """A drfs base whose own ``handle_exception`` rewrites the body drfs restored."""
+
+    queryset = Author.objects.all()
+    action_specs = {"create": _PURGE_SPEC}
+
+    def handle_exception(self, exc):  # type: ignore[no-untyped-def]
+        response = super().handle_exception(exc)
+        response.data["schema"] = {"redacted": True}
+        return response
+
+    @service_action(_PURGE_SPEC, detail=False, methods=["post"])
+    def purge(self, request):  # type: ignore[no-untyped-def]
+        """Replaced by service_action."""
+
+
+@pytest.mark.parametrize("action", ["create", "purge"])
+def test_an_overriding_handle_exception_has_the_last_word_on_every_route(action: str) -> None:
+    """A subclass's ``handle_exception`` runs after drfs' restore on a drfs base,
+    so what it writes is what the client gets, on a mixin's action and on a
+    ``@service_action`` of the same class alike.
+
+    The decorator used to wrap the instance's ``handle_exception`` whatever the
+    class, so on the action the restore ran a second time *outside* the
+    override, and put back the schema the override had just replaced.
+    """
+    response = _PurgeRedactingViewSet.as_view({"post": action})(
+        _factory.post("/", {}, format="json")
+    )
+    response.render()
+
+    assert response.status_code == 422
+    assert json.loads(response.content) == {
+        "detail": "Confirm the purge.",
+        "schema": {"redacted": True},
+    }
+
+
+class _PurgeCreateLastViewSet(GenericViewSet, ServiceCreateMixin):
+    """A drfs mixin listed after ``GenericViewSet``, as no drfs viewset lists it."""
+
+    queryset = Author.objects.all()
+    action_specs = {"create": _PURGE_SPEC}
+
+    @service_action(_PURGE_SPEC, detail=False, methods=["post"])
+    def purge(self, request):  # type: ignore[no-untyped-def]
+        """Replaced by service_action."""
+
+
+@pytest.mark.parametrize(
+    ("action", "confirmed"),
+    [
+        ("create", {"type": "boolean", "default": "False"}),
+        ("purge", {"type": "boolean", "default": False}),
+    ],
+)
+def test_a_mixin_listed_after_generic_viewset_serves_its_own_actions_stringified(
+    action: str, confirmed: dict[str, Any]
+) -> None:
+    """The base-order limit, pinned so the docs stating it stay true.
+
+    ``handle_exception`` resolves to DRF's, which never calls drfs' restore, so
+    the mixin's ``create`` serves the schema with DRF's ``str`` leaves. The
+    ``@service_action`` on the same class restores it itself.
+    """
+    response = _PurgeCreateLastViewSet.as_view({"post": action})(
+        _factory.post("/", {}, format="json")
+    )
+    response.render()
+
+    assert response.status_code == 422
+    assert json.loads(response.content)["schema"]["confirmed"] == confirmed
+
+
 _declined: list[Exception] = []
 
 
@@ -442,6 +517,13 @@ def _plain_django(exc: Exception, context: dict[str, Any]) -> HttpResponse | Non
     return JsonResponse({"error": str(exc.detail)}, status=exc.status_code)
 
 
+def _textual(exc: Exception, context: dict[str, Any]) -> Response | None:
+    """A handler answering with a ``str`` body, one that happens to say "schema"."""
+    if not isinstance(exc, APIException):
+        return None
+    return Response("A schema is required.", status=exc.status_code)
+
+
 _seen: list[Exception] = []
 
 
@@ -485,6 +567,17 @@ def test_a_handler_that_answers_with_no_body_is_left_alone() -> None:
 
     assert response.status_code == 422
     assert response.data is None
+
+
+def test_a_handler_answering_with_a_string_body_is_left_alone() -> None:
+    """Only a dict body has a ``schema`` key to restore into. ``"schema" in``
+    a ``str`` is a substring test, so a body that merely says "schema" would
+    otherwise be spread as a mapping and the ``422`` become a ``TypeError``."""
+    with _handled_by("_textual"):
+        response = _PurgeView.as_view()(_factory.post("/", {}, format="json"))
+
+    assert response.status_code == 422
+    assert response.data == "A schema is required."
 
 
 def test_a_handler_answering_with_a_django_response_is_left_alone() -> None:

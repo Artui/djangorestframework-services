@@ -149,9 +149,18 @@ Every route drfs ships restores it: `ServiceCreateView`, `ServiceUpdateView`,
 `ActionSerializerResolver`, and a `@service_action` on **any** viewset, DRF's
 own `GenericViewSet` and `ViewSet` included, whatever order its bases are listed
 in. Your handler runs once per request on every one of them, a handler that
-declines the error (returns `None`) included. Anything else that holds the
-mapped exception reads the native schema off it, because there is no view to
-restore it:
+declines the error (returns `None`) included.
+
+The viewset mixins and `ActionSerializerResolver` restore it where they are
+listed before `GenericViewSet`, as every drfs viewset lists them:
+`class V(GenericViewSet, ServiceCreateMixin)` resolves `handle_exception` to
+DRF's and serves `create`'s schema stringified. A `handle_exception` of your
+own on a drfs viewset runs after the restore on every route, a
+`@service_action` included, so what it writes into the body is what the client
+gets.
+
+Anything else that holds the mapped exception reads the native schema off it,
+because there is no view to restore it:
 
 ```python
 try:

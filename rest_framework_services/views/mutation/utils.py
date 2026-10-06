@@ -189,7 +189,9 @@ def render_mutation_response(
 
     Everything downstream of the dispatch that is genuinely transport-shaped, and
     nothing that isn't: resolve the success status against the *action's* default
-    (201 create / 200 update / 204 destroy), which the core cannot know; fall
+    (201 create / 200 update / 204 destroy), which the core cannot know, and
+    answer a destroy that has a value to present with ``200`` instead, because a
+    ``204`` carries no body; fall
     back to the in-memory ``instance`` when an in-place update returned ``None``;
     render a value through the output serializer, or emit a body-less response
     when there is no value to render, whether or not a serializer is declared;
@@ -238,6 +240,19 @@ def render_mutation_response(
     resolved_empty_status: int = (
         drf_status.HTTP_204_NO_CONTENT if spec.success_status is None else resolved_status
     )
+    # And the converse: a body never goes out under a defaulted ``204``. A destroy
+    # whose service returns something to present (a soft delete returning its row,
+    # a count) answers ``200``, as the bulk path does for the same reason. An
+    # explicit ``success_status`` is used as given. The unset status is held by
+    # test_a_destroy_presenting_a_row_answers_200_rather_than_204, whose 202 case
+    # is promoted to 200 without it; the destroy default by
+    # test_service_create_view's test_creates_and_returns_201, and every other
+    # create answering 201 with a body, all promoted to 200 without it.
+    resolved_body_status: int = (
+        drf_status.HTTP_200_OK
+        if spec.success_status is None and default_status == drf_status.HTTP_204_NO_CONTENT
+        else resolved_status
+    )
 
     # Whether there is a value comes before how to render one. A serializer over
     # ``None`` builds a row of blank and default field values for no row, which
@@ -254,10 +269,10 @@ def render_mutation_response(
     elif output_serializer is not None:
         rendered: Any = output_serializer(value, context=output_context(value)).data
         response = Response(
-            add_affordances(spec, rendered, value, many=False), status=resolved_status
+            add_affordances(spec, rendered, value, many=False), status=resolved_body_status
         )
     else:
-        response = Response(value, status=resolved_status)
+        response = Response(value, status=resolved_body_status)
 
     return apply_response_finalizer(
         spec.response_finalizer,
@@ -501,9 +516,10 @@ def restore_raised_schema(exc: Exception, response: Response) -> Response:
 
     Called from two places, which between them cover every route drfs ships to a
     mapped ``ServiceError``: ``_ServesRaisedSchema`` below, for drfs' views and
-    viewset bases, and ``@service_action``, which installs it on whatever viewset
-    the action is declared on. Restoring twice is restoring once, which is what
-    a ``@service_action`` on a drfs base does.
+    viewset bases, and ``@service_action``, which installs it on a viewset whose
+    own chain does not reach ``_ServesRaisedSchema``. It is never installed
+    twice on one class, because an override of ``handle_exception`` runs between
+    the two and a second restore would undo what it wrote.
     """
     # Typed ``Response`` as DRF's stubs type it, but a configured
     # ``EXCEPTION_HANDLER`` may answer with any Django response, which DRF
@@ -511,11 +527,13 @@ def restore_raised_schema(exc: Exception, response: Response) -> Response:
     data: Any = getattr(response, "data", None)
     # Each condition is held by its own test in tests/test_additional_input_required.py:
     # the exception type by test_another_error_naming_a_schema_field_is_left_alone,
-    # the dict by test_a_handler_that_answers_with_no_body_is_left_alone (a
-    # ``Response`` whose ``data`` is ``None``) and by
-    # test_a_handler_answering_with_a_django_response_is_left_alone (no
-    # ``.data`` at all, read above as ``None``), and the key by
-    # test_a_handler_reading_every_leafs_code_answers_with_its_own_body.
+    # the dict by test_a_handler_answering_with_a_string_body_is_left_alone (a
+    # ``str`` body saying "schema", which ``in`` matches as a substring, so a
+    # weaker ``data is not None`` spreads it and raises), and the key by
+    # test_a_handler_reading_every_leafs_code_answers_with_its_own_body. A body
+    # of ``None``, or no ``.data`` at all, is held by
+    # test_a_handler_that_answers_with_no_body_is_left_alone and
+    # test_a_handler_answering_with_a_django_response_is_left_alone.
     if (
         isinstance(exc, _AdditionalInputAPIException)
         and isinstance(data, dict)
@@ -541,9 +559,11 @@ class _ServesRaisedSchema:
     It runs only where it precedes DRF's view in the bases: in
     ``class V(GenericViewSet, ActionSerializerResolver)``, ``APIView``'s own
     ``handle_exception`` answers first and never calls this one. Nothing drfs
-    ships is composed that way, and the one route a user can compose so,
-    ``@service_action``, restores the schema itself on any viewset. Held by
-    test_service_action_serves_the_schema_as_raised_on_any_viewset.
+    ships is composed that way. A user who lists a drfs mixin after
+    ``GenericViewSet`` gets DRF's method, and that mixin's own actions serve the
+    schema stringified; ``@service_action`` restores it itself on any viewset.
+    Held by test_a_mixin_listed_after_generic_viewset_serves_its_own_actions_stringified
+    and test_service_action_serves_the_schema_as_raised_on_any_viewset.
     """
 
     def handle_exception(self, exc: Exception) -> Response:

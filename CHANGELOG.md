@@ -19,9 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   client building a form reads `"False"` as a non-empty string. The decorator
   now restores the schema itself on whatever viewset declares the action, so
   the documented workaround of adding a drfs base before `GenericViewSet` is no
-  longer needed. The configured `EXCEPTION_HANDLER` still runs once per request
-  and still sees DRF's `ErrorDetail` leaves, and a handler that declines the
-  error by returning `None` still fails the request having run once.
+  longer needed. Where the viewset's own bases already restore it, the
+  decorator leaves them to it, so a `handle_exception` override on a drfs
+  viewset still has the last word on a `@service_action`'s body, as it does on
+  the viewset's other actions. The configured `EXCEPTION_HANDLER` still runs
+  once per request and still sees DRF's `ErrorDetail` leaves, and a handler
+  that declines the error by returning `None` still fails the request having
+  run once. A drfs mixin listed after `GenericViewSet` still inherits DRF's
+  `handle_exception`, so that mixin's own actions serve the schema stringified.
 - **A mutation with nothing to present answers with an empty body, whether or
   not it declares an `output_serializer`.** Over HTTP, a mutation rendered its
   `output_selector_spec`'s `output_serializer` before asking whether there was a
@@ -36,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   service mutates in place and returns `None` still renders its target. The
   same blank row was fixed for `render_spec_output` in 0.52.1 and for a
   `RETRIEVE` `@selector_action` in 0.55.0, and this was the path left.
+- **A destroy that has a value to present answers `200`, not `204`.** A
+  single-row destroy whose service returned something, a soft delete's row
+  through the `output_serializer` or a raw value such as a count, sent it as the
+  body of the action's default `204`, a status that carries no body, so a client
+  or proxy is entitled to discard it. It now answers `200` with the body, as a
+  bulk destroy already did. An explicitly set `success_status` is used as given,
+  and a destroy whose service returns `None` still answers with an empty `204`.
 
 ## [0.55.0] — 2026-10-05
 

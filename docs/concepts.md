@@ -24,8 +24,11 @@ A service can return:
 - the freshly mutated model instance (DRF's typical pattern),
 - the matching output dataclass (when the API surface diverges from the
   model),
-- `None` for update / delete flows — the in-memory instance is rendered
-  instead, matching DRF's `UpdateAPIView` shape without you wiring it up.
+- `None` for an update (or a detail `@service_action`) whose
+  `output_selector_spec` declares an `output_serializer` and no `selector`:
+  the in-memory instance is rendered instead, matching DRF's `UpdateAPIView`
+  shape without you wiring it up. A create or destroy returning `None` answers
+  with an empty body; see [Result rendering](#result-rendering).
 
 ## Selectors
 
@@ -159,7 +162,8 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
 - **`atomic`** — wrap the service call in `transaction.atomic()`
   (defaults `True`).
 - **`success_status`** — override the HTTP status (defaults to
-  `201` for create, `200` for update, `204` for delete). May also be a
+  `201` for create, `200` for update, `204` for delete, or `200` for a delete
+  presenting a value, since a `204` carries no body). May also be a
   **callable** resolved through the keyword pool (`result` / `instance` /
   `request` / `view`) returning the status — the callable keys on the
   *service's* return value, so an upsert can answer `201` when it created a
@@ -247,6 +251,8 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   nothing.
   `None` (the default) keeps the `get_object()` chain. See
   [Standalone update without a queryset](#standalone-update-without-a-queryset).
+  An `instance_selector_spec` beside `collection_selector_spec` or `many=True`
+  is refused at construction.
 - **`collection_selector_spec`** — the bulk twin of
   `instance_selector_spec`: a `kind=SelectorKind.LIST` nested spec that
   resolves a *set* (scoped by the selector + `filter_set`) and seeds it
@@ -262,6 +268,10 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   the service's return value directly. The nested spec's `kwargs` is
   ignored — the surrounding mutation's kwargs chain applies — and its
   `permission_classes` / `preconditions` are rejected at `as_view()`.
+- **`allow_none`** — declares that the service may return `None` as the result
+  it presents (default `False`), so its output schema admits `null`. It only
+  matters for a single-row result with no re-read `selector`; a re-read may find
+  no row whether or not it is set. See [Result rendering](#result-rendering).
 - **`kwargs`** — callable returning extra kwargs to merge into the pool
   the service receives. The most-specific level of the kwargs
   resolution chain; co-located with the service it feeds.
@@ -653,12 +663,20 @@ whether `success_status` is set explicitly. The full matrix:
 
 | Service returns | `output_selector_spec` | Response |
 |---|---|---|
-| a value | with `output_serializer` (no selector) | serialized value at `success_status` (default 200/201) |
-| a value | with `selector` | selector re-fetches (shaping applied, QuerySet materialized via `.first()`); result serialized at `success_status`. A re-fetch that finds nothing answers as a selector returning `None`, below |
-| a value | `None` | the raw value at `success_status` — only useful for JSON-native returns (dicts, lists) |
+| a value | with `output_serializer` (no selector) | serialized value at `success_status`, by default `201` for a create and `200` otherwise. A destroy presenting a value answers `200` rather than its default `204`, because a `204` carries no body; an explicitly set `success_status` is used as given |
+| a value | with `selector` | selector re-fetches (shaping applied, QuerySet materialized via `.first()`); result serialized at `success_status`, defaulting as in the first row. A re-fetch that finds nothing answers as a selector returning `None`, below |
+| a value | `None` | the raw value at `success_status`, defaulting as in the first row — only useful for JSON-native returns (dicts, lists) |
 | `None` | with `output_serializer` (no selector) | update flows render the *in-memory instance* through the serializer at `success_status` (DRF `UpdateAPIView` shape). A create, a destroy and a non-detail `@service_action` have no row to present: empty body at the explicitly-set `spec.success_status`, else `204`. Destroy never resurrects the deleted instance |
 | a value or `None` | with `selector` that returns `None`, with or without an `output_serializer` | the selector's `None` is authoritative → empty body at `204` (always, even with a custom `success_status`) |
 | `None` | `None` | empty body at the explicitly-set `spec.success_status`, else `204` |
+
+A single-row service with no output re-read presents its own return;
+`allow_none=True` on the `ServiceSpec` declares it may be `None`, and its output
+schema then admits `null`. Undeclared, the schema stays strict and the `None` is
+still presented, not refused. A service whose `output_selector_spec` has a
+`selector` may present `None` when the re-read finds no row, and its schema
+admits `null` with no declaration. The predicate a transport reads for both is
+[`can_present_nothing`](reference/jsonschema.md#can_present_nothing).
 
 Three consequences worth knowing:
 

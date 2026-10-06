@@ -11,6 +11,7 @@ from rest_framework import status as drf_status
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -18,6 +19,7 @@ from rest_framework_services.views.mutation.map_service_error import (
     _AdditionalInputAPIException,
 )
 from rest_framework_services.views.mutation.utils import (
+    _ServesRaisedSchema,
     dispatch_mutation_for_spec,
     resolve_mutation_instance,
     restore_raised_schema,
@@ -51,9 +53,25 @@ def _restore_schema_when_handled(view: Any) -> None:
     ``dispatch``, which runs the handler a second time. Held by
     test_a_handler_declining_the_error_runs_once_on_any_viewset.
 
-    On a drfs base the class's method restores as well; restoring twice is
-    restoring once, so the wrapper is installed unconditionally.
+    Where the class's own chain already reaches the restore, that is where
+    ``_ServesRaisedSchema`` precedes ``APIView`` in its MRO, nothing is
+    installed. Restoring twice is restoring once only when nothing runs between
+    the two, and a subclass overriding ``handle_exception`` does: its override
+    runs after the class's restore, and a wrapper around the bound method would
+    restore again after the override and undo whatever it wrote to ``schema``.
+    Held by test_an_overriding_handle_exception_has_the_last_word_on_every_route.
+    Where the class's chain does not reach it, on DRF's own viewsets and where
+    a drfs base is listed after ``GenericViewSet``, the wrapper is the only
+    restore, and it runs after the bound method, an override included: there an
+    override's own ``schema`` is replaced by the one raised.
     """
+    mro = type(view).__mro__
+    # Both conditions are held by test_service_action_serves_the_schema_as_raised_on_any_viewset:
+    # the membership by its "GenericViewSet" case (no drfs base, so ``index``
+    # would raise) and the order by its "GenericViewSet, ActionSerializerResolver"
+    # case (a drfs base whose method DRF's shadows, served stringified if skipped).
+    if _ServesRaisedSchema in mro and mro.index(_ServesRaisedSchema) < mro.index(APIView):
+        return
     handle_exception: Callable[[Exception], Response] = view.handle_exception
 
     def restoring(exc: Exception) -> Response:
