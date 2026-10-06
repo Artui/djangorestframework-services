@@ -34,6 +34,7 @@ from rest_framework_services import (
     adispatch_spec,
     build_offline_context,
     dispatch_spec,
+    server_owned_keys,
     spec_to_json_schema,
 )
 from rest_framework_services.types.unset import UNSET
@@ -1008,4 +1009,39 @@ def test_a_field_named_like_a_key_a_precondition_hides_is_not_spread(
     )
 
     assert result.value == "service-default"
+    assert gate_seen == ["own"]
+
+
+def _payload(*, data: Any) -> dict[str, Any]:
+    return dict(data)
+
+
+@pytest.mark.django_db(transaction=True)
+@_CORES
+def test_a_field_named_like_an_owned_key_stays_the_callers_input(
+    dispatch: Dispatch, gate_seen: list[str]
+) -> None:
+    """``server_owned_keys`` governs the keyword pool, not an input serializer's
+    fields. A precondition hides ``tenant`` and the serializer declares a ``tenant``
+    field: the field stays declared, so the schema lists it, ``REJECT`` admits it,
+    and the caller's value is validated into ``data``, while the gate still sees
+    only its own. The two may mean different things, such as a destination tenant
+    beside the one the gate checks."""
+    spec = ServiceSpec(
+        service=_payload,
+        input_serializer=_TitleAndTenant,
+        preconditions=[_gate],
+        atomic=False,
+    )
+
+    assert "tenant" in server_owned_keys(spec)
+    assert "tenant" in spec_to_json_schema(spec, phase="input")["properties"]
+    result = dispatch(
+        spec,
+        params={"title": "t", "tenant": "elsewhere"},
+        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+        unknown_arguments=UnknownArguments.REJECT,
+    )
+
+    assert result.value == {"title": "t", "tenant": "elsewhere"}
     assert gate_seen == ["own"]

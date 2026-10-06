@@ -358,17 +358,29 @@ The names no caller supplies anywhere in a spec's dispatch: every key the
 selector or service, one of `spec.preconditions` or the target lookup marks
 [`NotClientInput`](types.md#notclientinput), and `view`. Dispatch drops the
 caller's value for each before any callable reads it, `REJECT` refuses it on a
-closed spec, and `spec_to_json_schema` leaves it out of the input schema. A
-transport that builds an input schema of its own subtracts the same set rather
-than reading each callable's markers again, which would miss a key that one
-callable hides and another takes plainly:
+closed spec, and `spec_to_json_schema` leaves it out of the input schema.
+
+The set governs the keyword pool, not an input serializer's fields. A field the
+`input_serializer` declares under an owned name stays client input: the schema
+lists it, `REJECT` admits it, and the caller's value is validated into `data`,
+the one place it reaches the service, since dispatch keeps it out of the spread.
+A same-named key can mean something else there, such as a destination tenant in
+`data` beside the server's current tenant at the gate, so the declaration is not
+refused.
+
+A transport that builds an input schema of its own subtracts the same set, less
+the input serializer's field names, rather than reading each callable's markers
+again, which would miss a key that one callable hides and another takes plainly:
 
 ```python
 from rest_framework_services import server_owned_keys
 
-# A service tool merging its target lookup's keys into the service's own.
-properties = {**lookup_properties, **service_properties}
-for name in server_owned_keys(spec):  # the service spec, not its nested lookup
+# A service tool merging its target lookup's keys into what it built from the
+# service's input serializer (empty when the spec has none).
+properties = {**lookup_properties, **serializer_properties}
+# A field the serializer declares stays the caller's, whatever its name.
+owned = server_owned_keys(spec) - set(serializer_properties)
+for name in owned:  # the service spec, not its nested lookup
     properties.pop(name, None)
 ```
 

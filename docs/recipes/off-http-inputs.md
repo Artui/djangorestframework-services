@@ -119,8 +119,18 @@ the input its call declares:
 | a selector under a `SPREAD_*` binding, which `AUTO` resolves to for a selector, and its preconditions | the selector's parameters: every name under a `filter_set` or a bare `**kwargs` |
 | a selector under `BUNDLE`, as an HTTP selector view dispatches it, and its preconditions | nothing: no caller input reaches the pool |
 | a service under `BUNDLE` (the default), and its preconditions | nothing: the caller's input arrives as `data`, never by name |
-| a service under a `SPREAD_*` binding, and its preconditions | what `REJECT` admits: the input serializer's fields or, with none, the service's own parameters, beside the target lookup's; every name where a bare `**kwargs` opens the set |
+| a service under a `SPREAD_*` binding, and its preconditions | what `REJECT` admits: the input serializer's fields or, with none, the service's own parameters, beside the target lookup's keys that reach the service, which are none of them beside an input serializer and otherwise those the service names; every name where a bare `**kwargs` opens the set, less the lookup's keys the service does not name |
 | a target lookup (`instance_selector_spec` / `collection_selector_spec`) | the lookup selector's parameters, whatever the service's binding, since its pool is spread from the caller's arguments |
+
+The table reads declared input, so a precondition parameter its selector or
+service does not declare, left unfilled, fails as the callable's `TypeError`, even
+where `IGNORE` or `PASSTHROUGH` would deliver a resend carrying it; naming it
+would send a `REJECT` caller from a missing argument to an unexpected one. An
+author who wants such a parameter refused as missing declares it on the selector
+or service. And an input serializer field with `source=` reaches the spread under
+its source, not its own name, so a service or precondition naming the field is
+asked for it, and the resend carrying it still fails as the `TypeError`; name the
+source instead.
 
 Less, in every case, a key any callable in the call marks `NotClientInput` (see
 [below](#hiding-provider-owned-inputs-notclientinput)), and the keys the caller
@@ -269,10 +279,11 @@ input before the spread, under every `UnknownArguments` policy:
 | closed, under `IGNORE` or `PASSTHROUGH` | the value is dropped |
 | open, under any policy | the value is dropped |
 
-The provider still fills it in. So can a route capture (`view.kwargs`, or
-`build_offline_context(kwargs=…)` off HTTP), a registered pool seed, a service's
-`input_data`, or the parameter's own default; those are channels the caller does
-not control. The same holds for a service whose input is spread, which never receives the key from
+The provider still fills it in. So can a registered pool seed, a service's
+`input_data`, the parameter's own default, or, for a selector and its
+preconditions or a service's target lookup, a route capture (`view.kwargs`, or
+`build_offline_context(kwargs=…)` off HTTP), which reaches no service's own
+pool; those are channels the caller does not control. The same holds for a service whose input is spread, which never receives the key from
 `PASSTHROUGH` either, and for a service's `instance_selector_spec` /
 `collection_selector_spec` lookup, whose pool is spread from the caller's
 arguments. Over HTTP a selector view spreads nothing, so the lookups are the one
@@ -284,11 +295,15 @@ the selector or service, any of `spec.preconditions`, or the target lookup.
 The callables of one call read the same caller input, so a key one of them
 hides is dropped before any of them sees it, and is gone from the declared set
 `REJECT` admits and from the input schema, wherever else it is a plain
-parameter. A precondition taking `tenant: Annotated[int, NotClientInput]` beside
+parameter. A field the `input_serializer` declares under that name is the one
+exception, because it is not a parameter: it stays declared and listed, and the
+caller's value reaches the service only in `data`, never the spread, since a
+same-named field can mean something else, such as a destination tenant beside
+the server's current one. A precondition taking `tenant: Annotated[int, NotClientInput]` beside
 a selector that reads `tenant` plainly makes the selector's `tenant` the
 provider's too. A key the target lookup hides never reaches an open spread
 service's `**changes`, and a service naming it receives the server's value: the
-provider's, a route capture's or its default. The set is public as
+provider's, `input_data`'s or its default. The set is public as
 [`server_owned_keys(spec)`](../reference/dispatch.md#server_owned_keys), for a
 transport that builds an input schema of its own and must leave out the same
 keys.
@@ -348,8 +363,9 @@ be required to supply a value it is never told about.
 ### `view` is never caller input
 
 No pool carries `view`. A selector or service that wants the calling view takes it
-from a `kwargs=` provider or a `get_*_kwargs` view hook, or from a route capture
-of that name. The input schema hides it from a selector's parameters, as it hides
+from a `kwargs=` provider or a `get_*_kwargs` view hook; a selector or a target
+lookup can also take it from a route capture of that name, which reaches no
+service's pool. The input schema hides it from a selector's parameters, as it hides
 `request` and `user`, so dispatch treats `view` as though every callable marked it
 `NotClientInput`: the caller's value is dropped at every site above, under every
 policy, `REJECT` refuses it as `Unexpected argument(s): 'view'.` on a closed spec,
@@ -357,8 +373,8 @@ and a required `view` nothing filled is never named as a missing argument. It
 fails as the `TypeError` it always did, because no value a caller could send would
 be the view.
 
-Over HTTP a provider, a hook and a route capture deliver the real view as they
-did. As with a hidden key, the one thing an HTTP request can no longer do is have
+Over HTTP a provider, a hook and, to a selector or a target lookup, a route
+capture deliver the real view as they did. As with a hidden key, the one thing an HTTP request can no longer do is have
 its body's `view` reach a mutation's target lookup.
 
 ## Describing an input: `InputDescription`
@@ -442,7 +458,7 @@ pagination names on top.
 | --- | --- |
 | read by the callable from its own `**extras` | nothing — reflection covers it |
 | …and the spec can't run without it | `Annotated[T, InputRequired]` |
-| …and the caller must never set it | `Annotated[T, NotClientInput]`, filled by a provider, a route capture, a pool seed or the default |
+| …and the caller must never set it | `Annotated[T, NotClientInput]`, filled by a provider, a pool seed, `input_data` or the default, or for a selector or a target lookup a route capture |
 | …and the name alone doesn't say what it is for | `Annotated[T, InputDescription("…")]` |
 | read only by a `spec.kwargs` provider off `view.kwargs` | `UrlKwarg(..., required=…)` |
 | read off `request.query_params` to shape output | `QueryParam(...)` |

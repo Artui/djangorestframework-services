@@ -86,12 +86,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   service, one of `spec.preconditions` or the target lookup marks
   `NotClientInput`, and `view`: the set dispatch drops from the caller's input,
   leaves out of what `REJECT` admits and never names as a missing argument, and
-  that `spec_to_json_schema` leaves out of the input schema. A transport that
-  builds an input schema of its own, such as a service tool merging its target
-  lookup's keys into the service's, should subtract it instead of reading each
-  callable's markers again, asking with the spec it dispatches and not the
-  nested lookup's: a key the service or a precondition hides is otherwise still
-  advertised there, and then dropped. Exported from the package root.
+  that `spec_to_json_schema` leaves out of the input schema. It governs the
+  keyword pool, not an input serializer's fields: a field the `input_serializer`
+  declares under an owned name stays client input, listed in the schema,
+  admitted by `REJECT` and validated into `data`, the one place it reaches the
+  service, since a same-named key can mean something else there, such as a
+  destination tenant beside the server's current one at the gate. A transport
+  that builds an input schema of its own, such as a service tool merging its
+  target lookup's keys into the service's, should subtract the set, less the
+  input serializer's field names, instead of reading each callable's markers
+  again, asking with the spec it dispatches and not the nested lookup's: a key
+  the service or a precondition hides is otherwise still advertised there, and
+  then dropped. Exported from the package root.
 - **`spec_to_json_schema(spec, argument_binding=...)` lists a spreading
   service's own parameters as its input.** A `ServiceSpec` with no
   `input_serializer`, dispatched under a `SPREAD_*` binding, takes the caller's
@@ -168,13 +174,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selector or service, one of `spec.preconditions`, or the target lookup, is
   dropped before any of them reads the caller's input, and is left out of what
   `REJECT` admits and of the input schema, even where another of them takes it
-  as an ordinary parameter. So a precondition's hidden `tenant` is the server's
+  as an ordinary parameter. A field the `input_serializer` declares under that
+  name is the exception, because it is not a parameter: it stays declared and
+  listed, and the caller's value reaches the service only in `data`. So a
+  precondition's hidden `tenant` is the server's
   for the gate and for the selector alike, and a key the lookup hides never
   reaches an open spread service's `**changes`, where a `setattr` loop would
   write it onto the row; a service naming it receives the server's value. A
-  provider, a route capture, a registered pool seed or the parameter's default still fills
-  the key, and a provider declining with `UNSET` now leaves the default rather
-  than the caller's value. A service's `input_data`, or a `get_input_data` view
+  provider, a registered pool seed or the parameter's default still fills the
+  key, and so does a route capture for a selector or a target lookup, the pools
+  a route capture reaches; a service's own pool takes none. A provider
+  declining with `UNSET` now leaves the default rather than the caller's value.
+  A service's `input_data`, or a `get_input_data` view
   hook, fills it too: that value is the server's, merged over the caller's input
   with its keys winning, so it is never dropped, and where the caller sends the
   same key the server's value is the one that arrives. It reaches the service
@@ -322,7 +333,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   name the caller could fill is named, marked or not: for a selector and its
   preconditions, or for a target lookup, a parameter of that selector; for a
   service and its preconditions under a `SPREAD_*` binding, a key `REJECT`
-  admits there, every name where a bare `**kwargs` opens the set; and under
+  admits there, every name where a bare `**kwargs` opens the set, but not a
+  target lookup key the service is never handed: beside an input serializer
+  only a field of that name carries one, and without one the service takes
+  only those it names, so its preconditions receive no other; and under
   `BUNDLE`, none, for a selector as for a service, because no caller input
   reaches their pool by name: a service's arrives as `data`. A target lookup is
   spread from the caller's arguments under any binding. Less, every time, a key
@@ -361,8 +375,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it as every callable marking it `NotClientInput`: the caller's value is dropped
   at every site that spreads caller input, `REJECT` refuses it as
   `Unexpected argument(s): 'view'.` on a closed spec, and a required `view`
-  nothing filled is not named as a missing argument. A provider, a view hook and
-  a route capture of that name still fill it. Over HTTP a selector view spreads
+  nothing filled is not named as a missing argument. A provider and a view hook
+  still fill it, and so does a route capture of that name for a selector or a
+  target lookup. Over HTTP a selector view spreads
   nothing and is unchanged; a request body's `view` no longer reaches a
   mutation's `instance_selector_spec` or `collection_selector_spec` lookup.
 - **A spread service with no input serializer receives the arguments its own

@@ -24,10 +24,12 @@ from asgiref.sync import async_to_sync
 from django.contrib.auth.models import User
 from django.db.models import QuerySet
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory
 from typing_extensions import TypedDict, Unpack
 
 from rest_framework_services.dispatch.adispatch_spec import adispatch_spec
+from rest_framework_services.dispatch.build_offline_context import build_offline_context
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.exceptions.service_validation_error import ServiceValidationError
 from rest_framework_services.types.affordance import Affordance
@@ -952,6 +954,194 @@ def test_a_sent_key_the_service_never_receives_is_not_named(dispatch: Any) -> No
 
     with pytest.raises(TypeError, match="pk"):
         dispatch(spec, params={"pk": post.pk, "title": "t"}, argument_binding=_SPREAD)
+
+
+def _retitle(*, instance: Post, title: str) -> str:
+    return title
+
+
+def _open_retitle(*, instance: Post, **changes: Any) -> str:
+    return "ok"
+
+
+def _pk_gate(*, pk: int) -> None: ...
+
+
+_BY_PK = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_by_pk)
+
+_LOOKUP_KEY_NEVER_HANDED_ON = [
+    pytest.param(
+        ServiceSpec(
+            service=_retitle_with_pk, input_serializer=_TitleInput, instance_selector_spec=_BY_PK
+        ),
+        id="serializer-service-naming-the-lookups-key",
+    ),
+    pytest.param(
+        ServiceSpec(service=_retitle, preconditions=[_pk_gate], instance_selector_spec=_BY_PK),
+        id="closed-service-precondition-naming-the-lookups-key",
+    ),
+    pytest.param(
+        ServiceSpec(service=_open_retitle, preconditions=[_pk_gate], instance_selector_spec=_BY_PK),
+        id="open-service-precondition-naming-the-lookups-key",
+    ),
+]
+
+
+@_CORES
+@_POLICIES
+@pytest.mark.parametrize("spec", _LOOKUP_KEY_NEVER_HANDED_ON)
+def test_a_lookup_key_the_service_is_never_handed_is_not_named(
+    dispatch: Any, policy: UnknownArguments, spec: Any
+) -> None:
+    """The route fills the lookup's ``pk``, and ``service_extras`` hands the
+    lookup's keys on to the service, and so to its preconditions, only by name:
+    none of them beside an input serializer, and otherwise only those the service
+    names. ``pk`` is declared input, as the lookup's key, but a resend carrying it
+    leaves the service's or the precondition's ``pk`` as unfilled as before, so the
+    first answer is the callable's ``TypeError`` rather than a refusal naming
+    ``pk`` that the resend answers with the same error."""
+    post = Post.objects.create(title="p")
+    route = build_offline_context(None, kwargs={"pk": post.pk})
+
+    for params in ({"title": "t"}, {"title": "t", "pk": post.pk}):
+        with pytest.raises(TypeError, match="'pk'"):
+            dispatch(
+                spec,
+                params=params,
+                argument_binding=_SPREAD,
+                unknown_arguments=policy,
+                request=route.request,
+                view=route.view,
+            )
+
+
+def _retitle_naming_pk(*, instance: Post, title: str, pk: int) -> int:
+    return pk
+
+
+def _open_retitle_naming_pk(*, instance: Post, pk: int, **changes: Any) -> int:
+    return pk
+
+
+@_CORES
+@pytest.mark.parametrize(
+    "service",
+    [
+        pytest.param(_retitle_naming_pk, id="closed-service"),
+        pytest.param(_open_retitle_naming_pk, id="open-service"),
+    ],
+)
+def test_a_lookup_key_the_service_names_is_still_named(dispatch: Any, service: Any) -> None:
+    """With no input serializer a spread service is handed the lookup's keys it
+    names, closed or beside a bare ``**changes``, so a ``pk`` the route filled for
+    the lookup alone is the caller's to send, and the resend delivers it."""
+    post = Post.objects.create(title="p")
+    route = build_offline_context(None, kwargs={"pk": post.pk})
+    spec = ServiceSpec(service=service, instance_selector_spec=_BY_PK)
+    on_route = {"argument_binding": _SPREAD, "request": route.request, "view": route.view}
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        dispatch(spec, params={"title": "t"}, **on_route)
+    assert excinfo.value.detail == {"non_field_errors": ["Missing required argument(s): 'pk'."]}
+
+    assert dispatch(spec, params={"title": "t", "pk": post.pk}, **on_route).value == post.pk
+
+
+class _TitleAndPkInput(serializers.Serializer):
+    title = serializers.CharField()
+    pk = serializers.IntegerField(required=False)
+
+
+@_CORES
+def test_a_field_named_like_a_lookup_key_is_still_named(dispatch: Any) -> None:
+    """The lookup's keys reach a service beside an input serializer only through a
+    field of that name, which the serializer validates into the spread. So a field
+    ``pk`` the caller left out is named, and the resend carrying it is delivered."""
+    post = Post.objects.create(title="p")
+    route = build_offline_context(None, kwargs={"pk": post.pk})
+    spec = ServiceSpec(
+        service=_retitle_with_pk, input_serializer=_TitleAndPkInput, instance_selector_spec=_BY_PK
+    )
+    on_route = {"argument_binding": _SPREAD, "request": route.request, "view": route.view}
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        dispatch(spec, params={"title": "t"}, **on_route)
+    assert excinfo.value.detail == {"non_field_errors": ["Missing required argument(s): 'pk'."]}
+
+    assert dispatch(spec, params={"title": "t", "pk": post.pk}, **on_route).value == post.pk
+
+
+class _AliasedTitleInput(serializers.Serializer):
+    title = serializers.CharField(source="headline", required=False)
+
+
+def _retitle_by_field_name(*, data: Any, title: str) -> str:
+    return title
+
+
+@_CORES
+def test_a_source_aliased_field_is_asked_for_under_its_own_name(dispatch: Any) -> None:
+    """The documented edge: a field with ``source=`` is declared under its own name
+    but validated into the spread under its source, so a service naming the field
+    is asked for ``title``, and the resend carrying it still leaves ``title``
+    unfilled. The docs tell an author to name the source instead."""
+    spec = ServiceSpec(service=_retitle_by_field_name, input_serializer=_AliasedTitleInput)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        dispatch(spec, params={}, argument_binding=_SPREAD)
+    assert excinfo.value.detail == {"non_field_errors": ["Missing required argument(s): 'title'."]}
+
+    with pytest.raises(TypeError, match="'title'"):
+        dispatch(spec, params={"title": "t"}, argument_binding=_SPREAD)
+
+
+@_CORES
+@pytest.mark.parametrize(
+    ("spec", "params", "binding", "policy"),
+    [
+        pytest.param(
+            SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_defaulted_tenant, preconditions=[_region_gate]
+            ),
+            {"pk": 1},
+            ArgumentBinding.AUTO,
+            UnknownArguments.IGNORE,
+            id="selector-under-ignore",
+        ),
+        pytest.param(
+            ServiceSpec(service=_close_for_reason, preconditions=[_region_gate]),
+            {"reason": "r"},
+            _SPREAD,
+            UnknownArguments.PASSTHROUGH,
+            id="spread-service-under-passthrough",
+        ),
+    ],
+)
+def test_an_undeclared_precondition_parameter_is_not_named_though_a_resend_would_reach_it(
+    dispatch: Any,
+    spec: Any,
+    params: dict[str, Any],
+    binding: ArgumentBinding,
+    policy: UnknownArguments,
+) -> None:
+    """The fillable rule reads declared input, not what a permissive policy happens
+    to deliver: ``region`` is not named, though the resend carrying it reaches the
+    precondition, because under ``REJECT`` that resend would be refused as
+    unexpected. An author who wants it named declares it."""
+    with pytest.raises(TypeError, match="region"):
+        dispatch(spec, params=params, argument_binding=binding, unknown_arguments=policy)
+
+    dispatch(
+        spec, params={**params, "region": "eu"}, argument_binding=binding, unknown_arguments=policy
+    )
+    with pytest.raises(ValidationError) as excinfo:
+        dispatch(
+            spec,
+            params={**params, "region": "eu"},
+            argument_binding=binding,
+            unknown_arguments=UnknownArguments.REJECT,
+        )
+    assert excinfo.value.detail == {"non_field_errors": ["Unexpected argument(s): 'region'."]}
 
 
 if TYPE_CHECKING:

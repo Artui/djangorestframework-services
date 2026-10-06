@@ -58,7 +58,8 @@ OUTPUT_SOURCE = "ServiceSpec.output_selector_spec.selector"
 # The calling view. A transport hands it to a provider (``kwargs=``, the
 # ``get_*_kwargs`` hooks, the serializer-context providers) and puts it in no
 # callable's pool, so a selector or service that wants it takes it from one of
-# those, or from a route capture of that name. The input schema hides it from a
+# those; a selector or a target lookup can also take it from a route capture of
+# that name, which reaches no service's pool. The input schema hides it from a
 # selector's parameters, as it hides ``request`` and ``user``, so a caller is never
 # told it may send one.
 #
@@ -105,15 +106,26 @@ def server_owned_keys(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any])
     - one nothing filled is not named as a missing argument (``caller_fillable``),
       since no value the caller sends could fill it.
 
-    A provider, a route capture, a registered pool seed, ``input_data`` and the
-    parameter's default still fill it.
+    **The set governs the keyword pool, not an input serializer's fields.** A
+    field the ``input_serializer`` declares under an owned name stays client input:
+    the schema lists it, ``REJECT`` admits it, and the caller's value is validated
+    into ``data``, the one place it reaches the service, since it is kept out of
+    the spread. The two may mean different things, such as a destination tenant in
+    ``data`` beside the server's current tenant at the gate, so the declaration is
+    not refused. Held by
+    ``test_a_field_named_like_an_owned_key_stays_the_callers_input``.
+
+    A provider, a registered pool seed, ``input_data`` and the parameter's default
+    still fill it, and so does a route capture for a selector, its preconditions
+    or a service's target lookup, the pools a route capture reaches.
 
     **Public, for a transport building an input schema of its own**, such as a
     service tool that merges its target lookup's keys into the service's: subtract
-    this set from what it lists, so it advertises no key dispatch then drops, and
-    pass the spec it dispatches, the service's rather than the nested lookup's, or
-    a key the service or one of its preconditions hides is missed.
-    ``spec_to_json_schema`` already subtracts it.
+    this set, less the input serializer's field names, from what it lists, so it
+    advertises no key dispatch then drops and keeps every field the serializer
+    validates, and pass the spec it dispatches, the service's rather than the
+    nested lookup's, or a key the service or one of its preconditions hides is
+    missed. ``spec_to_json_schema`` already does both.
 
     Each callable is one part of the union,
     held by its own test in ``tests/dispatch/test_dispatch_hidden_inputs.py``:
@@ -170,8 +182,9 @@ def strip_hidden_inputs(
     supplies the key, so dispatch removes the caller's value before it can be
     spread into any pool of the call, whatever the ``UnknownArguments`` policy and
     whatever the binding's precedence. Apply it to the caller's mapping only, never
-    to the pool: a ``spec.kwargs`` provider, a route capture, a registered pool
-    seed and the parameter's default are all still how such a key is filled.
+    to the pool: a ``spec.kwargs`` provider, a registered pool seed, the
+    parameter's default and, in a selector's or a target lookup's pool, a route
+    capture are all still how such a key is filled.
 
     ``view`` is in every ``owned``, marked or not (see ``TRANSPORT_ONLY_NAMES``):
     no pool carries it and the input schema hides it, so a caller's value would
@@ -439,6 +452,45 @@ def _lookup_parameter_names(spec: ServiceSpec[Any, Any, Any]) -> set[str]:
     return _keyword_parameters(selector)
 
 
+def _spread_surface(
+    spec: ServiceSpec[Any, Any, Any],
+    *,
+    argument_binding: ArgumentBinding,
+    reserved: frozenset[str],
+) -> tuple[set[str] | None, set[str]]:
+    """``(names, withheld)``: what ``service_extras`` takes from the caller for ``spec``.
+
+    ``names`` is the service parameters it takes (``_spread_parameter_keys``), or
+    ``None`` where that surface is open, an unresolvable ``**kwargs`` annotation
+    included, which the permissive policies read as open. ``withheld`` is the
+    target lookup's keys (``_lookup_parameter_names``) it does not hand on: every
+    one the closed surface leaves out, which is all of them beside an
+    ``input_serializer`` and under ``BUNDLE``, since ``names`` is then empty; and
+    where the surface is open, every one the service does not name.
+
+    One function for both readers, so they cannot drift apart: ``service_extras``,
+    which delivers the caller's input by these sets, and ``caller_fillable``,
+    which must not ask the caller for a lookup key the delivery then withholds.
+    ``service_extras`` reads ``withheld`` only where the surface is open, so the
+    closed operand is held through ``caller_fillable`` alone. Each operand names
+    the test that fails without it (in ``tests/dispatch/``):
+
+    - less the names a closed surface takes: the ``closed-service`` row of
+      ``test_a_lookup_key_the_service_names_is_still_named``.
+    - less the parameters an open service names:
+      ``test_a_service_naming_the_lookups_key_beside_var_keyword_receives_it``,
+      and the ``open-service`` row of the test above.
+    """
+    try:
+        names = _spread_parameter_keys(spec, argument_binding=argument_binding, reserved=reserved)
+    except _UnresolvedExtras:
+        names = None
+    lookup = _lookup_parameter_names(spec)
+    if names is None:
+        return None, lookup - _keyword_parameters(spec.service)
+    return names, lookup - names
+
+
 def declared_input_keys(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     *,
@@ -698,6 +750,16 @@ def caller_fillable(
     change. An unresolvable ``**kwargs`` annotation reads as open, as the
     permissive policies read it; under ``REJECT`` dispatch has raised already.
 
+    Less, for a ``ServiceSpec``, the target lookup's keys ``service_extras``
+    withholds (``_spread_surface``): all of them beside an ``input_serializer``,
+    and otherwise those the service does not name. Each is declared input, as the
+    lookup's key, but reaches the service and its preconditions only by name, so a
+    resend carrying it leaves the parameter as unfilled as before. A field the
+    ``input_serializer`` declares under the same name is kept, since the serializer
+    validates it into the spread. A field with a ``source=`` reaches the spread
+    under its source instead, so naming it still asks for a key the resend cannot
+    deliver; that edge is documented rather than read here.
+
     ``argument_binding`` is the dispatch's, for a selector as for a service. A
     target lookup is read with the default, which is a ``SPREAD_*`` mode for a
     ``SelectorSpec``, because its pool is spread from the caller's arguments
@@ -718,13 +780,31 @@ def caller_fillable(
       ``test_an_unresolvable_extras_annotation_reads_as_open``.
     - less ``owned``: ``test_a_hidden_parameter_of_an_open_call_is_not_named``.
     - less what was sent: ``test_a_sent_key_the_service_never_receives_is_not_named``.
+    - less the lookup keys ``service_extras`` withholds:
+      ``test_a_lookup_key_the_service_is_never_handed_is_not_named``, one row per
+      shape: beside a serializer, and a precondition beside a closed and an open
+      spread service.
+    - except an input serializer field of that name:
+      ``test_a_field_named_like_a_lookup_key_is_still_named``.
     """
     if resolve_argument_binding(spec, argument_binding) is ArgumentBinding.BUNDLE:
         return NOTHING_FILLABLE
+    withheld = set(owned).union(params)
     try:
         if isinstance(spec, SelectorSpec):
             declared = _selector_consumed_keys(spec)
         else:
+            # The lookup's keys reach the service, and so its preconditions, only
+            # as ``service_extras`` hands them on, or through an input serializer
+            # field of the same name, which the serializer validates into the
+            # spread. Declared as the lookup's input, a key it withholds would be
+            # named, and the resend carrying it would leave the parameter as
+            # unfilled as before.
+            fields = set(serializer.fields) if serializer is not None else set()
+            withheld |= (
+                _spread_surface(spec, argument_binding=argument_binding, reserved=reserved)[1]
+                - fields
+            )
             declared = declared_input_keys(
                 spec, serializer=serializer, argument_binding=argument_binding, reserved=reserved
             )
@@ -732,7 +812,7 @@ def caller_fillable(
         declared = None
     return Fillable(
         declared=None if declared is None else frozenset(declared),
-        withheld=frozenset(owned).union(params),
+        withheld=frozenset(withheld),
     )
 
 
@@ -755,8 +835,9 @@ def resolve_dispatch_kwargs(
     from ``caller_fillable``). Anything else unfilled fails as the callable's own
     error, as it did before the check existed, a ``TypeError`` for a parameter and
     whatever reading it raises for a ``TypedDict`` key: a ``NotClientInput`` key
-    or ``view``, any name under ``BUNDLE``, one the call site does not declare, and
-    one the caller sent that never arrived. Naming any of those would ask for a
+    or ``view``, any name under ``BUNDLE``, one the call site does not declare, a
+    target lookup key the service is never handed, and one the caller sent that
+    never arrived. Naming any of those would ask for a
     value the caller cannot send, or already did, and a client that retries on a
     validation error, as an agent does, would retry forever. It is a gap in what
     the server supplies, which no client can fix. The marker says the value must
@@ -842,6 +923,10 @@ def service_extras(
     naming the lookup's hidden ``tenant`` receives the server's value and never the
     caller's.
 
+    What it takes and withholds is read by ``_spread_surface``, which
+    ``caller_fillable`` reads too, so a refusal never asks for a lookup key this
+    then withholds.
+
     Each step names the test that fails without it (in
     ``tests/dispatch/test_dispatch_spread_parameters.py``):
 
@@ -859,12 +944,8 @@ def service_extras(
     - the dispatch's own ``reserved``, so a registered seed is held out too:
       ``test_a_registered_seed_is_never_taken_from_the_caller``.
     """
-    try:
-        names = _spread_parameter_keys(spec, argument_binding=argument_binding, reserved=reserved)
-    except _UnresolvedExtras:
-        names = None
+    names, withheld = _spread_surface(spec, argument_binding=argument_binding, reserved=reserved)
     if names is None:
-        withheld = _lookup_parameter_names(spec) - _keyword_parameters(spec.service)
         taken = {
             key: value
             for key, value in strip_reserved_seeds(params, reserved=reserved).items()
