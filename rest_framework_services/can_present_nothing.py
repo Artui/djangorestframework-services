@@ -23,12 +23,16 @@ def can_present_nothing(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any
     [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
     and every transport advertising an output schema can give the same answer:
 
-    - A result that is a list is never ``None``, only empty: a ``LIST``
+    - A result that is a list is *declared* never ``None``, only empty: a ``LIST``
       ``SelectorSpec``, a ``many=True`` ``ServiceSpec``, and a ``ServiceSpec``
       whose ``output_selector_spec`` declares ``LIST``, with a ``selector`` to
-      re-read through or without one. With none, dispatch presents the service's
-      own return as the list, and refuses a ``None`` return there as the author's
-      error rather than presenting it. ``allow_none`` is not read on any of them.
+      re-read through or without one. ``allow_none`` is not read on any of them.
+      A callable returning ``None`` there anyway is the author's error. With no
+      ``selector`` to re-read, dispatch refuses it. On the other three paths, a
+      ``LIST`` selector, a ``LIST`` re-read and a ``many=True`` service, dispatch
+      does not refuse it and presents the ``None``, which a transport validating
+      structured output against the schema will reject. Held by
+      ``test_a_list_callable_returning_none_is_presented_unrefused``.
     - A ``RETRIEVE`` ``SelectorSpec`` presents ``None`` for a miss under
       ``allow_none=True``; without it dispatch answers the miss as
       ``not_found``.

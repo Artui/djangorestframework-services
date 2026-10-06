@@ -93,6 +93,14 @@ renderers ask. That is the status itself, except that a `204` carries no body:
 a destroy presenting a value, single-row or bulk, at its default `204` or one
 set explicitly, is served and documented as `200`.
 
+A declared body is not always sent. Where dispatch may present `None`, as
+[`can_present_nothing`][rest_framework_services.can_present_nothing.can_present_nothing]
+answers (a single-row re-read that finds no row, or a service declaring
+`allow_none=True`), the renderers answer an empty `204` rather than a row of
+blank fields, so the schema documents that `204`, with no content, beside the
+body's status. A list result, a `many=True` spec, and a single-row spec that
+declares no `None` document only the body.
+
 Where the spec declares no `output_serializer`, the schema documents an empty
 response at the status, which for a destroy is the `204` its service answers
 with by returning `None`. Whether there is a body is then decided by what the

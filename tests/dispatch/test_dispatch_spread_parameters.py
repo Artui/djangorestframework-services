@@ -604,14 +604,16 @@ def test_a_bundled_service_still_declares_only_the_lookup(
 @pytest.mark.django_db
 @_CORES
 def test_a_bundled_service_still_spreads_nothing(dispatch: Dispatch, post: Post) -> None:
-    detail = _refusal(
-        dispatch,
-        _CLOSE,
-        params={"pk": post.pk, "reason": "dup"},
-        unknown_arguments=UnknownArguments.PASSTHROUGH,
-    )
-
-    assert detail == _REASON_MISSING
+    # ``reason`` reaches ``data`` as a ``PASSTHROUGH`` extra and never the
+    # parameter. Naming it as missing would ask for a value the caller sent, so it
+    # fails as the author's ``TypeError``: under ``BUNDLE`` no caller value fills a
+    # service parameter.
+    with pytest.raises(TypeError, match="reason"):
+        dispatch(
+            _CLOSE,
+            params={"pk": post.pk, "reason": "dup"},
+            unknown_arguments=UnknownArguments.PASSTHROUGH,
+        )
 
 
 class _TitleSerializer(serializers.Serializer):

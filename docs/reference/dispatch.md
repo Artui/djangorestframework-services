@@ -180,6 +180,12 @@ A `ServiceSpec` with no `input_serializer`, dispatched under a `SPREAD_*`
 lookup's keys, because nothing else reads the caller's input there: its keyword
 parameters and `Unpack[TypedDict]` keys, less the reserved pool seeds (registered
 ones included), positional-only parameters, `NotClientInput` keys and `view`.
+The parameters and lookup keys in every declared set, a selector's included,
+also leave out a key that any callable in the call marks `NotClientInput`: the
+selector or service, a precondition, or the target lookup. Such a key is
+server-owned for the whole call, so the caller's value for it is dropped before
+any of them reads it. An `input_serializer` field is the serializer's own
+declaration, and stays declared.
 Under `BUNDLE`, which `AUTO` resolves to for a service, they are not declared. A
 bare `**kwargs` on that service opens the set. See
 [a spread service with no input serializer](../recipes/off-http-inputs.md#a-spread-service-with-no-input-serializer).

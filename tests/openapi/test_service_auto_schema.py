@@ -532,6 +532,77 @@ def test_an_undeclared_body_is_documented_as_no_content() -> None:
     assert (response.status_code, response.data) == (200, {"deleted": 1})
 
 
+def _create_author() -> Author:
+    return Author.objects.create(name="x")
+
+
+def _no_author_visible(*, result: Author) -> Any:
+    # A re-read scoped to what the caller may see, which here is nothing.
+    return Author.objects.none()
+
+
+def _the_created_author(*, result: Author) -> Any:
+    return Author.objects.filter(pk=result.pk)
+
+
+def _create_view(output_selector_spec: SelectorSpec[Any, Any]) -> Any:
+    spec = ServiceSpec(
+        service=_create_author, output_selector_spec=output_selector_spec, atomic=False
+    )
+    return type("_CreateReReading", (ServiceCreateView,), {"spec": spec})
+
+
+def _documented_success(view: Any) -> dict[str, Any]:
+    generator = SchemaGenerator(patterns=[path("c/", view.as_view())])
+    responses = generator.get_schema(request=None, public=True)["paths"]["/c/"]["post"]
+    return {code: body for code, body in responses["responses"].items() if code.startswith("2")}
+
+
+@pytest.mark.django_db
+def test_a_create_that_may_present_nothing_documents_its_empty_204() -> None:
+    """A re-read that finds no row is answered with an empty ``204``, not the
+    ``201`` the serializer is documented under, so the schema documents both."""
+    view = _create_view(
+        SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=_no_author_visible,
+            output_serializer=AuthorSerializer,
+        )
+    )
+
+    documented = _documented_success(view)
+    response = view.as_view()(APIRequestFactory().post("/", {}, format="json"))
+
+    assert response.status_code == 204
+    assert sorted(documented) == ["201", "204"]
+    assert "content" in documented["201"]
+    assert "content" not in documented["204"]
+
+
+@pytest.mark.django_db
+def test_a_create_that_cannot_present_nothing_documents_no_204() -> None:
+    """Nothing to re-read and no ``allow_none``: the service's own row is presented."""
+    view = _create_view(
+        SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer)
+    )
+
+    assert sorted(_documented_success(view)) == ["201"]
+
+
+@pytest.mark.django_db
+def test_an_undeclared_body_is_documented_at_its_status_alone() -> None:
+    """The limit the OpenAPI page states: with no ``output_serializer`` the schema
+    documents one empty response at the status, whether or not the re-read may
+    find nothing, because whether a body goes out is not declared anywhere it
+    reads."""
+    view = _create_view(SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_the_created_author))
+
+    documented = _documented_success(view)
+
+    assert sorted(documented) == ["201"]
+    assert "content" not in documented["201"]
+
+
 @pytest.mark.django_db
 class TestViewsetSchema:
     def test_create_action_schema_uses_service_spec(self) -> None:

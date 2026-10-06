@@ -17,7 +17,7 @@ import pytest
 from rest_framework import serializers
 from typing_extensions import TypedDict, Unpack
 
-from rest_framework_services.dispatch.utils import _spread_parameter_keys
+from rest_framework_services.dispatch.utils import _spread_parameter_keys, declared_input_keys
 from rest_framework_services.jsonschema.spec_to_json_schema import spec_to_json_schema
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.input_required import InputRequired
@@ -97,6 +97,46 @@ def test_the_properties_are_the_keys_dispatch_declares(
     declared = _spread_parameter_keys(spec, argument_binding=binding, reserved=RESERVED_POOL_SEEDS)
 
     assert set(schema.get("properties", {})) == declared == expected
+
+
+def _gate_hiding_tenant(*, tenant: Annotated[str, NotClientInput()] = "own") -> None: ...
+
+
+def _lookup_hiding_tenant(*, pk: int, tenant: Annotated[str, NotClientInput()] = "own") -> Any: ...
+
+
+def _close_naming_tenant(*, reason: str, tenant: str = "default") -> None: ...
+
+
+@_SPREADS
+@pytest.mark.parametrize(
+    "beside",
+    [
+        pytest.param({"preconditions": [_gate_hiding_tenant]}, id="precondition-hides"),
+        pytest.param(
+            {
+                "instance_selector_spec": SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, selector=_lookup_hiding_tenant
+                )
+            },
+            id="lookup-hides",
+        ),
+    ],
+)
+def test_a_key_another_callable_in_the_call_hides_is_not_listed(
+    binding: ArgumentBinding, beside: dict[str, Any]
+) -> None:
+    """The service names ``tenant`` plainly, but a key any callable in the call hides
+    is the server's for the whole call: dispatch drops the caller's value and
+    ``REJECT`` refuses it, so the schema does not offer it either."""
+    spec = _spec(_close_naming_tenant, **beside)
+
+    schema = spec_to_json_schema(spec, argument_binding=binding)
+    assert schema is not None
+    declared = declared_input_keys(spec, serializer=None, argument_binding=binding)
+    assert declared is not None
+
+    assert set(schema.get("properties", {})) == declared - {"pk"} == {"reason"}
 
 
 @_SPREADS

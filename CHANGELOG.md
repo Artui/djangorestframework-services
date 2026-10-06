@@ -24,9 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   changes nothing there. `allow_none` on the nested `output_selector_spec` is
   still not read.
 - **`can_present_nothing(spec)` answers whether a spec's dispatch may present
-  `None`**, for a `SelectorSpec` and a `ServiceSpec` alike. A list result never
-  does. A `RETRIEVE` selector does under
-  `allow_none`. A single-row service does when its `output_selector_spec`
+  `None`**, for a `SelectorSpec` and a `ServiceSpec` alike. A list result is
+  declared never to: a `LIST` selector, a `many=True` service and a `LIST`
+  output, re-read or not, read no `allow_none`. A callable returning `None`
+  there anyway is the author's error, which dispatch refuses only for a `LIST`
+  output with nothing to re-read; a `LIST` selector, a `LIST` re-read and a
+  `many=True` service present the `None`, which a transport validating
+  structured output against the schema will reject. A `RETRIEVE` selector does
+  under `allow_none`. A single-row service does when its `output_selector_spec`
   re-reads through a `selector`, and otherwise when it declares
   `allow_none=True`. `spec_to_json_schema` asks it for both kinds of spec, and
   a transport advertising an output schema of its own should ask it rather than
@@ -83,10 +88,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   but its input schema was a bare `{"type": "object"}` that named none of them.
   Passed the binding a transport dispatches with, the schema now lists them,
   reflected as a selector's parameters are: keyword parameters and
-  `Unpack[TypedDict]` keys, less `NotClientInput`, positional-only parameters,
-  `view` and the reserved pool seeds, with `supplied=` deciding requiredness as
-  it does for a selector. The property names are exactly the keys dispatch
-  declares for the same spec and binding. The target lookup's keys, such as
+  `Unpack[TypedDict]` keys, less every key the service, a precondition or the
+  target lookup marks `NotClientInput`, positional-only parameters, `view` and
+  the reserved pool seeds, with `supplied=` deciding requiredness as it does for
+  a selector. For the built-in pool seeds the property names are exactly the
+  keys dispatch declares for the same spec and binding; a transport registering
+  its own seeds passes them in `supplied=`, or the schema lists them as input.
+  The target lookup's keys, such as
   `pk`, are not in it, and transports keep merging them; a bare `**kwargs` lists
   what the service names and adds no `additionalProperties`. `AUTO`, the
   default, resolves to `BUNDLE` for a service, so a caller that does not pass
@@ -133,7 +141,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read as unmarked. The same `as_view()` read refuses an input marked both
   `InputRequired` and `NotClientInput`, which every call already refused.
 
-- **A caller's value for a `NotClientInput` key no longer reaches the callable.**
+- **A caller's value for a `NotClientInput` key no longer reaches any callable
+  in the call.**
   The marker dropped the key from the schema, and `UnknownArguments.REJECT`
   refused it on a closed spec, but everywhere else dispatch delivered it: under
   `IGNORE` (the default), under `PASSTHROUGH`, and under `REJECT` on an open
@@ -143,8 +152,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drop it from the caller's input before the spread, under every policy, at each
   site that spreads one: a `SelectorSpec`'s selector, a single-item service's
   spread and the extras `PASSTHROUGH` forwards, and a service's
-  `instance_selector_spec` / `collection_selector_spec` lookup. A provider, a
-  route capture, a registered pool seed or the parameter's default still fills
+  `instance_selector_spec` / `collection_selector_spec` lookup. The key is
+  server-owned for the whole call: one that any callable in it marks, the
+  selector or service, one of `spec.preconditions`, or the target lookup, is
+  dropped before any of them reads the caller's input, and is left out of what
+  `REJECT` admits and of the input schema, even where another of them takes it
+  as an ordinary parameter. So a precondition's hidden `tenant` is the server's
+  for the gate and for the selector alike, and a key the lookup hides never
+  reaches an open spread service's `**changes`, where a `setattr` loop would
+  write it onto the row; a service naming it receives the server's value. A
+  provider, a route capture, a registered pool seed or the parameter's default still fills
   the key, and a provider declining with `UNSET` now leaves the default rather
   than the caller's value. A service's `input_data`, or a `get_input_data` view
   hook, fills it too: that value is the server's, merged over the caller's input
@@ -269,6 +286,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   documented as an empty response at its status: whether its service returns a
   body is not declared anywhere the schema reads, and a raw value it returns,
   a bulk destroy's count say, is served as a `200` the schema does not show.
+  Where a spec declaring an `output_serializer` may present `None`, as
+  `can_present_nothing` answers, the empty `204` the renderers then answer is
+  documented beside the body, so a create whose re-read finds no row shows both
+  its `201` and the `204`.
 
 - **A parameter that nothing filled is refused as a missing argument, not a
   `TypeError`.** A selector, service, target lookup or precondition parameter
@@ -280,20 +301,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dispatch_spec` and `adispatch_spec` now refuse both the same way, with one
   `ServiceValidationError` listing every missing name, sorted:
   `{"non_field_errors": ["Missing required argument(s): 'tenant'."]}`. Only a
-  parameter the caller could fill is named. A parameter with a default,
-  `**kwargs` and a positional-only parameter are never missing, and neither is a
-  reserved pool seed such as `data` or `instance`, a `NotClientInput` parameter,
-  `view`, or any parameter of a `functools.wraps` wrapper that takes `**kwargs`
-  and may fill it itself; each of those that nothing fills still fails as the
-  `TypeError` it was. Two callables are not checked at all, because no caller
+  parameter the caller could fill is named: for a selector and its
+  preconditions, or for a target lookup, a parameter of that selector; for a
+  service and its preconditions under a `SPREAD_*` binding, a key `REJECT`
+  admits there, every name where a bare `**kwargs` opens the set; and under
+  `BUNDLE`, a service's default, none, because the caller's input arrives as
+  `data`. Less, every time, a key any callable in the call marks
+  `NotClientInput`, `view`, and the keys the caller sent, so a resend carrying
+  the named key is past the refusal, and a client retrying on it, as an agent
+  does, never loops. A parameter with a default, `**kwargs`, a positional-only
+  parameter, a reserved pool seed such as `data` or `instance`, and any
+  parameter of a `functools.wraps` wrapper that takes `**kwargs` and may fill
+  it itself are never missing. Anything else nothing fills, a provider gap under
+  `BUNDLE` say, is a configuration error no caller can fix, and still fails as
+  the callable's own `TypeError`, as it does in django-service-specs. Two
+  callables are not checked at all, because no caller
   input reaches their pool: an affordance's `when` condition, and the
   `output_selector_spec` re-read, which also runs after the service's write has
   committed, so a refusal there would report a write that happened as one that
-  did not. Over HTTP only a mutation view maps the refusal: it answers `400`
-  where it answered `500`, for a declared `kwargs=` provider or view hook that
-  leaves a service or precondition parameter out, and for a target lookup
-  parameter nothing fills, which `as_view()` never checks. A selector view still
-  answers `500`.
+  did not. Over HTTP only a mutation view maps the refusal, and only a target
+  lookup reaches it: a lookup parameter nothing fills, which `as_view()` never
+  checks and a mutation reads from the request body, answers `400` where it
+  answered `500`. A declared `kwargs=` provider or view hook that leaves a
+  service or precondition parameter out still answers `500`, because a mutation
+  dispatches its service `BUNDLE` and no request could fill it. A selector view
+  still answers `500`.
 - **A caller's `view` no longer reaches a selector or service.** No pool carries
   `view`, and the input schema already hid it from a selector's parameters, but
   it was not a reserved seed, so a caller's `{"view": ...}` was spread into the
@@ -316,11 +348,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it. `dispatch_spec` and `adispatch_spec` now declare
   the service's keyword parameters and `Unpack[TypedDict]` keys beside the
   lookup's, less the reserved pool seeds (registered ones included),
-  positional-only parameters, `NotClientInput` keys and `view`, and deliver the
+  positional-only parameters, `view` and every key the service, a precondition
+  or the target lookup marks `NotClientInput`, and deliver the
   caller's values for them under every policy. A required one left out is
   missing under every policy. A bare `**kwargs` makes the set open, so every key
-  the caller sent reaches the service except the reserved seeds and the target
-  lookup's keys, which reach it only by name: the lookup consumed `pk` to find the
+  the caller sent reaches the service except the reserved seeds, the server-owned
+  keys, and the target lookup's keys, which reach it only by name: the lookup consumed `pk` to find the
   `instance`, so `def update(*, instance, **changes)` does not find it in
   `changes`, while `def update(*, instance, pk, **changes)` receives it. An
   annotated `**kwargs` that cannot be resolved is taken the same way under

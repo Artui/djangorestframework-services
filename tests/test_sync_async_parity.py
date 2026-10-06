@@ -41,6 +41,7 @@ from rest_framework.exceptions import ValidationError
 
 from rest_framework_services import (
     DEFAULT_POOL_SEEDS,
+    ArgumentBinding,
     DispatchResult,
     NotClientInput,
     SelectorKind,
@@ -292,6 +293,58 @@ async def test_params_cannot_fill_a_hidden_key_in_target_resolution_on_either_co
     )
     assert sync_summary == async_summary
     assert seen == ["own-team", "own-team"]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_key_a_precondition_hides_is_the_servers_on_either_core() -> None:
+    """A key one callable hides is server-owned for the whole call, so the selector
+    reading it plainly beside the precondition gets the server's value too. Each
+    core builds the owned set and strips the pool itself, so each needs the check."""
+    seen: list[Any] = []
+
+    def gate(*, tenant: Annotated[str, NotClientInput] = "own") -> None:
+        seen.append(("gate", tenant))
+
+    def rows(*, tenant: str = "own") -> list[str]:
+        seen.append(("selector", tenant))
+        return [tenant]
+
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=rows, preconditions=(gate,))
+    sync_summary, async_summary = await _dispatch_both(
+        spec, lambda: {"user": None, "params": {"tenant": "client"}}
+    )
+    assert sync_summary == async_summary
+    assert sync_summary["value"] == ["own"]
+    assert sorted(seen) == [("gate", "own")] * 2 + [("selector", "own")] * 2
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_key_the_lookup_hides_never_reaches_open_changes_on_either_core() -> None:
+    """The lookup's hidden ``tenant`` stays out of an open spread service's
+    ``**changes``, where a ``setattr`` loop would write it onto the row."""
+    post = await Post.objects.acreate(title="p")
+
+    def target(*, pk: Any, tenant: Annotated[str, NotClientInput] = "own") -> QuerySet[Post]:
+        return Post.objects.filter(pk=pk)
+
+    def update(*, instance: Post, **changes: Any) -> list[str]:
+        return sorted(changes)
+
+    spec = ServiceSpec(
+        service=update,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=target),
+    )
+    sync_summary, async_summary = await _dispatch_both(
+        spec,
+        lambda: {
+            "user": None,
+            "params": {"pk": post.pk, "tenant": "client", "title": "x"},
+            "argument_binding": ArgumentBinding.SPREAD_AUTHOR_WINS,
+        },
+    )
+    assert sync_summary == async_summary
+    assert "tenant" not in sync_summary["service_result"]
+    assert "title" in sync_summary["service_result"]
 
 
 @pytest.mark.django_db(transaction=True)

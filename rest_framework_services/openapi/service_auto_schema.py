@@ -13,6 +13,7 @@ from drf_spectacular.contrib.django_filters import DjangoFilterExtension
 from drf_spectacular.openapi import AutoSchema
 from drf_spectacular.utils import OpenApiResponse, PolymorphicProxySerializer
 
+from rest_framework_services.can_present_nothing import can_present_nothing
 from rest_framework_services.openapi._resolve import (
     resolve_polymorphic_spec,
     resolve_selector_spec,
@@ -165,6 +166,20 @@ class ServiceAutoSchema(AutoSchema):
             if out_cls is not None
             else {status: OpenApiResponse(description="")}
         )
+        # A declared body is not always sent. Where dispatch may present nothing,
+        # a re-read finding no row say, the renderers answer an empty ``204``
+        # rather than a row of blank fields, so the schema documents that response
+        # beside the body, asking ``can_present_nothing`` as every transport does.
+        # The body is never documented under ``204`` itself (``status_for_a_body``),
+        # so the two never collide. Without a serializer the empty response is
+        # already the one documented, at its status. One arc to coverage, so each
+        # operand names its test: the serializer,
+        # test_an_undeclared_body_is_documented_at_its_status_alone, and the
+        # question, test_a_create_that_cannot_present_nothing_documents_no_204.
+        # test_a_create_that_may_present_nothing_documents_its_empty_204 holds
+        # the branch.
+        if out_cls is not None and can_present_nothing(spec):
+            responses[204] = OpenApiResponse(description="")
         document_422 = (
             spec.document_service_error
             if spec.document_service_error is not None

@@ -177,6 +177,25 @@ def test_a_list_result_is_presented_as_a_list(spec: Any) -> None:
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    "spec",
+    [
+        SelectorSpec(kind=LIST, selector=_nothing, output_serializer=_Out),
+        _service(SelectorSpec(kind=LIST, selector=_nothing, output_serializer=_Out)),
+        ServiceSpec(service=_nothing, many=True, atomic=False),
+    ],
+    ids=["selector-list", "service-list-re-read", "service-many"],
+)
+def test_a_list_callable_returning_none_is_presented_unrefused(spec: Any) -> None:
+    """The narrowing the docstring states, pinned so it stays true: a list result is
+    *declared* never ``None``, and on these three paths a callable returning one
+    anyway is the author's error that dispatch presents rather than refuses. The
+    fourth, a ``LIST`` declaration with nothing to re-read, refuses it."""
+    assert can_present_nothing(spec) is False
+    assert dispatch_spec(spec, user=None, params={}).value is None
+
+
+@pytest.mark.django_db
 def test_a_retrieve_miss_without_allow_none_is_not_found_rather_than_none() -> None:
     assert dispatch_spec(_selector(RETRIEVE), user=None, params={}).kind == "not_found"
 

@@ -103,22 +103,33 @@ itself along with the reserved pool seeds, which no caller can send. Without
 `supplied`, only the marker makes a parameter required. See
 [what a transport supplies](../reference/jsonschema.md#what-a-transport-supplies-supplied).
 
-Dispatch enforces that one without a marker too. A parameter with no default that
-nothing filled — the caller did not send it, a `kwargs=` provider declined it with
-`UNSET`, or there is no provider — is refused with the same
-`ServiceValidationError` rather than reaching the callable as a `TypeError`, and
-one message lists every missing name, marked or not:
-`{"non_field_errors": ["Missing required argument(s): 'pk', 'tenant'."]}`. A
-parameter with a default, `**kwargs`, and a positional-only parameter are never
-missing. Neither is a reserved pool seed such as `data` or `instance`: client
-input cannot carry one, so requiring it is a configuration error rather than an
-argument a caller could send, and dispatch leaves it to fail as one. The same goes
-for a `NotClientInput` parameter and for `view`, whose caller values dispatch drops
-(see [below](#hiding-provider-owned-inputs-notclientinput)), so naming one would
-ask the caller for a value it then refuses; and for every parameter of a
-`functools.wraps` wrapper that takes `**kwargs`, which may fill any of them
-itself, as a decorator injecting a scope does. Each of those that nothing fills
-fails as the `TypeError` it always did.
+Dispatch enforces that one without a marker too, for a parameter **the caller
+could have filled**. A parameter with no default that nothing filled — the caller
+did not send it, a `kwargs=` provider declined it with `UNSET`, or there is no
+provider — is refused with the same `ServiceValidationError` rather than reaching
+the callable as a `TypeError`, and one message lists every missing name, marked or
+not: `{"non_field_errors": ["Missing required argument(s): 'pk', 'tenant'."]}`.
+What the caller could fill is the input its call declares:
+
+| The callable | What a caller could fill |
+| --- | --- |
+| a selector, and its preconditions | the selector's parameters: every name under a `filter_set` or a bare `**kwargs` |
+| a service under `BUNDLE` (the default), and its preconditions | nothing: the caller's input arrives as `data`, never by name |
+| a service under a `SPREAD_*` binding, and its preconditions | what `REJECT` admits: the input serializer's fields or, with none, the service's own parameters, beside the target lookup's; every name where a bare `**kwargs` opens the set |
+| a target lookup (`instance_selector_spec` / `collection_selector_spec`) | the lookup selector's parameters |
+
+Less, in every case, a key any callable in the call marks `NotClientInput` (see
+[below](#hiding-provider-owned-inputs-notclientinput)), and the keys the caller
+sent: a sent key that never arrived was dropped by something the caller cannot
+change. So a refusal only ever names a key the caller can send and has not, and a
+client that resends with that key is past it, rather than retrying on the same
+error forever, as an agent would. A parameter with a default, `**kwargs`, a
+positional-only parameter, a reserved pool seed such as `data` or `instance`, and
+every parameter of a `functools.wraps` wrapper that takes `**kwargs` (which may
+fill any of them itself, as a decorator injecting a scope does) are never missing.
+Anything else that nothing fills, a provider gap under `BUNDLE` say, is a
+configuration error no client can fix, and fails as the callable's own `TypeError`,
+as it always did. The sibling kernel django-service-specs draws the same line.
 
 Two callables are not checked at all, because no caller argument reaches their
 pool: an affordance's `when` condition, which sees only the seeds, and the
@@ -127,22 +138,22 @@ re-read also runs after the service's write has committed, so a validation error
 there would tell the caller nothing happened, and a caller that retries on one
 would write twice.
 
-!!! note "Over HTTP, a mutation answers `400` and a selector view `500`"
+!!! note "Over HTTP, a lookup gap is a `400` and a hook gap a `500`"
     Both checks live in the dispatch core, which the HTTP views share, so they run
-    there too, but only a mutation view maps the refusal to a response: it answers
-    `400`, while a selector view still answers `500`, as the `TypeError` did. They
-    rarely fire, because the route guarantees its captures, and a mutation's
-    `as_view()` refuses a parameter of its service, preconditions or output
-    re-read that nothing could feed, unless a `kwargs=` provider or view hook is
-    declared. So a mutation reaches the refusal in two ways: a declared provider
-    or hook that leaves a service or precondition parameter out, and a target
-    lookup (`instance_selector_spec` / `collection_selector_spec`) needing a
-    parameter nothing fills, which `as_view()` never checks, with no hook or
-    provider involved. Neither is a server error any more. `as_view()` never
-    refuses a selector's parameter as unfed either, and dispatch never refuses the
-    output re-read's: past a declared hook, one nothing fills is still the
-    `TypeError`. The marker exists because off HTTP there is no route to provide
-    that guarantee.
+    there too, but only a mutation view maps the refusal to a response, a `400`; a
+    selector view still answers `500`, as the `TypeError` did. They rarely fire,
+    because the route guarantees its captures, and a mutation's `as_view()`
+    refuses a parameter of its service, preconditions or output re-read that
+    nothing could feed, unless a `kwargs=` provider or view hook is declared.
+    A mutation dispatches its service `BUNDLE`, so a declared provider or hook
+    that leaves a service or precondition parameter out is not refused: no
+    request could fill it, and it fails as the `TypeError` it is, a `500`. A
+    target lookup parameter nothing fills is refused with a `400`, because a
+    mutation reads the lookup's keys from the request body, which `as_view()`
+    never checks. `as_view()` never refuses a selector's parameter as unfed
+    either, and dispatch never refuses the output re-read's: past a declared
+    hook, one nothing fills is still the `TypeError`. The marker exists because
+    off HTTP there is no route to provide that guarantee.
 
 ## A spread service with no input serializer
 
@@ -185,7 +196,8 @@ unknown keys:
   `PoolSeeds` registers. The pool's value fills it, never the caller's;
 - a positional-only parameter, which dispatch never passes by name;
 - a `NotClientInput` parameter, or one named `view`, whose value the caller never
-  supplies (see below).
+  supplies (see below). That includes a key a precondition or the target lookup
+  marks, even where the service names it plainly.
 
 A bare `**kwargs` declares every name, so the set is open: nothing is refused, and
 every key the caller sent reaches the service but two kinds. The reserved seeds
@@ -255,6 +267,17 @@ not control. The same holds for a service whose input is spread, which never rec
 arguments. Over HTTP a selector view spreads nothing, so the lookups are the one
 place the marker changes what an HTTP request can do: a request body's value for a
 key the lookup marks hidden is dropped there too.
+
+**A key is server-owned for the whole call** once any callable in it marks it:
+the selector or service, any of `spec.preconditions`, or the target lookup.
+The callables of one call read the same caller input, so a key one of them
+hides is dropped before any of them sees it, and is gone from the declared set
+`REJECT` admits and from the input schema, wherever else it is a plain
+parameter. A precondition taking `tenant: Annotated[int, NotClientInput]` beside
+a selector that reads `tenant` plainly makes the selector's `tenant` the
+provider's too. A key the target lookup hides never reaches an open spread
+service's `**changes`, and a service naming it receives the server's value: the
+provider's, a route capture's or its default.
 
 A hidden parameter with no default that nothing fills is not named as a missing
 argument either: the caller could not send it, so the call fails as the author's

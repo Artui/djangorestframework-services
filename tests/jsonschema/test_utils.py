@@ -25,6 +25,7 @@ from rest_framework_services.jsonschema.utils import (
     serializer_to_schema,
 )
 from rest_framework_services.types.json_schema_registry import DEFAULT_JSON_SCHEMA_REGISTRY
+from rest_framework_services.types.not_client_input import NotClientInput
 
 
 class _MoneyField(serializers.Field): ...
@@ -359,6 +360,21 @@ def test_callable_input_schema_unpack_required_keys_and_reserved_exclusion() -> 
     # ``project_pk`` is required; ``note`` is NotRequired; ``user`` is skipped
     # entirely (reserved) so it never appears in properties *or* required.
     assert required == ["project_pk"]
+
+
+class _HiddenKeyExtras(TypedDict, total=False):
+    project_pk: int
+    team_role: typing.Annotated[str, NotClientInput]
+
+
+def test_callable_input_schema_drops_a_typed_dict_key_marked_hidden() -> None:
+    """Read on its own: ``spec_to_json_schema`` also skips it, as one of the
+    spec's server-owned keys, before this reads the marker."""
+
+    def selector(**extras: Unpack[_HiddenKeyExtras]): ...
+
+    props, _required = callable_input_schema(selector)
+    assert props == {"project_pk": {"type": "integer"}}
 
 
 def test_callable_input_schema_bare_var_keyword_reflects_nothing() -> None:

@@ -34,6 +34,7 @@ from rest_framework_services import (
     adispatch_spec,
     build_offline_context,
     dispatch_spec,
+    spec_to_json_schema,
 )
 from rest_framework_services.types.unset import UNSET
 from tests.testapp.models import Post
@@ -571,3 +572,416 @@ def test_a_route_capture_still_fills_a_lookups_hidden_key(
     )
 
     assert seen == ["route-team"]
+
+
+# --- a key one callable hides is the server's for the whole call ---------------------
+#
+# The selector or service, each precondition and the target lookup share what the
+# caller sent: the preconditions read the pool the selector or service is spread
+# into, and the lookup reads the arguments a spread service takes. So a key any of
+# them marks ``NotClientInput`` is dropped from the caller's input at every site.
+
+_GATE_SEEN: list[str] = []
+
+
+def _gate(*, tenant: Annotated[str, NotClientInput] = "own") -> None:
+    _GATE_SEEN.append(tenant)
+
+
+def _report(*, period: str = "q1") -> str:
+    return period
+
+
+def _titled(*, title: str) -> str:
+    return title
+
+
+def _open_changes(**changes: Any) -> dict[str, Any]:
+    return dict(changes)
+
+
+def _provide_tenant() -> dict[str, str]:
+    return {"tenant": "server"}
+
+
+@pytest.fixture
+def gate_seen() -> list[str]:
+    _GATE_SEEN.clear()
+    return _GATE_SEEN
+
+
+@pytest.mark.django_db(transaction=True)
+@_CORES
+@pytest.mark.parametrize(
+    ("spec", "params", "kwargs", "expected"),
+    [
+        pytest.param(
+            SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_report, preconditions=[_gate]),
+            {"tenant": "evil"},
+            {},
+            "own",
+            id="selector-ignore",
+        ),
+        pytest.param(
+            SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                selector=_report,
+                preconditions=[_gate],
+                kwargs=_provide_tenant,
+            ),
+            {"tenant": "evil"},
+            {"argument_binding": ArgumentBinding.SPREAD_CALLER_WINS},
+            "server",
+            id="selector-caller-wins-over-a-provider",
+        ),
+        pytest.param(
+            ServiceSpec(service=_titled, preconditions=[_gate], atomic=False),
+            {"title": "t", "tenant": "evil"},
+            {
+                "argument_binding": ArgumentBinding.SPREAD_AUTHOR_WINS,
+                "unknown_arguments": UnknownArguments.PASSTHROUGH,
+            },
+            "own",
+            id="service-passthrough",
+        ),
+        pytest.param(
+            ServiceSpec(service=_open_changes, preconditions=[_gate], atomic=False),
+            {"tenant": "evil"},
+            {"argument_binding": ArgumentBinding.SPREAD_AUTHOR_WINS},
+            "own",
+            id="open-spread-service-ignore",
+        ),
+    ],
+)
+def test_a_callers_value_never_reaches_a_preconditions_hidden_key(
+    dispatch: Dispatch,
+    spec: Any,
+    params: dict[str, Any],
+    kwargs: dict[str, Any],
+    expected: str,
+    gate_seen: list[str],
+) -> None:
+    dispatch(spec, params=params, **kwargs)
+
+    assert gate_seen == [expected]
+
+
+def _scoped_report(*, tenant: str = "default") -> str:
+    return tenant
+
+
+def _scoped_close(*, reason: str, tenant: str = "default") -> dict[str, str]:
+    return {"reason": reason, "tenant": tenant}
+
+
+@pytest.mark.django_db(transaction=True)
+@_CORES
+@pytest.mark.parametrize(
+    ("spec", "binding", "params", "delivered"),
+    [
+        pytest.param(
+            SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_scoped_report, preconditions=[_gate]
+            ),
+            ArgumentBinding.AUTO,
+            {"tenant": "evil"},
+            "default",
+            id="selector",
+        ),
+        pytest.param(
+            ServiceSpec(service=_scoped_close, preconditions=[_gate], atomic=False),
+            ArgumentBinding.SPREAD_AUTHOR_WINS,
+            {"reason": "r", "tenant": "evil"},
+            {"reason": "r", "tenant": "default"},
+            id="spread-service",
+        ),
+    ],
+)
+def test_a_key_a_precondition_hides_is_server_owned_for_the_whole_call(
+    dispatch: Dispatch,
+    spec: Any,
+    binding: ArgumentBinding,
+    params: dict[str, Any],
+    delivered: Any,
+    gate_seen: list[str],
+) -> None:
+    """The selector or service names ``tenant`` plainly, and its precondition hides it.
+
+    The caller's value reaches neither, ``REJECT`` refuses it on the closed spec,
+    and the input schema does not list it, so the three agree on one rule. Holds the
+    preconditions' part of ``server_owned_keys`` at the strip, in
+    ``declared_input_keys`` and in ``spec_to_json_schema``.
+    """
+    assert dispatch(spec, params=params, argument_binding=binding).value == delivered
+    assert gate_seen == ["own"]
+
+    with pytest.raises(ValidationError) as excinfo:
+        dispatch(
+            spec,
+            params=params,
+            argument_binding=binding,
+            unknown_arguments=UnknownArguments.REJECT,
+        )
+    assert excinfo.value.detail == {"non_field_errors": ["Unexpected argument(s): 'tenant'."]}
+
+    schema = spec_to_json_schema(spec, argument_binding=binding)
+    assert "tenant" not in schema.get("properties", {})
+
+
+# --- a key the target lookup hides ---------------------------------------------------
+
+_LOOKUP_SEEN: list[str] = []
+
+
+def _row_in_tenant(*, pk: int, tenant: Annotated[str, NotClientInput] = "own") -> QuerySet[Post]:
+    _LOOKUP_SEEN.append(tenant)
+    return Post.objects.filter(pk=pk)
+
+
+_TENANT_LOOKUP = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_row_in_tenant)
+
+
+def _update(*, instance: Post, **changes: Any) -> dict[str, Any]:
+    return dict(changes)
+
+
+def _update_naming_tenant(
+    *, instance: Post, tenant: str = "service-default", **changes: Any
+) -> dict[str, Any]:
+    return {"tenant": tenant, **changes}
+
+
+def _update_closed(*, instance: Post, tenant: str = "service-default") -> str:
+    return tenant
+
+
+@pytest.mark.django_db(transaction=True)
+@_CORES
+@_EVERY_POLICY
+def test_a_key_the_lookup_hides_never_reaches_an_open_service(
+    dispatch: Dispatch, policy: UnknownArguments
+) -> None:
+    """``def update(*, instance, **changes)`` would ``setattr`` the caller's
+    ``tenant`` onto the row, moving it to a tenant the lookup never scoped to."""
+    post = Post.objects.create(title="p")
+    spec = ServiceSpec(service=_update, instance_selector_spec=_TENANT_LOOKUP, atomic=False)
+
+    result = dispatch(
+        spec,
+        params={"pk": post.pk, "tenant": "other", "title": "x"},
+        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+        unknown_arguments=policy,
+    )
+
+    assert "tenant" not in result.value
+    assert result.value["title"] == "x"
+
+
+@pytest.mark.django_db(transaction=True)
+@_CORES
+@pytest.mark.parametrize(
+    ("kwargs", "expected"),
+    [
+        pytest.param({}, "service-default", id="the-default"),
+        pytest.param({"kwargs": _provide_tenant}, "server", id="a-provider-under-caller-wins"),
+    ],
+)
+def test_a_key_the_lookup_hides_never_reaches_a_service_naming_it(
+    dispatch: Dispatch, kwargs: dict[str, Any], expected: str
+) -> None:
+    """Named, the key is the service's to receive, but only from the server. Holds
+    the lookup's part of ``server_owned_keys`` at the strip: the name is not
+    withheld, so only the strip keeps the caller's value out."""
+    post = Post.objects.create(title="p")
+    spec = ServiceSpec(
+        service=_update_naming_tenant,
+        instance_selector_spec=_TENANT_LOOKUP,
+        atomic=False,
+        **kwargs,
+    )
+
+    result = dispatch(
+        spec,
+        params={"pk": post.pk, "tenant": "other", "title": "x"},
+        argument_binding=ArgumentBinding.SPREAD_CALLER_WINS,
+    )
+
+    assert (result.value["tenant"], result.value["title"]) == (expected, "x")
+
+
+@pytest.mark.django_db(transaction=True)
+@_CORES
+def test_a_key_the_lookup_hides_is_refused_beside_a_service_naming_it(
+    dispatch: Dispatch,
+) -> None:
+    """Holds the lookup's part of ``server_owned_keys`` in ``declared_input_keys``
+    and in the schema: the closed service names ``tenant``, so only the union
+    keeps it undeclared."""
+    post = Post.objects.create(title="p")
+    spec = ServiceSpec(service=_update_closed, instance_selector_spec=_TENANT_LOOKUP, atomic=False)
+    binding = ArgumentBinding.SPREAD_AUTHOR_WINS
+
+    with pytest.raises(ValidationError) as excinfo:
+        dispatch(
+            spec,
+            params={"pk": post.pk, "tenant": "other"},
+            argument_binding=binding,
+            unknown_arguments=UnknownArguments.REJECT,
+        )
+    assert excinfo.value.detail == {"non_field_errors": ["Unexpected argument(s): 'tenant'."]}
+    assert "tenant" not in spec_to_json_schema(spec, argument_binding=binding).get("properties", {})
+
+
+def _server_tenant(**_: Any) -> dict[str, str]:
+    return {"tenant": "server"}
+
+
+@pytest.mark.django_db(transaction=True)
+@_CORES
+def test_a_key_the_lookup_hides_is_withheld_from_an_open_service_by_name(
+    dispatch: Dispatch,
+) -> None:
+    """A hidden key is still the lookup's key, so it reaches an open service only by
+    name, as ``pk`` does, even when the value is the server's own from
+    ``input_data``. Fails if ``_lookup_parameter_names`` leaves the hidden keys out,
+    which is what let the caller's value into ``changes`` before the strip read
+    every callable's marker."""
+    post = Post.objects.create(title="p")
+    spec = ServiceSpec(
+        service=_update,
+        instance_selector_spec=_TENANT_LOOKUP,
+        input_data=_server_tenant,
+        atomic=False,
+    )
+
+    result = dispatch(
+        spec,
+        params={"pk": post.pk, "title": "x"},
+        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+    )
+
+    assert "tenant" not in result.value
+    assert result.value["title"] == "x"
+
+
+def _plain_row(*, pk: int, tenant: str = "lookup-default") -> QuerySet[Post]:
+    _LOOKUP_SEEN.append(tenant)
+    return Post.objects.filter(pk=pk)
+
+
+def _touch_scoped(*, instance: Post, tenant: Annotated[str, NotClientInput] = "own") -> str:
+    return tenant
+
+
+def _plain_rows(*, tenant: str = "lookup-default") -> QuerySet[Post]:
+    _LOOKUP_SEEN.append(tenant)
+    return Post.objects.order_by("id")
+
+
+def _count_scoped(
+    *, collection: QuerySet[Post], tenant: Annotated[str, NotClientInput] = "own"
+) -> str:
+    return tenant
+
+
+@pytest.mark.django_db(transaction=True)
+@_CORES
+@pytest.mark.parametrize("lookup", ["instance", "collection"])
+def test_a_key_the_service_hides_never_reaches_the_lookup(dispatch: Dispatch, lookup: str) -> None:
+    """The lookup reads ``tenant`` plainly, but the service it resolves a row for hides
+    it, so the row is never chosen by the caller's value either. One row per lookup,
+    because each builds its own pool."""
+    _LOOKUP_SEEN.clear()
+    post = Post.objects.create(title="p")
+    spec = (
+        ServiceSpec(
+            service=_touch_scoped,
+            instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_plain_row),
+            atomic=False,
+        )
+        if lookup == "instance"
+        else ServiceSpec(
+            service=_count_scoped,
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_plain_rows),
+            atomic=False,
+        )
+    )
+
+    result = dispatch(spec, params={"pk": post.pk, "tenant": "other"})
+
+    assert result.value == "own"
+    assert _LOOKUP_SEEN == ["lookup-default"]
+
+
+def _data_seen(*, data: Any) -> dict[str, Any]:
+    return dict(data)
+
+
+def _row_data_seen(*, instance: Post, data: Any) -> dict[str, Any]:
+    return dict(data)
+
+
+@pytest.mark.django_db(transaction=True)
+@_CORES
+@pytest.mark.parametrize("hider", ["precondition", "lookup"])
+def test_a_key_another_callable_hides_never_reaches_the_services_data(
+    dispatch: Dispatch, hider: str, gate_seen: list[str]
+) -> None:
+    """What ``PASSTHROUGH`` forwards lands in the service's ``data``, so the extras
+    strip takes the whole call's server-owned keys, not only the service's own: a
+    precondition's ``tenant`` under ``BUNDLE``, and the lookup's under a spread."""
+    post = Post.objects.create(title="p")
+    spec, kwargs = (
+        (ServiceSpec(service=_data_seen, preconditions=[_gate], atomic=False), {})
+        if hider == "precondition"
+        else (
+            ServiceSpec(
+                service=_row_data_seen, instance_selector_spec=_TENANT_LOOKUP, atomic=False
+            ),
+            {"argument_binding": ArgumentBinding.SPREAD_AUTHOR_WINS},
+        )
+    )
+
+    result = dispatch(
+        spec,
+        params={"pk": post.pk, "title": "t", "tenant": "evil"},
+        unknown_arguments=UnknownArguments.PASSTHROUGH,
+        **kwargs,
+    )
+
+    assert result.value["title"] == "t"
+    assert "tenant" not in result.value
+
+
+class _TitleAndTenant(serializers.Serializer):
+    title = serializers.CharField()
+    tenant = serializers.CharField(required=False)
+
+
+def _spread_tenant(*, data: Any, tenant: str = "service-default") -> str:
+    return tenant
+
+
+@pytest.mark.django_db(transaction=True)
+@_CORES
+def test_a_field_named_like_a_key_a_precondition_hides_is_not_spread(
+    dispatch: Dispatch, gate_seen: list[str]
+) -> None:
+    """The caller's ``tenant`` is the serializer's to validate, and stays in ``data``,
+    but a precondition hides the key, so the spread strip keeps it out of the pool
+    the precondition and the service share, though the service names it plainly."""
+    spec = ServiceSpec(
+        service=_spread_tenant,
+        input_serializer=_TitleAndTenant,
+        preconditions=[_gate],
+        atomic=False,
+    )
+
+    result = dispatch(
+        spec,
+        params={"title": "t", "tenant": "evil"},
+        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+    )
+
+    assert result.value == "service-default"
+    assert gate_seen == ["own"]

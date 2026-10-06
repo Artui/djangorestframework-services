@@ -65,7 +65,11 @@ Without the declaration the schema stays strict, and an undeclared `None` is
 not refused in this release: dispatch presents it, against a schema that does
 not admit it. `allow_none` on the nested `output_selector_spec` is still not
 read, and a result that is a list (`many=True`, or a `LIST` output declaration,
-re-read or not) is never `None` whatever either flag says.
+re-read or not) is declared never `None` whatever either flag says. A callable
+returning `None` there anyway is the author's error. Dispatch refuses it only
+where a `LIST` declaration has nothing to re-read; a `many=True` service, a
+`LIST` re-read and a `LIST` `SelectorSpec`'s selector have their `None`
+presented, which a transport validating structured output will reject.
 
 The capability manifest's `output_schema` is the same schema. A transport
 advertising an output schema of its own should ask `can_present_nothing(spec)`
@@ -189,8 +193,13 @@ spec_to_json_schema(spec, argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS)
 They are reflected the way a selector's are, through the same function:
 keyword-passable parameters and the keys of a `**kwargs: Unpack[TypedDict]`,
 with `NotClientInput`, positional-only parameters, `view`, and every name in
-`RESERVED_POOL_SEEDS` (`instance`, `user` and the rest) left out. The property
-names are exactly the keys dispatch declares for that spec and binding. Without
+`RESERVED_POOL_SEEDS` (`instance`, `user` and the rest) left out. A key that a
+precondition or the target lookup marks `NotClientInput` is left out too: it is
+server-owned for the whole call, so dispatch strips the caller's value before
+any callable reads the pool, and `REJECT` refuses it. For the built-in seeds the
+property names are exactly the keys dispatch declares for that spec and
+binding; a transport that registers its own pool seeds passes them in
+`supplied=`, or the schema advertises them as input. Without
 `supplied` only a marker requires a parameter, as for a selector, because a
 `kwargs=` provider may fill one; with it, a parameter with no default is
 required, and a supplied name is dropped.

@@ -17,19 +17,21 @@ from __future__ import annotations
 
 import functools
 from collections.abc import Callable
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import pytest
+from asgiref.sync import async_to_sync
 from django.contrib.auth.models import User
 from django.db.models import QuerySet
 from rest_framework import serializers
 from rest_framework.test import APIRequestFactory
-from typing_extensions import TypedDict
+from typing_extensions import TypedDict, Unpack
 
 from rest_framework_services.dispatch.adispatch_spec import adispatch_spec
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.exceptions.service_validation_error import ServiceValidationError
 from rest_framework_services.types.affordance import Affordance
+from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.input_required import InputRequired
 from rest_framework_services.types.not_client_input import NotClientInput
 from rest_framework_services.types.selector_kind import SelectorKind
@@ -76,27 +78,39 @@ def _service(**kwargs: Any) -> ServiceSpec[Any, Any, Any]:
     return ServiceSpec(service=_archive, **kwargs)
 
 
+# A service's parameters are the caller's to fill only where its input is spread.
+_SPREAD = ArgumentBinding.SPREAD_AUTHOR_WINS
+
 _UNFILLED = [
-    pytest.param(_selector(kwargs=_declining_scope), {"pk": 1}, id="selector-declining-provider"),
-    pytest.param(_selector(), {"pk": 1}, id="selector-no-provider"),
-    pytest.param(_service(kwargs=_declining_scope), {}, id="service-declining-provider"),
-    pytest.param(_service(), {}, id="service-no-provider"),
+    pytest.param(
+        _selector(kwargs=_declining_scope),
+        {"pk": 1},
+        ArgumentBinding.AUTO,
+        id="selector-declining-provider",
+    ),
+    pytest.param(_selector(), {"pk": 1}, ArgumentBinding.AUTO, id="selector-no-provider"),
+    pytest.param(
+        _service(kwargs=_declining_scope), {}, _SPREAD, id="spread-service-declining-provider"
+    ),
+    pytest.param(_service(), {}, _SPREAD, id="spread-service-no-provider"),
 ]
 
 
-@pytest.mark.parametrize(("spec", "params"), _UNFILLED)
-def test_an_unfilled_parameter_is_refused_naming_it(spec: Any, params: dict[str, Any]) -> None:
+@pytest.mark.parametrize(("spec", "params", "binding"), _UNFILLED)
+def test_an_unfilled_parameter_is_refused_naming_it(
+    spec: Any, params: dict[str, Any], binding: ArgumentBinding
+) -> None:
     with pytest.raises(ServiceValidationError) as excinfo:
-        dispatch_spec(spec, user=None, params=params)
+        dispatch_spec(spec, user=None, params=params, argument_binding=binding)
     assert excinfo.value.detail == _TENANT_MISSING
 
 
-@pytest.mark.parametrize(("spec", "params"), _UNFILLED)
+@pytest.mark.parametrize(("spec", "params", "binding"), _UNFILLED)
 async def test_async_dispatch_refuses_an_unfilled_parameter_naming_it(
-    spec: Any, params: dict[str, Any]
+    spec: Any, params: dict[str, Any], binding: ArgumentBinding
 ) -> None:
     with pytest.raises(ServiceValidationError) as excinfo:
-        await adispatch_spec(spec, user=None, params=params)
+        await adispatch_spec(spec, user=None, params=params, argument_binding=binding)
     assert excinfo.value.detail == _TENANT_MISSING
 
 
@@ -125,7 +139,7 @@ _EVERY_CALLABLE = [
 @pytest.mark.parametrize("spec", _EVERY_CALLABLE)
 def test_every_callable_dispatch_resolves_is_refused_the_same_way(spec: Any) -> None:
     with pytest.raises(ServiceValidationError) as excinfo:
-        dispatch_spec(spec, user=None, params={"pk": 1})
+        dispatch_spec(spec, user=None, params={"pk": 1}, argument_binding=_SPREAD)
     assert excinfo.value.detail == _TENANT_MISSING
 
 
@@ -134,7 +148,7 @@ async def test_async_every_callable_dispatch_resolves_is_refused_the_same_way(
     spec: Any,
 ) -> None:
     with pytest.raises(ServiceValidationError) as excinfo:
-        await adispatch_spec(spec, user=None, params={"pk": 1})
+        await adispatch_spec(spec, user=None, params={"pk": 1}, argument_binding=_SPREAD)
     assert excinfo.value.detail == _TENANT_MISSING
 
 
@@ -237,14 +251,8 @@ def _create_marked(*, data: Any, tenant: Annotated[str, InputRequired]) -> dict[
     return {"tenant": tenant}
 
 
-@pytest.mark.parametrize("create", [_create_plain, _create_marked], ids=["plain", "marked"])
-def test_over_http_a_hook_that_leaves_a_parameter_out_is_refused_too(create: Any) -> None:
-    # HTTP views dispatch through the same core. ``as_view()`` refuses a parameter
-    # nothing could feed; with a hook declared it cannot tell, so a hook that leaves
-    # the parameter out reaches dispatch, which answers the validation error rather
-    # than a server error. The marked case is the ``InputRequired`` check, which
-    # has always run here too.
-    viewset = type(
+def _viewset_whose_hook_leaves_tenant_out(create: Any) -> Any:
+    return type(
         "_VS",
         (ServiceViewSet,),
         {
@@ -253,9 +261,28 @@ def test_over_http_a_hook_that_leaves_a_parameter_out_is_refused_too(create: Any
             "get_service_kwargs": lambda self: {},
         },
     )
-    response = viewset.as_view({"post": "create"})(
-        APIRequestFactory().post("/x/", {"title": "t"}, format="json")
-    )
+
+
+def test_over_http_a_hook_that_leaves_a_parameter_out_is_a_server_error() -> None:
+    """HTTP views dispatch through the same core. ``as_view()`` refuses a parameter
+    nothing could feed; with a hook declared it cannot tell, so a hook that leaves
+    the parameter out reaches dispatch. A mutation dispatches its service
+    ``BUNDLE``, so no request body could fill ``tenant``: naming it would send the
+    client to resend a field that never arrives. It is the server's gap, and fails
+    as the callable's ``TypeError``, a ``500``."""
+    view = _viewset_whose_hook_leaves_tenant_out(_create_plain).as_view({"post": "create"})
+
+    with pytest.raises(TypeError, match="tenant"):
+        view(APIRequestFactory().post("/x/", {"title": "t", "tenant": "acme"}, format="json"))
+
+
+def test_over_http_a_hook_that_leaves_an_input_required_key_out_is_refused() -> None:
+    """The ``InputRequired`` check is the other one, and it is not about who could
+    fill the key: the marker says the value must arrive, so it is still a ``400``."""
+    view = _viewset_whose_hook_leaves_tenant_out(_create_marked).as_view({"post": "create"})
+
+    response = view(APIRequestFactory().post("/x/", {"title": "t"}, format="json"))
+
     assert response.status_code == 400
     assert response.data == _TENANT_MISSING
 
@@ -508,3 +535,275 @@ def test_over_http_a_selector_view_still_answers_a_server_error() -> None:
     post = Post.objects.create(title="p")
     with pytest.raises(ServiceValidationError):
         _View.as_view()(APIRequestFactory().get("/"), pk=post.pk)
+
+
+# --- only a name the caller could send is named ----------------------------------
+#
+# A refusal tells the client what to send, and a client that retries on a validation
+# error, as an agent does, sends it. A name it cannot send, or has already sent,
+# would be asked for again forever. So each name refused here is one the resend
+# delivers, under every policy, ``REJECT`` included; anything else unfilled is the
+# server's gap and fails as the callable's own ``TypeError``.
+
+
+def _sync(spec: Any, **kwargs: Any) -> Any:
+    return dispatch_spec(spec, user=None, **kwargs)
+
+
+def _async(spec: Any, **kwargs: Any) -> Any:
+    return async_to_sync(adispatch_spec)(spec, user=None, **kwargs)
+
+
+_CORES = pytest.mark.parametrize("dispatch", [_sync, _async], ids=["sync", "async"])
+_POLICIES = pytest.mark.parametrize(
+    "policy", list(UnknownArguments), ids=[policy.name.lower() for policy in UnknownArguments]
+)
+
+
+def _create_for_tenant(*, data: Any, tenant: str) -> str:
+    return tenant
+
+
+@_CORES
+@_POLICIES
+def test_a_bundled_service_parameter_is_the_author_s_error(
+    dispatch: Any, policy: UnknownArguments
+) -> None:
+    """Under ``BUNDLE`` the caller's input reaches the service only as ``data``, so a
+    resend carrying ``tenant`` could never fill the parameter. Naming it sent an
+    agent round the same refusal forever under ``IGNORE`` and ``PASSTHROUGH``, and
+    into ``Unexpected argument(s)`` under ``REJECT``."""
+    spec = ServiceSpec(
+        service=_create_for_tenant, input_serializer=_TitleInput, kwargs=_declining_scope
+    )
+
+    with pytest.raises(TypeError, match="tenant"):
+        dispatch(spec, params={"title": "t"}, unknown_arguments=policy)
+
+
+class _NoteInput(serializers.Serializer):
+    note = serializers.CharField(required=False)
+
+
+def _create_with_note(*, data: Any, note: str) -> str:
+    return note
+
+
+@_CORES
+@_POLICIES
+def test_a_bundled_service_parameter_named_like_a_field_is_the_author_s_error(
+    dispatch: Any, policy: UnknownArguments
+) -> None:
+    """``note`` is declared input, a serializer field the caller left out, but under
+    ``BUNDLE`` the field reaches the service only inside ``data``: the resend below
+    carries it and the parameter is still unfilled. So naming it would ask for a
+    value that cannot arrive, and it is the author's ``TypeError``, as every gap
+    under ``BUNDLE`` is."""
+    spec = ServiceSpec(service=_create_with_note, input_serializer=_NoteInput)
+
+    with pytest.raises(TypeError, match="note"):
+        dispatch(spec, params={}, unknown_arguments=policy)
+    with pytest.raises(TypeError, match="note"):
+        dispatch(spec, params={"note": "n"}, unknown_arguments=policy)
+
+
+def _defaulted_tenant(*, pk: int, tenant: str = "none") -> dict[str, Any]:
+    return {"pk": pk, "tenant": tenant}
+
+
+def _close_for_tenant(*, reason: str, tenant: str) -> dict[str, str]:
+    return {"reason": reason, "tenant": tenant}
+
+
+def _open_service(**changes: Any) -> str:
+    return "ok"
+
+
+def _post_scoped(*, pk: int, tenant: str) -> QuerySet[Post]:
+    return Post.objects.filter(pk=pk)
+
+
+def _keep(*, instance: Post) -> int:
+    return instance.pk
+
+
+def _rows_scoped(*, tenant: str) -> QuerySet[Post]:
+    return Post.objects.order_by("id")
+
+
+def _count_rows(*, collection: QuerySet[Post]) -> int:
+    return collection.count()
+
+
+_NAMED = [
+    pytest.param(
+        _selector(kwargs=_declining_scope), ArgumentBinding.AUTO, {"pk": 1}, id="selector"
+    ),
+    pytest.param(
+        SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_defaulted_tenant, preconditions=[_precondition]
+        ),
+        ArgumentBinding.AUTO,
+        {"pk": 1},
+        id="selector-precondition",
+    ),
+    pytest.param(
+        ServiceSpec(service=_close_for_tenant, kwargs=_declining_scope),
+        _SPREAD,
+        {"reason": "r"},
+        id="spread-service",
+    ),
+    pytest.param(
+        ServiceSpec(service=_open_service, preconditions=[_precondition]),
+        _SPREAD,
+        {},
+        id="open-spread-service-precondition",
+    ),
+    pytest.param(
+        ServiceSpec(
+            service=_keep,
+            instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_scoped),
+        ),
+        ArgumentBinding.AUTO,
+        {"pk": None},
+        id="target-lookup",
+    ),
+    pytest.param(
+        ServiceSpec(
+            service=_count_rows,
+            collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_rows_scoped),
+        ),
+        ArgumentBinding.AUTO,
+        {},
+        id="collection-lookup",
+    ),
+]
+
+
+@_CORES
+@_POLICIES
+@pytest.mark.parametrize(("spec", "binding", "params"), _NAMED)
+def test_a_refused_name_is_one_the_callers_resend_delivers(
+    dispatch: Any,
+    policy: UnknownArguments,
+    spec: Any,
+    binding: ArgumentBinding,
+    params: dict[str, Any],
+) -> None:
+    """The ``open-spread-service-precondition`` row holds the open reading: with a
+    bare ``**changes`` every name the precondition takes is one the caller could
+    send, so ``tenant`` is named rather than left to the ``TypeError``."""
+    post = Post.objects.create(title="p")
+    sent = {key: post.pk if key == "pk" else value for key, value in params.items()}
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        dispatch(spec, params=sent, argument_binding=binding, unknown_arguments=policy)
+    assert excinfo.value.detail == _TENANT_MISSING
+
+    dispatch(
+        spec,
+        params={**sent, "tenant": "acme"},
+        argument_binding=binding,
+        unknown_arguments=policy,
+    )
+
+
+def _close_for_reason(*, reason: str) -> str:
+    return reason
+
+
+def _region_gate(*, region: str) -> None: ...
+
+
+@_CORES
+def test_a_precondition_parameter_the_service_does_not_declare_is_the_author_s_error(
+    dispatch: Any,
+) -> None:
+    """``region`` is not the closed service's input, so ``REJECT`` would refuse the
+    resend and the schema does not list it: it is the server's to fill."""
+    spec = ServiceSpec(service=_close_for_reason, preconditions=[_region_gate])
+
+    with pytest.raises(TypeError, match="region"):
+        dispatch(spec, params={"reason": "r"}, argument_binding=_SPREAD)
+
+
+@_CORES
+def test_a_selector_precondition_parameter_the_selector_does_not_declare_is_the_author_s_error(
+    dispatch: Any,
+) -> None:
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE, selector=_defaulted_tenant, preconditions=[_region_gate]
+    )
+
+    with pytest.raises(TypeError, match="region"):
+        dispatch(spec, params={"pk": 1})
+
+
+def _hidden_gate(*, tenant: Annotated[str, NotClientInput]) -> None: ...
+
+
+@_CORES
+def test_a_hidden_parameter_of_an_open_call_is_not_named(dispatch: Any) -> None:
+    """Open, every name is the caller's but the server-owned ones: a precondition's
+    hidden ``tenant`` is dropped from what the caller sends, so naming it would ask
+    for a value dispatch then throws away."""
+    spec = ServiceSpec(service=_open_service, preconditions=[_hidden_gate])
+
+    with pytest.raises(TypeError, match="tenant"):
+        dispatch(spec, params={}, argument_binding=_SPREAD)
+
+
+def _post_by_pk(*, pk: int) -> QuerySet[Post]:
+    return Post.objects.filter(pk=pk)
+
+
+def _retitle_with_pk(*, instance: Post, data: Any, pk: int) -> int:
+    return pk
+
+
+@_CORES
+def test_a_sent_key_the_service_never_receives_is_not_named(dispatch: Any) -> None:
+    """``pk`` is declared, as the lookup's key, and the caller sent it, but with an
+    input serializer the service is spread only what the serializer validated. A
+    resend would carry the same ``pk`` to the same end, so it is not named."""
+    post = Post.objects.create(title="p")
+    spec = ServiceSpec(
+        service=_retitle_with_pk,
+        input_serializer=_TitleInput,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_by_pk),
+    )
+
+    with pytest.raises(TypeError, match="pk"):
+        dispatch(spec, params={"pk": post.pk, "title": "t"}, argument_binding=_SPREAD)
+
+
+if TYPE_CHECKING:
+    # A ``TypedDict`` only the type checker sees, so the runtime cannot resolve the
+    # ``**extras`` annotation naming it.
+    class _CheckerOnlyExtras(TypedDict, total=False):
+        region: str
+
+
+def _tenant_rows(*, tenant: str, **extras: Unpack[_CheckerOnlyExtras]) -> list[str]:
+    return [tenant]
+
+
+@_CORES
+@pytest.mark.parametrize(
+    "policy",
+    [UnknownArguments.IGNORE, UnknownArguments.PASSTHROUGH],
+    ids=["ignore", "passthrough"],
+)
+def test_an_unresolvable_extras_annotation_reads_as_open(
+    dispatch: Any, policy: UnknownArguments
+) -> None:
+    """Nothing says which keys an unresolvable ``**extras`` takes, and the permissive
+    policies deliver what the caller sends, so every name is one the caller could
+    send: ``tenant`` is named, and the resend carrying it is delivered. ``REJECT``
+    refuses to run on such a selector before anything is filled."""
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=_tenant_rows)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        dispatch(spec, params={}, unknown_arguments=policy)
+    assert excinfo.value.detail == _TENANT_MISSING
+    assert dispatch(spec, params={"tenant": "acme"}, unknown_arguments=policy).value == ["acme"]

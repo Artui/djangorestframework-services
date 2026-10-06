@@ -9,7 +9,7 @@ from typing import Any, Literal
 from django.core.exceptions import ImproperlyConfigured
 
 from rest_framework_services.can_present_nothing import can_present_nothing
-from rest_framework_services.dispatch.utils import resolve_argument_binding
+from rest_framework_services.dispatch.utils import resolve_argument_binding, server_owned_keys
 from rest_framework_services.jsonschema.filterset_to_json_schema import filterset_to_json_schema
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
 from rest_framework_services.jsonschema.serializer_to_json_schema import serializer_to_json_schema
@@ -138,11 +138,14 @@ def spec_to_json_schema(
     to ``SPREAD_AUTHOR_WINS`` or ``SPREAD_CALLER_WINS`` dispatch declares those
     parameters as the input, so ``UnknownArguments.REJECT`` admits them, and the
     schema lists them, reflected as a selector's are: keyword-passable parameters
-    and the keys of a ``**kwargs: Unpack[SomeExtras]``, less ``NotClientInput``,
-    positional-only parameters, ``view``, the ``request`` / ``user`` seeds and
-    every name in ``RESERVED_POOL_SEEDS``, with ``supplied`` deciding requiredness
-    as it does for a selector. The property names are exactly the keys dispatch
-    declares for the same spec and binding. A bare ``**kwargs`` lists what the
+    and the keys of a ``**kwargs: Unpack[SomeExtras]``, less every key a callable
+    in the call marks ``NotClientInput`` (the service, its preconditions and its
+    target lookup), positional-only parameters, ``view``, the ``request`` /
+    ``user`` seeds and every name in ``RESERVED_POOL_SEEDS``, with ``supplied``
+    deciding requiredness as it does for a selector. For the built-in seeds the
+    property names are exactly the keys dispatch declares for the same spec and
+    binding; a transport registering its own pool seeds passes them in
+    ``supplied``, or they are listed as input. A bare ``**kwargs`` lists what the
     service names and states no ``additionalProperties``, although dispatch then
     admits every key; drfs closes an input schema only around a ``many`` list, and
     leaves closure to a transport's own policy. ``AUTO``, the default, resolves to
@@ -290,7 +293,7 @@ def _input_schema(
 ) -> dict[str, Any]:
     if isinstance(spec, ServiceSpec):
         if _takes_its_parameters(spec, argument_binding):
-            return _parameter_schema(spec.service, registry, supplied)
+            return _parameter_schema(spec, registry, supplied)
         item: dict[str, Any] = serializer_to_json_schema(
             spec.input_serializer,
             partial=bool(spec.partial),
@@ -319,7 +322,11 @@ def _input_schema(
     if spec.selector is not None:
         callable_props, callable_required = callable_input_schema(
             spec.selector,
-            skip=_SELECTOR_SEED_PARAMS,
+            # A key a precondition hides is the server's for the whole call, so it
+            # is not listed even where the selector names it plainly: dispatch
+            # drops the caller's value for it and ``REJECT`` refuses it. Held by
+            # test_a_key_a_precondition_hides_is_server_owned_for_the_whole_call.
+            skip=_SELECTOR_SEED_PARAMS | server_owned_keys(spec),
             registry=registry,
             # The reserved seeds join a transport's statement rather than
             # ``skip``: client input can never take one (the pool's ``progress``
@@ -373,15 +380,22 @@ def _takes_its_parameters(
 
 
 def _parameter_schema(
-    service: Any, registry: JsonSchemaRegistry, supplied: frozenset[str] | None
+    spec: ServiceSpec[Any, Any, Any],
+    registry: JsonSchemaRegistry,
+    supplied: frozenset[str] | None,
 ) -> dict[str, Any]:
     """A spreading service's own parameters, as the object a caller sends.
 
     A positional-only parameter is skipped rather than advertised, as it is for a
     selector, because dispatch binds by keyword, does not declare one, and so
     ``REJECT`` would refuse the key this listed. Held by the ``positional-only``
-    row of ``test_the_properties_are_the_keys_dispatch_declares``.
+    row of ``test_the_properties_are_the_keys_dispatch_declares``. So is a key any
+    callable in the call hides (``server_owned_keys``): a precondition's or the
+    target lookup's ``NotClientInput`` key is the server's even where the service
+    names it plainly. Held by
+    ``test_a_key_another_callable_in_the_call_hides_is_not_listed``.
     """
+    service = spec.service
     positional_only: frozenset[str] = frozenset(
         name
         for name, parameter in inspect.signature(service).parameters.items()
@@ -389,7 +403,7 @@ def _parameter_schema(
     )
     properties, required = callable_input_schema(
         service,
-        skip=_SERVICE_SEED_PARAMS | positional_only,
+        skip=_SERVICE_SEED_PARAMS | positional_only | server_owned_keys(spec),
         registry=registry,
         supplied=supplied,
     )
