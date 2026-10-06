@@ -147,6 +147,32 @@ subclass [`HttpExtras`](../typing.md) instead — it is itself declared
 See [Typing services and selectors](../typing.md) for the full Protocol
 catalogue and notes on type-checker support.
 
+### What the return annotation declares
+
+The provider's return annotation is read before it runs, by
+[`provider_keys`][rest_framework_services.dispatch.provider_keys.provider_keys].
+That is how a transport serving a selector off HTTP, such as an MCP tool or an
+agent toolset, knows which names not to ask its caller for. It reads three
+things:
+
+- **Every key of the `TypedDict` is one the provider fills**, optional keys
+  included, since the provider owns them.
+- **A key whose value admits `UnsetType` is one it may decline.** Return
+  `UNSET` for it and dispatch drops the key from the pool, so the caller's
+  value is the one the callable receives. Only a union counts:
+  `tenant: str | UnsetType` may be declined, while
+  `regions: list[str | UnsetType]` is always filled with a list.
+- **A provider whose return says nothing may fill any name**: one with no
+  return annotation, a plain `dict`, a lambda, or a return annotation that does
+  not resolve.
+
+Each annotation costs only what it says. A parameter typed with a name imported
+only under `if TYPE_CHECKING:`, where a linter's type-checking rules move it,
+leaves the keys readable. A `TypedDict` value that does not resolve makes only
+its own key one the provider may decline. A generic `TypedDict` is read with its
+alias's arguments, so `-> Scope[str | UnsetType]` reads `Scope`'s `tenant: T`
+as the written-out `tenant: str | UnsetType`.
+
 ## Add a clock for tests
 
 ```python

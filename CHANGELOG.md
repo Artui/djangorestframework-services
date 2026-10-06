@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`provider_keys(provider)` reads what a `kwargs=` provider declares, before
+  it runs.** A `ServiceSpec` or `SelectorSpec` `kwargs=` provider annotated to
+  return a `TypedDict` says which names it fills, and a key whose value admits
+  `UnsetType` is one it may decline with `UNSET`, which dispatch drops from the
+  pool. Both spec transports read that to build a selector's input schema, and
+  each kept its own copy of the reader. This is that reader, public, as the
+  static half of the contract whose runtime half dispatch already owns. It
+  returns `(filled, declinable)`, two disjoint sets of key names, or
+  `(frozenset(), frozenset())` for no provider, or `None` for a provider whose
+  return says nothing about its keys, which may fill any name. It reads three
+  things differently from the copies it replaces:
+  - **A key holding `UnsetType` inside a container is filled.**
+    `regions: list[str | UnsetType]` always comes back as a list, and dispatch
+    drops a key only when its value is `UNSET`. Only a union's alternatives are
+    walked, through `Annotated`, `Required`, `NotRequired` and `ReadOnly`.
+  - **One annotation that does not resolve no longer makes the whole provider
+    untyped.** The return annotation is resolved on its own, so a parameter
+    typed with a name imported only under `if TYPE_CHECKING:` leaves the keys
+    readable. A `TypedDict` value that does not resolve makes only its own key
+    declinable. Python 3.14's lazily evaluated annotations are read the same
+    way.
+  - **A generic `TypedDict` alias is read with its arguments.**
+    `-> Scope[str | UnsetType]` declines `Scope`'s `tenant: T`, which the copies
+    read as the bare type variable and counted as filled.
+
 ## [0.55.0] — 2026-10-05
 
 ### Added
