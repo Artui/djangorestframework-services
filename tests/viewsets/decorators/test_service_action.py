@@ -236,13 +236,28 @@ class TestServiceAction:
         assert response.status_code == 200
         assert response.data == {"name": "Ada"}
 
-    def test_returning_none_with_no_instance_renders_204(self) -> None:
+    @pytest.mark.parametrize("output_serializer", [None, AuthorSerializer])
+    def test_returning_none_with_no_instance_renders_204(self, output_serializer: Any) -> None:
+        """A non-detail action has no instance to fall back to, so ``None`` is an
+        empty ``204`` even where the spec declares an ``output_serializer``,
+        rather than the serializer's blank fields under a ``200``."""
+
         def fn() -> None:
             return None
 
         class _View(GenericViewSet):
             @service_action(
-                ServiceSpec(service=fn, atomic=False),
+                ServiceSpec(
+                    service=fn,
+                    output_selector_spec=(
+                        SelectorSpec(
+                            kind=SelectorKind.RETRIEVE, output_serializer=output_serializer
+                        )
+                        if output_serializer is not None
+                        else None
+                    ),
+                    atomic=False,
+                ),
                 detail=False,
                 methods=["post"],
             )
@@ -252,6 +267,8 @@ class TestServiceAction:
         view = _View.as_view({"post": "go"})
         response = view(factory.post("/"))
         assert response.status_code == 204
+        assert response.data is None
+        assert response.render().content == b""
 
     def test_returning_none_with_instance_falls_back_to_instance(self) -> None:
         from tests.testapp.serializers import AuthorSerializer as Ser

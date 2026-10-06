@@ -10,7 +10,9 @@ import pytest
 from django.urls import path
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.generators import SchemaGenerator
+from rest_framework import serializers
 from rest_framework.routers import DefaultRouter
+from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet
 
 from rest_framework_services import (
@@ -110,6 +112,76 @@ class _ForcedErrorDeleteView(ServiceDeleteView):
     # back on (a no-input service that *does* raise ServiceError).
     queryset = Author.objects.all()
     spec = ServiceSpec(service=_delete_plain, document_service_error=True)
+
+
+def _archive(*, instance: Author) -> Author:
+    return instance
+
+
+_ARCHIVED = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer)
+
+
+class _ArchiveView(ServiceDeleteView):
+    # A soft delete: the destroy presents the row it kept.
+    queryset = Author.objects.all()
+    spec = ServiceSpec(service=_archive, output_selector_spec=_ARCHIVED, atomic=False)
+
+
+class _ArchiveAt204View(ServiceDeleteView):
+    # The same, with the 204 a destroy defaults to set explicitly.
+    queryset = Author.objects.all()
+    spec = ServiceSpec(
+        service=_archive, output_selector_spec=_ARCHIVED, success_status=204, atomic=False
+    )
+
+
+class _ArchiveAt202View(ServiceDeleteView):
+    # Any other status carries the body as it is.
+    queryset = Author.objects.all()
+    spec = ServiceSpec(
+        service=_archive, output_selector_spec=_ARCHIVED, success_status=202, atomic=False
+    )
+
+
+class _DeletedCount(serializers.Serializer):
+    deleted = serializers.IntegerField()
+
+
+def _all_authors() -> Any:
+    return Author.objects.all()
+
+
+def _delete_counted(*, collection: Any) -> dict[str, int]:
+    deleted, _ = collection.delete()
+    return {"deleted": deleted}
+
+
+def _delete_quietly(*, collection: Any) -> None:
+    collection.delete()
+
+
+_ALL_AUTHORS = SelectorSpec(kind=SelectorKind.LIST, selector=_all_authors)
+
+
+class _BulkDeleteCountedView(ServiceDeleteView):
+    # A bulk destroy presenting how many rows went.
+    spec = ServiceSpec(
+        service=_delete_counted,
+        collection_selector_spec=_ALL_AUTHORS,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=_DeletedCount
+        ),
+        atomic=False,
+    )
+
+
+class _BulkDeleteView(ServiceDeleteView):
+    spec = ServiceSpec(service=_delete_quietly, collection_selector_spec=_ALL_AUTHORS, atomic=False)
+
+
+class _BulkDeleteCountedUndeclaredView(ServiceDeleteView):
+    # The count again, with no serializer declaring it.
+    spec = ServiceSpec(service=_delete_counted, collection_selector_spec=_ALL_AUTHORS, atomic=False)
 
 
 class _NoErrorCreateView(ServiceCreateView):
@@ -320,6 +392,12 @@ urlpatterns = [
     path("delete/<int:pk>/", _DeleteView.as_view()),
     path("plain-delete/<int:pk>/", _DeletePlainView.as_view()),
     path("force-error-delete/<int:pk>/", _ForcedErrorDeleteView.as_view()),
+    path("archive/<int:pk>/", _ArchiveView.as_view()),
+    path("archive-at-204/<int:pk>/", _ArchiveAt204View.as_view()),
+    path("archive-at-202/<int:pk>/", _ArchiveAt202View.as_view()),
+    path("bulk-delete-counted/", _BulkDeleteCountedView.as_view()),
+    path("bulk-delete/", _BulkDeleteView.as_view()),
+    path("bulk-delete-undeclared/", _BulkDeleteCountedUndeclaredView.as_view()),
     path("no-error-create/", _NoErrorCreateView.as_view()),
     path("callable-status-create/", _CallableStatusCreateView.as_view()),
     path("posts-viewlevel/", _ViewLevelFilterListView.as_view()),
@@ -395,6 +473,63 @@ class TestDeleteViewSchema:
         schema = _generate()
         op = schema["paths"]["/plain-delete/{id}/"]["delete"]
         assert "requestBody" not in op
+
+
+# Each destroy route as (its path, its view, the status it is served under).
+_DESTROY_ROUTES: dict[str, tuple[str, Any, int]] = {
+    "single-row presenting a row": ("/archive/{id}/", _ArchiveView, 200),
+    "single-row presenting a row at an explicit 204": (
+        "/archive-at-204/{id}/",
+        _ArchiveAt204View,
+        200,
+    ),
+    "single-row presenting a row at an explicit 202": (
+        "/archive-at-202/{id}/",
+        _ArchiveAt202View,
+        202,
+    ),
+    "single-row presenting nothing": ("/plain-delete/{id}/", _DeletePlainView, 204),
+    "bulk presenting a count": ("/bulk-delete-counted/", _BulkDeleteCountedView, 200),
+    "bulk presenting nothing": ("/bulk-delete/", _BulkDeleteView, 204),
+}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("route", list(_DESTROY_ROUTES))
+def test_a_destroy_documents_the_response_it_serves(route: str) -> None:
+    """The schema and the runtime agree on a destroy's success response: its one
+    documented 2xx is the status the route answers, and it documents a body
+    exactly where the route sends one.
+
+    A destroy presenting a value answers ``200``, because a ``204`` carries no
+    body, and the schema used to document the serializer under the ``204``.
+    """
+    path, view, served = _DESTROY_ROUTES[route]
+    documented = _generate()["paths"][path]["delete"]["responses"]
+    pk = Author.objects.create(name="a").pk
+    kwargs = {"pk": pk} if "{id}" in path else {}
+    response = view.as_view()(APIRequestFactory().delete("/"), **kwargs)
+
+    assert response.status_code == served
+    assert [code for code in documented if code.startswith("2")] == [str(served)]
+    assert ("content" in documented[str(served)]) is (response.data is not None)
+
+
+@pytest.mark.django_db
+def test_an_undeclared_body_is_documented_as_no_content() -> None:
+    """The limit the OpenAPI page states, pinned so it stays true.
+
+    With no ``output_serializer``, only what the service returns decides whether
+    there is a body. The schema documents the empty ``204`` a destroy returning
+    ``None`` is answered with, while this one's count is served as a ``200``.
+    """
+    documented = _generate()["paths"]["/bulk-delete-undeclared/"]["delete"]["responses"]
+    Author.objects.create(name="a")
+    response = _BulkDeleteCountedUndeclaredView.as_view()(APIRequestFactory().delete("/"))
+
+    assert list(documented) == ["204"]
+    assert "content" not in documented["204"]
+    assert (response.status_code, response.data) == (200, {"deleted": 1})
 
 
 @pytest.mark.django_db

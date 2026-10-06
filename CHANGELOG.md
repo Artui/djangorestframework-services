@@ -100,6 +100,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `output_selector_spec` has a `selector`; without one the schema describes one
   value, and `many=True` is an array as before.
 
+- **A `@service_action` serves an `AdditionalInputRequired` schema as it was
+  raised, on any viewset.** The restore that keeps a `422`'s `schema` JSON
+  Schema, rather than a schema with every leaf turned into a string by DRF, was
+  a `handle_exception` override on drfs' bases. A decorated method on DRF's own
+  `GenericViewSet` or `ViewSet` never reached it, and nor did one on a viewset
+  listing `ActionSerializerResolver` after `GenericViewSet`, where DRF's method
+  comes first. Those served `"default": "False"` and `"maximum": "3"`, and a
+  client building a form reads `"False"` as a non-empty string. The decorator
+  now restores the schema itself on whatever viewset declares the action, so
+  the documented workaround of adding a drfs base before `GenericViewSet` is no
+  longer needed. The restore runs inside the exception handler the view asks
+  for, beneath `handle_exception`, so an override of `handle_exception` has the
+  last word on a `@service_action`'s body on any viewset, as it does on a drfs
+  viewset's other actions, and a viewset's own `get_exception_handler` still
+  chooses the handler. The configured `EXCEPTION_HANDLER` still runs once per
+  request and still sees DRF's `ErrorDetail` leaves, and a handler that
+  declines the error by returning `None` still fails the request having run
+  once. A drfs mixin listed after `GenericViewSet` still inherits DRF's
+  `handle_exception`, so that mixin's own actions serve the schema stringified.
+- **A mutation with nothing to present answers with an empty body, whether or
+  not it declares an `output_serializer`.** Over HTTP, a mutation rendered its
+  `output_selector_spec`'s `output_serializer` before asking whether there was a
+  value. So once the nested spec declared one, `None` became a row of blank and
+  default field values, `{"id": null, "title": ""}`, for a row that does not
+  exist. A create or a non-detail `@service_action` whose service returned
+  `None` sent that row under its `201` or `200`. A re-read that found no row
+  sent it in place of the authoritative empty `204`, and a destroy sent it as
+  the body of its `204`. Each now answers as the same spec without a serializer
+  always has: an empty `204` when the re-read returns `None`, and otherwise an
+  empty body at an explicitly set `success_status`, else `204`. An update whose
+  service mutates in place and returns `None` still renders its target. The
+  same blank row was fixed for `render_spec_output` in 0.52.1 and for a
+  `RETRIEVE` `@selector_action` in 0.55.0, and this was the path left.
+- **A destroy that has a value to present answers `200`, not `204`.** A
+  single-row destroy whose service returned something, a soft delete's row
+  through the `output_serializer` or a raw value such as a count, sent it as the
+  body of the action's default `204`, a status that carries no body, so a client
+  or proxy is entitled to discard it. It now answers `200` with the body, as a
+  bulk destroy already did. The same holds for any mutation whose
+  `success_status` is, or returns, `204`: a value is sent under `200`, as on the
+  bulk path. Any other `success_status` is used as given, and a destroy whose
+  service returns `None` still answers with an empty `204`, at an explicit
+  `204` too.
+- **The OpenAPI schema documents a body under the status it is served under.**
+  `ServiceAutoSchema` documented a destroy's `output_serializer` under its
+  `204`, single-row or bulk, while the runtime serves a body under `200`. It
+  now asks the function the renderers ask, so such a destroy is documented as
+  `200` with its serializer. A spec declaring no `output_serializer` is still
+  documented as an empty response at its status: whether its service returns a
+  body is not declared anywhere the schema reads, and a raw value it returns,
+  a bulk destroy's count say, is served as a `200` the schema does not show.
+
+
 ## [0.55.0] — 2026-10-05
 
 ### Added

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import pytest
@@ -66,6 +66,18 @@ class TestServiceCreateView:
         request = factory.post("/", {"name": "Ada"}, format="json")
         response = _CreateAuthorView.as_view()(request)
         assert response.status_code == 201
+        assert response.data == {"id": Author.objects.get().id, "name": "Ada"}
+
+    def test_a_value_under_an_explicit_204_answers_200(self) -> None:
+        """A ``204`` carries no body, on any mutation, so a create set to answer
+        ``204`` that has a row to present answers ``200`` with it, as the bulk
+        path does."""
+
+        class _View(ServiceCreateView):
+            spec = replace(_CreateAuthorView.spec, success_status=204)
+
+        response = _View.as_view()(factory.post("/", {"name": "Ada"}, format="json"))
+        assert response.status_code == 200
         assert response.data == {"id": Author.objects.get().id, "name": "Ada"}
 
     def test_validation_error_returns_400(self) -> None:
@@ -182,13 +194,51 @@ class TestServiceCreateView:
         assert response.status_code == 201
         assert captured["tenant"] == "acme"
 
-    def test_service_returning_none_renders_204(self) -> None:
+    @pytest.mark.parametrize("output_serializer", [None, AuthorSerializer])
+    def test_service_returning_none_renders_204(self, output_serializer: Any) -> None:
+        """Nothing to present is an empty ``204`` whether or not the spec declares
+        an ``output_serializer``. Rendering one over ``None`` answered a ``201``
+        with a row of blank fields for a row that was never created."""
+
         class _View(ServiceCreateView):
-            spec = ServiceSpec(service=staticmethod(lambda: None), atomic=False)
+            spec = ServiceSpec(
+                service=staticmethod(lambda: None),
+                output_selector_spec=(
+                    SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=output_serializer)
+                    if output_serializer is not None
+                    else None
+                ),
+                atomic=False,
+            )
 
         request = factory.post("/", {}, format="json")
         response = _View.as_view()(request)
         assert response.status_code == 204
+        assert response.data is None
+        assert response.render().content == b""
+
+    def test_output_selector_returning_none_renders_204_over_a_serializer(self) -> None:
+        """A create whose re-read finds no row answers an empty ``204``, not a
+        ``201`` carrying the serializer's blank fields."""
+
+        def selector(*, result: Author) -> None:
+            return None
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=_create_author,
+                input_serializer=_CreateAuthorInput,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=selector,
+                    output_serializer=AuthorSerializer,
+                ),
+            )
+
+        response = _View.as_view()(factory.post("/", {"name": "x"}, format="json"))
+        assert response.status_code == 204
+        assert response.data is None
+        assert response.render().content == b""
 
     def test_output_selector_invoked(self) -> None:
         def fn() -> dict[str, Any]:
