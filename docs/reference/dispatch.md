@@ -164,6 +164,15 @@ unenforceable.
 The set is read from the spec alone, so a direct caller passing `instance=`,
 which skips the lookup, still has that lookup's keys admitted.
 
+A `ServiceSpec` with no `input_serializer`, dispatched under a `SPREAD_*`
+`argument_binding`, also declares its service's own parameters beside the
+lookup's keys, because nothing else reads the caller's input there: its keyword
+parameters and `Unpack[TypedDict]` keys, less the reserved pool seeds (registered
+ones included), positional-only parameters, `NotClientInput` keys and `view`.
+Under `BUNDLE`, which `AUTO` resolves to for a service, they are not declared. A
+bare `**kwargs` on that service opens the set. See
+[a spread service with no input serializer](../recipes/off-http-inputs.md#a-spread-service-with-no-input-serializer).
+
 ::: rest_framework_services.types.unknown_arguments.UnknownArguments
 
 ### `TargetGuard`

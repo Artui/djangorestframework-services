@@ -108,17 +108,37 @@ one message lists every missing name, marked or not:
 parameter with a default, `**kwargs`, and a positional-only parameter are never
 missing. Neither is a reserved pool seed such as `data` or `instance`: client
 input cannot carry one, so requiring it is a configuration error rather than an
-argument a caller could send, and dispatch leaves it to fail as one. An
-affordance's `when` condition is not checked this way either, since it sees only
-the seeds and no caller argument could fill it.
+argument a caller could send, and dispatch leaves it to fail as one. The same goes
+for a `NotClientInput` parameter and for `view`, whose caller values dispatch drops
+(see [below](#hiding-provider-owned-inputs-notclientinput)), so naming one would
+ask the caller for a value it then refuses; and for every parameter of a
+`functools.wraps` wrapper that takes `**kwargs`, which may fill any of them
+itself, as a decorator injecting a scope does. Each of those that nothing fills
+fails as the `TypeError` it always did.
 
-!!! note "Over HTTP, the route and `as_view()` come first"
+Two callables are not checked at all, because no caller argument reaches their
+pool: an affordance's `when` condition, which sees only the seeds, and the
+`output_selector_spec` re-read, which sees the seeds and the service's result. The
+re-read also runs after the service's write has committed, so a validation error
+there would tell the caller nothing happened, and a caller that retries on one
+would write twice.
+
+!!! note "Over HTTP, a mutation answers `400` and a selector view `500`"
     Both checks live in the dispatch core, which the HTTP views share, so they run
-    there too. They rarely fire: the route guarantees its captures, and
-    `as_view()` refuses a required parameter nothing could feed. What reaches them
-    over HTTP is a declared `kwargs=` provider or view hook that leaves a
-    parameter out, answered as the `400` above rather than a server error. The
-    marker exists because off HTTP there is no route to provide that guarantee.
+    there too, but only a mutation view maps the refusal to a response: it answers
+    `400`, while a selector view still answers `500`, as the `TypeError` did. They
+    rarely fire, because the route guarantees its captures, and a mutation's
+    `as_view()` refuses a parameter of its service, preconditions or output
+    re-read that nothing could feed, unless a `kwargs=` provider or view hook is
+    declared. So a mutation reaches the refusal in two ways: a declared provider
+    or hook that leaves a service or precondition parameter out, and a target
+    lookup (`instance_selector_spec` / `collection_selector_spec`) needing a
+    parameter nothing fills, which `as_view()` never checks, with no hook or
+    provider involved. Neither is a server error any more. `as_view()` never
+    refuses a selector's parameter as unfed either, and dispatch never refuses the
+    output re-read's: past a declared hook, one nothing fills is still the
+    `TypeError`. The marker exists because off HTTP there is no route to provide
+    that guarantee.
 
 ## A spread service with no input serializer
 
@@ -160,14 +180,20 @@ unknown keys:
 - a reserved pool seed such as `user`, `data` or `instance`, or a seed your
   `PoolSeeds` registers. The pool's value fills it, never the caller's;
 - a positional-only parameter, which dispatch never passes by name;
-- a `NotClientInput` parameter, whose value the caller never supplies (see
-  below).
+- a `NotClientInput` parameter, or one named `view`, whose value the caller never
+  supplies (see below).
 
-A bare `**kwargs` declares every name, so the set is open: nothing is refused or
-dropped, and every key the caller sent reaches the service, the lookup's `pk`
-included. An annotated `**kwargs` whose `TypedDict` cannot be resolved at runtime
-makes `REJECT` raise `ImproperlyConfigured`, as it does on a selector, and the
-other two policies treat it as open.
+A bare `**kwargs` declares every name, so the set is open: nothing is refused, and
+every key the caller sent reaches the service but two kinds. The reserved seeds
+never do. And **the target lookup's keys reach the service only by name**: the
+lookup consumed `pk` to find the `instance` the service receives, so
+`def update(*, instance, **changes)` does not find `pk` in `changes`, where
+applying them would write it onto the row, while
+`def update(*, instance, pk, **changes)` names it and receives it. A key the
+lookup reads only through its own `**kwargs` or its `filter_set` is not one it
+names, so it still reaches the service. An annotated `**kwargs` whose `TypedDict`
+cannot be resolved at runtime makes `REJECT` raise `ImproperlyConfigured`, as it
+does on a selector, and the other two policies treat it as open, the same way.
 
 With no serializer, a service that declares `data` receives what the spread
 carries: the parameters it took by name, plus the `PASSTHROUGH` extras.
@@ -208,6 +234,10 @@ arguments. Over HTTP a selector view spreads nothing, so the lookups are the one
 place the marker changes what an HTTP request can do: a request body's value for a
 key the lookup marks hidden is dropped there too.
 
+A hidden parameter with no default that nothing fills is not named as a missing
+argument either: the caller could not send it, so the call fails as the author's
+`TypeError`.
+
 !!! warning "What is left to decide the value"
     Because the caller's value is gone before the precedence is applied, neither
     `SPREAD_CALLER_WINS` nor a provider declining with `UNSET` can let it back in.
@@ -220,6 +250,22 @@ key the lookup marks hidden is dropped there too.
 
 Marking a key both `InputRequired` and `NotClientInput` raises — the caller cannot
 be required to supply a value it is never told about.
+
+### `view` is never caller input
+
+No pool carries `view`. A selector or service that wants the calling view takes it
+from a `kwargs=` provider or a `get_*_kwargs` view hook, or from a route capture
+of that name. The input schema hides it from a selector's parameters, as it hides
+`request` and `user`, so dispatch treats `view` as though every callable marked it
+`NotClientInput`: the caller's value is dropped at every site above, under every
+policy, `REJECT` refuses it as `Unexpected argument(s): 'view'.` on a closed spec,
+and a required `view` nothing filled is never named as a missing argument. It
+fails as the `TypeError` it always did, because no value a caller could send would
+be the view.
+
+Over HTTP a provider, a hook and a route capture deliver the real view as they
+did. As with a hidden key, the one thing an HTTP request can no longer do is have
+its body's `view` reach a mutation's target lookup.
 
 ## Describing an input: `InputDescription`
 

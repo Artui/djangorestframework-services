@@ -405,24 +405,75 @@ def _close_open(
 @pytest.mark.django_db
 @_CORES
 @_POLICIES
-def test_a_bare_var_keyword_takes_every_argument_under_every_policy(
+def test_a_bare_var_keyword_takes_every_argument_but_the_lookups(
     dispatch: Dispatch, policy: UnknownArguments, post: Post
 ) -> None:
-    """Open, so nothing is unknown and nothing is dropped: ``REJECT`` refuses
-    nothing, and the lookup's ``pk`` reaches the service too, because a bare
-    ``**kwargs`` declares every name. The caller's value for the hidden ``team`` is
-    still dropped, and its ``user`` neither displaces the seed nor reaches
-    ``data``."""
+    """Open, so nothing is unknown: ``REJECT`` refuses nothing. Every key the caller
+    sent reaches the service except the lookup's ``pk``, which the lookup consumed
+    to find the ``instance`` the service receives; ``def update(*, instance,
+    **changes)`` would otherwise write it onto the row. The caller's value for the
+    hidden ``team`` is dropped too, and its ``user`` neither displaces the seed nor
+    reaches ``data``."""
     spec = ServiceSpec(service=_close_open, instance_selector_spec=_LOOKUP, atomic=False)
-    sent = {"pk": post.pk, "reason": "dup", "colour": "red"}
+    sent = {"reason": "dup", "colour": "red"}
     result = dispatch(
         spec,
-        params={**sent, "team": "other-team", "user": "spoofed"},
+        params={"pk": post.pk, **sent, "team": "other-team", "user": "spoofed"},
         argument_binding=_AUTHOR_WINS,
         unknown_arguments=policy,
     )
 
     assert result.value == {"team": "own-team", **sent, "user": None, "data": sent}
+
+
+def _apply(**changes: Any) -> dict[str, Any]:
+    return {key: changes[key] for key in ("pk", "reason", "data") if key in changes}
+
+
+@pytest.mark.django_db
+@_CORES
+@pytest.mark.parametrize(
+    "lookup",
+    [None, SelectorSpec(kind=SelectorKind.RETRIEVE)],
+    ids=["no-lookup", "lookup-without-selector"],
+)
+def test_a_bare_var_keyword_with_no_lookup_takes_every_argument(
+    dispatch: Dispatch, lookup: Any
+) -> None:
+    """Nothing consumed ``pk``, so it is an argument like any other. A lookup spec
+    with no ``selector`` resolves nothing, so it consumes nothing either."""
+    spec = ServiceSpec(service=_apply, instance_selector_spec=lookup, atomic=False)
+    sent = {"pk": 7, "reason": "dup"}
+    result = dispatch(spec, params=sent, argument_binding=_AUTHOR_WINS)
+
+    assert result.value == {**sent, "data": sent}
+
+
+def _close_open_by_pk(*, instance: Post, pk: int, **changes: Any) -> dict[str, Any]:
+    return {"pk": pk, **{key: changes[key] for key in ("reason", "data") if key in changes}}
+
+
+@pytest.mark.django_db
+@_CORES
+@_POLICIES
+def test_a_service_naming_the_lookups_key_beside_var_keyword_receives_it(
+    dispatch: Dispatch, policy: UnknownArguments, post: Post
+) -> None:
+    """The lookup's keys reach a service by name: naming ``pk`` asks for it, so it
+    is taken, and lands in the named parameter rather than in ``**changes``."""
+    spec = ServiceSpec(service=_close_open_by_pk, instance_selector_spec=_LOOKUP, atomic=False)
+    result = dispatch(
+        spec,
+        params={"pk": post.pk, "reason": "dup"},
+        argument_binding=_AUTHOR_WINS,
+        unknown_arguments=policy,
+    )
+
+    assert result.value == {
+        "pk": post.pk,
+        "reason": "dup",
+        "data": {"pk": post.pk, "reason": "dup"},
+    }
 
 
 if TYPE_CHECKING:

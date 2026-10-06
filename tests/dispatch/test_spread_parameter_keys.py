@@ -177,10 +177,36 @@ def test_service_extras_takes_the_declared_parameters_beside_the_passthrough() -
 
 
 @pytest.mark.parametrize("service", [_close_open, _close_for_tenant], ids=["bare", "unresolvable"])
-def test_service_extras_takes_every_unreserved_key_from_an_open_service(service: Any) -> None:
-    """``team`` is still here: the dispatch site strips hidden keys from the result."""
+def test_service_extras_takes_every_key_but_the_lookups_from_an_open_service(
+    service: Any,
+) -> None:
+    """Every key but the reserved ``user`` and the lookup's ``pk``, which reaches a
+    service only by name. ``team`` is still here: the dispatch site strips hidden
+    keys from the result."""
     extras = service_extras(
         _spec(service),
+        _SENT,
+        {},
+        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+        reserved=RESERVED_POOL_SEEDS,
+    )
+
+    assert extras == {"reason": "dup", "team": "other", "colour": "red"}
+
+
+def _all_posts() -> Any: ...
+
+
+class _ByPk:
+    """A duck-typed ``filter_set``: the core cannot enumerate what it reads."""
+
+
+def test_service_extras_withholds_only_what_the_lookup_names() -> None:
+    """A key the lookup reads only through its ``filter_set`` is not one it names,
+    so an open service still takes it."""
+    lookup = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_all_posts, filter_set=_ByPk)
+    extras = service_extras(
+        ServiceSpec(service=_close_open, instance_selector_spec=lookup, atomic=False),
         _SENT,
         {},
         argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,

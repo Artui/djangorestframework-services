@@ -702,8 +702,13 @@ def _run_output_selector(
         "instance": result,
         "result": result,
     }
+    # Not refused when a parameter is unfilled, for the reason an affordance
+    # condition is not: no client input reaches this pool, so naming one would ask
+    # the caller for a value they cannot send. And the write has committed by now,
+    # so a validation error would tell the caller nothing happened, and a caller
+    # that retries on one would write twice. The ``TypeError`` is the author's.
     selected: Any = run_selector(
-        out_spec.selector, resolve_dispatch_kwargs(out_spec.selector, pool)
+        out_spec.selector, resolve_dispatch_kwargs(out_spec.selector, pool, refuse_unfilled=False)
     )
     selected = shape_queryset(
         out_spec,

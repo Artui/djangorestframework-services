@@ -44,3 +44,17 @@ def test_a_key_marked_inside_an_unpacked_typed_dict_is_dropped() -> None:
     assert strip_hidden_inputs({"team": "other-team", "limit": 3}, _marked_in_extras) == {
         "limit": 3
     }
+
+
+def test_a_callers_view_is_dropped_for_any_callable() -> None:
+    """No callable marks ``view``, and no caller supplies it either."""
+    assert strip_hidden_inputs({"view": "spoofed", "team": "other-team"}, _unmarked) == {
+        "team": "other-team"
+    }
+
+
+def test_a_mapping_carrying_no_hidden_key_comes_back_unchanged() -> None:
+    """Identity whenever there is nothing to drop, marked callable or not."""
+    params = QueryDict("limit=3")
+
+    assert strip_hidden_inputs(params, _marked) is params

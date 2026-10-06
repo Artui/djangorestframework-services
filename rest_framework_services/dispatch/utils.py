@@ -55,6 +55,34 @@ INSTANCE_SOURCE = "ServiceSpec.instance_selector_spec.selector"
 COLLECTION_SOURCE = "ServiceSpec.collection_selector_spec.selector"
 OUTPUT_SOURCE = "ServiceSpec.output_selector_spec.selector"
 
+# The calling view. A transport hands it to a provider (``kwargs=``, the
+# ``get_*_kwargs`` hooks, the serializer-context providers) and puts it in no
+# callable's pool, so a selector or service that wants it takes it from one of
+# those, or from a route capture of that name. The input schema hides it from a
+# selector's parameters, as it hides ``request`` and ``user``, so a caller is never
+# told it may send one.
+#
+# It is not a reserved seed, deliberately. A reserved name is exempt from
+# unknown-argument accounting, so ``REJECT`` would drop a caller's ``view`` in
+# silence rather than refuse it; and ``RESERVED_POOL_SEEDS`` is public, read by
+# the transport adapters to refuse tool-argument names, by ``PoolSeeds`` to refuse
+# a registration, and by ``view_url_kwargs`` to strip route captures, so adding it
+# there would change all three. Dispatch instead treats it as every callable
+# marking it ``NotClientInput`` (``hidden_input_keys``).
+TRANSPORT_ONLY_NAMES: frozenset[str] = frozenset({"view"})
+
+
+def hidden_input_keys(fn: Callable[..., Any]) -> frozenset[str]:
+    """The names of ``fn`` a caller never supplies: its ``NotClientInput`` keys and ``view``.
+
+    Three things follow for each, at every site that dispatches caller input: the
+    caller's value is dropped before the spread (``strip_hidden_inputs``), it is
+    not declared input, so ``REJECT`` refuses it as unknown (``_callable_param_names``),
+    and one nothing filled is not named as a missing argument
+    (``resolve_dispatch_kwargs``), since no value the caller sends could fill it.
+    """
+    return marked_input_keys(fn)[1] | TRANSPORT_ONLY_NAMES
+
 
 def strip_reserved_seeds(
     params: Mapping[str, Any], *, reserved: frozenset[str] = RESERVED_POOL_SEEDS
@@ -166,8 +194,9 @@ def _callable_param_names(fn: Callable[..., Any]) -> set[str] | None:
     unknown, not unrestricted, and the caller decides what an unknown surface means
     for its policy.
 
-    Keys marked ``NotClientInput`` are excluded as
-    provider-owned and never advertised.
+    Keys marked ``NotClientInput`` are excluded as provider-owned and never
+    advertised, and so is ``view``, which no caller supplies either
+    (``hidden_input_keys``).
 
     It feeds the unknown-argument check, and for one spec it also decides delivery:
     a ``SPREAD_*`` service with no ``input_serializer`` takes the caller's input as
@@ -191,7 +220,7 @@ def _callable_param_names(fn: Callable[..., Any]) -> set[str] | None:
             names |= set(typed_dict_input(typed_dict)[0])
         elif p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY):
             names.add(name)
-    return names - marked_input_keys(fn)[1]
+    return names - hidden_input_keys(fn)
 
 
 def _selector_consumed_keys(sel_spec: SelectorSpec[Any, Any] | None) -> set[str] | None:
@@ -218,10 +247,11 @@ def _spread_parameter_keys(
     input: no ``input_serializer``, and a binding that resolves to a ``SPREAD_*``
     mode. There the service's own caller-suppliable parameters
     (``_callable_param_names``: keyword-passable, ``Unpack[TypedDict]`` keys, no
-    ``NotClientInput``) are the input, less the reserved seeds client input can
-    never carry. A bare ``**kwargs`` is open, and an unresolvable annotated one
-    raises ``_UnresolvedExtras``. ``many=True`` never reaches here, since it
-    resolves no target and spreads nothing.
+    ``NotClientInput`` and no ``view``) are the input, less the reserved seeds
+    client input can never carry. A bare ``**kwargs`` is open, and an unresolvable
+    annotated one raises ``_UnresolvedExtras``; ``service_extras`` decides what an
+    open surface takes. ``many=True`` never reaches here, since it resolves no
+    target and spreads nothing.
 
     Each condition is one conjunct of a single branch arc, which coverage cannot
     see, so each names the test that fails without it (in
@@ -242,6 +272,44 @@ def _spread_parameter_keys(
         return set()
     names = _callable_param_names(spec.service)
     return None if names is None else names - reserved
+
+
+def _keyword_parameters(fn: Callable[..., Any]) -> set[str]:
+    """The parameters ``fn`` names that a keyword can fill, ``**kwargs`` aside."""
+    passable = (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    return {
+        name
+        for name, parameter in inspect.signature(fn).parameters.items()
+        if parameter.kind in passable
+    }
+
+
+def _target_lookup(spec: ServiceSpec[Any, Any, Any]) -> SelectorSpec[Any, Any] | None:
+    """The one target lookup dispatch calls for ``spec``, by ``_resolve_target``'s precedence.
+
+    A declared ``collection_selector_spec``; otherwise the ``instance_selector_spec``,
+    or ``None``. An instance lookup beside a collection one is refused at
+    construction, so the order only says which one is read.
+    """
+    if spec.collection_selector_spec is not None:
+        return spec.collection_selector_spec
+    return spec.instance_selector_spec
+
+
+def _lookup_parameter_names(spec: ServiceSpec[Any, Any, Any]) -> set[str]:
+    """The names the target lookup reads by name from the caller's input.
+
+    Its named keyword parameters, less ``hidden_input_keys``, which it never reads
+    from the caller. What it reads only through ``**kwargs`` or its ``filter_set``
+    is not named, so it is not here: the core cannot enumerate either. Empty with
+    no lookup, or a lookup with no ``selector``, which ``_resolve_instance`` treats
+    as none.
+    """
+    target = _target_lookup(spec)
+    selector = None if target is None else target.selector
+    if selector is None:
+        return set()
+    return _keyword_parameters(selector) - hidden_input_keys(selector)
 
 
 def declared_input_keys(
@@ -298,12 +366,7 @@ def declared_input_keys(
     declared: set[str] = set(serializer.fields) if serializer is not None else set()
     if spec.many:
         return declared
-    target = (
-        spec.collection_selector_spec
-        if spec.collection_selector_spec is not None
-        else spec.instance_selector_spec
-    )
-    consumed = _selector_consumed_keys(target)
+    consumed = _selector_consumed_keys(_target_lookup(spec))
     if consumed is None:
         return None
     parameters = _spread_parameter_keys(spec, argument_binding=argument_binding, reserved=reserved)
@@ -374,7 +437,10 @@ def _unfilled_parameters(fn: Callable[..., Any], pool: Mapping[str, Any]) -> set
     - a keyword-passable kind: ``**kwargs`` takes whatever arrives and a
       positional-only parameter is never passed by name, so no caller value could
       fill either. ``test_var_keyword_is_never_missing``,
-      ``test_a_positional_only_parameter_is_not_reported``.
+      ``test_a_positional_only_parameter_is_not_reported``. Both passable kinds
+      count, since dispatch passes every argument by name:
+      ``test_a_positional_or_keyword_parameter_is_missing_too`` holds the
+      positional-or-keyword one, which every other test here leaves out.
     - no default. ``test_a_defaulted_parameter_is_never_missing``.
     - absent from the pool. ``test_the_caller_fills_what_the_provider_declined``.
     - not a reserved seed: client input is stripped of those, so naming one would
@@ -385,11 +451,39 @@ def _unfilled_parameters(fn: Callable[..., Any], pool: Mapping[str, Any]) -> set
     The built-in set is enough, with no ``PoolSeeds.reserved`` to thread through:
     ``base_pool`` resolves every name a project registers into every pool it
     builds, so a registered seed is never absent.
+
+    **Nothing is unfilled when ``fn`` is a wrapper taking ``**kwargs``.**
+    ``inspect.signature`` follows ``__wrapped__``, so a ``functools.wraps``
+    decorator reports the wrapped function's parameters, while the wrapper is what
+    runs and may fill any of them itself, as a decorator injecting a scope does.
+    Which ones cannot be read, so none is asked of the caller, and one the wrapper
+    leaves out fails as the ``TypeError`` it did before this check. The two
+    conjuncts, one branch arc:
+
+    - the signature that runs differs from the one read, so ``fn`` is a wrapper:
+      a plain ``**kwargs`` beside a required parameter fills nothing, and the
+      parameter is still missing. ``test_a_parameter_beside_var_keyword_is_still_missing``.
+    - that signature takes ``**kwargs``: a wrapper naming its own parameters
+      receives only what dispatch passes, so it cannot fill one either.
+      ``test_a_wrapper_naming_its_own_parameters_is_still_refused``.
     """
+    read = inspect.signature(fn)
+    try:
+        runs = inspect.signature(fn, follow_wrapped=False)
+    except (TypeError, ValueError):
+        # A ``staticmethod`` or ``classmethod`` object: it has ``__wrapped__`` but
+        # no signature of its own, and calling it calls what it wraps, so the
+        # signature read is the one that runs. Held by
+        # ``test_a_staticmethod_is_read_through_not_skipped``.
+        runs = read
+    if runs != read and any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in runs.parameters.values()
+    ):
+        return set()
     passable = (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
     return {
         name
-        for name, parameter in inspect.signature(fn).parameters.items()
+        for name, parameter in read.parameters.items()
         if parameter.kind in passable
         and parameter.default is inspect.Parameter.empty
         and name not in pool
@@ -409,8 +503,14 @@ def resolve_dispatch_kwargs(
     - with ``refuse_unfilled``, a parameter with no default that nothing filled: a
       read the caller did not send, a ``kwargs=`` provider that declined it with
       ``UNSET``, or no provider at all. ``**kwargs``, a parameter with a default,
-      a positional-only parameter and a reserved seed are never missing (see
-      ``_unfilled_parameters``).
+      a positional-only parameter, a reserved seed and any parameter of a wrapper
+      taking ``**kwargs`` are never missing (see ``_unfilled_parameters``), and
+      neither is a ``NotClientInput`` parameter or ``view``
+      (``hidden_input_keys``): the caller's value for one is dropped before the
+      pool is built, so naming it would ask for a value dispatch then refuses or
+      throws away. One nothing filled fails as the author's ``TypeError``; held by
+      ``test_a_hidden_parameter_nothing_filled_is_not_named_as_missing`` and
+      ``test_a_required_view_is_never_named_missing``.
 
     Must run against the **fully assembled** pool: any channel (caller params,
     URL kwargs, the ``spec.kwargs`` provider) satisfies either, since the marker
@@ -422,20 +522,29 @@ def resolve_dispatch_kwargs(
     every transport maps the former to a caller-visible validation failure and none
     maps the latter.
 
-    Every transport reaches this, HTTP included, since the views dispatch through
-    the same core. Over HTTP ``as_view()`` refuses a parameter nothing could feed,
-    so only a declared provider or hook that leaves one out gets this far; held by
-    ``test_over_http_a_hook_that_leaves_a_parameter_out_is_refused_too``.
+    The HTTP views dispatch through the same core, but only a mutation view maps
+    ``ServiceValidationError``: there the refusal is a ``400``, where a selector
+    view still answers ``500``, as the ``TypeError`` did. A mutation reaches it in
+    two ways. Its ``as_view()`` refuses a service or precondition parameter nothing
+    could feed unless a hook or provider is declared, so one that leaves the
+    parameter out gets this far, held by
+    ``test_over_http_a_hook_that_leaves_a_parameter_out_is_refused_too``; and it
+    never checks the target lookup's parameters, so a lookup parameter nothing
+    fills does too, with no hook or provider involved.
 
-    ``refuse_unfilled=False`` is for a callable whose pool carries no client input
-    (an affordance condition sees only the seeds), where an unfilled parameter is
-    the author's to fix and naming it would ask the caller for a value they cannot
-    send. Held by ``test_an_affordance_condition_is_not_asked_of_the_caller``.
+    ``refuse_unfilled=False`` is for a callable whose pool carries no client input,
+    where an unfilled parameter is the author's to fix and naming it would ask the
+    caller for a value they cannot send: an affordance condition, which sees only
+    the seeds (``test_an_affordance_condition_is_not_asked_of_the_caller``), and the
+    output re-read, whose pool is the seeds and the service's result. That one also
+    runs after the write committed, so a validation error there would tell the
+    caller nothing happened, and a caller that retries on one, as an agent does,
+    would write twice (``test_the_output_re_read_is_not_refused_after_the_write_committed``).
     """
-    required, _hidden = marked_input_keys(fn)
+    required, marked_hidden = marked_input_keys(fn)
     missing = {key for key in required if key not in pool}
     if refuse_unfilled:
-        missing |= _unfilled_parameters(fn, pool)
+        missing |= _unfilled_parameters(fn, pool) - marked_hidden - TRANSPORT_ONLY_NAMES
     if missing:
         names = ", ".join(repr(key) for key in sorted(missing))
         raise ServiceValidationError(
@@ -464,12 +573,17 @@ def service_extras(
     ``PASSTHROUGH`` forwards. The two never share a key, because a declared name is
     never an extra.
 
-    A bare ``**kwargs`` declares every name, so every key the caller sent is taken,
-    a lookup's ``pk`` included; an annotated one that cannot be resolved is taken
-    the same way, the open reading ``resolve_unknown_arguments`` gives the
-    permissive policies (under ``REJECT`` dispatch has raised before this runs).
-    Reserved seeds never are. The caller strips ``NotClientInput`` keys from the
-    result, as from any extras.
+    A bare ``**kwargs`` declares every name, so every key the caller sent is taken
+    but two kinds. The reserved seeds never are. And **the target lookup's keys
+    reach the service only by name**: the lookup consumed the caller's ``pk`` to
+    find the ``instance`` the service receives, so ``def update(*, instance,
+    **changes)`` does not get it in ``changes``, where applying them would write it
+    onto the row, while ``def update(*, instance, pk, **changes)`` asks for it and
+    gets it (``_lookup_parameter_names``). An annotated ``**kwargs`` that cannot be
+    resolved is taken the same way, the open reading ``resolve_unknown_arguments``
+    gives the permissive policies (under ``REJECT`` dispatch has raised before this
+    runs). The caller strips ``NotClientInput`` keys and ``view`` from the result,
+    as from any extras.
 
     Each step names the test that fails without it (in
     ``tests/dispatch/test_dispatch_spread_parameters.py``):
@@ -480,8 +594,11 @@ def service_extras(
     - an unresolvable surface read as open rather than raised:
       ``test_an_unresolvable_var_keyword_is_open_to_the_permissive_policies``.
     - every key from an open surface:
-      ``test_a_bare_var_keyword_takes_every_argument_under_every_policy``, which
-      also holds the reserved seeds out of it.
+      ``test_a_bare_var_keyword_with_no_lookup_takes_every_argument``.
+    - less the reserved seeds and the lookup's keys:
+      ``test_a_bare_var_keyword_takes_every_argument_but_the_lookups``.
+    - except a lookup key the service names:
+      ``test_a_service_naming_the_lookups_key_beside_var_keyword_receives_it``.
     - the dispatch's own ``reserved``, so a registered seed is held out too:
       ``test_a_registered_seed_is_never_taken_from_the_caller``.
     """
@@ -490,7 +607,12 @@ def service_extras(
     except _UnresolvedExtras:
         names = None
     if names is None:
-        taken = strip_reserved_seeds(params, reserved=reserved)
+        withheld = _lookup_parameter_names(spec) - _keyword_parameters(spec.service)
+        taken = {
+            key: value
+            for key, value in strip_reserved_seeds(params, reserved=reserved).items()
+            if key not in withheld
+        }
     else:
         taken = {key: value for key, value in params.items() if key in names}
     return {**taken, **passthrough}

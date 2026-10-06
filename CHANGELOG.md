@@ -51,14 +51,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `InputRequired` key in the same position was already refused cleanly.
   `dispatch_spec` and `adispatch_spec` now refuse both the same way, with one
   `ServiceValidationError` listing every missing name, sorted:
-  `{"non_field_errors": ["Missing required argument(s): 'tenant'."]}`. A
-  parameter with a default, `**kwargs` and a positional-only parameter are never
-  missing. Neither is a reserved pool seed such as `data` or `instance`, which
-  client input cannot carry, so requiring one still fails as the configuration
-  error it is, and neither is a parameter of an affordance's `when` condition,
-  which sees only the seeds. HTTP views dispatch through the same core, so a
-  declared `kwargs=` provider or view hook that leaves a parameter out is now a
-  `400` there too, rather than a server error.
+  `{"non_field_errors": ["Missing required argument(s): 'tenant'."]}`. Only a
+  parameter the caller could fill is named. A parameter with a default,
+  `**kwargs` and a positional-only parameter are never missing, and neither is a
+  reserved pool seed such as `data` or `instance`, a `NotClientInput` parameter,
+  `view`, or any parameter of a `functools.wraps` wrapper that takes `**kwargs`
+  and may fill it itself; each of those that nothing fills still fails as the
+  `TypeError` it was. Two callables are not checked at all, because no caller
+  input reaches their pool: an affordance's `when` condition, and the
+  `output_selector_spec` re-read, which also runs after the service's write has
+  committed, so a refusal there would report a write that happened as one that
+  did not. Over HTTP only a mutation view maps the refusal: it answers `400`
+  where it answered `500`, for a declared `kwargs=` provider or view hook that
+  leaves a service or precondition parameter out, and for a target lookup
+  parameter nothing fills, which `as_view()` never checks. A selector view still
+  answers `500`.
+- **A caller's `view` no longer reaches a selector or service.** No pool carries
+  `view`, and the input schema already hid it from a selector's parameters, but
+  it was not a reserved seed, so a caller's `{"view": ...}` was spread into the
+  pool and a callable declaring `view` received it, over a `kwargs=` provider's
+  value under `SPREAD_CALLER_WINS`. `dispatch_spec` and `adispatch_spec` now treat
+  it as every callable marking it `NotClientInput`: the caller's value is dropped
+  at every site that spreads caller input, `REJECT` refuses it as
+  `Unexpected argument(s): 'view'.` on a closed spec, and a required `view`
+  nothing filled is not named as a missing argument. A provider, a view hook and
+  a route capture of that name still fill it. Over HTTP a selector view spreads
+  nothing and is unchanged; a request body's `view` no longer reaches a
+  mutation's `instance_selector_spec` or `collection_selector_spec` lookup.
 - **A spread service with no input serializer receives the arguments its own
   signature declares.** For a `ServiceSpec` that is not `many=True` and has no
   `input_serializer`, dispatched with a `SPREAD_*` `argument_binding`, only the
@@ -69,11 +88,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it. `dispatch_spec` and `adispatch_spec` now declare
   the service's keyword parameters and `Unpack[TypedDict]` keys beside the
   lookup's, less the reserved pool seeds (registered ones included),
-  positional-only parameters and `NotClientInput` keys, and deliver the
+  positional-only parameters, `NotClientInput` keys and `view`, and deliver the
   caller's values for them under every policy. A required one left out is
   missing under every policy. A bare `**kwargs` makes the set open, so every key
-  the caller sent reaches the service, the lookup's `pk` included; an annotated
-  `**kwargs` that cannot be resolved makes `REJECT` raise `ImproperlyConfigured`.
+  the caller sent reaches the service except the reserved seeds and the target
+  lookup's keys, which reach it only by name: the lookup consumed `pk` to find the
+  `instance`, so `def update(*, instance, **changes)` does not find it in
+  `changes`, while `def update(*, instance, pk, **changes)` receives it. An
+  annotated `**kwargs` that cannot be resolved is taken the same way under
+  `IGNORE` and `PASSTHROUGH`, and makes `REJECT` raise `ImproperlyConfigured`.
   A service that declares `data` receives the parameters it took by name there,
   beside the `PASSTHROUGH` extras. `BUNDLE`, which `AUTO` resolves to for a
   service, a spec with an `input_serializer` and a `many=True` spec keep the set

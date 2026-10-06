@@ -6,6 +6,11 @@ service's ``instance_selector_spec`` and ``collection_selector_spec`` are
 different: the core resolves them with the request body as their argument
 channel. So the body's value for a key the lookup marks ``NotClientInput`` is
 dropped there too, while a route capture of that name still fills it.
+
+``view`` is treated the same way, as though every callable marked it: no pool
+carries it, so over HTTP a selector receives it only from a hook or provider, and
+a lookup only from those or a route capture. Those still deliver the real view;
+only a request body's ``view`` stops reaching a lookup.
 """
 
 from __future__ import annotations
@@ -19,6 +24,7 @@ from rest_framework.test import APIRequestFactory
 from rest_framework_services import (
     NotClientInput,
     SelectorKind,
+    SelectorRetrieveView,
     SelectorSpec,
     ServiceSpec,
     ServiceUpdateView,
@@ -115,3 +121,89 @@ def test_a_route_capture_still_fills_a_hidden_collection_lookup_key(seen: list[A
 
     assert response.status_code == 200
     assert seen == ["route-team"]
+
+
+# --- ``view`` ---------------------------------------------------------------------
+
+
+def _post_seeing_view(*, pk: int, view: Any = None) -> QuerySet[Post]:
+    _SEEN.append(view)
+    return Post.objects.filter(pk=pk)
+
+
+class _ViewLookupView(ServiceUpdateView):
+    queryset = Post.objects.all()
+    spec = ServiceSpec(
+        service=_touch,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_seeing_view),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=PostSerializer
+        ),
+        atomic=False,
+    )
+
+
+@pytest.mark.django_db
+def test_the_bodys_view_is_dropped_before_a_lookup(seen: list[Any]) -> None:
+    post = Post.objects.create(title="p")
+
+    response = _ViewLookupView.as_view()(
+        factory.put("/", {"view": "spoofed"}, format="json"), pk=post.pk
+    )
+
+    assert response.status_code == 200
+    assert seen == [None]
+
+
+@pytest.mark.django_db
+def test_a_route_capture_named_view_still_fills_a_lookup(seen: list[Any]) -> None:
+    post = Post.objects.create(title="p")
+
+    response = _ViewLookupView.as_view()(
+        factory.put("/", {"view": "spoofed"}, format="json"), pk=post.pk, view="route"
+    )
+
+    assert response.status_code == 200
+    assert seen == ["route"]
+
+
+class _HookView(SelectorRetrieveView):
+    """Hands itself to the selector through its kwargs hook."""
+
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE, selector=_post_seeing_view, output_serializer=PostSerializer
+    )
+
+    def get_selector_kwargs(self) -> dict[str, Any]:
+        return {"view": self}
+
+
+def _hand_over_the_view(view: Any) -> dict[str, Any]:
+    return {"view": view}
+
+
+class _ProviderView(SelectorRetrieveView):
+    """Hands itself to the selector through the spec's ``kwargs=`` provider."""
+
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=_post_seeing_view,
+        output_serializer=PostSerializer,
+        kwargs=_hand_over_the_view,
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("view_cls", [_HookView, _ProviderView], ids=["hook", "provider"])
+def test_a_selector_view_still_hands_the_selector_the_real_view(
+    seen: list[Any], view_cls: type[SelectorRetrieveView]
+) -> None:
+    """A query string's ``view`` never reached it either: a selector view binds
+    ``BUNDLE`` and spreads nothing."""
+    post = Post.objects.create(title="p")
+
+    response = view_cls.as_view()(factory.get("/", {"view": "spoofed"}), pk=post.pk)
+
+    assert response.status_code == 200
+    assert len(seen) == 1
+    assert isinstance(seen[0], view_cls)
