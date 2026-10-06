@@ -305,6 +305,36 @@ pool, or making a thread hop of its own, for most of the operations it lists.
 
 ::: rest_framework_services.views.utils.resolve_callable_kwargs
 
+### `provider_keys`
+
+The static half of the `kwargs=` provider contract, whose runtime half is
+dispatch calling the provider and dropping every key it returns as `UNSET`. A
+transport building a selector's input schema reads it to fill in
+[`supplied`](jsonschema.md#what-a-transport-supplies-supplied), and to know
+which calls to refuse before dispatch, rather than keeping a copy of the
+reader:
+
+```python
+from rest_framework_services import provider_keys
+
+keys = provider_keys(spec.kwargs)
+if keys is None:
+    ...  # The provider may fill any name, so none is required for lacking a default.
+else:
+    filled, declinable = keys
+    # ``filled`` joins ``supplied``. A ``declinable`` key stays the caller's to
+    # send and is not required of it, since the provider may fill it after all.
+```
+
+The answer is a [`ProviderKeys`](#providerkeys), a `NamedTuple`, so a caller
+that would rather not unpack it reads `keys.filled` and `keys.declinable`.
+
+::: rest_framework_services.dispatch.provider_keys.provider_keys
+
+### `ProviderKeys`
+
+::: rest_framework_services.types.provider_keys.ProviderKeys
+
 ### `is_async`
 
 ::: rest_framework_services.is_async.is_async

@@ -31,6 +31,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   derive the answer again, so every route states the same `null`. Exported from
   the package root.
 
+- **`provider_keys(provider)` reads what a `kwargs=` provider declares, before
+  it runs.** A `ServiceSpec` or `SelectorSpec` `kwargs=` provider annotated to
+  return a `TypedDict` says which names it fills, and a key whose value admits
+  `UnsetType` is one it may decline with `UNSET`, which dispatch drops from the
+  pool. Both spec transports read that to build a selector's input schema, and
+  each kept its own copy of the reader. This is that reader, public, as the
+  static half of the contract whose runtime half dispatch already owns. It
+  returns a `ProviderKeys`, a `NamedTuple` of two disjoint sets of key names,
+  `filled` and `declinable`, which reads by field name and still unpacks as
+  `filled, declinable = ...`. Both sets are empty for no provider, and the
+  answer is `None` for a provider whose return says nothing about its keys,
+  which may fill any name. It reads three things differently from the copies it
+  replaces:
+  - **A key holding `UnsetType` inside a container is filled.**
+    `regions: list[str | UnsetType]` always comes back as a list, and dispatch
+    drops a key only when its value is `UNSET`. Only a union's alternatives are
+    walked, through `Annotated`, `Required`, `NotRequired` and `ReadOnly`.
+  - **One annotation that does not resolve no longer makes the whole provider
+    untyped.** The return annotation is resolved on its own, so a parameter
+    typed with a name imported only under `if TYPE_CHECKING:` leaves the keys
+    readable. A `TypedDict` value that does not resolve makes only its own key
+    declinable. Python 3.14's lazily evaluated annotations are read the same
+    way.
+  - **A generic `TypedDict` is read with whatever binds its parameters.**
+    `-> Scope[str | UnsetType]` declines `Scope`'s `tenant: T`, which the copies
+    read as the bare type variable and counted as filled. A subclass binding is
+    followed through `__orig_bases__`: `class Declining(Scope[str | UnsetType])`,
+    and `Relay(Scope[U], Generic[U])` returned as `Relay[str | UnsetType]`, both
+    decline `tenant`, where the copies hid it and a provider returning `UNSET`
+    for it left the call short a parameter. A PEP 695 `class Scope[T](TypedDict)`
+    under `from __future__ import annotations` resolves `T` beside the class's
+    type parameters, where the copies failed to resolve it and offered every
+    such key to the caller, `-> Scope[str]` included. Each key is read with the
+    bindings of the class that declared it, so a project reusing one `T` at
+    every level gets each class's answer:
+    `class Shadow(Scope[list[T]], Generic[T])` returned as
+    `Shadow[str | UnsetType]` fills `tenant` with a list and may decline its
+    own `extra: T`. An argument wrapped in `Annotated` reads as what it wraps,
+    in a class statement's bases too. A type variable nothing binds, as in a
+    bare `-> Scope`, counts as filled: filled keeps the decision with the
+    provider, where declinable would let a caller's value into a key such as a
+    tenant. Not read: a PEP 696 default on a type variable, and a key a
+    subclass redeclares, which reads as its base declared it.
+
 ### Changed
 
 - **A `ServiceSpec` declaring a target lookup that dispatch never calls is
@@ -112,6 +156,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   relied on filtering the re-read through the arguments now gets it unfiltered.
   A selector's own `filter_set` and a target lookup's still fall back to the
   arguments, because their fields are declared input.
+
+- **The `typing-extensions` floor rises from 4.13 to 4.14.** On Python 3.14,
+  4.13's `get_annotations` hands the standard library a format number it
+  reserves for internal use and raises, so `provider_keys` read every typed
+  provider as untyped there. 4.14 is the first release that reads annotations
+  in the `FORWARDREF` format on 3.14.
 
 ### Fixed
 

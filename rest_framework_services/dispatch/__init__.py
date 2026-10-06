@@ -32,6 +32,7 @@ from rest_framework_services.dispatch.paginate_output import (
     DEFAULT_PAGE_SIZE,
     paginate_output,
 )
+from rest_framework_services.dispatch.provider_keys import provider_keys
 from rest_framework_services.dispatch.render_for_audience import render_for_audience
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.dispatch.renderable_serializer_class import (
@@ -59,6 +60,7 @@ __all__ = [
     "null_progress",
     "operation_affordances",
     "paginate_output",
+    "provider_keys",
     "render_for_audience",
     "render_spec_output",
     "renderable_serializer_class",

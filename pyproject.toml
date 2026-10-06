@@ -41,7 +41,12 @@ dependencies = [
     # 4.13 is the release whose ``get_type_hints`` stops wrapping a
     # ``None``-defaulted parameter in ``Optional[...]`` on Python 3.10, which
     # otherwise hides every schema marker on such a parameter.
-    "typing-extensions>=4.13",
+    # 4.14 is the release whose ``get_annotations`` reads in the
+    # ``FORWARDREF`` format on Python 3.14. 4.13 numbers its own ``Format``
+    # and hands the number to the standard library's ``annotationlib``,
+    # where ``2`` is the internal ``VALUE_WITH_FAKE_GLOBALS`` and raises, so
+    # ``provider_keys`` would read every typed provider as untyped there.
+    "typing-extensions>=4.14",
 ]
 
 [project.optional-dependencies]

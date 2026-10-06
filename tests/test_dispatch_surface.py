@@ -22,6 +22,7 @@ from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
 from rest_framework_services.dispatch.enforce_permissions import enforce_permissions
 from rest_framework_services.dispatch.operation_affordances import operation_affordances
+from rest_framework_services.dispatch.provider_keys import provider_keys
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.dispatch.unmet_operation_affordance import (
@@ -44,6 +45,7 @@ from rest_framework_services.selectors.utils import (
 )
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
+from rest_framework_services.types.provider_keys import ProviderKeys
 from rest_framework_services.types.registered_spec import RegisteredSpec
 from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
 from rest_framework_services.views.mutation.utils import (
@@ -56,6 +58,9 @@ from rest_framework_services.views.utils import resolve_callable_kwargs
 
 # Blessed name → the leaf-module original it must alias.
 _SURFACE = {
+    # What ``provider_keys`` answers, so a transport can annotate the value it
+    # holds without importing from a leaf module.
+    "ProviderKeys": ProviderKeys,
     # Adapters are told to import this rather than keep a copy of the seed
     # names, so it has to be reachable from the same place as the rest of
     # the dispatch surface.
@@ -95,6 +100,10 @@ _SURFACE = {
     # which conditions are answered without a row.
     "operation_affordances": operation_affordances,
     "output_to_json_schema": output_to_json_schema,
+    # A transport building a schema or refusing a call reads which names a
+    # ``kwargs=`` provider fills through this, rather than keeping a copy of the
+    # reader, as both spec transports once did.
+    "provider_keys": provider_keys,
     "render_spec_output": render_spec_output,
     # A transport that renders an output declaration outside ``render_spec_output``
     # resolves the class through this, or a dataclass output raises there.

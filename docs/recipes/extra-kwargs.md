@@ -147,6 +147,57 @@ subclass [`HttpExtras`](../typing.md) instead — it is itself declared
 See [Typing services and selectors](../typing.md) for the full Protocol
 catalogue and notes on type-checker support.
 
+### What the return annotation declares
+
+The provider's return annotation is read before it runs, by
+[`provider_keys`][rest_framework_services.dispatch.provider_keys.provider_keys].
+That is how a transport serving a selector off HTTP, such as an MCP tool or an
+agent toolset, knows which names not to ask its caller for. Its answer is a
+[`ProviderKeys`][rest_framework_services.types.provider_keys.ProviderKeys], with
+`filled` and `declinable` sets of key names that also unpack as a pair. It
+reads three things:
+
+- **Every key of the `TypedDict` is one the provider fills**, optional keys
+  included, since the provider owns them. These are `filled`.
+- **A key whose value admits `UnsetType` is one it may decline**, and moves
+  from `filled` to `declinable`. Return `UNSET` for it and dispatch drops the
+  key from the pool, so the caller's value is the one the callable receives.
+  Only a union counts: `tenant: str | UnsetType` may be declined, while
+  `regions: list[str | UnsetType]` is always filled with a list.
+- **A provider whose return says nothing may fill any name**: one with no
+  return annotation, a plain `dict`, a lambda, or a return annotation that does
+  not resolve. The answer is `None` rather than a `ProviderKeys`.
+
+Each annotation costs only what it says. A parameter typed with a name imported
+only under `if TYPE_CHECKING:`, where a linter's type-checking rules move it,
+leaves the keys readable. A `TypedDict` value that does not resolve makes only
+its own key one the provider may decline. A generic `TypedDict` is read with
+whatever binds its parameters, so `-> Scope[str | UnsetType]` reads `Scope`'s
+`tenant: T` as the written-out `tenant: str | UnsetType`. So does a subclass
+that binds them, `class Declining(Scope[str | UnsetType])`, and one that hands
+its own parameter on, `class Relay(Scope[U], Generic[U])` returned as
+`Relay[str | UnsetType]`. An argument wrapped in `Annotated` reads as what it
+wraps, in a class statement's bases as in the return annotation. A PEP 695
+`class Scope[T](TypedDict)` reads the same under
+`from __future__ import annotations`.
+
+Each key is read with the bindings of the class that declared it, so one `T`
+reused at every level reads as each class binds it.
+`class Shadow(Scope[list[T]], Generic[T])` with a key `extra: T` of its own,
+returned as `Shadow[str | UnsetType]`, fills `Scope`'s `tenant` with a list
+and may decline `extra`. A key reached through two bases that bind it
+differently is filled if either reading fills it. Three things are not read:
+a PEP 696 default on a type variable; a key a subclass redeclares, which reads
+as its base declared it, because a `TypedDict` keeps no record of which class
+wrote a key; and a base whose arguments cannot be written in the return
+annotation's terms, which leaves the provider untyped.
+
+A type variable nothing binds, as in a bare `-> Scope`, counts as filled.
+Whether it may be `UNSET` is written nowhere, and filled keeps the decision with
+the provider by hiding the key from the caller. Declinable would let a transport
+whose caller's value wins put that value in a key the provider was meant to
+decide, such as a tenant.
+
 ## Add a clock for tests
 
 ```python
