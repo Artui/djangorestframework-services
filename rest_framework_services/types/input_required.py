@@ -27,8 +27,11 @@ kwargs pool, the ``view.kwargs``-over-``params`` precedence, or the
 ``SPREAD_AUTHOR_WINS`` author-beats-client rule. It tells a schema-driven caller (an MCP
 client, an LLM tool call) that the input is mandatory, and makes ``dispatch_spec`` raise
 [`ServiceValidationError`][rest_framework_services.exceptions.service_validation_error.ServiceValidationError]
-when it is absent — instead of the bare ``KeyError`` the callable would otherwise raise
-from deep inside dispatch, which no transport maps to a useful error.
+when it is absent and the caller could have sent it — instead of the bare ``KeyError``
+the callable would otherwise raise from deep inside dispatch, which no transport maps
+to a useful error. Where no caller input reaches the callable by name, as under
+``BUNDLE``, a refusal could only be answered by the same refusal, so a marked key
+nothing filled fails as the callable's own error, the author's to fix.
 
 An annotation that does not resolve at runtime does not hide the marker either. A
 name imported only under ``if TYPE_CHECKING:`` costs only the parameter or key it
