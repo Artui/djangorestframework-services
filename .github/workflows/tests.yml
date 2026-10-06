@@ -420,12 +420,37 @@ jobs:
 
   tests-passed:
     name: tests
+    # always(), never !cancelled(): a skipped job reports a skipped check, and
+    # branch protection counts a skipped required check as passing.
     if: always()
     needs: [lint, docs, floor, no-contenttypes, test]
     runs-on: ubuntu-latest
     steps:
-      - name: Verify required jobs succeeded
+      # Pass on an exact `success` from every job above, rather than failing on
+      # a list of bad results: such a list passes whatever it does not name, and
+      # GitHub reports a result it does not document. A job no hosted runner
+      # ever picks up ("The job was not acquired by Runner of type hosted even
+      # after multiple attempts") shows as cancelled on its own check but
+      # reaches `needs` as `abandoned`, and a gate that failed only on `failure`
+      # and `cancelled` went green over exactly that while the jobs it guards
+      # never ran. A matrix reaches `needs` as one result, and one cell that did
+      # not succeed is enough to make it something other than `success`.
+      #
+      # None of the jobs above has an `if:`, so `skipped` can only mean one of
+      # them never ran, and it fails like any other result. A job that gains a
+      # legitimate skip gets an exception naming it, never `skipped` accepted
+      # from all of them.
+      #
+      # The results come in through `env` rather than being spliced into the
+      # script, and every one is printed, so a red gate says which job and what
+      # GitHub reported for it.
+      - name: Verify every required job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then
-            echo "a required job failed"; exit 1
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          not_ok="$(echo "$NEEDS" | jq -r '[to_entries[] | select(.value.result != "success") | "\(.key)=\(.value.result)"] | join(" ")')"
+          if [ -n "$not_ok" ]; then
+            echo "::error::required jobs did not succeed: $not_ok"
+            exit 1
           fi
