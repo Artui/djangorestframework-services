@@ -171,13 +171,18 @@ class TestServiceDeleteView:
         assert response.status_code == 200
         assert response.data == {"deleted": author.pk}
 
-    @pytest.mark.parametrize(("success_status", "expected"), [(None, 200), (202, 202)])
+    @pytest.mark.parametrize(
+        ("success_status", "expected"),
+        [(None, 200), (204, 200), (lambda: 204, 200), (202, 202)],
+        ids=["default", "explicit 204", "callable 204", "explicit 202"],
+    )
     def test_a_destroy_presenting_a_row_answers_200_rather_than_204(
-        self, success_status: int | None, expected: int
+        self, success_status: Any, expected: int
     ) -> None:
         """A ``204`` carries no body, so a destroy whose service returns a row it
-        has to present answers ``200`` where the status is the action's default.
-        An explicitly-set ``success_status`` is used as given. The row went out
+        has to present answers ``200`` wherever its status resolves to ``204``:
+        the action's default, or one set explicitly, as a bulk destroy already
+        answered. Any other ``success_status`` is used as given. The row went out
         under the ``204`` before, which a client is entitled not to read."""
 
         def archive(*, instance: Author) -> Author:
@@ -199,7 +204,10 @@ class TestServiceDeleteView:
         assert response.status_code == expected
         assert response.data == {"id": author.pk, "name": "kept"}
 
-    def test_a_destroy_returning_a_raw_value_answers_200_rather_than_204(self) -> None:
+    @pytest.mark.parametrize("success_status", [None, 204])
+    def test_a_destroy_returning_a_raw_value_answers_200_rather_than_204(
+        self, success_status: int | None
+    ) -> None:
         """The same holds for a value with no output serializer to render it."""
 
         def fn(*, instance: Author) -> dict[str, Any]:
@@ -207,14 +215,14 @@ class TestServiceDeleteView:
 
         class _View(ServiceDeleteView):
             queryset = Author.objects.all()
-            spec = ServiceSpec(service=fn, atomic=False)
+            spec = ServiceSpec(service=fn, success_status=success_status, atomic=False)
 
         author = Author.objects.create(name="x")
         response = _View.as_view()(factory.delete("/"), pk=author.pk)
         assert response.status_code == 200
         assert response.data == {"deleted": author.pk}
 
-    @pytest.mark.parametrize(("success_status", "expected"), [(None, 204), (202, 202)])
+    @pytest.mark.parametrize(("success_status", "expected"), [(None, 204), (204, 204), (202, 202)])
     def test_an_output_serializer_never_renders_the_deleted_row(
         self, success_status: int | None, expected: int
     ) -> None:

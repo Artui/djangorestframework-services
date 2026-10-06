@@ -19,13 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   client building a form reads `"False"` as a non-empty string. The decorator
   now restores the schema itself on whatever viewset declares the action, so
   the documented workaround of adding a drfs base before `GenericViewSet` is no
-  longer needed. Where the viewset's own bases already restore it, the
-  decorator leaves them to it, so a `handle_exception` override on a drfs
-  viewset still has the last word on a `@service_action`'s body, as it does on
-  the viewset's other actions. The configured `EXCEPTION_HANDLER` still runs
-  once per request and still sees DRF's `ErrorDetail` leaves, and a handler
-  that declines the error by returning `None` still fails the request having
-  run once. A drfs mixin listed after `GenericViewSet` still inherits DRF's
+  longer needed. The restore runs inside the exception handler the view asks
+  for, beneath `handle_exception`, so an override of `handle_exception` has the
+  last word on a `@service_action`'s body on any viewset, as it does on a drfs
+  viewset's other actions, and a viewset's own `get_exception_handler` still
+  chooses the handler. The configured `EXCEPTION_HANDLER` still runs once per
+  request and still sees DRF's `ErrorDetail` leaves, and a handler that
+  declines the error by returning `None` still fails the request having run
+  once. A drfs mixin listed after `GenericViewSet` still inherits DRF's
   `handle_exception`, so that mixin's own actions serve the schema stringified.
 - **A mutation with nothing to present answers with an empty body, whether or
   not it declares an `output_serializer`.** Over HTTP, a mutation rendered its
@@ -46,8 +47,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through the `output_serializer` or a raw value such as a count, sent it as the
   body of the action's default `204`, a status that carries no body, so a client
   or proxy is entitled to discard it. It now answers `200` with the body, as a
-  bulk destroy already did. An explicitly set `success_status` is used as given,
-  and a destroy whose service returns `None` still answers with an empty `204`.
+  bulk destroy already did. The same holds for any mutation whose
+  `success_status` is, or returns, `204`: a value is sent under `200`, as on the
+  bulk path. Any other `success_status` is used as given, and a destroy whose
+  service returns `None` still answers with an empty `204`, at an explicit
+  `204` too.
+- **The OpenAPI schema documents a body under the status it is served under.**
+  `ServiceAutoSchema` documented a destroy's `output_serializer` under its
+  `204`, single-row or bulk, while the runtime serves a body under `200`. It
+  now asks the function the renderers ask, so such a destroy is documented as
+  `200` with its serializer. A spec declaring no `output_serializer` is still
+  documented as an empty response at its status: whether its service returns a
+  body is not declared anywhere the schema reads, and a raw value it returns,
+  a bulk destroy's count say, is served as a `200` the schema does not show.
 
 ## [0.55.0] — 2026-10-05
 

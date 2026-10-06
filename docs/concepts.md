@@ -663,7 +663,7 @@ whether `success_status` is set explicitly. The full matrix:
 
 | Service returns | `output_selector_spec` | Response |
 |---|---|---|
-| a value | with `output_serializer` (no selector) | serialized value at `success_status`, by default `201` for a create and `200` otherwise. A destroy presenting a value answers `200` rather than its default `204`, because a `204` carries no body; an explicitly set `success_status` is used as given |
+| a value | with `output_serializer` (no selector) | serialized value at `success_status`, by default `201` for a create and `200` otherwise. A value is never sent under a `204`, which carries no body: where the status resolves to `204`, a destroy's default or one set explicitly, it answers `200`, as a bulk mutation does |
 | a value | with `selector` | selector re-fetches (shaping applied, QuerySet materialized via `.first()`); result serialized at `success_status`, defaulting as in the first row. A re-fetch that finds nothing answers as a selector returning `None`, below |
 | a value | `None` | the raw value at `success_status`, defaulting as in the first row — only useful for JSON-native returns (dicts, lists) |
 | `None` | with `output_serializer` (no selector) | update flows render the *in-memory instance* through the serializer at `success_status` (DRF `UpdateAPIView` shape). A create, a destroy and a non-detail `@service_action` have no row to present: empty body at the explicitly-set `spec.success_status`, else `204`. Destroy never resurrects the deleted instance |

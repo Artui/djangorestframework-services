@@ -383,41 +383,81 @@ def test_service_action_serves_the_schema_as_raised_on_any_viewset(bases: str) -
     assert leaf == "False"
 
 
-class _PurgeRedactingViewSet(ServiceViewSet):
-    """A drfs base whose own ``handle_exception`` rewrites the body drfs restored."""
-
-    queryset = Author.objects.all()
-    action_specs = {"create": _PURGE_SPEC}
+class _Redacting:
+    """A viewset's own ``handle_exception``, rewriting the body it is handed."""
 
     def handle_exception(self, exc):  # type: ignore[no-untyped-def]
-        response = super().handle_exception(exc)
+        response = super().handle_exception(exc)  # type: ignore[misc]
         response.data["schema"] = {"redacted": True}
         return response
 
-    @service_action(_PURGE_SPEC, detail=False, methods=["post"])
-    def purge(self, request):  # type: ignore[no-untyped-def]
-        """Replaced by service_action."""
+
+# Every way a ``@service_action`` can sit on a viewset, with that override on
+# top, and the ``create`` a drfs mixin serves beside the action on a drfs base.
+_OVERRIDDEN_ROUTES: list[tuple[str, str]] = [
+    *((bases, "purge") for bases in _ACTION_BASES),
+    ("ServiceViewSet", "create"),
+]
 
 
-@pytest.mark.parametrize("action", ["create", "purge"])
-def test_an_overriding_handle_exception_has_the_last_word_on_every_route(action: str) -> None:
-    """A subclass's ``handle_exception`` runs after drfs' restore on a drfs base,
-    so what it writes is what the client gets, on a mixin's action and on a
-    ``@service_action`` of the same class alike.
+@pytest.mark.parametrize(("bases", "action"), _OVERRIDDEN_ROUTES)
+def test_an_overriding_handle_exception_has_the_last_word_on_every_route(
+    bases: str, action: str
+) -> None:
+    """A subclass's ``handle_exception`` runs after the restore, whatever the
+    viewset's bases, so what it writes is what the client gets, on a mixin's
+    action and on a ``@service_action`` alike.
 
-    The decorator used to wrap the instance's ``handle_exception`` whatever the
-    class, so on the action the restore ran a second time *outside* the
-    override, and put back the schema the override had just replaced.
+    The decorator used to wrap the instance's ``handle_exception``, which runs
+    after the class's whole chain, an override included. On a drfs base the
+    restore ran a second time *outside* the override; on DRF's own viewsets, and
+    where a drfs base is listed after ``GenericViewSet``, it was the only
+    restore and still ran outside it. Either way it put back the schema the
+    override had just replaced. The restore now runs inside the configured
+    handler, beneath any override.
     """
-    response = _PurgeRedactingViewSet.as_view({"post": action})(
-        _factory.post("/", {}, format="json")
+    viewset = type(
+        f"_Redacting{_ACTION_BASES[bases].__name__}", (_Redacting, _ACTION_BASES[bases]), {}
     )
+    response = viewset.as_view({"post": action})(_factory.post("/", {}, format="json"))
     response.render()
 
     assert response.status_code == 422
     assert json.loads(response.content) == {
         "detail": "Confirm the purge.",
         "schema": {"redacted": True},
+    }
+
+
+def _signing(exc: Exception, context: dict[str, Any]) -> Response | None:
+    """DRF's handler, with a key of its own added to the body."""
+    response = exception_handler(exc, context)
+    assert response is not None
+    response.data["handled_by"] = "the viewset"
+    return response
+
+
+class _OwnHandler:
+    """A viewset choosing its own exception handler over ``EXCEPTION_HANDLER``."""
+
+    def get_exception_handler(self):  # type: ignore[no-untyped-def]
+        return _signing
+
+
+@pytest.mark.parametrize("bases", list(_ACTION_BASES))
+def test_a_viewsets_own_exception_handler_still_answers_on_any_viewset(bases: str) -> None:
+    """The decorator asks the view for its handler rather than reading the
+    setting, so a viewset's own ``get_exception_handler`` still chooses it, and
+    the schema comes back as raised in the body that handler built."""
+    viewset = type(f"_Own{_ACTION_BASES[bases].__name__}", (_OwnHandler, _ACTION_BASES[bases]), {})
+    response = viewset.as_view({"post": "purge"})(_factory.post("/", {}, format="json"))
+    response.render()
+
+    assert response.status_code == 422
+    assert json.loads(response.content) == {
+        "detail": "Confirm the purge.",
+        "schema": _PURGE_SCHEMA,
+        "handled_by": "the viewset",
     }
 
 

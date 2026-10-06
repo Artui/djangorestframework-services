@@ -83,9 +83,23 @@ component, not a plain `object`.
 
 ### Success status codes
 
-Default to the action's HTTP code (201 / 200 / 204) unless
-`spec.success_status` overrides it. The schema picks up whichever value
-the runtime would return.
+Default to the action's HTTP code (201 / 200 / 204) unless an `int`
+`spec.success_status` overrides it. A callable `success_status` is resolved
+per request, so the schema documents the action's default for it.
+
+Where the spec declares an `output_serializer`, the schema documents it under
+the status the runtime serves a body under, by asking the same function the
+renderers ask. That is the status itself, except that a `204` carries no body:
+a destroy presenting a value, single-row or bulk, at its default `204` or one
+set explicitly, is served and documented as `200`.
+
+Where the spec declares no `output_serializer`, the schema documents an empty
+response at the status, which for a destroy is the `204` its service answers
+with by returning `None`. Whether there is a body is then decided by what the
+service returns, which the schema cannot read, so a raw value it returns
+instead, a bulk destroy's `{"deleted": n}` say, is served as a `200` body that
+the schema does not show. Declare an `output_serializer` for it and the schema
+documents it.
 
 ### 422 ServiceError responses
 

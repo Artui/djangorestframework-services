@@ -172,6 +172,26 @@ def validate_input(
     return None if serializer is None else serializer.validated_data
 
 
+def status_for_a_body(status: int) -> int:
+    """The status a mutation's response goes out under when it carries a body.
+
+    A ``204`` carries no body, so a client or proxy is entitled to discard one
+    sent under it. A response with something to present answers ``200`` wherever
+    its status resolved to ``204``, whether that is a destroy's default or a
+    ``success_status`` that is, or returns, ``204``. Any other status carries the
+    body as it is.
+
+    The single-row and bulk renderers both ask this, and so does the OpenAPI
+    schema for an operation that declares a body, so the status a body is
+    documented under is the one it is served under. One comparison, held both
+    ways: test_a_destroy_presenting_a_row_answers_200_rather_than_204 answers
+    ``204`` with a body without it, and test_service_create_view's
+    test_creates_and_returns_201, with every other create answering ``201`` with
+    a body, answers ``200`` if it always holds.
+    """
+    return drf_status.HTTP_200_OK if status == drf_status.HTTP_204_NO_CONTENT else status
+
+
 def render_mutation_response(
     view: Any,
     request: Request,
@@ -190,7 +210,7 @@ def render_mutation_response(
     Everything downstream of the dispatch that is genuinely transport-shaped, and
     nothing that isn't: resolve the success status against the *action's* default
     (201 create / 200 update / 204 destroy), which the core cannot know, and
-    answer a destroy that has a value to present with ``200`` instead, because a
+    answer a value under ``200`` wherever that status is ``204``, because a
     ``204`` carries no body; fall
     back to the in-memory ``instance`` when an in-place update returned ``None``;
     render a value through the output serializer, or emit a body-less response
@@ -240,19 +260,10 @@ def render_mutation_response(
     resolved_empty_status: int = (
         drf_status.HTTP_204_NO_CONTENT if spec.success_status is None else resolved_status
     )
-    # And the converse: a body never goes out under a defaulted ``204``. A destroy
-    # whose service returns something to present (a soft delete returning its row,
-    # a count) answers ``200``, as the bulk path does for the same reason. An
-    # explicit ``success_status`` is used as given. The unset status is held by
-    # test_a_destroy_presenting_a_row_answers_200_rather_than_204, whose 202 case
-    # is promoted to 200 without it; the destroy default by
-    # test_service_create_view's test_creates_and_returns_201, and every other
-    # create answering 201 with a body, all promoted to 200 without it.
-    resolved_body_status: int = (
-        drf_status.HTTP_200_OK
-        if spec.success_status is None and default_status == drf_status.HTTP_204_NO_CONTENT
-        else resolved_status
-    )
+    # And the converse: a body never goes out under a ``204``. A destroy whose
+    # service returns something to present (a soft delete returning its row, a
+    # count) answers ``200``, as the bulk path does for the same reason.
+    resolved_body_status: int = status_for_a_body(resolved_status)
 
     # Whether there is a value comes before how to render one. A serializer over
     # ``None`` builds a row of blank and default field values for no row, which
@@ -354,10 +365,7 @@ def _dispatch_bulk_via_spec(
             extras={"result": result.value},
             view_hooks=view_hooks,
         )
-        if status == drf_status.HTTP_204_NO_CONTENT:
-            # A bulk op that returns a body but inherited the destroy default.
-            status = drf_status.HTTP_200_OK
-        response = Response(payload, status=status)
+        response = Response(payload, status=status_for_a_body(status))
 
     return apply_response_finalizer(
         spec.response_finalizer,
@@ -516,10 +524,11 @@ def restore_raised_schema(exc: Exception, response: Response) -> Response:
 
     Called from two places, which between them cover every route drfs ships to a
     mapped ``ServiceError``: ``_ServesRaisedSchema`` below, for drfs' views and
-    viewset bases, and ``@service_action``, which installs it on a viewset whose
-    own chain does not reach ``_ServesRaisedSchema``. It is never installed
-    twice on one class, because an override of ``handle_exception`` runs between
-    the two and a second restore would undo what it wrote.
+    viewset bases, and the exception handler ``@service_action`` hands
+    ``APIView.handle_exception`` on whatever viewset declares it. Where both run,
+    the second writes what the first wrote, so the body is the same. A handler
+    that declines the error answers ``None``, which comes back as ``None`` for
+    DRF to raise; held by test_a_handler_declining_the_error_runs_once_on_any_viewset.
     """
     # Typed ``Response`` as DRF's stubs type it, but a configured
     # ``EXCEPTION_HANDLER`` may answer with any Django response, which DRF

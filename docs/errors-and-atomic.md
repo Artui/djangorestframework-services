@@ -151,13 +151,18 @@ own `GenericViewSet` and `ViewSet` included, whatever order its bases are listed
 in. Your handler runs once per request on every one of them, a handler that
 declines the error (returns `None`) included.
 
-The viewset mixins and `ActionSerializerResolver` restore it where they are
-listed before `GenericViewSet`, as every drfs viewset lists them:
+A `@service_action` restores it inside the exception handler: it hands DRF's
+`handle_exception` a handler that runs yours, or the one your viewset's
+`get_exception_handler` picks, and then puts the schema back. So a
+`handle_exception` of your own runs after the restore on any viewset, and what
+it writes into the body is what the client gets.
+
+The viewset mixins and `ActionSerializerResolver` restore it in
+`handle_exception` instead, beneath an override of yours, and only where they
+are listed before `GenericViewSet`, as every drfs viewset lists them:
 `class V(GenericViewSet, ServiceCreateMixin)` resolves `handle_exception` to
-DRF's and serves `create`'s schema stringified. A `handle_exception` of your
-own on a drfs viewset runs after the restore on every route, a
-`@service_action` included, so what it writes into the body is what the client
-gets.
+DRF's and serves `create`'s schema stringified, while a `@service_action` on the
+same class still serves it as raised.
 
 Anything else that holds the mapped exception reads the native schema off it,
 because there is no view to restore it:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import pytest
@@ -66,6 +66,18 @@ class TestServiceCreateView:
         request = factory.post("/", {"name": "Ada"}, format="json")
         response = _CreateAuthorView.as_view()(request)
         assert response.status_code == 201
+        assert response.data == {"id": Author.objects.get().id, "name": "Ada"}
+
+    def test_a_value_under_an_explicit_204_answers_200(self) -> None:
+        """A ``204`` carries no body, on any mutation, so a create set to answer
+        ``204`` that has a row to present answers ``200`` with it, as the bulk
+        path does."""
+
+        class _View(ServiceCreateView):
+            spec = replace(_CreateAuthorView.spec, success_status=204)
+
+        response = _View.as_view()(factory.post("/", {"name": "Ada"}, format="json"))
+        assert response.status_code == 200
         assert response.data == {"id": Author.objects.get().id, "name": "Ada"}
 
     def test_validation_error_returns_400(self) -> None:

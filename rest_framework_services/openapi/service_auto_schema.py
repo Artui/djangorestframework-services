@@ -23,6 +23,7 @@ from rest_framework_services.openapi.service_error_serializer import (
     ServiceErrorSerializer,
 )
 from rest_framework_services.openapi.utils import default_status
+from rest_framework_services.views.mutation.utils import status_for_a_body
 
 
 class ServiceAutoSchema(AutoSchema):
@@ -34,8 +35,10 @@ class ServiceAutoSchema(AutoSchema):
     - Request body from ``spec.input_serializer``, a bare dataclass being auto-wrapped
       in ``DataclassSerializer``, built with whatever partial flag ``spec.partial``
       resolves to so the documented body matches what actually validates.
-    - Success response from ``spec.output_selector_spec.output_serializer``, or a
-      no-content response when that is unset and the action's default status is 204.
+    - Success response from ``spec.output_selector_spec.output_serializer``,
+      under the status the runtime serves a body under, which is ``200`` where
+      the status is ``204``; or, where no serializer is declared, a no-content
+      response at the status itself.
     - A ``422`` documenting
       [`ServiceErrorSerializer`][rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer],
       as ``spec.document_service_error`` gates it.
@@ -142,9 +145,26 @@ class ServiceAutoSchema(AutoSchema):
         )
         out_cls = to_serializer_class(output_serializer)
         # spectacular accepts a Serializer subclass *or* an OpenApiResponse per
-        # status entry; mix them by whether a response body is configured.
-        success: Any = out_cls if out_cls is not None else OpenApiResponse(description="")
-        responses: dict[Any, Any] = {status: success}
+        # status entry; mix them by whether a response body is configured. A
+        # declared serializer is a body, and the renderers answer a body under
+        # ``status_for_a_body``, so the schema asks it the same question rather
+        # than restating the answer: a destroy presenting a row, single-row or
+        # bulk, is documented as the ``200`` it is served as. Held by
+        # test_a_destroy_documents_the_response_it_serves.
+        #
+        # With no serializer declared there is no body the schema can describe,
+        # and whether the runtime sends one is decided by what the service
+        # returns, which nothing the schema reads declares. So the no-content
+        # response is documented at the status itself, which is what a destroy
+        # whose service returns ``None`` is answered with. A raw value returned
+        # instead, a count say, is served as a body under ``status_for_a_body``
+        # that the schema does not show. Held by
+        # test_an_undeclared_body_is_documented_as_no_content.
+        responses: dict[Any, Any] = (
+            {status_for_a_body(status): out_cls}
+            if out_cls is not None
+            else {status: OpenApiResponse(description="")}
+        )
         document_422 = (
             spec.document_service_error
             if spec.document_service_error is not None

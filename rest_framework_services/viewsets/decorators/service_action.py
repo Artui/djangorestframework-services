@@ -11,7 +11,6 @@ from rest_framework import status as drf_status
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -19,7 +18,6 @@ from rest_framework_services.views.mutation.map_service_error import (
     _AdditionalInputAPIException,
 )
 from rest_framework_services.views.mutation.utils import (
-    _ServesRaisedSchema,
     dispatch_mutation_for_spec,
     resolve_mutation_instance,
     restore_raised_schema,
@@ -35,49 +33,59 @@ from rest_framework_services.viewsets.utils import _ActionSpecsMixin
 
 
 def _restore_schema_when_handled(view: Any) -> None:
-    """Have this request's ``handle_exception`` put the raised schema back.
+    """Have the exception handler this request's view runs put the raised schema back.
 
-    The restore is otherwise a ``handle_exception`` override on drfs' bases, which
-    a decorated method on DRF's own viewsets never reaches, and which DRF's own
-    method shadows where a drfs base is listed after ``GenericViewSet``. The
-    decorator owns no class, but it does own the handler, and the handler runs on
-    the view instance ``APIView.dispatch`` is about to hand the error to.
+    The restore is otherwise a ``handle_exception`` override on drfs' bases,
+    which a decorated method on DRF's own viewsets never reaches, and which
+    DRF's own method shadows where a drfs base is listed after
+    ``GenericViewSet``. The decorator owns no class, but it runs on the view
+    instance ``APIView.dispatch`` is about to hand the error to.
 
-    So the class's ``handle_exception`` is wrapped on that instance, for that
-    request, and the error is re-raised rather than answered here. ``dispatch``
-    then calls the wrapper exactly where it would have called the class's method,
-    so the configured ``EXCEPTION_HANDLER`` runs once and sees DRF's
-    ``ErrorDetail`` leaves, and a handler that declines the error (returns
-    ``None``) fails the request once, as it does on any other view. Answering
-    from inside the action instead would hand a declined error back to
-    ``dispatch``, which runs the handler a second time. Held by
-    test_a_handler_declining_the_error_runs_once_on_any_viewset.
+    So that instance's ``get_exception_handler`` is wrapped, for that request,
+    and the error is re-raised rather than answered here.
+    ``APIView.handle_exception`` asks for the handler as it always does, and gets
+    one that runs the handler it would have got and then restores the schema on
+    the response that built. Everything else follows from where that is:
 
-    Where the class's own chain already reaches the restore, that is where
-    ``_ServesRaisedSchema`` precedes ``APIView`` in its MRO, nothing is
-    installed. Restoring twice is restoring once only when nothing runs between
-    the two, and a subclass overriding ``handle_exception`` does: its override
-    runs after the class's restore, and a wrapper around the bound method would
-    restore again after the override and undo whatever it wrote to ``schema``.
-    Held by test_an_overriding_handle_exception_has_the_last_word_on_every_route.
-    Where the class's chain does not reach it, on DRF's own viewsets and where
-    a drfs base is listed after ``GenericViewSet``, the wrapper is the only
-    restore, and it runs after the bound method, an override included: there an
-    override's own ``schema`` is replaced by the one raised.
+    - The handler runs once and sees DRF's ``ErrorDetail`` leaves, and one that
+      declines the error by returning ``None`` still returns ``None``, so DRF
+      raises the error once, as on any other view. Answering from inside the
+      action instead would hand a declined error back to ``dispatch``, which
+      runs the handler a second time. Held by
+      test_a_handler_declining_the_error_runs_once_on_any_viewset.
+    - The restore runs inside ``APIView.handle_exception``, beneath every
+      ``handle_exception`` in the class's chain, so an override of it has the
+      last word on the body on every viewset. Wrapping ``handle_exception``
+      itself ran the restore after the whole chain and undid what an override
+      wrote to ``schema``. Held by
+      test_an_overriding_handle_exception_has_the_last_word_on_every_route.
+    - On drfs' bases ``_ServesRaisedSchema`` restores again on the way out of
+      ``APIView.handle_exception``. No ``handle_exception`` of drfs' runs
+      between the two, and each writes the schema as raised, so the second
+      leaves the body as the first left it.
+
+    The restore inside the handler is what serves the schema as raised where
+    the class's chain never reaches ``_ServesRaisedSchema``. Held by
+    test_service_action_serves_the_schema_as_raised_on_any_viewset, whose
+    ``GenericViewSet``, ``ViewSet``, ``GenericViewSet, ActionSerializerResolver``
+    and ``GenericViewSet, PolymorphicServiceSpec`` cases are served stringified
+    without it.
     """
-    mro = type(view).__mro__
-    # Both conditions are held by test_service_action_serves_the_schema_as_raised_on_any_viewset:
-    # the membership by its "GenericViewSet" case (no drfs base, so ``index``
-    # would raise) and the order by its "GenericViewSet, ActionSerializerResolver"
-    # case (a drfs base whose method DRF's shadows, served stringified if skipped).
-    if _ServesRaisedSchema in mro and mro.index(_ServesRaisedSchema) < mro.index(APIView):
-        return
-    handle_exception: Callable[[Exception], Response] = view.handle_exception
+    get_exception_handler: Callable[[], Callable[..., Any]] = view.get_exception_handler
 
-    def restoring(exc: Exception) -> Response:
-        return restore_raised_schema(exc, handle_exception(exc))
+    def restoring_exception_handler() -> Callable[[Exception, dict[str, Any]], Response | None]:
+        # Asked through the bound method when ``handle_exception`` asks, as DRF
+        # asks it, so a ``get_exception_handler`` of the viewset's own still
+        # chooses the handler. Held by
+        # test_a_viewsets_own_exception_handler_still_answers_on_any_viewset.
+        handler: Callable[..., Any] = get_exception_handler()
 
-    view.handle_exception = restoring
+        def restoring(exc: Exception, context: dict[str, Any]) -> Response | None:
+            return restore_raised_schema(exc, handler(exc, context))
+
+        return restoring
+
+    view.get_exception_handler = restoring_exception_handler
 
 
 def service_action(
@@ -114,6 +122,12 @@ def service_action(
     the dependency is checked on the first request through the action and the
     request is refused rather than served unguarded. Compose ``ServiceViewSet``
     (or any mixin from this package) and the check never fires.
+
+    An [`AdditionalInputRequired`][rest_framework_services.exceptions.additional_input_required.AdditionalInputRequired]
+    answers ``422`` with its ``schema`` as raised on any viewset, DRF's own
+    included. The restore runs inside the exception handler the view asks for,
+    so the configured ``EXCEPTION_HANDLER`` runs once, and a ``handle_exception``
+    override on the viewset still has the last word on the body.
     """
     drf_kwargs: dict[str, Any] = {"detail": detail}
     if methods is not None:
