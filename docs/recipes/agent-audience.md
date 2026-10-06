@@ -122,8 +122,10 @@ it to every render, as above.
 
 A substituted choice field is re-declared in the schema in its *display* values,
 because that is what the payload now carries. The `type` beside them follows: an
-`IntegerChoices` field spoken as `"Low"` is described as a `string`, keeping
-`"null"` where the field's type admitted it. Two values sharing one display list
+`IntegerChoices` field spoken as `"Low"` is described as a `string`. `"null"` is
+named last where the field's type admitted it and a null is still served: a
+`None` the choices give a display, as Django's `(None, "Unknown")` does, is
+served as `"Unknown"`, so no null is named for it. Two values sharing one display list
 it once, so the row carrying it matches one `oneOf` entry rather than two, and
 a `MultipleChoiceField` over them drops `uniqueItems`, since two selected values
 are served as that display twice. If another tool takes that field as input, mark it `FieldMarking.handle()` — that

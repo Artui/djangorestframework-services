@@ -10,6 +10,7 @@ from rest_framework import serializers
 
 from rest_framework_services.audience.annotate_output_schema import annotate_output_schema
 from rest_framework_services.audience.build_audience_projection import build_audience_projection
+from rest_framework_services.audience.project_payload import project_payload
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
 from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.field_audience import FieldAudience
@@ -214,14 +215,44 @@ class TestRestatedType:
         assert _spoken(subschema) == {"type": ["string", "null"], "enum": [None, "Low"]}
 
     def test_null_is_kept_where_the_stated_type_admitted_it(self) -> None:
-        """Read off the type, not the values: here the null is admitted by an
-        entry with no constant, and the restated type must not refuse it."""
+        """Here the null is admitted by an entry with no constant rather than
+        listed as one, and it is still served, so the restated type must not
+        refuse it."""
         subschema = {
             "type": ["integer", "null"],
             "oneOf": [{"const": 1, "title": "Low"}, {"type": "null"}],
         }
 
         assert _spoken(subschema)["type"] == ["string", "null"]
+
+    @pytest.mark.parametrize(
+        ("subschema", "expected"),
+        [
+            (
+                {
+                    "type": ["integer", "null"],
+                    "oneOf": [{"const": 1, "title": "Low"}, {"const": None, "title": "Unknown"}],
+                },
+                {"type": "string", "oneOf": [{"const": "Low"}, {"const": "Unknown"}]},
+            ),
+            (
+                {"type": ["null", "integer"], "enum": [None, 1]},
+                {"type": "string", "enum": ["Unknown", "Low"]},
+            ),
+        ],
+        ids=["one-of", "enum"],
+    )
+    def test_a_null_spoken_as_a_label_is_not_named(
+        self, subschema: dict[str, Any], expected: dict[str, Any]
+    ) -> None:
+        """Django's ``(None, "Unknown")``: the stated type admitted a null, and
+        the payload serves ``"Unknown"`` in its place, so the restated type
+        names no null it never serves. The listed displays refused a null
+        before the type stopped naming one, so what the schema accepts is
+        unchanged."""
+        assert _spoken(subschema, {**LOW, None: "Unknown"}) == expected
+        assert not Draft202012Validator({**expected, "type": ["string", "null"]}).is_valid(None)
+        assert Draft202012Validator(expected).is_valid("Unknown")
 
     def test_a_type_stated_as_null_alone_still_admits_it(self) -> None:
         """A scalar ``"null"`` is a stated type admitting null, as a list
@@ -278,7 +309,10 @@ class TestRestatedType:
         """An entry with no ``const`` admits values the displays say nothing
         about, so narrowing the type to the displays' would refuse them: ``7``
         matched ``minimum`` and was an integer, and would no longer be one of
-        the types stated."""
+        the types stated. Left as written, the type refuses the display
+        ``"Low"`` a row holding ``1`` is served, so that row still fails this
+        schema; only a schema written by hand reaches this shape, and narrowing
+        would refuse ``7`` and the null as well."""
         subschema = {
             "type": ["integer", "null"],
             "oneOf": [{"const": 1, "title": "Low"}, {"minimum": 5}],
@@ -291,10 +325,71 @@ class TestRestatedType:
             "oneOf": [{"const": "Low"}, {"minimum": 5}],
         }
         assert Draft202012Validator(spoken).is_valid(7)
+        assert Draft202012Validator(spoken).is_valid(None)
+        assert not Draft202012Validator(spoken).is_valid("Low")
 
     def test_an_untyped_choice_states_no_type(self) -> None:
         """Nothing was claimed, so there is nothing to contradict."""
         assert _spoken({"enum": [1]}) == {"enum": ["Low"]}
+
+
+class _Typed(serializers.ChoiceField):
+    """A choice field a registry rule describes with its type stated."""
+
+
+class TestServedNull:
+    """``"null"`` is named exactly where the projected payload can still serve one.
+
+    A nullable field's ``None`` is served as its display where the choices give
+    it one, and as a null where they do not. The walk states no type beside a
+    choice listing ``None``, so the restated type meets a null only where a
+    rule states one, as these do.
+    """
+
+    @staticmethod
+    def projected(
+        choices: list[tuple[Any, str]], rule: dict[str, Any] | None = None
+    ) -> tuple[Any, Any]:
+        class _Row(serializers.Serializer):
+            p = _Typed(choices=choices, allow_null=True)
+
+        registry = DEFAULT_JSON_SCHEMA_REGISTRY
+        if rule is not None:
+            registry = registry.extend(fields=[(_Typed, rule)])
+        projection = build_audience_projection(_Row)
+        schema: Any = output_to_json_schema(_Row, projection=projection, registry=registry)
+        served = project_payload(dict(_Row(instance={"p": None}).data), projection)
+        Draft202012Validator(schema).validate(served)
+        return schema["properties"]["p"], served["p"]
+
+    def test_a_null_with_a_display_is_served_as_it_and_never_named(self) -> None:
+        schema, served = self.projected(
+            [(None, "Unknown"), (1, "Low")],
+            {
+                "type": ["integer", "null"],
+                "oneOf": [{"const": None, "title": "Unknown"}, {"const": 1, "title": "Low"}],
+            },
+        )
+
+        assert served == "Unknown"
+        assert schema == {"type": "string", "oneOf": [{"const": "Unknown"}, {"const": "Low"}]}
+
+    def test_a_null_with_no_display_is_served_and_still_named(self) -> None:
+        schema, served = self.projected(
+            [(1, "Low")],
+            {"type": ["integer", "null"], "oneOf": [{"const": 1, "title": "Low"}, {"const": None}]},
+        )
+
+        assert served is None
+        assert schema == {"type": ["string", "null"], "oneOf": [{"const": "Low"}, {"const": None}]}
+
+    def test_the_walk_states_no_type_beside_a_listed_null(self) -> None:
+        """With no rule, the walk's own schema for the same field: the null's
+        display is listed, and there is no stated type to name a null in."""
+        schema, served = self.projected([(None, "Unknown"), (1, "Low")])
+
+        assert served == "Unknown"
+        assert schema == {"oneOf": [{"const": "Unknown"}, {"const": "Low"}]}
 
 
 class TestSharedDisplays:

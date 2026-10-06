@@ -321,6 +321,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   beside the `PASSTHROUGH` extras. `BUNDLE`, which `AUTO` resolves to for a
   service, a spec with an `input_serializer` and a `many=True` spec keep the set
   they had.
+- **The output schema no longer names `null` for a choice field whose `None`
+  has a display.** Django's `(None, "Unknown")` on a nullable field labels
+  `None`, and the projected payload serves `"Unknown"` in its place and never a
+  null, yet `annotate_output_schema`, and `output_to_json_schema` with a
+  `projection`, restated the type beside the displays as `["string", "null"]`
+  wherever the stated type admitted a null. `"null"` is now named only where
+  the stated type admitted it and a null is still served: a `None` listed with
+  no display of its own, or one a `{"type": "null"}` entry of a `oneOf`
+  admits. The values the schema accepts are unchanged, since the displays
+  listed beside the type never included a null. The walk's own schema for a
+  nullable choice states no type, so this reaches a choice whose type is
+  stated, as a `JsonSchemaRegistry` rule may.
 
 ## [0.55.0] — 2026-10-05
 
