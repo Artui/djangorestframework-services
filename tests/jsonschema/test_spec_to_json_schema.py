@@ -202,14 +202,43 @@ def test_service_output_reads_nested_output_selector_spec() -> None:
     }
 
 
-def test_service_output_list_kind_is_array() -> None:
+def test_service_output_list_re_read_is_array() -> None:
     spec = ServiceSpec(
         service=_service,
-        output_selector_spec=SelectorSpec(kind=SelectorKind.LIST, output_serializer=_Out),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.LIST, selector=lambda: [], output_serializer=_Out
+        ),
     )
     schema = spec_to_json_schema(spec, phase="output")
     assert schema is not None
     assert schema["type"] == "array"
+
+
+@pytest.mark.django_db
+def test_a_list_output_declaration_without_a_selector_is_one_value() -> None:
+    """No ``selector`` means no re-read, so the declared ``LIST`` is not what is served.
+
+    Dispatch presents the service's own return as one value and reports
+    ``kind="instance"``, which is what the HTTP view and every transport render
+    from. Checked against that rendered payload with a real validator: reading
+    the nested ``kind`` alone published an array, and the one object served
+    against it never matched.
+    """
+    nested = SelectorSpec(kind=SelectorKind.LIST, output_serializer=_Out)
+    spec = ServiceSpec(service=lambda: {"id": 1}, output_selector_spec=nested)
+    result = dispatch_spec(spec, user=None, params={})
+    payload = render_spec_output(spec, result.value, many=result.kind == "list")
+    schema = spec_to_json_schema(spec, phase="output")
+
+    assert result.kind == "instance"
+    assert payload == {"id": 1}
+    assert schema is not None
+    assert not list(Draft202012Validator(schema).iter_errors(payload))
+    assert schema == {
+        "type": "object",
+        "properties": {"id": {"type": "integer"}},
+        "required": ["id"],
+    }
 
 
 def test_a_many_service_output_is_an_array_whatever_its_selector_kind() -> None:

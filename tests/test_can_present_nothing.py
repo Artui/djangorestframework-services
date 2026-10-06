@@ -184,27 +184,10 @@ def test_a_retrieve_miss_without_allow_none_is_not_found_rather_than_none() -> N
 # --------------------------------------------- it agrees with the schema
 
 
-# The one row where they part: a ``LIST`` output declaration with no ``selector``
-# runs no re-read, so dispatch presents the service's own return as one value,
-# while ``spec_to_json_schema`` reads the declared ``kind`` and states an array.
-# That is the schema's ``kind`` disagreeing with dispatch, which predates this
-# predicate and is not its question; strict, so fixing it flips this.
-_KIND_DISAGREES = "service-list-declared-but-no-re-read-allow-none"
-
-
-@pytest.mark.parametrize(
-    ("spec", "expected"),
-    [
-        pytest.param(
-            *row.values,
-            id=row.id,
-            marks=[pytest.mark.xfail(strict=True, reason="the declared kind is read")]
-            if row.id == _KIND_DISAGREES
-            else [],
-        )
-        for row in _TABLE
-    ],
-)
+# Every row, including a ``LIST`` output declaration with no ``selector``: that
+# runs no re-read, so dispatch presents the service's own return as one value, and
+# the schema states that one value rather than the declared ``kind``.
+@pytest.mark.parametrize(("spec", "expected"), _TABLE)
 def test_the_output_schema_admits_null_exactly_where_it_answers_true(
     spec: Any, expected: bool
 ) -> None:

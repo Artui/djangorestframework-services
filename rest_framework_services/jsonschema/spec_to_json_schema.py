@@ -118,9 +118,13 @@ def spec_to_json_schema(
 
     ``phase="output"`` returns the output schema, or ``None`` when undeclared: a
     [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] supplies its
-    ``output_selector_spec``'s ``output_serializer``, ``kind`` and ``affordances``, a
+    ``output_selector_spec``'s ``output_serializer`` and ``affordances``, a
     [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] its own.
-    Declared ``affordances`` add the ``affordances`` object each rendered item
+    A ``ServiceSpec``'s schema states the kind dispatch renders, which is not always
+    the one declared: an array for ``many=True``, the nested ``kind`` where the
+    ``output_selector_spec`` has a ``selector`` to re-read through, and one value
+    otherwise, because with nothing to re-read dispatch presents the service's own
+    return whatever ``kind`` the nested spec names. Declared ``affordances`` add the ``affordances`` object each rendered item
     carries, ``reason`` included -- the shape ``render_spec_output`` produces.
     Where dispatch may present ``None``, the item's type is ``["object", "null"]``,
     as
@@ -316,10 +320,7 @@ def _output_schema(
             return None
         return output_to_json_schema(
             nested.output_serializer,
-            # A ``many=True`` service's output selector is ``RETRIEVE`` by
-            # convention, because its kind describes one row, and the result it
-            # renders is still the whole list.
-            kind=SelectorKind.LIST if spec.many else nested.kind,
+            kind=_rendered_kind(spec, nested),
             registry=registry,
             max_depth=max_depth,
             affordances=nested.affordances,
@@ -335,3 +336,30 @@ def _output_schema(
         # schema and every transport calling it answer it alike.
         allow_none=can_present_nothing(spec),
     )
+
+
+def _rendered_kind(
+    spec: ServiceSpec[Any, Any, Any], nested: SelectorSpec[Any, Any]
+) -> SelectorKind:
+    """The kind a service spec's result is rendered as, which its output schema states.
+
+    Dispatch decides it and reports it as ``result.kind``, which the HTTP view and
+    every transport render from, so the schema follows dispatch rather than the
+    declaration:
+
+    - A ``many=True`` service renders the whole list. Its output selector is
+      ``RETRIEVE`` by convention, because that kind describes one row.
+    - An output selector with a ``selector`` re-reads the result, and its ``kind``
+      says whether the re-read is one row or a set.
+    - Without a ``selector`` nothing is re-read: dispatch presents the service's
+      own return as one value, whatever ``kind`` the declaration names.
+    """
+    if spec.many:
+        return SelectorKind.LIST
+    if nested.selector is None:
+        # Held by test_a_list_output_declaration_without_a_selector_is_one_value,
+        # and by the manifest's and the predicate table's rows for the same spec:
+        # without this, a ``LIST`` declaration with nothing to re-read through
+        # publishes an array for the single value dispatch serves.
+        return SelectorKind.RETRIEVE
+    return nested.kind

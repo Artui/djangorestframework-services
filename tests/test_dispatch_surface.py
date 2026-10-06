@@ -11,6 +11,7 @@ imports here when they bump past 0.17.
 from __future__ import annotations
 
 import rest_framework_services as pkg
+from rest_framework_services.can_present_nothing import can_present_nothing
 from rest_framework_services.dispatch.adispatch_spec import adispatch_spec
 from rest_framework_services.dispatch.aenforce_affordances import aenforce_affordances
 from rest_framework_services.dispatch.aunmet_operation_affordance import (
@@ -78,6 +79,9 @@ _SURFACE = {
     "build_input_serializer": build_input_serializer,
     "build_input_serializer_from_data": build_input_serializer_from_data,
     "build_offline_context": build_offline_context,
+    # A transport advertising an output schema of its own asks this whether
+    # dispatch may present ``None``, rather than deriving the ``null`` again.
+    "can_present_nothing": can_present_nothing,
     "capability_manifest": capability_manifest,
     "dispatch_spec": dispatch_spec,
     "enforce_affordances": enforce_affordances,

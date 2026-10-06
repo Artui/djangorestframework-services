@@ -244,6 +244,31 @@ inside a container or under another `Annotated` (`list[Annotated[int,
 NotClientInput]]`). The refusal names the spelling that works. Another library's
 `Annotated` metadata is not placed, and stays legal at any depth.
 
+### What a service's output schema describes
+
+A `ServiceSpec`'s output schema reads the serializer and `affordances` off its
+`output_selector_spec`, and describes the shape dispatch renders, which is not
+always the `kind` that spec names:
+
+- `many=True` renders the whole list, so the schema is an array whatever the
+  nested `kind`.
+- An `output_selector_spec` with a `selector` re-reads the service's result, and
+  its `kind` decides: one row for `RETRIEVE`, an array for `LIST`.
+- Without a `selector` nothing is re-read. Dispatch presents the service's own
+  return as one value, so the schema describes one value even where the nested
+  `kind` is `LIST`:
+
+```python
+ServiceSpec(
+    service=archive_task,  # returns one task
+    output_selector_spec=SelectorSpec(kind=SelectorKind.LIST, output_serializer=TaskOut),
+)
+# spec_to_json_schema(spec, phase="output")["type"] == "object"
+```
+
+This is the same shape the HTTP view renders and every transport reads off
+`result.kind`, and the capability manifest's `output_schema` states it too.
+
 ## A spec-level title and description
 
 Derivation reads serializers, filters and callables. None of them can tell it
