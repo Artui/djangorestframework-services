@@ -63,27 +63,70 @@ jobs:
         run: git --no-pager diff --stat uv.lock || true
 
       - name: Install
+        id: install
         run: uv sync --all-groups --all-extras
 
       - name: Show the resolved versions
         run: uv pip list
 
+      # A resolve can succeed by backing off. When the newest release of a
+      # direct dependency conflicts with something else this project requires,
+      # uv takes the newest version that does resolve and logs an ordinary
+      # "Updated" line, so the suite below passes against a release nobody
+      # chose. That is how django-ag-ui's run went green with pydantic-ai-slim
+      # at 2.46 and 2.54 out: from 2.47 its [ag-ui] extra caps ag-ui-protocol
+      # below the 1.0 django-ag-ui requires. This compares every direct
+      # dependency with PyPI, fails on one held below a release that has been
+      # out longer than the Dependabot cooldown, and asks uv what holds it. A
+      # ceiling declared in pyproject.toml is honoured, which is how a hold is
+      # accepted on purpose. One copy for every repo, pinned like any action.
+      - name: Check no direct dependency is held back
+        id: held-back
+        uses: Artui/held-back-check@b64bbb88fd63c9c96675caba477cce13714de93e # v0.1.0
+
+      # Runs whether or not the check above failed: they answer different
+      # questions, and a hold is no reason to stop measuring what did resolve.
       - name: Test
+        id: test
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: uv run pytest
 
       - name: Open or update an issue on failure
-        if: failure()
+        # Main only. A dispatch on any other branch is a trial of that branch's
+        # manifest, and an issue saying the unpinned resolve is failing would be
+        # filed against the wrong tree.
+        if: failure() && github.ref == 'refs/heads/main'
+        env:
+          HELD_BACK: ${{ steps.held-back.outcome }}
+          TESTS: ${{ steps.test.outcome }}
+          REPORT: ${{ steps.held-back.outputs.report }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
+            const fs = require("fs");
             const title = "upstream drift: the unpinned resolve is failing";
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const sections = [];
+            if (process.env.TESTS === "failure") {
+              sections.push([
+                "The weekly unpinned resolve failed. A dependency released a version",
+                "that `pyproject.toml` admits and the suite does not survive.",
+                "",
+                "The `git diff --stat uv.lock` step in that run names what moved.",
+              ].join("\n"));
+            }
+            if (process.env.HELD_BACK === "failure") {
+              sections.push(fs.existsSync(process.env.REPORT)
+                ? fs.readFileSync(process.env.REPORT, "utf8")
+                : "The held-back check failed before writing its report; the run's log says why.");
+            }
+            if (!sections.length) {
+              sections.push("A step before the suite failed; the run's log names it.");
+            }
             const body = [
-              "The weekly unpinned resolve failed. A dependency released a version",
-              "that `pyproject.toml` admits and the suite does not survive.",
+              ...sections,
               "",
-              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              "",
-              "The `git diff --stat uv.lock` step in that run names what moved.",
+              `Run: ${run}`,
               "",
               "Fix forward (adopt the new version) or add a floor/ceiling that says",
               "why, but do not silence the job — it is the control that lets this",
