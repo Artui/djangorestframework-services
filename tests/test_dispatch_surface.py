@@ -21,6 +21,7 @@ from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
 from rest_framework_services.dispatch.enforce_permissions import enforce_permissions
 from rest_framework_services.dispatch.operation_affordances import operation_affordances
+from rest_framework_services.dispatch.provider_keys import provider_keys
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.dispatch.unmet_operation_affordance import (
@@ -91,6 +92,10 @@ _SURFACE = {
     # which conditions are answered without a row.
     "operation_affordances": operation_affordances,
     "output_to_json_schema": output_to_json_schema,
+    # A transport building a schema or refusing a call reads which names a
+    # ``kwargs=`` provider fills through this, rather than keeping a copy of the
+    # reader, as both spec transports once did.
+    "provider_keys": provider_keys,
     "render_spec_output": render_spec_output,
     # A transport that renders an output declaration outside ``render_spec_output``
     # resolves the class through this, or a dataclass output raises there.
