@@ -352,6 +352,33 @@ that would rather not unpack it reads `keys.filled` and `keys.declinable`.
 
 ::: rest_framework_services.types.provider_keys.ProviderKeys
 
+### `server_owned_keys`
+
+The names no caller supplies anywhere in a spec's dispatch: every key the
+selector or service, one of `spec.preconditions` or the target lookup marks
+[`NotClientInput`](types.md#notclientinput), and `view`. Dispatch drops the
+caller's value for each before any callable reads it, `REJECT` refuses it on a
+closed spec, and `spec_to_json_schema` leaves it out of the input schema. A
+transport that builds an input schema of its own subtracts the same set rather
+than reading each callable's markers again, which would miss a key that one
+callable hides and another takes plainly:
+
+```python
+from rest_framework_services import server_owned_keys
+
+# A service tool merging its target lookup's keys into the service's own.
+properties = {**lookup_properties, **service_properties}
+for name in server_owned_keys(spec):  # the service spec, not its nested lookup
+    properties.pop(name, None)
+```
+
+Pass the spec the transport dispatches. Asked with the nested
+`instance_selector_spec` / `collection_selector_spec`, it answers only what the
+lookup and its own preconditions hide, and a key the service or one of its
+preconditions hides is still advertised, then dropped.
+
+::: rest_framework_services.dispatch.utils.server_owned_keys
+
 ### `is_async`
 
 ::: rest_framework_services.is_async.is_async

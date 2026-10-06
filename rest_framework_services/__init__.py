@@ -35,6 +35,7 @@ from rest_framework_services.dispatch import (
     render_for_audience,
     render_spec_output,
     renderable_serializer_class,
+    server_owned_keys,
     unguarded_specs,
     unmet_operation_affordance,
 )
@@ -321,6 +322,7 @@ __all__ = [
     "run_service",
     "selector_action",
     "serializer_to_json_schema",
+    "server_owned_keys",
     "service_action",
     "spec_to_json_schema",
     "unguarded_specs",

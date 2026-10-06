@@ -28,6 +28,7 @@ from rest_framework_services.dispatch.renderable_serializer_class import rendera
 from rest_framework_services.dispatch.unmet_operation_affordance import (
     unmet_operation_affordance,
 )
+from rest_framework_services.dispatch.utils import server_owned_keys
 from rest_framework_services.is_async import is_async
 from rest_framework_services.jsonschema.filterset_to_json_schema import filterset_to_json_schema
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
@@ -113,6 +114,10 @@ _SURFACE = {
     "run_selector": run_selector,
     "run_service": run_service,
     "serializer_to_json_schema": serializer_to_json_schema,
+    # A transport building an input schema of its own -- a service tool merging its
+    # target lookup's keys -- subtracts this, the set dispatch strips, rather than
+    # reading each callable's markers again and missing the ones another hides.
+    "server_owned_keys": server_owned_keys,
     "spec_to_json_schema": spec_to_json_schema,
     "unmet_operation_affordance": unmet_operation_affordance,
     "validate_input": validate_input,

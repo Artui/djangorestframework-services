@@ -864,6 +864,30 @@ def test_a_key_the_lookup_hides_is_withheld_from_an_open_service_by_name(
     assert result.value["title"] == "x"
 
 
+@pytest.mark.django_db(transaction=True)
+@_CORES
+def test_input_data_reaches_a_service_naming_the_lookups_hidden_key(
+    dispatch: Dispatch,
+) -> None:
+    """The other half of the exception: named, the key is the service's, and the
+    value ``input_data`` supplies is the one it receives, over the caller's."""
+    post = Post.objects.create(title="p")
+    spec = ServiceSpec(
+        service=_update_naming_tenant,
+        instance_selector_spec=_TENANT_LOOKUP,
+        input_data=_server_tenant,
+        atomic=False,
+    )
+
+    result = dispatch(
+        spec,
+        params={"pk": post.pk, "tenant": "other", "title": "x"},
+        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+    )
+
+    assert (result.value["tenant"], result.value["title"]) == ("server", "x")
+
+
 def _plain_row(*, pk: int, tenant: str = "lookup-default") -> QuerySet[Post]:
     _LOOKUP_SEEN.append(tenant)
     return Post.objects.filter(pk=pk)

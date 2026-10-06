@@ -276,15 +276,15 @@ def test_over_http_a_hook_that_leaves_a_parameter_out_is_a_server_error() -> Non
         view(APIRequestFactory().post("/x/", {"title": "t", "tenant": "acme"}, format="json"))
 
 
-def test_over_http_a_hook_that_leaves_an_input_required_key_out_is_refused() -> None:
-    """The ``InputRequired`` check is the other one, and it is not about who could
-    fill the key: the marker says the value must arrive, so it is still a ``400``."""
+def test_over_http_a_hook_that_leaves_an_input_required_key_out_is_a_server_error() -> None:
+    """The ``InputRequired`` check asks the same question: the marker says the value
+    must arrive, but no request body reaches a ``BUNDLE`` service by name, so a
+    ``400`` naming ``tenant`` would send the client to resend a field that never
+    arrives. It is the server's gap, a ``500``, as for an unmarked parameter."""
     view = _viewset_whose_hook_leaves_tenant_out(_create_marked).as_view({"post": "create"})
 
-    response = view(APIRequestFactory().post("/x/", {"title": "t"}, format="json"))
-
-    assert response.status_code == 400
-    assert response.data == _TENANT_MISSING
+    with pytest.raises(TypeError, match="tenant"):
+        view(APIRequestFactory().post("/x/", {"title": "t", "tenant": "acme"}, format="json"))
 
 
 def test_a_positional_or_keyword_parameter_is_missing_too() -> None:
@@ -524,8 +524,9 @@ def test_over_http_a_lookup_parameter_nothing_fills_is_a_400() -> None:
 
 
 def test_over_http_a_selector_view_still_answers_a_server_error() -> None:
-    """No selector view maps ``ServiceValidationError``, so it escapes the view as
-    the ``TypeError`` did, and Django answers ``500``."""
+    """A selector view dispatches ``BUNDLE``, so no request fills ``tenant`` by name
+    and it is not asked of the caller: it fails as the selector's ``TypeError``, and
+    Django answers ``500``, as before the check existed."""
 
     class _View(SelectorRetrieveView):
         spec = SelectorSpec(
@@ -533,8 +534,9 @@ def test_over_http_a_selector_view_still_answers_a_server_error() -> None:
         )
 
     post = Post.objects.create(title="p")
-    with pytest.raises(ServiceValidationError):
-        _View.as_view()(APIRequestFactory().get("/"), pk=post.pk)
+    for query in ({}, {"tenant": "acme"}):
+        with pytest.raises(TypeError, match="tenant"):
+            _View.as_view()(APIRequestFactory().get("/", query), pk=post.pk)
 
 
 # --- only a name the caller could send is named ----------------------------------
@@ -605,6 +607,181 @@ def test_a_bundled_service_parameter_named_like_a_field_is_the_author_s_error(
         dispatch(spec, params={}, unknown_arguments=policy)
     with pytest.raises(TypeError, match="note"):
         dispatch(spec, params={"note": "n"}, unknown_arguments=policy)
+
+
+def _rows_for(*, tenant: str) -> list[str]:
+    return [tenant]
+
+
+def _tenant_rows_or_none(*, tenant: str = "none") -> list[str]:
+    return [tenant]
+
+
+_BUNDLED_SELECTORS = [
+    pytest.param(SelectorSpec(kind=SelectorKind.LIST, selector=_rows_for), id="selector"),
+    pytest.param(
+        SelectorSpec(
+            kind=SelectorKind.LIST, selector=_tenant_rows_or_none, preconditions=[_precondition]
+        ),
+        id="selector-precondition",
+    ),
+]
+
+
+@_CORES
+@_POLICIES
+@pytest.mark.parametrize("spec", _BUNDLED_SELECTORS)
+def test_a_bundled_selector_parameter_is_the_author_s_error(
+    dispatch: Any, policy: UnknownArguments, spec: Any
+) -> None:
+    """``BUNDLE`` spreads no caller input into a selector's pool either, so the
+    resend below carries ``tenant`` and the parameter is still unfilled. Naming it
+    on the first answer sent a client to send a key that never arrives, so under
+    ``BUNDLE`` nothing is the caller's to fill, for any spec. Fails if
+    ``caller_fillable`` reads a selector's declared input whatever the binding."""
+    for sent in ({}, {"tenant": "acme"}):
+        with pytest.raises(TypeError, match="tenant"):
+            dispatch(
+                spec, params=sent, argument_binding=ArgumentBinding.BUNDLE, unknown_arguments=policy
+            )
+
+
+class _MarkedScope(TypedDict, total=False):
+    tenant: Annotated[str, InputRequired]
+
+
+def _create_with_marked_scope(*, data: Any = None, **scope: Unpack[_MarkedScope]) -> str:
+    return scope["tenant"]
+
+
+def _marked_gate(*, tenant: Annotated[str, InputRequired]) -> None: ...
+
+
+def _marked_rows(*, tenant: Annotated[str, InputRequired]) -> list[str]:
+    return [tenant]
+
+
+_BUNDLED_INPUT_REQUIRED = [
+    pytest.param(
+        ServiceSpec(service=_create_marked, input_serializer=_TitleInput),
+        ArgumentBinding.AUTO,
+        {"title": "t"},
+        TypeError,
+        id="service-parameter",
+    ),
+    pytest.param(
+        ServiceSpec(service=_create_with_marked_scope),
+        ArgumentBinding.AUTO,
+        {},
+        KeyError,
+        id="service-typed-dict-key",
+    ),
+    pytest.param(
+        ServiceSpec(
+            service=lambda *, data: None, input_serializer=_TitleInput, preconditions=[_marked_gate]
+        ),
+        ArgumentBinding.AUTO,
+        {"title": "t"},
+        TypeError,
+        id="service-precondition",
+    ),
+    pytest.param(
+        SelectorSpec(kind=SelectorKind.LIST, selector=_marked_rows),
+        ArgumentBinding.BUNDLE,
+        {},
+        TypeError,
+        id="selector",
+    ),
+]
+
+
+def _open_rows(**filters: Any) -> list[str]:
+    return [filters.get("tenant", "")]
+
+
+def _scope_gate(**scope: Unpack[_MarkedScope]) -> None:
+    assert scope["tenant"] == "acme"
+
+
+@_CORES
+@_POLICIES
+def test_an_open_selector_still_refuses_a_marked_typed_dict_key(
+    dispatch: Any, policy: UnknownArguments
+) -> None:
+    """The ``InputRequired`` key sits inside a precondition's ``**scope``, which no
+    signature names as a parameter, beside a selector whose bare ``**filters``
+    opens the call. Open, every name is the caller's to send, so ``tenant`` is
+    named, and the resend reaches both. Fails if an open call site admits only
+    the parameters a signature names."""
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=_open_rows, preconditions=[_scope_gate])
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        dispatch(spec, params={}, unknown_arguments=policy)
+    assert excinfo.value.detail == _TENANT_MISSING
+    assert dispatch(spec, params={"tenant": "acme"}, unknown_arguments=policy).value == ["acme"]
+
+
+@_CORES
+@_POLICIES
+@pytest.mark.parametrize(("spec", "binding", "params", "error"), _BUNDLED_INPUT_REQUIRED)
+def test_a_bundled_input_required_key_is_the_author_s_error(
+    dispatch: Any,
+    policy: UnknownArguments,
+    spec: Any,
+    binding: ArgumentBinding,
+    params: dict[str, Any],
+    error: type[Exception],
+) -> None:
+    """The marker says the value must arrive, but under ``BUNDLE`` no resend can
+    deliver it by name: the same refusal came back, or ``REJECT`` refused the key
+    as unexpected. So the ``InputRequired`` check asks only what the caller could
+    fill, as the unfilled-parameter check does, and a key nothing fills here is the
+    author's error. A named parameter fails as the callable's ``TypeError``, and a
+    ``TypedDict`` key as whatever reading it raises. Fails if the marked keys are
+    not passed through ``Fillable.admits``."""
+    with pytest.raises(error, match="tenant"):
+        dispatch(spec, params=params, argument_binding=binding, unknown_arguments=policy)
+
+
+def _reread_marked(*, result: Post, tenant: Annotated[str, InputRequired]) -> QuerySet[Post]:
+    return Post.objects.filter(pk=result.pk)
+
+
+def _marked_condition(*, tenant: Annotated[str, InputRequired]) -> bool:
+    return True
+
+
+_UNASKED_MARKED = [
+    pytest.param(
+        ServiceSpec(
+            service=_create_post,
+            output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_reread_marked),
+        ),
+        1,
+        id="output-re-read",
+    ),
+    pytest.param(
+        ServiceSpec(
+            service=_create_post,
+            affordances=[Affordance(code="open", reason="Closed.", when=_marked_condition)],
+        ),
+        0,
+        id="affordance-condition",
+    ),
+]
+
+
+@_CORES
+@pytest.mark.parametrize(("spec", "written"), _UNASKED_MARKED)
+def test_a_marked_key_no_caller_input_reaches_is_not_refused(
+    dispatch: Any, spec: Any, written: int
+) -> None:
+    """No caller input reaches either pool, so a marked key there is the author's to
+    supply too. For the re-read it matters most: the row is written first, and a
+    refusal would report a write that happened as one that did not."""
+    with pytest.raises(TypeError, match="tenant"):
+        dispatch(spec, params={"tenant": "acme"}, argument_binding=_SPREAD)
+    assert Post.objects.count() == written
 
 
 def _defaulted_tenant(*, pk: int, tenant: str = "none") -> dict[str, Any]:

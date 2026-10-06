@@ -43,6 +43,10 @@ from rest_framework_services.dispatch.unmet_operation_affordance import (
     unmet_operation_affordance,
 )
 
+# Public from the shared ``utils`` rather than a module of its own, because the
+# declared-input and fillable reads beside it there are built on it.
+from rest_framework_services.dispatch.utils import server_owned_keys
+
 __all__ = [
     "adispatch_spec",
     "aenforce_affordances",
@@ -64,6 +68,7 @@ __all__ = [
     "render_for_audience",
     "render_spec_output",
     "renderable_serializer_class",
+    "server_owned_keys",
     "unguarded_specs",
     "unmet_operation_affordance",
 ]

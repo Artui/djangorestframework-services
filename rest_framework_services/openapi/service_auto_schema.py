@@ -178,6 +178,19 @@ class ServiceAutoSchema(AutoSchema):
         # question, test_a_create_that_cannot_present_nothing_documents_no_204.
         # test_a_create_that_may_present_nothing_documents_its_empty_204 holds
         # the branch.
+        #
+        # The rule is the spec's answer, and over-documents in three cases the
+        # OpenAPI page states, because the renderers decide the empty answer from
+        # more than the spec, inline rather than through a function this could
+        # ask: an explicit ``success_status`` with nothing to re-read answers empty
+        # at that status; an update that renders its target in place never answers
+        # empty; and the bulk path answers empty at the action's status. Where that
+        # status is the body's, one response per status could not tell the two
+        # apart anyway. Each is held, the status served beside the statuses
+        # documented, by
+        # test_an_empty_answer_at_an_explicit_status_is_documented_as_204_too,
+        # test_an_update_rendering_its_target_in_place_is_documented_with_a_204 and
+        # test_a_bulk_spec_answers_empty_at_its_status_beside_a_documented_204.
         if out_cls is not None and can_present_nothing(spec):
             responses[204] = OpenApiResponse(description="")
         document_422 = (

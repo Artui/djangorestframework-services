@@ -96,10 +96,31 @@ set explicitly, is served and documented as `200`.
 A declared body is not always sent. Where dispatch may present `None`, as
 [`can_present_nothing`][rest_framework_services.can_present_nothing.can_present_nothing]
 answers (a single-row re-read that finds no row, or a service declaring
-`allow_none=True`), the renderers answer an empty `204` rather than a row of
-blank fields, so the schema documents that `204`, with no content, beside the
-body's status. A list result, a `many=True` spec, and a single-row spec that
-declares no `None` document only the body.
+`allow_none=True`), the renderers answer with an empty body rather than a row
+of blank fields, so the schema documents an empty `204`, with no content,
+beside the body's status. A list result, a `many=True` spec, and a single-row
+spec that declares no `None` document only the body.
+
+The schema reads that from the spec, and the renderers decide the empty answer
+from more than the spec, so in three cases the `204` documented is not one the
+operation is ever answered with:
+
+- **An explicit `success_status` with nothing to re-read.** A service declaring
+  `allow_none=True` whose `None` is presented as it is answers empty at the
+  status it sets: a create at `success_status=201` answers an empty `201`, not a
+  `204`. A re-read that finds no row still answers `204`, whatever the status.
+- **An update that renders its target in place.** An update view, or a detail
+  `@service_action`, whose service returns `None` renders the row it updated, as
+  DRF's `UpdateAPIView` does, so with nothing to re-read it never answers empty.
+- **A `collection_selector_spec` target**, which the bulk path answers. Its
+  empty answer goes out under the action's status, a `200` for an update or a
+  non-detail `@service_action`, so only a bulk destroy's `204` is served. (A
+  `many=True` spec presents a list, so no `204` is documented for it.)
+
+The `204` is documented in each of them anyway. Where the empty answer shares
+the body's status, an operation documents one response per status, so the two
+could not be told apart there; a client reading the schema should accept an
+empty body at the documented body status as well.
 
 Where the spec declares no `output_serializer`, the schema documents an empty
 response at the status, which for a destroy is the `204` its service answers

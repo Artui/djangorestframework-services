@@ -87,8 +87,9 @@ class WidgetExtras(HttpExtras[MyUser], total=False):
 Two things follow. The key joins the schema's `required` list, so a
 schema-driven caller is told up front. And `dispatch_spec` / `adispatch_spec`
 raise [`ServiceValidationError`][rest_framework_services.exceptions.service_validation_error.ServiceValidationError]
-when the key is absent — a caller-visible validation failure every transport
-already maps, instead of a bare `KeyError` that none of them do.
+when the key is absent and the caller could have sent it (see the table below) —
+a caller-visible validation failure every transport already maps, instead of a
+bare `KeyError` that none of them do.
 
 **Any channel satisfies the requirement**: the caller's `params`, the `kwargs=`
 channel above, or a `spec.kwargs` provider. The marker says the value must
@@ -103,20 +104,23 @@ itself along with the reserved pool seeds, which no caller can send. Without
 `supplied`, only the marker makes a parameter required. See
 [what a transport supplies](../reference/jsonschema.md#what-a-transport-supplies-supplied).
 
-Dispatch enforces that one without a marker too, for a parameter **the caller
-could have filled**. A parameter with no default that nothing filled — the caller
-did not send it, a `kwargs=` provider declined it with `UNSET`, or there is no
-provider — is refused with the same `ServiceValidationError` rather than reaching
-the callable as a `TypeError`, and one message lists every missing name, marked or
-not: `{"non_field_errors": ["Missing required argument(s): 'pk', 'tenant'."]}`.
-What the caller could fill is the input its call declares:
+Dispatch enforces that one without a marker too. A parameter with no default
+that nothing filled — the caller did not send it, a `kwargs=` provider declined it
+with `UNSET`, or there is no provider — is refused with the same
+`ServiceValidationError` rather than reaching the callable as a `TypeError`, and
+one message lists every missing name, marked or not:
+`{"non_field_errors": ["Missing required argument(s): 'pk', 'tenant'."]}`.
+
+Both checks name a key only where **the caller could have filled it**, which is
+the input its call declares:
 
 | The callable | What a caller could fill |
 | --- | --- |
-| a selector, and its preconditions | the selector's parameters: every name under a `filter_set` or a bare `**kwargs` |
+| a selector under a `SPREAD_*` binding, which `AUTO` resolves to for a selector, and its preconditions | the selector's parameters: every name under a `filter_set` or a bare `**kwargs` |
+| a selector under `BUNDLE`, as an HTTP selector view dispatches it, and its preconditions | nothing: no caller input reaches the pool |
 | a service under `BUNDLE` (the default), and its preconditions | nothing: the caller's input arrives as `data`, never by name |
 | a service under a `SPREAD_*` binding, and its preconditions | what `REJECT` admits: the input serializer's fields or, with none, the service's own parameters, beside the target lookup's; every name where a bare `**kwargs` opens the set |
-| a target lookup (`instance_selector_spec` / `collection_selector_spec`) | the lookup selector's parameters |
+| a target lookup (`instance_selector_spec` / `collection_selector_spec`) | the lookup selector's parameters, whatever the service's binding, since its pool is spread from the caller's arguments |
 
 Less, in every case, a key any callable in the call marks `NotClientInput` (see
 [below](#hiding-provider-owned-inputs-notclientinput)), and the keys the caller
@@ -130,24 +134,31 @@ fill any of them itself, as a decorator injecting a scope does) are never missin
 Anything else that nothing fills, a provider gap under `BUNDLE` say, is a
 configuration error no client can fix, and fails as the callable's own `TypeError`,
 as it always did. The sibling kernel django-service-specs draws the same line.
+That holds for an `InputRequired` key too: the marker says the value must arrive,
+but where no caller could send it, as for any key under `BUNDLE`, a refusal naming
+it would only be answered by the same refusal, so it fails as the callable's own
+error, a `TypeError` for a parameter, and whatever reading it raises for a key of
+an unpacked `TypedDict`, such as `KeyError`.
 
-Two callables are not checked at all, because no caller argument reaches their
-pool: an affordance's `when` condition, which sees only the seeds, and the
-`output_selector_spec` re-read, which sees the seeds and the service's result. The
+Two callables are not checked at all, for a marked key or a plain parameter,
+because no caller argument reaches their pool: an affordance's `when` condition,
+which sees only the seeds, and the `output_selector_spec` re-read, which sees the seeds and the service's result. The
 re-read also runs after the service's write has committed, so a validation error
 there would tell the caller nothing happened, and a caller that retries on one
 would write twice.
 
 !!! note "Over HTTP, a lookup gap is a `400` and a hook gap a `500`"
     Both checks live in the dispatch core, which the HTTP views share, so they run
-    there too, but only a mutation view maps the refusal to a response, a `400`; a
-    selector view still answers `500`, as the `TypeError` did. They rarely fire,
+    there too, but only a mutation view maps the refusal to a response, a `400`. A
+    selector view dispatches `BUNDLE`, so nothing it calls is refused, and a gap
+    answers `500` as the `TypeError` it is. They rarely fire,
     because the route guarantees its captures, and a mutation's `as_view()`
     refuses a parameter of its service, preconditions or output re-read that
     nothing could feed, unless a `kwargs=` provider or view hook is declared.
     A mutation dispatches its service `BUNDLE`, so a declared provider or hook
-    that leaves a service or precondition parameter out is not refused: no
-    request could fill it, and it fails as the `TypeError` it is, a `500`. A
+    that leaves a service or precondition parameter out is not refused, marked
+    `InputRequired` or not: no request could fill it, and it fails as the
+    `TypeError` it is, a `500`. A
     target lookup parameter nothing fills is refused with a `400`, because a
     mutation reads the lookup's keys from the request body, which `as_view()`
     never checks. `as_view()` never refuses a selector's parameter as unfed
@@ -277,7 +288,10 @@ parameter. A precondition taking `tenant: Annotated[int, NotClientInput]` beside
 a selector that reads `tenant` plainly makes the selector's `tenant` the
 provider's too. A key the target lookup hides never reaches an open spread
 service's `**changes`, and a service naming it receives the server's value: the
-provider's, a route capture's or its default.
+provider's, a route capture's or its default. The set is public as
+[`server_owned_keys(spec)`](../reference/dispatch.md#server_owned_keys), for a
+transport that builds an input schema of its own and must leave out the same
+keys.
 
 A hidden parameter with no default that nothing fills is not named as a missing
 argument either: the caller could not send it, so the call fails as the author's
@@ -288,7 +302,10 @@ over the caller's input with its keys winning, so its value for a hidden key is 
 server's and is never dropped. Where the caller sends the same key, the server's
 value is the one that arrives. It reaches the service through an input serializer
 field of that name under every policy, as a `PASSTHROUGH` extra, and through a
-spread service's bare `**kwargs`. The marker still keeps the key out of the declared
+spread service's bare `**kwargs`, except a key the target lookup names, its `pk`
+or a key it marks hidden: that one reaches a spread service only through a
+parameter of the same name, never its `**kwargs`, as the caller's `pk` does
+([above](#a-spread-service-with-no-input-serializer)). The marker still keeps the key out of the declared
 set, so on a closed spec with no such field `IGNORE` drops it and `REJECT`, which
 judges the merged arguments, refuses it, as it refuses any `input_data` key nothing
 declares.

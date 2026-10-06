@@ -198,7 +198,9 @@ async def _adispatch_selector(
         ),
         url_kwargs=view_url_kwargs(view, reserved=pool_seeds.reserved),
     )
-    fillable = caller_fillable(spec, params, owned=owned)
+    # The binding, too: under ``BUNDLE`` no caller input reaches the selector's
+    # pool, so none of its parameters is one a resend could fill.
+    fillable = caller_fillable(spec, params, owned=owned, argument_binding=binding)
     try:
         result: Any = await arun_callable(
             spec.selector, resolve_dispatch_kwargs(spec.selector, pool, fillable=fillable)

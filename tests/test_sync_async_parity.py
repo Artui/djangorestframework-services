@@ -590,6 +590,28 @@ async def test_a_refused_list_return_reads_the_same_on_either_core() -> None:
     assert "returned dict" in str(async_refusal.value)
 
 
+async def test_a_bundled_selector_parameter_is_the_author_s_error_on_either_core() -> None:
+    """Each core asks ``caller_fillable`` at its own selector site, and each must pass
+    the binding: under ``BUNDLE`` no resend fills ``tenant``, so neither names it.
+    Nothing is read, so no database is needed."""
+
+    def rows(*, tenant: str) -> list[str]:
+        return [tenant]
+
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=rows)
+    kwargs: dict[str, Any] = {
+        "user": None,
+        "params": {},
+        "argument_binding": ArgumentBinding.BUNDLE,
+    }
+    with pytest.raises(TypeError) as sync_error:
+        await sync_to_async(dispatch_spec, thread_sensitive=True)(spec, **kwargs)
+    with pytest.raises(TypeError) as async_error:
+        await adispatch_spec(spec, **kwargs)
+    assert str(sync_error.value) == str(async_error.value)
+    assert "tenant" in str(async_error.value)
+
+
 # --- the mutated target's stale prefetch ----------------------------------
 #
 # A service that changed a prefetched relation leaves the target's

@@ -603,6 +603,155 @@ def test_an_undeclared_body_is_documented_at_its_status_alone() -> None:
     assert "content" not in documented["201"]
 
 
+# --- where the documented ``204`` is not the empty answer served -----------------
+#
+# The schema documents the empty ``204`` wherever ``can_present_nothing`` says
+# dispatch may present ``None``. The renderers decide the empty answer from more
+# than the spec: an explicit ``success_status``, whether the view renders an
+# update's target in place, and whether the spec is answered by the bulk path. The
+# OpenAPI page states each case, and each test below puts the status served beside
+# the statuses documented, so a schema that grows exact fails here with the page.
+
+
+def _returns_nothing(**_: Any) -> None:
+    return None
+
+
+_PRESENTS_ITS_OWN = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer)
+
+
+def _documented_at(view: Any, route: str, path_key: str, method: str) -> list[str]:
+    generator = SchemaGenerator(patterns=[path(route, view.as_view())])
+    operation = generator.get_schema(request=None, public=True)["paths"][path_key][method]
+    return sorted(code for code in operation["responses"] if code.startswith("2"))
+
+
+@pytest.mark.django_db
+def test_an_empty_answer_at_an_explicit_status_is_documented_as_204_too() -> None:
+    """With nothing to re-read, an explicit ``success_status`` is the status the
+    empty answer goes out under, so the ``204`` documented is never served."""
+    spec = ServiceSpec(
+        service=_returns_nothing,
+        output_selector_spec=_PRESENTS_ITS_OWN,
+        allow_none=True,
+        success_status=201,
+        atomic=False,
+    )
+    view = type("_CreateAt201", (ServiceCreateView,), {"spec": spec})
+
+    response = view.as_view()(APIRequestFactory().post("/", {}, format="json"))
+
+    assert (response.status_code, response.data) == (201, None)
+    assert _documented_at(view, "c/", "/c/", "post") == ["201", "204"]
+
+
+@pytest.mark.django_db
+def test_a_re_read_finding_nothing_answers_204_whatever_the_status() -> None:
+    """The contrast the page draws: a re-read's ``None`` is authoritative, so it is
+    answered with the ``204`` documented, at an explicit ``201`` too."""
+    spec = ServiceSpec(
+        service=_create_author,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=_no_author_visible,
+            output_serializer=AuthorSerializer,
+        ),
+        success_status=201,
+        atomic=False,
+    )
+    view = type("_ReReadAt201", (ServiceCreateView,), {"spec": spec})
+
+    response = view.as_view()(APIRequestFactory().post("/", {}, format="json"))
+
+    assert (response.status_code, response.data) == (204, None)
+    assert _documented_at(view, "c/", "/c/", "post") == ["201", "204"]
+
+
+@pytest.mark.django_db
+def test_an_update_rendering_its_target_in_place_is_documented_with_a_204() -> None:
+    """An update whose service returns ``None`` renders the row it updated, so it
+    never answers empty, while ``allow_none`` has the schema document the ``204``."""
+    author = Author.objects.create(name="x")
+    spec = ServiceSpec(
+        service=_returns_nothing,
+        output_selector_spec=_PRESENTS_ITS_OWN,
+        allow_none=True,
+        atomic=False,
+    )
+    view = type(
+        "_UpdateInPlace", (ServiceUpdateView,), {"spec": spec, "queryset": Author.objects.all()}
+    )
+
+    response = view.as_view()(APIRequestFactory().put("/", {}, format="json"), pk=author.pk)
+
+    assert (response.status_code, response.data) == (200, {"id": author.pk, "name": "x"})
+    assert _documented_at(view, "u/<int:pk>/", "/u/{id}/", "put") == ["200", "204"]
+
+
+class _TouchViewSet(ServiceViewSet):
+    queryset = Author.objects.all()
+
+    @service_action(
+        ServiceSpec(
+            service=_returns_nothing,
+            output_selector_spec=_PRESENTS_ITS_OWN,
+            allow_none=True,
+            atomic=False,
+        ),
+        detail=True,
+        methods=["post"],
+    )
+    def touch(self, request: Any, pk: Any = None) -> Any: ...
+
+
+@pytest.mark.django_db
+def test_a_detail_action_rendering_its_target_in_place_is_documented_with_a_204() -> None:
+    """A detail ``@service_action`` renders its target as an update does."""
+    author = Author.objects.create(name="x")
+    router = DefaultRouter()
+    router.register("touch", _TouchViewSet, basename="touch")
+    view = _TouchViewSet.as_view({"post": "touch"})
+
+    response = view(APIRequestFactory().post("/", {}, format="json"), pk=author.pk)
+    schema = SchemaGenerator(patterns=router.urls).get_schema(request=None, public=True)
+    operation = schema["paths"]["/touch/{id}/touch/"]["post"]
+
+    assert (response.status_code, response.data) == (200, {"id": author.pk, "name": "x"})
+    assert sorted(code for code in operation["responses"] if code.startswith("2")) == [
+        "200",
+        "204",
+    ]
+
+
+def _none_visible(*, result: Any) -> Any:
+    return Author.objects.none()
+
+
+@pytest.mark.django_db
+def test_a_bulk_spec_answers_empty_at_its_status_beside_a_documented_204() -> None:
+    """A collection target is answered by the bulk path, which sends an empty answer
+    under the action's status, never ``204`` unless that is the status. A re-read
+    finding no row is answered ``200`` here, as an update, beside a documented
+    ``204``."""
+    Author.objects.create(name="x")
+    spec = ServiceSpec(
+        service=_returns_nothing,
+        collection_selector_spec=_ALL_AUTHORS,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_none_visible, output_serializer=AuthorSerializer
+        ),
+        atomic=False,
+    )
+    view = type(
+        "_BulkUpdate", (ServiceUpdateView,), {"spec": spec, "queryset": Author.objects.all()}
+    )
+
+    response = view.as_view()(APIRequestFactory().put("/", {}, format="json"), pk=0)
+
+    assert (response.status_code, response.data) == (200, None)
+    assert _documented_at(view, "u/<int:pk>/", "/u/{id}/", "put") == ["200", "204"]
+
+
 @pytest.mark.django_db
 class TestViewsetSchema:
     def test_create_action_schema_uses_service_spec(self) -> None:

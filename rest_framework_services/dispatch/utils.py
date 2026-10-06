@@ -106,7 +106,16 @@ def server_owned_keys(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any])
       since no value the caller sends could fill it.
 
     A provider, a route capture, a registered pool seed, ``input_data`` and the
-    parameter's default still fill it. Each callable is one part of the union,
+    parameter's default still fill it.
+
+    **Public, for a transport building an input schema of its own**, such as a
+    service tool that merges its target lookup's keys into the service's: subtract
+    this set from what it lists, so it advertises no key dispatch then drops, and
+    pass the spec it dispatches, the service's rather than the nested lookup's, or
+    a key the service or one of its preconditions hides is missed.
+    ``spec_to_json_schema`` already subtracts it.
+
+    Each callable is one part of the union,
     held by its own test in ``tests/dispatch/test_dispatch_hidden_inputs.py``:
 
     - the selector or service's own keys:
@@ -621,21 +630,32 @@ def _unfilled_parameters(fn: Callable[..., Any], pool: Mapping[str, Any]) -> set
 
 
 class Fillable(NamedTuple):
-    """The names a caller could fill at one call site, read per callable.
+    """The names a caller could fill at one call site.
 
     ``declared`` is what the call site lets a caller send, or ``None`` where that
-    is open, which makes every name the callable takes by keyword one the caller
-    could send. ``withheld`` comes off either way. Built by ``caller_fillable``;
-    ``NOTHING_FILLABLE`` is the call site no caller input reaches.
+    is open, which makes every name one the caller could send. ``withheld`` comes
+    off either way. Built by ``caller_fillable``; ``NOTHING_FILLABLE`` is the call
+    site no caller input reaches.
     """
 
     declared: frozenset[str] | None
     withheld: frozenset[str]
 
-    def names(self, fn: Callable[..., Any]) -> frozenset[str]:
-        """The parameters of ``fn`` a caller could fill here."""
-        reach = _keyword_parameters(fn) if self.declared is None else self.declared
-        return frozenset(reach).difference(self.withheld)
+    def admits(self, name: str) -> bool:
+        """Whether a caller could fill ``name`` here.
+
+        Asked of a name, not enumerated from a signature, because an open call
+        site reaches an ``InputRequired`` key inside an unpacked ``**kwargs``
+        ``TypedDict`` as well as a keyword parameter. Two conjuncts, one branch
+        arc, each held by a test in ``tests/dispatch/test_unfilled_parameters.py``:
+
+        - not withheld: ``test_a_hidden_parameter_of_an_open_call_is_not_named``.
+        - declared, or the site open:
+          ``test_a_precondition_parameter_the_service_does_not_declare_is_the_author_s_error``
+          holds the declared set, and ``test_an_open_selector_still_refuses_a_marked_typed_dict_key``
+          the open reading of a ``TypedDict`` key.
+        """
+        return name not in self.withheld and (self.declared is None or name in self.declared)
 
 
 # An affordance condition and the output re-read: no caller input reaches either
@@ -660,15 +680,17 @@ def caller_fillable(
     loops. Anything else unfilled is the author's to fix, and fails as the
     callable's own ``TypeError``, which over HTTP is a ``500``.
 
-    - **A ``SelectorSpec``**, for its selector and preconditions, or for a
-      service's target lookup when that is the spec passed: its declared input,
+    - **Nothing under a binding that resolves to ``BUNDLE``**, for any spec:
+      ``BUNDLE`` spreads no caller input into the pool, so a service's input
+      arrives only as ``data`` and a selector's not at all.
+    - **A ``SelectorSpec``** otherwise, for its selector and preconditions, or for
+      a service's target lookup when that is the spec passed: its declared input,
       the parameters the selector names (``_selector_consumed_keys``), all of them
       under a ``filter_set`` or a bare ``**kwargs``. Over HTTP a mutation reads a
       lookup's from the request body.
-    - **A ``ServiceSpec``**, for its service and preconditions: nothing under a
-      binding that resolves to ``BUNDLE``, which spreads no caller input into
-      their pool; under a ``SPREAD_*`` binding, ``declared_input_keys``, every
-      name where that is open.
+    - **A ``ServiceSpec``** otherwise, for its service and preconditions:
+      ``declared_input_keys`` under the ``SPREAD_*`` binding, every name where
+      that is open.
 
     Less, in every case, ``owned`` (``server_owned_keys``), which no caller value
     reaches, and the keys of ``params``, which arrived wherever they could, so a
@@ -676,14 +698,18 @@ def caller_fillable(
     change. An unresolvable ``**kwargs`` annotation reads as open, as the
     permissive policies read it; under ``REJECT`` dispatch has raised already.
 
-    A ``SelectorSpec`` is read without a binding: every call site passes it with
-    the default, which never resolves to ``BUNDLE`` for a selector.
+    ``argument_binding`` is the dispatch's, for a selector as for a service. A
+    target lookup is read with the default, which is a ``SPREAD_*`` mode for a
+    ``SelectorSpec``, because its pool is spread from the caller's arguments
+    whatever binding the service is dispatched under.
 
     Each part is one arc or one operand, so each names the test that fails
     without it (in ``tests/dispatch/test_unfilled_parameters.py``):
 
-    - empty under ``BUNDLE``, where a declared name exists:
-      ``test_a_bundled_service_parameter_named_like_a_field_is_the_author_s_error``.
+    - empty under ``BUNDLE``, where a declared name exists, for a service:
+      ``test_a_bundled_service_parameter_named_like_a_field_is_the_author_s_error``;
+      and for a selector, which reads the binding only from its call site:
+      ``test_a_bundled_selector_parameter_is_the_author_s_error``.
     - the declared input, not every name:
       ``test_a_precondition_parameter_the_service_does_not_declare_is_the_author_s_error``.
     - every name where open: the ``open-spread-service-precondition`` row of
@@ -693,11 +719,11 @@ def caller_fillable(
     - less ``owned``: ``test_a_hidden_parameter_of_an_open_call_is_not_named``.
     - less what was sent: ``test_a_sent_key_the_service_never_receives_is_not_named``.
     """
+    if resolve_argument_binding(spec, argument_binding) is ArgumentBinding.BUNDLE:
+        return NOTHING_FILLABLE
     try:
         if isinstance(spec, SelectorSpec):
             declared = _selector_consumed_keys(spec)
-        elif resolve_argument_binding(spec, argument_binding) is ArgumentBinding.BUNDLE:
-            return NOTHING_FILLABLE
         else:
             declared = declared_input_keys(
                 spec, serializer=serializer, argument_binding=argument_binding, reserved=reserved
@@ -718,21 +744,25 @@ def resolve_dispatch_kwargs(
     Two kinds of name count as missing, and one message lists them all, sorted:
 
     - an ``InputRequired`` key, marked on a parameter or inside an unpacked
-      ``**kwargs`` ``TypedDict``;
-    - a parameter with no default that nothing filled and that **the caller could
-      have filled** (``fillable``, from ``caller_fillable``): a read the caller did
-      not send, where a ``kwargs=`` provider declined it with ``UNSET`` or there is
-      no provider at all. ``**kwargs``, a parameter with a default, a
-      positional-only parameter, a reserved seed and any parameter of a wrapper
-      taking ``**kwargs`` are never missing (see ``_unfilled_parameters``).
+      ``**kwargs`` ``TypedDict``, that nothing filled;
+    - a parameter with no default that nothing filled: a read the caller did not
+      send, where a ``kwargs=`` provider declined it with ``UNSET`` or there is no
+      provider at all. ``**kwargs``, a parameter with a default, a positional-only
+      parameter, a reserved seed and any parameter of a wrapper taking
+      ``**kwargs`` are never missing (see ``_unfilled_parameters``).
 
-    Anything else unfilled fails as the callable's own ``TypeError``, as it did
-    before the check existed: a ``NotClientInput`` parameter or ``view``, a
-    parameter under ``BUNDLE``, one the call site does not declare, and one the
-    caller sent that never arrived. Naming any of those would ask for a value the
-    caller cannot send, or already did, and a client that retries on a validation
-    error, as an agent does, would retry forever. It is a gap in what the server
-    supplies, which no client can fix.
+    Either is named only when **the caller could have filled it** (``fillable``,
+    from ``caller_fillable``). Anything else unfilled fails as the callable's own
+    error, as it did before the check existed, a ``TypeError`` for a parameter and
+    whatever reading it raises for a ``TypedDict`` key: a ``NotClientInput`` key
+    or ``view``, any name under ``BUNDLE``, one the call site does not declare, and
+    one the caller sent that never arrived. Naming any of those would ask for a
+    value the caller cannot send, or already did, and a client that retries on a
+    validation error, as an agent does, would retry forever. It is a gap in what
+    the server supplies, which no client can fix. The marker says the value must
+    arrive, and it still does where a caller could send it; where none could, the
+    refusal is the retry loop, so the two kinds are asked the same question
+    (``test_a_bundled_input_required_key_is_the_author_s_error``).
 
     Must run against the **fully assembled** pool: any channel (caller params,
     URL kwargs, the ``spec.kwargs`` provider) satisfies either, since the marker
@@ -747,11 +777,15 @@ def resolve_dispatch_kwargs(
     The HTTP views dispatch through the same core, but only a mutation view maps
     ``ServiceValidationError``, to a ``400``. A mutation dispatches its service
     ``BUNDLE``, so a provider or view hook that leaves a service or precondition
-    parameter out is not refused: it fails as the ``TypeError`` it is, a ``500``
-    (``test_over_http_a_hook_that_leaves_a_parameter_out_is_a_server_error``). A
+    parameter out is not refused, marked ``InputRequired`` or not: it fails as the
+    ``TypeError`` it is, a ``500``
+    (``test_over_http_a_hook_that_leaves_a_parameter_out_is_a_server_error``,
+    ``test_over_http_a_hook_that_leaves_an_input_required_key_out_is_a_server_error``). A
     target lookup parameter nothing fills is refused, with a ``400``, because the
     lookup reads the request body (``test_over_http_a_lookup_parameter_nothing_fills_is_a_400``).
-    A selector view maps nothing, so its refusal still answers ``500``.
+    A selector view dispatches ``BUNDLE`` too, so a selector parameter nothing fills
+    is its ``TypeError``, a ``500``
+    (``test_over_http_a_selector_view_still_answers_a_server_error``).
 
     ``NOTHING_FILLABLE`` is for a callable whose pool carries no client input: an
     affordance condition, which sees only the seeds
@@ -761,9 +795,9 @@ def resolve_dispatch_kwargs(
     nothing happened, and a caller that retries on one would write twice
     (``test_the_output_re_read_is_not_refused_after_the_write_committed``).
     """
-    required = marked_input_keys(fn)[0]
-    missing = {key for key in required if key not in pool}
-    missing |= _unfilled_parameters(fn, pool) & fillable.names(fn)
+    unfilled = {key for key in marked_input_keys(fn)[0] if key not in pool}
+    unfilled |= _unfilled_parameters(fn, pool)
+    missing = {key for key in unfilled if fillable.admits(key)}
     if missing:
         names = ", ".join(repr(key) for key in sorted(missing))
         raise ServiceValidationError(
