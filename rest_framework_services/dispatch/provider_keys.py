@@ -6,7 +6,7 @@ import inspect
 import sys
 from collections.abc import Callable, Mapping
 from types import SimpleNamespace, UnionType
-from typing import Any, TypeVar, Union, get_args, get_origin
+from typing import Annotated, Any, TypeVar, Union, get_args, get_origin
 
 from typing_extensions import Format, get_annotations, get_type_hints
 
@@ -80,11 +80,22 @@ def provider_keys(
     does, and a subclass handing its own parameter on to ``Scope``
     (``test_a_subclass_binding_decides_which_keys_may_be_declined``). An
     argument that does not admit ``UNSET`` still fills the key
-    (``test_a_parameterised_typed_dict_is_read_off_its_origin``). A PEP 695
+    (``test_a_parameterised_typed_dict_is_read_off_its_origin``), and one
+    wrapped in ``Annotated`` is read as what it wraps
+    (``test_annotated_around_a_binding_is_read_as_what_it_annotates``). A PEP 695
     ``class Scope[T](TypedDict)`` is read the same way under postponed
     annotations, where the ``"T"`` a value leaves resolves only beside the
     class's ``__type_params__``
     (``test_a_pep_695_type_parameter_is_read_as_the_class_declares_it``).
+
+    **Each key is read with the bindings of the class that declared it**, so
+    one ``T`` reused at every level reads as each class binds it:
+    ``class Shadow(Scope[list[T]], Generic[T])`` with ``extra: T``, returned
+    as ``Shadow[str | UnsetType]``, fills ``tenant`` with a list and may
+    decline ``extra``
+    (``test_each_key_is_read_with_the_bindings_of_the_class_that_declared_it``).
+    A key reached through two bases that bind it differently is filled if
+    either reading fills it.
 
     **A type variable nothing binds counts as filled**, as in a bare
     ``-> Scope`` (``test_a_type_variable_nothing_binds_is_filled``). Whether it
@@ -92,6 +103,16 @@ def provider_keys(
     provider by hiding the key from the caller. Declinable would let a
     transport whose caller's value wins put that value in a key the provider
     was meant to decide, such as a tenant.
+
+    Three readings stay as they are, each held by a test:
+
+    - A PEP 696 default on a type variable is not consulted
+      (``test_a_type_variables_default_is_not_consulted``).
+    - A base that cannot be substituted makes the provider read as untyped
+      (``test_a_base_that_cannot_be_substituted_leaves_the_provider_untyped``).
+    - A key a subclass redeclares is read with its base's bindings, since no
+      runtime record says which class wrote it
+      (``test_a_key_a_subclass_redeclares_is_read_with_its_bases_bindings``).
 
     Duck-typed on the keys a ``TypedDict`` class carries rather than
     ``is_typeddict``, because the standard library's answers ``False`` for a
@@ -108,20 +129,31 @@ def provider_keys(
         if getattr(declared, "__required_keys__", None) is None:
             return None
         values = get_annotations(declared, format=Format.FORWARDREF)
-        bindings, type_parameters = _bindings(returned)
+        declarations = _declarations(returned)
     except Exception:
         # A return annotation that does not resolve, a callable no annotations
         # can be read off, or a generic whose bases cannot be substituted
         # through: either way nothing usable was declared.
         return None
-    names = frozenset(declared.__required_keys__) | frozenset(declared.__optional_keys__)
     namespace = getattr(sys.modules.get(declared.__module__), "__dict__", {})
-    declinable = frozenset(
-        name
-        for name in names
-        if _may_decline(values.get(name), namespace, type_parameters, bindings)
+    readings = [
+        (name, _may_decline(values.get(name), namespace, type_parameters, bindings))
+        for keys, bindings, type_parameters in declarations
+        for name in keys
+    ]
+    # A key reached through two bases that bind it differently is read once
+    # through each, and filled by either reading is filled
+    # (``two-bindings-one-key`` holds the subtraction).
+    filled = frozenset(name for name, declines in readings if not declines)
+    declinable = frozenset(name for name, declines in readings if declines) - filled
+    return ProviderKeys(_keys(declared) - declinable, declinable)
+
+
+def _keys(declared: Any) -> frozenset[str]:
+    """Every key ``declared`` carries, its bases' included; none if it is not a ``TypedDict``."""
+    return frozenset(getattr(declared, "__required_keys__", ())) | frozenset(
+        getattr(declared, "__optional_keys__", ())
     )
-    return ProviderKeys(names - declinable, declinable)
 
 
 def _may_decline(
@@ -140,52 +172,65 @@ def _may_decline(
     return _admits_unset(value, bindings)
 
 
-def _bindings(returned: Any) -> tuple[dict[Any, Any], dict[str, Any]]:
-    """What each type variable a key of ``returned`` may name stands for, and each PEP 695 one by name.
+def _declarations(
+    returned: Any,
+) -> list[tuple[frozenset[str], dict[Any, Any], dict[str, Any]]]:
+    """Each class ``returned`` is built from: the keys it declares, its bindings, and its PEP 695 parameters.
 
     ``returned`` is a ``TypedDict`` or an alias of one. The alias's arguments
     bind its origin's parameters, and each base in ``__orig_bases__`` binds its
     own origin's in turn, so ``class Declining(Scope[str | UnsetType])`` binds
     ``Scope``'s ``T`` with no alias in sight. A base's arguments are written in
-    the terms of the class below it, so they are substituted as they are
-    bound: ``-> Relay[str | UnsetType]``, with ``Relay(Scope[U], Generic[U])``,
+    the terms of the class below it, so they are substituted with that class's
+    bindings: ``-> Relay[str | UnsetType]``, with ``Relay(Scope[U], Generic[U])``,
     binds ``U`` and then ``T`` to ``str | UnsetType``. Every binding is then in
     the terms of the return annotation, which is why ``_admits_unset`` walks
     one without substituting again. A parameter nothing binds is bound to
     itself, and stays free.
 
-    Keyed by type variable, because the merged hints of a ``TypedDict`` do not
-    say which class declared a key. One type variable bound at two levels, as
-    in ``Recurring(Scope[T | UnsetType], Generic[T])``, keeps the binding of
-    the base, the class nearest to where a generic key is usually declared.
-    So do two PEP 695 parameters of one name. The names are those a postponed
-    annotation's ``"T"`` must resolve against, since a PEP 695 parameter lives
-    in its class's ``__type_params__`` rather than in the module.
+    Bindings are kept per class, because one type variable may be bound
+    differently at each level, as ``class Shadow(Scope[list[T]], Generic[T])``
+    binds ``Scope``'s ``T`` to a list and leaves its own to the alias. A
+    ``TypedDict``'s hints and its key sets are merged from every base on every
+    supported Python, ``typing``'s and ``typing_extensions``' alike, so the
+    keys a class declares are its keys less every base's, and each is read
+    with the bindings of that class and resolved beside its PEP 695
+    parameters, which a postponed annotation's ``"T"`` names because they live
+    in ``__type_params__`` rather than in the module. A key redeclared in a
+    subclass is the base's by that subtraction. The merged hints carry the
+    subclass's annotation and no record of which class wrote it, and an
+    eagerly evaluated ``tenant: T`` written at both levels is one object in
+    both, so a redeclared key cannot be told from an inherited one.
 
     Each step is held by a case of
     ``test_a_subclass_binding_decides_which_keys_may_be_declined``:
     ``through-a-class-base`` holds walking a base that is a class rather than
     an alias, ``relays-a-declinable-type`` substituting a base's arguments,
-    ``rebinds-its-own-type-variable`` the base's binding winning, and
-    ``bare-rebinding`` a parameter bound to itself when the alias gives no
-    arguments. ``test_a_pep_695_type_parameter_is_read_as_the_class_declares_it``
-    holds the names: ``subclass`` that they are gathered from every base, and
-    ``same-name-rebound`` that the base's wins.
+    and ``bare-rebinding`` a parameter bound to itself when the alias gives no
+    arguments. ``test_each_key_is_read_with_the_bindings_of_the_class_that_declared_it``
+    holds keeping them per class (``shadow``) and subtracting the bases' keys
+    (``reverse``, which reads every key at every level without it).
+    ``test_a_pep_695_type_parameter_is_read_as_the_class_declares_it`` holds the
+    parameters: ``subclass`` that they are a base's when a base declares the
+    key, and ``same-name-rebound`` and ``own-key`` that they are the declaring
+    class's alone, in each direction.
     """
-    bindings: dict[Any, Any] = {}
-    type_parameters: dict[str, Any] = {}
+    declarations: list[tuple[frozenset[str], dict[Any, Any], dict[str, Any]]] = []
     pending = [(get_origin(returned) or returned, get_args(returned))]
     while pending:
         declared, arguments = pending.pop()
         parameters = getattr(declared, "__parameters__", ())
         # Not ``strict``: a bare ``-> Scope`` gives no arguments.
-        bindings.update(zip(parameters, arguments or parameters, strict=False))
-        type_parameters.update((p.__name__, p) for p in getattr(declared, "__type_params__", ()))
-        pending.extend(
+        bindings = dict(zip(parameters, arguments or parameters, strict=False))
+        bases = [
             (get_origin(base) or base, tuple(_substitute(a, bindings) for a in get_args(base)))
             for base in getattr(declared, "__orig_bases__", ())
-        )
-    return bindings, type_parameters
+        ]
+        inherited = {name for base, _ in bases for name in _keys(base)}
+        type_parameters = {p.__name__: p for p in getattr(declared, "__type_params__", ())}
+        declarations.append((_keys(declared) - inherited, bindings, type_parameters))
+        pending.extend(bases)
+    return declarations
 
 
 def _substitute(argument: Any, bindings: Mapping[Any, Any]) -> Any:
@@ -245,17 +290,26 @@ def _admits_unset(annotation: Any, bindings: Mapping[Any, Any]) -> bool:
     which ``_resolve`` has already stripped. Any other generic stops the walk,
     because its arguments are not the value: ``list[str | UnsetType]`` is a key
     always filled with a list, and dispatch drops a key only when its value *is*
-    ``UNSET``. A type variable, at any level, is walked as what ``_bindings``
-    says it stands for, and that is walked in turn rather than compared with
+    ``UNSET``. A type variable, at any level, is walked as what the bindings
+    of the class that declared the key say it stands for, and that is walked
+    in turn rather than compared with
     ``UnsetType`` (``union-argument-inside-a-union`` in
     ``test_a_generic_typed_dicts_arguments_decide_which_keys_may_be_declined``).
-    It is walked with no bindings, because ``_bindings`` has already written it
+    It is walked with no bindings, because ``_declarations`` has already written it
     in the return annotation's terms: ``bare-rebinding`` in
     ``test_a_subclass_binding_decides_which_keys_may_be_declined`` binds ``T``
     to ``T | UnsetType``, which substituting again would expand without end.
     One nothing binds is filled, and asking whether it is bound before looking
     it up is held by ``test_a_type_variable_nothing_binds_is_filled``, the
     variable met again inside a binding being one nothing binds.
+
+    ``Annotated`` is walked as what it annotates, at any depth the walk
+    reaches, the way ``_resolve`` strips it from a key's own value. Only a
+    binding can still carry one, since a class statement's bases are kept in
+    ``__orig_bases__`` as written and never resolved
+    (``test_annotated_around_a_binding_is_read_as_what_it_annotates``, where
+    ``inside-a-union`` meets it below a union and ``relayed`` around a type
+    variable a subclass hands on).
 
     One arc to coverage, so each condition is named on the test that holds it.
     ``test_a_key_whose_value_admits_unset_may_be_declined`` holds the walk,
@@ -270,6 +324,8 @@ def _admits_unset(annotation: Any, bindings: Mapping[Any, Any]) -> bool:
     """
     if isinstance(annotation, TypeVar):
         return annotation in bindings and _admits_unset(bindings[annotation], {})
+    if get_origin(annotation) is Annotated:
+        return _admits_unset(get_args(annotation)[0], bindings)
     return annotation is UnsetType or (
         get_origin(annotation) in _UNIONS
         and any(_admits_unset(argument, bindings) for argument in get_args(annotation))

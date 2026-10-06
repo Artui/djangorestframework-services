@@ -176,8 +176,21 @@ whatever binds its parameters, so `-> Scope[str | UnsetType]` reads `Scope`'s
 `tenant: T` as the written-out `tenant: str | UnsetType`. So does a subclass
 that binds them, `class Declining(Scope[str | UnsetType])`, and one that hands
 its own parameter on, `class Relay(Scope[U], Generic[U])` returned as
-`Relay[str | UnsetType]`. A PEP 695 `class Scope[T](TypedDict)` reads the same
-under `from __future__ import annotations`.
+`Relay[str | UnsetType]`. An argument wrapped in `Annotated` reads as what it
+wraps, in a class statement's bases as in the return annotation. A PEP 695
+`class Scope[T](TypedDict)` reads the same under
+`from __future__ import annotations`.
+
+Each key is read with the bindings of the class that declared it, so one `T`
+reused at every level reads as each class binds it.
+`class Shadow(Scope[list[T]], Generic[T])` with a key `extra: T` of its own,
+returned as `Shadow[str | UnsetType]`, fills `Scope`'s `tenant` with a list
+and may decline `extra`. A key reached through two bases that bind it
+differently is filled if either reading fills it. Three things are not read:
+a PEP 696 default on a type variable; a key a subclass redeclares, which reads
+as its base declared it, because a `TypedDict` keeps no record of which class
+wrote a key; and a base whose arguments cannot be written in the return
+annotation's terms, which leaves the provider untyped.
 
 A type variable nothing binds, as in a bare `-> Scope`, counts as filled.
 Whether it may be `UNSET` is written nowhere, and filled keeps the decision with

@@ -29,6 +29,7 @@ from typing import (
 
 import pytest
 from typing_extensions import NotRequired, ReadOnly, Required, TypedDict
+from typing_extensions import TypeVar as TypeVarWithDefault
 
 from rest_framework_services.dispatch.provider_keys import provider_keys
 from rest_framework_services.types.provider_keys import ProviderKeys
@@ -499,6 +500,188 @@ def test_a_type_variable_nothing_binds_is_filled(provider: Any) -> None:
     assert declinable == _NOTHING
 
 
+# ---------- Each key is read with the bindings of the class that declared it ----------
+
+
+class _ShadowScope(_GenericScope[list[_T]], Generic[_T]):
+    # Reuses ``_T`` for a key of its own, as a project with one ``T`` for every
+    # generic does. ``tenant`` is ``_GenericScope``'s, where ``_T`` is bound to a
+    # list; ``extra`` is this class's, where the alias binds it.
+    extra: _T
+
+
+class _ReverseScope(_GenericScope[str | UnsetType], Generic[_T]):
+    # The same shape the other way round: ``tenant`` may be declined, and
+    # ``extra`` is whatever the alias says.
+    extra: _T
+
+
+class _MiddleScope(_GenericScope[_T | UnsetType], Generic[_T]):
+    middle: _T
+
+
+class _TopScope(_MiddleScope[list[_T]], Generic[_T]):
+    # Three classes, one ``_T``, and a different binding at each of them.
+    top: _T
+
+
+class _LeftScope(_GenericScope[_T], Generic[_T]):
+    left: str
+
+
+class _RightScope(_GenericScope[_T], Generic[_T]):
+    right: str
+
+
+class _BothScope(_LeftScope[str | UnsetType], _RightScope[str]):
+    # ``tenant`` reached through two bases that bind it differently.
+    ...
+
+
+def _shadow_provider() -> _ShadowScope[str | UnsetType]:
+    return {"tenant": ["acme"], "extra": UNSET}
+
+
+def _reverse_provider() -> _ReverseScope[str]:
+    return {"tenant": UNSET, "extra": "always"}
+
+
+def _chain_provider() -> _TopScope[str | UnsetType]:
+    return {"tenant": UNSET, "middle": [], "top": UNSET}
+
+
+def _filling_chain_provider() -> _TopScope[str]:
+    return {"tenant": UNSET, "middle": [], "top": "always"}
+
+
+def _diamond_provider() -> _BothScope:
+    return {"tenant": "acme", "left": "", "right": ""}
+
+
+@pytest.mark.parametrize(
+    ("provider", "keys"),
+    [
+        (_shadow_provider, (frozenset({"tenant"}), frozenset({"extra"}))),
+        (_reverse_provider, (frozenset({"extra"}), frozenset({"tenant"}))),
+        (_chain_provider, (frozenset({"middle"}), frozenset({"tenant", "top"}))),
+        (_filling_chain_provider, (frozenset({"middle", "top"}), frozenset({"tenant"}))),
+        (_diamond_provider, (frozenset({"tenant", "left", "right"}), _NOTHING)),
+    ],
+    ids=["shadow", "reverse", "three-levels", "three-levels-filled", "two-bindings-one-key"],
+)
+def test_each_key_is_read_with_the_bindings_of_the_class_that_declared_it(
+    provider: Any, keys: tuple[frozenset[str], frozenset[str]]
+) -> None:
+    # One ``_T`` bound at several levels. Read with any one level's binding,
+    # ``shadow`` would fill ``extra``, which the provider may decline, and
+    # ``reverse`` would let a caller's value into ``extra``, which the provider
+    # always fills. ``two-bindings-one-key`` binds ``tenant`` one way through
+    # each base, and filled is the reading that keeps it with the provider.
+    assert provider_keys(provider) == keys
+
+
+# ---------- ``Annotated`` around a base's argument ----------
+
+
+class _AnnotatedBindingScope(_GenericScope[Annotated[str | UnsetType, "doc"]]): ...
+
+
+class _AnnotatedInUnionScope(_GenericScope[Annotated[str | UnsetType, "doc"] | None]): ...
+
+
+class _AnnotatedRelayScope(_GenericScope[Annotated[_U, "doc"]], Generic[_U]): ...
+
+
+def _annotated_alias_provider() -> _GenericScope[Annotated[str | UnsetType, "doc"]]:
+    return {"tenant": UNSET}
+
+
+def _annotated_binding_provider() -> _AnnotatedBindingScope:
+    return {"tenant": UNSET}
+
+
+def _annotated_in_union_provider() -> _AnnotatedInUnionScope:
+    return {"tenant": UNSET}
+
+
+def _annotated_relay_provider() -> _AnnotatedRelayScope[str | UnsetType]:
+    return {"tenant": UNSET}
+
+
+@pytest.mark.parametrize(
+    "provider",
+    [
+        _annotated_alias_provider,
+        _annotated_binding_provider,
+        _annotated_in_union_provider,
+        _annotated_relay_provider,
+    ],
+    ids=["alias", "class-base", "inside-a-union", "relayed"],
+)
+def test_annotated_around_a_binding_is_read_as_what_it_annotates(provider: Any) -> None:
+    # A key's own value is resolved, which strips ``Annotated`` at any depth,
+    # and so is an alias's argument, as ``alias`` shows. A class statement's
+    # base is not: ``__orig_bases__`` keeps ``Annotated`` around ``tenant``'s
+    # binding, and the binding reads as a declinable type only through it.
+    assert provider_keys(provider) == (_NOTHING, frozenset({"tenant"}))
+
+
+# ---------- What the reader leaves as it is ----------
+
+_D = TypeVarWithDefault("_D", default=str | UnsetType)
+
+
+class _DefaultedScope(TypedDict, Generic[_D]):
+    tenant: _D
+
+
+class _Box(Generic[_T]): ...
+
+
+class _BoxedScope(_GenericScope[_Box]):  # a bare generic class, under test
+    ...
+
+
+def _defaulted_provider() -> _DefaultedScope:  # the bare alias, under test
+    return {"tenant": "acme"}
+
+
+def _boxed_provider() -> _BoxedScope:
+    return {"tenant": _Box()}
+
+
+class _RedeclaringScope(_GenericScope[str | UnsetType], Generic[_T]):
+    # Writes ``tenant`` again, in its own ``_T``. The merged hints carry this
+    # annotation, and nothing at runtime says this class wrote it.
+    tenant: _T
+
+
+def _redeclaring_provider() -> _RedeclaringScope[str]:
+    return {"tenant": "acme"}
+
+
+def test_a_key_a_subclass_redeclares_is_read_with_its_bases_bindings() -> None:
+    # Read as this class declares it, ``tenant`` would be filled. Every
+    # supported Python merges a ``TypedDict``'s hints and key sets from its
+    # bases and keeps no record of which class wrote a key, so ``tenant`` reads
+    # as the base's: ``_T`` bound to ``str | UnsetType``.
+    assert provider_keys(_redeclaring_provider) == (_NOTHING, frozenset({"tenant"}))
+
+
+def test_a_type_variables_default_is_not_consulted() -> None:
+    # PEP 696 says what ``_D`` stands for when nothing binds it. The reader
+    # does not ask, so ``tenant`` is filled as for any type variable nothing
+    # binds, though the default would have it declinable.
+    assert provider_keys(_defaulted_provider) == (frozenset({"tenant"}), _NOTHING)
+
+
+def test_a_base_that_cannot_be_substituted_leaves_the_provider_untyped() -> None:
+    # ``_Box`` has a parameter of its own, which nothing in ``_BoxedScope``
+    # binds, so ``tenant``'s binding cannot be written in the terms of the
+    # return annotation.
+    assert provider_keys(_boxed_provider) is None
+
+
 # ---------- Python 3.14 evaluates annotations lazily ----------
 
 _LAZY_SOURCE = """
@@ -563,6 +746,10 @@ class Recurring[T](Scope[T | UnsetType]):
     ...
 
 
+class Shadow[T](Scope[list[T]]):
+    extra: T
+
+
 def provider() -> {annotation}:
     return {{}}
 """
@@ -577,8 +764,9 @@ def provider() -> {annotation}:
         ("Scope", (frozenset({"tenant", "tags"}), _NOTHING)),
         ("Declining", (frozenset({"tags"}), frozenset({"tenant"}))),
         ("Recurring[str]", (frozenset({"tags"}), frozenset({"tenant"}))),
+        ("Shadow[str | UnsetType]", (frozenset({"tenant", "tags"}), frozenset({"extra"}))),
     ],
-    ids=["filled", "declinable", "bare-alias", "subclass", "same-name-rebound"],
+    ids=["filled", "declinable", "bare-alias", "subclass", "same-name-rebound", "own-key"],
 )
 def test_a_pep_695_type_parameter_is_read_as_the_class_declares_it(
     monkeypatch: pytest.MonkeyPatch,
@@ -594,6 +782,8 @@ def test_a_pep_695_type_parameter_is_read_as_the_class_declares_it(
     # the value it last resolved to, and one case must not answer for the next.
     # ``same-name-rebound`` has two parameters named ``T``; the one that
     # declares ``tenant`` is ``Scope``'s, bound to ``str | UnsetType``.
+    # ``own-key`` is the other way round: ``extra``'s ``"T"`` is ``Shadow``'s,
+    # bound to ``str | UnsetType``, where ``Scope``'s is bound to a list.
     module = types.ModuleType("pep_695_providers")
     monkeypatch.setitem(sys.modules, module.__name__, module)
     source = _PEP_695_SOURCE.format(annotation=annotation)

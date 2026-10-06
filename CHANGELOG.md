@@ -41,10 +41,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     for it left the call short a parameter. A PEP 695 `class Scope[T](TypedDict)`
     under `from __future__ import annotations` resolves `T` beside the class's
     type parameters, where the copies failed to resolve it and offered every
-    such key to the caller, `-> Scope[str]` included. A type variable nothing
-    binds, as in a bare `-> Scope`, counts as filled: filled keeps the decision
-    with the provider, where declinable would let a caller's value into a key
-    such as a tenant.
+    such key to the caller, `-> Scope[str]` included. Each key is read with the
+    bindings of the class that declared it, so a project reusing one `T` at
+    every level gets each class's answer:
+    `class Shadow(Scope[list[T]], Generic[T])` returned as
+    `Shadow[str | UnsetType]` fills `tenant` with a list and may decline its
+    own `extra: T`. An argument wrapped in `Annotated` reads as what it wraps,
+    in a class statement's bases too. A type variable nothing binds, as in a
+    bare `-> Scope`, counts as filled: filled keeps the decision with the
+    provider, where declinable would let a caller's value into a key such as a
+    tenant. Not read: a PEP 696 default on a type variable, and a key a
+    subclass redeclares, which reads as its base declared it.
 
 ### Changed
 
