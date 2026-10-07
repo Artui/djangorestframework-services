@@ -1701,7 +1701,10 @@
 
 <h1 id="bulk-collection-mutations">Bulk &amp; collection mutations<a class="headerlink" href="#bulk-collection-mutations" title="Permanent link">&para;</a></h1>
 <p>Two <code>ServiceSpec</code> shapes cover the bulk cases a single-instance spec can't.
-They're mutually exclusive.</p>
+They're mutually exclusive. Neither takes an <code>instance_selector_spec</code>: one
+declared beside a <code>collection_selector_spec</code> or <code>many=True</code> is refused with
+<code>ImproperlyConfigured</code> when the <code>ServiceSpec</code> is constructed, because dispatch
+would never call it.</p>
 <h2 id="manytrue-a-list-body-in-a-list-out"><code>many=True</code> — a list body in, a list out<a class="headerlink" href="#manytrue-a-list-body-in-a-list-out" title="Permanent link">&para;</a></h2>
 <p>Validate the request body as a list, hand the <strong>validated list</strong> to the
 service, and render the result list. The service loops itself — one call, one

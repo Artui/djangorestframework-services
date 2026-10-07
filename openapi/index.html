@@ -1879,9 +1879,48 @@ see <em>422 ServiceError responses</em> below.</p>
 The schema generator does the same — your dataclass shows up as a typed
 component, not a plain <code>object</code>.</p>
 <h3 id="success-status-codes">Success status codes<a class="headerlink" href="#success-status-codes" title="Permanent link">&para;</a></h3>
-<p>Default to the action's HTTP code (201 / 200 / 204) unless
-<code>spec.success_status</code> overrides it. The schema picks up whichever value
-the runtime would return.</p>
+<p>Default to the action's HTTP code (201 / 200 / 204) unless an <code>int</code>
+<code>spec.success_status</code> overrides it. A callable <code>success_status</code> is resolved
+per request, so the schema documents the action's default for it.</p>
+<p>Where the spec declares an <code>output_serializer</code>, the schema documents it under
+the status the runtime serves a body under, by asking the same function the
+renderers ask. That is the status itself, except that a <code>204</code> carries no body:
+a destroy presenting a value, single-row or bulk, at its default <code>204</code> or one
+set explicitly, is served and documented as <code>200</code>.</p>
+<p>A declared body is not always sent. Where dispatch may present <code>None</code>, as
+<a class="autorefs autorefs-internal" title="can_present_nothing" href="../reference/jsonschema/#rest_framework_services.can_present_nothing.can_present_nothing"><code>can_present_nothing</code></a>
+answers (a single-row re-read that finds no row, or a service declaring
+<code>allow_none=True</code>), the renderers answer with an empty body rather than a row
+of blank fields, so the schema documents an empty <code>204</code>, with no content,
+beside the body's status. A list result, a <code>many=True</code> spec, and a single-row
+spec that declares no <code>None</code> document only the body.</p>
+<p>The schema reads that from the spec, and the renderers decide the empty answer
+from more than the spec, so in three cases the <code>204</code> documented is not one the
+operation is ever answered with:</p>
+<ul>
+<li><strong>An explicit <code>success_status</code> with nothing to re-read.</strong> A service declaring
+  <code>allow_none=True</code> whose <code>None</code> is presented as it is answers empty at the
+  status it sets: a create at <code>success_status=201</code> answers an empty <code>201</code>, not a
+  <code>204</code>. A re-read that finds no row still answers <code>204</code>, whatever the status.</li>
+<li><strong>An update that renders its target in place.</strong> An update view, or a detail
+  <code>@service_action</code>, whose service returns <code>None</code> renders the row it updated, as
+  DRF's <code>UpdateAPIView</code> does, so with nothing to re-read it never answers empty.</li>
+<li><strong>A <code>collection_selector_spec</code> target</strong>, which the bulk path answers. Its
+  empty answer goes out under the action's status, a <code>200</code> for an update or a
+  non-detail <code>@service_action</code>, so only a bulk destroy's <code>204</code> is served. (A
+  <code>many=True</code> spec presents a list, so no <code>204</code> is documented for it.)</li>
+</ul>
+<p>The <code>204</code> is documented in each of them anyway. Where the empty answer shares
+the body's status, an operation documents one response per status, so the two
+could not be told apart there; a client reading the schema should accept an
+empty body at the documented body status as well.</p>
+<p>Where the spec declares no <code>output_serializer</code>, the schema documents an empty
+response at the status, which for a destroy is the <code>204</code> its service answers
+with by returning <code>None</code>. Whether there is a body is then decided by what the
+service returns, which the schema cannot read, so a raw value it returns
+instead, a bulk destroy's <code>{"deleted": n}</code> say, is served as a <code>200</code> body that
+the schema does not show. Declare an <code>output_serializer</code> for it and the schema
+documents it.</p>
 <h3 id="422-serviceerror-responses">422 ServiceError responses<a class="headerlink" href="#422-serviceerror-responses" title="Permanent link">&para;</a></h3>
 <p><code>ServiceAutoSchema</code> attaches a <code>422</code> response with a single <code>detail</code>
 field documenting the contract that <code>ServiceError</code> produces at runtime.

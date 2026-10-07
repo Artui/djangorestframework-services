@@ -4826,6 +4826,10 @@ default to <code>Any</code>, so <code>ServiceSpec(service=fn)</code> keeps worki
 mutually exclusive. Both run all-or-nothing under <code>atomic=True</code>, and both
 authorize per-set — the view / spec <code>permission_classes</code> plus the scoped
 selector, with no per-row check.</p>
+<p>A spec declares at most one target lookup, and a <code>many=True</code> spec declares
+none. <code>instance_selector_spec</code> beside <code>collection_selector_spec</code>, and
+either lookup beside <code>many=True</code>, is refused at construction, because
+dispatch would never call it.</p>
 
 
 <p><span class="doc-section-title">Attributes:</span></p>
@@ -5040,7 +5044,11 @@ against it. Queryset shaping applies; the nested
 <code>output_serializer</code> / <code>output_serializer_context</code> are ignored,
 and the nested <code>permission_classes</code> / <code>preconditions</code> are
 <em>refused</em> at <code>as_view()</code> — the dispatching spec's permissions are
-the ones checked, so declaring them here would guard nothing.</p>
+the ones checked, so declaring them here would guard nothing.
+Refused with <code>ImproperlyConfigured</code> when the spec is built beside
+<code>collection_selector_spec</code> (dispatch resolves the target through
+the collection lookup and never calls this one) or beside
+<code>many=True</code> (a list payload resolves no target).</p>
               </div>
             </td>
           </tr>
@@ -5065,7 +5073,9 @@ params, body and URL kwargs, so a nested-route bulk can scope by
 <code>parent_pk</code>; route captures win on conflict, so a filter value
 cannot override the route scope. Its <code>permission_classes</code> /
 <code>preconditions</code> are refused at <code>as_view()</code> for the same reason as
-<code>instance_selector_spec</code>'s.</p>
+<code>instance_selector_spec</code>'s. Refused with <code>ImproperlyConfigured</code>
+when the spec is built beside <code>many=True</code>: a list payload resolves
+no target, so dispatch never calls it.</p>
               </div>
             </td>
           </tr>
@@ -5086,11 +5096,39 @@ cannot override the route scope. Its <code>permission_classes</code> /
 instance (the service returns the written row, the selector
 re-fetches it with the relations the response needs, and
 <code>output_serializer</code> renders it); LIST re-fetches and renders a set
-and is valid only alongside <code>collection_selector_spec</code>. <code>None</code>
+and is valid over HTTP only alongside <code>collection_selector_spec</code>.
+Either with no <code>selector</code> re-fetches nothing: RETRIEVE presents the
+service's return as one value, and LIST presents it as the set, so it
+must iterate rows (a mapping, a <code>str</code> or <code>None</code> raises
+<code>ImproperlyConfigured</code> after the service has run). <code>None</code>
 renders the service's return value directly. The nested <code>kwargs</code>
 is ignored — the surrounding mutation's chains apply — and the nested
 <code>permission_classes</code> / <code>preconditions</code> are refused at
 <code>as_view()</code> rather than silently ignored.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.service_spec.ServiceSpec.allow_none">allow_none</span></code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Declare that the service may present nothing: it returns
+<code>None</code> and no output re-read replaces it. The output schema
+<a class="autorefs autorefs-internal" title="spec_to_json_schema" href="../jsonschema/#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
+states then admits <code>null</code> beside the row. <code>False</code> by default, and
+an undeclared <code>None</code> is not refused: dispatch passes the service's
+return through either way, so an undeclared one is served against a
+schema that does not admit it. A spec whose <code>output_selector_spec</code>
+has a <code>selector</code> admits <code>null</code> whatever this says, because the
+re-read can find no row. A result that is a list (<code>many=True</code>, or
+an <code>output_selector_spec</code> declaring <code>LIST</code>, with a <code>selector</code>
+or without) is never <code>None</code>, so it is not read there. The
+nested <code>output_selector_spec.allow_none</code> is still not read; this is
+the declaration. One answer for all of it:
+<a class="autorefs autorefs-internal" title="can_present_nothing" href="../jsonschema/#rest_framework_services.can_present_nothing.can_present_nothing"><code>can_present_nothing</code></a>.</p>
               </div>
             </td>
           </tr>
@@ -7911,6 +7949,11 @@ the whole value is consumed by
     </div>
 
 </div><h2 id="inputrequired"><code>InputRequired</code><a class="headerlink" href="#inputrequired" title="Permanent link">&para;</a></h2>
+<p>Dispatch refuses a missing marked key only where the caller could have sent it.
+Where no caller input reaches the callable by name, as under <code>BUNDLE</code>, a
+refusal could only be answered by the same refusal, so the gap fails as the
+callable's own error instead. See
+<a href="../../recipes/off-http-inputs/#requiredness-inputrequired">what a caller could fill</a>.</p>
 
 
 <div class="doc doc-object doc-module">
@@ -7951,8 +7994,17 @@ kwargs pool, the <code>view.kwargs</code>-over-<code>params</code> precedence, o
 <code>SPREAD_AUTHOR_WINS</code> author-beats-client rule. It tells a schema-driven caller (an MCP
 client, an LLM tool call) that the input is mandatory, and makes <code>dispatch_spec</code> raise
 <a class="autorefs autorefs-internal" title="ServiceValidationError" href="../exceptions/#rest_framework_services.exceptions.service_validation_error.ServiceValidationError"><code>ServiceValidationError</code></a>
-when it is absent — instead of the bare <code>KeyError</code> the callable would otherwise raise
-from deep inside dispatch, which no transport maps to a useful error.</p>
+when it is absent and the caller could have sent it — instead of the bare <code>KeyError</code>
+the callable would otherwise raise from deep inside dispatch, which no transport maps
+to a useful error. Where no caller input reaches the callable by name, as under
+<code>BUNDLE</code>, a refusal could only be answered by the same refusal, so a marked key
+nothing filled fails as the callable's own error, the author's to fix.</p>
+<p>An annotation that does not resolve at runtime does not hide the marker either. A
+name imported only under <code>if TYPE_CHECKING:</code> costs only the parameter or key it
+annotates; that one is read with the name standing in for <code>Any</code>, so
+<code>Annotated[Owner, InputRequired]</code> is still required, and where even that cannot
+reach the marker, an annotation whose text names <code>InputRequired</code> is required by
+that name.</p>
 <p>Its counterpart is <code>NotClientInput</code>, which hides a
 key from the schema entirely. A key marked with both is a contradiction and
 raises at schema-generation time.</p>
@@ -8060,21 +8112,58 @@ an ordinary parameter) of a service / selector:</p>
 </code></pre></div>
 <p><strong>Why.</strong> Reflecting <code>Unpack[&lt;TypedDict&gt;]</code> into the input schema makes every
 declared key visible to an LLM / MCP client — including keys a <code>spec.kwargs</code>
-provider supplies from request state, which the caller has no business setting.
-Advertising those is merely a wart on the <em>scoping</em> keys, because the selector
-default <code>SPREAD_AUTHOR_WINS</code> plus an always-resolving provider makes a
-client-supplied value dead on arrival. <code>NotClientInput</code> removes the wart at the
-source rather than relying on that invariant to absorb it.</p>
-<p>The marker is <strong>advertisement-only</strong>, never delivery or enforcement: a marked key
-is still spread into the kwargs pool exactly as before, and the provider still
-resolves it. It also does <strong>not</strong> make the key safe on its own — the security
-property is still the author-wins precedence documented in <code>resolve_provider</code>.
-Marking a key hidden while opting into <code>SPREAD_CALLER_WINS</code> on a scoped spec
-voids that guarantee just as it did before, and a provider owning a scoping key
-must still never decline via <code>UNSET</code>.</p>
-<p>A key marked <code>NotClientInput</code> is also excluded from
-<code>declared_input_keys</code>, so <code>UnknownArguments.REJECT</code> treats a caller that
-supplies it as passing an unknown argument — which is exactly what it is.</p>
+provider supplies from request state, which the caller has no business setting.</p>
+<p><strong>What it does.</strong> Two things, and the second is what makes the first honest:</p>
+<ul>
+<li><strong>It is not advertised.</strong> The key is dropped from the generated schema.</li>
+<li><strong>The caller's value never reaches the callable.</strong> <code>dispatch_spec</code> and
+  <code>adispatch_spec</code> drop the caller's value for a marked key before spreading
+  the caller's input into the callable's pool, under every
+  <code>UnknownArguments</code> policy and whatever the argument binding's precedence. That
+  covers a <code>SelectorSpec</code>'s selector, a service whose input is spread (and the
+  extras <code>PASSTHROUGH</code> would forward to it), and a service's
+  <code>instance_selector_spec</code> / <code>collection_selector_spec</code> lookup, whose pool is
+  spread from the caller's arguments too.</li>
+</ul>
+<p>So a marked key is filled only by a channel the caller does not control: a
+<code>spec.kwargs</code> provider, a registered pool seed, a service's <code>input_data</code>, the
+parameter's own default, or, for a selector or a target lookup, a route capture
+(<code>view.kwargs</code>, or <code>build_offline_context(kwargs=…)</code> off HTTP). A route capture
+never reaches a service's own parameters. A provider that declines with <code>UNSET</code> therefore leaves
+the default in place, never the caller's value. That moves the hazard rather than
+removing it: a scoping key whose default reads as "everything" must have a provider
+that always resolves it.</p>
+<p><code>UnknownArguments.REJECT</code> still refuses a caller that supplies a marked key when
+the spec's declared set is closed, since the key is excluded from
+<code>declared_input_keys</code> and so is an unknown argument — which is exactly what it
+is. Where the set is open (a <code>filter_set</code>, a bare <code>**kwargs</code>) nothing can be
+called unknown, and the value is dropped instead.</p>
+<p>The marker governs the callable's own parameters. A <code>many=True</code> service receives
+its items inside one <code>data</code> list, never spread, so they are not read for it; and
+a field the <code>input_serializer</code> declares under the same name stays in <code>data</code>,
+which is that serializer's payload, while the parameter is still not filled from
+it. Over HTTP a selector view spreads nothing, so only the target lookups, whose
+pool is spread from the request body, see the difference there.</p>
+<p>A value <code>input_data</code> supplies for a marked key is the server's, not the
+caller's. <code>input_data</code> (with the <code>get_input_data</code> view hooks) is the spec
+author's own code, merged over the caller's input with its keys winning, so
+dispatch never drops that value, and where the caller sends the same key the
+server's value is the one that arrives: the caller's never does. It reaches the
+service through an <code>input_serializer</code> field of that name under every policy, as
+a <code>PASSTHROUGH</code> extra, and through a spread service's bare <code>**kwargs</code>. The key is still not declared input, so
+on a closed spec with no such field <code>IGNORE</code> drops it and <code>REJECT</code>, which
+judges the merged arguments, refuses it, as it refuses any <code>input_data</code> key
+nothing declares.</p>
+<p><strong>An annotation that does not resolve at runtime does not hide the marker.</strong> A
+name imported only under <code>if TYPE_CHECKING:</code> costs only the parameter or key it
+annotates, and every other one is read as written. The one it annotates is read
+with that name standing in for <code>Any</code>, so <code>Annotated[Owner, NotClientInput] |
+None</code> is hidden; where even that cannot reach the marker (<code>models.Owner</code>, or a
+marker inside a quoted string), an annotation whose text names <code>NotClientInput</code>
+is hidden by that name. A <code>**kwargs: Unpack[Extras]</code> whose <code>TypedDict</code> itself
+does not resolve hides nothing, because nothing says which keys it has:
+<code>UnknownArguments.REJECT</code> refuses to run on it, and the other policies deliver
+what the caller sent.</p>
 <p>Its counterpart is <code>InputRequired</code>, which marks a
 key mandatory. A key marked with both is a contradiction and raises at
 schema-generation time.</p>
@@ -8386,6 +8475,10 @@ side by side wherever both matter.</p>
   exactly what this package refuses elsewhere, and the fix (delete one of
   the two markers) is obvious once it is named.</li>
 </ul>
+<p>Placed by the rule <code>read_schema_markers</code> states: on the annotation itself or
+inside one <code>Optional</code> around it (<code>Annotated[int, InputDescription("...")] |
+None</code>), and refused anywhere deeper. That function is called first, so it is
+the one that refuses, and the two readers cannot disagree about placement.</p>
 
 
     </div>

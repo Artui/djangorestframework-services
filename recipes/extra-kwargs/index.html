@@ -768,6 +768,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Per-spec: contract co-located with the service">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-return-annotation-declares" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the return annotation declares
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1659,6 +1676,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Per-spec: contract co-located with the service">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-return-annotation-declares" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the return annotation declares
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1848,6 +1882,53 @@ subclass <a href="../../typing/"><code>HttpExtras</code></a> instead — it is i
 <code>total=False</code>.</p>
 <p>See <a href="../../typing/">Typing services and selectors</a> for the full Protocol
 catalogue and notes on type-checker support.</p>
+<h3 id="what-the-return-annotation-declares">What the return annotation declares<a class="headerlink" href="#what-the-return-annotation-declares" title="Permanent link">&para;</a></h3>
+<p>The provider's return annotation is read before it runs, by
+<a class="autorefs autorefs-internal" title="provider_keys" href="../../reference/dispatch/#rest_framework_services.dispatch.provider_keys.provider_keys"><code>provider_keys</code></a>.
+That is how a transport serving a selector off HTTP, such as an MCP tool or an
+agent toolset, knows which names not to ask its caller for. Its answer is a
+<a class="autorefs autorefs-internal" title="ProviderKeys" href="../../reference/dispatch/#rest_framework_services.types.provider_keys.ProviderKeys"><code>ProviderKeys</code></a>, with
+<code>filled</code> and <code>declinable</code> sets of key names that also unpack as a pair. It
+reads three things:</p>
+<ul>
+<li><strong>Every key of the <code>TypedDict</code> is one the provider fills</strong>, optional keys
+  included, since the provider owns them. These are <code>filled</code>.</li>
+<li><strong>A key whose value admits <code>UnsetType</code> is one it may decline</strong>, and moves
+  from <code>filled</code> to <code>declinable</code>. Return <code>UNSET</code> for it and dispatch drops the
+  key from the pool, so the caller's value is the one the callable receives.
+  Only a union counts: <code>tenant: str | UnsetType</code> may be declined, while
+  <code>regions: list[str | UnsetType]</code> is always filled with a list.</li>
+<li><strong>A provider whose return says nothing may fill any name</strong>: one with no
+  return annotation, a plain <code>dict</code>, a lambda, or a return annotation that does
+  not resolve. The answer is <code>None</code> rather than a <code>ProviderKeys</code>.</li>
+</ul>
+<p>Each annotation costs only what it says. A parameter typed with a name imported
+only under <code>if TYPE_CHECKING:</code>, where a linter's type-checking rules move it,
+leaves the keys readable. A <code>TypedDict</code> value that does not resolve makes only
+its own key one the provider may decline. A generic <code>TypedDict</code> is read with
+whatever binds its parameters, so <code>-&gt; Scope[str | UnsetType]</code> reads <code>Scope</code>'s
+<code>tenant: T</code> as the written-out <code>tenant: str | UnsetType</code>. So does a subclass
+that binds them, <code>class Declining(Scope[str | UnsetType])</code>, and one that hands
+its own parameter on, <code>class Relay(Scope[U], Generic[U])</code> returned as
+<code>Relay[str | UnsetType]</code>. An argument wrapped in <code>Annotated</code> reads as what it
+wraps, in a class statement's bases as in the return annotation. A PEP 695
+<code>class Scope[T](TypedDict)</code> reads the same under
+<code>from __future__ import annotations</code>.</p>
+<p>Each key is read with the bindings of the class that declared it, so one <code>T</code>
+reused at every level reads as each class binds it.
+<code>class Shadow(Scope[list[T]], Generic[T])</code> with a key <code>extra: T</code> of its own,
+returned as <code>Shadow[str | UnsetType]</code>, fills <code>Scope</code>'s <code>tenant</code> with a list
+and may decline <code>extra</code>. A key reached through two bases that bind it
+differently is filled if either reading fills it. Three things are not read:
+a PEP 696 default on a type variable; a key a subclass redeclares, which reads
+as its base declared it, because a <code>TypedDict</code> keeps no record of which class
+wrote a key; and a base whose arguments cannot be written in the return
+annotation's terms, which leaves the provider untyped.</p>
+<p>A type variable nothing binds, as in a bare <code>-&gt; Scope</code>, counts as filled.
+Whether it may be <code>UNSET</code> is written nowhere, and filled keeps the decision with
+the provider by hiding the key from the caller. Declinable would let a transport
+whose caller's value wins put that value in a key the provider was meant to
+decide, such as a tenant.</p>
 <h2 id="add-a-clock-for-tests">Add a clock for tests<a class="headerlink" href="#add-a-clock-for-tests" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>

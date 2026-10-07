@@ -1996,6 +1996,90 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#provider_keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        provider_keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.provider_keys.provider_keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        provider_keys
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="provider_keys">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#providerkeys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ProviderKeys
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.provider_keys.ProviderKeys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ProviderKeys
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ProviderKeys">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#server_owned_keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        server_owned_keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.utils.server_owned_keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        server_owned_keys
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="server_owned_keys">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#is_async" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3513,6 +3597,90 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#provider_keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        provider_keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.provider_keys.provider_keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        provider_keys
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="provider_keys">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#providerkeys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ProviderKeys
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.types.provider_keys.ProviderKeys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ProviderKeys
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ProviderKeys">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#server_owned_keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        server_owned_keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.dispatch.utils.server_owned_keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        server_owned_keys
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="server_owned_keys">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#is_async" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4038,7 +4206,11 @@ transport concerns; render the result with
   " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> runs the
   mutation flow: resolve the target via <code>instance_selector_spec</code> (from <code>params</code>)
   → validate <code>input_serializer</code> → run the service → re-fetch through
-  <code>output_selector_spec</code> → result. A missing instance yields <code>kind="not_found"</code>.</li>
+  <code>output_selector_spec</code> → result. A missing instance yields <code>kind="not_found"</code>.
+  With no <code>selector</code> on the <code>output_selector_spec</code> nothing is re-fetched, and
+  the service's own return is the result: <code>kind="list"</code> under a <code>LIST</code>
+  declaration, which refuses a return that is no set of rows with
+  <code>ImproperlyConfigured</code> after the service has written.</li>
 <li>A <a class="autorefs autorefs-internal" title="SelectorSpec
 
 
@@ -4129,7 +4301,13 @@ to execute.</p>
             <td>
               <div class="doc-md-description">
                 <p>The flat client input — a list on a <code>many=True</code> spec, unless
-<code>many_as_argument</code> says it arrives as an object.</p>
+<code>many_as_argument</code> says it arrives as an object. A key that any
+callable in the call marks <code>NotClientInput</code> is never spread from
+it, under any <code>unknown_arguments</code> policy (<code>REJECT</code> on a closed spec
+refuses it outright), so only a <code>spec.kwargs</code> provider, a registered
+pool seed, a service's <code>input_data</code>, the parameter's default or, for
+a selector or a target lookup, a route capture fills one; see
+<a class="autorefs autorefs-internal" title="not_client_input" href="../types/#rest_framework_services.types.not_client_input"><code>NotClientInput</code></a>.</p>
               </div>
             </td>
             <td>
@@ -4322,10 +4500,15 @@ declared — a selector's own filtering, a service's <code>instance_</code> /
 re-fetch. On the target lookups that makes it a scoping channel: a
 <code>filter_set</code> there narrows the row a mutation may reach, and one bound
 to the wrong mapping validates clean (every filter field is optional) and
-narrows nothing. Only meaningful when <code>params</code> is not the filter source:
-off HTTP one flat mapping is usually both, so this stays <code>None</code>, whereas
-over HTTP the body validates and the <strong>query string</strong> filters, and merging
-them would let a query parameter satisfy a serializer field.</p>
+narrows nothing. <code>None</code> makes a selector's own <code>filter_set</code> and a
+target lookup's read <code>params</code>, because their fields are declared input:
+off HTTP one flat mapping is usually both channels, whereas over HTTP the
+body validates and the <strong>query string</strong> filters, and merging them would
+let a query parameter satisfy a serializer field. The output re-fetch has
+no such fallback. Its fields are not part of the service's input, so with
+<code>None</code> its <code>filter_set</code> is bound to an empty mapping, as an HTTP
+request with no query string binds it, and the call's arguments never
+filter the result.</p>
               </div>
             </td>
             <td>
@@ -5296,7 +5479,17 @@ the serializer.</p>
 
     </div>
 
-</div><h2 id="input-policies">Input policies<a class="headerlink" href="#input-policies" title="Permanent link">&para;</a></h2>
+</div><p>A <code>ServiceSpec</code>'s <code>kind</code> is <code>"list"</code> for a <code>many=True</code> spec, and otherwise
+whenever its <code>output_selector_spec</code> declares <code>kind=SelectorKind.LIST</code>, with a
+<code>selector</code> to re-read through or without one. Without one, the <code>value</code> is the
+service's own return, passed through as it came: a <code>QuerySet</code> stays lazy, as a
+re-read one does, and a list or a generator is the same object. A return that is no set
+of rows (a mapping, a <code>str</code> or <code>bytes</code>, <code>None</code>, anything that does not iterate)
+raises <code>ImproperlyConfigured</code> naming the declaration and the type returned,
+after the service has written; see
+<a href="../jsonschema/#what-a-services-output-schema-describes">what a service's output schema describes</a>,
+which states the same array.</p>
+<h2 id="input-policies">Input policies<a class="headerlink" href="#input-policies" title="Permanent link">&para;</a></h2>
 <p>Three optional, caller-side policies let a transport map its wire onto a spec
 without <code>dispatch_spec</code> baking in HTTP's implicit answers. The <strong>spec declares
 <em>what</em></strong> (its inputs, filters, output shape, permissions); the <strong>caller declares
@@ -5452,6 +5645,20 @@ its items, and a lookup on it cannot open the set or make <code>REJECT</code>
 unenforceable.
 The set is read from the spec alone, so a direct caller passing <code>instance=</code>,
 which skips the lookup, still has that lookup's keys admitted.</p>
+<p>A <code>ServiceSpec</code> with no <code>input_serializer</code>, dispatched under a <code>SPREAD_*</code>
+<code>argument_binding</code>, also declares its service's own parameters beside the
+lookup's keys, because nothing else reads the caller's input there: its keyword
+parameters and <code>Unpack[TypedDict]</code> keys, less the reserved pool seeds (registered
+ones included), positional-only parameters, <code>NotClientInput</code> keys and <code>view</code>.
+The parameters and lookup keys in every declared set, a selector's included,
+also leave out a key that any callable in the call marks <code>NotClientInput</code>: the
+selector or service, a precondition, or the target lookup. Such a key is
+server-owned for the whole call, so the caller's value for it is dropped before
+any of them reads it. An <code>input_serializer</code> field is the serializer's own
+declaration, and stays declared.
+Under <code>BUNDLE</code>, which <code>AUTO</code> resolves to for a service, they are not declared. A
+bare <code>**kwargs</code> on that service opens the set. See
+<a href="../../recipes/off-http-inputs/#a-spread-service-with-no-input-serializer">a spread service with no input serializer</a>.</p>
 
 
 <div class="doc doc-object doc-class">
@@ -5472,7 +5679,8 @@ which skips the lookup, still has that lookup's keys admitted.</p>
 
 
         <p>How <code>dispatch_spec</code> treats <code>params</code> keys outside a spec's declared set.</p>
-<p>The <em>declared set</em> is derived from the spec without any transport knowledge: a
+<p>The <em>declared set</em> is derived from the spec and the dispatch's
+<code>argument_binding</code>, without any transport knowledge: a
 <a class="autorefs autorefs-internal" title="ServiceSpec
 
 
@@ -5488,10 +5696,16 @@ which skips the lookup, still has that lookup's keys admitted.</p>
   
       dataclass
   " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a>'s
-<code>selector</code> parameters. When the set cannot be enumerated — a callable that
-declares <code>**kwargs</code>, or a duck-typed <code>filter_set</code> whose fields are opaque to the
-core — the spec is treated as <strong>open</strong> and this policy is a no-op (there is nothing
-to call "unknown").</p>
+<code>selector</code> parameters. A <code>ServiceSpec</code> with no <code>input_serializer</code>,
+dispatched under a <code>SPREAD_*</code> binding, also declares its service's own
+parameters, since nothing else reads the caller's input there: its keyword
+parameters and <code>Unpack[TypedDict]</code> keys, less the reserved pool seeds
+(registered ones included), positional-only parameters, <code>NotClientInput</code> keys
+and <code>view</code>. <code>BUNDLE</code>, which <code>AUTO</code> resolves to for a service, leaves them
+out. When the set cannot be enumerated — a callable that declares a bare
+<code>**kwargs</code>, or a duck-typed <code>filter_set</code> whose fields are opaque to the core —
+the spec is treated as <strong>open</strong> and this policy is a no-op (there is nothing to
+call "unknown").</p>
 <p>Members (internal knob — the value never appears on a wire):</p>
 <ul>
 <li><code>IGNORE</code> — undeclared keys are dropped (DRF serializers already do this
@@ -5507,6 +5721,11 @@ to call "unknown").</p>
   policy that <em>must</em> live inside <code>dispatch_spec</code> — it needs the seam
   between validation and pool construction that a wrapper cannot reach.</li>
 </ul>
+<p>A key the callable marks
+<a class="autorefs autorefs-internal" title="not_client_input" href="../types/#rest_framework_services.types.not_client_input"><code>NotClientInput</code></a> is outside
+the declared set, so <code>REJECT</code> refuses it on a closed spec. Under every other
+policy, and on an open spec, dispatch drops the caller's value for it before the
+spread: <code>IGNORE</code> drops it as it says, and <code>PASSTHROUGH</code> never forwards it.</p>
 <p>Callers strip their own transport-only keys (pagination, ordering, output
 format) before calling, so the declared-set check sees only spec inputs.</p>
 
@@ -5987,8 +6206,14 @@ key conflict, below a <code>spec.kwargs</code> provider, which also sees it as
               <div class="doc-md-description">
                 <p>Seeds the request's <code>GET</code> <code>QueryDict</code>, the source
 <code>request.query_params</code> reads — how read-shaping params that are not spec
-inputs reach the serializer offline (<code>SelectorSpec.filter_set</code>, a
-serializer branching on <code>query_params</code>). Values are stringified as on
+inputs reach the serializer offline: a serializer branching on
+<code>query_params</code>, and a request-scoped <code>FilterSet</code> reading
+<code>self.request.query_params</code> itself. It is not what a <code>filter_set</code> is
+bound to: <code>dispatch_spec</code> binds a <code>SelectorSpec</code>'s own, and a target
+lookup's, to <code>filter_data</code>, else to <code>params</code>, and a service's
+<code>output_selector_spec.filter_set</code> to <code>filter_data</code>, else to an empty
+mapping. To filter from this query string, pass
+<code>filter_data=context.request.query_params</code>. Values are stringified as on
 HTTP; a list / tuple becomes a multi-valued param. <strong>Replaces</strong> a wrapped
 <code>http_request</code>'s <code>GET</code> — on the copy that is wrapped, so the caller's
 own <code>GET</code> still reads its real query string afterwards.</p>
@@ -6078,12 +6303,16 @@ authoritative, so a caller can pass both unconditionally.</p>
 
 </div><p><strong>Read-shaping over the offline path.</strong> Pass <code>query_params=</code> to seed the synthetic
 request's <code>GET</code> <code>QueryDict</code> — the source <code>request.query_params</code> reads. That is how
-read-shaping params that are <em>not</em> spec inputs reach the serializer off-HTTP:
-<code>SelectorSpec.filter_set</code> (when you don't hand <code>filter_data</code> in another way), and
-any serializer that branches on <code>request.query_params</code> (django-restql field
-selection, custom serializers). It does <strong>not</strong> make DRF <code>filter_backends</code>
-(<code>SearchFilter</code> / <code>OrderingFilter</code>) run — the offline path never calls
-<code>filter_queryset</code>; <code>filter_set</code> is the drf-services-native equivalent.</p>
+read-shaping params that are <em>not</em> spec inputs reach the serializer off-HTTP: any
+serializer that branches on <code>request.query_params</code> (django-restql field selection,
+custom serializers), and a request-scoped <code>FilterSet</code> that reads
+<code>self.request.query_params</code> itself. It is not what a <code>filter_set</code> is bound to:
+<code>dispatch_spec</code> binds a <code>SelectorSpec</code>'s own <code>filter_set</code>, and a target lookup's,
+to <code>filter_data</code>, else to <code>params</code>, and a service's <code>output_selector_spec.filter_set</code>
+to <code>filter_data</code>, else to an empty mapping. To filter from the synthetic query
+string, pass <code>filter_data=context.request.query_params</code>. It does <strong>not</strong> make DRF
+<code>filter_backends</code> (<code>SearchFilter</code> / <code>OrderingFilter</code>) run — the offline path never
+calls <code>filter_queryset</code>; <code>filter_set</code> is the drf-services-native equivalent.</p>
 <h3 id="offlinehttprequest"><code>OfflineHttpRequest</code><a class="headerlink" href="#offlinehttprequest" title="Permanent link">&para;</a></h3>
 <p>The synthetic request <code>build_offline_context</code> creates when there is no ambient
 one. Relevant when you're deciding what <code>build_absolute_uri()</code> should return off
@@ -6573,6 +6802,331 @@ answer it skips cannot disagree about which conditions there are.</p>
         <p>Pick the subset of <code>pool</code> matching <code>fn</code>'s declared parameters.</p>
 <p>If <code>fn</code> declares <code>**kwargs</code>, the entire pool is passed.
 Otherwise only parameters present in the signature are forwarded.</p>
+
+
+    </div>
+
+</div><h3 id="provider_keys"><code>provider_keys</code><a class="headerlink" href="#provider_keys" title="Permanent link">&para;</a></h3>
+<p>The static half of the <code>kwargs=</code> provider contract, whose runtime half is
+dispatch calling the provider and dropping every key it returns as <code>UNSET</code>. A
+transport building a selector's input schema reads it to fill in
+<a href="../jsonschema/#what-a-transport-supplies-supplied"><code>supplied</code></a>, and to know
+which calls to refuse before dispatch, rather than keeping a copy of the
+reader:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">provider_keys</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">keys</span> <span class="o">=</span> <span class="n">provider_keys</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">kwargs</span><span class="p">)</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">if</span> <span class="n">keys</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="o">...</span>  <span class="c1"># The provider may fill any name, so none is required for lacking a default.</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">else</span><span class="p">:</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">filled</span><span class="p">,</span> <span class="n">declinable</span> <span class="o">=</span> <span class="n">keys</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="c1"># ``filled`` joins ``supplied``. A ``declinable`` key stays the caller&#39;s to</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="c1"># send and is not required of it, since the provider may fill it after all.</span>
+</span></code></pre></div>
+<p>The answer is a <a href="#providerkeys"><code>ProviderKeys</code></a>, a <code>NamedTuple</code>, so a caller
+that would rather not unpack it reads <code>keys.filled</code> and <code>keys.declinable</code>.</p>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.provider_keys.provider_keys" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">provider_keys</span>
+
+
+<a href="#rest_framework_services.dispatch.provider_keys.provider_keys" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">provider_keys</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProviderKeys</span> <span class="o">|</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>The names <code>provider</code> fills and those it may decline, or <code>None</code> if it does not say.</p>
+<p>The static half of the <code>kwargs=</code> provider contract, whose runtime half is
+how dispatch calls the provider. <code>ServiceSpec.kwargs</code> and
+<code>SelectorSpec.kwargs</code> are typed <code>Callable[..., ExtraT]</code>, with <code>ExtraT</code>
+documented as a <code>TypedDict</code> of the keys the provider returns, so a
+provider annotated that way says, before it runs, which names it fills. A
+transport reads that here to build a schema that does not ask the caller
+for them, and to know which calls to refuse before dispatch, rather than
+keeping a copy of this reader.</p>
+<p>Returns a
+<a class="autorefs autorefs-internal" title="ProviderKeys" href="#rest_framework_services.types.provider_keys.ProviderKeys"><code>ProviderKeys</code></a>,
+<code>(filled, declinable)</code>: two disjoint sets that together are every key of
+the <code>TypedDict</code>, the keys the provider always answers for and the keys
+whose value admits <code>UnsetType</code>, which it may decline with <code>UNSET</code>. It
+unpacks as a pair and names each set, so <code>keys.filled</code> reads as well as
+<code>filled, declinable = keys</code>.</p>
+<p><code>ProviderKeys(frozenset(), frozenset())</code> for <code>provider=None</code>: a spec with
+no provider fills nothing. <code>None</code> when the provider says nothing about its
+keys -- no return annotation, a plain <code>dict</code>, a lambda, or a return
+annotation that does not resolve -- so it may fill any name, and a transport
+requires none of them for lacking a default. Held by
+<code>test_a_spec_without_a_provider_fills_nothing</code> and
+<code>test_a_provider_whose_return_says_nothing_is_untyped</code>.</p>
+<p><strong>Each annotation costs only what it says.</strong> The return annotation is
+resolved on its own, in the globals of the function a decorator wrapped
+rather than the wrapper's (<code>decorated-elsewhere</code> in
+<code>test_a_generic_typed_dicts_arguments_decide_which_keys_may_be_declined</code>),
+so a parameter annotation naming a type imported only under
+<code>TYPE_CHECKING</code> leaves the keys readable
+(<code>test_a_parameter_type_imported_only_for_type_checking_leaves_the_keys_readable</code>).
+The keys are read off the <code>TypedDict</code> without hints, and each value is
+resolved on its own, so one that does not resolve makes only its own key
+declinable: whether the provider may decline it cannot be read, and
+declinable is the reading that neither hides the name from the caller nor
+requires it (<code>test_a_value_type_that_does_not_resolve_makes_only_its_key_declinable</code>).
+Python 3.14's lazily evaluated annotations are read the same way, in the
+format that leaves an unresolvable name as a forward reference rather than
+raising (<code>test_lazily_evaluated_annotations_are_read_one_at_a_time</code>).
+That format is why <code>typing-extensions</code> is floored at 4.14: on 3.14, 4.13
+hands the standard library's <code>annotationlib</code> a format number it reserves
+for internal use, which raises, and every typed provider would read as
+untyped.</p>
+<p><strong>A generic <code>TypedDict</code> is read with whatever binds its parameters.</strong>
+<code>Scope[str | UnsetType]</code> does not relay <code>__required_keys__</code>, so the keys
+come off <code>Scope</code>, where a value annotated <code>T</code> is the bare type variable.
+What <code>T</code> stands for is substituted wherever it appears in a value, a union
+included, whether an alias's arguments bind it
+(<code>test_a_generic_typed_dicts_arguments_decide_which_keys_may_be_declined</code>)
+or a class statement does, as <code>class Declining(Scope[str | UnsetType])</code>
+does, and a subclass handing its own parameter on to <code>Scope</code>
+(<code>test_a_subclass_binding_decides_which_keys_may_be_declined</code>). An
+argument that does not admit <code>UNSET</code> still fills the key
+(<code>test_a_parameterised_typed_dict_is_read_off_its_origin</code>), and one
+wrapped in <code>Annotated</code> is read as what it wraps
+(<code>test_annotated_around_a_binding_is_read_as_what_it_annotates</code>). A PEP 695
+<code>class Scope[T](TypedDict)</code> is read the same way under postponed
+annotations, where the <code>"T"</code> a value leaves resolves only beside the
+class's <code>__type_params__</code>
+(<code>test_a_pep_695_type_parameter_is_read_as_the_class_declares_it</code>).</p>
+<p><strong>Each key is read with the bindings of the class that declared it</strong>, so
+one <code>T</code> reused at every level reads as each class binds it:
+<code>class Shadow(Scope[list[T]], Generic[T])</code> with <code>extra: T</code>, returned
+as <code>Shadow[str | UnsetType]</code>, fills <code>tenant</code> with a list and may
+decline <code>extra</code>
+(<code>test_each_key_is_read_with_the_bindings_of_the_class_that_declared_it</code>).
+A key reached through two bases that bind it differently is filled if
+either reading fills it.</p>
+<p><strong>A type variable nothing binds counts as filled</strong>, as in a bare
+<code>-&gt; Scope</code> (<code>test_a_type_variable_nothing_binds_is_filled</code>). Whether it
+may be <code>UNSET</code> is written nowhere, and filled keeps the decision with the
+provider by hiding the key from the caller. Declinable would let a
+transport whose caller's value wins put that value in a key the provider
+was meant to decide, such as a tenant.</p>
+<p>Three readings stay as they are, each held by a test:</p>
+<ul>
+<li>A PEP 696 default on a type variable is not consulted
+  (<code>test_a_type_variables_default_is_not_consulted</code>).</li>
+<li>A base that cannot be substituted makes the provider read as untyped
+  (<code>test_a_base_that_cannot_be_substituted_leaves_the_provider_untyped</code>).</li>
+<li>A key a subclass redeclares is read with its base's bindings, since no
+  runtime record says which class wrote it
+  (<code>test_a_key_a_subclass_redeclares_is_read_with_its_bases_bindings</code>).</li>
+</ul>
+<p>Duck-typed on the keys a <code>TypedDict</code> class carries rather than
+<code>is_typeddict</code>, because the standard library's answers <code>False</code> for a
+<code>typing_extensions.TypedDict</code> on the older Pythons this package supports.</p>
+
+
+    </div>
+
+</div><h3 id="providerkeys"><code>ProviderKeys</code><a class="headerlink" href="#providerkeys" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.types.provider_keys.ProviderKeys" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ProviderKeys</span>
+
+
+<a href="#rest_framework_services.types.provider_keys.ProviderKeys" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="typing.NamedTuple">NamedTuple</span></code></p>
+
+
+
+        <p>What
+<a class="autorefs autorefs-internal" title="provider_keys" href="#rest_framework_services.dispatch.provider_keys.provider_keys"><code>provider_keys</code></a>
+read off a <code>kwargs=</code> provider, before it runs.</p>
+<p>Two disjoint sets of key names that together are every key of the
+<code>TypedDict</code> the provider is annotated to return.</p>
+<p>A <code>NamedTuple</code> so that it reads both ways its consumers read it. It still
+unpacks as <code>filled, declinable = provider_keys(spec.kwargs)</code>, which is how
+the MCP server's call site reads it, and it answers <code>.filled</code> and
+<code>.declinable</code>, which is what the Pydantic-AI toolset's private dataclass
+offered before this replaced it. Both are held by
+<code>test_the_answer_names_its_two_sets_and_still_unpacks</code>.</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.provider_keys.ProviderKeys.filled">filled</span></code></td>
+            <td>
+                  <code><span title="frozenset">frozenset</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The keys the provider always answers for, <code>NotRequired</code> ones
+included, since the provider owns them. A transport need not ask
+its caller for any of them.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.provider_keys.ProviderKeys.declinable">declinable</span></code></td>
+            <td>
+                  <code><span title="frozenset">frozenset</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The keys whose value admits <code>UnsetType</code>
+(<code>tenant: str | UnsetType</code>). The provider may return <code>UNSET</code> for
+one, which dispatch removes from the pool, so the caller's value is
+the one the callable receives. Such a key is the caller's to send,
+but not required of it, since the provider may fill it after all.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="server_owned_keys"><code>server_owned_keys</code><a class="headerlink" href="#server_owned_keys" title="Permanent link">&para;</a></h3>
+<p>The names no caller supplies anywhere in a spec's dispatch: every key the
+selector or service, one of <code>spec.preconditions</code> or the target lookup marks
+<a href="../types/#notclientinput"><code>NotClientInput</code></a>, and <code>view</code>. Dispatch drops the
+caller's value for each before any callable reads it, <code>REJECT</code> refuses it on a
+closed spec, and <code>spec_to_json_schema</code> leaves it out of the input schema.</p>
+<p>The set governs the keyword pool, not an input serializer's fields. A field the
+<code>input_serializer</code> declares under an owned name stays client input: the schema
+lists it, <code>REJECT</code> admits it, and the caller's value is validated into <code>data</code>,
+the one place it reaches the service, since dispatch keeps it out of the spread.
+A same-named key can mean something else there, such as a destination tenant in
+<code>data</code> beside the server's current tenant at the gate, so the declaration is not
+refused.</p>
+<p>A transport that builds an input schema of its own subtracts the same set, less
+the input serializer's field names, rather than reading each callable's markers
+again, which would miss a key that one callable hides and another takes plainly:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">server_owned_keys</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># A service tool merging its target lookup&#39;s keys into what it built from the</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># service&#39;s input serializer (empty when the spec has none).</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">properties</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">lookup_properties</span><span class="p">,</span> <span class="o">**</span><span class="n">serializer_properties</span><span class="p">}</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1"># A field the serializer declares stays the caller&#39;s, whatever its name.</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">owned</span> <span class="o">=</span> <span class="n">server_owned_keys</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">serializer_properties</span><span class="p">)</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">owned</span><span class="p">:</span>  <span class="c1"># the service spec, not its nested lookup</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">properties</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+</span></code></pre></div>
+<p>Pass the spec the transport dispatches. Asked with the nested
+<code>instance_selector_spec</code> / <code>collection_selector_spec</code>, it answers only what the
+lookup and its own preconditions hide, and a key the service or one of its
+preconditions hides is still advertised, then dropped.</p>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.dispatch.utils.server_owned_keys" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">server_owned_keys</span>
+
+
+<a href="#rest_framework_services.dispatch.utils.server_owned_keys" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">server_owned_keys</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Every name no caller supplies anywhere in <code>spec</code>'s dispatch.</p>
+<p>The union of <code>hidden_input_keys</code> over each callable a dispatch of <code>spec</code>
+feeds from the caller's input: the selector or service, each of
+<code>spec.preconditions</code>, and a service's target lookup
+(<code>instance_selector_spec</code> / <code>collection_selector_spec</code>). <strong>A key any one of
+them marks <code>NotClientInput</code> is server-owned for the whole call</strong>, because
+the callables share what the caller sent: a precondition reads the pool the
+selector or service is spread into, and a lookup reads the same arguments a
+spread service takes. Hiding a key on one callable while another delivered
+the caller's value for it would let that value decide what the marker said
+only the server decides, such as which tenant a gate checks, or which tenant a
+<code>setattr</code> loop over an open <code>**changes</code> writes onto the row.</p>
+<p>Three things follow for each name, so they always agree:</p>
+<ul>
+<li>the caller's value is dropped at every site that spreads caller input, under
+  every policy and whatever the binding's precedence (<code>strip_hidden_inputs</code>);</li>
+<li>it is not declared input (<code>declared_input_keys</code>), so <code>REJECT</code> refuses it
+  on a closed spec, and <code>spec_to_json_schema</code> does not list it;</li>
+<li>one nothing filled is not named as a missing argument (<code>caller_fillable</code>),
+  since no value the caller sends could fill it.</li>
+</ul>
+<p><strong>The set governs the keyword pool, not an input serializer's fields.</strong> A
+field the <code>input_serializer</code> declares under an owned name stays client input:
+the schema lists it, <code>REJECT</code> admits it, and the caller's value is validated
+into <code>data</code>, the one place it reaches the service, since it is kept out of
+the spread. The two may mean different things, such as a destination tenant in
+<code>data</code> beside the server's current tenant at the gate, so the declaration is
+not refused. Held by
+<code>test_a_field_named_like_an_owned_key_stays_the_callers_input</code>.</p>
+<p>A provider, a registered pool seed, <code>input_data</code> and the parameter's default
+still fill it, and so does a route capture for a selector, its preconditions
+or a service's target lookup, the pools a route capture reaches.</p>
+<p><strong>Public, for a transport building an input schema of its own</strong>, such as a
+service tool that merges its target lookup's keys into the service's: subtract
+this set, less the input serializer's field names, from what it lists, so it
+advertises no key dispatch then drops and keeps every field the serializer
+validates, and pass the spec it dispatches, the service's rather than the
+nested lookup's, or a key the service or one of its preconditions hides is
+missed. <code>spec_to_json_schema</code> already does both.</p>
+<p>Each callable is one part of the union,
+held by its own test in <code>tests/dispatch/test_dispatch_hidden_inputs.py</code>:</p>
+<ul>
+<li>the selector or service's own keys:
+  <code>test_a_callers_hidden_key_never_reaches_the_selector</code>;</li>
+<li>each precondition's:
+  <code>test_a_key_a_precondition_hides_is_server_owned_for_the_whole_call</code>;</li>
+<li>the target lookup's:
+  <code>test_a_key_the_lookup_hides_never_reaches_a_service_naming_it</code>.</li>
+</ul>
 
 
     </div>

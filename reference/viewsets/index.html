@@ -2545,6 +2545,11 @@ would go unchecked. The decorated class is unknown at decoration time, so
 the dependency is checked on the first request through the action and the
 request is refused rather than served unguarded. Compose <code>ServiceViewSet</code>
 (or any mixin from this package) and the check never fires.</p>
+<p>An <a class="autorefs autorefs-internal" title="AdditionalInputRequired" href="../exceptions/#rest_framework_services.exceptions.additional_input_required.AdditionalInputRequired"><code>AdditionalInputRequired</code></a>
+answers <code>422</code> with its <code>schema</code> as raised on any viewset, DRF's own
+included. The restore runs inside the exception handler the view asks for,
+so the configured <code>EXCEPTION_HANDLER</code> runs once, and a <code>handle_exception</code>
+override on the viewset still has the last word on the body.</p>
 
 
     </div>

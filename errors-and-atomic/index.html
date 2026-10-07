@@ -1934,24 +1934,31 @@ response's data is a dict with a <code>schema</code> key of its own, so a handle
 reshapes the body keeps the body it built. A handler that answers with a plain
 Django response, a <code>JsonResponse</code> say, has no data to restore into, and is
 served exactly as it built it.</p>
-<p>That restore lives on drfs' view and viewset bases: <code>ServiceCreateView</code>,
-<code>ServiceUpdateView</code>, <code>ServiceDeleteView</code>, every viewset mixin, <code>ServiceViewSet</code>,
-<code>SelectorViewSet</code> and <code>ActionSerializerResolver</code>, including a
-<code>@service_action</code> on any of them. Anything else that holds the mapped exception
-reads the native schema off it, because there is no view to restore it:</p>
+<p>Every route drfs ships restores it: <code>ServiceCreateView</code>, <code>ServiceUpdateView</code>,
+<code>ServiceDeleteView</code>, every viewset mixin, <code>ServiceViewSet</code>, <code>SelectorViewSet</code>,
+<code>ActionSerializerResolver</code>, and a <code>@service_action</code> on <strong>any</strong> viewset, DRF's
+own <code>GenericViewSet</code> and <code>ViewSet</code> included, whatever order its bases are listed
+in. Your handler runs once per request on every one of them, a handler that
+declines the error (returns <code>None</code>) included.</p>
+<p>A <code>@service_action</code> restores it inside the exception handler: it hands DRF's
+<code>handle_exception</code> a handler that runs yours, or the one your viewset's
+<code>get_exception_handler</code> picks, and then puts the schema back. So a
+<code>handle_exception</code> of your own runs after the restore on any viewset, and what
+it writes into the body is what the client gets.</p>
+<p>The viewset mixins and <code>ActionSerializerResolver</code> restore it in
+<code>handle_exception</code> instead, beneath an override of yours, and only where they
+are listed before <code>GenericViewSet</code>, as every drfs viewset lists them:
+<code>class V(GenericViewSet, ServiceCreateMixin)</code> resolves <code>handle_exception</code> to
+DRF's and serves <code>create</code>'s schema stringified, while a <code>@service_action</code> on the
+same class still serves it as raised.</p>
+<p>Anything else that holds the mapped exception reads the native schema off it,
+because there is no view to restore it:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">try</span><span class="p">:</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">call_service</span><span class="p">(</span><span class="n">purge</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span> <span class="n">map_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">except</span> <span class="n">APIException</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">schema</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="s2">&quot;schema&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>  <span class="c1"># as raised; None for any other error</span>
 </span></code></pre></div>
-<p>The same holds for a direct <code>map_service_error(...)</code> caller and for a
-<code>@service_action</code> on a viewset that takes none of drfs' bases. For the latter,
-adding <code>ActionSerializerResolver</code> to its bases is enough, listed <strong>before</strong>
-<code>GenericViewSet</code>. The restore is a <code>handle_exception</code> override, so it runs only
-where it comes first in the method resolution order:
-<code>class Purge(ActionSerializerResolver, GenericViewSet)</code> serves the schema as
-raised, while <code>class Purge(GenericViewSet, ActionSerializerResolver)</code> resolves
-<code>handle_exception</code> to DRF's <code>APIView</code> and still serves it stringified.</p>
+<p>The same holds for a direct <code>map_service_error(...)</code> caller.</p>
 <p><strong>The answer comes back as ordinary input.</strong> An HTTP client re-submits with
 <code>confirmed</code> in the body. A transport that asks interactively — MCP, say — merges
 the answer into the parameters before dispatch. Either way the service reads it

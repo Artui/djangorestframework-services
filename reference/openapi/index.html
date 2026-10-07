@@ -1694,8 +1694,10 @@ classes that set <code>schema = ...</code> explicitly keep their own choice.</p>
 <li>Request body from <code>spec.input_serializer</code>, a bare dataclass being auto-wrapped
   in <code>DataclassSerializer</code>, built with whatever partial flag <code>spec.partial</code>
   resolves to so the documented body matches what actually validates.</li>
-<li>Success response from <code>spec.output_selector_spec.output_serializer</code>, or a
-  no-content response when that is unset and the action's default status is 204.</li>
+<li>Success response from <code>spec.output_selector_spec.output_serializer</code>,
+  under the status the runtime serves a body under, which is <code>200</code> where
+  the status is <code>204</code>; or, where no serializer is declared, a no-content
+  response at the status itself.</li>
 <li>A <code>422</code> documenting
   <a class="autorefs autorefs-internal" title="ServiceErrorSerializer" href="#rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer"><code>ServiceErrorSerializer</code></a>,
   as <code>spec.document_service_error</code> gates it.</li>

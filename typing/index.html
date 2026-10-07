@@ -2005,6 +2005,13 @@ request:</p>
 <li>A required parameter is not framework-provided and the view has no
   <code>kwargs=</code> provider, no <code>get_&lt;action&gt;_*_kwargs</code>, and no <code>get_*_kwargs</code> —
   the parameter would be silently dropped at request time.</li>
+<li>A schema marker (<code>InputRequired</code>, <code>NotClientInput</code>, <code>InputDescription</code>)
+  sits anywhere wider than <code>Annotated</code> itself or one <code>Optional</code> around it, or
+  one input is marked both <code>InputRequired</code> and <code>NotClientInput</code>. The marker
+  would otherwise be ignored, or every call refused. Another parameter whose
+  annotation does not resolve at runtime, such as one naming a class imported
+  under <code>if TYPE_CHECKING:</code>, does not exempt the callable: each annotation is
+  read on its own.</li>
 </ul>
 <p>The validator is permissive when the user has plugged in an extras source
 (the framework can't statically introspect what those provide). Strict

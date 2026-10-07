@@ -2607,7 +2607,10 @@ all.</p>
   <a class="autorefs autorefs-internal" title="spec_to_json_schema" href="../jsonschema/#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
   derives for each phase, so the document carries this package's schema
   dialect rather than a second one; <code>output_schema</code> is <code>None</code> where no
-  output is declared. <code>dialect</code> names that policy at the top level.</li>
+  output is declared. A single-row <code>output_schema</code> admits <code>null</code> where
+  <a class="autorefs autorefs-internal" title="can_present_nothing" href="../jsonschema/#rest_framework_services.can_present_nothing.can_present_nothing"><code>can_present_nothing</code></a>
+  says dispatch may present <code>None</code>. <code>dialect</code> names that policy at the
+  top level.</li>
 <li><code>guards</code> -- one <code>{"source": &lt;dotted class path&gt;}</code> per permission class,
   in declaration order; <code>None</code> where the spec declares none (<code>[]</code> is a
   declared "no permissions" and stays distinguishable).</li>

@@ -2093,8 +2093,11 @@ maps any framework-agnostic exception it raises to a DRF response.</p>
 <li>the freshly mutated model instance (DRF's typical pattern),</li>
 <li>the matching output dataclass (when the API surface diverges from the
   model),</li>
-<li><code>None</code> for update / delete flows — the in-memory instance is rendered
-  instead, matching DRF's <code>UpdateAPIView</code> shape without you wiring it up.</li>
+<li><code>None</code> for an update (or a detail <code>@service_action</code>) whose
+  <code>output_selector_spec</code> declares an <code>output_serializer</code> and no <code>selector</code>:
+  the in-memory instance is rendered instead, matching DRF's <code>UpdateAPIView</code>
+  shape without you wiring it up. A create or destroy returning <code>None</code> answers
+  with an empty body; see <a href="#result-rendering">Result rendering</a>.</li>
 </ul>
 <h2 id="selectors">Selectors<a class="headerlink" href="#selectors" title="Permanent link">&para;</a></h2>
 <p>A selector is a callable used by read-side flows. It overrides
@@ -2214,7 +2217,8 @@ post-mutation re-fetch, queryset shaping) lives in a single nested
 <li><strong><code>atomic</code></strong> — wrap the service call in <code>transaction.atomic()</code>
   (defaults <code>True</code>).</li>
 <li><strong><code>success_status</code></strong> — override the HTTP status (defaults to
-  <code>201</code> for create, <code>200</code> for update, <code>204</code> for delete). May also be a
+  <code>201</code> for create, <code>200</code> for update, <code>204</code> for delete, or <code>200</code> for a delete
+  presenting a value, since a <code>204</code> carries no body). May also be a
   <strong>callable</strong> resolved through the keyword pool (<code>result</code> / <code>instance</code> /
   <code>request</code> / <code>view</code>) returning the status — the callable keys on the
   <em>service's</em> return value, so an upsert can answer <code>201</code> when it created a
@@ -2296,6 +2300,8 @@ post-mutation re-fetch, queryset shaping) lives in a single nested
   nothing.
   <code>None</code> (the default) keeps the <code>get_object()</code> chain. See
   <a href="#standalone-update-without-a-queryset">Standalone update without a queryset</a>.
+  An <code>instance_selector_spec</code> beside <code>collection_selector_spec</code> or <code>many=True</code>
+  is refused at construction.
 - <strong><code>collection_selector_spec</code></strong> — the bulk twin of
   <code>instance_selector_spec</code>: a <code>kind=SelectorKind.LIST</code> nested spec that
   resolves a <em>set</em> (scoped by the selector + <code>filter_set</code>) and seeds it
@@ -2311,6 +2317,10 @@ post-mutation re-fetch, queryset shaping) lives in a single nested
   the service's return value directly. The nested spec's <code>kwargs</code> is
   ignored — the surrounding mutation's kwargs chain applies — and its
   <code>permission_classes</code> / <code>preconditions</code> are rejected at <code>as_view()</code>.
+- <strong><code>allow_none</code></strong> — declares that the service may return <code>None</code> as the result
+  it presents (default <code>False</code>), so its output schema admits <code>null</code>. It only
+  matters for a single-row result with no re-read <code>selector</code>; a re-read may find
+  no row whether or not it is set. See <a href="#result-rendering">Result rendering</a>.
 - <strong><code>kwargs</code></strong> — callable returning extra kwargs to merge into the pool
   the service receives. The most-specific level of the kwargs
   resolution chain; co-located with the service it feeds.
@@ -2502,7 +2512,11 @@ update; an empty set is a harmless no-op:</p>
 </span></code></pre></div>
 <p>To render the affected set instead of a summary, give that collection target an
 <code>output_selector_spec</code> whose <code>kind</code> is <code>SelectorKind.LIST</code> — it re-fetches and
-renders the rows as a list. Full walkthrough in the
+renders the rows as a list. Without a <code>selector</code> it re-fetches nothing and
+renders the rows the service returned, as a list, so the service must return
+them: a <code>QuerySet</code>, a list or another iterable of rows. Anything else, <code>None</code>
+included, raises <code>ImproperlyConfigured</code> naming the declaration, after the
+service has written. Full walkthrough in the
 <a href="../recipes/bulk-mutations/">bulk &amp; collection mutations recipe</a>.</p>
 <h2 id="dispatch">Dispatch<a class="headerlink" href="#dispatch" title="Permanent link">&para;</a></h2>
 <p>The view inspects the service / selector signature with
@@ -2677,26 +2691,26 @@ whether <code>success_status</code> is set explicitly. The full matrix:</p>
 <tr>
 <td>a value</td>
 <td>with <code>output_serializer</code> (no selector)</td>
-<td>serialized value at <code>success_status</code> (default 200/201)</td>
+<td>serialized value at <code>success_status</code>, by default <code>201</code> for a create and <code>200</code> otherwise. A value is never sent under a <code>204</code>, which carries no body: where the status resolves to <code>204</code>, a destroy's default or one set explicitly, it answers <code>200</code>, as a bulk mutation does</td>
 </tr>
 <tr>
 <td>a value</td>
 <td>with <code>selector</code></td>
-<td>selector re-fetches (shaping applied, QuerySet materialized via <code>.first()</code>); result serialized at <code>success_status</code></td>
+<td>selector re-fetches (shaping applied, QuerySet materialized via <code>.first()</code>); result serialized at <code>success_status</code>, defaulting as in the first row. A re-fetch that finds nothing answers as a selector returning <code>None</code>, below</td>
 </tr>
 <tr>
 <td>a value</td>
 <td><code>None</code></td>
-<td>the raw value at <code>success_status</code> — only useful for JSON-native returns (dicts, lists)</td>
+<td>the raw value at <code>success_status</code>, defaulting as in the first row — only useful for JSON-native returns (dicts, lists)</td>
 </tr>
 <tr>
 <td><code>None</code></td>
 <td>with <code>output_serializer</code> (no selector)</td>
-<td>update flows render the <em>in-memory instance</em> through the serializer at <code>success_status</code> (DRF <code>UpdateAPIView</code> shape); destroy never resurrects the deleted instance — empty body</td>
+<td>update flows render the <em>in-memory instance</em> through the serializer at <code>success_status</code> (DRF <code>UpdateAPIView</code> shape). A create, a destroy and a non-detail <code>@service_action</code> have no row to present: empty body at the explicitly-set <code>spec.success_status</code>, else <code>204</code>. Destroy never resurrects the deleted instance</td>
 </tr>
 <tr>
-<td><code>None</code></td>
-<td>with <code>selector</code> that returns <code>None</code></td>
+<td>a value or <code>None</code></td>
+<td>with <code>selector</code> that returns <code>None</code>, with or without an <code>output_serializer</code></td>
 <td>the selector's <code>None</code> is authoritative → empty body at <code>204</code> (always, even with a custom <code>success_status</code>)</td>
 </tr>
 <tr>
@@ -2706,8 +2720,24 @@ whether <code>success_status</code> is set explicitly. The full matrix:</p>
 </tr>
 </tbody>
 </table>
-<p>Two consequences worth knowing:</p>
+<p>Where the <code>output_selector_spec</code> is <code>kind=SelectorKind.LIST</code>, which over HTTP is
+valid only beside a <code>collection_selector_spec</code>, the first row renders the
+service's return as a list, row by row, and the fourth does not apply: a list is
+never <code>None</code>, so a <code>None</code> return is refused as the author's error, as is any
+return that is no set of rows. Off HTTP, <code>dispatch_spec</code> reports the same list
+as <code>kind="list"</code>.</p>
+<p>A single-row service with no output re-read presents its own return;
+<code>allow_none=True</code> on the <code>ServiceSpec</code> declares it may be <code>None</code>, and its output
+schema then admits <code>null</code>. Undeclared, the schema stays strict and the <code>None</code> is
+still presented, not refused. A service whose <code>output_selector_spec</code> has a
+<code>selector</code> may present <code>None</code> when the re-read finds no row, and its schema
+admits <code>null</code> with no declaration. The predicate a transport reads for both is
+<a href="../reference/jsonschema/#can_present_nothing"><code>can_present_nothing</code></a>.</p>
+<p>Three consequences worth knowing:</p>
 <ul>
+<li>An <code>output_serializer</code> only ever renders a value. Nothing to present is an
+  empty body, never the serializer's blank and default fields for a row that
+  does not exist.</li>
 <li>A destroy (or any no-output mutation) can carry a custom
   <code>success_status</code> and still send an empty body.</li>
 <li><strong>Stale fetch-time annotations:</strong> when the service mutates in place

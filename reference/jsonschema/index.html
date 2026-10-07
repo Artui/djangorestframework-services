@@ -1476,6 +1476,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#can_present_nothing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        can_present_nothing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.can_present_nothing.can_present_nothing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        can_present_nothing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="can_present_nothing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#when-a-service-presents-nothing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When a service presents nothing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#filterset_to_json_schema" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1549,6 +1588,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#a-spreading-services-own-parameters-argument_binding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A spreading service's own parameters: argument_binding=
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#what-an-annotation-publishes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1564,6 +1614,28 @@
     <span class="md-ellipsis">
       
         What a reflected input can say about itself
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-a-marker-may-sit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where a marker may sit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-a-services-output-schema-describes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a service's output schema describes
       
     </span>
   </a>
@@ -1857,6 +1929,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#can_present_nothing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        can_present_nothing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.can_present_nothing.can_present_nothing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        can_present_nothing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="can_present_nothing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#when-a-service-presents-nothing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When a service presents nothing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#filterset_to_json_schema" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1930,6 +2041,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#a-spreading-services-own-parameters-argument_binding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A spreading service's own parameters: argument_binding=
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#what-an-annotation-publishes" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1945,6 +2067,28 @@
     <span class="md-ellipsis">
       
         What a reflected input can say about itself
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-a-marker-may-sit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where a marker may sit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-a-services-output-schema-describes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a service's output schema describes
       
     </span>
   </a>
@@ -2234,7 +2378,10 @@ Off by default, which is the schema every caller got before it existed:
 this function takes a serializer and a <code>kind</code>, never the spec, so the
 caller says whether a miss is presented.
 <a class="autorefs autorefs-internal" title="spec_to_json_schema" href="#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
-passes a <code>SelectorSpec</code>'s own <code>allow_none</code>. A transport whose protocol
+passes
+<a class="autorefs autorefs-internal" title="can_present_nothing" href="#rest_framework_services.can_present_nothing.can_present_nothing"><code>can_present_nothing(spec)</code></a>
+for a <code>SelectorSpec</code> and a <code>ServiceSpec</code> alike, so a <code>SelectorSpec</code>'s
+<code>allow_none</code> reaches it only through that answer. A transport whose protocol
 needs an object at the root -- an MCP tool's <code>outputSchema</code> -- leaves it
 off and states the empty case in its own terms.</p>
 
@@ -2249,12 +2396,95 @@ type list, leaving every other keyword in place:</p>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># {&quot;type&quot;: [&quot;object&quot;, &quot;null&quot;], &quot;properties&quot;: {...}, &quot;required&quot;: [...]}</span>
 </span></code></pre></div>
 <p>The function takes a serializer, not a spec, so the caller says whether a miss
-is served. <code>spec_to_json_schema(spec, phase="output")</code> passes a <code>SelectorSpec</code>'s
-own <code>allow_none</code>. A list never presents <code>None</code>, so <code>kind=LIST</code> is unchanged
+is served. <code>spec_to_json_schema(spec, phase="output")</code> asks
+<a href="#can_present_nothing"><code>can_present_nothing</code></a> of the spec and passes its answer.
+A list never presents <code>None</code>, so <code>kind=LIST</code> is unchanged
 whatever <code>allow_none</code> says. The default is <code>False</code>, which is the schema every
 caller got before the parameter existed. A protocol that needs an object at the
 root, such as an MCP tool's <code>outputSchema</code>, can leave it off and describe the
 empty result in its own terms.</p>
+<h2 id="can_present_nothing"><code>can_present_nothing</code><a class="headerlink" href="#can_present_nothing" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.can_present_nothing.can_present_nothing" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">can_present_nothing</span>
+
+
+<a href="#rest_framework_services.can_present_nothing.can_present_nothing" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">can_present_nothing</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Whether a successful dispatch of <code>spec</code> may present <code>None</code> as its result.</p>
+<p>The question an output schema has to answer before it admits <code>null</code>, asked
+in one place so that this package's
+<a class="autorefs autorefs-internal" title="spec_to_json_schema" href="#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
+and every transport advertising an output schema can give the same answer:</p>
+<ul>
+<li>A result that is a list is <em>declared</em> never <code>None</code>, only empty: a <code>LIST</code>
+  <code>SelectorSpec</code>, a <code>many=True</code> <code>ServiceSpec</code>, and a <code>ServiceSpec</code>
+  whose <code>output_selector_spec</code> declares <code>LIST</code>, with a <code>selector</code> to
+  re-read through or without one. <code>allow_none</code> is not read on any of them.
+  A callable returning <code>None</code> there anyway is the author's error. With no
+  <code>selector</code> to re-read, dispatch refuses it. On the other three paths, a
+  <code>LIST</code> selector, a <code>LIST</code> re-read and a <code>many=True</code> service, dispatch
+  does not refuse it and presents the <code>None</code>, which a transport validating
+  structured output against the schema will reject. Held by
+  <code>test_a_list_callable_returning_none_is_presented_unrefused</code>.</li>
+<li>A <code>RETRIEVE</code> <code>SelectorSpec</code> presents <code>None</code> for a miss under
+  <code>allow_none=True</code>; without it dispatch answers the miss as
+  <code>not_found</code>.</li>
+<li>A single-row <code>ServiceSpec</code> whose <code>output_selector_spec</code> has a
+  <code>selector</code> presents <code>None</code> when the re-read finds no row, because
+  dispatch materializes it with <code>.first()</code>. That needs no declaration,
+  and the nested spec's <code>allow_none</code> is not read.</li>
+<li>Any other single-row <code>ServiceSpec</code> presents the service's own return,
+  and answers its own <code>allow_none</code>. That is a declaration rather than an
+  observation: an undeclared <code>None</code> is still presented, against a schema
+  that does not admit it.</li>
+</ul>
+<p>It answers whether <code>None</code> <em>may</em> come back, not whether a schema exists:
+a spec declaring no output serializer has no output schema to widen, whatever
+this says.</p>
+
+
+    </div>
+
+</div><h3 id="when-a-service-presents-nothing">When a service presents nothing<a class="headerlink" href="#when-a-service-presents-nothing" title="Permanent link">&para;</a></h3>
+<p>A single-row <code>ServiceSpec</code> presents <code>None</code> in two ways, and its output schema
+admits <code>null</code> for both:</p>
+<ul>
+<li><strong>Its output re-read finds no row.</strong> An <code>output_selector_spec</code> with a
+  <code>selector</code> re-reads the row the service wrote, and dispatch materializes that
+  re-read with <code>.first()</code>, so a selector that filters the row out yields <code>None</code>.
+  This needs no declaration.</li>
+<li><strong>The service returns <code>None</code> and declares it.</strong> With no re-read, dispatch
+  presents the service's own return. <code>allow_none=True</code> on the <code>ServiceSpec</code>
+  says that return may be <code>None</code>:</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">service</span><span class="o">=</span><span class="n">touch_tasks</span><span class="p">,</span>  <span class="c1"># returns None</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">allow_none</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span> <span class="n">output_serializer</span><span class="o">=</span><span class="n">TaskOut</span><span class="p">),</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">)</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># spec_to_json_schema(spec, phase=&quot;output&quot;)[&quot;type&quot;] == [&quot;object&quot;, &quot;null&quot;]</span>
+</span></code></pre></div>
+<p>Without the declaration the schema stays strict, and an undeclared <code>None</code> is
+not refused in this release: dispatch presents it, against a schema that does
+not admit it. <code>allow_none</code> on the nested <code>output_selector_spec</code> is still not
+read, and a result that is a list (<code>many=True</code>, or a <code>LIST</code> output declaration,
+re-read or not) is declared never <code>None</code> whatever either flag says. A callable
+returning <code>None</code> there anyway is the author's error. Dispatch refuses it only
+where a <code>LIST</code> declaration has nothing to re-read; a <code>many=True</code> service, a
+<code>LIST</code> re-read and a <code>LIST</code> <code>SelectorSpec</code>'s selector have their <code>None</code>
+presented, which a transport validating structured output will reject.</p>
+<p>The capability manifest's <code>output_schema</code> is the same schema. A transport
+advertising an output schema of its own should ask <code>can_present_nothing(spec)</code>
+rather than derive the answer again, so every route states the same <code>null</code>.</p>
 <h2 id="filterset_to_json_schema"><code>filterset_to_json_schema</code><a class="headerlink" href="#filterset_to_json_schema" title="Permanent link">&para;</a></h2>
 
 
@@ -2299,8 +2529,8 @@ constants as <code>{"const": ..., "title": ...}</code> — the same shape the se
 has always produced, so one project's constants are described one way whichever
 side of a spec they arrive on. Labels that only restate their value are dropped.</p>
 <p>Where the argument's own name does not give the lookup away, it is stated:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ArticleFilter</span><span class="p">(</span><span class="n">django_filters</span><span class="o">.</span><span class="n">FilterSet</span><span class="p">):</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">min_views</span> <span class="o">=</span> <span class="n">django_filters</span><span class="o">.</span><span class="n">NumberFilter</span><span class="p">(</span><span class="n">field_name</span><span class="o">=</span><span class="s2">&quot;views&quot;</span><span class="p">,</span> <span class="n">lookup_expr</span><span class="o">=</span><span class="s2">&quot;gte&quot;</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ArticleFilter</span><span class="p">(</span><span class="n">django_filters</span><span class="o">.</span><span class="n">FilterSet</span><span class="p">):</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">min_views</span> <span class="o">=</span> <span class="n">django_filters</span><span class="o">.</span><span class="n">NumberFilter</span><span class="p">(</span><span class="n">field_name</span><span class="o">=</span><span class="s2">&quot;views&quot;</span><span class="p">,</span> <span class="n">lookup_expr</span><span class="o">=</span><span class="s2">&quot;gte&quot;</span><span class="p">)</span>
 </span></code></pre></div>
 <p>publishes <code>min_views</code> as
 <code>{"type": "number", "description": "Matches</code>views<code>with the</code>gte<code>lookup."}</code>.
@@ -2325,7 +2555,8 @@ derived wording.</p>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">max_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">supplied</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">argument_binding</span><span class="p">:</span> <span class="n">ArgumentBinding</span> <span class="o">=</span> <span class="n">ArgumentBinding</span><span class="o">.</span><span class="n">AUTO</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2348,7 +2579,12 @@ for custom field / filter / Python types — see
   
       dataclass
   " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> → its
-    <code>input_serializer</code> (<code>spec.partial</code> honoured). On a <code>many=True</code> spec that
+    <code>input_serializer</code> (<code>spec.partial</code> honoured), a bare <code>{"type": "object"}</code>
+    without one, and, with no <code>input_serializer</code> under a spreading
+    <code>argument_binding</code>, the service's own parameters (below). The target
+    lookup's keys, such as the <code>pk</code> an <code>instance_selector_spec</code> reads, are
+    not in it: a transport reflects that <code>SelectorSpec</code> itself and merges
+    them. On a <code>many=True</code> spec that
     schema describes one item, and the input is an object with a single required
     property named by <code>spec.many_argument</code> -- <code>{"type": "array", "items":
     &lt;item&gt;}</code>, with <code>minItems</code> / <code>maxItems</code> where the list serializer declares
@@ -2403,13 +2639,33 @@ that knowledge, and applies it to the selector callable's reflected parameters:<
   reserved one is dropped and any other keeps the requiredness its
   <code>TypedDict</code> declares.</li>
 </ul>
-<p>It reaches nothing else. A <code>ServiceSpec</code>'s input is its <code>input_serializer</code>,
-whose fields are not reflected parameters, and <code>phase="output"</code> reflects no
-parameters at all; both are the same with or without <code>supplied</code>. So is a
-<code>filter_set</code> field, which the filter reads from the caller's input. A
-transport reflecting a nested <code>instance_selector_spec</code> or
-<code>collection_selector_spec</code> passes that <code>SelectorSpec</code> itself, with the names
-it fills there.</p>
+<p>It applies the same way to a spreading service's reflected parameters, and
+reaches nothing else. A <code>ServiceSpec</code>'s <code>input_serializer</code> has fields rather
+than reflected parameters, and <code>phase="output"</code> reflects no parameters at all;
+both are the same with or without <code>supplied</code>. So is a <code>filter_set</code> field,
+which the filter reads from the caller's input. A transport reflecting a nested
+<code>instance_selector_spec</code> or <code>collection_selector_spec</code> passes that
+<code>SelectorSpec</code> itself, with the names it fills there.</p>
+<p><code>argument_binding</code> is the binding the transport dispatches a <code>ServiceSpec</code>
+with, and it decides one thing: whether a service with no <code>input_serializer</code>
+takes the caller's input as its own parameters. Under a binding that resolves
+to <code>SPREAD_AUTHOR_WINS</code> or <code>SPREAD_CALLER_WINS</code> dispatch declares those
+parameters as the input, so <code>UnknownArguments.REJECT</code> admits them, and the
+schema lists them, reflected as a selector's are: keyword-passable parameters
+and the keys of a <code>**kwargs: Unpack[SomeExtras]</code>, less every key a callable
+in the call marks <code>NotClientInput</code> (the service, its preconditions and its
+target lookup), positional-only parameters, <code>view</code>, the <code>request</code> /
+<code>user</code> seeds and every name in <code>RESERVED_POOL_SEEDS</code>, with <code>supplied</code>
+deciding requiredness as it does for a selector. For the built-in seeds the
+property names are exactly the keys dispatch declares for the same spec and
+binding; a transport registering its own pool seeds passes them in
+<code>supplied</code>, or they are listed as input. A bare <code>**kwargs</code> lists what the
+service names and states no <code>additionalProperties</code>, although dispatch then
+admits every key; drfs closes an input schema only around a <code>many</code> list, and
+leaves closure to a transport's own policy. <code>AUTO</code>, the default, resolves to
+<code>BUNDLE</code> for a service, which spreads nothing, so a caller that does not pass
+it gets the schema it always had. A <code>SelectorSpec</code>'s input, a <code>many=True</code>
+spec's, one with an <code>input_serializer</code> and <code>phase="output"</code> do not read it.</p>
 <p><code>phase="output"</code> returns the output schema, or <code>None</code> when undeclared: a
 <a class="autorefs autorefs-internal" title="ServiceSpec
 
@@ -2417,18 +2673,27 @@ it fills there.</p>
   
       dataclass
   " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> supplies its
-<code>output_selector_spec</code>'s <code>output_serializer</code>, <code>kind</code> and <code>affordances</code>, a
+<code>output_selector_spec</code>'s <code>output_serializer</code> and <code>affordances</code>, a
 <a class="autorefs autorefs-internal" title="SelectorSpec
 
 
   
       dataclass
   " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> its own.
-Declared <code>affordances</code> add the <code>affordances</code> object each rendered item
+A <code>ServiceSpec</code>'s schema states the kind dispatch renders, which is not always
+the one declared: an array for <code>many=True</code>, the nested <code>kind</code> where the
+<code>output_selector_spec</code> has a <code>selector</code> to re-read through, and one value
+otherwise, because with nothing to re-read dispatch presents the service's own
+return whatever <code>kind</code> the nested spec names. Declared <code>affordances</code> add the <code>affordances</code> object each rendered item
 carries, <code>reason</code> included -- the shape <code>render_spec_output</code> produces.
-An <code>allow_none</code> RETRIEVE <code>SelectorSpec</code> presents <code>None</code> for a miss, so
-its item's type is <code>["object", "null"]</code>. A <code>ServiceSpec</code>'s nested
-<code>output_selector_spec.allow_none</code> is not read, as dispatch does not read it.</p>
+Where dispatch may present <code>None</code>, the item's type is <code>["object", "null"]</code>,
+as
+<a class="autorefs autorefs-internal" title="can_present_nothing" href="#rest_framework_services.can_present_nothing.can_present_nothing"><code>can_present_nothing</code></a>
+answers it: an <code>allow_none</code> RETRIEVE <code>SelectorSpec</code>'s miss, a single-row
+<code>ServiceSpec</code> whose <code>output_selector_spec</code> re-reads through a <code>selector</code>
+that may find no row, and a <code>ServiceSpec</code> declaring <code>allow_none=True</code>. A
+<code>ServiceSpec</code>'s nested <code>output_selector_spec.allow_none</code> is not read, as
+dispatch does not read it.</p>
 <p><code>max_depth</code> bounds how many serializer levels are described, truncating
 deeper ones to <code>{"type": "object"}</code>; <code>None</code>, the default, describes them
 all. It reaches the serializer-backed schemas — a <code>ServiceSpec</code>'s input
@@ -2499,13 +2764,13 @@ sends and which the transport fills. <code>task_by_pk(user, *, pk)</code> and
 <code>outstanding(user, *, currency)</code> look alike, yet a client must send <code>pk</code>, while
 <code>currency</code> arrives from a pool seed. So by default every reflected parameter is
 optional unless it carries <code>InputRequired</code>. A lookup without a default is then
-advertised as optional, and a call without it fails with <code>TypeError: ...
-missing 1 required keyword-only argument: 'pk'</code>. A seed is advertised as an
-input that the seed then overrides.</p>
+advertised as optional, and a call without it is refused with
+<code>Missing required argument(s): 'pk'.</code> A seed is advertised as an input that the
+seed then overrides.</p>
 <p>A transport describing its own tools does know which names it fills: its
 registered pool seeds, the names its <code>kwargs=</code> providers return, and the URL
 kwargs it resolves. It passes them as <code>supplied</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">spec_to_json_schema</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">phase</span><span class="o">=</span><span class="s2">&quot;input&quot;</span><span class="p">,</span> <span class="n">supplied</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;currency&quot;</span><span class="p">,</span> <span class="s2">&quot;tenant&quot;</span><span class="p">}))</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">spec_to_json_schema</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">phase</span><span class="o">=</span><span class="s2">&quot;input&quot;</span><span class="p">,</span> <span class="n">supplied</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">({</span><span class="s2">&quot;currency&quot;</span><span class="p">,</span> <span class="s2">&quot;tenant&quot;</span><span class="p">}))</span>
 </span></code></pre></div>
 <p>The seeds every transport reserves need no listing. A name in
 <a class="autorefs autorefs-internal" title="reserved_pool_seeds" href="../types/#rest_framework_services.types.reserved_pool_seeds"><code>RESERVED_POOL_SEEDS</code></a>
@@ -2575,12 +2840,56 @@ what cannot be passed.</p>
 byte-identical to what it was before <code>supplied</code> existed, so a reader that does
 not know what is filled for it (drfs' own capability manifest, for one) is
 unchanged.</p>
-<p><code>supplied</code> reaches reflected callable parameters and nothing else. A
-<code>ServiceSpec</code>'s input is its <code>input_serializer</code>, the output phase reflects no
-parameters, and a <code>filter_set</code> field is read from the caller's own params, so
+<p><code>supplied</code> reaches reflected callable parameters and nothing else: a
+selector's, and a spreading service's (below). A <code>ServiceSpec</code>'s
+<code>input_serializer</code> has fields rather than parameters, the output phase reflects
+no parameters, and a <code>filter_set</code> field is read from the caller's own params, so
 all three are the same with or without it. To describe a service tool's target
 lookup, reflect its <code>instance_selector_spec</code> or <code>collection_selector_spec</code> (a
 <code>SelectorSpec</code>) with the names the transport fills there.</p>
+<h3 id="a-spreading-services-own-parameters-argument_binding">A spreading service's own parameters: <code>argument_binding=</code><a class="headerlink" href="#a-spreading-services-own-parameters-argument_binding" title="Permanent link">&para;</a></h3>
+<p>A <code>ServiceSpec</code>'s input schema is its <code>input_serializer</code>'s. A service with no
+serializer, dispatched under a <code>SPREAD_*</code> <code>argument_binding</code>, has nothing but its
+own signature to read the caller's input, so dispatch declares the service's
+parameters as that input, and <code>UnknownArguments.REJECT</code> admits them. A transport
+passes the binding it dispatches with, and the schema lists the same parameters:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">close_ticket</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">note</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">user</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Ticket</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span><span class="n">service</span><span class="o">=</span><span class="n">close_ticket</span><span class="p">,</span> <span class="n">instance_selector_spec</span><span class="o">=</span><span class="n">ticket_by_pk</span><span class="p">)</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">spec_to_json_schema</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">argument_binding</span><span class="o">=</span><span class="n">ArgumentBinding</span><span class="o">.</span><span class="n">SPREAD_AUTHOR_WINS</span><span class="p">)</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># {&quot;type&quot;: &quot;object&quot;,</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="c1">#  &quot;properties&quot;: {&quot;reason&quot;: {&quot;type&quot;: &quot;string&quot;}, &quot;note&quot;: {&quot;type&quot;: &quot;string&quot;}}}</span>
+</span></code></pre></div>
+<p>They are reflected the way a selector's are, through the same function:
+keyword-passable parameters and the keys of a <code>**kwargs: Unpack[TypedDict]</code>,
+with <code>NotClientInput</code>, positional-only parameters, <code>view</code>, and every name in
+<code>RESERVED_POOL_SEEDS</code> (<code>instance</code>, <code>user</code> and the rest) left out. A key that a
+precondition or the target lookup marks <code>NotClientInput</code> is left out too: it is
+server-owned for the whole call, so dispatch strips the caller's value before
+any callable reads the pool, and <code>REJECT</code> refuses it. For the built-in seeds the
+property names are exactly the keys dispatch declares for that spec and
+binding; a transport that registers its own pool seeds passes them in
+<code>supplied=</code>, or the schema advertises them as input. Without
+<code>supplied</code> only a marker requires a parameter, as for a selector, because a
+<code>kwargs=</code> provider may fill one; with it, a parameter with no default is
+required, and a supplied name is dropped.</p>
+<p>Three things are not in it:</p>
+<ul>
+<li><strong>The target lookup's keys.</strong> The <code>pk</code> that <code>ticket_by_pk</code> reads belongs to
+  the lookup, not the service. Transports merge it themselves, by reflecting the
+  lookup's <code>SelectorSpec</code>, as they do beside an <code>input_serializer</code>.</li>
+<li><strong>Closure.</strong> A bare <code>**kwargs</code> makes dispatch admit every key, and the schema
+  lists the parameters the service names without <code>additionalProperties</code>. drfs
+  states <code>additionalProperties: false</code> only around a <code>many=True</code> list, and a
+  transport closes a tool's input, or not, from its own policy.</li>
+<li><strong>Anything under <code>AUTO</code>.</strong> <code>AUTO</code>, the default, is <code>BUNDLE</code> for a service, and
+  <code>BUNDLE</code> spreads nothing, so a caller that does not pass the argument gets the
+  schema it always had: <code>{"type": "object"}</code> with no serializer. A <code>many=True</code>
+  spec, one with an <code>input_serializer</code>, a <code>SelectorSpec</code> and the output phase do
+  not read it.</li>
+</ul>
 <h3 id="what-an-annotation-publishes">What an annotation publishes<a class="headerlink" href="#what-an-annotation-publishes" title="Permanent link">&para;</a></h3>
 <p>The mapping from a Python annotation is structural, so a declaration a caller
 took the trouble to write survives into the published schema:</p>
@@ -2623,9 +2932,9 @@ could not be resolved — publishes as <code>{}</code>, which in JSON Schema mea
 value</strong>, so a caller cannot tell it from a value that genuinely is
 unconstrained. Register the types that matter to you rather than letting them
 publish as anything:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">python_types</span><span class="o">=</span><span class="p">[(</span><span class="n">Money</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span><span class="p">,</span> <span class="s2">&quot;format&quot;</span><span class="p">:</span> <span class="s2">&quot;money&quot;</span><span class="p">})],</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">python_types</span><span class="o">=</span><span class="p">[(</span><span class="n">Money</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;string&quot;</span><span class="p">,</span> <span class="s2">&quot;format&quot;</span><span class="p">:</span> <span class="s2">&quot;money&quot;</span><span class="p">})],</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Rules are matched by type <em>identity</em>, and members are resolved recursively, so
 one rule for <code>Money</code> also covers <code>list[Money]</code> and <code>Money | None</code>.</p>
@@ -2634,10 +2943,10 @@ one rule for <code>Money</code> also covers <code>list[Money]</code> and <code>M
 its own. A reflected input has neither — it is a <code>TypedDict</code> key or a bare
 parameter — so it carries the sentence in its <code>Annotated</code> metadata, with
 <code>InputDescription</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">WidgetExtras</span><span class="p">(</span><span class="n">HttpExtras</span><span class="p">[</span><span class="n">MyUser</span><span class="p">],</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">project_pk</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>        <span class="nb">int</span><span class="p">,</span> <span class="n">InputRequired</span><span class="p">,</span> <span class="n">InputDescription</span><span class="p">(</span><span class="s2">&quot;The project whose widgets to list.&quot;</span><span class="p">)</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">WidgetExtras</span><span class="p">(</span><span class="n">HttpExtras</span><span class="p">[</span><span class="n">MyUser</span><span class="p">],</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">project_pk</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>        <span class="nb">int</span><span class="p">,</span> <span class="n">InputRequired</span><span class="p">,</span> <span class="n">InputDescription</span><span class="p">(</span><span class="s2">&quot;The project whose widgets to list.&quot;</span><span class="p">)</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="p">]</span>
 </span></code></pre></div>
 <p><code>project_pk</code> publishes as
 <code>{"type": "integer", "description": "The project whose widgets to list."}</code> —
@@ -2650,26 +2959,78 @@ entirely and so leaves the sentence no caller to reach, and refused twice on one
 input, because a schema publishes one description and picking a winner would be
 an arbitrary rule to memorise. See
 <a href="../../recipes/off-http-inputs/#describing-an-input-inputdescription">the off-HTTP inputs recipe</a>.</p>
+<h3 id="where-a-marker-may-sit">Where a marker may sit<a class="headerlink" href="#where-a-marker-may-sit" title="Permanent link">&para;</a></h3>
+<p><code>InputRequired</code>, <code>NotClientInput</code> and <code>InputDescription</code> are read on the
+outermost layer of an input's annotation, or inside <strong>one</strong> <code>Optional</code> written
+around it. These two declare the same nullable, hidden key, and both are read:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">team_tasks</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">team</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">NotClientInput</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span> <span class="o">...</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">team_tasks</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">team</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">NotClientInput</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span> <span class="o">...</span>
+</span></code></pre></div>
+<p><code>Optional[Annotated[int, NotClientInput]]</code> is the second spelling too, and the
+same holds for an <code>Unpack[TypedDict]</code> key. The type keeps its <code>null</code> branch, so
+an <code>InputRequired</code> key spelled this way publishes as required and nullable.</p>
+<p>Anything wider raises <code>ImproperlyConfigured</code> rather than guessing what the marker
+was meant to cover: a union with another member beside the marked one
+(<code>Annotated[int, NotClientInput] | str</code>), two marked members, or a marker nested
+inside a container or under another <code>Annotated</code> (<code>list[Annotated[int,
+NotClientInput]]</code>). The refusal names the spelling that works. Another library's
+<code>Annotated</code> metadata is not placed, and stays legal at any depth.</p>
+<p>A view, viewset or <code>@service_action</code> mounting the spec raises it from
+<code>as_view()</code>, so the app fails at URL-conf load rather than on every request.
+Off HTTP, a spec no view mounts raises it where its markers are first read: at
+schema generation, or on each <code>dispatch_spec</code> call. The spec's constructor does
+not, because an annotation naming a class declared further down the module
+does not resolve yet when the spec is built.</p>
+<h3 id="what-a-services-output-schema-describes">What a service's output schema describes<a class="headerlink" href="#what-a-services-output-schema-describes" title="Permanent link">&para;</a></h3>
+<p>A <code>ServiceSpec</code>'s output schema reads the serializer and <code>affordances</code> off its
+<code>output_selector_spec</code>, and describes the shape dispatch renders:</p>
+<ul>
+<li><code>many=True</code> renders the whole list, so the schema is an array whatever the
+  nested <code>kind</code>.</li>
+<li>An <code>output_selector_spec</code> with a <code>selector</code> re-reads the service's result, and
+  its <code>kind</code> decides: one row for <code>RETRIEVE</code>, an array for <code>LIST</code>.</li>
+<li>Without a <code>selector</code> nothing is re-read, and dispatch presents the service's
+  own return as the nested <code>kind</code> says: one value for <code>RETRIEVE</code>, and for <code>LIST</code>
+  a list, which a list operation returning its rows declares:</li>
+</ul>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">service</span><span class="o">=</span><span class="n">publish_tasks</span><span class="p">,</span>  <span class="c1"># returns the tasks it published</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">collection_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span> <span class="n">selector</span><span class="o">=</span><span class="n">drafts</span><span class="p">),</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span> <span class="n">output_serializer</span><span class="o">=</span><span class="n">TaskOut</span><span class="p">),</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="p">)</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># spec_to_json_schema(spec, phase=&quot;output&quot;)[&quot;type&quot;] == &quot;array&quot;</span>
+</span></code></pre></div>
+<p>This is the same shape the HTTP view renders and every transport reads off
+<code>result.kind</code>, and the capability manifest's <code>output_schema</code> states it too.</p>
+<p>Under a <code>LIST</code> declaration with no <code>selector</code>, the service has to return the
+rows: a <code>QuerySet</code>, a list, a generator or another iterable. A mapping, a <code>str</code>
+or <code>bytes</code>, <code>None</code>, or anything that does not iterate is refused with
+<code>ImproperlyConfigured</code> naming the declaration and the type that came back,
+because it is the author's error rather than the caller's. <strong>The service has
+already run when it is raised</strong>, and its own <code>atomic</code> block has closed, so
+dispatch does not undo what it wrote. It is not a refusal: a caller must not
+read it as nothing having changed, or retry it as though the call had been
+turned away.</p>
 <h2 id="a-spec-level-title-and-description">A spec-level title and description<a class="headerlink" href="#a-spec-level-title-and-description" title="Permanent link">&para;</a></h2>
 <p>Derivation reads serializers, filters and callables. None of them can tell it
 what the <em>operation</em> is called or what it does, so <code>spec_to_json_schema</code> used to
 emit no <code>title</code> and no <code>description</code> at all and every transport invented its own
 — from the spec name, from a docstring, from a hand-written table.</p>
 <p>The reserved <code>metadata["json_schema"]</code> key is where that is declared once:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">service</span><span class="o">=</span><span class="n">archive_project</span><span class="p">,</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">ArchiveInput</span><span class="p">,</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span> <span class="n">output_serializer</span><span class="o">=</span><span class="n">ProjectOut</span><span class="p">),</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="s2">&quot;json_schema&quot;</span><span class="p">:</span> <span class="p">{</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>            <span class="s2">&quot;input&quot;</span><span class="p">:</span> <span class="p">{</span>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>                <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;Archive project&quot;</span><span class="p">,</span>
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Retire a project without deleting its history.&quot;</span><span class="p">,</span>
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>            <span class="p">},</span>
-</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>            <span class="s2">&quot;output&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;The project as it stands after archiving.&quot;</span><span class="p">},</span>
-</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>        <span class="p">}</span>
-</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    <span class="p">},</span>
-</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">service</span><span class="o">=</span><span class="n">archive_project</span><span class="p">,</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">input_serializer</span><span class="o">=</span><span class="n">ArchiveInput</span><span class="p">,</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">output_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span> <span class="n">output_serializer</span><span class="o">=</span><span class="n">ProjectOut</span><span class="p">),</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">metadata</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>        <span class="s2">&quot;json_schema&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>            <span class="s2">&quot;input&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>                <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;Archive project&quot;</span><span class="p">,</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Retire a project without deleting its history.&quot;</span><span class="p">,</span>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>            <span class="p">},</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>            <span class="s2">&quot;output&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;The project as it stands after archiving.&quot;</span><span class="p">},</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>        <span class="p">}</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>    <span class="p">},</span>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="p">)</span>
 </span></code></pre></div>
 <p>Three decisions worth knowing:</p>
 <ul>
@@ -2721,13 +3082,13 @@ walked.</p>
 <p>The allowance is four rather than one because a serializer may bound its own
 nesting — the countdown recipe, where each level constructs the next with one
 less to spend:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">NodeSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">Serializer</span><span class="p">):</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">name</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">()</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="k">if</span> <span class="n">depth</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">&quot;children&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">NodeSerializer</span><span class="p">(</span><span class="n">depth</span><span class="o">=</span><span class="n">depth</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">NodeSerializer</span><span class="p">(</span><span class="n">serializers</span><span class="o">.</span><span class="n">Serializer</span><span class="p">):</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="n">name</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">CharField</span><span class="p">()</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>        <span class="k">if</span> <span class="n">depth</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="s2">&quot;children&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">NodeSerializer</span><span class="p">(</span><span class="n">depth</span><span class="o">=</span><span class="n">depth</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </span></code></pre></div>
 <p>That declaration terminates by itself and was never at risk of recursing, but
 class identity cannot tell it apart from the unbounded form. Truncating at the
@@ -2740,7 +3101,7 @@ per nesting level and both agent transports rebuild every tool's schema each
 time they list, so a deep declaration is paid for on every listing. It counts
 serializer objects — the root is level 1, and the array wrapper <code>many=True</code>
 produces costs no level:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">output_to_json_schema</span><span class="p">(</span><span class="n">InvoiceSerializer</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span> <span class="n">max_depth</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">schema</span> <span class="o">=</span> <span class="n">output_to_json_schema</span><span class="p">(</span><span class="n">InvoiceSerializer</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span> <span class="n">max_depth</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
 </span></code></pre></div>
 <p>Left unset it describes every level, which is what generation has always done.</p>
 <p>The two bounds are read together and <strong>the tighter one wins</strong>: <code>max_depth=2</code>
