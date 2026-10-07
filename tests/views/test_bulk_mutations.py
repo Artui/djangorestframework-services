@@ -276,19 +276,63 @@ class TestBulkUpdateCollection:
         assert [row["title"] for row in response.data] == ["a", "b"]
         assert Post.objects.filter(published=True).count() == 3
 
+    def test_a_list_output_with_no_re_read_renders_the_services_return_as_a_list(self) -> None:
+        """No ``selector`` on the ``LIST`` output, so nothing is re-read: the
+        service's own return is the set rendered, row by row, as dispatch reports
+        it. Rendered as one row, a list has no ``title`` to read."""
+        Post.objects.create(title="a", published=False)
+        Post.objects.create(title="b", published=False)
 
-class TestBulkValidation:
-    def test_many_and_collection_mutually_exclusive(self) -> None:
-        class _View(ServiceCreateView):
+        def publish(*, collection: QuerySet[Post]) -> list[Post]:
+            rows = list(collection)
+            for row in rows:
+                row.published = True
+                row.save(update_fields=["published"])
+            return rows
+
+        class _View(ServiceUpdateView):
             spec = ServiceSpec(
-                service=_bulk_create,
-                input_serializer=_PostIn,
-                many=True,
+                service=publish,
                 collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts),
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.LIST, output_serializer=_PostSerializer
+                ),
+                atomic=False,
             )
 
-        with pytest.raises(ImproperlyConfigured, match="mutually exclusive"):
-            _View.as_view()
+        response = _View.as_view()(factory.put("/"))
+        assert response.status_code == 200
+        assert [row["title"] for row in response.data] == ["a", "b"]
+        assert Post.objects.filter(published=True).count() == 2
+
+    def test_a_list_output_with_no_re_read_refuses_a_none_return_after_the_write(
+        self,
+    ) -> None:
+        # A list is never ``None``, so nothing to present is not an empty body
+        # here: it is the author's error, raised once the service has written.
+        Post.objects.create(title="a", published=False)
+
+        def publish(*, collection: QuerySet[Post]) -> None:
+            collection.update(published=True)
+
+        class _View(ServiceUpdateView):
+            spec = ServiceSpec(
+                service=publish,
+                collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts),
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.LIST, output_serializer=_PostSerializer
+                ),
+                atomic=False,
+            )
+
+        with pytest.raises(ImproperlyConfigured, match="returned NoneType"):
+            _View.as_view()(factory.put("/"))
+        assert Post.objects.filter(published=True).count() == 1
+
+
+class TestBulkValidation:
+    # ``many`` beside a ``collection_selector_spec`` is refused when the spec is
+    # built, before any view sees it: tests/types/test_service_spec.py.
 
     def test_collection_selector_must_be_list_kind(self) -> None:
         class _View(ServiceDeleteView):

@@ -11,6 +11,7 @@ imports here when they bump past 0.17.
 from __future__ import annotations
 
 import rest_framework_services as pkg
+from rest_framework_services.can_present_nothing import can_present_nothing
 from rest_framework_services.dispatch.adispatch_spec import adispatch_spec
 from rest_framework_services.dispatch.aenforce_affordances import aenforce_affordances
 from rest_framework_services.dispatch.aunmet_operation_affordance import (
@@ -21,11 +22,13 @@ from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
 from rest_framework_services.dispatch.enforce_permissions import enforce_permissions
 from rest_framework_services.dispatch.operation_affordances import operation_affordances
+from rest_framework_services.dispatch.provider_keys import provider_keys
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.dispatch.unmet_operation_affordance import (
     unmet_operation_affordance,
 )
+from rest_framework_services.dispatch.utils import server_owned_keys
 from rest_framework_services.is_async import is_async
 from rest_framework_services.jsonschema.filterset_to_json_schema import filterset_to_json_schema
 from rest_framework_services.jsonschema.output_to_json_schema import output_to_json_schema
@@ -43,6 +46,7 @@ from rest_framework_services.selectors.utils import (
 )
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
+from rest_framework_services.types.provider_keys import ProviderKeys
 from rest_framework_services.types.registered_spec import RegisteredSpec
 from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
 from rest_framework_services.views.mutation.utils import (
@@ -55,6 +59,9 @@ from rest_framework_services.views.utils import resolve_callable_kwargs
 
 # Blessed name → the leaf-module original it must alias.
 _SURFACE = {
+    # What ``provider_keys`` answers, so a transport can annotate the value it
+    # holds without importing from a leaf module.
+    "ProviderKeys": ProviderKeys,
     # Adapters are told to import this rather than keep a copy of the seed
     # names, so it has to be reachable from the same place as the rest of
     # the dispatch surface.
@@ -78,6 +85,9 @@ _SURFACE = {
     "build_input_serializer": build_input_serializer,
     "build_input_serializer_from_data": build_input_serializer_from_data,
     "build_offline_context": build_offline_context,
+    # A transport advertising an output schema of its own asks this whether
+    # dispatch may present ``None``, rather than deriving the ``null`` again.
+    "can_present_nothing": can_present_nothing,
     "capability_manifest": capability_manifest,
     "dispatch_spec": dispatch_spec,
     "enforce_affordances": enforce_affordances,
@@ -91,6 +101,10 @@ _SURFACE = {
     # which conditions are answered without a row.
     "operation_affordances": operation_affordances,
     "output_to_json_schema": output_to_json_schema,
+    # A transport building a schema or refusing a call reads which names a
+    # ``kwargs=`` provider fills through this, rather than keeping a copy of the
+    # reader, as both spec transports once did.
+    "provider_keys": provider_keys,
     "render_spec_output": render_spec_output,
     # A transport that renders an output declaration outside ``render_spec_output``
     # resolves the class through this, or a dataclass output raises there.
@@ -100,6 +114,10 @@ _SURFACE = {
     "run_selector": run_selector,
     "run_service": run_service,
     "serializer_to_json_schema": serializer_to_json_schema,
+    # A transport building an input schema of its own -- a service tool merging its
+    # target lookup's keys -- subtracts this, the set dispatch strips, rather than
+    # reading each callable's markers again and missing the ones another hides.
+    "server_owned_keys": server_owned_keys,
     "spec_to_json_schema": spec_to_json_schema,
     "unmet_operation_affordance": unmet_operation_affordance,
     "validate_input": validate_input,

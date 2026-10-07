@@ -10,7 +10,9 @@ import pytest
 from django.urls import path
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.generators import SchemaGenerator
+from rest_framework import serializers
 from rest_framework.routers import DefaultRouter
+from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet
 
 from rest_framework_services import (
@@ -110,6 +112,76 @@ class _ForcedErrorDeleteView(ServiceDeleteView):
     # back on (a no-input service that *does* raise ServiceError).
     queryset = Author.objects.all()
     spec = ServiceSpec(service=_delete_plain, document_service_error=True)
+
+
+def _archive(*, instance: Author) -> Author:
+    return instance
+
+
+_ARCHIVED = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer)
+
+
+class _ArchiveView(ServiceDeleteView):
+    # A soft delete: the destroy presents the row it kept.
+    queryset = Author.objects.all()
+    spec = ServiceSpec(service=_archive, output_selector_spec=_ARCHIVED, atomic=False)
+
+
+class _ArchiveAt204View(ServiceDeleteView):
+    # The same, with the 204 a destroy defaults to set explicitly.
+    queryset = Author.objects.all()
+    spec = ServiceSpec(
+        service=_archive, output_selector_spec=_ARCHIVED, success_status=204, atomic=False
+    )
+
+
+class _ArchiveAt202View(ServiceDeleteView):
+    # Any other status carries the body as it is.
+    queryset = Author.objects.all()
+    spec = ServiceSpec(
+        service=_archive, output_selector_spec=_ARCHIVED, success_status=202, atomic=False
+    )
+
+
+class _DeletedCount(serializers.Serializer):
+    deleted = serializers.IntegerField()
+
+
+def _all_authors() -> Any:
+    return Author.objects.all()
+
+
+def _delete_counted(*, collection: Any) -> dict[str, int]:
+    deleted, _ = collection.delete()
+    return {"deleted": deleted}
+
+
+def _delete_quietly(*, collection: Any) -> None:
+    collection.delete()
+
+
+_ALL_AUTHORS = SelectorSpec(kind=SelectorKind.LIST, selector=_all_authors)
+
+
+class _BulkDeleteCountedView(ServiceDeleteView):
+    # A bulk destroy presenting how many rows went.
+    spec = ServiceSpec(
+        service=_delete_counted,
+        collection_selector_spec=_ALL_AUTHORS,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=_DeletedCount
+        ),
+        atomic=False,
+    )
+
+
+class _BulkDeleteView(ServiceDeleteView):
+    spec = ServiceSpec(service=_delete_quietly, collection_selector_spec=_ALL_AUTHORS, atomic=False)
+
+
+class _BulkDeleteCountedUndeclaredView(ServiceDeleteView):
+    # The count again, with no serializer declaring it.
+    spec = ServiceSpec(service=_delete_counted, collection_selector_spec=_ALL_AUTHORS, atomic=False)
 
 
 class _NoErrorCreateView(ServiceCreateView):
@@ -320,6 +392,12 @@ urlpatterns = [
     path("delete/<int:pk>/", _DeleteView.as_view()),
     path("plain-delete/<int:pk>/", _DeletePlainView.as_view()),
     path("force-error-delete/<int:pk>/", _ForcedErrorDeleteView.as_view()),
+    path("archive/<int:pk>/", _ArchiveView.as_view()),
+    path("archive-at-204/<int:pk>/", _ArchiveAt204View.as_view()),
+    path("archive-at-202/<int:pk>/", _ArchiveAt202View.as_view()),
+    path("bulk-delete-counted/", _BulkDeleteCountedView.as_view()),
+    path("bulk-delete/", _BulkDeleteView.as_view()),
+    path("bulk-delete-undeclared/", _BulkDeleteCountedUndeclaredView.as_view()),
     path("no-error-create/", _NoErrorCreateView.as_view()),
     path("callable-status-create/", _CallableStatusCreateView.as_view()),
     path("posts-viewlevel/", _ViewLevelFilterListView.as_view()),
@@ -395,6 +473,283 @@ class TestDeleteViewSchema:
         schema = _generate()
         op = schema["paths"]["/plain-delete/{id}/"]["delete"]
         assert "requestBody" not in op
+
+
+# Each destroy route as (its path, its view, the status it is served under).
+_DESTROY_ROUTES: dict[str, tuple[str, Any, int]] = {
+    "single-row presenting a row": ("/archive/{id}/", _ArchiveView, 200),
+    "single-row presenting a row at an explicit 204": (
+        "/archive-at-204/{id}/",
+        _ArchiveAt204View,
+        200,
+    ),
+    "single-row presenting a row at an explicit 202": (
+        "/archive-at-202/{id}/",
+        _ArchiveAt202View,
+        202,
+    ),
+    "single-row presenting nothing": ("/plain-delete/{id}/", _DeletePlainView, 204),
+    "bulk presenting a count": ("/bulk-delete-counted/", _BulkDeleteCountedView, 200),
+    "bulk presenting nothing": ("/bulk-delete/", _BulkDeleteView, 204),
+}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("route", list(_DESTROY_ROUTES))
+def test_a_destroy_documents_the_response_it_serves(route: str) -> None:
+    """The schema and the runtime agree on a destroy's success response: its one
+    documented 2xx is the status the route answers, and it documents a body
+    exactly where the route sends one.
+
+    A destroy presenting a value answers ``200``, because a ``204`` carries no
+    body, and the schema used to document the serializer under the ``204``.
+    """
+    path, view, served = _DESTROY_ROUTES[route]
+    documented = _generate()["paths"][path]["delete"]["responses"]
+    pk = Author.objects.create(name="a").pk
+    kwargs = {"pk": pk} if "{id}" in path else {}
+    response = view.as_view()(APIRequestFactory().delete("/"), **kwargs)
+
+    assert response.status_code == served
+    assert [code for code in documented if code.startswith("2")] == [str(served)]
+    assert ("content" in documented[str(served)]) is (response.data is not None)
+
+
+@pytest.mark.django_db
+def test_an_undeclared_body_is_documented_as_no_content() -> None:
+    """The limit the OpenAPI page states, pinned so it stays true.
+
+    With no ``output_serializer``, only what the service returns decides whether
+    there is a body. The schema documents the empty ``204`` a destroy returning
+    ``None`` is answered with, while this one's count is served as a ``200``.
+    """
+    documented = _generate()["paths"]["/bulk-delete-undeclared/"]["delete"]["responses"]
+    Author.objects.create(name="a")
+    response = _BulkDeleteCountedUndeclaredView.as_view()(APIRequestFactory().delete("/"))
+
+    assert list(documented) == ["204"]
+    assert "content" not in documented["204"]
+    assert (response.status_code, response.data) == (200, {"deleted": 1})
+
+
+def _create_author() -> Author:
+    return Author.objects.create(name="x")
+
+
+def _no_author_visible(*, result: Author) -> Any:
+    # A re-read scoped to what the caller may see, which here is nothing.
+    return Author.objects.none()
+
+
+def _the_created_author(*, result: Author) -> Any:
+    return Author.objects.filter(pk=result.pk)
+
+
+def _create_view(output_selector_spec: SelectorSpec[Any, Any]) -> Any:
+    spec = ServiceSpec(
+        service=_create_author, output_selector_spec=output_selector_spec, atomic=False
+    )
+    return type("_CreateReReading", (ServiceCreateView,), {"spec": spec})
+
+
+def _documented_success(view: Any) -> dict[str, Any]:
+    generator = SchemaGenerator(patterns=[path("c/", view.as_view())])
+    responses = generator.get_schema(request=None, public=True)["paths"]["/c/"]["post"]
+    return {code: body for code, body in responses["responses"].items() if code.startswith("2")}
+
+
+@pytest.mark.django_db
+def test_a_create_that_may_present_nothing_documents_its_empty_204() -> None:
+    """A re-read that finds no row is answered with an empty ``204``, not the
+    ``201`` the serializer is documented under, so the schema documents both."""
+    view = _create_view(
+        SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=_no_author_visible,
+            output_serializer=AuthorSerializer,
+        )
+    )
+
+    documented = _documented_success(view)
+    response = view.as_view()(APIRequestFactory().post("/", {}, format="json"))
+
+    assert response.status_code == 204
+    assert sorted(documented) == ["201", "204"]
+    assert "content" in documented["201"]
+    assert "content" not in documented["204"]
+
+
+@pytest.mark.django_db
+def test_a_create_that_cannot_present_nothing_documents_no_204() -> None:
+    """Nothing to re-read and no ``allow_none``: the service's own row is presented."""
+    view = _create_view(
+        SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer)
+    )
+
+    assert sorted(_documented_success(view)) == ["201"]
+
+
+@pytest.mark.django_db
+def test_an_undeclared_body_is_documented_at_its_status_alone() -> None:
+    """The limit the OpenAPI page states: with no ``output_serializer`` the schema
+    documents one empty response at the status, whether or not the re-read may
+    find nothing, because whether a body goes out is not declared anywhere it
+    reads."""
+    view = _create_view(SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_the_created_author))
+
+    documented = _documented_success(view)
+
+    assert sorted(documented) == ["201"]
+    assert "content" not in documented["201"]
+
+
+# --- where the documented ``204`` is not the empty answer served -----------------
+#
+# The schema documents the empty ``204`` wherever ``can_present_nothing`` says
+# dispatch may present ``None``. The renderers decide the empty answer from more
+# than the spec: an explicit ``success_status``, whether the view renders an
+# update's target in place, and whether the spec is answered by the bulk path. The
+# OpenAPI page states each case, and each test below puts the status served beside
+# the statuses documented, so a schema that grows exact fails here with the page.
+
+
+def _returns_nothing(**_: Any) -> None:
+    return None
+
+
+_PRESENTS_ITS_OWN = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer)
+
+
+def _documented_at(view: Any, route: str, path_key: str, method: str) -> list[str]:
+    generator = SchemaGenerator(patterns=[path(route, view.as_view())])
+    operation = generator.get_schema(request=None, public=True)["paths"][path_key][method]
+    return sorted(code for code in operation["responses"] if code.startswith("2"))
+
+
+@pytest.mark.django_db
+def test_an_empty_answer_at_an_explicit_status_is_documented_as_204_too() -> None:
+    """With nothing to re-read, an explicit ``success_status`` is the status the
+    empty answer goes out under, so the ``204`` documented is never served."""
+    spec = ServiceSpec(
+        service=_returns_nothing,
+        output_selector_spec=_PRESENTS_ITS_OWN,
+        allow_none=True,
+        success_status=201,
+        atomic=False,
+    )
+    view = type("_CreateAt201", (ServiceCreateView,), {"spec": spec})
+
+    response = view.as_view()(APIRequestFactory().post("/", {}, format="json"))
+
+    assert (response.status_code, response.data) == (201, None)
+    assert _documented_at(view, "c/", "/c/", "post") == ["201", "204"]
+
+
+@pytest.mark.django_db
+def test_a_re_read_finding_nothing_answers_204_whatever_the_status() -> None:
+    """The contrast the page draws: a re-read's ``None`` is authoritative, so it is
+    answered with the ``204`` documented, at an explicit ``201`` too."""
+    spec = ServiceSpec(
+        service=_create_author,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=_no_author_visible,
+            output_serializer=AuthorSerializer,
+        ),
+        success_status=201,
+        atomic=False,
+    )
+    view = type("_ReReadAt201", (ServiceCreateView,), {"spec": spec})
+
+    response = view.as_view()(APIRequestFactory().post("/", {}, format="json"))
+
+    assert (response.status_code, response.data) == (204, None)
+    assert _documented_at(view, "c/", "/c/", "post") == ["201", "204"]
+
+
+@pytest.mark.django_db
+def test_an_update_rendering_its_target_in_place_is_documented_with_a_204() -> None:
+    """An update whose service returns ``None`` renders the row it updated, so it
+    never answers empty, while ``allow_none`` has the schema document the ``204``."""
+    author = Author.objects.create(name="x")
+    spec = ServiceSpec(
+        service=_returns_nothing,
+        output_selector_spec=_PRESENTS_ITS_OWN,
+        allow_none=True,
+        atomic=False,
+    )
+    view = type(
+        "_UpdateInPlace", (ServiceUpdateView,), {"spec": spec, "queryset": Author.objects.all()}
+    )
+
+    response = view.as_view()(APIRequestFactory().put("/", {}, format="json"), pk=author.pk)
+
+    assert (response.status_code, response.data) == (200, {"id": author.pk, "name": "x"})
+    assert _documented_at(view, "u/<int:pk>/", "/u/{id}/", "put") == ["200", "204"]
+
+
+class _TouchViewSet(ServiceViewSet):
+    queryset = Author.objects.all()
+
+    @service_action(
+        ServiceSpec(
+            service=_returns_nothing,
+            output_selector_spec=_PRESENTS_ITS_OWN,
+            allow_none=True,
+            atomic=False,
+        ),
+        detail=True,
+        methods=["post"],
+    )
+    def touch(self, request: Any, pk: Any = None) -> Any: ...
+
+
+@pytest.mark.django_db
+def test_a_detail_action_rendering_its_target_in_place_is_documented_with_a_204() -> None:
+    """A detail ``@service_action`` renders its target as an update does."""
+    author = Author.objects.create(name="x")
+    router = DefaultRouter()
+    router.register("touch", _TouchViewSet, basename="touch")
+    view = _TouchViewSet.as_view({"post": "touch"})
+
+    response = view(APIRequestFactory().post("/", {}, format="json"), pk=author.pk)
+    schema = SchemaGenerator(patterns=router.urls).get_schema(request=None, public=True)
+    operation = schema["paths"]["/touch/{id}/touch/"]["post"]
+
+    assert (response.status_code, response.data) == (200, {"id": author.pk, "name": "x"})
+    assert sorted(code for code in operation["responses"] if code.startswith("2")) == [
+        "200",
+        "204",
+    ]
+
+
+def _none_visible(*, result: Any) -> Any:
+    return Author.objects.none()
+
+
+@pytest.mark.django_db
+def test_a_bulk_spec_answers_empty_at_its_status_beside_a_documented_204() -> None:
+    """A collection target is answered by the bulk path, which sends an empty answer
+    under the action's status, never ``204`` unless that is the status. A re-read
+    finding no row is answered ``200`` here, as an update, beside a documented
+    ``204``."""
+    Author.objects.create(name="x")
+    spec = ServiceSpec(
+        service=_returns_nothing,
+        collection_selector_spec=_ALL_AUTHORS,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_none_visible, output_serializer=AuthorSerializer
+        ),
+        atomic=False,
+    )
+    view = type(
+        "_BulkUpdate", (ServiceUpdateView,), {"spec": spec, "queryset": Author.objects.all()}
+    )
+
+    response = view.as_view()(APIRequestFactory().put("/", {}, format="json"), pk=0)
+
+    assert (response.status_code, response.data) == (200, None)
+    assert _documented_at(view, "u/<int:pk>/", "/u/{id}/", "put") == ["200", "204"]
 
 
 @pytest.mark.django_db

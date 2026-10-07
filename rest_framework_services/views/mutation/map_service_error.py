@@ -52,10 +52,11 @@ class _AdditionalInputAPIException(_ServiceAPIException):
 
     The schema as raised is kept on ``schema``, because a ``str`` leaf is no
     longer JSON Schema: ``"default": "False"`` is a non-empty string to a client
-    rendering a form. drfs' own views and viewsets put it back into the body
-    after the handler has built the response (see
-    ``views.mutation.utils._ServesRaisedSchema``); anything else holding this
-    exception reads it here.
+    rendering a form. drfs' views and viewsets, and a ``@service_action`` on any
+    viewset, put it back into the body after the handler has built the response
+    (see ``views.mutation.utils.restore_raised_schema``); anything else holding
+    this exception, a direct ``map_service_error`` or ``call_service`` caller
+    say, reads it here.
     """
 
     def __init__(self, message: str, schema: Mapping[str, Any]) -> None:

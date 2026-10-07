@@ -12,7 +12,7 @@ Deliberately lenient on extras: a ``kwargs`` provider or an overridden
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import is_dataclass
 from typing import Any
 
@@ -20,6 +20,7 @@ from django.core.exceptions import ImproperlyConfigured
 from rest_framework.permissions import BasePermission
 from rest_framework.serializers import Serializer
 
+from rest_framework_services.types.marked_input_keys import marked_input_keys
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -553,6 +554,97 @@ def _validate_response_finalizer(finalizer: Any, *, label: str) -> None:
         )
 
 
+# The nested specs a service's dispatch calls a ``selector`` of: its two target
+# lookups and its output re-read.
+_NESTED_SELECTOR_SPECS = (
+    "instance_selector_spec",
+    "collection_selector_spec",
+    "output_selector_spec",
+)
+
+
+def _refuse_misplaced_schema_markers(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any], *, label: str
+) -> None:
+    """Refuse a schema marker that dispatch would refuse on every call.
+
+    Dispatch reads ``InputRequired`` / ``NotClientInput`` / ``InputDescription``
+    through ``marked_input_keys`` each time it binds a callable from the keyword
+    pool, and that read raises ``ImproperlyConfigured`` for a marker it cannot place
+    (``list[Annotated[int, NotClientInput]]``) or for ``InputRequired`` beside
+    ``NotClientInput``. Left to dispatch, the view mounts and every request to it
+    fails; read here, ``as_view()`` fails at URL-conf load and the app does not
+    start.
+
+    Not at construction, where ``many_argument`` and the target lookups are refused,
+    because the read resolves the callable's annotations and a spec is routinely
+    built before they resolve: under ``from __future__ import annotations`` a
+    ``TypedDict`` or class declared further down the module than the spec is a
+    ``NameError`` when the spec is built. ``marked_input_keys`` reads an
+    annotation it cannot resolve only as far as it evaluates, and a ``TypedDict``
+    that does not resolve yet as having no keys, so a marker it cannot reach there
+    is not placed. A check there would pass exactly those specs, so module order
+    would decide whether the declaration was refused at startup or on every call.
+    ``as_view()`` runs once every module is imported. An annotation that never
+    resolves, such as a name imported under ``if TYPE_CHECKING:``, costs only its
+    own name here as in dispatch, so the markers beside it are still checked
+    (``test_as_view_refuses_what_dispatch_would``). Off HTTP no view runs it, so a spec that is never mounted is refused
+    where its markers are first read: at schema generation, or on each dispatch.
+    """
+    for where, fn in _marker_reading_callables(spec, label=label):
+        try:
+            marked_input_keys(fn)
+        except ImproperlyConfigured as exc:
+            raise ImproperlyConfigured(f"{where}: {exc}") from exc
+
+
+def _marker_reading_callables(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any], *, label: str
+) -> Iterator[tuple[str, Callable[..., Any]]]:
+    """``(label, callable)`` for every callable dispatch binds through the marker read.
+
+    The spec's ``service`` or ``selector``, its ``preconditions``, a callable
+    affordance condition, and the same again for each nested spec whose
+    ``selector`` dispatch calls. A ``SelectorSpec``'s ``affordances`` maps names to
+    service specs whose *conditions* it answers per dispatch, never their
+    services. Each position is held by a case of
+    test_every_callable_a_service_dispatch_reads_is_checked or
+    test_every_callable_a_selector_dispatch_reads_is_checked.
+
+    Nested ``preconditions`` and a target lookup's ``affordances`` are walked too,
+    though dispatch reads neither: both are refused earlier in the same
+    validation, so the walk never reaches one.
+    """
+    if isinstance(spec, ServiceSpec):
+        yield f"{label}.service", spec.service
+        yield from _callable_conditions(spec, label=label)
+        for field in _NESTED_SELECTOR_SPECS:
+            nested: SelectorSpec[Any, Any] | None = getattr(spec, field)
+            if nested is not None:
+                yield from _marker_reading_callables(nested, label=f"{label}.{field}")
+    else:
+        # A spec with no ``selector`` resolves through the view's queryset, so there
+        # is no callable to read. The marker read would pass ``None`` as
+        # unresolvable, so this narrows for the type checker, which holds it.
+        if spec.selector is not None:
+            yield f"{label}.selector", spec.selector
+        for name, affordance_spec in (spec.affordances or {}).items():
+            yield from _callable_conditions(affordance_spec, label=f"{label}.affordances[{name!r}]")
+    for index, precondition in enumerate(spec.preconditions or ()):
+        yield f"{label}.preconditions[{index}]", precondition
+
+
+def _callable_conditions(
+    spec: ServiceSpec[Any, Any, Any], *, label: str
+) -> Iterator[tuple[str, Callable[..., Any]]]:
+    # A condition on the row is an ORM expression, compiled into the query rather
+    # than called, so only a callable one is bound from the pool. Held by
+    # test_a_condition_on_the_row_is_not_read.
+    for index, affordance in enumerate(spec.affordances or ()):
+        if not is_row_condition(affordance.when):
+            yield f"{label}.affordances[{index}].when", affordance.when
+
+
 def validate_service_spec(
     spec: ServiceSpec[Any, Any, Any],
     *,
@@ -571,11 +663,6 @@ def validate_service_spec(
     _validate_success_status(spec.success_status, label=label)
     _validate_response_finalizer(spec.response_finalizer, label=label)
     _validate_input_serializer(spec.input_serializer, label=label)
-    if spec.many and spec.collection_selector_spec is not None:
-        raise ImproperlyConfigured(
-            f"{label}: `many` and `collection_selector_spec` are mutually exclusive "
-            "— a list-payload bulk and a collection-target bulk are different shapes."
-        )
     _validate_permission_classes(spec.permission_classes, label=label)
     validate_callable_signature(
         spec.service,
@@ -619,6 +706,7 @@ def validate_service_spec(
             spec_kwargs=spec.kwargs,
             input_serializer=spec.input_serializer,
         )
+    _refuse_misplaced_schema_markers(spec, label=label)
 
 
 def validate_polymorphic_service_spec(
@@ -698,6 +786,7 @@ def validate_selector_spec(
         permissive_extras=True,
         extra_known_keys=("collection",) if spec.kind is SelectorKind.LIST else (),
     )
+    _refuse_misplaced_schema_markers(spec, label=label)
     if spec.selector is None:
         return
     validate_callable_signature(

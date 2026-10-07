@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models import Q
 
 from rest_framework_services import (
+    Affordance,
+    NotClientInput,
     SelectorKind,
     SelectorListView,
     SelectorRetrieveView,
@@ -365,3 +369,160 @@ class TestServiceActionValidation:
                 )
                 def go(self, request):  # type: ignore[no-untyped-def]
                     ...
+
+
+# Module level, so ``from __future__ import annotations`` leaves every hint below
+# resolvable: a hint that cannot be resolved is read only as far as it evaluates
+# (see test_schema_markers_beside_unresolved_annotations.py).
+def _misplaced(*, team: list[Annotated[int, NotClientInput]] | None = None) -> list[Any]:
+    """A marker inside a container: read by nothing, refused wherever it is read."""
+    return []
+
+
+def _in_the_one_optional(*, team: Annotated[int, NotClientInput] | None = None) -> None:
+    return None
+
+
+def _plain() -> list[Any]:
+    return []
+
+
+def _misplaced_affordance() -> Affordance:
+    return Affordance(code="closed", reason="Closed.", when=_misplaced)
+
+
+class _NotedQ(Q):
+    """A condition on the row whose class carries an annotation.
+
+    Reading it as a callable gets past resolving its hints, as far as asking for
+    the signature of an object that has none, and fails there.
+    """
+
+    note: str
+
+
+def _schema_marker_refusal(where: str) -> str:
+    return rf"^{re.escape(where)}: .*a schema marker \(InputRequired, NotClientInput"
+
+
+class TestMisplacedSchemaMarkerValidation:
+    """A schema marker the dispatch read refuses is refused by ``as_view()``.
+
+    Dispatch reads every callable's markers on every call, so a misplaced one left
+    to it is an endpoint that fails each request rather than an app that fails to
+    start.
+    """
+
+    def test_a_mutation_view_refuses_it(self) -> None:
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(service=_misplaced)
+
+        with pytest.raises(
+            ImproperlyConfigured, match=_schema_marker_refusal("_View.spec.service")
+        ):
+            _View.as_view()
+
+    def test_a_selector_view_refuses_it(self) -> None:
+        class _View(SelectorListView):
+            spec = SelectorSpec(kind=SelectorKind.LIST, selector=_misplaced)
+
+        with pytest.raises(
+            ImproperlyConfigured, match=_schema_marker_refusal("_View.spec.selector")
+        ):
+            _View.as_view()
+
+    def test_a_viewset_refuses_it(self) -> None:
+        class _View(ServiceViewSet):
+            action_specs = {"create": ServiceSpec(service=_misplaced)}
+
+        with pytest.raises(
+            ImproperlyConfigured,
+            match=_schema_marker_refusal("_View.action_specs['create'].service"),
+        ):
+            _View.as_view({"post": "create"})
+
+    @pytest.mark.parametrize(
+        ("fields", "where"),
+        [
+            ({"preconditions": [_misplaced]}, "preconditions[0]"),
+            (
+                {
+                    "instance_selector_spec": SelectorSpec(
+                        kind=SelectorKind.RETRIEVE, selector=_misplaced
+                    )
+                },
+                "instance_selector_spec.selector",
+            ),
+            (
+                {
+                    "collection_selector_spec": SelectorSpec(
+                        kind=SelectorKind.LIST, selector=_misplaced
+                    )
+                },
+                "collection_selector_spec.selector",
+            ),
+            (
+                {
+                    "output_selector_spec": SelectorSpec(
+                        kind=SelectorKind.RETRIEVE, selector=_misplaced
+                    )
+                },
+                "output_selector_spec.selector",
+            ),
+            ({"affordances": [_misplaced_affordance()]}, "affordances[0].when"),
+        ],
+        ids=["precondition", "instance-lookup", "collection-lookup", "output-re-read", "when"],
+    )
+    def test_every_callable_a_service_dispatch_reads_is_checked(
+        self, fields: dict[str, Any], where: str
+    ) -> None:
+        class _View(ServiceUpdateView):
+            spec = ServiceSpec(service=_plain, **fields)
+
+        with pytest.raises(
+            ImproperlyConfigured, match=_schema_marker_refusal(f"_View.spec.{where}")
+        ):
+            _View.as_view()
+
+    @pytest.mark.parametrize(
+        ("fields", "where"),
+        [
+            ({"preconditions": [_misplaced]}, "preconditions[0]"),
+            (
+                {
+                    "affordances": {
+                        "close": ServiceSpec(service=_plain, affordances=[_misplaced_affordance()])
+                    }
+                },
+                "affordances['close'].affordances[0].when",
+            ),
+        ],
+        ids=["precondition", "row-affordance-when"],
+    )
+    def test_every_callable_a_selector_dispatch_reads_is_checked(
+        self, fields: dict[str, Any], where: str
+    ) -> None:
+        class _View(SelectorListView):
+            spec = SelectorSpec(kind=SelectorKind.LIST, selector=_plain, **fields)
+
+        with pytest.raises(
+            ImproperlyConfigured, match=_schema_marker_refusal(f"_View.spec.{where}")
+        ):
+            _View.as_view()
+
+    def test_a_condition_on_the_row_is_not_read(self) -> None:
+        # Compiled into the query rather than called, so no pool binds it and it
+        # carries no markers to read.
+        class _View(ServiceUpdateView):
+            spec = ServiceSpec(
+                service=_plain,
+                affordances=[Affordance(code="open", reason="Open.", when=_NotedQ(title="a"))],
+            )
+
+        _View.as_view()
+
+    def test_a_marker_inside_the_one_optional_is_accepted(self) -> None:
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(service=_in_the_one_optional)
+
+        _View.as_view()

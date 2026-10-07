@@ -16,6 +16,7 @@ from typing_extensions import NotRequired, TypedDict, Unpack
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.dispatch.null_progress import null_progress
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
+from rest_framework_services.exceptions.service_validation_error import ServiceValidationError
 from rest_framework_services.jsonschema.spec_to_json_schema import spec_to_json_schema
 from rest_framework_services.registry.capability_manifest import capability_manifest
 from rest_framework_services.registry.spec_registry import SpecRegistry
@@ -202,14 +203,46 @@ def test_service_output_reads_nested_output_selector_spec() -> None:
     }
 
 
-def test_service_output_list_kind_is_array() -> None:
+def test_service_output_list_re_read_is_array() -> None:
     spec = ServiceSpec(
         service=_service,
-        output_selector_spec=SelectorSpec(kind=SelectorKind.LIST, output_serializer=_Out),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.LIST, selector=lambda: [], output_serializer=_Out
+        ),
     )
     schema = spec_to_json_schema(spec, phase="output")
     assert schema is not None
     assert schema["type"] == "array"
+
+
+@pytest.mark.django_db
+def test_a_list_output_declaration_without_a_selector_is_an_array() -> None:
+    """No ``selector`` means no re-read, so the service's own return is what is served,
+    and the declared ``LIST`` says that return is a set.
+
+    Dispatch presents it as a list and reports ``kind="list"``, which is what the
+    HTTP view and every transport render from. Checked against that rendered payload
+    with a real validator, so the schema and the value served against it cannot
+    disagree about the shape.
+    """
+    nested = SelectorSpec(kind=SelectorKind.LIST, output_serializer=_Out)
+    spec = ServiceSpec(service=lambda: [{"id": 1}], output_selector_spec=nested)
+    result = dispatch_spec(spec, user=None, params={})
+    payload = render_spec_output(spec, result.value, many=result.kind == "list")
+    schema = spec_to_json_schema(spec, phase="output")
+
+    assert result.kind == "list"
+    assert payload == [{"id": 1}]
+    assert schema is not None
+    assert not list(Draft202012Validator(schema).iter_errors(payload))
+    assert schema == {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}},
+            "required": ["id"],
+        },
+    }
 
 
 def test_a_many_service_output_is_an_array_whatever_its_selector_kind() -> None:
@@ -817,9 +850,10 @@ def _retrieve(selector: Any) -> SelectorSpec[Any, Any]:
 
 class TestSupplied:
     def test_a_lookup_without_a_default_is_required(self) -> None:
-        # Advertised as optional before, while a call without it raises.
-        with pytest.raises(TypeError, match="required keyword-only argument: 'pk'"):
+        # Advertised as optional before, while a call without it is refused.
+        with pytest.raises(ServiceValidationError) as refused:
             dispatch_spec(_retrieve(_task_by_pk), user=None, params={})
+        assert refused.value.detail == {"non_field_errors": ["Missing required argument(s): 'pk'."]}
         schema = spec_to_json_schema(_retrieve(_task_by_pk), supplied=frozenset())
         assert schema == {
             "type": "object",

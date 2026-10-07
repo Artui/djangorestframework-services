@@ -147,7 +147,16 @@ class TestServiceUpdateView:
         assert response.status_code == 200
         assert captured["pk"] == author.pk
 
-    def test_output_selector_returning_none_renders_204(self) -> None:
+    @pytest.mark.parametrize("output_serializer", [None, AuthorSerializer])
+    @pytest.mark.parametrize("success_status", [None, 202])
+    def test_output_selector_returning_none_renders_204(
+        self, output_serializer: Any, success_status: int | None
+    ) -> None:
+        """The re-read's ``None`` is authoritative: an empty ``204`` whatever the
+        ``success_status``, and whether or not the nested spec declares an
+        ``output_serializer``. Rendering one over ``None`` answered with a row of
+        blank fields for a row the re-read did not find."""
+
         def fn(*, instance: Author, data: _UpdateAuthorInput) -> Author:
             return instance
 
@@ -159,13 +168,20 @@ class TestServiceUpdateView:
             spec = ServiceSpec(
                 service=fn,
                 input_serializer=_UpdateAuthorInput,
-                output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector),
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=selector,
+                    output_serializer=output_serializer,
+                ),
+                success_status=success_status,
             )
 
         author = Author.objects.create(name="x")
         request = factory.patch("/", {"name": "y"}, format="json")
         response = _View.as_view()(request, pk=author.pk)
         assert response.status_code == 204
+        assert response.data is None
+        assert response.render().content == b""
 
     def test_falls_back_to_instance_when_service_returns_none(self) -> None:
         """When output_selector is missing AND service returns None, render
@@ -370,9 +386,11 @@ class TestOutputSelectorFilterSetParity:
         response = view.as_view()(request, pk=post.pk)
         # The service still published the row, but the output filter_set now
         # excludes it (published=True doesn't match ?published=false), so the
-        # RETRIEVE re-fetch collapses to None. Pre-fix the HTTP path ignored the
+        # RETRIEVE re-fetch collapses to None, which is an empty 204 rather than
+        # the serializer's blank fields. Pre-fix the HTTP path ignored the
         # filter_set and returned the row.
         post.refresh_from_db()
         assert post.published is True
-        assert response.data.get("id") is None
+        assert response.status_code == 204
+        assert response.data is None
         assert seen == ["false"]

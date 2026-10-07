@@ -103,7 +103,10 @@ def output_to_json_schema(
     this function takes a serializer and a ``kind``, never the spec, so the
     caller says whether a miss is presented.
     [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
-    passes a ``SelectorSpec``'s own ``allow_none``. A transport whose protocol
+    passes
+    [`can_present_nothing(spec)`][rest_framework_services.can_present_nothing.can_present_nothing]
+    for a ``SelectorSpec`` and a ``ServiceSpec`` alike, so a ``SelectorSpec``'s
+    ``allow_none`` reaches it only through that answer. A transport whose protocol
     needs an object at the root -- an MCP tool's ``outputSchema`` -- leaves it
     off and states the empty case in its own terms.
     """

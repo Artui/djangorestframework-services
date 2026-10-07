@@ -13,6 +13,7 @@ from drf_spectacular.contrib.django_filters import DjangoFilterExtension
 from drf_spectacular.openapi import AutoSchema
 from drf_spectacular.utils import OpenApiResponse, PolymorphicProxySerializer
 
+from rest_framework_services.can_present_nothing import can_present_nothing
 from rest_framework_services.openapi._resolve import (
     resolve_polymorphic_spec,
     resolve_selector_spec,
@@ -23,6 +24,7 @@ from rest_framework_services.openapi.service_error_serializer import (
     ServiceErrorSerializer,
 )
 from rest_framework_services.openapi.utils import default_status
+from rest_framework_services.views.mutation.utils import status_for_a_body
 
 
 class ServiceAutoSchema(AutoSchema):
@@ -34,8 +36,10 @@ class ServiceAutoSchema(AutoSchema):
     - Request body from ``spec.input_serializer``, a bare dataclass being auto-wrapped
       in ``DataclassSerializer``, built with whatever partial flag ``spec.partial``
       resolves to so the documented body matches what actually validates.
-    - Success response from ``spec.output_selector_spec.output_serializer``, or a
-      no-content response when that is unset and the action's default status is 204.
+    - Success response from ``spec.output_selector_spec.output_serializer``,
+      under the status the runtime serves a body under, which is ``200`` where
+      the status is ``204``; or, where no serializer is declared, a no-content
+      response at the status itself.
     - A ``422`` documenting
       [`ServiceErrorSerializer`][rest_framework_services.openapi.service_error_serializer.ServiceErrorSerializer],
       as ``spec.document_service_error`` gates it.
@@ -142,9 +146,53 @@ class ServiceAutoSchema(AutoSchema):
         )
         out_cls = to_serializer_class(output_serializer)
         # spectacular accepts a Serializer subclass *or* an OpenApiResponse per
-        # status entry; mix them by whether a response body is configured.
-        success: Any = out_cls if out_cls is not None else OpenApiResponse(description="")
-        responses: dict[Any, Any] = {status: success}
+        # status entry; mix them by whether a response body is configured. A
+        # declared serializer is a body, and the renderers answer a body under
+        # ``status_for_a_body``, so the schema asks it the same question rather
+        # than restating the answer: a destroy presenting a row, single-row or
+        # bulk, is documented as the ``200`` it is served as. Held by
+        # test_a_destroy_documents_the_response_it_serves.
+        #
+        # With no serializer declared there is no body the schema can describe,
+        # and whether the runtime sends one is decided by what the service
+        # returns, which nothing the schema reads declares. So the no-content
+        # response is documented at the status itself, which is what a destroy
+        # whose service returns ``None`` is answered with. A raw value returned
+        # instead, a count say, is served as a body under ``status_for_a_body``
+        # that the schema does not show. Held by
+        # test_an_undeclared_body_is_documented_as_no_content.
+        responses: dict[Any, Any] = (
+            {status_for_a_body(status): out_cls}
+            if out_cls is not None
+            else {status: OpenApiResponse(description="")}
+        )
+        # A declared body is not always sent. Where dispatch may present nothing,
+        # a re-read finding no row say, the renderers answer an empty ``204``
+        # rather than a row of blank fields, so the schema documents that response
+        # beside the body, asking ``can_present_nothing`` as every transport does.
+        # The body is never documented under ``204`` itself (``status_for_a_body``),
+        # so the two never collide. Without a serializer the empty response is
+        # already the one documented, at its status. One arc to coverage, so each
+        # operand names its test: the serializer,
+        # test_an_undeclared_body_is_documented_at_its_status_alone, and the
+        # question, test_a_create_that_cannot_present_nothing_documents_no_204.
+        # test_a_create_that_may_present_nothing_documents_its_empty_204 holds
+        # the branch.
+        #
+        # The rule is the spec's answer, and over-documents in three cases the
+        # OpenAPI page states, because the renderers decide the empty answer from
+        # more than the spec, inline rather than through a function this could
+        # ask: an explicit ``success_status`` with nothing to re-read answers empty
+        # at that status; an update that renders its target in place never answers
+        # empty; and the bulk path answers empty at the action's status. Where that
+        # status is the body's, one response per status could not tell the two
+        # apart anyway. Each is held, the status served beside the statuses
+        # documented, by
+        # test_an_empty_answer_at_an_explicit_status_is_documented_as_204_too,
+        # test_an_update_rendering_its_target_in_place_is_documented_with_a_204 and
+        # test_a_bulk_spec_answers_empty_at_its_status_beside_a_documented_204.
+        if out_cls is not None and can_present_nothing(spec):
+            responses[204] = OpenApiResponse(description="")
         document_422 = (
             spec.document_service_error
             if spec.document_service_error is not None

@@ -23,14 +23,16 @@ def marked_input_keys(fn: Callable[..., Any]) -> tuple[frozenset[str], frozenset
     returns two empty sets — nothing to enforce, nothing to hide — which is the
     overwhelmingly common case.
 
-    Unresolvable annotations yield empty sets rather than raising: a marker that
-    cannot be read is a marker that cannot be honoured, and schema generation is
-    best-effort throughout this package.
+    An annotation that does not resolve costs only its own name: the markers on
+    every other parameter and key are read as written, and its own are read as
+    far as ``callable_type_hints`` can take it, which fails closed. A
+    ``**kwargs: Unpack[SomeExtras]`` whose ``TypedDict`` does not resolve marks no
+    key, since nothing says which keys it has.
+
+    Raises ``ImproperlyConfigured`` for a marker ``read_schema_markers`` cannot
+    place, or for a key marked both ``InputRequired`` and ``NotClientInput``.
     """
-    try:
-        hints = callable_type_hints(fn)
-    except Exception:  # noqa: BLE001 — never fatal, see the docstring
-        return frozenset(), frozenset()
+    hints = callable_type_hints(fn)
     required: set[str] = set()
     hidden: set[str] = set()
 

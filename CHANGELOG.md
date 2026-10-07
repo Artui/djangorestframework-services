@@ -7,6 +7,436 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.56.0] — 2026-10-06
+
+### Added
+
+- **`ServiceSpec(allow_none=True)` declares that a service may present nothing.**
+  A service with no output re-read presents its own return, and `dispatch_spec`
+  passes a `None` return through, but its output schema described an object with
+  required fields and never admitted `null`. `allow_none=True` says the return
+  may be `None`, and `spec_to_json_schema(spec, phase="output")` and the
+  capability manifest's `output_schema` then type the row `["object", "null"]`.
+  It is the name `SelectorSpec` already uses for the same fact about its result.
+  It is off by default, and an undeclared `None` is not refused in this release:
+  dispatch still presents it, against a schema that does not admit it. A result
+  that is a list (`many=True`, or a `LIST` re-read) is never `None`, so the flag
+  changes nothing there. `allow_none` on the nested `output_selector_spec` is
+  still not read.
+- **`can_present_nothing(spec)` answers whether a spec's dispatch may present
+  `None`**, for a `SelectorSpec` and a `ServiceSpec` alike. A list result is
+  declared never to: a `LIST` selector, a `many=True` service and a `LIST`
+  output, re-read or not, read no `allow_none`. A callable returning `None`
+  there anyway is the author's error, which dispatch refuses only for a `LIST`
+  output with nothing to re-read; a `LIST` selector, a `LIST` re-read and a
+  `many=True` service present the `None`, which a transport validating
+  structured output against the schema will reject. A `RETRIEVE` selector does
+  under `allow_none`. A single-row service does when its `output_selector_spec`
+  re-reads through a `selector`, and otherwise when it declares
+  `allow_none=True`. `spec_to_json_schema` asks it for both kinds of spec, and
+  a transport advertising an output schema of its own should ask it rather than
+  derive the answer again, so every route states the same `null`. Exported from
+  the package root.
+
+- **`provider_keys(provider)` reads what a `kwargs=` provider declares, before
+  it runs.** A `ServiceSpec` or `SelectorSpec` `kwargs=` provider annotated to
+  return a `TypedDict` says which names it fills, and a key whose value admits
+  `UnsetType` is one it may decline with `UNSET`, which dispatch drops from the
+  pool. Both spec transports read that to build a selector's input schema, and
+  each kept its own copy of the reader. This is that reader, public, as the
+  static half of the contract whose runtime half dispatch already owns. It
+  returns a `ProviderKeys`, a `NamedTuple` of two disjoint sets of key names,
+  `filled` and `declinable`, which reads by field name and still unpacks as
+  `filled, declinable = ...`. Both sets are empty for no provider, and the
+  answer is `None` for a provider whose return says nothing about its keys,
+  which may fill any name. It reads three things differently from the copies it
+  replaces:
+  - **A key holding `UnsetType` inside a container is filled.**
+    `regions: list[str | UnsetType]` always comes back as a list, and dispatch
+    drops a key only when its value is `UNSET`. Only a union's alternatives are
+    walked, through `Annotated`, `Required`, `NotRequired` and `ReadOnly`.
+  - **One annotation that does not resolve no longer makes the whole provider
+    untyped.** The return annotation is resolved on its own, so a parameter
+    typed with a name imported only under `if TYPE_CHECKING:` leaves the keys
+    readable. A `TypedDict` value that does not resolve makes only its own key
+    declinable. Python 3.14's lazily evaluated annotations are read the same
+    way.
+  - **A generic `TypedDict` is read with whatever binds its parameters.**
+    `-> Scope[str | UnsetType]` declines `Scope`'s `tenant: T`, which the copies
+    read as the bare type variable and counted as filled. A subclass binding is
+    followed through `__orig_bases__`: `class Declining(Scope[str | UnsetType])`,
+    and `Relay(Scope[U], Generic[U])` returned as `Relay[str | UnsetType]`, both
+    decline `tenant`, where the copies hid it and a provider returning `UNSET`
+    for it left the call short a parameter. A PEP 695 `class Scope[T](TypedDict)`
+    under `from __future__ import annotations` resolves `T` beside the class's
+    type parameters, where the copies failed to resolve it and offered every
+    such key to the caller, `-> Scope[str]` included. Each key is read with the
+    bindings of the class that declared it, so a project reusing one `T` at
+    every level gets each class's answer:
+    `class Shadow(Scope[list[T]], Generic[T])` returned as
+    `Shadow[str | UnsetType]` fills `tenant` with a list and may decline its
+    own `extra: T`. An argument wrapped in `Annotated` reads as what it wraps,
+    in a class statement's bases too. A type variable nothing binds, as in a
+    bare `-> Scope`, counts as filled: filled keeps the decision with the
+    provider, where declinable would let a caller's value into a key such as a
+    tenant. Not read: a PEP 696 default on a type variable, and a key a
+    subclass redeclares, which reads as its base declared it.
+- **`server_owned_keys(spec)` answers which names no caller supplies anywhere
+  in a spec's dispatch.** It is the `frozenset` of every key the selector or
+  service, one of `spec.preconditions` or the target lookup marks
+  `NotClientInput`, and `view`: the set dispatch drops from the caller's input,
+  leaves out of what `REJECT` admits and never names as a missing argument, and
+  that `spec_to_json_schema` leaves out of the input schema. It governs the
+  keyword pool, not an input serializer's fields: a field the `input_serializer`
+  declares under an owned name stays client input, listed in the schema,
+  admitted by `REJECT` and validated into `data`, the one place it reaches the
+  service, since a same-named key can mean something else there, such as a
+  destination tenant beside the server's current one at the gate. A transport
+  that builds an input schema of its own, such as a service tool merging its
+  target lookup's keys into the service's, should subtract the set, less the
+  input serializer's field names, instead of reading each callable's markers
+  again, asking with the spec it dispatches and not the nested lookup's: a key
+  the service or a precondition hides is otherwise still advertised there, and
+  then dropped. Exported from the package root.
+- **`spec_to_json_schema(spec, argument_binding=...)` lists a spreading
+  service's own parameters as its input.** A `ServiceSpec` with no
+  `input_serializer`, dispatched under a `SPREAD_*` binding, takes the caller's
+  input as its service's parameters, and `UnknownArguments.REJECT` admits them,
+  but its input schema was a bare `{"type": "object"}` that named none of them.
+  Passed the binding a transport dispatches with, the schema now lists them,
+  reflected as a selector's parameters are: keyword parameters and
+  `Unpack[TypedDict]` keys, less every key the service, a precondition or the
+  target lookup marks `NotClientInput`, positional-only parameters, `view` and
+  the reserved pool seeds, with `supplied=` deciding requiredness as it does for
+  a selector. For the built-in pool seeds the property names are exactly the
+  keys dispatch declares for the same spec and binding; a transport registering
+  its own seeds passes them in `supplied=`, or the schema lists them as input.
+  The target lookup's keys, such as
+  `pk`, are not in it, and transports keep merging them; a bare `**kwargs` lists
+  what the service names and adds no `additionalProperties`. `AUTO`, the
+  default, resolves to `BUNDLE` for a service, so a caller that does not pass
+  the argument gets the schema it got before. A `SelectorSpec`, a `many=True`
+  spec, a spec with an `input_serializer` and the output phase do not read it.
+
+### Changed
+
+- **A `ServiceSpec` declaring a target lookup that dispatch never calls is
+  refused when it is built.** `instance_selector_spec` beside
+  `collection_selector_spec` passed validation, but dispatch resolves the target
+  through the collection lookup and never calls the instance one, so a service
+  requiring `instance` passed `as_view()` and then raised `TypeError` on every
+  call. Beside `many=True` either lookup was dead the same way, since a list
+  payload resolves no target: an instance lookup passed `as_view()` as well, and
+  a collection lookup, which `as_view()` already refused, passed `dispatch_spec`
+  and every off-HTTP transport. All three pairs now raise `ImproperlyConfigured`
+  from the constructor, naming the fields, so the refusal holds for
+  `dispatch_spec` and every transport rather than only where a view validates
+  the spec, and `as_view()` no longer checks `many` beside
+  `collection_selector_spec` itself. A spec that declared any of the pairs
+  constructed before and raises now; drop the lookup dispatch was not calling.
+- **A schema marker placed deeper than one `Optional` is refused.**
+  `InputRequired`, `NotClientInput` and `InputDescription` were read only when
+  `Annotated` was the outermost layer of the annotation, and silently ignored
+  anywhere else. They are now read on that layer or inside one `Optional` around
+  it (see Fixed), and anywhere wider raises `ImproperlyConfigured` naming the
+  spelling that works: a union with another member beside the marked one
+  (`Annotated[int, NotClientInput] | str`), two marked members, or a marker
+  nested in a container or under another `Annotated`
+  (`list[Annotated[int, NotClientInput]]`). Another library's `Annotated`
+  metadata is unaffected at any depth. An annotation that relied on a marker
+  being ignored there raises now.
+
+  Where it raises: `as_view()` refuses it, for a standalone view, a viewset and
+  `@service_action` alike, so an app mounting such a spec fails at URL-conf load
+  rather than on every request. It reads every callable dispatch binds from the
+  keyword pool: the `service` or `selector`, its `preconditions`, a callable
+  affordance condition, and the `selector` of each target lookup and output
+  re-read. Off HTTP, a spec no view mounts is refused where its markers are first
+  read: at schema generation, or on every `dispatch_spec` call. It is not
+  refused when the spec is built, because an annotation naming a class or
+  `TypedDict` declared further down the module does not resolve yet and would be
+  read as unmarked. The same `as_view()` read refuses an input marked both
+  `InputRequired` and `NotClientInput`, which every call already refused.
+
+- **A caller's value for a `NotClientInput` key no longer reaches any callable
+  in the call.**
+  The marker dropped the key from the schema, and `UnknownArguments.REJECT`
+  refused it on a closed spec, but everywhere else dispatch delivered it: under
+  `IGNORE` (the default), under `PASSTHROUGH`, and under `REJECT` on an open
+  selector (a `filter_set` or a bare `**kwargs`). A hidden key with a default and
+  no provider was settable by any off-HTTP caller, and `SPREAD_CALLER_WINS` let a
+  caller's value beat the provider's. `dispatch_spec` and `adispatch_spec` now
+  drop it from the caller's input before the spread, under every policy, at each
+  site that spreads one: a `SelectorSpec`'s selector, a single-item service's
+  spread and the extras `PASSTHROUGH` forwards, and a service's
+  `instance_selector_spec` / `collection_selector_spec` lookup. The key is
+  server-owned for the whole call: one that any callable in it marks, the
+  selector or service, one of `spec.preconditions`, or the target lookup, is
+  dropped before any of them reads the caller's input, and is left out of what
+  `REJECT` admits and of the input schema, even where another of them takes it
+  as an ordinary parameter. A field the `input_serializer` declares under that
+  name is the exception, because it is not a parameter: it stays declared and
+  listed, and the caller's value reaches the service only in `data`. So a
+  precondition's hidden `tenant` is the server's
+  for the gate and for the selector alike, and a key the lookup hides never
+  reaches an open spread service's `**changes`, where a `setattr` loop would
+  write it onto the row; a service naming it receives the server's value. A
+  provider, a registered pool seed or the parameter's default still fills the
+  key, and so does a route capture for a selector or a target lookup, the pools
+  a route capture reaches; a service's own pool takes none. A provider
+  declining with `UNSET` now leaves the default rather than the caller's value.
+  A service's `input_data`, or a `get_input_data` view
+  hook, fills it too: that value is the server's, merged over the caller's input
+  with its keys winning, so it is never dropped, and where the caller sends the
+  same key the server's value is the one that arrives. It reaches the service
+  through an input serializer field of that name under every policy, as a
+  `PASSTHROUGH` extra, and through a spread service's bare `**kwargs`, except a
+  key the target lookup names, its `pk` or a key it hides, which reaches a spread
+  service only through a parameter of that name, as the caller's `pk` does; a closed
+  spec with no such field still drops it under `IGNORE`, and `REJECT`, which
+  judges the merged arguments, still refuses it there, as it refuses any
+  `input_data` key nothing declares. `REJECT` still refuses the caller's value on
+  a closed spec. A caller that filled a hidden key through `params`, such as a
+  task runner or a test, now loses the value without an error where the parameter
+  has a default, and fails with the callable's own `TypeError` (a `500` over
+  HTTP) where it has none, which is not named as a missing argument. Move the
+  value to a `kwargs=` provider, `input_data` or a registered pool seed. Over
+  HTTP, selector views and mutation services spread nothing and are unchanged,
+  but a mutation's `instance_selector_spec` or `collection_selector_spec` is
+  resolved from the request body, so a body's value for a key the lookup marks
+  hidden is dropped there too: a mutation that answered `200` for a body carrying
+  a required one now answers `500`. A route capture of that name still fills it.
+- **Off HTTP, a service's output re-read is no longer filtered by the call's
+  arguments.** With no `filter_data`, the `output_selector_spec`'s `filter_set`
+  read the arguments, so a key that changed the result was not in the input
+  schema and was refused by `REJECT`. It now reads only `filter_data`, which the
+  HTTP path fills from the query string, and without one it is bound to an empty
+  mapping, as a request with no query string would bind it. A transport that
+  relied on filtering the re-read through the arguments now gets it unfiltered.
+  A selector's own `filter_set` and a target lookup's still fall back to the
+  arguments, because their fields are declared input.
+
+- **The `typing-extensions` floor rises from 4.13 to 4.14.** On Python 3.14,
+  4.13's `get_annotations` hands the standard library a format number it
+  reserves for internal use and raises, so `provider_keys` read every typed
+  provider as untyped there. 4.14 is the first release that reads annotations
+  in the `FORWARDREF` format on 3.14.
+
+### Fixed
+
+- **A schema marker inside an `X | None` the author wrote is honoured.**
+  `Annotated[int, NotClientInput] | None` declares what
+  `Annotated[int | None, NotClientInput]` does, but only the second was read: the
+  first was reflected and dispatched as if unmarked. A `NotClientInput` key was
+  advertised in the input schema and, under `UnknownArguments.REJECT`, a
+  client's value for it was accepted and reached the selector or service. An
+  `InputRequired` key was neither listed in `required` nor enforced, and an
+  `InputDescription` was dropped. The markers are now read through one level of
+  `Optional`, spelled with `|` or `Optional[...]`, on a parameter and on an
+  `Unpack[TypedDict]` key alike, and the type keeps its `null` branch.
+- **One annotation that does not resolve at runtime no longer hides every schema
+  marker on its callable.** The callable's annotations were resolved together,
+  so a parameter typed with a class imported under `if TYPE_CHECKING:` failed
+  the lot, and every reader took the callable as unmarked: a `NotClientInput`
+  parameter beside it was advertised in the input schema and the caller's value
+  reached the selector or service under `IGNORE`, `PASSTHROUGH` and `REJECT`
+  alike, an `InputRequired` one was neither listed nor enforced, and `as_view()`
+  mounted a misplaced or contradictory marker it would otherwise refuse. A
+  `TypedDict` lost the markers on every key the same way when one key did not
+  resolve. Each parameter and key is now resolved on its own, so the failure
+  costs only that name, and its own markers are still read: with the names that
+  do not resolve standing in for `Any`, and where even that cannot reach them,
+  by name, failing closed, so an annotation naming `NotClientInput` is hidden
+  and one naming `InputRequired` is required. `REJECT` no longer refuses to run
+  on a typed or open `**kwargs` because an unrelated parameter does not
+  resolve. A `**kwargs: Unpack[Extras]` whose `TypedDict` itself does not
+  resolve is still unknown: none of its keys is hidden, `REJECT` raises
+  `ImproperlyConfigured` and the other policies deliver what the caller sent.
+- **A service whose output re-read can find no row admits `null` in its output
+  schema.** An `output_selector_spec` with a `selector` re-reads the row the
+  service wrote, and dispatch materializes that re-read with `.first()`, so a
+  selector that filters the row out presents `None`. The output schema, and the
+  capability manifest's `output_schema` built from it, described an object with
+  required fields, so that `None` failed the schema stated for it. Such a spec's
+  output schema is now typed `["object", "null"]`, with no declaration needed.
+- **A `@service_action` serves an `AdditionalInputRequired` schema as it was
+  raised, on any viewset.** The restore that keeps a `422`'s `schema` JSON
+  Schema, rather than a schema with every leaf turned into a string by DRF, was
+  a `handle_exception` override on drfs' bases. A decorated method on DRF's own
+  `GenericViewSet` or `ViewSet` never reached it, and nor did one on a viewset
+  listing `ActionSerializerResolver` after `GenericViewSet`, where DRF's method
+  comes first. Those served `"default": "False"` and `"maximum": "3"`, and a
+  client building a form reads `"False"` as a non-empty string. The decorator
+  now restores the schema itself on whatever viewset declares the action, so
+  the documented workaround of adding a drfs base before `GenericViewSet` is no
+  longer needed. The restore runs inside the exception handler the view asks
+  for, beneath `handle_exception`, so an override of `handle_exception` has the
+  last word on a `@service_action`'s body on any viewset, as it does on a drfs
+  viewset's other actions, and a viewset's own `get_exception_handler` still
+  chooses the handler. The configured `EXCEPTION_HANDLER` still runs once per
+  request and still sees DRF's `ErrorDetail` leaves, and a handler that
+  declines the error by returning `None` still fails the request having run
+  once. A drfs mixin listed after `GenericViewSet` still inherits DRF's
+  `handle_exception`, so that mixin's own actions serve the schema stringified.
+- **A mutation with nothing to present answers with an empty body, whether or
+  not it declares an `output_serializer`.** Over HTTP, a mutation rendered its
+  `output_selector_spec`'s `output_serializer` before asking whether there was a
+  value. So once the nested spec declared one, `None` became a row of blank and
+  default field values, `{"id": null, "title": ""}`, for a row that does not
+  exist. A create or a non-detail `@service_action` whose service returned
+  `None` sent that row under its `201` or `200`. A re-read that found no row
+  sent it in place of the authoritative empty `204`, and a destroy sent it as
+  the body of its `204`. Each now answers as the same spec without a serializer
+  always has: an empty `204` when the re-read returns `None`, and otherwise an
+  empty body at an explicitly set `success_status`, else `204`. An update whose
+  service mutates in place and returns `None` still renders its target. The
+  same blank row was fixed for `render_spec_output` in 0.52.1 and for a
+  `RETRIEVE` `@selector_action` in 0.55.0, and this was the path left.
+- **A destroy that has a value to present answers `200`, not `204`.** A
+  single-row destroy whose service returned something, a soft delete's row
+  through the `output_serializer` or a raw value such as a count, sent it as the
+  body of the action's default `204`, a status that carries no body, so a client
+  or proxy is entitled to discard it. It now answers `200` with the body, as a
+  bulk destroy already did. The same holds for any mutation whose
+  `success_status` is, or returns, `204`: a value is sent under `200`, as on the
+  bulk path. Any other `success_status` is used as given, and a destroy whose
+  service returns `None` still answers with an empty `204`, at an explicit
+  `204` too.
+- **The OpenAPI schema documents a body under the status it is served under.**
+  `ServiceAutoSchema` documented a destroy's `output_serializer` under its
+  `204`, single-row or bulk, while the runtime serves a body under `200`. It
+  now asks the function the renderers ask, so such a destroy is documented as
+  `200` with its serializer. A spec declaring no `output_serializer` is still
+  documented as an empty response at its status: whether its service returns a
+  body is not declared anywhere the schema reads, and a raw value it returns,
+  a bulk destroy's count say, is served as a `200` the schema does not show.
+  Where a spec declaring an `output_serializer` may present `None`, as
+  `can_present_nothing` answers, the empty `204` the renderers then answer is
+  documented beside the body, so a create whose re-read finds no row shows both
+  its `201` and the `204`. The renderers decide the empty answer from more than
+  the spec, so in three cases the `204` is documented and never served, as the
+  OpenAPI page states: an explicit `success_status` with nothing to re-read,
+  whose empty answer goes out at that status; an update or detail
+  `@service_action` that renders its target in place; and a
+  `collection_selector_spec` target, answered empty at the action's status.
+
+- **A parameter that nothing filled is refused as a missing argument, not a
+  `TypeError`.** A selector, service, target lookup or precondition parameter
+  with no default reached the callable without a value when the caller did not
+  send it and nothing else supplied it: a `kwargs=` provider that declined it with
+  `UNSET`, or no provider at all. The callable then raised `TypeError`, which
+  every transport built on `dispatch_spec` passed on as a crash, where an
+  `InputRequired` key in the same position was already refused cleanly.
+  `dispatch_spec` and `adispatch_spec` now refuse both the same way, with one
+  `ServiceValidationError` listing every missing name, sorted:
+  `{"non_field_errors": ["Missing required argument(s): 'tenant'."]}`. Only a
+  name the caller could fill is named, marked or not: for a selector and its
+  preconditions, or for a target lookup, a parameter of that selector; for a
+  service and its preconditions under a `SPREAD_*` binding, a key `REJECT`
+  admits there, every name where a bare `**kwargs` opens the set, but not a
+  target lookup key the service is never handed: beside an input serializer
+  only a field of that name carries one, and without one the service takes
+  only those it names, so its preconditions receive no other; and under
+  `BUNDLE`, none, for a selector as for a service, because no caller input
+  reaches their pool by name: a service's arrives as `data`. A target lookup is
+  spread from the caller's arguments under any binding. Less, every time, a key
+  any callable in the call marks `NotClientInput`, `view`, and the keys the
+  caller sent, so a resend carrying the named key is past the refusal, and a
+  client retrying on it, as an agent does, never loops. A parameter with a default, `**kwargs`, a positional-only
+  parameter, a reserved pool seed such as `data` or `instance`, and any
+  parameter of a `functools.wraps` wrapper that takes `**kwargs` and may fill
+  it itself are never missing. Anything else nothing fills, a provider gap under
+  `BUNDLE` say, is a configuration error no caller can fix, and still fails as
+  the callable's own `TypeError`, as it does in django-service-specs. **That now
+  includes an `InputRequired` key no caller could send**, which was refused
+  whatever the binding: under `BUNDLE` a resend carrying it was refused again,
+  or as unexpected under `REJECT`, so a client retrying on the refusal looped. It
+  fails as the callable's own error instead, a `TypeError` for a parameter and
+  whatever reading it raises for an unpacked `TypedDict` key. Over HTTP that is a
+  mutation whose provider or view hook leaves a marked service or precondition
+  key out, which answers `500` where it answered `400`. Two callables are not
+  checked at all, for a marked key or a plain parameter, because no caller
+  input reaches their pool: an affordance's `when` condition, and the
+  `output_selector_spec` re-read, which also runs after the service's write has
+  committed, so a refusal there would report a write that happened as one that
+  did not. Over HTTP only a mutation view maps the refusal, and only a target
+  lookup reaches it: a lookup parameter nothing fills, which `as_view()` never
+  checks and a mutation reads from the request body, answers `400` where it
+  answered `500`. A declared `kwargs=` provider or view hook that leaves a
+  service or precondition parameter out still answers `500`, because a mutation
+  dispatches its service `BUNDLE` and no request could fill it. A selector view
+  dispatches `BUNDLE` too, so a selector parameter nothing fills is not refused
+  there, and still answers `500`.
+- **A caller's `view` no longer reaches a selector or service.** No pool carries
+  `view`, and the input schema already hid it from a selector's parameters, but
+  it was not a reserved seed, so a caller's `{"view": ...}` was spread into the
+  pool and a callable declaring `view` received it, over a `kwargs=` provider's
+  value under `SPREAD_CALLER_WINS`. `dispatch_spec` and `adispatch_spec` now treat
+  it as every callable marking it `NotClientInput`: the caller's value is dropped
+  at every site that spreads caller input, `REJECT` refuses it as
+  `Unexpected argument(s): 'view'.` on a closed spec, and a required `view`
+  nothing filled is not named as a missing argument. A provider and a view hook
+  still fill it, and so does a route capture of that name for a selector or a
+  target lookup. Over HTTP a selector view spreads
+  nothing and is unchanged; a request body's `view` no longer reaches a
+  mutation's `instance_selector_spec` or `collection_selector_spec` lookup.
+- **A spread service with no input serializer receives the arguments its own
+  signature declares.** For a `ServiceSpec` that is not `many=True` and has no
+  `input_serializer`, dispatched with a `SPREAD_*` `argument_binding`, only the
+  target lookup's keys counted as declared input, so the service's own
+  parameters were unknown arguments. Under `IGNORE`, the default, a `reason` the
+  caller sent was dropped, so the call failed as though it had never been sent,
+  and under `REJECT` it was refused as unexpected; only `PASSTHROUGH` delivered
+  it. `dispatch_spec` and `adispatch_spec` now declare
+  the service's keyword parameters and `Unpack[TypedDict]` keys beside the
+  lookup's, less the reserved pool seeds (registered ones included),
+  positional-only parameters, `view` and every key the service, a precondition
+  or the target lookup marks `NotClientInput`, and deliver the
+  caller's values for them under every policy. A required one left out is
+  missing under every policy. A bare `**kwargs` makes the set open, so every key
+  the caller sent reaches the service except the reserved seeds, the server-owned
+  keys, and the target lookup's keys, which reach it only by name: the lookup consumed `pk` to find the
+  `instance`, so `def update(*, instance, **changes)` does not find it in
+  `changes`, while `def update(*, instance, pk, **changes)` receives it. An
+  annotated `**kwargs` that cannot be resolved is taken the same way under
+  `IGNORE` and `PASSTHROUGH`, and makes `REJECT` raise `ImproperlyConfigured`.
+  A service that declares `data` receives the parameters it took by name there,
+  beside the `PASSTHROUGH` extras. `BUNDLE`, which `AUTO` resolves to for a
+  service, a spec with an `input_serializer` and a `many=True` spec keep the set
+  they had.
+- **A service whose output is declared `LIST` with nothing to re-read presents
+  its return as a list.** `output_selector_spec=SelectorSpec(kind=LIST)` with no
+  `selector` re-reads nothing, and dispatch passed the service's return through
+  as one value, reporting `kind="instance"`, though the declaration says the
+  return is a set. Over HTTP, where that declaration is valid beside a
+  `collection_selector_spec`, the view rendered the rows the service returned as
+  a single row and failed with an `AttributeError` reading a field off the
+  list. `dispatch_spec` and `adispatch_spec` now report `kind="list"` with the
+  return passed through as it came, a `QuerySet` still lazy, so the HTTP view
+  renders it row by row and every transport reads the same kind. The output
+  schema and the capability manifest's `output_schema` are an array for it, and
+  `can_present_nothing` answers `False`, `allow_none=True` or not, because a
+  list is empty rather than `None`. A return that is no set of rows, meaning a
+  mapping, a `str` or `bytes`, `None` or anything that does not iterate, now
+  raises `ImproperlyConfigured` naming the declaration and the type returned.
+  It is raised after the service has run and its `atomic` block has closed, so
+  the write stands: it is the author's error, not a refusal of the call. A
+  collection mutation under that declaration whose service returned `None`
+  answered with an empty body, and now raises. A `RETRIEVE` declaration with no
+  `selector` still presents the return as one value.
+- **The output schema no longer names `null` for a choice field whose `None`
+  has a display.** Django's `(None, "Unknown")` on a nullable field labels
+  `None`, and the projected payload serves `"Unknown"` in its place and never a
+  null, yet `annotate_output_schema`, and `output_to_json_schema` with a
+  `projection`, restated the type beside the displays as `["string", "null"]`
+  wherever the stated type admitted a null. `"null"` is now named only where
+  the stated type admitted it and a null is still served: a `None` listed with
+  no display of its own, or one a `{"type": "null"}` entry of a `oneOf`
+  admits. The values the schema accepts are unchanged, since the displays
+  listed beside the type never included a null. The walk's own schema for a
+  nullable choice states no type, so this reaches a choice whose type is
+  stated, as a `JsonSchemaRegistry` rule may.
+
 ## [0.55.0] — 2026-10-05
 
 ### Added
@@ -4028,7 +4458,8 @@ first-class sync + async support and 100% test coverage.
 - Linted and formatted with [`ruff`](https://github.com/astral-sh/ruff).
 - CI matrix runs the full Python × Django product on every push.
 
-[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.55.0...HEAD
+[Unreleased]: https://github.com/Artui/djangorestframework-services/compare/v0.56.0...HEAD
+[0.56.0]: https://github.com/Artui/djangorestframework-services/compare/v0.55.0...v0.56.0
 [0.55.0]: https://github.com/Artui/djangorestframework-services/compare/v0.54.0...v0.55.0
 [0.54.0]: https://github.com/Artui/djangorestframework-services/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/Artui/djangorestframework-services/compare/v0.52.1...v0.53.0

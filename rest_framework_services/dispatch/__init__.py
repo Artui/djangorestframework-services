@@ -32,6 +32,7 @@ from rest_framework_services.dispatch.paginate_output import (
     DEFAULT_PAGE_SIZE,
     paginate_output,
 )
+from rest_framework_services.dispatch.provider_keys import provider_keys
 from rest_framework_services.dispatch.render_for_audience import render_for_audience
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.dispatch.renderable_serializer_class import (
@@ -41,6 +42,10 @@ from rest_framework_services.dispatch.unguarded_specs import unguarded_specs
 from rest_framework_services.dispatch.unmet_operation_affordance import (
     unmet_operation_affordance,
 )
+
+# Public from the shared ``utils`` rather than a module of its own, because the
+# declared-input and fillable reads beside it there are built on it.
+from rest_framework_services.dispatch.utils import server_owned_keys
 
 __all__ = [
     "adispatch_spec",
@@ -59,9 +64,11 @@ __all__ = [
     "null_progress",
     "operation_affordances",
     "paginate_output",
+    "provider_keys",
     "render_for_audience",
     "render_spec_output",
     "renderable_serializer_class",
+    "server_owned_keys",
     "unguarded_specs",
     "unmet_operation_affordance",
 ]

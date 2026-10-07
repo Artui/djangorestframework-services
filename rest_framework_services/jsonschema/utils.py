@@ -501,7 +501,9 @@ def _python_type_to_schema(
     ``registry.python_types`` rules are matched by identity and win first. The
     ``Annotated[...]`` wrapper is stripped before anything else so markers do not
     push a typed annotation into the fallback; the markers themselves are read by
-    the callers that care.
+    the callers that care. Stripping goes through ``read_schema_markers``, so an
+    ``Annotated`` inside one ``Optional`` is stripped with its ``null`` branch
+    kept.
 
     Handled structurally, because a caller that declared this much deserves to
     have it published: the JSON scalars, ``None``, the stdlib scalars DRF
@@ -605,13 +607,12 @@ def callable_input_schema(
     ``NotClientInput`` is refused instead of quietly disappearing with the key
     it was written for.
     """
-    try:
-        # The markers ride in ``Annotated`` metadata, which a plain read would
-        # strip, and on Python 3.10 ``typing`` buries under ``Optional`` for a
-        # ``None`` default; the helper's docstring has the detail.
-        hints = callable_type_hints(fn)
-    except Exception:  # noqa: BLE001 — unresolvable forward refs → untyped, never fatal
-        hints = {}
+    # The markers ride in ``Annotated`` metadata, which a plain read would strip,
+    # and on Python 3.10 ``typing`` buries under ``Optional`` for a ``None``
+    # default; the helper's docstring has the detail. It reads each annotation on
+    # its own, so one that does not resolve leaves the others typed and marked, and
+    # reaches the schema as far as it evaluates (``{}`` for what does not).
+    hints = callable_type_hints(fn)
     # A supplied name is dropped exactly where a skipped one is. Held by
     # ``test_a_supplied_name_is_dropped_from_properties_and_required`` (an
     # ordinary parameter) and ``test_a_supplied_typed_dict_key_is_dropped``

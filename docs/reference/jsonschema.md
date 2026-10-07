@@ -27,12 +27,53 @@ output_to_json_schema(InvoiceSerializer, kind=SelectorKind.RETRIEVE, allow_none=
 ```
 
 The function takes a serializer, not a spec, so the caller says whether a miss
-is served. `spec_to_json_schema(spec, phase="output")` passes a `SelectorSpec`'s
-own `allow_none`. A list never presents `None`, so `kind=LIST` is unchanged
+is served. `spec_to_json_schema(spec, phase="output")` asks
+[`can_present_nothing`](#can_present_nothing) of the spec and passes its answer.
+A list never presents `None`, so `kind=LIST` is unchanged
 whatever `allow_none` says. The default is `False`, which is the schema every
 caller got before the parameter existed. A protocol that needs an object at the
 root, such as an MCP tool's `outputSchema`, can leave it off and describe the
 empty result in its own terms.
+
+## `can_present_nothing`
+
+::: rest_framework_services.can_present_nothing.can_present_nothing
+
+### When a service presents nothing
+
+A single-row `ServiceSpec` presents `None` in two ways, and its output schema
+admits `null` for both:
+
+- **Its output re-read finds no row.** An `output_selector_spec` with a
+  `selector` re-reads the row the service wrote, and dispatch materializes that
+  re-read with `.first()`, so a selector that filters the row out yields `None`.
+  This needs no declaration.
+- **The service returns `None` and declares it.** With no re-read, dispatch
+  presents the service's own return. `allow_none=True` on the `ServiceSpec`
+  says that return may be `None`:
+
+```python
+ServiceSpec(
+    service=touch_tasks,  # returns None
+    allow_none=True,
+    output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=TaskOut),
+)
+# spec_to_json_schema(spec, phase="output")["type"] == ["object", "null"]
+```
+
+Without the declaration the schema stays strict, and an undeclared `None` is
+not refused in this release: dispatch presents it, against a schema that does
+not admit it. `allow_none` on the nested `output_selector_spec` is still not
+read, and a result that is a list (`many=True`, or a `LIST` output declaration,
+re-read or not) is declared never `None` whatever either flag says. A callable
+returning `None` there anyway is the author's error. Dispatch refuses it only
+where a `LIST` declaration has nothing to re-read; a `many=True` service, a
+`LIST` re-read and a `LIST` `SelectorSpec`'s selector have their `None`
+presented, which a transport validating structured output will reject.
+
+The capability manifest's `output_schema` is the same schema. A transport
+advertising an output schema of its own should ask `can_present_nothing(spec)`
+rather than derive the answer again, so every route states the same `null`.
 
 ## `filterset_to_json_schema`
 
@@ -78,9 +119,9 @@ sends and which the transport fills. `task_by_pk(user, *, pk)` and
 `outstanding(user, *, currency)` look alike, yet a client must send `pk`, while
 `currency` arrives from a pool seed. So by default every reflected parameter is
 optional unless it carries `InputRequired`. A lookup without a default is then
-advertised as optional, and a call without it fails with `TypeError: ...
-missing 1 required keyword-only argument: 'pk'`. A seed is advertised as an
-input that the seed then overrides.
+advertised as optional, and a call without it is refused with
+`Missing required argument(s): 'pk'.` A seed is advertised as an input that the
+seed then overrides.
 
 A transport describing its own tools does know which names it fills: its
 registered pool seeds, the names its `kwargs=` providers return, and the URL
@@ -122,12 +163,61 @@ byte-identical to what it was before `supplied` existed, so a reader that does
 not know what is filled for it (drfs' own capability manifest, for one) is
 unchanged.
 
-`supplied` reaches reflected callable parameters and nothing else. A
-`ServiceSpec`'s input is its `input_serializer`, the output phase reflects no
-parameters, and a `filter_set` field is read from the caller's own params, so
+`supplied` reaches reflected callable parameters and nothing else: a
+selector's, and a spreading service's (below). A `ServiceSpec`'s
+`input_serializer` has fields rather than parameters, the output phase reflects
+no parameters, and a `filter_set` field is read from the caller's own params, so
 all three are the same with or without it. To describe a service tool's target
 lookup, reflect its `instance_selector_spec` or `collection_selector_spec` (a
 `SelectorSpec`) with the names the transport fills there.
+
+### A spreading service's own parameters: `argument_binding=`
+
+A `ServiceSpec`'s input schema is its `input_serializer`'s. A service with no
+serializer, dispatched under a `SPREAD_*` `argument_binding`, has nothing but its
+own signature to read the caller's input, so dispatch declares the service's
+parameters as that input, and `UnknownArguments.REJECT` admits them. A transport
+passes the binding it dispatches with, and the schema lists the same parameters:
+
+```python
+def close_ticket(*, instance, reason: str, note: str = "", user) -> Ticket: ...
+
+
+spec = ServiceSpec(service=close_ticket, instance_selector_spec=ticket_by_pk)
+
+spec_to_json_schema(spec, argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS)
+# {"type": "object",
+#  "properties": {"reason": {"type": "string"}, "note": {"type": "string"}}}
+```
+
+They are reflected the way a selector's are, through the same function:
+keyword-passable parameters and the keys of a `**kwargs: Unpack[TypedDict]`,
+with `NotClientInput`, positional-only parameters, `view`, and every name in
+`RESERVED_POOL_SEEDS` (`instance`, `user` and the rest) left out. A key that a
+precondition or the target lookup marks `NotClientInput` is left out too: it is
+server-owned for the whole call, so dispatch strips the caller's value before
+any callable reads the pool, and `REJECT` refuses it. For the built-in seeds the
+property names are exactly the keys dispatch declares for that spec and
+binding; a transport that registers its own pool seeds passes them in
+`supplied=`, or the schema advertises them as input. Without
+`supplied` only a marker requires a parameter, as for a selector, because a
+`kwargs=` provider may fill one; with it, a parameter with no default is
+required, and a supplied name is dropped.
+
+Three things are not in it:
+
+- **The target lookup's keys.** The `pk` that `ticket_by_pk` reads belongs to
+  the lookup, not the service. Transports merge it themselves, by reflecting the
+  lookup's `SelectorSpec`, as they do beside an `input_serializer`.
+- **Closure.** A bare `**kwargs` makes dispatch admit every key, and the schema
+  lists the parameters the service names without `additionalProperties`. drfs
+  states `additionalProperties: false` only around a `many=True` list, and a
+  transport closes a tool's input, or not, from its own policy.
+- **Anything under `AUTO`.** `AUTO`, the default, is `BUNDLE` for a service, and
+  `BUNDLE` spreads nothing, so a caller that does not pass the argument gets the
+  schema it always had: `{"type": "object"}` with no serializer. A `many=True`
+  spec, one with an `input_serializer`, a `SelectorSpec` and the output phase do
+  not read it.
 
 ### What an annotation publishes
 
@@ -184,6 +274,70 @@ entirely and so leaves the sentence no caller to reach, and refused twice on one
 input, because a schema publishes one description and picking a winner would be
 an arbitrary rule to memorise. See
 [the off-HTTP inputs recipe](../recipes/off-http-inputs.md#describing-an-input-inputdescription).
+
+### Where a marker may sit
+
+`InputRequired`, `NotClientInput` and `InputDescription` are read on the
+outermost layer of an input's annotation, or inside **one** `Optional` written
+around it. These two declare the same nullable, hidden key, and both are read:
+
+```python
+def team_tasks(*, team: Annotated[int | None, NotClientInput] = None): ...
+def team_tasks(*, team: Annotated[int, NotClientInput] | None = None): ...
+```
+
+`Optional[Annotated[int, NotClientInput]]` is the second spelling too, and the
+same holds for an `Unpack[TypedDict]` key. The type keeps its `null` branch, so
+an `InputRequired` key spelled this way publishes as required and nullable.
+
+Anything wider raises `ImproperlyConfigured` rather than guessing what the marker
+was meant to cover: a union with another member beside the marked one
+(`Annotated[int, NotClientInput] | str`), two marked members, or a marker nested
+inside a container or under another `Annotated` (`list[Annotated[int,
+NotClientInput]]`). The refusal names the spelling that works. Another library's
+`Annotated` metadata is not placed, and stays legal at any depth.
+
+A view, viewset or `@service_action` mounting the spec raises it from
+`as_view()`, so the app fails at URL-conf load rather than on every request.
+Off HTTP, a spec no view mounts raises it where its markers are first read: at
+schema generation, or on each `dispatch_spec` call. The spec's constructor does
+not, because an annotation naming a class declared further down the module
+does not resolve yet when the spec is built.
+
+### What a service's output schema describes
+
+A `ServiceSpec`'s output schema reads the serializer and `affordances` off its
+`output_selector_spec`, and describes the shape dispatch renders:
+
+- `many=True` renders the whole list, so the schema is an array whatever the
+  nested `kind`.
+- An `output_selector_spec` with a `selector` re-reads the service's result, and
+  its `kind` decides: one row for `RETRIEVE`, an array for `LIST`.
+- Without a `selector` nothing is re-read, and dispatch presents the service's
+  own return as the nested `kind` says: one value for `RETRIEVE`, and for `LIST`
+  a list, which a list operation returning its rows declares:
+
+```python
+ServiceSpec(
+    service=publish_tasks,  # returns the tasks it published
+    collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST, selector=drafts),
+    output_selector_spec=SelectorSpec(kind=SelectorKind.LIST, output_serializer=TaskOut),
+)
+# spec_to_json_schema(spec, phase="output")["type"] == "array"
+```
+
+This is the same shape the HTTP view renders and every transport reads off
+`result.kind`, and the capability manifest's `output_schema` states it too.
+
+Under a `LIST` declaration with no `selector`, the service has to return the
+rows: a `QuerySet`, a list, a generator or another iterable. A mapping, a `str`
+or `bytes`, `None`, or anything that does not iterate is refused with
+`ImproperlyConfigured` naming the declaration and the type that came back,
+because it is the author's error rather than the caller's. **The service has
+already run when it is raised**, and its own `atomic` block has closed, so
+dispatch does not undo what it wrote. It is not a refusal: a caller must not
+read it as nothing having changed, or retry it as though the call had been
+turned away.
 
 ## A spec-level title and description
 

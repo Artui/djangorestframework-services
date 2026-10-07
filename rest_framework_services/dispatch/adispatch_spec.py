@@ -14,6 +14,7 @@ from rest_framework_services.dispatch.base_pool import base_pool
 from rest_framework_services.dispatch.utils import (
     COLLECTION_SOURCE,
     INSTANCE_SOURCE,
+    NOTHING_FILLABLE,
     OUTPUT_SOURCE,
     SELECTOR_SOURCE,
     acall_preconditions,
@@ -21,6 +22,7 @@ from rest_framework_services.dispatch.utils import (
     arun_off_loop,
     arun_service_callable,
     call_target_guard,
+    caller_fillable,
     clear_prefetch_cache,
     guard_many_argument_binding,
     guard_mapping_params,
@@ -37,8 +39,12 @@ from rest_framework_services.dispatch.utils import (
     resolve_service_kwargs,
     resolve_service_many_input,
     resolve_unknown_arguments,
+    server_owned_keys,
+    service_extras,
     service_input,
+    service_return_as_list,
     shape_queryset,
+    strip_hidden_inputs,
     strip_reserved_seeds,
     view_url_kwargs,
     wire_named_errors,
@@ -162,6 +168,7 @@ async def _adispatch_selector(
         reserved=pool_seeds.reserved,
     )
     binding = resolve_argument_binding(spec, argument_binding)
+    owned = server_owned_keys(spec)
     pool: dict[str, Any] = base_pool(
         seeds=pool_seeds,
         user=user,
@@ -182,15 +189,21 @@ async def _adispatch_selector(
         pool,
         binding=binding,
         reserved=pool_seeds.reserved,
-        spread_source=params,
+        # A key the selector or a precondition marks ``NotClientInput`` leaves the
+        # caller's input before the spread, so neither the binding's precedence nor
+        # a provider declining with ``UNSET`` can let the caller's value back in.
+        spread_source=strip_hidden_inputs(params, owned),
         provider_kwargs=await arun_off_loop(
             resolve_service_kwargs, spec, view=view, request=request, view_hooks=view_hooks
         ),
         url_kwargs=view_url_kwargs(view, reserved=pool_seeds.reserved),
     )
+    # The binding, too: under ``BUNDLE`` no caller input reaches the selector's
+    # pool, so none of its parameters is one a resend could fill.
+    fillable = caller_fillable(spec, params, owned=owned, argument_binding=binding)
     try:
         result: Any = await arun_callable(
-            spec.selector, resolve_dispatch_kwargs(spec.selector, pool)
+            spec.selector, resolve_dispatch_kwargs(spec.selector, pool, fillable=fillable)
         )
         # Shaping runs ``extend_queryset`` and the ``filter_set`` (whose
         # validation / ``filter_<name>`` methods query) — all sync, all off-loop.
@@ -223,7 +236,7 @@ async def _adispatch_selector(
             view=view,
         )
         pool["collection"] = result
-        await acall_preconditions(spec, pool)
+        await acall_preconditions(spec, pool, fillable=fillable)
         return DispatchResult(value=result, kind="list", status=200)
     instance: Any = await amaterialize_retrieve(result)
     if instance is None:
@@ -233,7 +246,7 @@ async def _adispatch_selector(
         call_target_guard, on_target_resolved, spec, instance, user=user, request=request, view=view
     )
     pool["instance"] = instance
-    await acall_preconditions(spec, pool)
+    await acall_preconditions(spec, pool, fillable=fillable)
     return DispatchResult(value=instance, kind="instance", status=200)
 
 
@@ -278,6 +291,7 @@ async def _adispatch_service(
             many_as_argument=many_as_argument,
         )
     guard_mapping_params(params)
+    owned = server_owned_keys(spec)
 
     if instance is not UNSET:
         # The caller resolved the target itself — the HTTP path, whose
@@ -292,6 +306,7 @@ async def _adispatch_service(
             request=request,
             view=view,
             filter_data=filter_data,
+            owned=owned,
         )
         if mode == "missing":
             return DispatchResult(value=None, kind="not_found", status=404)
@@ -306,17 +321,15 @@ async def _adispatch_service(
         resolve_input_context, spec, view=view, request=request, view_hooks=view_hooks
     )
     # ``input_data`` providers may query too; same rule.
-    params = apply_input_data(
-        params,
-        await arun_off_loop(
-            resolve_input_data,
-            spec,
-            view=view,
-            request=request,
-            instance=instance,
-            view_hooks=view_hooks,
-        ),
+    server_input = await arun_off_loop(
+        resolve_input_data,
+        spec,
+        view=view,
+        request=request,
+        instance=instance,
+        view_hooks=view_hooks,
     )
+    params = apply_input_data(params, server_input)
     # Validation can touch the DB (e.g. ``UniqueValidator``); run it off-loop.
     serializer = await arun_off_loop(
         build_input_serializer_from_data,
@@ -326,12 +339,33 @@ async def _adispatch_service(
         context=input_context,
         instance=instance,
     )
-    extras = resolve_unknown_arguments(
-        spec,
-        params,
-        unknown_arguments=unknown_arguments,
-        serializer=serializer,
-        reserved=pool_seeds.reserved,
+    # The policy sees a server-owned key first, so ``REJECT`` on a closed spec
+    # still refuses it; only what the service would be handed loses it. With no
+    # input serializer under a spreading binding, that is the caller's values for
+    # the service's own parameters as well as what ``PASSTHROUGH`` forwards. A key
+    # ``input_data`` wrote holds the server's value, so both strips keep it. Each
+    # strip takes the whole call's server-owned keys, not the service's alone:
+    # test_a_key_another_callable_hides_never_reaches_the_services_data holds this
+    # one, test_a_field_named_like_a_key_a_precondition_hides_is_not_spread the next.
+    extras = dict(
+        strip_hidden_inputs(
+            service_extras(
+                spec,
+                params,
+                resolve_unknown_arguments(
+                    spec,
+                    params,
+                    unknown_arguments=unknown_arguments,
+                    serializer=serializer,
+                    reserved=pool_seeds.reserved,
+                    argument_binding=argument_binding,
+                ),
+                argument_binding=argument_binding,
+                reserved=pool_seeds.reserved,
+            ),
+            owned,
+            server_supplied=server_input,
+        )
     )
     data, spread_source = service_input(serializer, extras)
 
@@ -354,7 +388,10 @@ async def _adispatch_service(
         pool,
         binding=binding,
         reserved=pool_seeds.reserved,
-        spread_source=spread_source,
+        # A field the input serializer declares stays in ``data``, which is that
+        # serializer's payload; it fills a hidden parameter only when ``input_data``
+        # supplied it, so that the value validated is the server's.
+        spread_source=strip_hidden_inputs(spread_source, owned, server_supplied=server_input),
         provider_kwargs=await arun_off_loop(
             resolve_service_kwargs, spec, view=view, request=request, view_hooks=view_hooks
         ),
@@ -370,10 +407,20 @@ async def _adispatch_service(
         pool["data"] = data
 
     await aenforce_affordances(spec, pool, instance=instance, reserved=pool_seeds.reserved)
+    fillable = caller_fillable(
+        spec,
+        params,
+        owned=owned,
+        serializer=serializer,
+        argument_binding=argument_binding,
+        reserved=pool_seeds.reserved,
+    )
     with wire_named_errors(serializer):
-        await acall_preconditions(spec, pool)
+        await acall_preconditions(spec, pool, fillable=fillable)
         result: Any = await arun_service_callable(
-            spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
+            spec.service,
+            resolve_dispatch_kwargs(spec.service, pool, fillable=fillable),
+            atomic=spec.atomic,
         )
     # Called directly, not through ``arun_off_loop``: it reads and rebinds one
     # attribute on the target and issues no query, so there is nothing here that
@@ -386,7 +433,7 @@ async def _adispatch_service(
         pool_seeds=pool_seeds,
         request=request,
         view=view,
-        params=filter_data if filter_data is not None else params,
+        filter_data=filter_data,
     )
 
     # A callable ``spec.success_status`` keys on the *service's* return value
@@ -494,10 +541,13 @@ async def _adispatch_service_many(
         pool["serializer"] = serializer
     # Bulk: once, no target — see the sync sibling.
     await aenforce_affordances(spec, pool, instance=None, reserved=pool_seeds.reserved)
+    # Always ``BUNDLE``: see the sync sibling.
     with wire_named_errors(serializer):
-        await acall_preconditions(spec, pool)
+        await acall_preconditions(spec, pool, fillable=NOTHING_FILLABLE)
         result: Any = await arun_service_callable(
-            spec.service, resolve_dispatch_kwargs(spec.service, pool), atomic=spec.atomic
+            spec.service,
+            resolve_dispatch_kwargs(spec.service, pool, fillable=NOTHING_FILLABLE),
+            atomic=spec.atomic,
         )
     status = (
         success_status
@@ -521,6 +571,7 @@ async def _aresolve_target(
     request: Any,
     view: Any,
     filter_data: Mapping[str, Any] | None,
+    owned: frozenset[str],
 ) -> tuple[str, Any]:
     """Async :func:`~...dispatch.dispatch_spec._resolve_target`.
 
@@ -543,7 +594,12 @@ async def _aresolve_target(
             # Reserved seeds stripped from the client spread, as ``merge_arguments``
             # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
             # dispatcher in the pool deciding *which row* is mutated.
-            **strip_reserved_seeds(params, reserved=pool_seeds.reserved),
+            # And a server-owned name, which any callable in the call may have
+            # marked ``NotClientInput``: the caller never fills one, while the
+            # route capture below and the provider still can.
+            **strip_hidden_inputs(
+                strip_reserved_seeds(params, reserved=pool_seeds.reserved), owned
+            ),
             **view_url_kwargs(view, reserved=pool_seeds.reserved),
         }
         pool.update(
@@ -552,7 +608,10 @@ async def _aresolve_target(
             )
         )
         result: Any = await arun_callable(
-            coll_spec.selector, resolve_dispatch_kwargs(coll_spec.selector, pool)
+            coll_spec.selector,
+            resolve_dispatch_kwargs(
+                coll_spec.selector, pool, fillable=caller_fillable(coll_spec, params, owned=owned)
+            ),
         )
         collection = await arun_off_loop(
             shape_queryset,
@@ -574,6 +633,7 @@ async def _aresolve_target(
         request=request,
         view=view,
         filter_data=filters,
+        owned=owned,
     )
     return ("instance", instance) if found else ("missing", None)
 
@@ -586,15 +646,24 @@ async def _arun_output_selector(
     pool_seeds: PoolSeeds,
     request: Any,
     view: Any,
-    params: Mapping[str, Any],
+    filter_data: Mapping[str, Any] | None,
 ) -> tuple[Any, bool]:
     """Async :func:`~...dispatch.dispatch_spec._run_output_selector`.
 
     Same ``(value, is_list)`` contract and ``kind`` semantics; a ``LIST`` output
-    stays the lazy shaped queryset and a ``RETRIEVE`` awaits ``.afirst()``.
+    stays the lazy shaped queryset and a ``RETRIEVE`` awaits ``.afirst()``. With no
+    ``selector`` the service's own return is presented, as a list under ``LIST``.
+    Its ``filter_set`` reads ``filter_data`` alone, bound to an empty mapping without
+    one; see the sync sibling for why the call's arguments are not a fallback.
     """
     out_spec = spec.output_selector_spec
-    if out_spec is None or out_spec.selector is None:
+    if out_spec is None:
+        return result, False
+    if out_spec.selector is None:
+        # Held by test_the_services_own_return_is_presented_as_a_list (the ``LIST``
+        # arm) and test_a_retrieve_declaration_with_no_re_read_is_still_one_value.
+        if out_spec.kind is SelectorKind.LIST:
+            return service_return_as_list(spec, result), True
         return result, False
     pool: dict[str, Any] = {
         # No live reporter, deliberately: a lookup has no progress to report, and
@@ -604,8 +673,14 @@ async def _arun_output_selector(
         "instance": result,
         "result": result,
     }
+    # Not refused when a parameter is unfilled, for the reason an affordance
+    # condition is not: no client input reaches this pool, so naming one would ask
+    # the caller for a value they cannot send. And the write has committed by now,
+    # so a validation error would tell the caller nothing happened, and a caller
+    # that retries on one would write twice. The ``TypeError`` is the author's.
     selected: Any = await arun_callable(
-        out_spec.selector, resolve_dispatch_kwargs(out_spec.selector, pool)
+        out_spec.selector,
+        resolve_dispatch_kwargs(out_spec.selector, pool, fillable=NOTHING_FILLABLE),
     )
     selected = await arun_off_loop(
         shape_queryset,
@@ -613,7 +688,7 @@ async def _arun_output_selector(
         selected,
         view=view,
         request=request,
-        params=params,
+        params=filter_data if filter_data is not None else {},
         source_label=OUTPUT_SOURCE,
         pool=pool,
         reserved=pool_seeds.reserved,
@@ -632,6 +707,7 @@ async def _aresolve_instance(
     request: Any,
     view: Any,
     filter_data: Mapping[str, Any],
+    owned: frozenset[str],
 ) -> tuple[bool, Any]:
     instance_spec = spec.instance_selector_spec
     if instance_spec is None or instance_spec.selector is None:
@@ -644,7 +720,10 @@ async def _aresolve_instance(
         # Reserved seeds stripped from the client spread, as ``merge_arguments``
         # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
         # dispatcher in the pool deciding *which row* is mutated.
-        **strip_reserved_seeds(params, reserved=pool_seeds.reserved),
+        # And a server-owned name, which any callable in the call may have marked
+        # ``NotClientInput``: the caller never fills one, while the route capture
+        # below and the provider still can.
+        **strip_hidden_inputs(strip_reserved_seeds(params, reserved=pool_seeds.reserved), owned),
         **view_url_kwargs(view, reserved=pool_seeds.reserved),
     }
     pool.update(
@@ -654,7 +733,12 @@ async def _aresolve_instance(
     )
     try:
         result: Any = await arun_callable(
-            instance_spec.selector, resolve_dispatch_kwargs(instance_spec.selector, pool)
+            instance_spec.selector,
+            resolve_dispatch_kwargs(
+                instance_spec.selector,
+                pool,
+                fillable=caller_fillable(instance_spec, params, owned=owned),
+            ),
         )
         result = await arun_off_loop(
             shape_queryset,

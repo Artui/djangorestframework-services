@@ -28,11 +28,12 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
 from asgiref.sync import sync_to_async
 from django.contrib.auth.models import User
+from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model, QuerySet
 from django.http import QueryDict
 from rest_framework import serializers
@@ -40,7 +41,9 @@ from rest_framework.exceptions import ValidationError
 
 from rest_framework_services import (
     DEFAULT_POOL_SEEDS,
+    ArgumentBinding,
     DispatchResult,
+    NotClientInput,
     SelectorKind,
     SelectorSpec,
     ServiceSpec,
@@ -56,6 +59,7 @@ from rest_framework_services import (
 from rest_framework_services.dispatch.adispatch_spec import (
     _aresolve_instance,
     _aresolve_target,
+    _arun_output_selector,
 )
 from rest_framework_services.dispatch.aenforce_affordances import aenforce_affordances
 from rest_framework_services.dispatch.aunmet_operation_affordance import (
@@ -64,6 +68,7 @@ from rest_framework_services.dispatch.aunmet_operation_affordance import (
 from rest_framework_services.dispatch.dispatch_spec import (
     _resolve_instance,
     _resolve_target,
+    _run_output_selector,
 )
 from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
 from rest_framework_services.dispatch.unmet_operation_affordance import (
@@ -193,6 +198,7 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
         (render_for_audience, arender_for_audience),
         (_resolve_target, _aresolve_target),
         (_resolve_instance, _aresolve_instance),
+        (_run_output_selector, _arun_output_selector),
         (enforce_affordances, aenforce_affordances),
         (unmet_operation_affordance, aunmet_operation_affordance),
     ],
@@ -202,6 +208,7 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
         "render_for_audience",
         "resolve_target",
         "resolve_instance",
+        "run_output_selector",
         "enforce_affordances",
         "unmet_operation_affordance",
     ],
@@ -264,6 +271,80 @@ async def test_params_cannot_shadow_the_user_in_collection_resolution_on_either_
     )
     assert sync_summary == async_summary
     assert seen == [real, real]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_params_cannot_fill_a_hidden_key_in_target_resolution_on_either_core() -> None:
+    """The same hand-built pool, stripped of a ``NotClientInput`` key as well as of
+    the seeds: each core strips it itself, so each needs the check."""
+    seen: list[Any] = []
+    post = await Post.objects.acreate(title="p")
+
+    def target(*, pk: Any, team: Annotated[str, NotClientInput] = "own-team") -> QuerySet[Post]:
+        seen.append(team)
+        return Post.objects.filter(pk=pk)
+
+    spec = ServiceSpec(
+        service=lambda *, instance: None,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=target),
+    )
+    sync_summary, async_summary = await _dispatch_both(
+        spec, lambda: {"user": None, "params": {"pk": post.pk, "team": "client-supplied"}}
+    )
+    assert sync_summary == async_summary
+    assert seen == ["own-team", "own-team"]
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_key_a_precondition_hides_is_the_servers_on_either_core() -> None:
+    """A key one callable hides is server-owned for the whole call, so the selector
+    reading it plainly beside the precondition gets the server's value too. Each
+    core builds the owned set and strips the pool itself, so each needs the check."""
+    seen: list[Any] = []
+
+    def gate(*, tenant: Annotated[str, NotClientInput] = "own") -> None:
+        seen.append(("gate", tenant))
+
+    def rows(*, tenant: str = "own") -> list[str]:
+        seen.append(("selector", tenant))
+        return [tenant]
+
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=rows, preconditions=(gate,))
+    sync_summary, async_summary = await _dispatch_both(
+        spec, lambda: {"user": None, "params": {"tenant": "client"}}
+    )
+    assert sync_summary == async_summary
+    assert sync_summary["value"] == ["own"]
+    assert sorted(seen) == [("gate", "own")] * 2 + [("selector", "own")] * 2
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_key_the_lookup_hides_never_reaches_open_changes_on_either_core() -> None:
+    """The lookup's hidden ``tenant`` stays out of an open spread service's
+    ``**changes``, where a ``setattr`` loop would write it onto the row."""
+    post = await Post.objects.acreate(title="p")
+
+    def target(*, pk: Any, tenant: Annotated[str, NotClientInput] = "own") -> QuerySet[Post]:
+        return Post.objects.filter(pk=pk)
+
+    def update(*, instance: Post, **changes: Any) -> list[str]:
+        return sorted(changes)
+
+    spec = ServiceSpec(
+        service=update,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=target),
+    )
+    sync_summary, async_summary = await _dispatch_both(
+        spec,
+        lambda: {
+            "user": None,
+            "params": {"pk": post.pk, "tenant": "client", "title": "x"},
+            "argument_binding": ArgumentBinding.SPREAD_AUTHOR_WINS,
+        },
+    )
+    assert sync_summary == async_summary
+    assert "tenant" not in sync_summary["service_result"]
+    assert "title" in sync_summary["service_result"]
 
 
 @pytest.mark.django_db(transaction=True)
@@ -471,6 +552,64 @@ async def test_the_mutation_tail_agrees_across_the_cores() -> None:
     assert async_summary["service_result"] == {"renamed": True}
     assert async_summary["instance"] == ("Post", post.pk)
     assert async_summary["data"] == {"title": "after"}
+
+
+# --- a LIST output with nothing to re-read ---------------------------------
+
+
+def _posts_as_rows() -> list[Post]:
+    return list(Post.objects.order_by("pk"))
+
+
+_LIST_WITHOUT_A_SELECTOR = SelectorSpec(kind=SelectorKind.LIST)
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_a_services_own_list_agrees_across_the_cores() -> None:
+    post = await Post.objects.acreate(title="listed")
+    spec = ServiceSpec(
+        service=_posts_as_rows, output_selector_spec=_LIST_WITHOUT_A_SELECTOR, atomic=False
+    )
+    sync_summary, async_summary = await _dispatch_both(spec, lambda: {"user": None, "params": {}})
+    assert sync_summary == async_summary
+    assert async_summary["kind"] == "list"
+    assert async_summary["value"] == [("Post", post.pk)]
+
+
+async def test_a_refused_list_return_reads_the_same_on_either_core() -> None:
+    # Each core keeps its own copy of the check, so this is what holds them to one
+    # message. Nothing is written, so no database is needed.
+    spec = ServiceSpec(
+        service=lambda: {"id": 1}, output_selector_spec=_LIST_WITHOUT_A_SELECTOR, atomic=False
+    )
+    with pytest.raises(ImproperlyConfigured) as sync_refusal:
+        await sync_to_async(dispatch_spec, thread_sensitive=True)(spec, user=None, params={})
+    with pytest.raises(ImproperlyConfigured) as async_refusal:
+        await adispatch_spec(spec, user=None, params={})
+    assert str(sync_refusal.value) == str(async_refusal.value)
+    assert "returned dict" in str(async_refusal.value)
+
+
+async def test_a_bundled_selector_parameter_is_the_author_s_error_on_either_core() -> None:
+    """Each core asks ``caller_fillable`` at its own selector site, and each must pass
+    the binding: under ``BUNDLE`` no resend fills ``tenant``, so neither names it.
+    Nothing is read, so no database is needed."""
+
+    def rows(*, tenant: str) -> list[str]:
+        return [tenant]
+
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=rows)
+    kwargs: dict[str, Any] = {
+        "user": None,
+        "params": {},
+        "argument_binding": ArgumentBinding.BUNDLE,
+    }
+    with pytest.raises(TypeError) as sync_error:
+        await sync_to_async(dispatch_spec, thread_sensitive=True)(spec, **kwargs)
+    with pytest.raises(TypeError) as async_error:
+        await adispatch_spec(spec, **kwargs)
+    assert str(sync_error.value) == str(async_error.value)
+    assert "tenant" in str(async_error.value)
 
 
 # --- the mutated target's stale prefetch ----------------------------------

@@ -130,6 +130,17 @@ or a dataclass output raises where a serializer would have rendered.
 
 ::: rest_framework_services.types.dispatch_result.DispatchResult
 
+A `ServiceSpec`'s `kind` is `"list"` for a `many=True` spec, and otherwise
+whenever its `output_selector_spec` declares `kind=SelectorKind.LIST`, with a
+`selector` to re-read through or without one. Without one, the `value` is the
+service's own return, passed through as it came: a `QuerySet` stays lazy, as a
+re-read one does, and a list or a generator is the same object. A return that is no set
+of rows (a mapping, a `str` or `bytes`, `None`, anything that does not iterate)
+raises `ImproperlyConfigured` naming the declaration and the type returned,
+after the service has written; see
+[what a service's output schema describes](jsonschema.md#what-a-services-output-schema-describes),
+which states the same array.
+
 ## Input policies
 
 Three optional, caller-side policies let a transport map its wire onto a spec
@@ -163,6 +174,21 @@ its items, and a lookup on it cannot open the set or make `REJECT`
 unenforceable.
 The set is read from the spec alone, so a direct caller passing `instance=`,
 which skips the lookup, still has that lookup's keys admitted.
+
+A `ServiceSpec` with no `input_serializer`, dispatched under a `SPREAD_*`
+`argument_binding`, also declares its service's own parameters beside the
+lookup's keys, because nothing else reads the caller's input there: its keyword
+parameters and `Unpack[TypedDict]` keys, less the reserved pool seeds (registered
+ones included), positional-only parameters, `NotClientInput` keys and `view`.
+The parameters and lookup keys in every declared set, a selector's included,
+also leave out a key that any callable in the call marks `NotClientInput`: the
+selector or service, a precondition, or the target lookup. Such a key is
+server-owned for the whole call, so the caller's value for it is dropped before
+any of them reads it. An `input_serializer` field is the serializer's own
+declaration, and stays declared.
+Under `BUNDLE`, which `AUTO` resolves to for a service, they are not declared. A
+bare `**kwargs` on that service opens the set. See
+[a spread service with no input serializer](../recipes/off-http-inputs.md#a-spread-service-with-no-input-serializer).
 
 ::: rest_framework_services.types.unknown_arguments.UnknownArguments
 
@@ -229,12 +255,16 @@ queryset runs only the class-level check, never `has_object_permission`.
 
 **Read-shaping over the offline path.** Pass `query_params=` to seed the synthetic
 request's `GET` `QueryDict` — the source `request.query_params` reads. That is how
-read-shaping params that are *not* spec inputs reach the serializer off-HTTP:
-`SelectorSpec.filter_set` (when you don't hand `filter_data` in another way), and
-any serializer that branches on `request.query_params` (django-restql field
-selection, custom serializers). It does **not** make DRF `filter_backends`
-(`SearchFilter` / `OrderingFilter`) run — the offline path never calls
-`filter_queryset`; `filter_set` is the drf-services-native equivalent.
+read-shaping params that are *not* spec inputs reach the serializer off-HTTP: any
+serializer that branches on `request.query_params` (django-restql field selection,
+custom serializers), and a request-scoped `FilterSet` that reads
+`self.request.query_params` itself. It is not what a `filter_set` is bound to:
+`dispatch_spec` binds a `SelectorSpec`'s own `filter_set`, and a target lookup's,
+to `filter_data`, else to `params`, and a service's `output_selector_spec.filter_set`
+to `filter_data`, else to an empty mapping. To filter from the synthetic query
+string, pass `filter_data=context.request.query_params`. It does **not** make DRF
+`filter_backends` (`SearchFilter` / `OrderingFilter`) run — the offline path never
+calls `filter_queryset`; `filter_set` is the drf-services-native equivalent.
 
 ### `OfflineHttpRequest`
 
@@ -291,6 +321,75 @@ pool, or making a thread hop of its own, for most of the operations it lists.
 ### `resolve_callable_kwargs`
 
 ::: rest_framework_services.views.utils.resolve_callable_kwargs
+
+### `provider_keys`
+
+The static half of the `kwargs=` provider contract, whose runtime half is
+dispatch calling the provider and dropping every key it returns as `UNSET`. A
+transport building a selector's input schema reads it to fill in
+[`supplied`](jsonschema.md#what-a-transport-supplies-supplied), and to know
+which calls to refuse before dispatch, rather than keeping a copy of the
+reader:
+
+```python
+from rest_framework_services import provider_keys
+
+keys = provider_keys(spec.kwargs)
+if keys is None:
+    ...  # The provider may fill any name, so none is required for lacking a default.
+else:
+    filled, declinable = keys
+    # ``filled`` joins ``supplied``. A ``declinable`` key stays the caller's to
+    # send and is not required of it, since the provider may fill it after all.
+```
+
+The answer is a [`ProviderKeys`](#providerkeys), a `NamedTuple`, so a caller
+that would rather not unpack it reads `keys.filled` and `keys.declinable`.
+
+::: rest_framework_services.dispatch.provider_keys.provider_keys
+
+### `ProviderKeys`
+
+::: rest_framework_services.types.provider_keys.ProviderKeys
+
+### `server_owned_keys`
+
+The names no caller supplies anywhere in a spec's dispatch: every key the
+selector or service, one of `spec.preconditions` or the target lookup marks
+[`NotClientInput`](types.md#notclientinput), and `view`. Dispatch drops the
+caller's value for each before any callable reads it, `REJECT` refuses it on a
+closed spec, and `spec_to_json_schema` leaves it out of the input schema.
+
+The set governs the keyword pool, not an input serializer's fields. A field the
+`input_serializer` declares under an owned name stays client input: the schema
+lists it, `REJECT` admits it, and the caller's value is validated into `data`,
+the one place it reaches the service, since dispatch keeps it out of the spread.
+A same-named key can mean something else there, such as a destination tenant in
+`data` beside the server's current tenant at the gate, so the declaration is not
+refused.
+
+A transport that builds an input schema of its own subtracts the same set, less
+the input serializer's field names, rather than reading each callable's markers
+again, which would miss a key that one callable hides and another takes plainly:
+
+```python
+from rest_framework_services import server_owned_keys
+
+# A service tool merging its target lookup's keys into what it built from the
+# service's input serializer (empty when the spec has none).
+properties = {**lookup_properties, **serializer_properties}
+# A field the serializer declares stays the caller's, whatever its name.
+owned = server_owned_keys(spec) - set(serializer_properties)
+for name in owned:  # the service spec, not its nested lookup
+    properties.pop(name, None)
+```
+
+Pass the spec the transport dispatches. Asked with the nested
+`instance_selector_spec` / `collection_selector_spec`, it answers only what the
+lookup and its own preconditions hide, and a key the service or one of its
+preconditions hides is still advertised, then dropped.
+
+::: rest_framework_services.dispatch.utils.server_owned_keys
 
 ### `is_async`
 

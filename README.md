@@ -483,9 +483,11 @@ class UpdateAuthorView(ServiceUpdateView):
     )
 ```
 
-When a service returns `None` and the view has an instance in scope (update
-or delete), the in-memory instance is rendered — matching DRF's
-`UpdateAPIView` shape without you having to wire it up.
+When an update service returns `None`, with an `output_serializer` and no
+output `selector` as in both views above, the in-memory instance is rendered,
+matching DRF's `UpdateAPIView` shape without you having to wire it up. A
+destroy returning `None` never renders the deleted instance; it answers with an
+empty body.
 
 ---
 

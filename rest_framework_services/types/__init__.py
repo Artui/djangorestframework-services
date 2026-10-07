@@ -35,6 +35,7 @@ from rest_framework_services.types.output_page import OutputPage
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.pool_seeds import DEFAULT_POOL_SEEDS, PoolSeeds
 from rest_framework_services.types.progress_reporter import ProgressReporter
+from rest_framework_services.types.provider_keys import ProviderKeys
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.read_input_description import read_input_description
 from rest_framework_services.types.read_schema_markers import read_schema_markers
@@ -92,6 +93,7 @@ __all__ = [
     "OfflineServiceView",
     "PolymorphicServiceSpec",
     "ProgressReporter",
+    "ProviderKeys",
     "QueryParam",
     "OfflineContract",
     "RegisteredSpec",

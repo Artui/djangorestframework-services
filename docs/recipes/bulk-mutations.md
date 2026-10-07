@@ -1,7 +1,10 @@
 # Bulk & collection mutations
 
 Two `ServiceSpec` shapes cover the bulk cases a single-instance spec can't.
-They're mutually exclusive.
+They're mutually exclusive. Neither takes an `instance_selector_spec`: one
+declared beside a `collection_selector_spec` or `many=True` is refused with
+`ImproperlyConfigured` when the `ServiceSpec` is constructed, because dispatch
+would never call it.
 
 ## `many=True` — a list body in, a list out
 

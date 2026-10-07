@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Annotated
+
 from typing_extensions import NotRequired, Required, TypedDict
 
+from rest_framework_services.types.not_client_input import NotClientInput
 from rest_framework_services.types.typed_dict_input import typed_dict_input
+
+if TYPE_CHECKING:
+    # Only a type checker sees it, so an annotation naming it does not resolve.
+    from tests.testapp.models import Post as _Owner
 
 
 class _AllOptional(TypedDict, total=False):
@@ -41,3 +48,20 @@ def test_required_wrapper_promotes_in_a_total_false_body() -> None:
     field_types, required = typed_dict_input(_TotalFalseWithRequired)
     assert field_types == {"normally_optional": int, "forced": str}
     assert required == frozenset({"forced"})
+
+
+class _BesideUnresolved(TypedDict):
+    team: Annotated[str, NotClientInput]
+    owner: _Owner
+    note: NotRequired[_Owner]
+
+
+def test_a_key_that_does_not_resolve_costs_only_itself() -> None:
+    # ``owner`` names a class only a type checker sees. Its siblings keep their
+    # annotations, and ``note`` is still read as ``NotRequired``, which the
+    # postponed annotation hides from ``__required_keys__``.
+    field_types, required = typed_dict_input(_BesideUnresolved)
+
+    assert field_types["team"] == Annotated[str, NotClientInput]
+    assert set(field_types) == {"team", "owner", "note"}
+    assert required == frozenset({"team", "owner"})

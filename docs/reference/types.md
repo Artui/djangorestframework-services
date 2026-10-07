@@ -86,6 +86,12 @@
 
 ## `InputRequired`
 
+Dispatch refuses a missing marked key only where the caller could have sent it.
+Where no caller input reaches the callable by name, as under `BUNDLE`, a
+refusal could only be answered by the same refusal, so the gap fails as the
+callable's own error instead. See
+[what a caller could fill](../recipes/off-http-inputs.md#requiredness-inputrequired).
+
 ::: rest_framework_services.types.input_required
 
 ## `NotClientInput`

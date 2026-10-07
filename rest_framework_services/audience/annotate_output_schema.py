@@ -18,8 +18,9 @@ neither stops being true when the value is rendered differently.
 
 _SCALAR_TYPES: Final = ((bool, "boolean"), (int, "integer"), (float, "number"), (str, "string"))
 """JSON's name for each kind of value a choice can hold, ``bool`` before the
-``int`` it subclasses. ``None`` is handled apart: whether a restated type admits
-``"null"`` is read off the type that was stated, and it is named last."""
+``int`` it subclasses. ``None`` is handled apart: a restated type admits
+``"null"`` where the type that was stated admitted it and a null is still
+served, and it is named last."""
 
 
 def annotate_output_schema(
@@ -42,13 +43,15 @@ def annotate_output_schema(
       values, because that is what the projected payload now carries. A
       ``type`` stated beside them is restated as the types of the displays,
       so an integer choice spoken as ``"Low"`` is described as a ``string``,
-      with ``"null"`` kept where the stated type admitted it, and left as
-      written beside a ``oneOf`` entry that admits more than its constants. A
-      display two values share is listed once, so a row served it matches one
-      ``oneOf`` entry rather than two, and an array of such choices no longer
-      claims ``uniqueItems``. The constant is gone from the response by design
-      — a field another tool takes as input should be marked ``HANDLE``, which
-      suppresses the substitution on both sides.
+      with ``"null"`` named last where the stated type admitted it and a null
+      is still served — not where the choices give ``None`` a display, which
+      is served in its place — and left as written beside a ``oneOf`` entry
+      that admits more than its constants. A display two values share is
+      listed once, so a row served it matches one ``oneOf`` entry rather than
+      two, and an array of such choices no longer claims ``uniqueItems``. The
+      constant is gone from the response by design — a field another tool
+      takes as input should be marked ``HANDLE``, which suppresses the
+      substitution on both sides.
     - a formatted field is re-declared as the type its
       [`ValueFormatter`][rest_framework_services.types.value_formatter.ValueFormatter]
       says it produces, plus whatever that declaration adds about the shape of
@@ -195,7 +198,8 @@ def _spoken_schema(schema: dict[str, Any], labels: Mapping[Any, str]) -> dict[st
         spoken = {**schema, "oneOf": one_of}
         # An entry with no ``const`` admits values the displays say nothing
         # about, so a type narrowed to the displays' would refuse them; one
-        # whose type is ``"null"`` admits only the null ``_retyped`` keeps.
+        # whose type is ``"null"`` admits only a null, which is passed on as a
+        # value it serves.
         # One branch to coverage, so each condition is held by its own test:
         # TestRestatedType.test_an_integer_spoken_whole_is_a_string (the first:
         # without it every entry keeps the type) and
@@ -203,7 +207,15 @@ def _spoken_schema(schema: dict[str, Any], labels: Mapping[Any, str]) -> dict[st
         # (the second).
         if any("const" not in entry and entry.get("type") != "null" for entry in one_of):
             return spoken
-        return _retyped(spoken, consts)
+        # A null that entry admits is served as itself, never as a display, so
+        # it is one of the values the type is restated from, as a listed
+        # ``None`` with no label is. Held by
+        # TestRestatedType.test_null_is_kept_where_the_stated_type_admitted_it
+        # (without the ``None`` the null is dropped) and the ``one-of`` case of
+        # TestRestatedType.test_a_null_spoken_as_a_label_is_not_named (with it
+        # always passed, a null with a display is named again).
+        admits_null = any(entry.get("type") == "null" for entry in one_of)
+        return _retyped(spoken, [*consts, None] if admits_null else consts)
     return schema
 
 
@@ -238,13 +250,18 @@ def _retyped(schema: dict[str, Any], values: list[Any]) -> dict[str, Any]:
     ``"Low"`` would otherwise be described as an integer and the projected
     payload would fail the projected schema.
 
-    ``"null"`` is kept exactly where the stated type admitted it, as a list
-    naming it or as ``"null"`` alone, and named last. It is read off the type
-    rather than the values because the type is what admitted or refused a null
-    before, and a ``oneOf`` may admit one through an entry whose type is
-    ``"null"``: the restated type admits what the stated one did, in display
-    terms, and nothing more. A ``oneOf`` entry admitting anything else is never
-    passed here, because narrowing the type would refuse what that entry admits.
+    ``"null"`` is named, last, where the stated type admitted it — as a list
+    naming it or as ``"null"`` alone — **and** a null is among ``values``: the
+    restated type admits what the stated one did, in display terms, and
+    nothing more. Both, because each answers a different half. The type says
+    whether a null was ever admitted, so a ``None`` listed beside a type that
+    refused it is not newly admitted. The values say whether one is still
+    served: Django's ``(None, "Unknown")`` serves ``"Unknown"`` in its place,
+    and naming ``"null"`` there would describe a value the payload never
+    carries. A ``oneOf`` entry whose type is ``"null"`` is passed in as a
+    ``None``, because the null it admits is served as itself. A ``oneOf``
+    entry admitting anything else is never passed here, because narrowing the
+    type would refuse what that entry admits.
 
     A schema that states no type claims nothing to contradict, one listing no
     value has nothing to restate it from, and a value JSON has no scalar name
@@ -268,10 +285,15 @@ def _retyped(schema: dict[str, Any], values: list[Any]) -> dict[str, Any]:
         if name not in names:
             names.append(name)
     stated = schema["type"]
-    # Both spellings of a stated null: TestRestatedType.test_a_nullable_integer_keeps_its_null
-    # (a list naming it) and TestRestatedType.test_a_type_stated_as_null_alone_still_admits_it
+    # One branch to coverage, so each condition is held by its own test:
+    # TestRestatedType.test_a_null_spoken_as_a_label_is_not_named (the first:
+    # the type admitted a null and none is served) and
+    # TestRestatedType.test_a_type_that_refused_null_still_refuses_it (the
+    # second: a null is listed and the type refused it). Both spellings of a
+    # stated null: TestRestatedType.test_a_nullable_integer_keeps_its_null (a
+    # list naming it) and TestRestatedType.test_a_type_stated_as_null_alone_still_admits_it
     # (``"null"`` alone).
-    if "null" in (stated if isinstance(stated, list) else [stated]):
+    if None in values and "null" in (stated if isinstance(stated, list) else [stated]):
         names.append("null")
     if not names:
         return schema
