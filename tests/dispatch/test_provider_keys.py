@@ -792,7 +792,14 @@ def test_a_pep_695_type_parameter_is_read_as_the_class_declares_it(
     assert provider_keys(module.provider) == keys
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 syntax is new in 3.12")
+# The priming read below is the stdlib's own, and before 3.12.4 ``get_type_hints``
+# cannot read a PEP 695 class's hints at all: it raises ``NameError`` on the type
+# parameter. So the stale value this test guards against cannot be left behind
+# there, and the release job's system 3.12.3 is where that showed.
+@pytest.mark.skipif(
+    sys.version_info < (3, 12, 4),
+    reason="get_type_hints reads a PEP 695 class's hints from 3.12.4",
+)
 def test_a_type_parameter_resolved_elsewhere_first_does_not_decide_the_answer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
