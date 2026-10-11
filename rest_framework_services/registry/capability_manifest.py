@@ -13,6 +13,7 @@ from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
 )
+from rest_framework_services.types.permission_class import PermissionClass
 from rest_framework_services.types.registered_spec import RegisteredSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.utils import is_row_condition
@@ -35,6 +36,9 @@ as a formatted string, and adds no titles it was not given. Two manifests are
 comparable schema-for-schema only when this value matches, so it moves when that
 policy does.
 """
+
+# DRF's operator classes, by name, as the operator that builds them.
+_OPERATOR_SYMBOLS: Final = {"AND": "&", "OR": "|"}
 
 
 def capability_manifest(
@@ -104,7 +108,8 @@ def capability_manifest(
       says dispatch may present ``None``. ``dialect`` names that policy at the
       top level.
     - ``guards`` -- one ``{"source": <dotted class path>}`` per permission class,
-      in declaration order; ``None`` where the spec declares none (``[]`` is a
+      in declaration order; a composed entry is one guard whose source is the
+      expression, ``"(app.IsStaff | app.HasKey)"``; ``None`` where the spec declares none (``[]`` is a
       declared "no permissions" and stays distinguishable).
     - ``affordances`` -- one ``{"code": ..., "reason": ..., "scope": ...}`` per
       [`Affordance`][rest_framework_services.types.affordance.Affordance] a
@@ -186,7 +191,7 @@ def _affordances(declared: Sequence[Affordance] | None) -> list[dict[str, str]] 
     ]
 
 
-def _guards(permission_classes: Sequence[type] | None) -> list[dict[str, str]] | None:
+def _guards(permission_classes: Sequence[PermissionClass] | None) -> list[dict[str, str]] | None:
     """One descriptor per permission class, named by its import path.
 
     The dotted path rather than the bare class name, because two apps routinely
@@ -195,7 +200,23 @@ def _guards(permission_classes: Sequence[type] | None) -> list[dict[str, str]] |
     """
     if permission_classes is None:
         return None
-    return [{"source": f"{cls.__module__}.{cls.__qualname__}"} for cls in permission_classes]
+    return [{"source": _guard_source(entry)} for entry in permission_classes]
+
+
+def _guard_source(entry: Any) -> str:
+    """The import path of a permission class, or the expression of a composed one.
+
+    ``IsStaff | HasKey`` reads ``(app.IsStaff | app.HasKey)``: still one guard,
+    because DRF evaluates it as one, and still diffable by path. The operand is
+    read by its attributes rather than by ``isinstance`` so this module imports
+    nothing from DRF; ``op2_class`` is what tells a binary operand from ``~``.
+    """
+    if hasattr(entry, "op2_class"):
+        symbol = _OPERATOR_SYMBOLS[entry.operator_class.__name__]
+        return f"({_guard_source(entry.op1_class)} {symbol} {_guard_source(entry.op2_class)})"
+    if hasattr(entry, "op1_class"):
+        return f"~{_guard_source(entry.op1_class)}"
+    return f"{entry.__module__}.{entry.__qualname__}"
 
 
 __all__ = ["capability_manifest"]

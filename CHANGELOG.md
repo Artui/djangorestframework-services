@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A spec's `permission_classes` takes DRF's composed operands.**
+  `permission_classes=[IsStaff | HasKey]` was refused at `as_view()` with
+  "entries must be `BasePermission` subclasses", because `|`, `&` and `~` build
+  an `OperandHolder` *instance*, not a class — so "staff or the key" needed a
+  hand-written class even though every consumer only ever calls the entry, and
+  calling an operand builds the composed permission. The validator now accepts
+  an operand and checks the classes inside it, so `IsStaff | HasKey()` is still
+  caught as the instance-for-class typo. The capability manifest lists an
+  operand as one guard whose `source` is the expression,
+  `"(app.IsStaff | app.HasKey)"`. `PermissionClass`, the entry type — the same
+  union `APIView.permission_classes` takes — is exported from the package root
+  and annotates both specs' `permission_classes`.
+
+### Fixed
+
+- **Polymorphic permissions no longer hash their entries.** The `union`
+  strategy deduplicated variant permissions through a dict and
+  `require_identical` compared them as a set. DRF 3.15.0 and 3.15.1 give
+  `OperandHolder` an `__eq__` without a `__hash__`, so either would have raised
+  `TypeError` on a composed entry there. Both now compare by equality.
+
 ## [0.56.0] — 2026-10-06
 
 ### Added

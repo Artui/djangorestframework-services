@@ -17,7 +17,7 @@ from dataclasses import is_dataclass
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, OperandHolder, SingleOperandHolder
 from rest_framework.serializers import Serializer
 
 from rest_framework_services.types.marked_input_keys import marked_input_keys
@@ -235,11 +235,27 @@ def _validate_permission_classes(
     if permission_classes is None:
         return
     for entry in permission_classes:
-        if not isinstance(entry, type) or not issubclass(entry, BasePermission):
+        if not _is_permission_class(entry):
             raise ImproperlyConfigured(
                 f"{label}: permission_classes entries must be `BasePermission` "
-                f"subclasses; got {entry!r}."
+                f"subclasses or operands composed from them with `|`, `&` and `~`; "
+                f"got {entry!r}."
             )
+
+
+def _is_permission_class(entry: Any) -> bool:
+    """Whether DRF can call ``entry`` to build a permission.
+
+    An operand is an instance, so the class check alone would refuse
+    ``IsStaff | HasKey``. Its operands are checked too: ``|`` accepts anything on
+    its right, so ``IsStaff | HasKey()`` builds without complaint and is the same
+    instance-for-class typo one level down.
+    """
+    if isinstance(entry, OperandHolder):
+        return _is_permission_class(entry.op1_class) and _is_permission_class(entry.op2_class)
+    if isinstance(entry, SingleOperandHolder):
+        return _is_permission_class(entry.op1_class)
+    return isinstance(entry, type) and issubclass(entry, BasePermission)
 
 
 def _validate_input_serializer(input_serializer: Any, *, label: str) -> None:
@@ -737,11 +753,13 @@ def validate_polymorphic_service_spec(
             permissive_extras=permissive_extras,
         )
     if poly.permission_strategy == "require_identical":
-        distinct = {
-            None if v.permission_classes is None else tuple(v.permission_classes)
+        # Compared by equality, not collected into a set: a composed operand is
+        # unhashable on DRF 3.15.0 and 3.15.1 (``__eq__`` without ``__hash__``).
+        declared = [
+            None if v.permission_classes is None else list(v.permission_classes)
             for v in poly.specs.values()
-        }
-        if len(distinct) > 1:
+        ]
+        if any(other != declared[0] for other in declared[1:]):
             raise ImproperlyConfigured(
                 f"{label}: permission_strategy='require_identical' but the variants declare "
                 "different `permission_classes`. Make them identical or use 'union'."

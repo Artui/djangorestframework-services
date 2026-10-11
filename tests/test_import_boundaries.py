@@ -8,7 +8,7 @@ imports behind it: every module outside the HTTP transport that imports
 still depends on the transport it is meant to be independent of.
 
 These are not bans. Most entries below are legitimate today — the spec
-dataclasses type ``permission_classes`` as DRF's ``BasePermission``, and the
+dataclasses type ``permission_classes`` with DRF's permission types, and the
 keyword-pool resolver lives in ``views/utils.py`` for historical reasons. What the
 tests forbid is **growth without a decision**: an import that is not listed fails,
 and so does a listed import that no longer exists, so the lists can only shrink
@@ -130,18 +130,12 @@ ALLOWED_DRF_IMPORTS: dict[str, frozenset[str]] = {
     "types/http_extras.py": frozenset({"rest_framework.request"}),
     "types/offline_context.py": frozenset({"rest_framework.request"}),
     "types/offline_service_view.py": frozenset({"rest_framework.request"}),
-    "types/selector_spec.py": frozenset(
-        {
-            "rest_framework.permissions",
-            "rest_framework.request",
-        }
-    ),
-    "types/service_spec.py": frozenset(
-        {
-            "rest_framework.permissions",
-            "rest_framework.response",
-        }
-    ),
+    # The one place a spec's ``permission_classes`` entry is typed: DRF's own
+    # union of a ``BasePermission`` subclass and the operands ``|`` / ``&`` / ``~``
+    # build, which the spec dataclasses import from here rather than from DRF.
+    "types/permission_class.py": frozenset({"rest_framework.permissions"}),
+    "types/selector_spec.py": frozenset({"rest_framework.request"}),
+    "types/service_spec.py": frozenset({"rest_framework.response"}),
     "types/service_view.py": frozenset({"rest_framework.request"}),
 }
 

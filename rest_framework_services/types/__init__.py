@@ -32,6 +32,7 @@ from rest_framework_services.types.offline_contract import OfflineContract
 from rest_framework_services.types.offline_http_request import OfflineHttpRequest
 from rest_framework_services.types.offline_service_view import OfflineServiceView
 from rest_framework_services.types.output_page import OutputPage
+from rest_framework_services.types.permission_class import PermissionClass
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.pool_seeds import DEFAULT_POOL_SEEDS, PoolSeeds
 from rest_framework_services.types.progress_reporter import ProgressReporter
@@ -91,6 +92,7 @@ __all__ = [
     "OfflineContext",
     "OfflineHttpRequest",
     "OfflineServiceView",
+    "PermissionClass",
     "PolymorphicServiceSpec",
     "ProgressReporter",
     "ProviderKeys",

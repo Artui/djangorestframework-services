@@ -193,6 +193,51 @@ class TestSelectorListViewPermissions:
 
 
 @pytest.mark.django_db
+class TestComposedPermissions:
+    """DRF's ``|`` / ``&`` / ``~`` operands work on a spec as on a view."""
+
+    def test_or_admits_when_either_side_passes(self) -> None:
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=_create_author,
+                input_serializer=_AuthorIn,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
+                permission_classes=[_DenyAll | AllowAny],
+            )
+
+        response = _View.as_view()(factory.post("/", {"name": "Ada"}, format="json"))
+        assert response.status_code == 201
+
+    def test_and_denies_when_either_side_fails(self) -> None:
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=_list_authors,
+                output_serializer=AuthorSerializer,
+                permission_classes=[AllowAny & _DenyAll],
+            )
+
+        response = _View.as_view()(factory.get("/"))
+        assert response.status_code == 403
+
+    def test_not_inverts(self) -> None:
+        # A list, because DRF's ``~`` inverts ``has_object_permission`` too, and
+        # ``_DenyAll`` inherits ``True`` there, so a retrieve would be refused.
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=_list_authors,
+                output_serializer=AuthorSerializer,
+                permission_classes=[~_DenyAll],
+            )
+
+        response = _View.as_view()(factory.get("/"))
+        assert response.status_code == 200
+
+
+@pytest.mark.django_db
 class TestSelectorRetrieveViewPermissions:
     def test_spec_permission_denies(self) -> None:
         author = Author.objects.create(name="x")
@@ -253,6 +298,30 @@ class TestPermissionClassesValidation:
                 kind=SelectorKind.LIST,
                 selector=_list_authors,
                 permission_classes=[_NotAPermission],  # type: ignore[list-item]
+            )
+
+        with pytest.raises(ImproperlyConfigured, match="permission_classes"):
+            _View.as_view()
+
+    def test_instance_inside_an_operand_raises(self) -> None:
+        # ``|`` accepts anything on its right, so the instance-for-class typo
+        # builds without complaint one level down.
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=_create_author,
+                input_serializer=_AuthorIn,
+                permission_classes=[_DenyAll | _DenyAll()],  # type: ignore[list-item]
+            )
+
+        with pytest.raises(ImproperlyConfigured, match="permission_classes"):
+            _View.as_view()
+
+    def test_instance_under_a_negation_raises(self) -> None:
+        class _View(SelectorListView):
+            spec = SelectorSpec(
+                kind=SelectorKind.LIST,
+                selector=_list_authors,
+                permission_classes=[~(AllowAny & _DenyAll())],  # type: ignore[list-item]
             )
 
         with pytest.raises(ImproperlyConfigured, match="permission_classes"):

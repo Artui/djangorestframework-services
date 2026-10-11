@@ -281,6 +281,15 @@ def test_guards_name_each_class_by_import_path_in_declaration_order() -> None:
     ]
 
 
+def test_a_composed_guard_is_one_entry_named_by_its_expression() -> None:
+    spec = _refund_spec(permission_classes=[_IsOwner | _IsSupport, ~_IsOwner & _IsSupport])
+    registry = _registry(("op", spec, ()))
+    assert capability_manifest(registry)["operations"][0]["guards"] == [
+        {"source": f"({__name__}._IsOwner | {_GUARD_PATH})"},
+        {"source": f"(~{__name__}._IsOwner & {_GUARD_PATH})"},
+    ]
+
+
 def test_undeclared_guards_are_none_and_a_declared_empty_list_stays_empty() -> None:
     registry = _registry(
         ("inherits", _refund_spec(permission_classes=None), ()),

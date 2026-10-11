@@ -8,10 +8,10 @@ from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
 from django.core.exceptions import ImproperlyConfigured
-from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 
 from rest_framework_services.types.affordance import Affordance
+from rest_framework_services.types.permission_class import PermissionClass
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.utils import is_row_condition, validate_metadata
 
@@ -203,6 +203,8 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
             action. ``None`` inherits the view's; an empty sequence means none,
             explicitly. Forwarded through DRF's ``@action`` for
             ``@service_action`` and surfaced via ``get_permissions`` elsewhere.
+            Entries are ``BasePermission`` subclasses or DRF's composed operands
+            (``IsStaff | HasKey``), as on ``APIView.permission_classes``.
         progress_reporter: Provider returning a [`ProgressReporter`][rest_framework_services.types.progress_reporter.ProgressReporter] sink,
             fanned together with whatever reporter the transport supplied. For
             sinks that do not care which transport carries the run — a task
@@ -316,7 +318,7 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
 
     # Cross-cutting.
     kwargs: Callable[..., ExtraT] | None = None
-    permission_classes: Sequence[type[BasePermission]] | None = None
+    permission_classes: Sequence[PermissionClass] | None = None
     # A provider rather than a bare reporter because the two cannot be told
     # apart: a ``ProgressReporter`` is a plain callable and so is a factory for
     # one, so a ``reporter | factory`` union would have to guess by signature.

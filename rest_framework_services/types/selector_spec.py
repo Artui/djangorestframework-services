@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from django.db.models.query import Prefetch
-from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 
+from rest_framework_services.types.permission_class import PermissionClass
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.service_view import ServiceView
 from rest_framework_services.types.utils import affordance_alias, validate_metadata
@@ -183,7 +183,9 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             ``@selector_action`` decorator and surfaced via ``get_permissions``
             for the viewset mixins and standalone views. Ignored when the spec
             is nested under ``ServiceSpec.output_selector_spec`` — the
-            surrounding mutation action's permissions apply.
+            surrounding mutation action's permissions apply. Entries are
+            ``BasePermission`` subclasses or DRF's composed operands
+            (``IsStaff | HasKey``), as on ``APIView.permission_classes``.
         progress_reporter: Provider returning a [`ProgressReporter`][rest_framework_services.types.progress_reporter.ProgressReporter] sink,
             fanned together with whatever reporter the transport supplied. For
             sinks that do not care which transport carries the run — a task
@@ -250,7 +252,7 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
 
     # Cross-cutting.
     kwargs: Callable[..., ExtraT] | None = None
-    permission_classes: Sequence[type[BasePermission]] | None = None
+    permission_classes: Sequence[PermissionClass] | None = None
     # A provider rather than a bare reporter because the two cannot be told
     # apart: a ``ProgressReporter`` is a plain callable and so is a factory for
     # one, so a ``reporter | factory`` union would have to guess by signature.

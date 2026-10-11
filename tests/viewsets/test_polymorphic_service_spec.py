@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import OR, BasePermission, OperandHolder
 from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet
 
@@ -198,6 +198,26 @@ class TestPolymorphicValidation:
         # Identical permission_classes → validation passes at as_view().
         assert _V.as_view({"post": "create"}) is not None
 
+    def test_require_identical_compares_composed_operands_without_hashing(self) -> None:
+        class _A(BasePermission): ...
+
+        class _B(BasePermission): ...
+
+        poly = PolymorphicServiceSpec(
+            discriminator=lambda: "a",
+            specs={
+                "a": ServiceSpec(service=lambda: None, permission_classes=[_either(_A, _B)]),
+                "b": ServiceSpec(service=lambda: None, permission_classes=[_either(_A, _B)]),
+            },
+            permission_strategy="require_identical",
+        )
+
+        class _V(ServiceViewSet):
+            queryset = Author.objects.all()
+            action_specs = {"create": poly}
+
+        assert _V.as_view({"post": "create"}) is not None
+
 
 class _Deny(BasePermission):
     def has_permission(self, request: Any, view: Any) -> bool:
@@ -207,6 +227,19 @@ class _Deny(BasePermission):
 class _Allow(BasePermission):
     def has_permission(self, request: Any, view: Any) -> bool:
         return True
+
+
+class _UnhashableOperand(OperandHolder):
+    """A composed operand as DRF 3.15.0 and 3.15.1 build it: ``__eq__``, no hash.
+
+    Pinned here rather than left to the installed DRF, which hashes it again.
+    """
+
+    __hash__ = None  # type: ignore[assignment]
+
+
+def _either(op1: type[BasePermission], op2: type[BasePermission]) -> _UnhashableOperand:
+    return _UnhashableOperand(OR, op1, op2)
 
 
 @pytest.mark.django_db
@@ -234,6 +267,42 @@ class TestPolymorphicPermissions:
             factory.post("/", {"email": "a@b.c"}, format="json")
         )
         assert response.status_code == 403
+
+    def test_union_takes_a_composed_operand_once_without_hashing_it(self) -> None:
+        # Both variants build their own ``_Deny | _Allow``; equal, so one entry.
+        poly = PolymorphicServiceSpec(
+            discriminator=_discriminate,
+            specs={
+                "email": ServiceSpec(
+                    service=_create_by_email,
+                    input_serializer=_EmailIn,
+                    output_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE,
+                        selector=_refetch,
+                        output_serializer=AuthorSerializer,
+                    ),
+                    permission_classes=[_either(_Deny, _Allow)],
+                ),
+                "token": ServiceSpec(
+                    service=_create_by_token,
+                    input_serializer=_TokenIn,
+                    permission_classes=[_either(_Deny, _Allow)],
+                ),
+            },
+        )
+
+        class _V(ServiceViewSet):
+            queryset = Author.objects.all()
+            action_specs = {"create": poly}
+
+        view = _V()
+        view.action = "create"
+        view.request = None
+        assert len(view.get_permissions()) == 1
+        response = _V.as_view({"post": "create"})(
+            factory.post("/", {"email": "a@b.c"}, format="json")
+        )
+        assert response.status_code == 201
 
     def test_discriminate_applies_only_chosen_variant_permissions(self) -> None:
         poly = PolymorphicServiceSpec(

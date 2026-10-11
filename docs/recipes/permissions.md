@@ -12,8 +12,36 @@ class-level `permission_classes` for that one action; everything else
 falls through to the view default.
 
 > The value is a sequence of `BasePermission` **subclasses** (not
-> instances). Misconfigurations fail fast at `as_view()` time with
-> `ImproperlyConfigured`.
+> instances), or of DRF's composed operands built from them — the same
+> entries `APIView.permission_classes` takes. Misconfigurations fail fast at
+> `as_view()` time with `ImproperlyConfigured`.
+
+## Composing permissions
+
+DRF's `|`, `&` and `~` work on a spec exactly as on a view, so "staff, or a
+caller holding the service key" needs no hand-written `IsStaffOrHasKey` class:
+
+```python
+SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=list_statistics,
+    output_serializer=StatisticSerializer,
+    permission_classes=[IsStaff | HasServiceKey],
+)
+```
+
+An instance anywhere inside the expression (`IsStaff | HasServiceKey()`) is
+refused at `as_view()` like a bare one. The capability manifest lists a
+composed entry as one guard whose `source` is the expression,
+`"(app.permissions.IsStaff | app.permissions.HasServiceKey)"`.
+
+Two DRF behaviours carry over unchanged. `~` inverts `has_object_permission`
+as well as `has_permission`, and a class that does not override the former
+answers `True` there — so `~IsBlocked` refuses every object-level check unless
+`IsBlocked` defines it. And before DRF 3.15 two operands are equal only if they
+are the same object, so `permission_strategy="require_identical"` on a
+`PolymorphicServiceSpec` needs the variants to share one composed operand (a
+module constant) rather than each spelling `A | B`.
 
 ## Per-action permissions on a viewset
 
