@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A polymorphic action no longer crashes on an unhashable view-level
+  permission.** With the `union` strategy, a variant that declares no
+  `permission_classes` of its own falls back to the view's, and the variants'
+  entries were deduplicated through a dict. DRF 3.15.0 and 3.15.1 give a composed
+  operand (`permission_classes = [IsAuthenticated | AllowAny]`) an `__eq__`
+  without a `__hash__`, so every request raised `TypeError: cannot use
+  'OperandHolder' as a dict key` in `get_permissions`. The entries are now
+  compared by equality, still in first-seen order.
+
 ## [0.56.0] — 2026-10-06
 
 ### Added

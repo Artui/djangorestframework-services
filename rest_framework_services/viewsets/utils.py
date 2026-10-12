@@ -328,9 +328,12 @@ class _ActionSpecsMixin(_ServesRaisedSchema):
             if chosen.permission_classes is not None:
                 return [permission() for permission in chosen.permission_classes]
             return super().get_permissions()  # ty: ignore[unresolved-attribute]
-        # union / require_identical. A dict is the dedup: it preserves first-seen
-        # order, which a set would not.
-        classes: dict[type, None] = {}
+        # union / require_identical. Deduplicated by equality, in first-seen
+        # order. Not by hashing: DRF 3.15.0 and 3.15.1 give a composed operand
+        # (``IsAuthenticated | AllowAny``) ``__eq__`` without ``__hash__``, so it
+        # cannot be a dict key there, and a view-level ``permission_classes`` can
+        # hold one for every variant that declares none of its own.
+        classes: list[Any] = []
         for variant in poly.specs.values():
             variant_classes = (
                 variant.permission_classes
@@ -338,5 +341,6 @@ class _ActionSpecsMixin(_ServesRaisedSchema):
                 else self.permission_classes
             )
             for permission_class in variant_classes:
-                classes.setdefault(permission_class, None)
+                if permission_class not in classes:
+                    classes.append(permission_class)
         return [permission_class() for permission_class in classes]

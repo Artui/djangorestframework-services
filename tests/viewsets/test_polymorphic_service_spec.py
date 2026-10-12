@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import OR, BasePermission, OperandHolder
 from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet
 
@@ -209,6 +209,24 @@ class _Allow(BasePermission):
         return True
 
 
+class _UnhashableOperand(OperandHolder):
+    """A composed operand as DRF 3.15.0 and 3.15.1 build it: ``__eq__``, no hash.
+
+    Pinned here rather than left to the installed DRF, which hashes it again, and
+    with its own ``__eq__`` because DRF 3.14 has none to inherit.
+    """
+
+    __hash__ = None  # type: ignore[assignment]
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, OperandHolder)
+            and self.operator_class == other.operator_class
+            and self.op1_class == other.op1_class
+            and self.op2_class == other.op2_class
+        )
+
+
 @pytest.mark.django_db
 class TestPolymorphicPermissions:
     def test_union_requires_all_variant_permissions(self) -> None:
@@ -234,6 +252,40 @@ class TestPolymorphicPermissions:
             factory.post("/", {"email": "a@b.c"}, format="json")
         )
         assert response.status_code == 403
+
+    def test_union_takes_a_view_level_composed_operand_once_without_hashing_it(self) -> None:
+        # Neither variant declares permissions, so each falls back to the view's
+        # own ``permission_classes``. The same unhashable entry arrives twice and
+        # must be one permission, not a ``TypeError``.
+        poly = PolymorphicServiceSpec(
+            discriminator=_discriminate,
+            specs={
+                "email": ServiceSpec(
+                    service=_create_by_email,
+                    input_serializer=_EmailIn,
+                    output_selector_spec=SelectorSpec(
+                        kind=SelectorKind.RETRIEVE,
+                        selector=_refetch,
+                        output_serializer=AuthorSerializer,
+                    ),
+                ),
+                "token": ServiceSpec(service=_create_by_token, input_serializer=_TokenIn),
+            },
+        )
+
+        class _V(ServiceViewSet):
+            queryset = Author.objects.all()
+            permission_classes = [_UnhashableOperand(OR, _Deny, _Allow)]
+            action_specs = {"create": poly}
+
+        view = _V()
+        view.action = "create"
+        view.request = None
+        assert len(view.get_permissions()) == 1
+        response = _V.as_view({"post": "create"})(
+            factory.post("/", {"email": "a@b.c"}, format="json")
+        )
+        assert response.status_code == 201
 
     def test_discriminate_applies_only_chosen_variant_permissions(self) -> None:
         poly = PolymorphicServiceSpec(
