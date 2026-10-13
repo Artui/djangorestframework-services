@@ -1087,9 +1087,10 @@ _STILL_UNDESCRIBABLE = [
 def test_what_options_still_cannot_describe(
     attrs: dict[str, Any], actions: dict[str, str], error: type[Exception], match: str
 ) -> None:
-    """The shapes the OPTIONS docs list as still ending in a 500. Each raised
-    the same way before; a change that starts describing one should update
-    those docs too."""
+    """The shapes the OPTIONS docs list as still ending in a 500. Each ended in
+    a 500 before too, though the context-dependent input now fails inside its
+    own ``get_fields`` rather than on DRF's ``serializer_class`` assertion. A
+    change that starts describing one should update those docs too."""
     with pytest.raises(error, match=match):
         _options(_view(attrs).as_view(actions))
 

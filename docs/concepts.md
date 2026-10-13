@@ -906,7 +906,9 @@ Some shapes still end OPTIONS in a 500, as they always have:
   does set a `queryset`;
 - a handler the view writes itself with no spec, on a view with no
   `serializer_class`;
-- an `input_serializer` whose fields need its context, as above;
+- an `input_serializer` whose fields need its context, as above, which now
+  fails inside its own `get_fields` where it used to fail on DRF's
+  `serializer_class` assertion;
 - `ActionSerializerResolver` listed after `GenericViewSet` in the bases, where
   DRF's own `get_serializer_class()` answers first.
 

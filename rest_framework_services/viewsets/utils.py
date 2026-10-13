@@ -386,7 +386,10 @@ class _ActionSpecsMixin(_ServesRaisedSchema):
 
         Only under ``"metadata"``: a real request reaches its handler as
         before. The view's own permission classes are checked first, so a view
-        that refuses OPTIONS still refuses it.
+        that refuses OPTIONS still refuses it. The OPTIONS request itself also
+        arrives here, with no method to describe; it names no handler, so the
+        marker's ``False`` default is what lets it through, held by every test
+        of test_options_metadata.py answering 200.
 
         Each condition is held by a test that fails without it: ``"metadata"``
         by test_outside_options_check_permissions_refuses_nothing_new, no spec
