@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **OPTIONS no longer 500s on a viewset whose POST / PUT action has no output
+  serializer.** DRF's metadata asks `get_serializer_class()` for every POST / PUT
+  it describes, under the implicit `"metadata"` action that no `action_specs`
+  entry matches. A no-content `ServiceSpec` declares no output serializer, and a
+  viewset built only from specs sets no `serializer_class`, so the resolver fell
+  through to DRF's `AssertionError`. Under `"metadata"` the resolver now reads the
+  entry the described method routes to, and a `ServiceSpec` answers with its
+  `input_serializer` (a bare dataclass wrapped as it is for rendering): the body
+  that method accepts. A spec without one, or a method with no spec, still falls
+  back to `serializer_class`. Other actions resolve exactly as before.
+
 ## [0.56.1] — 2026-10-12
 
 ### Fixed
