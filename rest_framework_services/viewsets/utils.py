@@ -6,14 +6,14 @@ from collections.abc import Mapping
 from typing import Any, ClassVar
 
 from django.core.exceptions import ImproperlyConfigured
-from rest_framework.exceptions import MethodNotAllowed
+from rest_framework.exceptions import MethodNotAllowed, NotFound
 
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
-from rest_framework_services.views.mutation.utils import _ServesRaisedSchema
+from rest_framework_services.views.mutation.utils import _ServesRaisedSchema, mutation_target_source
 from rest_framework_services.views.spec_validation import (
     is_overridden,
     validate_filter_set_no_backend_conflict,
@@ -69,6 +69,35 @@ def resolve_action_spec_entry(
     if fallback is not None:
         return action_specs.get(fallback)
     return None
+
+
+def resolve_action_spec(view: Any, action: str | None) -> ActionSpec | None:
+    """Return the spec ``action`` routes to on ``view``, from either source.
+
+    A spec reaches a viewset two ways: keyed in ``action_specs`` (read through
+    [`resolve_action_spec_entry`][rest_framework_services.viewsets.utils.resolve_action_spec_entry],
+    fallbacks included), or stamped on the bound handler by ``@service_action`` /
+    ``@selector_action``. ``get_permissions`` and the OPTIONS metadata path both
+    ask through here, so a hook that reads only one of the two cannot be written
+    by accident again: it is how OPTIONS on a ``@service_action`` POST came to
+    500 while its permissions resolved fine.
+
+    ``action`` is taken as given and never translated. DRF's implicit
+    ``"metadata"`` action has no handler and no entry, so it resolves to
+    ``None``; the metadata path names the action it describes itself.
+
+    The ``getattr`` default is load-bearing: no handler exists for an implicit
+    action, and an ``AttributeError`` is not an ``APIException``, so
+    ``handle_exception`` would re-raise it and every OPTIONS request (CORS
+    preflights included) would 500 before permissions are evaluated. So is the
+    ``action is None`` check, for a method the action map does not route: held
+    by test_a_method_the_viewset_does_not_route_is_refused_rather_than_crashing.
+    """
+    spec = resolve_action_spec_entry(view.action_specs, action)
+    if spec is not None or action is None:
+        return spec
+    handler: Any = getattr(view, action, None)
+    return getattr(handler, "_service_spec", None) or getattr(handler, "_selector_spec", None)
 
 
 def resolve_action_service_spec(
@@ -240,8 +269,9 @@ class _ActionSpecsMixin(_ServesRaisedSchema):
 
     action_specs: ClassVar[Mapping[str, ActionSpec]] = {}
 
-    # Provided by ``GenericAPIView`` at runtime.
+    # Provided by ``GenericAPIView`` / ``ViewSetMixin`` at runtime.
     action: str | None
+    action_map: dict[str, str]
     # DRF's class-level permission classes, consulted for the ``union`` strategy.
     permission_classes: Any
     request: Any
@@ -292,24 +322,63 @@ class _ActionSpecsMixin(_ServesRaisedSchema):
             extras=extras,
         )
 
+    def _described_action_spec(self) -> ActionSpec | None:
+        """The spec behind the method an OPTIONS response is describing.
+
+        DRF answers OPTIONS under the implicit ``"metadata"`` action, and its
+        ``SimpleMetadata.determine_actions`` swaps in a clone of the request
+        carrying each POST / PUT it describes. So ``self.action`` stays
+        ``"metadata"`` while ``request.method`` names the method, and the
+        action that method routes to is read from the viewset's
+        ``action_map``.
+
+        Only the metadata path asks this. ``get_permissions`` deliberately does
+        not: OPTIONS answers to the view's own permissions, never to those of
+        an action it describes, which is pinned by
+        test_a_locked_down_action_still_has_its_body_described.
+        """
+        return resolve_action_spec(self, self.action_map.get(self.request.method.lower()))
+
+    def get_object(self) -> Any:
+        self._refuse_a_metadata_probe_no_put_makes()
+        return super().get_object()  # ty: ignore[unresolved-attribute]
+
+    def _refuse_a_metadata_probe_no_put_makes(self) -> None:
+        """Leave a PUT undescribed when a real PUT would not call ``get_object()``.
+
+        DRF's metadata calls ``get_object()`` for every PUT it describes, as an
+        object-permission probe, and describes the PUT only if no
+        ``APIException`` or ``Http404`` comes back. A spec whose target is a
+        bulk set or an instance selector's row never calls it on a real PUT, so
+        the view has no reason to carry a ``queryset``, and DRF's lookup would
+        raise a configuration ``AssertionError`` that ends the OPTIONS request
+        in a 500. Raising ``NotFound`` instead omits the PUT: there is no row
+        the PUT would fetch to check the permission against.
+
+        Called first by every ``get_object()`` in the viewset bases, the
+        retrieve selector's included, so the answer does not depend on which
+        lookup a composition happens to carry: the ``beside-a-retrieve-selector``
+        and ``without-a-retrieve-mixin`` rows of
+        test_options_describes_every_spec_only_shape hold the two call sites.
+
+        Every other action, and every PUT whose target does come from
+        ``get_object()``, looks up exactly as before. Each condition is held by
+        a test that fails without it: ``"metadata"`` by
+        test_outside_options_get_object_looks_up_whatever_the_put_spec, and the
+        ``ServiceSpec`` and target-source conditions by the
+        ``polymorphic-put-with-queryset`` and ``put-with-queryset`` rows.
+        """
+        spec = self._described_action_spec() if self.action == "metadata" else None
+        if isinstance(spec, ServiceSpec) and mutation_target_source(spec) != "get_object":
+            raise NotFound
+
     def get_permissions(self) -> list[Any]:
-        # Same fallback chain as dispatch, so PATCH enforces an
-        # ``"update"``-keyed spec's ``permission_classes``.
-        spec: ActionSpec | None = resolve_action_spec_entry(self.action_specs, self.action)
-        if spec is None and self.action is not None:
-            # Falls back to a spec stamped on the bound handler by
-            # ``@service_action`` / ``@selector_action``, so decorator-based
-            # actions enforce permissions without the DRF router's ``initkwargs``.
-            #
-            # The ``getattr`` default is load-bearing: DRF sets
-            # ``self.action = "metadata"`` for OPTIONS and no such handler
-            # exists. An ``AttributeError`` here is not an ``APIException``, so
-            # ``handle_exception`` re-raises it and every OPTIONS request (CORS
-            # preflights included) 500s before permissions are evaluated.
-            handler: Any = getattr(self, self.action, None)
-            spec = getattr(handler, "_service_spec", None) or getattr(
-                handler, "_selector_spec", None
-            )
+        # Same resolution as dispatch: the ``"partial_update"`` -> ``"update"``
+        # fallback, so PATCH enforces an ``"update"``-keyed spec's
+        # ``permission_classes``, then the spec ``@service_action`` /
+        # ``@selector_action`` stamped on the handler, so decorator-based
+        # actions enforce permissions without the DRF router's ``initkwargs``.
+        spec = resolve_action_spec(self, self.action)
         if isinstance(spec, PolymorphicServiceSpec):
             return self._polymorphic_permissions(spec)
         if spec is not None and spec.permission_classes is not None:

@@ -9,16 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **OPTIONS no longer 500s on a viewset whose POST / PUT action has no output
-  serializer.** DRF's metadata asks `get_serializer_class()` for every POST / PUT
-  it describes, under the implicit `"metadata"` action that no `action_specs`
-  entry matches. A no-content `ServiceSpec` declares no output serializer, and a
-  viewset built only from specs sets no `serializer_class`, so the resolver fell
-  through to DRF's `AssertionError`. Under `"metadata"` the resolver now reads the
-  entry the described method routes to, and a `ServiceSpec` answers with its
-  `input_serializer` (a bare dataclass wrapped as it is for rendering): the body
-  that method accepts. A spec without one, or a method with no spec, still falls
-  back to `serializer_class`. Other actions resolve exactly as before.
+- **OPTIONS no longer 500s on a viewset built from specs.** DRF answers OPTIONS
+  under the implicit `"metadata"` action and, for every POST / PUT it describes,
+  calls `get_serializer_class()` (and, for PUT, `get_object()`) with a copy of
+  the request carrying that method. No spec is keyed on `"metadata"`, so a
+  viewset with no `serializer_class` raised DRF's `AssertionError` and the
+  request, CORS preflights included, ended in a 500. That held whether or not
+  the action declared an output serializer, and for a `@service_action` POST,
+  whose spec is stamped on its handler rather than kept in `action_specs`. The
+  metadata path now reads the spec the described method routes to, from either
+  source:
+  - a `ServiceSpec` describes its `input_serializer` (a bare dataclass wrapped
+    as it is for rendering);
+  - a `PolymorphicServiceSpec` describes its variants' `input_serializer` when
+    they all declare the same one, without consulting the discriminator;
+  - otherwise the view's `serializer_class` when it sets one, else a serializer
+    with no fields, which describes a method that takes no body.
+
+  A PUT whose spec takes its target from an `instance_selector_spec` or works on
+  a set (`many=True`, `collection_selector_spec`) never calls `get_object()` when
+  it runs, so the view needs no `queryset`; DRF's metadata called it anyway as
+  an object-permission probe. That PUT is now left out of the OPTIONS
+  description instead of raising. A PUT that does look up through `get_object()`
+  is still probed against the row. OPTIONS still answers to the view's own
+  `permission_classes`, not to those of the action it describes. Every other
+  action resolves its serializer, object and permissions as before.
+
+### Changed
+
+- **OPTIONS describes a POST / PUT by the spec's `input_serializer` even when the
+  view sets a `serializer_class`.** The view's serializer used to win, so the
+  metadata described whatever the viewset renders elsewhere rather than the body
+  the method accepts. A view relying on OPTIONS listing its `serializer_class`
+  fields for a spec-backed POST / PUT now gets the input's fields.
 
 ## [0.56.1] — 2026-10-12
 

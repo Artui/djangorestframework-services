@@ -847,6 +847,36 @@ action has no spec or no response serializer is set. Already included
 in `ServiceViewSet` and `SelectorViewSet`; add it to any custom
 composition that needs per-action serializers.
 
+### OPTIONS
+
+DRF answers OPTIONS under an implicit `"metadata"` action, and its
+`SimpleMetadata` describes each POST and PUT the route allows by calling
+`get_serializer()` (and, for PUT, `get_object()` as an object-permission
+probe) with a copy of the request carrying that method. No spec is keyed on
+`"metadata"`, so the resolver reads the spec the described method routes to
+instead: the `action_specs` entry, or the spec `@service_action` stamped on
+the handler. That spec describes the body the method *accepts*:
+
+| The described method's spec | `actions` describes |
+| --- | --- |
+| `ServiceSpec` with an `input_serializer` | that input, even when the view sets `serializer_class` |
+| `PolymorphicServiceSpec` whose variants share one `input_serializer` | that input; the discriminator is never asked |
+| `ServiceSpec` with no input, or variants that disagree | the view's `serializer_class`, else no fields |
+| a PUT whose target is an `instance_selector_spec` row or a set (`many=True`, `collection_selector_spec`) | nothing: the PUT is left out |
+
+A viewset built only from specs therefore needs neither a `serializer_class`
+nor a `queryset` to answer OPTIONS. The last row is the one place it describes
+less than DRF would: such a PUT never calls `get_object()` when it runs, so
+there is no row to probe the object permission against, and leaving the PUT
+out is the answer DRF itself gives when that probe fails. A PUT that does look
+its row up through `get_object()` is still probed, and omitted when the row is
+missing, as before.
+
+OPTIONS answers to the view's own `permission_classes`, never to those of the
+action it describes: a `create` locked down by its spec's `permission_classes`
+still has its body described. Every non-OPTIONS request resolves its
+serializer, object and permissions as described above.
+
 ## `@service_action`
 
 Custom viewset actions wrapped in the same plumbing as the standard

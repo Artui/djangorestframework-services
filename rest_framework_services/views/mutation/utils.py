@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import is_dataclass, replace
-from typing import Any
+from typing import Any, Literal
 
 from rest_framework import status as drf_status
 from rest_framework.exceptions import NotFound
@@ -503,12 +503,39 @@ def resolve_mutation_instance(
     scoping in the selector's own queryset. Only the last branch — DRF's own
     ``get_object()`` — applies the backends.
     """
-    if spec.many or spec.collection_selector_spec is not None:
+    source = mutation_target_source(spec)
+    if source == "bulk":
         return None
-    instance_spec = spec.instance_selector_spec
-    if instance_spec is not None and instance_spec.selector is not None:
+    if source == "instance_selector":
         return UNSET
     return view.get_object()
+
+
+def mutation_target_source(
+    spec: ServiceSpec[Any, Any, Any],
+) -> Literal["bulk", "instance_selector", "get_object"]:
+    """Where a mutation's target comes from, as
+    [`resolve_mutation_instance`][rest_framework_services.views.mutation.utils.resolve_mutation_instance]
+    decides it.
+
+    Its own function so a caller that must not *perform* the lookup can still
+    ask which one applies: DRF's OPTIONS metadata calls ``get_object()`` as an
+    object-permission probe for every PUT it describes, and has to know when a
+    real PUT would never have called it.
+
+    Each condition is held by a test that fails without it: ``spec.many`` by the
+    ``put-bulk-no-queryset`` row of test_options_describes_every_spec_only_shape,
+    ``collection_selector_spec`` by
+    TestBulkDeleteCollection.test_delete_over_query_filter_204, and the instance
+    selector's ``selector`` by
+    test_selectorless_instance_spec_falls_back_to_get_object.
+    """
+    if spec.many or spec.collection_selector_spec is not None:
+        return "bulk"
+    instance_spec = spec.instance_selector_spec
+    if instance_spec is not None and instance_spec.selector is not None:
+        return "instance_selector"
+    return "get_object"
 
 
 def restore_raised_schema(exc: Exception, response: Response) -> Response:
