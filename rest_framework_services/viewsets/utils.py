@@ -503,7 +503,10 @@ class _ActionSpecsMixin(_ServesRaisedSchema):
         built-in ``update``, is a detail action. Each condition is held by a
         test that fails without it: the OPTIONS test by
         test_a_non_detail_put_named_metadata_still_looks_its_row_up, the lookup
-        kwarg by test_a_bulk_put_with_a_lookup_kwarg_is_still_probed, the
+        kwarg by test_a_bulk_put_with_a_lookup_kwarg_is_still_probed, the name
+        it is read under (``lookup_url_kwarg``, else ``lookup_field``) by the
+        ``row-missing-lookup-field`` and ``row-missing-lookup-url-kwarg`` rows
+        of test_a_bulk_put_probe_reads_the_views_lookup_kwarg, the
         ``detail`` default by the ``put-through-get-object-on-a-list-route``
         row of test_what_options_still_cannot_describe, the bulk source by
         test_a_bulk_put_on_a_list_route_is_described, the ``ServiceSpec`` check

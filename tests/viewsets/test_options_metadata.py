@@ -1105,6 +1105,38 @@ def test_a_bulk_put_with_a_lookup_kwarg_is_still_probed() -> None:
     assert _described(response) == {}
 
 
+_LOOKUP_NAMINGS = [
+    pytest.param({"lookup_field": "name"}, "name", id="lookup-field"),
+    pytest.param(
+        {"lookup_field": "name", "lookup_url_kwarg": "author_name"},
+        "author_name",
+        id="lookup-url-kwarg",
+    ),
+]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(("naming", "kwarg"), _LOOKUP_NAMINGS)
+@pytest.mark.parametrize(
+    ("row", "described"),
+    [("Ada", {"PUT": {"new_name"}}), ("nobody", {})],
+    ids=["row-present", "row-missing"],
+)
+def test_a_bulk_put_probe_reads_the_views_lookup_kwarg(
+    naming: dict[str, str], kwarg: str, row: str, described: dict[str, set[str]]
+) -> None:
+    """The lookup kwarg is the one DRF's ``get_object()`` reads: the view's
+    ``lookup_url_kwarg``, else its ``lookup_field``. Carried under that name,
+    the probe runs as it always did: a found row describes the PUT and a
+    missing one leaves it out. Read under any other name, the probe would be
+    skipped and the missing row described."""
+    Author.objects.create(name="Ada")
+    attrs = {"queryset": Author.objects.all(), "action_specs": {"update": _bulk_put()}, **naming}
+    response = _view(attrs).as_view({"put": "update"})(factory.options("/"), **{kwarg: row})
+    assert response.status_code == 200
+    assert _described(response) == described
+
+
 def _own_create(self: Any, request: Any, *args: Any, **kwargs: Any) -> Any:  # pragma: no cover
     raise AssertionError
 
