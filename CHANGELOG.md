@@ -16,35 +16,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   viewset with no `serializer_class` raised DRF's `AssertionError` and the
   request, CORS preflights included, ended in a 500. That held whether or not
   the action declared an output serializer, and for a `@service_action` POST,
-  whose spec is stamped on its handler rather than kept in `action_specs`. The
-  metadata path now reads the spec the described method routes to, from either
+  whose spec is stamped on its handler rather than kept in `action_specs`. A
+  view that sets `serializer_class` is still described by it. A view with none
+  is now described by the spec the described method routes to, from either
   source:
   - a `ServiceSpec` describes its `input_serializer` (a bare dataclass wrapped
-    as it is for rendering);
+    as it is for rendering), or no fields when it takes no input;
   - a `PolymorphicServiceSpec` describes its variants' `input_serializer` when
     they all declare the same one, without consulting the discriminator;
-  - otherwise the view's `serializer_class` when it sets one, else a serializer
-    with no fields, which describes a method that takes no body. That includes
-    a method a router maps to an action no spec serves, such as PUT on a
-    registered `ServiceViewSet` with no `update` spec, which is still answered
-    405 when sent.
+  - a `@selector_action` POST describes no fields, since a selector reads query
+    parameters rather than a body.
 
   A PUT whose spec takes its target from an `instance_selector_spec` or works on
-  a set (`many=True`, `collection_selector_spec`) never calls `get_object()` when
-  it runs, so the view needs no `queryset`; DRF's metadata called it anyway as
-  an object-permission probe. That PUT is now left out of the OPTIONS
-  description instead of raising. A PUT that does look up through `get_object()`
-  is still probed against the row. OPTIONS still answers to the view's own
-  `permission_classes`, not to those of the action it describes. Every other
-  action resolves its serializer, object and permissions as before.
+  a set (`many=True`, `collection_selector_spec`), on a view with no `queryset`,
+  is left out of the description: DRF's object-permission probe cannot look a
+  row up there, and the instance selector is not run in its place. Where a row
+  source exists the probe runs as before. A `detail=False` action routing PUT
+  skips the probe and is described.
 
-### Changed
+- **OPTIONS no longer describes a method the view refuses.** A router maps every
+  method whose action the class defines, so a `ServiceViewSet` with no `update`
+  spec offers PUT on its detail route, and one with no `create` spec offers POST,
+  though both are answered 405 when sent. Where the view set a
+  `serializer_class`, OPTIONS described them by it, and elsewhere it ended in a
+  500; it now leaves them out, as DRF does for any method a view refuses. A `create` or `update` the view defines itself
+  is described as before. A polymorphic method whose variants accept different
+  bodies, on a view with no `serializer_class`, is left out too.
 
-- **OPTIONS describes a POST / PUT by the spec's `input_serializer` even when the
-  view sets a `serializer_class`.** The view's serializer used to win, so the
-  metadata described whatever the viewset renders elsewhere rather than the body
-  the method accepts. A view relying on OPTIONS listing its `serializer_class`
-  fields for a spec-backed POST / PUT now gets the input's fields.
+  OPTIONS still answers to the view's own `permission_classes`, not to those of
+  the action it describes. Every request other than OPTIONS resolves its
+  serializer, object and permissions as before.
 
 ## [0.56.1] — 2026-10-12
 

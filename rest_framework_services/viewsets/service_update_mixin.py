@@ -13,6 +13,7 @@ from rest_framework_services.views.mutation.mutation_flow_mixin import MutationF
 from rest_framework_services.views.mutation.utils import resolve_mutation_instance
 from rest_framework_services.viewsets.utils import (
     _ActionSpecsMixin,
+    dispatches_action_specs,
     resolve_action_service_spec,
 )
 
@@ -34,6 +35,7 @@ class ServiceUpdateMixin(MutationFlowMixin, _ActionSpecsMixin):
     # Provided at runtime by ``GenericAPIView`` / ``GenericViewSet``.
     get_object: Callable[..., Any]
 
+    @dispatches_action_specs
     def update(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         return self._update(request, partial=False)
 

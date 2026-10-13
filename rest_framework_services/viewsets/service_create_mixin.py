@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework_services.views.mutation.mutation_flow_mixin import MutationFlowMixin
 from rest_framework_services.viewsets.utils import (
     _ActionSpecsMixin,
+    dispatches_action_specs,
     resolve_action_service_spec,
 )
 
@@ -25,6 +26,7 @@ class ServiceCreateMixin(MutationFlowMixin, _ActionSpecsMixin):
     [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec]) raises
     ``ImproperlyConfigured``."""
 
+    @dispatches_action_specs
     def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         spec = resolve_action_service_spec(self.action_specs, "create", "POST", view=self)
         return self._run_mutation(

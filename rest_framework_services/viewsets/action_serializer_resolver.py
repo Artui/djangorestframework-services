@@ -13,6 +13,7 @@ from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.viewsets.utils import (
     ActionSpec,
     _ActionSpecsMixin,
+    polymorphic_inputs_disagree,
     resolve_action_spec_entry,
 )
 
@@ -35,20 +36,25 @@ class ActionSerializerResolver(_ActionSpecsMixin):
     ``serializer_class``, raising the usual ``AssertionError`` when neither is set.
 
     OPTIONS is answered under DRF's implicit ``"metadata"`` action, once per
-    POST / PUT it describes. There the spec is the one that method routes to,
-    from ``action_specs`` or stamped by ``@service_action``, and what it answers
-    with is the body that method accepts:
+    POST / PUT it describes. A view that sets ``serializer_class`` is described
+    by it, as DRF always has. A view built only from specs has none, and there
+    the spec the described method routes to (from ``action_specs`` or stamped by
+    ``@service_action`` / ``@selector_action``) answers with the body that
+    method accepts:
 
     - a ``ServiceSpec`` with an ``input_serializer`` answers with it (a bare
-      dataclass wrapped as it is for rendering), ahead of ``serializer_class``;
+      dataclass wrapped as it is for rendering);
     - a
       [`PolymorphicServiceSpec`][rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec]
       answers with its variants' ``input_serializer`` when they all declare the
       same one. Its discriminator is never asked: an OPTIONS request carries no
-      body to discriminate;
-    - otherwise, including a method a router maps to an action no spec serves,
-      ``serializer_class`` when the view sets one, else a serializer with no
-      fields, which describes a method that accepts no body.
+      body to discriminate. Variants that disagree leave the method out;
+    - a ``ServiceSpec`` with no input, and a ``SelectorSpec`` (a selector reads
+      query parameters, never a body), answer with a serializer of no fields.
+
+    The input is built with DRF's base serializer context only: an
+    ``input_serializer`` whose fields depend on its ``input_serializer_context``
+    cannot be described this way.
 
     Every other action resolves exactly as it did without OPTIONS in the
     picture.
@@ -67,8 +73,18 @@ class ActionSerializerResolver(_ActionSpecsMixin):
     """
 
     def get_serializer_class(self) -> type[BaseSerializer[Any]]:
-        if self.action == "metadata":
-            return self._describe_input(self._described_action_spec())
+        # A view with a ``serializer_class`` is described by it under OPTIONS,
+        # exactly as before; held by
+        # test_options_keeps_the_views_serializer_class_beside_a_spec_input.
+        # Every other action skips this, held by
+        # TestActionSerializerResolver.test_no_serializer_configured_raises.
+        if self.action == "metadata" and getattr(self, "serializer_class", None) is None:
+            described = _body_serializer(self._described_action_spec())
+            # ``None``: no spec answers (a handler the view defines itself), so
+            # DRF's own answer stands. Held by
+            # test_a_views_own_handler_without_a_spec_or_serializer_still_raises.
+            if described is not None:
+                return described
         # Same ``"partial_update"`` → ``"update"`` fallback as dispatch and
         # ``get_permissions``, so the three sites agree. Deliberately not the
         # handler stamp ``get_permissions`` also reads: that would change what
@@ -84,31 +100,23 @@ class ActionSerializerResolver(_ActionSpecsMixin):
             return renderable_serializer_class(spec.output_selector_spec.output_serializer)
         return super().get_serializer_class()  # ty: ignore[unresolved-attribute]
 
-    def _describe_input(self, spec: ActionSpec | None) -> type[BaseSerializer[Any]]:
-        declared = _declared_input(spec)
-        if declared is not None:
-            return renderable_serializer_class(declared)
-        if getattr(self, "serializer_class", None) is not None:
-            return super().get_serializer_class()  # ty: ignore[unresolved-attribute]
-        # Also where a router maps a method to an action no spec serves: a
-        # spec-only viewset registered on a router routes PUT to ``update``
-        # whether or not it declares one. Asserting there 500s the whole
-        # OPTIONS response, and DRF gives no way to leave a POST out.
-        return _NoBody
 
+def _body_serializer(spec: ActionSpec | None) -> type[BaseSerializer[Any]] | None:
+    """The serializer describing the body ``spec``'s method accepts.
 
-def _declared_input(spec: ActionSpec | None) -> type | None:
-    """The one ``input_serializer`` behind ``spec``, or ``None`` if there is none.
-
-    A polymorphic spec has one only when every variant declares the same class;
-    otherwise which body applies is the discriminator's call on a body OPTIONS
-    does not have. The single-class condition is held by the
-    ``polymorphic-distinct-inputs`` row of test_options_describes_every_spec_only_shape.
-    A ``SelectorSpec``, or no spec at all, declares no input.
+    ``None`` when the spec cannot say: no spec at all, or polymorphic variants
+    declaring different bodies. ``check_permissions`` leaves the latter out of
+    OPTIONS before this is asked; the disagreement check here keeps a direct
+    caller from being handed one variant's body as if it were the only one,
+    held by test_disagreeing_variants_name_no_body_when_asked_directly.
     """
+    if isinstance(spec, SelectorSpec):
+        # A selector reads query parameters, never a body.
+        return _NoBody
     if isinstance(spec, ServiceSpec):
-        return spec.input_serializer
-    if isinstance(spec, PolymorphicServiceSpec):
-        declared = {variant.input_serializer for variant in spec.specs.values()}
-        return declared.pop() if len(declared) == 1 else None
-    return None
+        declared = spec.input_serializer
+    elif isinstance(spec, PolymorphicServiceSpec) and not polymorphic_inputs_disagree(spec):
+        declared = next(iter(spec.specs.values())).input_serializer
+    else:
+        return None
+    return _NoBody if declared is None else renderable_serializer_class(declared)

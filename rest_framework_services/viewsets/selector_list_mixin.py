@@ -56,5 +56,5 @@ class SelectorListMixin(ListModelMixin, _ActionSpecsMixin):
     def get_queryset(self) -> Any:
         spec = resolve_action_selector_spec(self.action_specs, "list")
         if spec is None:
-            return super().get_queryset()  # ty: ignore[unresolved-attribute]
+            return super().get_queryset()
         return dispatch_selector_for_spec(self, spec)

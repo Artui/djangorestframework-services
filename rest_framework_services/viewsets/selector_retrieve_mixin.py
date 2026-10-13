@@ -72,9 +72,11 @@ class SelectorRetrieveMixin(RetrieveModelMixin, _ActionSpecsMixin):
         rule as ``SelectorSpec.filter_set`` — the sanctioned seam, applied by
         the dispatcher on both paths.
         """
-        # Before the selector runs: OPTIONS must not describe a PUT through a
-        # lookup that PUT never makes. See ``_ActionSpecsMixin``.
-        self._refuse_a_metadata_probe_no_put_makes()
+        # Before the selector runs: a non-detail PUT has no lookup kwarg for
+        # it, and DRF's OPTIONS probe would fail on that. See
+        # ``_ActionSpecsMixin._metadata_probe_has_no_row``.
+        if self._metadata_probe_has_no_row():
+            return None
         spec = resolve_action_selector_spec(self.action_specs, "retrieve")
         obj = super().get_object() if spec is None else dispatch_selector_for_spec(self, spec)
         # Stash the resolved instance so a SelectorSpec's output context

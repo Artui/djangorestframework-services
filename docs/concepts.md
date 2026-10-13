@@ -854,27 +854,61 @@ DRF answers OPTIONS under an implicit `"metadata"` action, and its
 `get_serializer()` (and, for PUT, `get_object()` as an object-permission
 probe) with a copy of the request carrying that method. No spec is keyed on
 `"metadata"`, so the resolver reads the spec the described method routes to
-instead: the `action_specs` entry, or the spec `@service_action` stamped on
-the handler. That spec describes the body the method *accepts*:
+instead: the `action_specs` entry, or the spec `@service_action` /
+`@selector_action` stamped on the handler.
+
+A view that sets `serializer_class` is described by it, as DRF always has. A
+view built only from specs has none, and there the spec describes the body the
+method *accepts*:
 
 | The described method's spec | `actions` describes |
 | --- | --- |
-| `ServiceSpec` with an `input_serializer` | that input, even when the view sets `serializer_class` |
+| `ServiceSpec` with an `input_serializer` | that input |
 | `PolymorphicServiceSpec` whose variants share one `input_serializer` | that input; the discriminator is never asked |
-| `ServiceSpec` with no input, or variants that disagree | the view's `serializer_class`, else no fields |
-| no spec: a router maps the method to an action nothing serves | the view's `serializer_class`, else no fields |
-| a PUT whose target is an `instance_selector_spec` row or a set (`many=True`, `collection_selector_spec`) | nothing: the PUT is left out |
+| `ServiceSpec` with no input | no fields |
+| `SelectorSpec` (a `@selector_action` POST) | no fields: a selector reads query parameters, never a body |
 
-A viewset built only from specs therefore needs neither a `serializer_class`
-nor a `queryset` to answer OPTIONS, registered on a router or not. A router
-maps every method whose action the class defines, so a `ServiceViewSet` with
-no `update` spec still offers PUT; OPTIONS describes it with no fields, because
-DRF gives a view no way to leave a POST out, though the request itself is
-answered 405. The last row is the one place it describes less than DRF would: such a PUT never calls `get_object()` when it runs, so
-there is no row to probe the object permission against, and leaving the PUT
-out is the answer DRF itself gives when that probe fails. A PUT that does look
-its row up through `get_object()` is still probed, and omitted when the row is
-missing, as before.
+The input is built with DRF's base serializer context only. An
+`input_serializer` that reads a key from its `input_serializer_context` (or the
+view's `get_input_serializer_context`) while building its fields cannot be
+described this way; give that view a `serializer_class` to describe it by.
+
+DRF leaves a method out of `actions` when describing it raises an API error,
+and OPTIONS uses that to leave out what it cannot describe truthfully:
+
+- **A method no spec serves.** A router maps every method whose action the
+  class defines, so a `ServiceViewSet` with no `update` spec still offers PUT,
+  and `{"post": "create"}` offers POST on a viewset with no `create` spec. The
+  request itself is answered 405, so the method is left out, with or without a
+  `serializer_class`. This applies only to the handlers this package defines;
+  a `create` or `update` the view writes itself is described as DRF always has.
+- **A polymorphic method whose variants accept different bodies**, on a view
+  with no `serializer_class`. Which body applies is the discriminator's call on
+  a body an OPTIONS request does not have.
+- **A PUT DRF's object probe cannot look up.** For every PUT, DRF calls
+  `get_object()` to check object permissions, and with no `queryset` (nor a
+  `get_queryset()` override or list selector to stand in) that lookup raises a
+  configuration error. A PUT whose target comes from an `instance_selector_spec`
+  or is a set (`many=True`, `collection_selector_spec`) never makes that lookup
+  when sent, so the view has no reason to carry a `queryset`; that PUT is left
+  out. The instance selector is never run for OPTIONS. Wherever a row source
+  exists the probe runs as before, and a missing row leaves the PUT out.
+
+A `detail=False` action routing PUT has no row and no lookup kwarg, so the
+object probe is skipped for it and the PUT is described.
+
+Some shapes still end OPTIONS in a 500, as they always have:
+
+- a PUT that looks its row up through `get_object()` on a view with no
+  `queryset`, which fails the same way when sent, and a polymorphic PUT with
+  no `queryset`, whose variants may each look up differently;
+- a bulk PUT routed to `update` on a URL with no lookup kwarg, on a view that
+  does set a `queryset`;
+- a handler the view writes itself with no spec, on a view with no
+  `serializer_class`;
+- an `input_serializer` whose fields need its context, as above;
+- `ActionSerializerResolver` listed after `GenericViewSet` in the bases, where
+  DRF's own `get_serializer_class()` answers first.
 
 OPTIONS answers to the view's own `permission_classes`, never to those of the
 action it describes: a `create` locked down by its spec's `permission_classes`

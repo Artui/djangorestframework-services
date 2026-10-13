@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
+from rest_framework import serializers
 from rest_framework.viewsets import GenericViewSet
 
 from rest_framework_services import (
     ActionSerializerResolver,
+    PolymorphicServiceSpec,
     SelectorKind,
     SelectorSpec,
     ServiceSpec,
 )
+from rest_framework_services.viewsets.action_serializer_resolver import _body_serializer
 from tests.testapp.models import Author
 from tests.testapp.serializers import AuthorSerializer
 
@@ -67,3 +72,25 @@ class TestActionSerializerResolver:
         vs.action = None
         with pytest.raises(AssertionError):
             vs.get_serializer_class()
+
+
+def _variant_a(*, data: Any) -> str:  # pragma: no cover - never called
+    raise AssertionError
+
+
+class _OtherIn(serializers.Serializer):
+    other = serializers.CharField()
+
+
+def test_disagreeing_variants_name_no_body_when_asked_directly() -> None:
+    """``check_permissions`` leaves these out of OPTIONS before a body is
+    asked for, so only a direct question reaches this answer: one variant's
+    body is never handed back as if it were the only one."""
+    spec = PolymorphicServiceSpec(
+        discriminator=_variant_a,
+        specs={
+            "a": ServiceSpec(service=_noop, input_serializer=AuthorSerializer),
+            "b": ServiceSpec(service=_noop, input_serializer=_OtherIn),
+        },
+    )
+    assert _body_serializer(spec) is None

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, ClassVar
+from collections.abc import Callable, Mapping
+from typing import Any, ClassVar, TypeVar
 
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.exceptions import MethodNotAllowed, NotFound
@@ -69,6 +69,27 @@ def resolve_action_spec_entry(
     if fallback is not None:
         return action_specs.get(fallback)
     return None
+
+
+_HandlerT = TypeVar("_HandlerT", bound=Callable[..., Any])
+
+
+def dispatches_action_specs(handler: _HandlerT) -> _HandlerT:
+    """Mark a viewset handler as this package's own ``action_specs`` dispatcher.
+
+    Such a handler answers 405 when no spec serves its action, so OPTIONS can
+    leave that method out rather than describe a body nobody accepts. A
+    handler the view defines itself, even one calling ``super()``, is not
+    marked: what it accepts is its own business, and OPTIONS describes it as
+    DRF always has.
+    """
+    handler._dispatches_action_specs = True  # ty: ignore[unresolved-attribute]
+    return handler
+
+
+def polymorphic_inputs_disagree(poly: PolymorphicServiceSpec) -> bool:
+    """Whether a polymorphic spec's variants declare different input bodies."""
+    return len({variant.input_serializer for variant in poly.specs.values()}) > 1
 
 
 def resolve_action_spec(view: Any, action: str | None) -> ActionSpec | None:
@@ -337,40 +358,116 @@ class _ActionSpecsMixin(_ServesRaisedSchema):
         an action it describes, which is pinned by
         test_a_locked_down_action_still_has_its_body_described.
         """
-        return resolve_action_spec(self, self.action_map.get(self.request.method.lower()))
+        return resolve_action_spec(self, self._described_action())
+
+    def _described_action(self) -> str:
+        # ``""`` rather than ``None`` for a method the action map does not
+        # route (the OPTIONS request's own permission check is one): every
+        # lookup keyed on it then answers "nothing" without a branch of its own.
+        return self.action_map.get(self.request.method.lower(), "")
+
+    def check_permissions(self, request: Any) -> None:
+        """Leave out of OPTIONS a method that cannot be described.
+
+        DRF's metadata calls ``check_permissions`` first for every POST / PUT it
+        describes, inside the ``try`` that drops a method on an
+        ``APIException``. So raising ``MethodNotAllowed`` here leaves the method
+        out of ``actions`` (the ``Allow`` header still lists it), before
+        ``get_object()`` or ``get_serializer()`` are asked anything. Two cases:
+
+        - the method routes to one of this package's own spec-dispatching
+          handlers and no spec serves it, as when a router maps PUT to
+          ``update`` on a viewset with no ``update`` spec. A real request
+          answers 405 there. A handler the view defines itself carries no
+          marker and is described as DRF always has;
+        - a polymorphic spec whose variants accept different bodies, on a view
+          with no ``serializer_class`` to describe instead. Which body applies
+          is the discriminator's call on a body OPTIONS does not have.
+
+        Only under ``"metadata"``: a real request reaches its handler as
+        before. The view's own permission classes are checked first, so a view
+        that refuses OPTIONS still refuses it.
+
+        Each condition is held by a test that fails without it: ``"metadata"``
+        by test_outside_options_check_permissions_refuses_nothing_new, no spec
+        by every described row of test_options_describes_every_spec_only_shape,
+        the handler marker by test_a_views_own_handler_without_a_spec_is_described,
+        disagreeing variants by the ``polymorphic-shared-input`` row and the
+        missing ``serializer_class`` by
+        test_a_polymorphic_body_falls_back_to_the_views_serializer_class.
+        """
+        super().check_permissions(request)  # ty: ignore[unresolved-attribute]
+        if self.action != "metadata":
+            return
+        action = self._described_action()
+        spec = resolve_action_spec(self, action)
+        unserved = spec is None and getattr(
+            getattr(self, action, None), "_dispatches_action_specs", False
+        )
+        ambiguous = (
+            isinstance(spec, PolymorphicServiceSpec)
+            and polymorphic_inputs_disagree(spec)
+            and getattr(self, "serializer_class", None) is None
+        )
+        if unserved or ambiguous:
+            raise MethodNotAllowed(request.method)
 
     def get_object(self) -> Any:
-        self._refuse_a_metadata_probe_no_put_makes()
+        if self._metadata_probe_has_no_row():
+            return None
         return super().get_object()  # ty: ignore[unresolved-attribute]
 
-    def _refuse_a_metadata_probe_no_put_makes(self) -> None:
-        """Leave a PUT undescribed when a real PUT would not call ``get_object()``.
+    def _metadata_probe_has_no_row(self) -> bool:
+        """Whether DRF's OPTIONS probe is describing a PUT that targets no row.
 
         DRF's metadata calls ``get_object()`` for every PUT it describes, as an
-        object-permission probe, and describes the PUT only if no
-        ``APIException`` or ``Http404`` comes back. A spec whose target is a
-        bulk set or an instance selector's row never calls it on a real PUT, so
-        the view has no reason to carry a ``queryset``, and DRF's lookup would
-        raise a configuration ``AssertionError`` that ends the OPTIONS request
-        in a 500. Raising ``NotFound`` instead omits the PUT: there is no row
-        the PUT would fetch to check the permission against.
+        object-permission probe. A non-detail action (``detail=False``) has no
+        row and no lookup kwarg, so the probe could only fail on configuration,
+        a missing ``queryset`` or URL kwarg, and end OPTIONS in a 500. Skipping
+        it describes the PUT, as DRF does for a view with no ``get_object()``.
 
-        Called first by every ``get_object()`` in the viewset bases, the
-        retrieve selector's included, so the answer does not depend on which
-        lookup a composition happens to carry: the ``beside-a-retrieve-selector``
-        and ``without-a-retrieve-mixin`` rows of
-        test_options_describes_every_spec_only_shape hold the two call sites.
-
-        Every other action, and every PUT whose target does come from
-        ``get_object()``, looks up exactly as before. Each condition is held by
-        a test that fails without it: ``"metadata"`` by
-        test_outside_options_get_object_looks_up_whatever_the_put_spec, and the
-        ``ServiceSpec`` and target-source conditions by the
-        ``polymorphic-put-with-queryset`` and ``put-with-queryset`` rows.
+        Asked first by every ``get_object()`` in the viewset bases, the retrieve
+        selector's included, since that one fails the same way without a
+        lookup kwarg. A handler with no ``detail`` attribute, such as the
+        built-in ``update``, is a detail action. The ``"metadata"`` condition is
+        held by test_outside_options_get_object_looks_up_for_a_non_detail_put,
+        the ``detail`` default by
+        test_a_put_resolving_through_get_object_is_still_checked_against_the_row,
+        and the two call sites by the ``non-detail-put-*`` rows of
+        test_options_describes_a_non_detail_put.
         """
-        spec = self._described_action_spec() if self.action == "metadata" else None
-        if isinstance(spec, ServiceSpec) and mutation_target_source(spec) != "get_object":
-            raise NotFound
+        if self.action != "metadata":
+            return False
+        handler: Any = getattr(self, self._described_action(), None)
+        return getattr(handler, "detail", True) is False
+
+    def get_queryset(self) -> Any:
+        """Leave out a PUT that DRF's OPTIONS probe cannot look up.
+
+        DRF's metadata calls ``get_object()`` for every PUT it describes, and
+        that lookup reaches this method, DRF's own, only once every other row
+        source (a ``get_queryset()`` override, a list selector) has deferred.
+        With no ``queryset`` either, DRF raises a configuration
+        ``AssertionError`` and OPTIONS ends in a 500. That is a fair answer for
+        a PUT that looks its row up through ``get_object()``, which fails the
+        same way when sent. A PUT whose target comes from an instance selector
+        or is a set never makes that lookup, though, so the view has no reason
+        to carry a ``queryset``. For that PUT, ``NotFound`` is raised instead
+        and DRF leaves it out of ``actions``. Wherever a row source exists, the
+        probe runs exactly as before; the instance selector is never run.
+
+        Each condition is held by a test that fails without it: ``"metadata"``
+        by test_outside_options_a_missing_queryset_still_raises, the missing
+        ``queryset`` by the ``put-instance-selector-with-queryset`` row of
+        test_options_describes_every_spec_only_shape, the
+        ``ServiceSpec`` and target-source conditions by
+        test_a_put_options_cannot_look_up_still_raises.
+        """
+        if self.action == "metadata" and getattr(self, "queryset", None) is None:
+            spec = self._described_action_spec()
+            if isinstance(spec, ServiceSpec) and mutation_target_source(spec) != "get_object":
+                raise NotFound
+        return super().get_queryset()  # ty: ignore[unresolved-attribute]
 
     def get_permissions(self) -> list[Any]:
         # Same resolution as dispatch: the ``"partial_update"`` -> ``"update"``
