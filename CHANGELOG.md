@@ -24,7 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - a `PolymorphicServiceSpec` describes its variants' `input_serializer` when
     they all declare the same one, without consulting the discriminator;
   - otherwise the view's `serializer_class` when it sets one, else a serializer
-    with no fields, which describes a method that takes no body.
+    with no fields, which describes a method that takes no body. That includes
+    a method a router maps to an action no spec serves, such as PUT on a
+    registered `ServiceViewSet` with no `update` spec, which is still answered
+    405 when sent.
 
   A PUT whose spec takes its target from an `instance_selector_spec` or works on
   a set (`many=True`, `collection_selector_spec`) never calls `get_object()` when

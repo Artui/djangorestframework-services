@@ -11,6 +11,7 @@ from rest_framework_services.types.polymorphic_service_spec import PolymorphicSe
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.viewsets.utils import (
+    ActionSpec,
     _ActionSpecsMixin,
     resolve_action_spec_entry,
 )
@@ -45,8 +46,9 @@ class ActionSerializerResolver(_ActionSpecsMixin):
       answers with its variants' ``input_serializer`` when they all declare the
       same one. Its discriminator is never asked: an OPTIONS request carries no
       body to discriminate;
-    - otherwise ``serializer_class`` when the view sets one, else a serializer
-      with no fields, which describes a method that accepts no body.
+    - otherwise, including a method a router maps to an action no spec serves,
+      ``serializer_class`` when the view sets one, else a serializer with no
+      fields, which describes a method that accepts no body.
 
     Every other action resolves exactly as it did without OPTIONS in the
     picture.
@@ -66,9 +68,7 @@ class ActionSerializerResolver(_ActionSpecsMixin):
 
     def get_serializer_class(self) -> type[BaseSerializer[Any]]:
         if self.action == "metadata":
-            described = self._described_action_spec()
-            if isinstance(described, ServiceSpec | PolymorphicServiceSpec):
-                return self._describe_input(described)
+            return self._describe_input(self._described_action_spec())
         # Same ``"partial_update"`` → ``"update"`` fallback as dispatch and
         # ``get_permissions``, so the three sites agree. Deliberately not the
         # handler stamp ``get_permissions`` also reads: that would change what
@@ -84,26 +84,31 @@ class ActionSerializerResolver(_ActionSpecsMixin):
             return renderable_serializer_class(spec.output_selector_spec.output_serializer)
         return super().get_serializer_class()  # ty: ignore[unresolved-attribute]
 
-    def _describe_input(
-        self, spec: ServiceSpec[Any, Any, Any] | PolymorphicServiceSpec
-    ) -> type[BaseSerializer[Any]]:
+    def _describe_input(self, spec: ActionSpec | None) -> type[BaseSerializer[Any]]:
         declared = _declared_input(spec)
         if declared is not None:
             return renderable_serializer_class(declared)
         if getattr(self, "serializer_class", None) is not None:
             return super().get_serializer_class()  # ty: ignore[unresolved-attribute]
+        # Also where a router maps a method to an action no spec serves: a
+        # spec-only viewset registered on a router routes PUT to ``update``
+        # whether or not it declares one. Asserting there 500s the whole
+        # OPTIONS response, and DRF gives no way to leave a POST out.
         return _NoBody
 
 
-def _declared_input(spec: ServiceSpec[Any, Any, Any] | PolymorphicServiceSpec) -> type | None:
+def _declared_input(spec: ActionSpec | None) -> type | None:
     """The one ``input_serializer`` behind ``spec``, or ``None`` if there is none.
 
     A polymorphic spec has one only when every variant declares the same class;
     otherwise which body applies is the discriminator's call on a body OPTIONS
     does not have. The single-class condition is held by the
     ``polymorphic-distinct-inputs`` row of test_options_describes_every_spec_only_shape.
+    A ``SelectorSpec``, or no spec at all, declares no input.
     """
     if isinstance(spec, ServiceSpec):
         return spec.input_serializer
-    declared = {variant.input_serializer for variant in spec.specs.values()}
-    return declared.pop() if len(declared) == 1 else None
+    if isinstance(spec, PolymorphicServiceSpec):
+        declared = {variant.input_serializer for variant in spec.specs.values()}
+        return declared.pop() if len(declared) == 1 else None
+    return None

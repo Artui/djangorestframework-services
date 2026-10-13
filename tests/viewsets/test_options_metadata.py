@@ -563,6 +563,39 @@ _SPEC_ONLY_SHAPES = [
         {"PUT": {"new_name"}},
         id="polymorphic-put-with-queryset",
     ),
+    pytest.param(
+        # What a router builds: it maps every method whose action the class
+        # defines, so the detail route offers PUT though no spec serves it. The
+        # list selector finds the row; nothing describes a body for it.
+        {
+            "action_specs": {
+                "list": SelectorSpec(
+                    kind=SelectorKind.LIST,
+                    selector=_list_authors,
+                    output_serializer=AuthorSerializer,
+                ),
+                "create": ServiceSpec(service=_rename_authors, input_serializer=_RenameIn),
+            }
+        },
+        {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"},
+        {"PUT": set()},
+        id="router-detail-route-with-no-update-spec",
+    ),
+    pytest.param(
+        # The list route of the same registration, with no ``create`` spec.
+        {
+            "action_specs": {
+                "list": SelectorSpec(
+                    kind=SelectorKind.LIST,
+                    selector=_list_authors,
+                    output_serializer=AuthorSerializer,
+                )
+            }
+        },
+        {"get": "list", "post": "create"},
+        {"POST": set()},
+        id="router-list-route-with-no-create-spec",
+    ),
 ]
 
 
@@ -622,6 +655,23 @@ def test_shapes_describing_no_post_or_put_answer_as_before(
     response = _view(attrs).as_view(actions)(factory.options("/"), pk=author.pk)
     assert response.status_code == 200
     assert _described(response) == {}
+
+
+@pytest.mark.django_db
+def test_a_method_no_spec_serves_is_described_empty_and_still_refused() -> None:
+    """The no-fields description is the one DRF lets a view give for a method
+    it routes but does not serve. The request itself is still refused."""
+    author = Author.objects.create(name="Ada")
+    attrs = {
+        "action_specs": {
+            "list": SelectorSpec(
+                kind=SelectorKind.LIST, selector=_list_authors, output_serializer=AuthorSerializer
+            )
+        }
+    }
+    view = _view(attrs).as_view({"get": "retrieve", "put": "update"})
+    assert _described(view(factory.options("/"), pk=author.pk)) == {"PUT": set()}
+    assert view(factory.put("/", {}, format="json"), pk=author.pk).status_code == 405
 
 
 @pytest.mark.django_db

@@ -862,11 +862,15 @@ the handler. That spec describes the body the method *accepts*:
 | `ServiceSpec` with an `input_serializer` | that input, even when the view sets `serializer_class` |
 | `PolymorphicServiceSpec` whose variants share one `input_serializer` | that input; the discriminator is never asked |
 | `ServiceSpec` with no input, or variants that disagree | the view's `serializer_class`, else no fields |
+| no spec: a router maps the method to an action nothing serves | the view's `serializer_class`, else no fields |
 | a PUT whose target is an `instance_selector_spec` row or a set (`many=True`, `collection_selector_spec`) | nothing: the PUT is left out |
 
 A viewset built only from specs therefore needs neither a `serializer_class`
-nor a `queryset` to answer OPTIONS. The last row is the one place it describes
-less than DRF would: such a PUT never calls `get_object()` when it runs, so
+nor a `queryset` to answer OPTIONS, registered on a router or not. A router
+maps every method whose action the class defines, so a `ServiceViewSet` with
+no `update` spec still offers PUT; OPTIONS describes it with no fields, because
+DRF gives a view no way to leave a POST out, though the request itself is
+answered 405. The last row is the one place it describes less than DRF would: such a PUT never calls `get_object()` when it runs, so
 there is no row to probe the object permission against, and leaving the PUT
 out is the answer DRF itself gives when that probe fails. A PUT that does look
 its row up through `get_object()` is still probed, and omitted when the row is
