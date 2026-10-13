@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
+from rest_framework import serializers
 from rest_framework.permissions import BasePermission
 from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import ViewSet
@@ -51,6 +52,18 @@ def _list_authors() -> Any:
 class _DenyAll(BasePermission):
     def has_permission(self, request: Any, view: Any) -> bool:  # noqa: ARG002
         return False
+
+
+class _RenameIn(serializers.Serializer):
+    new_name = serializers.CharField()
+
+
+def _rename_authors(*, data: Any) -> None:  # pragma: no cover - never called
+    raise AssertionError
+
+
+def _reindex_authors() -> None:  # pragma: no cover - never called
+    raise AssertionError
 
 
 def _options(view: Any) -> Any:
@@ -210,3 +223,66 @@ def test_any_action_without_a_bound_handler_is_survivable() -> None:
     view.action = "not-a-method"
     view.request = None  # type: ignore[assignment]
     assert view.get_permissions() is not None
+
+
+# ----- describing a no-content action -----
+
+
+@pytest.mark.django_db
+def test_options_describes_a_no_content_service_by_its_input() -> None:
+    """A spec with no output re-read declares no output serializer, and a view
+    built only from specs sets no ``serializer_class``. DRF's metadata asks
+    ``get_serializer_class()`` for every POST / PUT it describes, so the
+    resolver fell through to DRF's ``AssertionError`` and OPTIONS ended in a
+    500."""
+
+    class _View(ServiceViewSet):
+        action_specs = {"create": ServiceSpec(service=_rename_authors, input_serializer=_RenameIn)}
+
+    response = _options(_View.as_view({"post": "create"}))
+    assert response.status_code == 200
+    assert set(response.data["actions"]["POST"]) == {"new_name"}
+
+
+@pytest.mark.django_db
+def test_options_describes_a_dataclass_input() -> None:
+    class _View(ServiceViewSet):
+        action_specs = {"create": ServiceSpec(service=_create_author, input_serializer=_AuthorIn)}
+
+    response = _options(_View.as_view({"post": "create"}))
+    assert set(response.data["actions"]["POST"]) == {"name"}
+
+
+@pytest.mark.django_db
+def test_options_prefers_the_input_over_the_views_serializer_class() -> None:
+    """The POST entry describes the body POST accepts, which is the spec's
+    input, not whatever the view renders elsewhere."""
+
+    class _View(ServiceViewSet):
+        serializer_class = AuthorSerializer
+        queryset = Author.objects.all()
+        action_specs = {"create": ServiceSpec(service=_rename_authors, input_serializer=_RenameIn)}
+
+    response = _options(_View.as_view({"post": "create"}))
+    assert set(response.data["actions"]["POST"]) == {"new_name"}
+
+
+@pytest.mark.django_db
+def test_options_without_a_spec_input_keeps_the_views_serializer_class() -> None:
+    class _View(ServiceViewSet):
+        serializer_class = AuthorSerializer
+        queryset = Author.objects.all()
+        action_specs = {"create": ServiceSpec(service=_reindex_authors)}
+
+    response = _options(_View.as_view({"post": "create"}))
+    assert set(response.data["actions"]["POST"]) == {"id", "name"}
+
+
+@pytest.mark.django_db
+def test_options_for_an_unspecced_post_keeps_the_views_serializer_class() -> None:
+    class _View(ServiceViewSet):
+        serializer_class = AuthorSerializer
+        queryset = Author.objects.all()
+
+    response = _options(_View.as_view({"post": "create"}))
+    assert set(response.data["actions"]["POST"]) == {"id", "name"}
