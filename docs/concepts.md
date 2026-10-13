@@ -886,8 +886,10 @@ and OPTIONS uses that to leave out what it cannot describe truthfully. The
 - **A method no spec serves.** A router maps each method whose action the class
   defines, so a `ServiceViewSet` with no `update` spec still offers PUT, and
   `{"post": "create"}` offers POST on a viewset with no `create` spec. The
-  request itself is answered 405, so the method is left out, with or without a
-  `serializer_class`. This applies only to the handlers this package defines;
+  request itself is answered 405, so the method is left out, even where a
+  `serializer_class` or the view's own `get_serializer_class()` or
+  `get_serializer()` override would describe it. This applies only to the
+  handlers this package defines;
   a `create` or `update` the view writes itself is described as DRF always has.
 - **A polymorphic method whose variants accept different bodies**, where the
   package's own resolver would describe it: the view sets no
@@ -910,10 +912,13 @@ fail there, so it is skipped and the PUT is described. Where the URL does carry
 the kwarg, the probe runs as before.
 
 Of the answers OPTIONS gave before, one changed: a POST or PUT routed to a
-handler no spec serves, on a view that sets `serializer_class`, used to be
-described by it, and is now left out. Every other answer a view already got
-(described by its `serializer_class`, by its own serializer resolution, or left
-out by DRF's own probe) stands; what is new is an answer where there was a 500.
+handler no spec serves used to be described wherever the view could name a
+serializer for it, by a `serializer_class` or by its own
+`get_serializer_class()` or `get_serializer()` override, and is now left out.
+A method the package does serve is still described by a view's
+`serializer_class` or serializer override, and a PUT DRF's probe left out
+before is still left out. The other changes give an answer where OPTIONS used
+to end in a 500.
 
 Some shapes still end OPTIONS in a 500, as they did before:
 
@@ -924,8 +929,8 @@ Some shapes still end OPTIONS in a 500, as they did before:
 - a handler the view writes itself with no spec, on a view with no
   `serializer_class`;
 - a polymorphic method whose variants disagree, behind a
-  `get_serializer_class()` override that hands back to the package's resolver,
-  which declines to pick a variant;
+  `get_serializer_class()` or `get_serializer()` override that hands back to
+  the package's resolver, which declines to pick a variant;
 - an `input_serializer` whose fields need its context, as above, which now
   fails inside its own `get_fields` where it used to fail on DRF's
   `serializer_class` assertion;

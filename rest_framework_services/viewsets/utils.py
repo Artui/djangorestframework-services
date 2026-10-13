@@ -424,7 +424,11 @@ class _ActionSpecsMixin(_ServesRaisedSchema):
         - the method routes to one of this package's own spec-dispatching
           handlers and no spec serves it, as when a router maps PUT to
           ``update`` on a viewset with no ``update`` spec. A real request
-          answers 405 there. A handler the view defines itself carries no
+          answers 405 there, so the method is left out even where a
+          ``serializer_class`` or a serializer override would describe it
+          (the ``*-behind-a-get-serializer*`` rows of
+          test_a_method_no_spec_serves_is_left_out_and_still_refused). A
+          handler the view defines itself carries no
           marker and is described as DRF always has;
         - a polymorphic spec whose variants accept different bodies, where the
           package's own resolver would describe it: no ``serializer_class``,

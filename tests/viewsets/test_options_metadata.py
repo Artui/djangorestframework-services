@@ -854,6 +854,14 @@ def test_options_describes_a_non_detail_put(attrs: dict[str, Any]) -> None:
     assert _described(response) == {"PUT": {"new_name"}}
 
 
+def _fixed_serializer_class(self: Any) -> Any:  # pragma: no cover - never reached
+    return AuthorSerializer
+
+
+def _fixed_serializer(self: Any, *args: Any, **kwargs: Any) -> Any:  # pragma: no cover
+    return AuthorSerializer(*args, **kwargs)
+
+
 _REFUSED_METHODS = [
     pytest.param(
         {
@@ -900,6 +908,40 @@ _REFUSED_METHODS = [
         {"get": "list", "post": "create"},
         "post",
         id="post-with-no-create-spec",
+    ),
+    # A view's own serializer resolution used to describe these, as a
+    # ``serializer_class`` did; the request is refused all the same.
+    pytest.param(
+        {"action_specs": {}, "get_serializer_class": _fixed_serializer_class},
+        {"post": "create"},
+        "post",
+        id="post-with-no-create-spec-behind-a-get-serializer-class-override",
+    ),
+    pytest.param(
+        {"action_specs": {}, "get_serializer": _fixed_serializer},
+        {"post": "create"},
+        "post",
+        id="post-with-no-create-spec-behind-a-get-serializer-override",
+    ),
+    pytest.param(
+        {
+            "action_specs": {},
+            "queryset": Author.objects.all(),
+            "get_serializer_class": _fixed_serializer_class,
+        },
+        {"put": "update"},
+        "put",
+        id="put-with-no-update-spec-behind-a-get-serializer-class-override",
+    ),
+    pytest.param(
+        {
+            "action_specs": {},
+            "queryset": Author.objects.all(),
+            "get_serializer": _fixed_serializer,
+        },
+        {"put": "update"},
+        "put",
+        id="put-with-no-update-spec-behind-a-get-serializer-override",
     ),
 ]
 
@@ -1072,6 +1114,10 @@ def _delegating_get_serializer_class(self: Any) -> Any:
     return ActionSerializerResolver.get_serializer_class(self)
 
 
+def _delegating_get_serializer(self: Any, *args: Any, **kwargs: Any) -> Any:
+    return GenericViewSet.get_serializer(self, *args, **kwargs)
+
+
 _STILL_UNDESCRIBABLE = [
     pytest.param(
         # A PUT that looks its row up, routed on a URL with no lookup kwarg:
@@ -1120,6 +1166,18 @@ _STILL_UNDESCRIBABLE = [
         AssertionError,
         "serializer_class",
         id="disagreeing-variants-behind-a-delegating-override",
+    ),
+    pytest.param(
+        # The same through a ``get_serializer()`` override: it reaches the
+        # same resolver, which declines in the same way.
+        {
+            "action_specs": {"create": _distinct_inputs()},
+            "get_serializer": _delegating_get_serializer,
+        },
+        {"post": "create"},
+        AssertionError,
+        "serializer_class",
+        id="disagreeing-variants-behind-a-delegating-get-serializer",
     ),
     pytest.param(
         {

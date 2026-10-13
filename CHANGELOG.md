@@ -10,13 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **OPTIONS leaves out a POST or PUT that the view refuses, even where a
-  `serializer_class` would describe it.** A router maps each method whose action
-  the class defines, so a `ServiceViewSet` with no `update` spec offers PUT on
-  its detail route, and one with no `create` spec offers POST, though both are
-  answered 405 when sent. DRF's metadata lists the methods a view has a handler
-  for, and these have one, the package's own `create` or `update`, so DRF
-  listed them. Where the view set a `serializer_class`, OPTIONS described them
-  by it, which is the answer that changes here: they are now left out of
+  `serializer_class` or the view's own serializer override would describe
+  it.** A router maps each method whose action the class defines, so a
+  `ServiceViewSet` with no `update` spec offers PUT on its detail route, and
+  one with no `create` spec offers POST, though both are answered 405 when
+  sent. DRF's metadata lists the methods a view has a handler for, and these
+  have one, the package's own `create` or `update`, so DRF listed them. Where
+  the view set a `serializer_class`, or overrode `get_serializer_class()` or
+  `get_serializer()`, OPTIONS described them by it, which is the answer that
+  changes here: they are now left out of
   `actions`, because a real request is refused. The `Allow` header still lists
   them. A `create` or `update` the view defines itself is described as before.
 
