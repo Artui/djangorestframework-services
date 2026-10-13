@@ -409,7 +409,7 @@ def dispatch_mutation_for_spec(
 
     if spec.partial is not None:
         partial = spec.partial
-    if spec.many or spec.collection_selector_spec is not None:
+    if mutation_target_source(spec) == "bulk":
         return _dispatch_bulk_via_spec(view, request, spec, default_status=default_status)
 
     # ``instance`` may be UNSET ("the core resolves it"); the view-side
