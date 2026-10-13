@@ -15,6 +15,7 @@ from rest_framework_services.viewsets.utils import (
     _ActionSpecsMixin,
     polymorphic_inputs_disagree,
     resolve_action_spec_entry,
+    resolves_action_serializers,
 )
 
 
@@ -36,7 +37,8 @@ class ActionSerializerResolver(_ActionSpecsMixin):
     ``serializer_class``, raising the usual ``AssertionError`` when neither is set.
 
     OPTIONS is answered under DRF's implicit ``"metadata"`` action, once per
-    POST / PUT it describes. A view that sets ``serializer_class`` is described
+    POST / PUT it describes (a real request to a view's own action named
+    ``metadata`` is not OPTIONS, and resolves like any other). A view that sets ``serializer_class`` is described
     by it, as DRF always has. A view built only from specs has none, and there
     the spec the described method routes to (from ``action_specs`` or stamped by
     ``@service_action`` / ``@selector_action``) answers with the body that
@@ -48,7 +50,8 @@ class ActionSerializerResolver(_ActionSpecsMixin):
       [`PolymorphicServiceSpec`][rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec]
       answers with its variants' ``input_serializer`` when they all declare the
       same one. Its discriminator is never asked: an OPTIONS request carries no
-      body to discriminate. Variants that disagree leave the method out;
+      body to discriminate. Variants that disagree leave the method out, unless
+      the view resolves serializers itself;
     - a ``ServiceSpec`` with no input, and a ``SelectorSpec`` (a selector reads
       query parameters, never a body), answer with a serializer of no fields.
 
@@ -72,13 +75,14 @@ class ActionSerializerResolver(_ActionSpecsMixin):
             }
     """
 
+    @resolves_action_serializers
     def get_serializer_class(self) -> type[BaseSerializer[Any]]:
         # A view with a ``serializer_class`` is described by it under OPTIONS,
         # exactly as before; held by
         # test_options_keeps_the_views_serializer_class_beside_a_spec_input.
-        # Every other action skips this, held by
-        # TestActionSerializerResolver.test_no_serializer_configured_raises.
-        if self.action == "metadata" and getattr(self, "serializer_class", None) is None:
+        # Every other request skips this, held by
+        # test_an_action_named_metadata_gets_its_output_serializer.
+        if self._describing_for_options() and getattr(self, "serializer_class", None) is None:
             described = _body_serializer(self._described_action_spec())
             # ``None``: no spec answers (a handler the view defines itself), so
             # DRF's own answer stands. Held by
@@ -105,10 +109,13 @@ def _body_serializer(spec: ActionSpec | None) -> type[BaseSerializer[Any]] | Non
     """The serializer describing the body ``spec``'s method accepts.
 
     ``None`` when the spec cannot say: no spec at all, or polymorphic variants
-    declaring different bodies. ``check_permissions`` leaves the latter out of
-    OPTIONS before this is asked; the disagreement check here keeps a direct
-    caller from being handed one variant's body as if it were the only one,
-    held by test_disagreeing_variants_name_no_body_when_asked_directly.
+    declaring different bodies. ``check_permissions`` usually leaves the latter
+    out of OPTIONS before this is asked, but not behind a view's own
+    ``get_serializer_class`` that hands back to this resolver. There the
+    disagreement check keeps one variant's body from being described as if it
+    were the only one, held by the
+    ``disagreeing-variants-behind-a-delegating-override`` row of
+    test_what_options_still_cannot_describe.
     """
     if isinstance(spec, SelectorSpec):
         # A selector reads query parameters, never a body.

@@ -19,7 +19,10 @@ from typing import Any
 
 import pytest
 from rest_framework import serializers
+from rest_framework.decorators import action
 from rest_framework.permissions import BasePermission
+from rest_framework.renderers import BrowsableAPIRenderer, JSONRenderer
+from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet, ViewSet
 
@@ -684,8 +687,9 @@ _SPEC_ONLY_SHAPES = [
         id="put-instance-selector-without-a-retrieve-mixin",
     ),
     pytest.param(
-        # Bulk: a real PUT fetches no single row either, and the probe still
-        # cannot run without a ``queryset``.
+        # Bulk on a URL carrying a lookup kwarg: DRF's probe runs, as it always
+        # did, and cannot without a ``queryset``. A real bulk PUT never looks a
+        # row up, so the view has no reason to carry one: the PUT is left out.
         {
             "action_specs": {
                 "update": ServiceSpec(
@@ -1030,26 +1034,92 @@ def test_a_put_options_cannot_look_up_still_raises(spec: Any) -> None:
         view(factory.options("/"), pk=author.pk)
 
 
+def _bulk_put() -> ServiceSpec:
+    return ServiceSpec(service=_rename_authors, input_serializer=_RenameIn, many=True)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("queryset", [True, False], ids=["with-queryset", "no-queryset"])
+def test_a_bulk_put_on_a_list_route_is_described(queryset: bool) -> None:
+    """A bulk PUT is routed to ``update`` on a URL with no lookup kwarg, and a
+    real one never fetches a row. DRF's object probe asserted there, on the
+    missing kwarg or the missing ``queryset``, so it is skipped for a bulk PUT
+    as for a ``detail=False`` action."""
+    attrs: dict[str, Any] = {"action_specs": {"update": _bulk_put()}}
+    if queryset:
+        attrs["queryset"] = Author.objects.all()
+    response = _options(_view(attrs).as_view({"put": "update"}))
+    assert response.status_code == 200
+    assert _described(response) == {"PUT": {"new_name"}}
+
+
+@pytest.mark.django_db
+def test_a_bulk_put_with_a_lookup_kwarg_is_still_probed() -> None:
+    """Where the URL carries a lookup kwarg, DRF's probe runs as it always
+    did: a missing row leaves the PUT out."""
+    attrs = {"queryset": Author.objects.all(), "action_specs": {"update": _bulk_put()}}
+    response = _view(attrs).as_view({"put": "update"})(factory.options("/"), pk=0)
+    assert response.status_code == 200
+    assert _described(response) == {}
+
+
 def _own_create(self: Any, request: Any, *args: Any, **kwargs: Any) -> Any:  # pragma: no cover
     raise AssertionError
 
 
+def _delegating_get_serializer_class(self: Any) -> Any:
+    # An override that only hands back to the package's own resolution.
+    return ActionSerializerResolver.get_serializer_class(self)
+
+
 _STILL_UNDESCRIBABLE = [
     pytest.param(
-        # Routed on a URL with no lookup kwarg, and DRF's probe has a
-        # ``queryset`` to look the kwarg up in.
+        # A PUT that looks its row up, routed on a URL with no lookup kwarg:
+        # a real PUT fails the same way.
         {
             "queryset": Author.objects.all(),
             "action_specs": {
-                "update": ServiceSpec(
-                    service=_rename_authors, input_serializer=_RenameIn, many=True
+                "update": ServiceSpec(service=_rename_one, input_serializer=_RenameIn)
+            },
+        },
+        {"put": "update"},
+        AssertionError,
+        "URL keyword argument",
+        id="put-through-get-object-on-a-list-route",
+    ),
+    pytest.param(
+        {
+            "queryset": Author.objects.all(),
+            "action_specs": {
+                "update": PolymorphicServiceSpec(
+                    discriminator=_always_a,
+                    specs={
+                        "a": ServiceSpec(service=_rename_one, input_serializer=_RenameIn),
+                        "b": ServiceSpec(service=_rename_one, input_serializer=_RenameIn),
+                    },
                 )
             },
         },
         {"put": "update"},
         AssertionError,
         "URL keyword argument",
-        id="bulk-put-with-queryset-on-a-list-route",
+        id="polymorphic-put-on-a-list-route",
+    ),
+    pytest.param(
+        # Variants disagree and nothing names a body for them. The override
+        # carries no marker, so the method is not left out; the package's
+        # resolver is still asked through it, and declines to pick a variant,
+        # so DRF's own assertion answers. This is the public path that holds
+        # ``_body_serializer``'s disagreement check: without it variant a's
+        # body would be described as if it were the only one.
+        {
+            "action_specs": {"create": _distinct_inputs()},
+            "get_serializer_class": _delegating_get_serializer_class,
+        },
+        {"post": "create"},
+        AssertionError,
+        "serializer_class",
+        id="disagreeing-variants-behind-a-delegating-override",
     ),
     pytest.param(
         {
@@ -1148,3 +1218,211 @@ def test_outside_options_a_handler_stamped_spec_does_not_pick_the_serializer() -
     view = _view({"serializer_class": AuthorSerializer, "lookup": lookup})()
     view.action = "lookup"
     assert view.get_serializer_class() is AuthorSerializer
+
+
+# ----- a real action named ``metadata`` -----
+#
+# DRF sets ``self.action = "metadata"`` for OPTIONS, and also for a real request
+# routed to a view's own action of that name. The OPTIONS-only behaviour must
+# key on the OPTIONS request, not on the action name, or such a view's real
+# requests change.
+
+
+def _accept(*, data: Any) -> None:
+    return None
+
+
+def _by_key(*, data: Any) -> str:
+    return "a" if "new_name" in data else "b"
+
+
+def _working_distinct_inputs() -> PolymorphicServiceSpec:
+    return PolymorphicServiceSpec(
+        discriminator=_by_key,
+        specs={
+            "a": ServiceSpec(service=_accept, input_serializer=_RenameIn),
+            "b": ServiceSpec(service=_accept, input_serializer=_OtherIn),
+        },
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("method", ["get", "post"])
+def test_a_real_action_named_metadata_renders_its_output(method: str) -> None:
+    author = Author.objects.create(name="Ada")
+
+    class _View(ServiceViewSet):
+        queryset = Author.objects.all()
+        action_specs = {
+            "metadata": SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer)
+        }
+
+        @action(detail=True, methods=["get", "post"])
+        def metadata(self, request: Any, pk: Any = None) -> Any:
+            return Response(self.get_serializer(self.get_object()).data)
+
+    view = _View.as_view({"get": "metadata", "post": "metadata"})
+    response = view(getattr(factory, method)("/", {}, format="json"), pk=author.pk)
+    assert response.status_code == 200
+    assert response.data == {"id": author.pk, "name": "Ada"}
+
+
+@pytest.mark.django_db
+def test_a_polymorphic_service_action_named_metadata_is_served() -> None:
+    @service_action(_working_distinct_inputs(), methods=["post"], detail=False)
+    def metadata(self: Any, request: Any, *args: Any, **kwargs: Any) -> Any: ...
+
+    view = _view({"metadata": metadata}).as_view({"post": "metadata"})
+    response = view(factory.post("/", {"new_name": "x"}, format="json"))
+    assert response.status_code == 204
+
+
+@pytest.mark.django_db
+def test_a_polymorphic_spec_keyed_metadata_beside_a_plain_action_is_served() -> None:
+    class _View(ServiceViewSet):
+        action_specs = {"metadata": _working_distinct_inputs()}
+
+        @action(detail=False, methods=["post"])
+        def metadata(self, request: Any) -> Any:
+            return Response({"served": True})
+
+    response = _View.as_view({"post": "metadata"})(factory.post("/", {}, format="json"))
+    assert response.status_code == 200
+    assert response.data == {"served": True}
+
+
+@pytest.mark.django_db
+def test_a_non_detail_put_named_metadata_still_looks_its_row_up() -> None:
+    """Outside OPTIONS ``get_object()`` is DRF's lookup, which asserts on the
+    missing URL kwarg as it always did, rather than answering ``None``."""
+
+    class _View(ServiceViewSet):
+        queryset = Author.objects.all()
+
+        @action(detail=False, methods=["put"])
+        def metadata(self, request: Any) -> Any:  # pragma: no cover - raises first
+            return Response({"row": repr(self.get_object())})
+
+    view = _View.as_view({"put": "metadata"})
+    with pytest.raises(AssertionError, match="URL keyword argument"):
+        view(factory.put("/", {}, format="json"))
+
+
+@pytest.mark.django_db
+def test_an_action_named_metadata_gets_its_output_serializer() -> None:
+    class _View(ServiceViewSet):
+        action_specs = {
+            "metadata": ServiceSpec(
+                service=_accept,
+                input_serializer=_RenameIn,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=_reread_author,
+                    output_serializer=AuthorSerializer,
+                ),
+            )
+        }
+
+        @action(detail=False, methods=["post"])
+        def metadata(self, request: Any) -> Any:
+            return Response({"serializer": type(self.get_serializer()).__name__})
+
+    response = _View.as_view({"post": "metadata"})(factory.post("/", {}, format="json"))
+    assert response.data == {"serializer": "AuthorSerializer"}
+
+
+@pytest.mark.django_db
+def test_a_real_action_named_metadata_still_needs_a_queryset() -> None:
+    """Only OPTIONS turns a missing ``queryset`` into a left-out PUT."""
+    author = Author.objects.create(name="Ada")
+
+    class _View(ServiceViewSet):
+        action_specs = {"metadata": _instance_put()}
+
+        @action(detail=True, methods=["put"])
+        def metadata(self, request: Any, pk: Any = None) -> Any:  # pragma: no cover
+            return Response({"count": self.get_queryset().count()})
+
+    view = _View.as_view({"put": "metadata"})
+    with pytest.raises(AssertionError, match="queryset"):
+        view(factory.put("/", {}, format="json"), pk=author.pk)
+
+
+@pytest.mark.django_db
+def test_the_browsable_options_page_renders_forms_as_before(settings: Any) -> None:
+    """Rendering an OPTIONS response as HTML builds each form under the
+    action it posts to, after the OPTIONS answer is complete. Those forms are
+    ordinary actions, not descriptions: the POST form of a view whose ``create``
+    has no spec is rendered from its ``serializer_class`` as it always was."""
+    settings.TEMPLATES = [
+        {
+            "BACKEND": "django.template.backends.django.DjangoTemplates",
+            "APP_DIRS": True,
+            "OPTIONS": {"context_processors": ["django.template.context_processors.request"]},
+        }
+    ]
+
+    class _View(ServiceViewSet):
+        queryset = Author.objects.all()
+        serializer_class = AuthorSerializer
+        renderer_classes = [BrowsableAPIRenderer, JSONRenderer]
+
+    view = _View.as_view({"get": "list", "post": "create"})
+    response = view(factory.options("/", HTTP_ACCEPT="text/html"))
+    response.render()
+    assert response.status_code == 200
+    assert 'name="name"' in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_a_left_out_method_is_still_allowed() -> None:
+    """Leaving a method out of ``actions`` does not take it off the ``Allow``
+    header: the route still accepts it, and answers 405 when sent."""
+    author = Author.objects.create(name="Ada")
+    attrs = {"action_specs": {"create": ServiceSpec(service=_accept, input_serializer=_RenameIn)}}
+    response = _view(attrs).as_view({"get": "retrieve", "put": "update"})(
+        factory.options("/"), pk=author.pk
+    )
+    assert _described(response) == {}
+    assert "PUT" in response["Allow"]
+
+
+@pytest.mark.django_db
+def test_an_options_override_without_super_gets_drfs_own_answers() -> None:
+    """The bases recognise OPTIONS in their ``options()`` handler. A view
+    answering OPTIONS in its own, without ``super()``, is described as DRF
+    alone would describe it: here, by the ``serializer_class`` it lacks."""
+
+    class _View(ServiceViewSet):
+        action_specs = {"create": ServiceSpec(service=_accept, input_serializer=_RenameIn)}
+
+        def options(self, request: Any, *args: Any, **kwargs: Any) -> Any:
+            return Response(self.metadata_class().determine_metadata(request, self))
+
+    with pytest.raises(AssertionError, match="serializer_class"):
+        _options(_View.as_view({"post": "create"}))
+
+
+# ----- a view resolving its own serializers -----
+
+
+@pytest.mark.django_db
+def test_a_polymorphic_post_is_described_by_a_get_serializer_class_override() -> None:
+    """Variants disagree, and the view names no ``serializer_class``, but it
+    resolves serializers itself: that answer stands, as it did before."""
+    attrs = {
+        "action_specs": {"create": _distinct_inputs()},
+        "get_serializer_class": lambda self: AuthorSerializer,
+    }
+    response = _options(_view(attrs).as_view({"post": "create"}))
+    assert _described(response) == {"POST": {"id", "name"}}
+
+
+@pytest.mark.django_db
+def test_a_polymorphic_post_is_described_by_a_get_serializer_override() -> None:
+    attrs = {
+        "action_specs": {"create": _distinct_inputs()},
+        "get_serializer": lambda self, *args, **kwargs: AuthorSerializer(*args, **kwargs),
+    }
+    response = _options(_view(attrs).as_view({"post": "create"}))
+    assert _described(response) == {"POST": {"id", "name"}}
