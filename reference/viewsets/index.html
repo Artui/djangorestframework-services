@@ -2445,6 +2445,35 @@ the dispatcher on both paths.</p>
   " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> supplies
 <code>output_selector_spec.output_serializer</code>. Falls back to DRF's
 <code>serializer_class</code>, raising the usual <code>AssertionError</code> when neither is set.</p>
+<p>OPTIONS is answered under DRF's implicit <code>"metadata"</code> action, once per
+POST / PUT it describes (a real request to a view's own action named
+<code>metadata</code> is not OPTIONS, and resolves like any other). A view that sets <code>serializer_class</code> is described
+by it, as DRF always has. A view built only from specs has none, and there
+the spec the described method routes to (from <code>action_specs</code> or stamped by
+<code>@service_action</code> / <code>@selector_action</code>) answers with the body that
+method accepts:</p>
+<ul>
+<li>a <code>ServiceSpec</code> with an <code>input_serializer</code> answers with it (a bare
+  dataclass wrapped as it is for rendering);</li>
+<li>a
+  <a class="autorefs autorefs-internal" title="PolymorphicServiceSpec
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec"><code>PolymorphicServiceSpec</code></a>
+  answers with its variants' <code>input_serializer</code> when they all declare the
+  same one. Its discriminator is never asked: an OPTIONS request carries no
+  body to discriminate. Variants that disagree leave the method out, unless
+  the view resolves serializers itself;</li>
+<li>a <code>ServiceSpec</code> with no input, and a <code>SelectorSpec</code> (a selector reads
+  query parameters, never a body), answer with a serializer of no fields.</li>
+</ul>
+<p>The input is built with DRF's base serializer context only: an
+<code>input_serializer</code> whose fields depend on its <code>input_serializer_context</code>
+cannot be described this way.</p>
+<p>Every other action resolves exactly as it did without OPTIONS in the
+picture.</p>
 <p>Example:</p>
 <div class="language-text highlight"><pre><span></span><code>class InvoiceViewSet(ActionSerializerResolver, GenericViewSet):
     action_specs = {

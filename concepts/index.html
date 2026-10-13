@@ -602,6 +602,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="ActionSerializerResolver">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OPTIONS
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2004,6 +2021,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="ActionSerializerResolver">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OPTIONS
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2921,6 +2955,111 @@ entries. Falls back to DRF's standard <code>serializer_class</code> when the
 action has no spec or no response serializer is set. Already included
 in <code>ServiceViewSet</code> and <code>SelectorViewSet</code>; add it to any custom
 composition that needs per-action serializers.</p>
+<h3 id="options">OPTIONS<a class="headerlink" href="#options" title="Permanent link">&para;</a></h3>
+<p>DRF answers OPTIONS under an implicit <code>"metadata"</code> action, and its
+<code>SimpleMetadata</code> describes each POST and PUT the route allows by calling
+<code>get_serializer()</code> (and, for PUT, <code>get_object()</code> as an object-permission
+probe) with a copy of the request carrying that method. No spec is keyed on
+<code>"metadata"</code>, so the resolver reads the spec the described method routes to
+instead: the <code>action_specs</code> entry, or the spec <code>@service_action</code> /
+<code>@selector_action</code> stamped on the handler.</p>
+<p>All of this applies to the OPTIONS request alone. DRF also runs a real request
+to a view's own action named <code>metadata</code> under the <code>"metadata"</code> action; that
+request resolves its serializer, object and permissions like any other. The
+viewset bases tell the two apart in their <code>options()</code> handler, so a view that
+overrides <code>options()</code> without calling <code>super()</code> gets DRF's own answers.</p>
+<p>A view that sets <code>serializer_class</code> is described by it, as DRF always has. A
+view built only from specs has none, and there the spec describes the body the
+method <em>accepts</em>:</p>
+<table>
+<thead>
+<tr>
+<th>The described method's spec</th>
+<th><code>actions</code> describes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ServiceSpec</code> with an <code>input_serializer</code></td>
+<td>that input</td>
+</tr>
+<tr>
+<td><code>PolymorphicServiceSpec</code> whose variants share one <code>input_serializer</code></td>
+<td>that input; the discriminator is never asked</td>
+</tr>
+<tr>
+<td><code>ServiceSpec</code> with no input</td>
+<td>no fields</td>
+</tr>
+<tr>
+<td><code>SelectorSpec</code> (a <code>@selector_action</code> POST)</td>
+<td>no fields: a selector reads query parameters, never a body</td>
+</tr>
+</tbody>
+</table>
+<p>The input is built with DRF's base serializer context only. An
+<code>input_serializer</code> that reads a key from its <code>input_serializer_context</code> (or the
+view's <code>get_input_serializer_context</code>) while building its fields cannot be
+described this way; give that view a <code>serializer_class</code> to describe it by.</p>
+<p>DRF leaves a method out of <code>actions</code> when describing it raises an API error,
+and OPTIONS uses that to leave out what it cannot describe truthfully. The
+<code>Allow</code> header still lists such a method.</p>
+<ul>
+<li><strong>A method no spec serves.</strong> A router maps each method whose action the class
+  defines, so a <code>ServiceViewSet</code> with no <code>update</code> spec still offers PUT, and
+  <code>{"post": "create"}</code> offers POST on a viewset with no <code>create</code> spec. The
+  request itself is answered 405, so the method is left out, even where a
+  <code>serializer_class</code> or the view's own <code>get_serializer_class()</code> or
+  <code>get_serializer()</code> override would describe it. This applies only to the
+  handlers this package defines;
+  a <code>create</code> or <code>update</code> the view writes itself is described as DRF always has.</li>
+<li><strong>A polymorphic method whose variants accept different bodies</strong>, where the
+  package's own resolver would describe it: the view sets no
+  <code>serializer_class</code> and overrides neither <code>get_serializer_class()</code> nor
+  <code>get_serializer()</code>. Which body applies is the discriminator's call on a body
+  an OPTIONS request does not have.</li>
+<li><strong>A PUT DRF's object probe cannot look up.</strong> For each PUT, DRF calls
+  <code>get_object()</code> to check object permissions, and with no <code>queryset</code> (nor a
+  <code>get_queryset()</code> override or list selector to stand in) that lookup raises a
+  configuration error. A PUT whose target comes from an <code>instance_selector_spec</code>,
+  or a bulk PUT on a URL carrying a lookup kwarg, never makes that lookup when
+  sent, so the view has no reason to carry a <code>queryset</code>; that PUT is left out.
+  The instance selector is never run for OPTIONS. Wherever a row source exists
+  the probe runs as before, and a missing row leaves the PUT out.</li>
+</ul>
+<p>A PUT that fetches no row when sent has no row to probe: a <code>detail=False</code>
+action, and a bulk PUT (<code>many=True</code>, <code>collection_selector_spec</code>). Routed, as
+they usually are, on a URL with no lookup kwarg, DRF's object probe could only
+fail there, so it is skipped and the PUT is described. Where the URL does carry
+the kwarg, the probe runs as before.</p>
+<p>Of the answers OPTIONS gave before, one changed: a POST or PUT routed to a
+handler no spec serves used to be described wherever the view could name a
+serializer for it, by a <code>serializer_class</code> or by its own
+<code>get_serializer_class()</code> or <code>get_serializer()</code> override, and is now left out.
+A method the package does serve is still described by a view's
+<code>serializer_class</code> or serializer override, and a PUT DRF's probe left out
+before is still left out. The other changes give an answer where OPTIONS used
+to end in a 500.</p>
+<p>Some shapes still end OPTIONS in a 500, as they did before:</p>
+<ul>
+<li>a PUT that looks its row up through <code>get_object()</code>, on a view with no
+  <code>queryset</code> or a URL with no lookup kwarg, which fails the same way when
+  sent, and a polymorphic PUT in either place, whose variants may each look up
+  differently;</li>
+<li>a handler the view writes itself with no spec, on a view with no
+  <code>serializer_class</code>;</li>
+<li>a polymorphic method whose variants disagree, behind a
+  <code>get_serializer_class()</code> or <code>get_serializer()</code> override that hands back to
+  the package's resolver, which declines to pick a variant;</li>
+<li>an <code>input_serializer</code> whose fields need its context, as above, which now
+  fails inside its own <code>get_fields</code> where it used to fail on DRF's
+  <code>serializer_class</code> assertion;</li>
+<li><code>ActionSerializerResolver</code> listed after <code>GenericViewSet</code> in the bases, where
+  DRF's own <code>get_serializer_class()</code> answers first.</li>
+</ul>
+<p>OPTIONS answers to the view's own <code>permission_classes</code>, never to those of the
+action it describes: a <code>create</code> locked down by its spec's <code>permission_classes</code>
+still has its body described.</p>
 <h2 id="service_action"><code>@service_action</code><a class="headerlink" href="#service_action" title="Permanent link">&para;</a></h2>
 <p>Custom viewset actions wrapped in the same plumbing as the standard
 mutation flow. See the <a href="../recipes/service-action/">service-action recipe</a>.</p>
