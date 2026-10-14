@@ -136,6 +136,37 @@ REEXPORTS: list[tuple[str, str, str]] = [
         "django_service_specs.types.value_formatter",
         "ValueFormatter",
     ),
+    # The relation layer's declarations.
+    (
+        "rest_framework_services.types.child_spec",
+        "django_service_specs.relations.child_spec",
+        "ChildSpec",
+    ),
+    (
+        "rest_framework_services.types.forward_relation_spec",
+        "django_service_specs.relations.forward_relation_spec",
+        "ForwardRelationSpec",
+    ),
+    (
+        "rest_framework_services.types.generic_relation_spec",
+        "django_service_specs.relations.generic_relation_spec",
+        "GenericRelationSpec",
+    ),
+    (
+        "rest_framework_services.types.many_to_many_spec",
+        "django_service_specs.relations.many_to_many_spec",
+        "ManyToManySpec",
+    ),
+    (
+        "rest_framework_services.types.reverse_one_to_one_spec",
+        "django_service_specs.relations.reverse_one_to_one_spec",
+        "ReverseOneToOneSpec",
+    ),
+    (
+        "rest_framework_services.types.relation_spec",
+        "django_service_specs.relations.relation_spec",
+        "RelationSpec",
+    ),
 ]
 
 
