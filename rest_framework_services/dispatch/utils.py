@@ -218,7 +218,12 @@ def prepare_edge_call(
             spec, partial=partial, unguarded=True, target=handed, server_input=False
         ),
     )
-    seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
+    seeds = _hidden_lookup_captures(
+        spec,
+        service,
+        view,
+        seeds=edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks),
+    )
     arguments = without_seed_names(
         edge_arguments(service, spec, params, request=request, view=view), pool_seeds
     )
@@ -685,13 +690,58 @@ def _hidden_captures(
 
     A service spec's target lookup is not reached this way: the kernel hands
     ``extra_kwargs`` to a selector spec's selector and a service, never to a
-    target selector, and ``resolve_target`` takes none.
+    target selector, and ``resolve_target`` takes none. ``_hidden_lookup_captures``
+    seeds those instead.
     """
     route = getattr(view, "kwargs", None)
     if not isinstance(route, dict):
         return {}
     hidden = server_owned_keys(spec) - seeds.reserved
     return {name: route[name] for name in sorted(hidden) if name in route}
+
+
+def _hidden_lookup_captures(
+    spec: ServiceSpec[Any, Any, Any], service: KernelServiceSpec, view: Any, *, seeds: PoolSeeds
+) -> PoolSeeds:
+    """``seeds``, plus the route's value for each name a service spec's target lookup hides.
+
+    A route capture of a name the lookup marks ``NotClientInput`` always filled
+    it - ``/projects/<project_pk>/tasks/<pk>/`` - since the URLconf is the
+    author's (test_a_route_capture_still_fills_a_hidden_lookup_key). The
+    kernel's ``extra_kwargs`` never reach a target lookup and ``resolve_target``
+    takes none, so each such capture is registered as a seed of this call, which
+    the lookup is handed by name, one resolver per value
+    (test_each_route_capture_fills_its_own_hidden_lookup_key). A name the call
+    already seeds is the seed's, as ``view`` always is
+    (test_a_registered_seed_named_like_a_hidden_lookup_key_wins_over_the_capture);
+    and one the spec declares as a parameter - an input serializer's field of the
+    same name - is the caller's, since the kernel refuses a seed occupying a
+    parameter, so that capture reaches nothing
+    (test_a_serializer_field_named_like_a_hidden_lookup_key_stays_the_clients).
+    A capture the lookup does not hide is no argument, as before.
+
+    One arc to coverage, so each condition that seeds nothing is named by the
+    test that fails without it: no route to read
+    (test_with_no_view_a_hidden_lookup_key_keeps_its_default), no lookup
+    (test_an_offline_requests_query_string_is_not_read_either), and a lookup
+    with no selector
+    (test_selectorless_instance_spec_falls_back_to_get_object).
+    """
+    route = getattr(view, "kwargs", None)
+    lookup = _target_lookup(spec)
+    if not isinstance(route, dict) or lookup is None or lookup.selector is None:
+        return seeds
+    hidden = hidden_input_keys(lookup.selector) - seeds.reserved - service.parameters().names()
+    captured = {name: _constant(route[name]) for name in sorted(hidden) if name in route}
+    return seeds.extend(**captured) if captured else seeds
+
+
+def _constant(value: Any) -> Callable[[], Any]:
+    # One resolver per value: a lambda in the loop above would bind the last.
+    def resolve() -> Any:
+        return value
+
+    return resolve
 
 
 def _route_filter_data(

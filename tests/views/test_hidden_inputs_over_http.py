@@ -20,6 +20,7 @@ from typing import Annotated, Any
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
+from rest_framework import serializers
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
@@ -29,7 +30,10 @@ from rest_framework_services import (
     SelectorSpec,
     ServiceSpec,
     ServiceUpdateView,
+    build_offline_context,
+    dispatch_spec,
 )
+from rest_framework_services.types.pool_seeds import DEFAULT_POOL_SEEDS
 from tests.testapp.models import Post
 from tests.testapp.serializers import PostSerializer
 
@@ -164,6 +168,109 @@ def test_a_route_capture_fills_a_required_hidden_lookup_key() -> None:
     )
 
     assert response.status_code == 200
+
+
+def _post_for_team_and_org(
+    *,
+    pk: int,
+    team: Annotated[str, NotClientInput] = "own-team",
+    org: Annotated[str, NotClientInput] = "own-org",
+) -> QuerySet[Post]:
+    _SEEN.append((team, org))
+    return Post.objects.filter(pk=pk)
+
+
+class _TwoKeysView(ServiceUpdateView):
+    queryset = Post.objects.all()
+    spec = ServiceSpec(
+        service=_touch,
+        instance_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_post_for_team_and_org
+        ),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=PostSerializer
+        ),
+        atomic=False,
+    )
+
+
+@pytest.mark.django_db
+def test_each_route_capture_fills_its_own_hidden_lookup_key(seen: list[Any]) -> None:
+    post = Post.objects.create(title="p")
+
+    response = _TwoKeysView.as_view()(
+        factory.put("/", {}, format="json"), pk=post.pk, team="route-team", org="route-org"
+    )
+
+    assert response.status_code == 200
+    assert seen[0] == ("route-team", "route-org")
+
+
+@pytest.mark.django_db
+def test_a_registered_seed_named_like_a_hidden_lookup_key_wins_over_the_capture(
+    seen: list[Any],
+) -> None:
+    post = Post.objects.create(title="p")
+    context = build_offline_context(None, kwargs={"pk": post.pk, "team": "route-team"})
+
+    dispatch_spec(
+        _View.spec,
+        user=None,
+        params={},
+        request=context.request,
+        view=context.view,
+        pool_seeds=DEFAULT_POOL_SEEDS.extend(team=lambda: "seed-team"),
+    )
+
+    assert seen == ["seed-team"]
+
+
+@pytest.mark.django_db
+def test_with_no_view_a_hidden_lookup_key_keeps_its_default(seen: list[Any]) -> None:
+    post = Post.objects.create(title="p")
+
+    dispatch_spec(_View.spec, user=None, params={"pk": post.pk})
+
+    assert seen == ["own-team"]
+
+
+class _TeamIn(serializers.Serializer):
+    team = serializers.CharField()
+
+
+def _echo_team(*, instance: Post, data: Any) -> Post:
+    _SEEN.append(data["team"])
+    return instance
+
+
+class _FieldNamedLikeTheKeyView(ServiceUpdateView):
+    queryset = Post.objects.all()
+    spec = ServiceSpec(
+        service=_echo_team,
+        input_serializer=_TeamIn,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_for_team),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=PostSerializer
+        ),
+        atomic=False,
+    )
+
+
+@pytest.mark.django_db
+def test_a_serializer_field_named_like_a_hidden_lookup_key_stays_the_clients(
+    seen: list[Any],
+) -> None:
+    """The field is client input, so the capture is not seeded under its name: the
+    kernel refuses a seed occupying a declared parameter. The lookup keeps its
+    default, since a target lookup takes no call extra to carry the capture."""
+    post = Post.objects.create(title="p")
+
+    response = _FieldNamedLikeTheKeyView.as_view()(
+        factory.put("/", {"team": "body-team"}, format="json"), pk=post.pk, team="route-team"
+    )
+
+    assert response.status_code == 200
+    assert seen == ["own-team", "body-team"]
 
 
 # --- ``view`` ---------------------------------------------------------------------
