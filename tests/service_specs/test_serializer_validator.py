@@ -28,6 +28,9 @@ from rest_framework_dataclasses.serializers import DataclassSerializer
 from rest_framework_services.dispatch.build_offline_context import build_offline_context
 from rest_framework_services.service_specs.invalid_arguments import InvalidArguments
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
+from rest_framework_services.service_specs.translate_dispatch_errors import (
+    translate_dispatch_errors,
+)
 from tests.testapp.models import Post
 
 
@@ -569,6 +572,11 @@ def test_dispatch_reports_a_many_call_s_rows_under_the_argument_beside_the_shape
     rows = raised.value.detail["items"]
     assert set(rows) == {1, 2}
     assert rows[1] == {"title": ["Ensure this field has no more than 5 characters."]}
+    # DRF's code survives the kernel re-raising the list's tree and the edge's
+    # translation, so the wire a many call answers with keeps its codes.
+    with pytest.raises(InvalidArguments) as translated, translate_dispatch_errors():
+        raise raised.value
+    assert translated.value.get_codes()["items"][1] == {"title": ["max_length"]}
 
 
 # --- the refusal is DRF's too ------------------------------------------------------
@@ -656,3 +664,16 @@ def test_dispatch_carries_a_registered_request_and_view_into_the_serializer_cont
     dispatch(spec, principal=user, arguments={"title": "hi"}, pool_seeds=seeds)
     assert _Spy.seen["request"] is offline.request
     assert _Spy.seen["view"] is offline.view
+
+
+def test_validating_leaves_the_registered_request_as_it_found_it() -> None:
+    principal = object()
+    offline = build_offline_context(principal, {"untouched": 1})
+    context = ValidationContext(
+        principal, ambient=MappingProxyType({"request": offline.request, "view": offline.view})
+    )
+
+    SerializerValidator(_Spy).validate({"title": "hi"}, context)
+
+    assert offline.request.user is principal
+    assert offline.request.data == {"untouched": 1}
