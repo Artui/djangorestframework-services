@@ -852,17 +852,28 @@ class TestRefusals:
         ):
             as_kernel_spec(spec)
 
-    @pytest.mark.parametrize("role", [None, "instance"])
+    @pytest.mark.parametrize("role", [None, "collection"])
     def test_a_selector_of_none_outside_an_output_is_refused(self, role: str | None) -> None:
-        nested = SelectorSpec(kind=SelectorKind.RETRIEVE)
+        nested = SelectorSpec(kind=SelectorKind.RETRIEVE if role is None else SelectorKind.LIST)
         spec: Any = (
             nested
             if role is None
-            else ServiceSpec(service=lambda *, instance: None, instance_selector_spec=nested)
+            else ServiceSpec(service=lambda *, collection: None, collection_selector_spec=nested)
         )
 
         with pytest.raises(ImproperlyConfigured, match="declares no selector"):
             as_kernel_spec(spec)
+
+    def test_an_instance_lookup_with_no_selector_compiles_to_no_lookup(self) -> None:
+        """drfs reads it as none: the view's ``get_object()`` supplies the row."""
+        spec = ServiceSpec(
+            service=lambda *, instance: None,
+            instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE),
+        )
+
+        compiled: Any = as_kernel_spec(spec)
+
+        assert compiled.instance_selector_spec is None
 
 
 @pytest.mark.django_db

@@ -152,9 +152,13 @@ def prepare_edge_call(
             {
                 **shared,
                 "arguments": arguments,
-                "extra_kwargs": _route_hook_extras(
-                    variant, arguments, hooks.extra_kwargs, seeds=seeds
-                ),
+                "extra_kwargs": {
+                    **_hidden_captures(spec, view, seeds=seeds),
+                    **(
+                        _route_hook_extras(variant, arguments, hooks.extra_kwargs, seeds=seeds)
+                        or {}
+                    ),
+                },
                 "grant": Grant(variant, principal),
                 "pool_seeds": seeds,
             },
@@ -544,6 +548,29 @@ def _route_hook_extras(
     return {
         name: value for name, value in extras.items() if name not in routed and name not in seeded
     }
+
+
+def _hidden_captures(
+    spec: SelectorSpec[Any, Any], view: Any, *, seeds: PoolSeeds
+) -> dict[str, Any]:
+    """The route's values for the names a selector spec's callables mark ``NotClientInput``.
+
+    A hidden name is no read, so no caller's argument fills it, but a route
+    capture of that name always did: the URLconf is the author's. It reaches
+    the selector as a call extra, which the kernel drops beneath the spec's
+    own provider and which a view hook's value for the name outranks
+    (test_a_route_capture_fills_a_selectors_hidden_key). A name a seed
+    occupies is the seed's, as ``view`` always is.
+
+    A service spec's target lookup is not reached this way: the kernel hands
+    ``extra_kwargs`` to a selector spec's selector and a service, never to a
+    target selector, and ``resolve_target`` takes none.
+    """
+    route = getattr(view, "kwargs", None)
+    if not isinstance(route, dict):
+        return {}
+    hidden = server_owned_keys(spec) - seeds.reserved
+    return {name: route[name] for name in sorted(hidden) if name in route}
 
 
 def _field_extras_to_context(

@@ -125,7 +125,7 @@ def as_kernel_spec(
     ``output_serializer``. Refused, as drfs refuses them at ``as_view()``: a
     nested selector's ``preconditions`` and ``progress_reporter``, which would
     never run. Also refused: a ``selector`` of ``None`` anywhere but an output
-    selector, and ``field_audiences`` with no output serializer to layer them
+    selector or an instance lookup, which compiles to no lookup, and ``field_audiences`` with no output serializer to layer them
     over.
 
     ``success_status``, ``document_service_error`` and ``response_finalizer``
@@ -286,7 +286,12 @@ def _nested(
     spec: Any, role: str, hidden: frozenset[str], declared: Sequence[Parameter]
 ) -> KernelSelectorSpec | None:
     nested = getattr(spec, f"{role}_selector_spec")
-    if nested is None:
+    # An instance lookup with no ``selector`` is no lookup, as drfs always read
+    # it: an HTTP view resolves the row with its own ``get_object()`` and hands
+    # it in, and a call with no row is a create
+    # (test_selectorless_instance_spec_falls_back_to_get_object). A collection
+    # lookup has no such fallback, so one with no selector is still refused.
+    if nested is None or (role == "instance" and nested.selector is None):
         return None
     return _selector(nested, role=role, hidden=hidden, declared=declared)
 

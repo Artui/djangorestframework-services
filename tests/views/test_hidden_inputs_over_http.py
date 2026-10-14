@@ -9,8 +9,8 @@ dropped there too, while a route capture of that name still fills it.
 
 ``view`` is a seed, as ``request`` is: every callable declaring it is handed the
 calling view, and no body, query string or route capture of that name stands in
-for it. A hook or provider returning it is refused, as a provider's key for any
-seed is.
+for it. The spec's provider returning it is refused, as a provider's key for any
+seed is; a view hook's value for it is dropped, as a hook's value for any seed is.
 """
 
 from __future__ import annotations
@@ -243,14 +243,80 @@ class _ProviderView(SelectorRetrieveView):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("view_cls", [_HookView, _ProviderView], ids=["hook", "provider"])
-def test_handing_the_selector_the_view_is_refused(
-    seen: list[Any], view_cls: type[SelectorRetrieveView]
-) -> None:
-    """The view is already the selector's, as a seed, and a provider's key never
-    outranks a seed: so the hand-over is refused rather than silently ignored."""
+def test_handing_the_selector_the_view_through_the_spec_is_refused(seen: list[Any]) -> None:
+    """The view is already the selector's, as a seed, and the spec's own
+    provider never outranks a seed: so the hand-over is refused rather than
+    silently ignored."""
     post = Post.objects.create(title="p")
 
     with pytest.raises(ImproperlyConfigured, match="seeds itself"):
-        view_cls.as_view()(factory.get("/"), pk=post.pk)
+        _ProviderView.as_view()(factory.get("/"), pk=post.pk)
     assert seen == []
+
+
+@pytest.mark.django_db
+def test_a_view_hook_handing_over_the_view_is_dropped_for_the_seed(seen: list[Any]) -> None:
+    """Behaviour change: a view hook's value naming a seed is dropped and the seed
+    wins, never overlaid and never refused. The selector still sees this view."""
+    post = Post.objects.create(title="p")
+
+    response = _HookView.as_view()(factory.get("/"), pk=post.pk)
+
+    assert response.status_code == 200
+    assert len(seen) == 1
+    assert isinstance(seen[0], _HookView)
+
+
+def _post_for_selector_team(
+    *, pk: int, team: Annotated[str, NotClientInput] = "own-team"
+) -> QuerySet[Post]:
+    _SEEN.append(team)
+    return Post.objects.filter(pk=pk)
+
+
+class _TeamRetrieveView(SelectorRetrieveView):
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=_post_for_selector_team,
+        output_serializer=PostSerializer,
+    )
+
+
+@pytest.mark.django_db
+def test_a_route_capture_fills_a_selectors_hidden_key(seen: list[Any]) -> None:
+    """A selector spec's own selector: the capture reaches it as a call extra."""
+    post = Post.objects.create(title="p")
+
+    response = _TeamRetrieveView.as_view()(
+        factory.get("/", {"team": "query-team"}), pk=post.pk, team="route-team"
+    )
+
+    assert response.status_code == 200
+    assert seen == ["route-team"]
+
+
+@pytest.mark.django_db
+def test_without_a_route_capture_a_selectors_hidden_key_keeps_its_default(
+    seen: list[Any],
+) -> None:
+    post = Post.objects.create(title="p")
+
+    response = _TeamRetrieveView.as_view()(factory.get("/", {"team": "query-team"}), pk=post.pk)
+
+    assert response.status_code == 200
+    assert seen == ["own-team"]
+
+
+class _HookTeamRetrieveView(_TeamRetrieveView):
+    def get_selector_kwargs(self) -> dict[str, Any]:
+        return {"team": "hook-team"}
+
+
+@pytest.mark.django_db
+def test_a_view_hooks_value_outranks_the_route_capture(seen: list[Any]) -> None:
+    post = Post.objects.create(title="p")
+
+    response = _HookTeamRetrieveView.as_view()(factory.get("/"), pk=post.pk, team="route-team")
+
+    assert response.status_code == 200
+    assert seen == ["hook-team"]
