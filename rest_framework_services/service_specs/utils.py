@@ -120,6 +120,30 @@ does, has no such layers. Underscored, as the edge's other private seed is, so
 no parameter a spec declares is likely to collide with it."""
 
 
+AUTHOR_VALUES_SEED = "_author_values"
+"""The pool seed carrying a service spec's author values into a call.
+
+A view's ``get_*_kwargs`` hooks and the spec's own ``kwargs`` provider, merged
+by a DRF edge for the call: the values naming no parameter the caller fills.
+The kernel hands a call's ``extra_kwargs`` beneath every key the Validator
+returns, and the author's value has always outranked one (a key a
+``validate()`` derives from the body, a ``source="*"`` nested field), so the
+edge registers them here instead and the compiled spec's ``kwargs`` provider,
+``author_values``, hands them back in the provider's seat, over the Validator's
+values. Registered only when there are any, since a seed is in every pool."""
+
+
+def author_values(**pool: Any) -> dict[str, Any]:
+    """The author values a DRF edge registered for the call, as a ``kwargs`` provider answers.
+
+    The compiled form of a service spec the edge dispatches carries this as its
+    ``kwargs`` provider (``kernel_spec_variant(server_input=False)``), since the
+    edge calls the spec's own provider itself. Empty for a call that registered
+    none under ``AUTHOR_VALUES_SEED``.
+    """
+    return dict(pool.get(AUTHOR_VALUES_SEED) or {})
+
+
 def input_view_layers(ambient: Mapping[str, Any]) -> Mapping[str, Any] | None:
     """The input half of the view hooks the call registered, or ``None``."""
     hooks: ViewHooks | None = ambient.get(SERIALIZER_CONTEXT_SEED)

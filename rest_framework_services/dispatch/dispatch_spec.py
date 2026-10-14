@@ -130,7 +130,11 @@ def dispatch_spec(
             target lookup, or a field of a single call's input serializer, by
             its name or its ``source``) is put into the arguments over the
             client's value and checked as it would be; a value naming a seed is
-            dropped; the rest goes to ``dispatch(extra_kwargs=)``. The spec's
+            dropped; the rest of a single service call's outranks every key
+            the input serializer hands back, a ``source="*"`` field or one its
+            ``validate()`` adds, while the client's value for it stays in
+            ``data`` and the bound ``serializer`` stays bound; on every other
+            call the rest goes to ``dispatch(extra_kwargs=)``. The spec's
             ``kwargs`` provider is called here, from ``view`` and ``request``,
             and its answer is split the same way over the hooks', a key it
             names a seed refused; a key its ``TypedDict`` fills is never the

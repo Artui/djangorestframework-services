@@ -39,7 +39,11 @@ from rest_framework_services.service_specs.kernel_spec_variant import kernel_spe
 from rest_framework_services.service_specs.translate_dispatch_errors import (
     translate_dispatch_errors,
 )
-from rest_framework_services.service_specs.utils import SERIALIZER_CONTEXT_SEED, describe_serializer
+from rest_framework_services.service_specs.utils import (
+    AUTHOR_VALUES_SEED,
+    SERIALIZER_CONTEXT_SEED,
+    describe_serializer,
+)
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.marked_input_keys import marked_input_keys
@@ -83,6 +87,16 @@ TARGET_GUARD_SEED = "_target_guard"
 # binds a name a seed occupies. The view's serializer context layers ride in the
 # third, read by the adapters beneath the spec's own context callables.
 EDGE_SEEDS: tuple[str, ...] = ("request", "view", SERIALIZER_CONTEXT_SEED)
+# The seeds the edge registers for its own machinery, each only on a call that
+# needs it: never an author's or a caller's value of that name.
+INTERNAL_SEEDS: frozenset[str] = frozenset(
+    {TARGET_GUARD_SEED, SERIALIZER_CONTEXT_SEED, AUTHOR_VALUES_SEED}
+)
+# What the Validator binds for the call. An author's value of that name stays in
+# ``extra_kwargs``, the tier beneath it, so the bound serializer is what a
+# service declaring ``serializer`` receives, as it always was
+# (test_the_bound_serializer_outranks_an_authors_value_of_its_name).
+VALIDATOR_BOUND: frozenset[str] = frozenset({"serializer"})
 
 
 @dataclasses.dataclass(frozen=True)
@@ -244,6 +258,7 @@ def prepare_edge_call(
         spec, service, arguments, hooks, seeds=seeds, view=view, request=request
     )
     seeds = _hidden_lookup_seeds(spec, service, view, seeds=seeds, extra_kwargs=extra_kwargs)
+    seeds, extra_kwargs = _seat_author_values(seeds, extra_kwargs)
     if handed:
         target = instance
     elif instance is None:
@@ -882,6 +897,39 @@ def _hidden_lookup_seeds(
         if name in route
     }
     return seeds.extend(**captured) if captured else seeds
+
+
+def _seat_author_values(
+    seeds: PoolSeeds, extra_kwargs: dict[str, Any]
+) -> tuple[PoolSeeds, dict[str, Any]]:
+    """``seeds`` carrying a single service call's author values, and what stays an overlay.
+
+    The author's values that name no argument - a view hook's, the spec's
+    ``kwargs`` provider's - have always outranked whatever the client's input
+    became: a key the input serializer's ``validate()`` derives, or a
+    ``source="*"`` nested field flattened into ``validated_data``. The kernel
+    hands ``extra_kwargs`` beneath every key the Validator returns, so they are
+    registered under ``AUTHOR_VALUES_SEED`` instead, which the compiled spec's
+    ``kwargs`` provider hands back from the seat over the Validator's values
+    (test_a_hooks_value_outranks_the_validators_off_http,
+    test_the_specs_provider_outranks_the_validators_off_http). The client's
+    value stays in ``data``, where it was validated. What the Validator binds
+    stays an overlay beneath it (``VALIDATOR_BOUND``): the bound serializer
+    wins where there is one
+    (test_the_bound_serializer_outranks_an_authors_value_of_its_name), and the
+    author's value reaches a service no Validator binds one for
+    (test_an_authors_serializer_value_reaches_a_service_no_validator_binds_one_for).
+    A call with no author value registers no seed, since a seed is in every
+    pool (test_a_call_with_no_author_value_registers_no_seat_for_them).
+
+    A ``many`` spec's values are its rows alone, and a selector spec has no
+    Validator, so neither is seated: both keep their ``extra_kwargs``.
+    """
+    seated = {name: value for name, value in extra_kwargs.items() if name not in VALIDATOR_BOUND}
+    if not seated:
+        return seeds, extra_kwargs
+    overlay = {name: value for name, value in extra_kwargs.items() if name in VALIDATOR_BOUND}
+    return seeds.extend(**{AUTHOR_VALUES_SEED: _constant(seated)}), overlay
 
 
 def _constant(value: Any) -> Callable[[], Any]:
