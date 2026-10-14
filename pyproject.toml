@@ -48,10 +48,15 @@ dependencies = [
     # ``provider_keys`` would read every typed provider as untyped there.
     "typing-extensions>=4.14",
     # The engine every spec dispatches through: ``dispatch_spec`` compiles a
-    # spec to this package's and hands it to ``dispatch``. 0.7.0 is the first
-    # release whose module graph has no ring (``mutations/nested_writes.py``)
-    # and whose ``tests/test_drfs_surface.py`` pins every name re-exported here.
-    "django-service-specs>=0.7.0",
+    # spec to this package's and hands it to ``dispatch``. 0.8.0 is the first
+    # release with the seats a serializer-backed edge needs: a Validator that
+    # validates a many call once (``validated_many``), ``supports_partial`` per
+    # instance, the call's pool seeds on ``ValidationContext.ambient``, a
+    # presentation context on ``Presenter.presented``, ``extra_kwargs=`` on
+    # ``dispatch``, the ``arguments`` channel on ``PermissionCheck`` and an
+    # ``any`` output type. Its module graph has no ring either, and its
+    # ``tests/test_drfs_surface.py`` pins every name re-exported here.
+    "django-service-specs>=0.8.0",
 ]
 
 [project.optional-dependencies]
