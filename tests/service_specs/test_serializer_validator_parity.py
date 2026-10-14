@@ -27,7 +27,12 @@ touches a name or ``required``:
   label, so the kernel writes none. Choice labels survive in both, as titles.
 - **Formats.** The kernel has three (``decimal``, ``date``, ``date-time``);
   drfs also writes ``time``, ``uuid``, ``email`` and ``uri``, which the kernel
-  states as a plain string.
+  states as a plain string. Where drfs writes ``date`` or ``date-time`` for a
+  field reading formats other than ISO 8601, and ``decimal`` for a localized
+  decimal, the kernel states no format and no type respectively: its check
+  runs in front of the field, so it may not refuse what the field reads
+  (``test_the_shape_check_passes_what_the_field_takes``), where drfs' schema
+  only describes.
 - **Choices.** drfs writes ``oneOf`` of ``const``/``title`` and widens with
   ``""`` and ``null`` as constants; the kernel writes ``anyOf`` of the same
   pairs, ``""`` among the choices, and ``null`` from ``nullable``.
@@ -57,6 +62,7 @@ import pytest
 from django_service_specs.schema.parameters_schema import parameters_schema
 from django_service_specs.types.unknown_arguments import UnknownArguments
 from rest_framework import serializers
+from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.jsonschema.serializer_to_json_schema import serializer_to_json_schema
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
@@ -117,6 +123,13 @@ class _Order:
     rows: list[_Row] = dataclasses.field(default_factory=list)
 
 
+class _OrderSerializer(DataclassSerializer):
+    """A declared DataclassSerializer, as the gallery writes its inputs."""
+
+    class Meta:
+        dataclass = _Order
+
+
 class _Tree(serializers.Serializer):
     name = serializers.CharField()
 
@@ -153,6 +166,7 @@ _EXPECTED_HIDDEN: dict[Any, dict[str, set[str]]] = {
         pytest.param(_Nested, id="nested"),
         pytest.param(_PostSerializer, id="model-serializer"),
         pytest.param(_Order, id="dataclass"),
+        pytest.param(_OrderSerializer, id="dataclass-serializer"),
         pytest.param(_Tree, id="recursive"),
     ],
 )

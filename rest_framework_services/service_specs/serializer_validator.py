@@ -18,6 +18,7 @@ from django_service_specs.validation.validated import Validated
 from django_service_specs.validation.validation_context import ValidationContext
 from django_service_specs.validation.validator import Validator
 from rest_framework import serializers
+from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
 from rest_framework_services.dispatch.build_offline_context import build_offline_context
@@ -74,14 +75,22 @@ class SerializerValidator(Validator):
     ``validated()`` hands the service what drfs' dispatch hands it: ``data``
     is the serializer's ``validated_data`` - the validated mapping, or the
     dataclass instance a ``DataclassSerializer`` builds - and the bound
-    serializer is bound for the call as ``serializer``. ``values`` are the
-    mapping's entries, keyed as DRF keys them, by each field's ``source``; for a
-    dataclass, the instance's ``__init__`` fields.
+    serializer is bound for the call as ``serializer``. ``values`` follow
+    what ``validated_data`` is, as drfs' dispatch reads it: a mapping's
+    entries, keyed as DRF keys them, by each field's ``source``; a dataclass
+    instance's ``__init__`` fields, whether a dataclass was declared or a
+    ``DataclassSerializer`` subclass was; and nothing for any other object a
+    serializer's ``validate()`` returns, which reaches the service only as
+    ``data``.
 
-    **A partial call over a dataclass is refused**, with
-    ``ImproperlyConfigured``: a ``DataclassSerializer`` builds its instance
-    from every field, and one a partial call left out fails as a ``TypeError``
-    from inside the library.
+    **A partial call over a dataclass is refused**, a ``DataclassSerializer``
+    subclass included: one builds its instance from every field, and a field
+    a partial call left out fails as a ``TypeError`` from inside the library.
+    The refusal is ``ImproperlyConfigured``, raised when the partial call
+    arrives: ``supports_partial`` stays the class's ``True``, because the
+    kernel declares it a ``ClassVar`` and this answer belongs to the
+    declaration, so a spec declaring ``partial=True`` over a dataclass is
+    accepted when it is built and refused on its first call.
     """
 
     def __init__(self, serializer: type[Any]) -> None:
@@ -103,6 +112,15 @@ class SerializerValidator(Validator):
                 f"SerializerValidator takes a Serializer subclass or a dataclass; got {serializer!r}."
             )
         self.serializer = serializer
+        # Whether the serializer builds a dataclass instance: a dataclass read
+        # through a DataclassSerializer, or a DataclassSerializer subclass
+        # declared outright, as the gallery declares its inputs. Each is held
+        # by its own case of test_a_partial_call_over_a_dataclass_is_refused.
+        # Not ``supports_partial``, which the kernel declares a ``ClassVar``
+        # and so describes the class: this answer is the declaration's.
+        self._builds_instance: bool = dataclasses.is_dataclass(serializer) or issubclass(
+            serializer, DataclassSerializer
+        )
 
     def parameters(self) -> Parameters:
         """The serializer's input fields, as Parameters. Never queries."""
@@ -119,13 +137,12 @@ class SerializerValidator(Validator):
     def _validated(self, arguments: Mapping[str, Any], context: ValidationContext) -> Validated:
         # Neither public method calls the other, so a subclass may extend
         # either through the other without the two calling each other forever.
-        is_dataclass = dataclasses.is_dataclass(self.serializer)
         # One branch to coverage: test_a_partial_call_over_a_dataclass_is_refused
         # holds both together, and each alone is held by a call it must not
         # refuse: test_a_partial_call_takes_a_required_field_left_out_and_returns_what_was_sent
         # (a partial serializer) and test_a_dataclass_s_data_is_its_instance_and_its_values_its_fields
         # (a whole dataclass call).
-        if context.partial and is_dataclass:
+        if context.partial and self._builds_instance:
             raise ImproperlyConfigured(
                 f"SerializerValidator({self.serializer.__qualname__}) cannot validate a partial "
                 "call: a DataclassSerializer builds its instance from every field. Declare the "
@@ -135,12 +152,7 @@ class SerializerValidator(Validator):
         if not serializer.is_valid():
             raise InvalidArguments(serializer.errors)
         data: Any = serializer.validated_data
-        values = (
-            {f.name: getattr(data, f.name) for f in dataclasses.fields(data) if f.init}
-            if is_dataclass
-            else dict(data)
-        )
-        return Validated(values=values, data=data, pool={"serializer": serializer})
+        return Validated(values=_values(data), data=data, pool={"serializer": serializer})
 
     def _bind(
         self, arguments: Mapping[str, Any], context: ValidationContext
@@ -156,3 +168,19 @@ class SerializerValidator(Validator):
             partial=context.partial,
             context=base_serializer_context(view=offline.view, request=offline.request),
         )
+
+
+def _values(data: Any) -> dict[str, Any]:
+    """The values a call's ``validated_data`` spreads by name, as drfs' dispatch spreads them.
+
+    Read off the value rather than the declaration, so a declared
+    ``DataclassSerializer`` subclass is read as the dataclass it builds
+    (test_a_declared_dataclass_serializer_hands_its_instance_and_its_fields),
+    and a ``validate()`` returning some other object spreads nothing
+    (test_an_object_a_validate_returns_is_data_and_spreads_nothing).
+    """
+    if isinstance(data, Mapping):
+        return dict(data)
+    if dataclasses.is_dataclass(data):
+        return {f.name: getattr(data, f.name) for f in dataclasses.fields(data) if f.init}
+    return {}

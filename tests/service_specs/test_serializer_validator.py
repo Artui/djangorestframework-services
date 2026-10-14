@@ -42,6 +42,25 @@ class _Order:
     rows: list[_Row] = dataclasses.field(default_factory=list)
 
 
+@dataclasses.dataclass
+class _MoveIn:
+    event_id: int
+    start_hour: int | None = None
+    day: str | None = None
+
+
+class _MoveInSerializer(DataclassSerializer):
+    """The gallery's shape: a declared DataclassSerializer whose ``validate`` reads the instance."""
+
+    class Meta:
+        dataclass = _MoveIn
+
+    def validate(self, attrs: _MoveIn) -> _MoveIn:
+        if (attrs.day is None) != (attrs.start_hour is None):
+            raise serializers.ValidationError("Pass both day and start_hour, or neither.")
+        return attrs
+
+
 def _context(
     principal: Any = None, target: Any = None, *, partial: bool = False
 ) -> ValidationContext:
@@ -51,10 +70,8 @@ def _context(
 # --- the declaration --------------------------------------------------------------
 
 
-def test_it_is_the_kernel_s_validator_and_handles_a_partial_call() -> None:
-    validator = SerializerValidator(_Note)
-    assert isinstance(validator, Validator)
-    assert SerializerValidator.supports_partial is True
+def test_it_is_the_kernel_s_validator() -> None:
+    assert isinstance(SerializerValidator(_Note), Validator)
 
 
 @pytest.mark.parametrize(
@@ -254,6 +271,19 @@ def test_a_dataclass_s_data_is_its_instance_and_its_values_its_fields() -> None:
     assert isinstance(validated.pool["serializer"], DataclassSerializer)
 
 
+def test_an_object_a_validate_returns_is_data_and_spreads_nothing() -> None:
+    built = object()
+
+    class S(serializers.Serializer):
+        title = serializers.CharField()
+
+        def validate(self, attrs: dict[str, Any]) -> Any:
+            return built
+
+    validated = SerializerValidator(S).validated({"title": "hi"}, _context())
+    assert (validated.data, validated.values) == (built, {})
+
+
 def test_a_dataclass_s_row_refusal_names_the_row() -> None:
     with pytest.raises(InvalidArguments) as raised:
         SerializerValidator(_Order).validate(
@@ -263,9 +293,44 @@ def test_a_dataclass_s_row_refusal_names_the_row() -> None:
     assert raised.value.detail["rows"] == {1: {"title": ["This field is required."]}}
 
 
-def test_a_partial_call_over_a_dataclass_is_refused() -> None:
+@pytest.mark.parametrize(
+    "declaration",
+    [pytest.param(_Order, id="a-dataclass"), pytest.param(_MoveInSerializer, id="its-serializer")],
+)
+def test_a_partial_call_over_a_dataclass_is_refused(declaration: Any) -> None:
     with pytest.raises(ImproperlyConfigured, match="partial"):
-        SerializerValidator(_Order).validate({"name": "n"}, _context(partial=True))
+        SerializerValidator(declaration).validate({"event_id": 1}, _context(partial=True))
+
+
+def test_a_declared_dataclass_serializer_hands_its_instance_and_its_fields() -> None:
+    validated = SerializerValidator(_MoveInSerializer).validated(
+        {"event_id": 7, "day": "mon", "start_hour": 9}, _context()
+    )
+    assert validated.data == _MoveIn(event_id=7, start_hour=9, day="mon")
+    assert validated.values == {"event_id": 7, "start_hour": 9, "day": "mon"}
+    assert type(validated.pool["serializer"]) is _MoveInSerializer
+
+
+def test_a_declared_dataclass_serializer_s_own_validate_refuses() -> None:
+    with pytest.raises(InvalidArguments) as raised:
+        SerializerValidator(_MoveInSerializer).validate({"event_id": 7, "day": "mon"}, _context())
+    assert raised.value.detail == {
+        "non_field_errors": ["Pass both day and start_hour, or neither."]
+    }
+
+
+@pytest.mark.django_db
+def test_a_partial_spec_over_a_dataclass_is_built_and_refused_on_its_first_call() -> None:
+    # supports_partial is a ClassVar on the kernel's Validator, so it cannot
+    # answer for one declaration; the refusal comes at the call instead.
+    spec = ServiceSpec(
+        service=lambda data: data,
+        permissions=[Unrestricted()],
+        validator=SerializerValidator(_MoveInSerializer),
+        partial=True,
+    )
+    with pytest.raises(ImproperlyConfigured, match="partial"):
+        dispatch(spec, principal=None, arguments={"event_id": 1})
 
 
 # --- under the kernel's dispatch --------------------------------------------------
@@ -286,6 +351,28 @@ def test_dispatch_hands_the_service_its_values_data_and_serializer() -> None:
     assert result.value == "hi"
     assert received["data"] == {"title": "hi"}
     assert isinstance(received["serializer"], _Note)
+
+
+@pytest.mark.django_db
+def test_a_current_user_default_reads_the_principal_under_dispatch() -> None:
+    received: dict[str, Any] = {}
+
+    class S(serializers.Serializer):
+        title = serializers.CharField()
+        owner = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    def service(*, title: str, owner: Any) -> str:
+        received.update(title=title, owner=owner)
+        return title
+
+    user = get_user_model().objects.create(username="ada")
+    spec = ServiceSpec(
+        service=service, permissions=[Unrestricted()], validator=SerializerValidator(S)
+    )
+    # REJECT, the default: the hidden field is no Parameter, and no argument
+    # names it, so the closed argument set has nothing to refuse.
+    dispatch(spec, principal=user, arguments={"title": "hi"})
+    assert received == {"title": "hi", "owner": user}
 
 
 @pytest.mark.django_db

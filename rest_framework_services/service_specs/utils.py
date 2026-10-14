@@ -25,12 +25,14 @@ two dialects differ and why.
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Sequence
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
 from django_service_specs.parameters.parameters import Parameter, Parameters
 from django_service_specs.types.unset import UNSET as KERNEL_UNSET
-from rest_framework import relations, serializers
+from rest_framework import ISO_8601, relations, serializers
+from rest_framework.settings import api_settings
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
@@ -170,7 +172,7 @@ def input_parameter(name: str, field: serializers.Field, path: tuple[type[Any], 
         # A list of keys, each read as its related field reads one: from a
         # string as readily as from a number, so the element declares no type.
         return Parameter(name, "array", **common)
-    json_type, fmt = field_type(field)
+    json_type, fmt = input_type(field)
     choices = field_choices(field)
     if choices is None:
         return Parameter(name, json_type, format=fmt, **common)
@@ -201,6 +203,48 @@ def field_type(field: serializers.Field) -> tuple[str, str | None]:
         if isinstance(field, cls):
             return json_type, fmt
     return "any", None
+
+
+def input_type(field: serializers.Field) -> tuple[str, str | None]:
+    """The JSON type and format of one value ``field`` takes, for the shape check in front of it.
+
+    ``field_type``, refined by what only the input side reads, so that the
+    declaration is never stricter than the field:
+
+    - a date or date-time read in any format but ISO 8601, its own or the
+      project's ``DATE_INPUT_FORMATS`` / ``DATETIME_INPUT_FORMATS``, declares
+      no format, since the kernel's names for the two are ISO's and would
+      refuse ``14/10/2026`` before a field reading ``%d/%m/%Y`` saw it;
+    - a localized decimal declares no type, since it reads the separators of
+      the language active for the call, ``1,5`` in German, as well as a JSON
+      number.
+    """
+    json_type, fmt = field_type(field)
+    formats = _input_formats(field)
+    # One branch to coverage: without the ``None`` test every other field
+    # raises TypeError, and without the formats test
+    # test_each_field_declares_its_json_type_and_format[date] declares no format for an ISO date.
+    if formats is not None and any(each != ISO_8601 for each in formats):
+        return json_type, None
+    # test_each_field_declares_its_json_type_and_format[decimal] holds ``localize``.
+    if isinstance(field, serializers.DecimalField) and field.localize:
+        return "any", None
+    return json_type, fmt
+
+
+def _input_formats(field: serializers.Field) -> Sequence[str] | None:
+    """The formats a date or date-time field reads, as DRF reads them when it validates.
+
+    The field's own ``input_formats``, else the project's setting, read now
+    rather than when the field was built, as DRF reads it. ``None`` for any
+    other field.
+    """
+    # DateTimeField does not subclass DateField, so the order is free.
+    if isinstance(field, serializers.DateTimeField):
+        return getattr(field, "input_formats", api_settings.DATETIME_INPUT_FORMATS)
+    if isinstance(field, serializers.DateField):
+        return getattr(field, "input_formats", api_settings.DATE_INPUT_FORMATS)
+    return None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -332,7 +376,7 @@ def _element(
             "choices": choices.values,
             "choice_labels": choices.labels,
         }
-    json_type, fmt = field_type(child)
+    json_type, fmt = input_type(child)
     if json_type == "any":
         # An element of no single type, a choice field's of mixed values among
         # them: an array that declares no ``items`` takes any element already.

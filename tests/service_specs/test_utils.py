@@ -8,10 +8,13 @@ from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+from django.utils import translation
 from django.utils.translation import gettext_lazy
+from django_service_specs.parameters.check_arguments import check_arguments
+from django_service_specs.parameters.invalid_arguments import InvalidArguments
 from django_service_specs.parameters.parameters import Parameter, Parameters
 from django_service_specs.types.unset import UNSET as KERNEL_UNSET
-from rest_framework import serializers
+from rest_framework import ISO_8601, serializers
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.service_specs.utils import describe_serializer, input_parameters
@@ -383,6 +386,132 @@ def test_a_list_of_mixed_choices_declares_none() -> None:
 def test_a_list_with_no_child_declares_no_element() -> None:
     field = serializers.ListField()
     assert _one(field).items is None
+
+
+# --- never stricter than the field ------------------------------------------------
+#
+# The kernel's shape check runs in front of DRF, so each payload DRF takes must
+# pass it too, or a call the serializer would accept is refused before it runs.
+
+
+def _shape_check(field: serializers.Field, value: Any) -> tuple[bool, bool]:
+    """Whether DRF takes ``value`` for ``field``, and whether the shape check does."""
+    cls = type("_One", (serializers.Serializer,), {"x": field})
+    try:
+        check_arguments(_walk(cls), {"x": value})
+        passes = True
+    except InvalidArguments:
+        passes = False
+    return cls(data={"x": value}).is_valid(), passes
+
+
+_TWO_PLACES = {"max_digits": 5, "decimal_places": 2}
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        pytest.param(serializers.DateField(), "2026-10-14", id="an-iso-date"),
+        pytest.param(
+            serializers.DateField(input_formats=["%d/%m/%Y"]), "14/10/2026", id="a-date-format"
+        ),
+        pytest.param(
+            serializers.DateField(input_formats=[ISO_8601, "%d/%m/%Y"]),
+            "14/10/2026",
+            id="iso-and-a-date-format",
+        ),
+        pytest.param(
+            serializers.DateTimeField(input_formats=["%d/%m/%Y %H:%M"]),
+            "14/10/2026 10:00",
+            id="a-date-time-format",
+        ),
+        pytest.param(serializers.DecimalField(**_TWO_PLACES), "1.5", id="a-decimal"),
+        pytest.param(
+            serializers.DecimalField(**_TWO_PLACES, localize=True), "1,5", id="a-localized-decimal"
+        ),
+        pytest.param(
+            serializers.DecimalField(**_TWO_PLACES, localize=True), 1.5, id="a-localized-number"
+        ),
+        pytest.param(
+            serializers.ListField(child=serializers.DecimalField(**_TWO_PLACES, localize=True)),
+            ["1,5"],
+            id="a-list-of-localized-decimals",
+        ),
+        pytest.param(serializers.IntegerField(), " 3 ", id="a-padded-integer"),
+        pytest.param(serializers.ChoiceField(choices=[1, 2]), "1", id="an-integer-choice-as-text"),
+    ],
+)
+def test_the_shape_check_passes_what_the_field_takes(field: serializers.Field, value: Any) -> None:
+    # A comma is the decimal separator in German, which a localized field reads.
+    with translation.override("de"):
+        assert _shape_check(field, value) == (True, True)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        pytest.param(serializers.BooleanField(), "true", id="text-for-a-boolean"),
+        pytest.param(serializers.BooleanField(), 1, id="a-number-for-a-boolean"),
+        pytest.param(serializers.CharField(), 1, id="a-number-for-a-string"),
+        pytest.param(serializers.UUIDField(), 5, id="a-number-for-a-uuid"),
+        pytest.param(serializers.DurationField(), 3600, id="a-number-for-a-duration"),
+        pytest.param(
+            serializers.ChoiceField(choices=["1", "2"]), 1, id="a-number-for-a-text-choice"
+        ),
+        pytest.param(
+            serializers.ChoiceField(choices=[True, False]), "True", id="text-for-a-boolean-choice"
+        ),
+        pytest.param(
+            serializers.ListField(child=serializers.IntegerField()),
+            list(range(1001)),
+            id="past-the-kernel-s-list-cap",
+        ),
+    ],
+)
+def test_the_shape_check_refuses_what_drf_coerces_across_json_types(
+    field: serializers.Field, value: Any
+) -> None:
+    # The named exceptions to never-stricter: a value of another JSON type
+    # that DRF coerces, which the declared type refuses as the JSON Schema it
+    # renders would, and the kernel's default bound on a list's length. Each
+    # is a difference from drfs' own dispatch that the CHANGELOG states; a
+    # case here that starts passing is one to strike from it.
+    assert _shape_check(field, value) == (True, False)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        pytest.param(serializers.DateField(input_formats=["%d/%m/%Y"]), id="date"),
+        pytest.param(
+            serializers.DateTimeField(input_formats=[ISO_8601, "%d/%m/%Y"]), id="date-time"
+        ),
+    ],
+)
+def test_a_date_read_in_formats_of_its_own_declares_no_format(field: serializers.Field) -> None:
+    found = _one(field)
+    assert (found.type, found.format) == ("string", None)
+
+
+@pytest.mark.parametrize(
+    ("field", "setting"),
+    [
+        pytest.param(serializers.DateField(), "DATE_INPUT_FORMATS", id="date"),
+        pytest.param(serializers.DateTimeField(), "DATETIME_INPUT_FORMATS", id="date-time"),
+    ],
+)
+def test_a_date_read_in_the_project_s_formats_declares_no_format(
+    field: serializers.Field, setting: str, settings: Any
+) -> None:
+    # Read when the walk runs, as DRF reads it when the field validates.
+    settings.REST_FRAMEWORK = {**settings.REST_FRAMEWORK, setting: ["%d/%m/%Y"]}
+    found = _one(field)
+    assert (found.type, found.format) == ("string", None)
+
+
+def test_a_localized_decimal_declares_no_type() -> None:
+    found = _one(serializers.DecimalField(**_TWO_PLACES, localize=True))
+    assert (found.type, found.format) == ("any", None)
 
 
 # --- nested serializers ----------------------------------------------------------
