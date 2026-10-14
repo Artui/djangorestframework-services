@@ -2,10 +2,11 @@
 
 A caller whose input is always a JSON object cannot send the bare array a
 ``many=True`` spec validates over HTTP. With ``many_as_argument=True`` the list
-arrives under ``spec.many_argument`` instead, and every validation error is keyed
-under that argument in one shape on every supported DRF: the shape the documented
-workaround, ``items = Item(many=True)`` on a wrapper serializer, produces on
-current DRF.
+arrives under ``spec.many_argument`` instead, and every refusal is keyed under that
+argument as the kernel addresses rows: a row's by its ``int`` index, only failing
+rows present, and a refusal of the list as a whole as a list under the argument.
+Each row is shape-checked before the input serializer reads it, so a value of the
+wrong type is refused in the shape check's words and a blank one in DRF's.
 
 Every case runs through both cores, because the flag is threaded through each.
 """
@@ -17,6 +18,7 @@ from typing import Any
 
 import pytest
 from asgiref.sync import sync_to_async
+from django.core.exceptions import ImproperlyConfigured
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
@@ -127,11 +129,11 @@ def _spec(serializer: type = _Line, **overrides: Any) -> ServiceSpec[Any, Any, A
 
 
 _GOOD: dict[str, Any] = {"sku": "a", "quantity": 1}
-_BAD: dict[str, Any] = {"sku": "", "quantity": "x"}
-_BAD_DETAIL: dict[str, Any] = {
-    "sku": ["This field may not be blank."],
-    "quantity": ["A valid integer is required."],
-}
+# Well-typed, so the shape check passes it and the input serializer refuses it.
+_BAD: dict[str, Any] = {"sku": "", "quantity": 1}
+_BAD_DETAIL: dict[str, Any] = {"sku": ["This field may not be blank."]}
+# Mistyped, so the shape check refuses it before any serializer reads it.
+_MISTYPED: dict[str, Any] = {"sku": "a", "quantity": "x"}
 
 
 # --- the list reaches the service -------------------------------------------
@@ -168,7 +170,8 @@ async def test_without_the_flag_the_same_spec_still_takes_a_bare_list(core: str)
 async def test_without_the_flag_an_argument_object_is_still_not_a_list(core: str) -> None:
     """The HTTP body is not widened: only a caller that says so gets the unwrap."""
     refusal = await _refusal(core, _spec(), params={"items": [_GOOD]})
-    assert refusal.detail == {"non_field_errors": ['Expected a list of items but got type "dict".']}
+    assert refusal.detail == {"non_field_errors": ["Expected an array."]}
+    assert refusal.get_codes() == {"non_field_errors": ["not_a_list"]}
 
 
 @_CORES
@@ -199,34 +202,24 @@ async def test_input_data_merges_into_each_item_of_the_list_read(core: str) -> N
 
 
 @_CORES
-async def test_without_an_input_serializer_the_list_still_passes_through(core: str) -> None:
+async def test_without_an_input_serializer_a_list_is_refused(core: str) -> None:
+    """The input serializer is what declares a row, so a ``many`` spec with none has
+    no rows to read."""
     spec = ServiceSpec(service=_echo, many=True, atomic=False)
-    result = await _dispatch(
-        core,
-        spec,
-        user=None,
-        params={"items": [{"note": "a"}]},
-        many_as_argument=True,
-        unknown_arguments=UnknownArguments.PASSTHROUGH,
-    )
-    assert _plain(result.value) == [{"note": "a"}]
-
-
-@_CORES
-async def test_without_an_input_serializer_a_non_list_is_still_refused(core: str) -> None:
-    spec = ServiceSpec(service=_echo, many=True, atomic=False)
-    refusal = await _refusal(core, spec, params={"items": "a"}, many_as_argument=True)
-    assert refusal.detail == {
-        "items": {"non_field_errors": ['Expected a list of items but got type "str".']}
-    }
+    with pytest.raises(ImproperlyConfigured, match="many=True with no validator"):
+        await _dispatch(core, spec, user=None, params={"items": []}, many_as_argument=True)
 
 
 @_CORES
 @pytest.mark.parametrize("flag", [True, False])
-async def test_an_explicit_bundle_binding_is_accepted(core: str, flag: bool) -> None:
-    """``BUNDLE`` is what a list payload does -- the whole list as one ``data`` -- so
-    naming it is not a contradiction. A transport whose own default is ``BUNDLE`` would
-    otherwise have to special-case every ``many=True`` spec."""
+@pytest.mark.parametrize("binding", [ArgumentBinding.BUNDLE, ArgumentBinding.SPREAD_AUTHOR_WINS])
+async def test_an_explicit_binding_is_accepted(
+    core: str, flag: bool, binding: ArgumentBinding
+) -> None:
+    """Each binding means the one argument pool, and a list payload is the whole list
+    as one ``data``, so naming one is not a contradiction. A transport whose own
+    default is ``BUNDLE`` would otherwise have to special-case every ``many=True``
+    spec."""
     params: Any = {"items": [_GOOD]} if flag else [_GOOD]
     result = await _dispatch(
         core,
@@ -234,28 +227,12 @@ async def test_an_explicit_bundle_binding_is_accepted(core: str, flag: bool) -> 
         user=None,
         params=params,
         many_as_argument=flag,
-        argument_binding=ArgumentBinding.BUNDLE,
+        argument_binding=binding,
     )
     assert _plain(result.value) == [_GOOD]
 
 
-@_CORES
-@pytest.mark.parametrize(
-    "binding", [ArgumentBinding.SPREAD_AUTHOR_WINS, ArgumentBinding.SPREAD_CALLER_WINS]
-)
-async def test_a_spread_binding_is_still_refused(core: str, binding: ArgumentBinding) -> None:
-    with pytest.raises(ValueError, match="many=True"):
-        await _dispatch(
-            core,
-            _spec(),
-            user=None,
-            params={"items": [_GOOD]},
-            many_as_argument=True,
-            argument_binding=binding,
-        )
-
-
-# --- errors: one shape on every DRF, keyed under the argument ----------------
+# --- errors: keyed under the argument, rows by index ---------------------------
 
 
 @_CORES
@@ -279,12 +256,7 @@ async def test_item_errors_reported_as_a_list_are_keyed_by_index_too(core: str) 
         many_as_argument=True,
     )
     assert refusal.detail == {"items": {1: _BAD_DETAIL, 3: _BAD_DETAIL}}
-    assert refusal.get_codes() == {
-        "items": {
-            1: {"sku": ["blank"], "quantity": ["invalid"]},
-            3: {"sku": ["blank"], "quantity": ["invalid"]},
-        }
-    }
+    assert refusal.get_codes() == {"items": {1: {"sku": ["blank"]}, 3: {"sku": ["blank"]}}}
 
 
 @_CORES
@@ -302,25 +274,30 @@ async def test_every_item_invalid_is_keyed_from_zero(core: str) -> None:
 @_CORES
 async def test_item_errors_keep_their_codes(core: str) -> None:
     refusal = await _refusal(core, _spec(), params={"items": [_GOOD, _BAD]}, many_as_argument=True)
-    assert refusal.get_codes() == {"items": {1: {"sku": ["blank"], "quantity": ["invalid"]}}}
+    assert refusal.get_codes() == {"items": {1: {"sku": ["blank"]}}}
 
 
 @_CORES
-@pytest.mark.parametrize(("value", "type_name"), [({"sku": "a"}, "dict"), ("a", "str"), (3, "int")])
-async def test_a_non_list_is_refused_under_the_argument(
-    core: str, value: Any, type_name: str
-) -> None:
+async def test_a_mistyped_item_is_refused_by_the_shape_check_at_its_index(core: str) -> None:
+    refusal = await _refusal(
+        core, _spec(), params={"items": [_GOOD, _MISTYPED]}, many_as_argument=True
+    )
+    assert refusal.detail == {"items": {1: {"quantity": ["Expected an integer."]}}}
+    assert refusal.get_codes() == {"items": {1: {"quantity": ["invalid"]}}}
+
+
+@_CORES
+@pytest.mark.parametrize("value", [{"sku": "a"}, "a", 3], ids=["dict", "str", "int"])
+async def test_a_non_list_is_refused_under_the_argument(core: str, value: Any) -> None:
     refusal = await _refusal(core, _spec(), params={"items": value}, many_as_argument=True)
-    assert refusal.detail == {
-        "items": {"non_field_errors": [f'Expected a list of items but got type "{type_name}".']}
-    }
-    assert refusal.get_codes() == {"items": {"non_field_errors": ["not_a_list"]}}
+    assert refusal.detail == {"items": ["Expected an array."]}
+    assert refusal.get_codes() == {"items": ["not_a_list"]}
 
 
 @_CORES
 async def test_a_null_list_is_refused_as_a_null_field(core: str) -> None:
     refusal = await _refusal(core, _spec(), params={"items": None}, many_as_argument=True)
-    assert refusal.detail == {"items": ["This field may not be null."]}
+    assert refusal.detail == {"items": ["This field cannot be null."]}
     assert refusal.get_codes() == {"items": ["null"]}
 
 
@@ -346,7 +323,8 @@ async def test_an_empty_list_that_may_not_be_empty_is_refused_under_the_argument
     refusal = await _refusal(
         core, _spec(_NonEmptyLine), params={"items": []}, many_as_argument=True
     )
-    assert refusal.detail == {"items": {"non_field_errors": ["This list may not be empty."]}}
+    assert refusal.detail == {"items": ["Ensure this field has at least 1 elements."]}
+    assert refusal.get_codes() == {"items": ["min_length"]}
 
 
 @_CORES
@@ -364,24 +342,35 @@ async def test_a_length_bound_is_refused_under_the_argument(
     refusal = await _refusal(
         core, _spec(_BoundedLine), params={"items": items}, many_as_argument=True
     )
-    assert refusal.detail == {"items": {"non_field_errors": [message]}}
+    assert refusal.detail == {"items": [message]}
 
 
 @_CORES
-@pytest.mark.parametrize("policy", list(UnknownArguments))
-async def test_an_argument_beside_the_list_is_refused_whatever_the_policy(
-    core: str, policy: UnknownArguments
-) -> None:
-    """Nothing beside the list has anywhere to go: the service receives the list as its
-    one ``data``. ``unknown_arguments`` still governs the keys inside each item."""
+async def test_an_argument_beside_the_list_is_dropped_under_ignore(core: str) -> None:
+    """The top level is the list and the spec's ``reads``, a closed set: ``IGNORE``
+    drops what else was sent, as it drops an undeclared key anywhere."""
+    result = await _dispatch(
+        core,
+        _spec(),
+        user=None,
+        params={"items": [_GOOD], "note": 1, "extra": 2},
+        many_as_argument=True,
+        unknown_arguments=UnknownArguments.IGNORE,
+    )
+    assert _plain(result.value) == [_GOOD]
+
+
+@_CORES
+async def test_an_argument_beside_the_list_is_unknown_under_reject(core: str) -> None:
     refusal = await _refusal(
         core,
         _spec(),
         params={"items": [_GOOD], "note": 1, "extra": 2},
         many_as_argument=True,
-        unknown_arguments=policy,
+        unknown_arguments=UnknownArguments.REJECT,
     )
-    assert refusal.detail == {"non_field_errors": ["Unexpected argument(s): 'extra', 'note'."]}
+    assert refusal.detail == {"note": ["Unknown argument."], "extra": ["Unknown argument."]}
+    assert refusal.get_codes() == {"note": ["unknown"], "extra": ["unknown"]}
 
 
 @_CORES
@@ -398,8 +387,9 @@ async def test_a_reserved_seed_beside_the_list_is_not_an_unexpected_argument(cor
 
 
 @_CORES
-async def test_item_errors_answer_before_an_unexpected_argument(core: str) -> None:
-    """The workaround validates before it looks for unknown arguments."""
+async def test_item_errors_answer_beside_a_dropped_argument(core: str) -> None:
+    """Under the default ``IGNORE`` the key beside the list is dropped, so the rows'
+    refusal is the whole answer."""
     refusal = await _refusal(
         core, _spec(), params={"items": [_BAD], "note": 1}, many_as_argument=True
     )
@@ -415,13 +405,11 @@ async def test_an_undeclared_key_inside_an_item_is_refused_at_its_index(core: st
         many_as_argument=True,
         unknown_arguments=UnknownArguments.REJECT,
     )
-    assert refusal.detail == {
-        "items": {1: {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}}
-    }
+    assert refusal.detail == {"items": {1: {"bogus": ["Unknown argument."]}}}
 
 
 @_CORES
-async def test_without_the_flag_an_undeclared_key_inside_an_item_is_refused_unindexed(
+async def test_without_the_flag_an_undeclared_key_inside_an_item_is_refused_in_the_list_shape(
     core: str,
 ) -> None:
     refusal = await _refusal(
@@ -430,15 +418,13 @@ async def test_without_the_flag_an_undeclared_key_inside_an_item_is_refused_unin
         params=[_GOOD, {**_GOOD, "bogus": 1}],
         unknown_arguments=UnknownArguments.REJECT,
     )
-    assert refusal.detail == {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}
+    assert refusal.detail == [{}, {"bogus": ["Unknown argument."]}]
 
 
 @_CORES
 async def test_arguments_that_are_not_an_object_are_refused(core: str) -> None:
     refusal = await _refusal(core, _spec(), params=[_GOOD], many_as_argument=True)
-    assert refusal.detail == {
-        "non_field_errors": ["Invalid data. Expected a dictionary, but got list."]
-    }
+    assert refusal.detail == {"non_field_errors": ["Expected an object."]}
     assert refusal.get_codes() == {"non_field_errors": ["invalid"]}
 
 

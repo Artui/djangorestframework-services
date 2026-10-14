@@ -1,14 +1,14 @@
-"""A service's output re-read filters on ``filter_data`` alone.
+"""A service's output re-read is not filtered by the call.
 
 Off HTTP the call's arguments are the service's input, and neither the input
 schema nor ``UnknownArguments.REJECT`` knows the output selector's filter fields.
-So the re-read's ``filter_set`` reads only an explicit ``filter_data`` -- the
-channel the HTTP path fills from the query string -- and without one it is bound
-to an empty mapping, as an HTTP request with no query string would bind it.
+The re-read is handed only what the service produced, so its ``filter_set`` is
+bound to no arguments: not the call's, not an offline request's query string,
+and not an explicit ``filter_data``, which narrows only the target lookup.
 
-The target lookups are a different case and keep their fallback to ``params``:
-their filter fields are part of the declared input. That is held by
-``TestFilterDataOnTheTargetPath`` in ``test_dispatch_spec.py``.
+The target lookups are a different case: their filter fields are part of the
+declared input. That is held by ``TestFilterDataOnTheTargetPath`` in
+``test_dispatch_spec.py``.
 
 Each test runs through ``dispatch_spec`` and ``adispatch_spec`` alike.
 """
@@ -16,8 +16,9 @@ Each test runs through ``dispatch_spec`` and ``adispatch_spec`` alike.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, ClassVar
 
+import django_filters
 import pytest
 from asgiref.sync import async_to_sync
 from django.db.models import QuerySet
@@ -47,26 +48,21 @@ Dispatch = Callable[..., DispatchResult]
 _CORES = pytest.mark.parametrize("dispatch", [_sync, _async], ids=["sync", "async"])
 
 
-class _PublishedOnly:
-    """Duck-typed FilterSet narrowing by ``published``, as django-filter would.
+class _PublishedOnly(django_filters.FilterSet):
+    """Narrows by ``published``, recording every mapping it is bound to, so a test
+    can tell an empty filter source from the filter not running at all."""
 
-    Records every mapping it is bound to, so a test can tell an empty filter
-    source from the filter not running at all.
-    """
+    bound_to: ClassVar[list[Any]] = []
 
-    bound_to: list[Any] = []
+    published = django_filters.BooleanFilter()
 
-    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
-        self._data = data
-        self._queryset = queryset
+    class Meta:
+        model = Post
+        fields = ["published"]
+
+    def __init__(self, data: Any = None, *args: Any, **kwargs: Any) -> None:
         _PublishedOnly.bound_to.append(data)
-
-    @property
-    def qs(self) -> QuerySet[Post]:
-        raw = self._data.get("published")
-        if raw is None:
-            return self._queryset
-        return self._queryset.filter(published=str(raw).lower() == "true")
+        super().__init__(data, *args, **kwargs)
 
 
 def _all_posts() -> QuerySet[Post]:
@@ -96,15 +92,8 @@ def posts() -> None:
 @pytest.mark.django_db
 @pytest.mark.usefixtures("posts")
 @_CORES
-@pytest.mark.parametrize(
-    "policy",
-    [UnknownArguments.IGNORE, UnknownArguments.PASSTHROUGH],
-    ids=["ignore", "passthrough"],
-)
-def test_the_calls_arguments_do_not_filter_the_re_read(
-    dispatch: Dispatch, policy: UnknownArguments
-) -> None:
-    result = dispatch(_SPEC, params={"published": "false"}, unknown_arguments=policy)
+def test_the_calls_arguments_do_not_filter_the_re_read(dispatch: Dispatch) -> None:
+    result = dispatch(_SPEC, params={"published": False}, unknown_arguments=UnknownArguments.IGNORE)
 
     assert result.value.title == "shipped"
 
@@ -116,7 +105,7 @@ def test_without_filter_data_the_re_read_binds_an_empty_mapping(dispatch: Dispat
     """Bound, not skipped: a FilterSet that scopes in its own ``filter_queryset``
     still runs, and a bare call with no request does not fall back to reading
     ``request.query_params`` off a request that is not there."""
-    dispatch(_SPEC, params={"published": "false"})
+    dispatch(_SPEC, params={"published": False})
 
     assert _PublishedOnly.bound_to == [{}]
 
@@ -137,8 +126,10 @@ def test_an_offline_requests_query_string_is_not_read_either(dispatch: Dispatch)
 @pytest.mark.django_db
 @pytest.mark.usefixtures("posts")
 @_CORES
-def test_explicit_filter_data_still_filters_the_re_read(dispatch: Dispatch) -> None:
-    """The HTTP path passes the query string here, and that channel is unchanged."""
-    result = dispatch(_SPEC, params={}, filter_data={"published": "false"})
+def test_explicit_filter_data_does_not_filter_the_re_read(dispatch: Dispatch) -> None:
+    """``filter_data`` narrows the target lookup's filter set; the re-read is
+    handed what the service produced and nothing of the call."""
+    result = dispatch(_SPEC, params={}, filter_data={"published": False})
 
-    assert result.value.title == "draft"
+    assert result.value.title == "shipped"
+    assert _PublishedOnly.bound_to == [{}]

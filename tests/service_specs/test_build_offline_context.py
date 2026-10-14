@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+import django_filters
 import pytest
 from asgiref.sync import async_to_sync
 from django.db.models import QuerySet
@@ -178,26 +179,23 @@ Dispatch = Callable[..., DispatchResult]
 _CORES = pytest.mark.parametrize("dispatch", [_sync, _async], ids=["sync", "async"])
 
 
-def _published_from(queryset: QuerySet[Post], source: Any) -> QuerySet[Post]:
-    raw = source.get("published")
-    if raw is None:
-        return queryset
-    return queryset.filter(published=str(raw).lower() == "true")
+class _ReadsItsData(django_filters.FilterSet):
+    """Narrows by ``published`` in the data it is bound to."""
+
+    published = django_filters.BooleanFilter()
+
+    class Meta:
+        model = Post
+        fields = ["published"]
 
 
-class _ReadsItsData:
-    """Duck-typed FilterSet narrowing by ``published`` in the data it is bound to."""
-
-    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
-        self.qs = _published_from(queryset, data)
-
-
-class _ReadsTheRequest:
+class _ReadsTheRequest(_ReadsItsData):
     """A request-scoped FilterSet: it ignores its data and reads the query string,
     as one does that scopes itself behind ``DjangoFilterBackend``."""
 
-    def __init__(self, *, data: Any, queryset: QuerySet[Post], request: Any) -> None:
-        self.qs = _published_from(queryset, request.query_params)
+    def filter_queryset(self, queryset: QuerySet[Post]) -> QuerySet[Post]:
+        raw = self.request.query_params.get("published")
+        return queryset if raw is None else queryset.filter(published=raw == "true")
 
 
 def _all_posts() -> QuerySet[Post]:
