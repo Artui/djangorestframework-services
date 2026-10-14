@@ -1,0 +1,97 @@
+# Service specs on the kernel
+
+A `ServiceSpec` or `SelectorSpec` declared here is a source for
+[django-service-specs](https://github.com/Artui/django-service-specs): it answers
+`as_kernel_spec()`, so the kernel's `kernel_spec(spec)` compiles it once, and
+`dispatch`, `authorize` and a `SpecRegistry` take the drfs spec itself. Every
+drfs field lands on a kernel seat or is named below as the HTTP views' own.
+
+## What a spec declares for a caller off HTTP
+
+Over HTTP a URLconf captures a nested route's `project_pk` and a query string
+carries `fields`. Off HTTP somebody has to say they exist, so a spec declares
+them itself:
+
+```python
+from rest_framework_services import QueryParam, SelectorKind, SelectorSpec, UrlKwarg
+
+list_tasks = SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=tasks_for_project,
+    reads=[
+        UrlKwarg("project_pk", type="integer", required=True),
+        QueryParam("fields", description="Fields to return."),
+    ],
+)
+```
+
+- **`reads`**: each `UrlKwarg` and `QueryParam` becomes one kernel `Parameter`,
+  so it is an argument a caller sends and the schema lists. An entry of the
+  same name as a selector parameter replaces the reflected one. A sequence is
+  required, and a name may be declared once.
+- **`field_audiences`**: per-field markings layered over the output
+  serializer's own. On a `ServiceSpec` they layer over its output selector's.
+  A spec declaring them with no output serializer is refused at compile, with
+  a message naming both.
+- **`agent_contract()`**: the `OfflineContract` these two declare, which a
+  registry entry answers for transports that read it. `None` when both are
+  empty.
+
+## Where each field lands
+
+| drfs field | Kernel seat |
+| --- | --- |
+| `permission_classes` | one `DRFPermissionCheck`; `[]` is `Unrestricted()`, and `None` is no permissions, which a registry refuses |
+| `input_serializer` | `validator` (a `SerializerValidator`) |
+| `output_selector_spec.output_serializer`, `output_serializer` | `presenter` (a `SerializerPresenter`) |
+| `partial` | `partial`, kept only with an `input_serializer` |
+| `many`, `many_argument` | the same; the list bounds come from the serializer's `ListSerializer` |
+| `extend_queryset` | `extend_queryset`, called as `extend(queryset, view, request)` |
+| `affordances` | each service's compiled spec |
+| everything else of the same name | carried by name |
+
+A service with no `input_serializer` takes its arguments from its own
+signature. A selector always does, except for the names its `filter_set` owns.
+Parameters marked `NotClientInput` on any callable of the call are hidden.
+So are the names the pool fills: `user`, `request`, `view`, `queryset`,
+`result` and the rest. Declaring one of those in `reads` is refused.
+
+A nested spec compiles to what the kernel runs:
+
+- its `permission_classes` are not carried;
+- an instance lookup's `allow_none` and `output_serializer` are dropped;
+- an output selector's `kwargs` are dropped;
+- an output selector with no `selector` moves its serializer onto the service
+  spec's `presenter`;
+- `preconditions` and `progress_reporter`, which would never run there, are
+  refused.
+
+`success_status`, `document_service_error` and `response_finalizer` are the
+HTTP views' and are not compiled. `input_serializer_context` and
+`output_serializer_context` have no kernel seat yet.
+
+## DRF permission classes off HTTP
+
+`DRFPermissionCheck` asks each class in order against the offline request and
+view built for the principal. The first refusal raises
+[`NotPermitted`][rest_framework_services.service_specs.not_permitted.NotPermitted]
+with that class's `message` and `code`.
+
+Before the class-level check, `view.kwargs` is filled from the call's arguments
+with what a route would have captured: every declared `UrlKwarg`, taking its
+`default` when the argument is absent or null, and the arguments the spec's
+row lookup reads. A declared `QueryParam` goes to `request.query_params`. The
+object check asks only about model instances. A create or a collection is
+never asked about an object, as on HTTP.
+
+::: rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck
+
+::: rest_framework_services.service_specs.not_permitted.NotPermitted
+
+::: rest_framework_services.service_specs.build_offline_context.build_offline_context
+
+## Compiling
+
+::: rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec
+
+::: rest_framework_services.service_specs.kernel_spec_variant.kernel_spec_variant

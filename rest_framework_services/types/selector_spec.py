@@ -4,18 +4,29 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from django.db.models.query import Prefetch
+from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 
+from rest_framework_services.service_specs.as_kernel_spec import as_kernel_spec
 from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
+from rest_framework_services.types.field_marking import FieldMarking
+from rest_framework_services.types.offline_contract import OfflineContract
+from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.service_view import ServiceView
-from rest_framework_services.types.utils import affordance_alias, validate_metadata
+from rest_framework_services.types.url_kwarg import UrlKwarg
+from rest_framework_services.types.utils import (
+    affordance_alias,
+    agent_contract_for,
+    validate_metadata,
+    validate_reads,
+)
 
 ResultT = TypeVar("ResultT")
 ExtraT = TypeVar("ExtraT", bound=Mapping[str, object])
@@ -215,6 +226,20 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             and the library neither copies nor deep-freezes it, so pass
             something you don't mutate. ``None`` means "not declared", which
             stays distinguishable from a declared empty mapping.
+        reads: The arguments a caller with no HTTP request sends in place of
+            one, as on
+            [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec]:
+            each ``UrlKwarg`` a route would have captured and each
+            ``QueryParam`` a query string would have carried, compiled into the
+            kernel spec's ``reads`` beside the parameters the selector's
+            signature declares, and winning over a reflected one of the same
+            name. Refused when the spec is built if it holds anything else or
+            a name twice.
+        field_audiences: Per-field markings layered over ``output_serializer``'s
+            own, at its top level, compiled onto the presenter. Refused by the
+            compile without an ``output_serializer``. On a service spec's
+            ``output_selector_spec`` the service spec's own declaration is
+            layered over this one.
     """
 
     kind: SelectorKind
@@ -267,10 +292,32 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     # are exactly these. Not ``extras``: that already names the keyword pool
     # selectors and services receive (``**extras: Unpack[...]``).
     metadata: Mapping[str, Any] | None = None
+    # Naming: see the ``ServiceSpec.reads`` field.
+    reads: Sequence[UrlKwarg | QueryParam] = ()
+    field_audiences: Mapping[str, FieldMarking] | None = None
 
     def __post_init__(self) -> None:
         validate_metadata(self.metadata, label="SelectorSpec")
+        object.__setattr__(self, "reads", validate_reads(self.reads, label="SelectorSpec"))
         _validate_affordances(self)
+
+    def as_kernel_spec(self) -> KernelSelectorSpec:
+        """This spec compiled to django-service-specs' ``SelectorSpec``.
+
+        What makes it a kernel ``SpecSource``; see
+        [`as_kernel_spec`][rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec].
+        """
+        # Typed for both kinds; a ``SelectorSpec`` always compiles to the kernel's.
+        return cast(KernelSelectorSpec, as_kernel_spec(self))
+
+    def agent_contract(self) -> OfflineContract | None:
+        """The ``OfflineContract`` this spec's ``reads`` and ``field_audiences`` declare.
+
+        What a registry entry's ``agent_contract`` answers, for the transports
+        published against a release that took the contract at registration.
+        ``None`` when both are empty.
+        """
+        return agent_contract_for(self.reads, self.field_audiences)
 
 
 def _validate_affordances(spec: SelectorSpec[Any, Any]) -> None:
