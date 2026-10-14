@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-import inspect
+from collections.abc import Callable, Mapping
 from typing import Any
 
-from django.core.exceptions import ImproperlyConfigured
-from django.db.models import Exists, Model, OuterRef
+from django.db.models import Model
+from django.http import QueryDict
+from django_service_specs.adapters.filters.filter_set_parameters import filter_set_parameters
+from django_service_specs.parameters.coerce_flat import coerce_flat
+from django_service_specs.parameters.parameters import Parameters
 
 # The kernel's own. Re-exported under ``as`` because this module is the path drfs
 # has always exported them from, and ``dispatch/`` and the views still import them
@@ -20,10 +23,13 @@ from django_service_specs.selectors.materialize_retrieve import (
     materialize_retrieve as materialize_retrieve,
 )
 from django_service_specs.selectors.run_selector import run_selector as run_selector
-from rest_framework.exceptions import NotFound, ValidationError
+from django_service_specs.selectors.shape_queryset import shape_queryset
+from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
+from rest_framework.exceptions import NotFound
 from rest_framework.request import Request
 
 from rest_framework_services.types.argument_binding import ArgumentBinding
+from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.utils import resolve_view_hooks
 
@@ -41,26 +47,31 @@ def apply_queryset_shaping(
     filter_data: Any = None,
     source_label: str,
 ) -> Any:
-    """Apply the five shaping fields to ``qs``.
+    """Apply the five shaping fields to ``qs``, through the kernel's ``shape_queryset``.
 
-    The order is fixed: the declarative fields first (in declaration order),
-    then ``extend_queryset``, so the user callable always sees the fully
+    drfs' signature over django-service-specs' shaping, for a caller holding a
+    view and a request rather than a spec: the fields become a kernel
+    ``SelectorSpec`` (with a stand-in selector it never runs), and ``view``,
+    ``request`` and the filter's arguments its pool. The order is the kernel's:
+    the declarative fields first (in declaration order), then
+    ``extend_queryset``, so the user callable always sees the fully
     statically-shaped queryset, and finally ``filter_set``, so filtering
     composes with shaping and runs before the retrieve ``.first()``
     materialization the caller does next.
 
     Args:
-        request: Passed to ``extend_queryset``, and into the ``filter_set``
-            constructor when it declares a ``request`` parameter — so a
-            request-scoped ``FilterSet`` sees the same ``self.request`` it would
-            behind ``DjangoFilterBackend``. A bare ``(data, queryset)`` stand-in
-            is called exactly as before.
-        filter_set: Applied by duck typing as
-            ``filter_set(data=filter_data, queryset=qs).qs``, after validation
-            (mirroring ``DjangoFilterBackend``'s 400 on invalid filter input).
-        filter_data: The flat ``{field: value}`` mapping the FilterSet reads.
-            ``None`` falls back to ``request.query_params`` — the HTTP view
-            path; a transport-neutral caller passes its own params.
+        extend_queryset: Called as ``extend_queryset(qs, view, request)``, by
+            position, as it always was; the kernel binds its own by name.
+        filter_set: A django-filter ``FilterSet``, validated before ``.qs`` is
+            read, and handed ``request`` through its constructor, so a
+            request-scoped one sees the ``self.request`` it would behind
+            ``DjangoFilterBackend``.
+        filter_data: The mapping the filter's arguments are read from, each of
+            its filters' names and nothing else. ``None`` falls back to
+            ``request.query_params``, the HTTP view path. A ``QueryDict`` is
+            read flat as dispatch reads a query string: a repeated key as a list
+            where the filter takes several values, and each value coerced to the
+            type the filter declares.
         source_label: Named in the misconfiguration error to point at the
             offending callable (``"SelectorSpec.selector"`` vs
             ``"ServiceSpec.output_selector_spec.selector"``).
@@ -70,107 +81,65 @@ def apply_queryset_shaping(
 
     Raises:
         ImproperlyConfigured: Shaping is configured but ``qs`` is not a Django
-            queryset — loud failure beats a stray ``AttributeError`` deep in DRF
-            rendering.
-        ValidationError: ``filter_set`` rejected ``filter_data``.
+            queryset; ``filter_set`` is not a django-filter ``FilterSet`` (one
+            duck-typed on ``(data, queryset) -> .qs`` is refused); or
+            ``extend_queryset`` answered with an awaitable.
+        InvalidArguments: The kernel's, where ``filter_set`` refused its data or
+            a value no integer column can hold, keyed as the ``FilterSet`` keys
+            its errors. The DRF edge translates it into DRF's
+            ``ValidationError`` at its boundary.
     """
-    if (
-        select_related is None
-        and prefetch_related is None
-        and annotations is None
-        and extend_queryset is None
-        and filter_set is None
-    ):
-        return qs
-    if not is_queryset(qs):
-        raise ImproperlyConfigured(
-            "select_related / prefetch_related / annotations / extend_queryset "
-            f"/ filter_set are set on the spec but {source_label} returned "
-            f"{type(qs).__name__}, which is not a Django QuerySet. Drop the "
-            "shaping fields or have the callable return a QuerySet."
-        )
-    if select_related is not None:
-        qs = qs.select_related(*select_related)
-    if prefetch_related is not None:
-        qs = qs.prefetch_related(*prefetch_related)
-    if annotations is not None:
-        qs = qs.annotate(**annotations)
-    if extend_queryset is not None:
-        qs = extend_queryset(qs, view, request)
-    if filter_set is not None:
-        data = filter_data if filter_data is not None else request.query_params
-        call_kwargs: dict[str, Any] = {"data": data, "queryset": qs}
-        if _filter_set_accepts_request(filter_set):
-            call_kwargs["request"] = request
-        bound = filter_set(**call_kwargs)
-        _raise_on_invalid_filter(bound)
-        qs = bound.qs
-    return qs
-
-
-def _raise_on_invalid_filter(filterset: Any) -> None:
-    """Reject invalid filter input the way DRF's ``DjangoFilterBackend`` does.
-
-    Reading ``.qs`` without ``is_valid()`` first silently returns the
-    **unfiltered** queryset in django-filter's default non-strict mode, so a bad
-    ``?field=`` value would answer 200 with unfiltered rows; ``filter_set``
-    replaces that backend on the list path and must keep its 400. Only enforced
-    when the duck-typed ``filter_set`` exposes ``is_valid``, so a bare
-    ``(data, queryset) -> .qs`` stand-in keeps its pass-through behaviour, and
-    built straight from ``filterset.errors`` so the core never imports
-    django-filter.
-    """
-    is_valid = getattr(filterset, "is_valid", None)
-    if is_valid is not None and not is_valid():
-        raise ValidationError(filterset.errors)
-
-
-def _filter_set_accepts_request(filter_set: Any) -> bool:
-    """True when ``filter_set``'s constructor declares a ``request`` parameter.
-
-    ``filter_set`` is duck-typed on ``(data, queryset) -> .qs`` alone, so the
-    package imports no django-filter. A real ``FilterSet`` *also* takes
-    ``request`` and exposes it as ``self.request`` — the seam
-    ``DjangoFilterBackend`` fills view-side and request-scoped filters read.
-    Forwarding it only when the constructor declares it keeps those working
-    while a bare stand-in is called exactly as before.
-
-    ``inspect.signature`` resolves a class to its ``__init__``: a declared
-    ``request`` (positional-or-keyword or keyword-only) counts, as does a
-    ``**kwargs`` catch-all.
-    """
-    parameters = inspect.signature(filter_set).parameters.values()
-    if any(param.kind is inspect.Parameter.VAR_KEYWORD for param in parameters):
-        return True
-    return any(
-        param.name == "request"
-        and param.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
-        for param in parameters
+    spec = KernelSelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=_never_run,
+        select_related=select_related,
+        prefetch_related=prefetch_related,
+        annotations=annotations,
+        extend_queryset=_positional(extend_queryset) if extend_queryset is not None else None,
+        filter_set=filter_set,
     )
+    pool: dict[str, Any] = {"view": view, "request": request}
+    if filter_set is not None:
+        source = filter_data if filter_data is not None else request.query_params
+        pool.update(_filter_arguments(filter_set_parameters(filter_set), source))
+    return shape_queryset(qs, spec, pool, source_label=source_label)
 
 
-def affordance_expression(model: type[Model], when: Any) -> Exists:
-    """The SQL answer to one affordance condition, for whichever row it is annotated on.
+def _never_run() -> None:
+    """The selector the kernel's spec requires; shaping never calls it."""
 
-    ``Exists(<the row, narrowed by pk>.filter(when))`` rather than the condition
-    inline, for two reasons that both come from where this is spent. Inline, a
-    condition spanning a multi-valued relation joins it into the outer query and
-    **duplicates the rows** of the list it is annotated on, and an aggregate
-    beside it counts across that join. Inside a correlated subquery the outer
-    query gains no join at all. And the subquery gives the condition exactly the
-    meaning it has in ``Model.objects.filter(when)``, which is the reading an
-    author already has for a ``Q``.
 
-    ``_base_manager`` because the subquery only re-finds a row that has already
-    been resolved: a default manager that hides rows would answer "unavailable"
-    for a row the caller is looking at.
+def _positional(extend: Callable[..., Any]) -> Callable[..., Any]:
+    """drfs' positional ``extend_queryset`` as a callable the kernel binds by name.
 
-    The single-object check and the list projection both annotate this one
-    expression, so the two cannot disagree about any row. Being SQL, it reads the
-    table and never a ``prefetch_related`` cache, so a filtered ``Prefetch`` on
-    the same relation cannot hide rows from the answer.
+    No ``functools.wraps``: it sets ``__wrapped__``, which ``inspect.signature``
+    follows, and the kernel would read the wrapped callable's own names.
     """
-    return Exists(model._base_manager.filter(pk=OuterRef("pk")).filter(when))
+
+    def extend_queryset(queryset: Any, view: Any, request: Any) -> Any:
+        return extend(queryset, view, request)
+
+    return extend_queryset
+
+
+def _filter_arguments(parameters: Parameters, source: Mapping[str, Any]) -> dict[str, Any]:
+    """The filter's own names in ``source``; a ``QueryDict`` read flat and coerced.
+
+    A ``QueryDict`` holds a list per key, so each name takes every value where
+    its Parameter is an array and the last one otherwise, as ``QueryDict``
+    reads a repeated key, then ``coerce_flat`` reads the strings as their
+    declared types. Held by
+    ``test_a_repeated_query_key_reaches_a_multi_valued_filter_whole`` and
+    ``test_filter_data_replaces_the_query_string`` (a plain mapping).
+    """
+    present = [param for param in parameters if param.name in source]
+    if not isinstance(source, QueryDict):
+        return {param.name: source[param.name] for param in present}
+    flat = {
+        param.name: source.getlist(param.name) if param.type == "array" else source.get(param.name)
+        for param in present
+    }
+    return coerce_flat(parameters, flat)
 
 
 def check_view_object_permissions(

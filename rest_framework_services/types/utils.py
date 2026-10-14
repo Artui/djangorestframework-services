@@ -27,7 +27,6 @@ from rest_framework_services.types.input_required import InputRequired
 from rest_framework_services.types.not_client_input import NotClientInput
 from rest_framework_services.types.offline_contract import OfflineContract
 from rest_framework_services.types.query_param import QueryParam
-from rest_framework_services.types.relation_mode import RelationMode
 from rest_framework_services.types.relation_orphan import RelationOrphan
 from rest_framework_services.types.url_kwarg import UrlKwarg
 
@@ -103,19 +102,6 @@ def agent_contract_for(
     )
 
 
-VALID_RELATION_MODES = tuple(mode.value for mode in RelationMode)
-
-
-def validate_relation_mode(mode: str, *, label: str) -> None:
-    """Reject a ``mode`` that is neither ``"replace"`` nor ``"merge"``.
-
-    Shared by every relation kind that reconciles a collection so the two words
-    mean the same thing on all of them.
-    """
-    if mode not in VALID_RELATION_MODES:
-        raise ValueError(f"{label}.mode must be one of {VALID_RELATION_MODES}; got {mode!r}.")
-
-
 VALID_RELATION_ORPHANS = tuple(orphan.value for orphan in RelationOrphan)
 
 
@@ -136,39 +122,6 @@ def validate_relation_orphan(orphan: str, *, delete_service: Any, label: str) ->
         "The service replaces the unlink-or-delete rule entirely, so the flag would decide "
         "nothing. Dispose of the row in the service, or drop the service and let orphan= say "
         "what happens to it."
-    )
-
-
-def validate_relation_services(
-    *,
-    label: str,
-    services: Mapping[str, Any],
-    shaping: Mapping[str, Any],
-) -> None:
-    """Refuse a relation spec that declares a row service *and* row shaping.
-
-    A ``create_service`` / ``update_service`` stands in for the mutation-helper
-    call, so every knob configuring that call is bypassed for the row — silently,
-    unless caught here.
-
-    Callers must keep reconciliation fields (``fk`` / ``match_key`` / ``mode`` /
-    ``scope`` / orphan handling) out of both mappings, and must not pass
-    ``delete_service`` in ``services``: it replaces the unlink-or-delete rule
-    rather than the helper call, so it composes with row shaping.
-    """
-    declared_services: list[str] = sorted(name for name, value in services.items() if value)
-    if not declared_services:
-        return
-    declared_shaping: list[str] = sorted(name for name, value in shaping.items() if value)
-    if not declared_shaping:
-        return
-    raise ImproperlyConfigured(
-        f"{label}: {', '.join(declared_services)} declared alongside "
-        f"{', '.join(declared_shaping)}. A row service replaces the helper call "
-        "that those configure, so they would be silently ignored. Drop them and "
-        "let the service shape the row, or drop the service and let the helper "
-        "write it. Reconciliation (fk / match_key / mode / scope / orphan "
-        "handling) stays with the spec either way."
     )
 
 
