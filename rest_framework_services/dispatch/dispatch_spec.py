@@ -1,65 +1,30 @@
-"""``dispatch_spec`` — transport-neutral execution of a Service/Selector spec."""
+"""``dispatch_spec`` - a drfs spec run through the kernel's ``dispatch``, at the DRF edge."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any
 
-from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
+from django_service_specs.dispatch.dispatch import dispatch
 
-from rest_framework_services.dispatch.apply_input_data import apply_input_data
-from rest_framework_services.dispatch.base_pool import base_pool
-from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
-from rest_framework_services.dispatch.utils import (
-    COLLECTION_SOURCE,
-    INSTANCE_SOURCE,
-    NOTHING_FILLABLE,
-    OUTPUT_SOURCE,
-    SELECTOR_SOURCE,
-    call_preconditions,
-    call_target_guard,
-    caller_fillable,
-    clear_prefetch_cache,
-    guard_many_argument_binding,
-    guard_mapping_params,
-    many_argument_errors,
-    many_argument_items,
-    merge_arguments,
-    refuse_arguments_beside_many,
-    resolve_argument_binding,
-    resolve_dispatch_kwargs,
-    resolve_input_context,
-    resolve_input_data,
-    resolve_progress,
-    resolve_provider,
-    resolve_service_kwargs,
-    resolve_service_many_input,
-    resolve_unknown_arguments,
-    server_owned_keys,
-    service_extras,
-    service_input,
-    service_return_as_list,
-    shape_queryset,
-    strip_hidden_inputs,
-    strip_reserved_seeds,
-    view_url_kwargs,
-    wire_named_errors,
+from rest_framework_services.dispatch.utils import edge_errors, prepare_edge_call
+from rest_framework_services.service_specs.register_drf_row_errors import (
+    register_drf_row_errors,
 )
-from rest_framework_services.selectors.utils import materialize_retrieve, run_selector
-from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.pool_seeds import DEFAULT_POOL_SEEDS, PoolSeeds
 from rest_framework_services.types.progress_reporter import ProgressReporter
-from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.target_guard import TargetGuard
 from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.types.unset import UNSET
 from rest_framework_services.types.view_hooks import ViewHooks
-from rest_framework_services.views.mutation.resolve_success_status import resolve_success_status
-from rest_framework_services.views.mutation.utils import build_input_serializer_from_data
+
+# This package has no ``AppConfig`` to register from, and the edge is where a
+# nested write's DRF row refusals first need the kernel to know them. Idempotent.
+register_drf_row_errors()
 
 
 def dispatch_spec(
@@ -79,127 +44,107 @@ def dispatch_spec(
     instance: Any = UNSET,
     filter_data: Mapping[str, Any] | None = None,
     many_as_argument: bool = False,
+    partial: bool | None = None,
 ) -> DispatchResult:
-    """Execute ``spec`` without a DRF view, returning a
+    """Run ``spec`` through the kernel's ``dispatch``, as DRF would, returning its
     [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult].
 
-    The single transport-neutral execution path: a caller hands the **flat** ``params``
-    mapping (the role ``request.data`` / ``query_params`` / URL kwargs play on HTTP)
-    plus the acting ``user``, and gets back the resolved domain value to format for its
-    wire. No pagination, ordering, or output rendering happens here — those are
-    transport concerns; render the result with
+    The edge compiles the spec once per variant
+    ([`kernel_spec_variant`][rest_framework_services.service_specs.kernel_spec_variant.kernel_spec_variant]),
+    hands ``dispatch`` the arguments, the principal and a ``Grant``, and
+    translates what the kernel refuses into DRF's exceptions
+    ([`translate_dispatch_errors`][rest_framework_services.service_specs.translate_dispatch_errors.translate_dispatch_errors]).
+    The order of a call, the closed argument set, the Validator, affordances,
+    preconditions, the run and the output re-read are the kernel's, documented
+    on its ``dispatch``. Nothing is rendered here; render the result with
     [`render_spec_output`][rest_framework_services.dispatch.render_spec_output.render_spec_output].
 
-    - A [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] runs the
-      mutation flow: resolve the target via ``instance_selector_spec`` (from ``params``)
-      → validate ``input_serializer`` → run the service → re-fetch through
-      ``output_selector_spec`` → result. A missing instance yields ``kind="not_found"``.
-      With no ``selector`` on the ``output_selector_spec`` nothing is re-fetched, and
-      the service's own return is the result: ``kind="list"`` under a ``LIST``
-      declaration, which refuses a return that is no set of rows with
-      ``ImproperlyConfigured`` after the service has written.
-    - A [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] runs
-      the read flow: invoke the selector → apply queryset shaping (``select_related`` …
-      ``filter_set``) → for ``RETRIEVE`` materialize via ``.first()`` and honour
-      ``allow_none`` / not-found; ``LIST`` returns the shaped + filtered queryset.
-
-    Every argument below the acting user is optional, and the defaults reproduce
-    the pre-policy behaviour exactly.
+    **Authorization is the caller's**, as it always was: the spec's
+    ``permission_classes`` are never asked here. Over HTTP the view has run
+    them; off HTTP the caller runs
+    [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions]
+    first and passes it as ``on_target_resolved``. So the dispatched variant
+    carries no permissions and the call goes in under a ``Grant``.
 
     Args:
         spec: The
             [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] or
             [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec]
-            to execute.
-        user: The acting user, seeded into every callable's pool.
-        params: The flat client input — a list on a ``many=True`` spec, unless
-            ``many_as_argument`` says it arrives as an object. A key that any
-            callable in the call marks ``NotClientInput`` is never spread from
-            it, under any ``unknown_arguments`` policy (``REJECT`` on a closed spec
-            refuses it outright), so only a ``spec.kwargs`` provider, a registered
-            pool seed, a service's ``input_data``, the parameter's default or, for
-            a selector or a target lookup, a route capture fills one; see
-            [`NotClientInput`][rest_framework_services.types.not_client_input].
-        request: Forwarded only to user callables that declare it (``extend_queryset``,
-            the context providers, ``kwargs``); a pure non-HTTP caller passes neither
-            this nor ``view``.
-        view: As ``request``, plus its ``kwargs`` (a route's captures, seeded by
-            ``build_offline_context(kwargs=…)``) are **spread into the selector / target
-            pools** — the off-HTTP counterpart of the HTTP
-            ``extra_url_kwargs=view.kwargs``, authoritative over ``params`` on a
-            conflict, below the ``spec.kwargs`` provider.
-        success_status: Overrides the mutation status hint (else
-            ``spec.success_status``, else ``200``).
-        argument_binding: Whether client input lands as a single ``data`` bundle or is
-            spread as individual kwargs, and how it ranks against the author's
-            ``kwargs``. ``AUTO`` resolves per spec type (service → bundle, selector →
-            spread). A ``many=True`` spec always bundles — the service receives the
-            whole list as one ``data`` argument — so ``AUTO`` and ``BUNDLE`` are
-            accepted there and a ``SPREAD_*`` value raises ``ValueError`` rather than
-            being ignored.
-        unknown_arguments: Strictness about ``params`` keys outside the spec's declared
-            set: ``IGNORE`` (drop), ``REJECT`` (raise), ``PASSTHROUGH`` (forward to the
-            callable). Honoured **per list element** on a ``many=True`` spec.
-        on_target_resolved: Hook invoked with the resolved mutation target before the
-            service runs. Pass
-            [`enforce_permissions`][rest_framework_services.dispatch.enforce_permissions.enforce_permissions]
-            directly for object-level permissions; the core itself stays authz-agnostic.
-        progress: The transport's own progress sink, fanned together with the one
-            ``spec.progress_reporter`` declares.
-        view_hooks: The calling DRF view's resolved hook-chain layers. HTTP-only.
-        instance: A target the caller resolved itself, skipping the target lookup
-            (``instance_selector_spec`` and ``collection_selector_spec`` alike).
-            ``None`` is a *supplied* value (a create), which is why the default is a
-            sentinel.
-        filter_data: The data the ``filter_set`` reads, wherever one can be
-            declared — a selector's own filtering, a service's ``instance_`` /
-            ``collection_selector_spec`` target lookup, and its output-selector
-            re-fetch. On the target lookups that makes it a scoping channel: a
-            ``filter_set`` there narrows the row a mutation may reach, and one bound
-            to the wrong mapping validates clean (every filter field is optional) and
-            narrows nothing. ``None`` makes a selector's own ``filter_set`` and a
-            target lookup's read ``params``, because their fields are declared input:
-            off HTTP one flat mapping is usually both channels, whereas over HTTP the
-            body validates and the **query string** filters, and merging them would
-            let a query parameter satisfy a serializer field. The output re-fetch has
-            no such fallback. Its fields are not part of the service's input, so with
-            ``None`` its ``filter_set`` is bound to an empty mapping, as an HTTP
-            request with no query string binds it, and the call's arguments never
-            filter the result.
-        many_as_argument: Whether a ``many=True`` spec's list arrives under the
-            argument ``spec.many_argument`` names, rather than as ``params`` itself.
-            For a caller whose input is always an object of named arguments, which can
-            never be the bare array an HTTP body is. It is a no-op on every other spec,
-            so such a caller passes it on every dispatch and never branches on
-            ``spec.many``. With it, ``params`` must be an object holding that argument
-            and nothing else -- whatever ``unknown_arguments`` says, since the service
-            receives only the list; the policy still governs the keys inside each item
-            -- and every validation error the list raises is keyed under the argument,
-            with item errors as a mapping of the invalid items' indexes on every
-            supported DRF. That is exactly what a serializer declaring
-            ``items = Item(many=True)`` answers on current DRF, so a spec moving from
-            that workaround keeps its error wire. A refusal the service or a
-            precondition raises passes through as raised. Pair it with
-            [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema],
-            which describes the same input.
+            to run.
+        user: The acting user, the kernel's principal. ``None`` acts as DRF's
+            unauthenticated user (``UNAUTHENTICATED_USER``), which is what every
+            callable reading ``user`` is handed; the guard still sees ``None``.
+        params: The caller's arguments, one flat mapping. A ``QueryDict`` is
+            read as a query string is: a repeated key as a list where the
+            parameter is an array, and each value coerced to the type declared.
+            A list on a ``many`` spec, unless ``many_as_argument``.
+        request: Registered as the call's ``request`` seed, so a provider, a
+            selector, ``extend_queryset`` and the serializer context see it.
+        view: Registered as the ``view`` seed. Its ``kwargs`` are the route: a
+            declared ``UrlKwarg``, or a name the selector or target lookup
+            reads, is taken from them when there, over ``params``; a declared
+            ``UrlKwarg`` sent in ``params`` that the view lacks is put onto
+            them, and a declared ``QueryParam`` onto ``request.query_params``,
+            so a provider reading either finds it. A route capture nothing
+            declares or reads is no argument.
+        pool_seeds: The project's seeds. Registering ``request`` or ``view`` is
+            refused, since the edge seeds both; a resolver declaring either is
+            handed this call's.
+        success_status: Accepted for the transports that pass it. The result
+            carries no status: a transport answers its own.
+        argument_binding: Accepted for the transports that pass it; a call has
+            one pool, whichever of ``AUTO``, ``BUNDLE`` or ``SPREAD_AUTHOR_WINS``
+            is passed. ``SPREAD_CALLER_WINS`` is refused with ``ValueError``.
+        unknown_arguments: ``IGNORE`` (the default here; the kernel's is
+            ``REJECT``) or ``REJECT``. ``PASSTHROUGH`` is refused with
+            ``ValueError``.
+        on_target_resolved: The guard, called ``guard(spec, context,
+            instance=target)`` with an ``OfflineContext`` of the ``user``,
+            ``request`` and ``view`` passed here. A service spec's target is
+            the row the caller handed as ``instance``, else the row or set its
+            lookup found (a missing row is ``not_found`` and asks nothing), else
+            ``None`` for a create; a ``many`` spec's is ``None``. A selector
+            spec's is the row or the set its selector found, after the lookup
+            and before the spec's own preconditions, and never a missing row.
+        progress: The transport's progress reporter, combined with
+            ``view_hooks.progress``.
+        view_hooks: The calling view's resolved hook chains: ``extra_kwargs``
+            goes to ``dispatch(extra_kwargs=)``, beneath the spec's own provider;
+            ``input_data`` is merged over the arguments, beneath the spec's
+            ``input_data``; ``progress`` joins ``progress``.
+        instance: The row the caller resolved itself (a view's
+            ``get_object()``), handed to ``dispatch`` as its target; no lookup
+            runs. ``None`` is a create on a spec that declares no target
+            lookup; on one that declares a lookup it is ``not_found``, since
+            that lookup admits no missing row.
+        filter_data: The values the ``filter_set`` reads - the selector spec's
+            own, or a service spec's target lookup's - restricted to its filter
+            names, and the filter's only source for them when passed.
+        many_as_argument: Whether a ``many`` spec's rows arrive under
+            ``spec.many_argument`` in an object, rather than as ``params``
+            itself. Rows arriving bare are refused in the shape DRF's list
+            serializer uses; under the argument, as the kernel keys them. A
+            no-op on every other spec.
+        partial: The request's partial flag (a ``PATCH``); ``None`` reads the
+            spec's own.
 
-    Returns: The
-        [`DispatchResult`][rest_framework_services.types.dispatch_result.DispatchResult]
-        — value, ``kind``, status, and on the mutation path the service's own return,
-        resolved instance and data.
+    Returns:
+        The kernel's ``DispatchResult``. A required row that does not exist is
+        ``kind="not_found"``, for the transport to answer.
 
     Raises:
         TypeError: ``spec`` is neither a ``ServiceSpec`` nor a ``SelectorSpec``.
+        ValueError: a retired ``argument_binding`` or ``unknown_arguments``.
+        InvalidArguments: the kernel refused the arguments.
     """
-    if isinstance(spec, ServiceSpec):
-        return _dispatch_service(
+    with edge_errors(spec, params, many_as_argument=many_as_argument):
+        prepared = prepare_edge_call(
             spec,
             user=user,
             pool_seeds=pool_seeds,
             params=params,
             request=request,
             view=view,
-            success_status=success_status,
             argument_binding=argument_binding,
             unknown_arguments=unknown_arguments,
             on_target_resolved=on_target_resolved,
@@ -208,637 +153,11 @@ def dispatch_spec(
             instance=instance,
             filter_data=filter_data,
             many_as_argument=many_as_argument,
+            partial=partial,
         )
-    if isinstance(spec, SelectorSpec):
-        return _dispatch_selector(
-            spec,
-            user=user,
-            pool_seeds=pool_seeds,
-            params=params,
-            request=request,
-            view=view,
-            argument_binding=argument_binding,
-            unknown_arguments=unknown_arguments,
-            on_target_resolved=on_target_resolved,
-            progress=progress,
-            view_hooks=view_hooks,
-            filter_data=filter_data,
-        )
-    raise TypeError(
-        f"dispatch_spec expects a ServiceSpec or SelectorSpec; got {type(spec).__name__}."
-    )
-
-
-def _dispatch_selector(
-    spec: SelectorSpec[Any, Any],
-    *,
-    user: Any,
-    pool_seeds: PoolSeeds,
-    params: Any,
-    request: Any,
-    view: Any,
-    argument_binding: ArgumentBinding,
-    unknown_arguments: UnknownArguments,
-    on_target_resolved: TargetGuard | None,
-    progress: ProgressReporter | None,
-    view_hooks: ViewHooks | None,
-    filter_data: Mapping[str, Any] | None,
-) -> DispatchResult:
-    if spec.selector is None:
-        raise ImproperlyConfigured(
-            "dispatch_spec requires the SelectorSpec to set a `selector` — there "
-            "is no view `get_queryset()` / `get_object()` fallback off the HTTP path."
-        )
-    # A selector has no validation step, so its params already flow through the
-    # spread untouched; only ``REJECT`` has anything to do here (it raises).
-    resolve_unknown_arguments(
-        spec,
-        params,
-        unknown_arguments=unknown_arguments,
-        serializer=None,
-        reserved=pool_seeds.reserved,
-    )
-    binding = resolve_argument_binding(spec, argument_binding)
-    owned = server_owned_keys(spec)
-    pool: dict[str, Any] = base_pool(
-        seeds=pool_seeds,
-        user=user,
-        request=request,
-        progress=resolve_progress(
-            spec, progress, user=user, request=request, view=view, view_hooks=view_hooks
-        ),
-    )
-    merge_arguments(
-        pool,
-        binding=binding,
-        reserved=pool_seeds.reserved,
-        # A key the selector or a precondition marks ``NotClientInput`` leaves the
-        # caller's input before the spread, so neither the binding's precedence nor
-        # a provider declining with ``UNSET`` can let the caller's value back in.
-        spread_source=strip_hidden_inputs(params, owned),
-        provider_kwargs=resolve_service_kwargs(
-            spec, view=view, request=request, view_hooks=view_hooks
-        ),
-        url_kwargs=view_url_kwargs(view, reserved=pool_seeds.reserved),
-    )
-    # The binding, too: under ``BUNDLE`` no caller input reaches the selector's
-    # pool, so none of its parameters is one a resend could fill.
-    fillable = caller_fillable(spec, params, owned=owned, argument_binding=binding)
-    try:
-        result: Any = run_selector(
-            spec.selector, resolve_dispatch_kwargs(spec.selector, pool, fillable=fillable)
-        )
-        result = shape_queryset(
-            spec,
-            result,
-            view=view,
-            request=request,
-            params=filter_data if filter_data is not None else params,
-            source_label=SELECTOR_SOURCE,
-            pool=pool,
-            reserved=pool_seeds.reserved,
-        )
-    except ObjectDoesNotExist:
-        if spec.kind is SelectorKind.RETRIEVE:
-            return _missing_or_null(spec)
-        raise
-
-    if spec.kind is not SelectorKind.RETRIEVE:
-        # LIST: guard the resolved set — class-level only, since the guard skips
-        # ``has_object_permission`` for anything that is not a Model.
-        call_target_guard(on_target_resolved, spec, result, user=user, request=request, view=view)
-        pool["collection"] = result
-        call_preconditions(spec, pool, fillable=fillable)
-        return DispatchResult(value=result, kind="list", status=200)
-    instance: Any = materialize_retrieve(result)
-    if instance is None:
-        return _missing_or_null(spec)
-    # RETRIEVE: guard the resolved row (object-level permissions run here).
-    call_target_guard(on_target_resolved, spec, instance, user=user, request=request, view=view)
-    pool["instance"] = instance
-    call_preconditions(spec, pool, fillable=fillable)
-    return DispatchResult(value=instance, kind="instance", status=200)
-
-
-def _missing_or_null(spec: SelectorSpec[Any, Any]) -> DispatchResult:
-    """A RETRIEVE that resolved nothing: 200 + ``None`` (allow_none) else 404."""
-    if spec.allow_none:
-        return DispatchResult(value=None, kind="instance", status=200)
-    return DispatchResult(value=None, kind="not_found", status=404)
-
-
-def _dispatch_service(
-    spec: ServiceSpec[Any, Any, Any],
-    *,
-    user: Any,
-    pool_seeds: PoolSeeds,
-    params: Any,
-    request: Any,
-    view: Any,
-    success_status: int | None,
-    argument_binding: ArgumentBinding,
-    unknown_arguments: UnknownArguments,
-    on_target_resolved: TargetGuard | None,
-    progress: ProgressReporter | None,
-    view_hooks: ViewHooks | None,
-    instance: Any,
-    filter_data: Mapping[str, Any] | None,
-    many_as_argument: bool,
-) -> DispatchResult:
-    if spec.many:
-        return _dispatch_service_many(
-            spec,
-            user=user,
-            pool_seeds=pool_seeds,
-            params=params,
-            request=request,
-            view=view,
-            success_status=success_status,
-            argument_binding=argument_binding,
-            unknown_arguments=unknown_arguments,
-            on_target_resolved=on_target_resolved,
-            progress=progress,
-            view_hooks=view_hooks,
-            many_as_argument=many_as_argument,
-        )
-    guard_mapping_params(params)
-    owned = server_owned_keys(spec)
-
-    if instance is not UNSET:
-        # The caller resolved the target itself — the HTTP path, whose
-        # ``get_object()`` chain has no off-HTTP meaning and so cannot live here.
-        mode, target = "instance", instance
-    else:
-        mode, target = _resolve_target(
-            spec,
-            user=user,
-            pool_seeds=pool_seeds,
-            params=params,
-            request=request,
-            view=view,
-            filter_data=filter_data,
-            owned=owned,
-        )
-        if mode == "missing":
-            return DispatchResult(value=None, kind="not_found", status=404)
-    call_target_guard(on_target_resolved, spec, target, user=user, request=request, view=view)
-    instance = target if mode == "instance" else None
-
-    input_context = resolve_input_context(spec, view=view, request=request, view_hooks=view_hooks)
-    server_input = resolve_input_data(
-        spec, view=view, request=request, instance=instance, view_hooks=view_hooks
-    )
-    params = apply_input_data(params, server_input)
-    serializer = build_input_serializer_from_data(
-        params,
-        spec.input_serializer,
-        partial=spec.partial or False,
-        context=input_context,
-        instance=instance,
-    )
-    # The policy sees a server-owned key first, so ``REJECT`` on a closed spec
-    # still refuses it; only what the service would be handed loses it. With no
-    # input serializer under a spreading binding, that is the caller's values for
-    # the service's own parameters as well as what ``PASSTHROUGH`` forwards. A key
-    # ``input_data`` wrote holds the server's value, so both strips keep it. Each
-    # strip takes the whole call's server-owned keys, not the service's alone:
-    # test_a_key_another_callable_hides_never_reaches_the_services_data holds this
-    # one, test_a_field_named_like_a_key_a_precondition_hides_is_not_spread the next.
-    extras = dict(
-        strip_hidden_inputs(
-            service_extras(
-                spec,
-                params,
-                resolve_unknown_arguments(
-                    spec,
-                    params,
-                    unknown_arguments=unknown_arguments,
-                    serializer=serializer,
-                    reserved=pool_seeds.reserved,
-                    argument_binding=argument_binding,
-                ),
-                argument_binding=argument_binding,
-                reserved=pool_seeds.reserved,
-            ),
-            owned,
-            server_supplied=server_input,
-        )
-    )
-    data, spread_source = service_input(serializer, extras)
-
-    binding = resolve_argument_binding(spec, argument_binding)
-    pool: dict[str, Any] = base_pool(
-        seeds=pool_seeds,
-        user=user,
-        request=request,
-        progress=resolve_progress(
-            spec, progress, user=user, request=request, view=view, view_hooks=view_hooks
-        ),
-    )
-    merge_arguments(
-        pool,
-        binding=binding,
-        reserved=pool_seeds.reserved,
-        # A field the input serializer declares stays in ``data``, which is that
-        # serializer's payload; it fills a hidden parameter only when ``input_data``
-        # supplied it, so that the value validated is the server's.
-        spread_source=strip_hidden_inputs(spread_source, owned, server_supplied=server_input),
-        provider_kwargs=resolve_service_kwargs(
-            spec, view=view, request=request, view_hooks=view_hooks
-        ),
-    )
-    if mode == "collection":
-        pool["collection"] = target
-    elif instance is not None:
-        pool["instance"] = instance
-    if serializer is not None:
-        pool["data"] = data
-        pool["serializer"] = serializer
-    elif extras:
-        pool["data"] = data
-
-    enforce_affordances(spec, pool, instance=instance, reserved=pool_seeds.reserved)
-    fillable = caller_fillable(
-        spec,
-        params,
-        owned=owned,
-        serializer=serializer,
-        argument_binding=argument_binding,
-        reserved=pool_seeds.reserved,
-    )
-    with wire_named_errors(serializer):
-        call_preconditions(spec, pool, fillable=fillable)
-        result: Any = run_service(
-            spec.service,
-            resolve_dispatch_kwargs(spec.service, pool, fillable=fillable),
-            atomic=spec.atomic,
-        )
-    clear_prefetch_cache(instance)
-    output_result, output_is_list = _run_output_selector(
-        spec,
-        result,
-        user=user,
-        pool_seeds=pool_seeds,
-        request=request,
-        view=view,
-        filter_data=filter_data,
-    )
-
-    # A callable ``spec.success_status`` keys on the *service's* return value
-    # (``result``), captured before the output selector re-fetch replaced it.
-    status_pool: dict[str, Any] = {"request": request, "view": view, "result": result}
-    if instance is not None:
-        status_pool["instance"] = instance
-    status = (
-        success_status
-        if success_status is not None
-        else resolve_success_status(spec.success_status, default=200, pool=status_pool)
-    )
-    return DispatchResult(
-        value=output_result,
-        kind="list" if output_is_list else "instance",
-        status=status,
-        service_result=result,
-        instance=instance,
-        data=data,
-    )
-
-
-def _dispatch_service_many(
-    spec: ServiceSpec[Any, Any, Any],
-    *,
-    user: Any,
-    pool_seeds: PoolSeeds,
-    params: Any,
-    request: Any,
-    view: Any,
-    success_status: int | None,
-    argument_binding: ArgumentBinding,
-    unknown_arguments: UnknownArguments,
-    on_target_resolved: TargetGuard | None,
-    progress: ProgressReporter | None,
-    view_hooks: ViewHooks | None,
-    many_as_argument: bool,
-) -> DispatchResult:
-    """Bulk list-payload: ``params`` is the array, or with ``many_as_argument`` an object
-    carrying it under ``spec.many_argument``; the service gets the list."""
-    guard_many_argument_binding(argument_binding)
-    call_target_guard(on_target_resolved, spec, None, user=user, request=request, view=view)
-    input_context = resolve_input_context(spec, view=view, request=request, view_hooks=view_hooks)
-    input_data = resolve_input_data(
-        spec, view=view, request=request, instance=None, view_hooks=view_hooks
-    )
-    # The name validation errors are keyed under; ``None`` for the bare list, whose
-    # errors keep the shape DRF gives them.
-    argument: str | None = spec.many_argument if many_as_argument else None
-    items: Any = apply_input_data(
-        many_argument_items(spec, params) if many_as_argument else params, input_data
-    )
-    with many_argument_errors(argument):
-        serializer = build_input_serializer_from_data(
-            items,
-            spec.input_serializer,
-            partial=spec.partial or False,
-            many=True,
-            context=input_context,
-        )
-    # After validation, as the workaround's ``UnknownArguments.REJECT`` runs after its
-    # serializer, so a call wrong in both ways is answered the same way by either.
-    if many_as_argument:
-        refuse_arguments_beside_many(spec, params, reserved=pool_seeds.reserved)
-    with many_argument_errors(argument):
-        data, has_data = resolve_service_many_input(
-            spec,
-            serializer,
-            items,
-            unknown_arguments=unknown_arguments,
-            reserved=pool_seeds.reserved,
-            index_errors=many_as_argument,
-        )
-    pool: dict[str, Any] = base_pool(
-        seeds=pool_seeds,
-        user=user,
-        request=request,
-        progress=resolve_progress(
-            spec, progress, user=user, request=request, view=view, view_hooks=view_hooks
-        ),
-    )
-    pool.update(resolve_service_kwargs(spec, view=view, request=request, view_hooks=view_hooks))
-    if has_data:
-        pool["data"] = data
-    if serializer is not None:
-        pool["serializer"] = serializer
-    # Once, with no target, matching the ``call_target_guard(…, None)`` above:
-    # only preconditions declaring ``user`` / ``request`` / the payload bind.
-    # Per-item rules belong in the service's own loop. A row condition cannot be
-    # declared on a bulk spec at all, so only callable affordances reach here.
-    enforce_affordances(spec, pool, instance=None, reserved=pool_seeds.reserved)
-    # Always ``BUNDLE``, so no caller value reaches this pool by name: a parameter
-    # nothing filled is the author's ``TypeError``, never a missing argument.
-    with wire_named_errors(serializer):
-        call_preconditions(spec, pool, fillable=NOTHING_FILLABLE)
-        result: Any = run_service(
-            spec.service,
-            resolve_dispatch_kwargs(spec.service, pool, fillable=NOTHING_FILLABLE),
-            atomic=spec.atomic,
-        )
-    status = (
-        success_status
-        if success_status is not None
-        else resolve_success_status(
-            spec.success_status,
-            default=200,
-            pool={"request": request, "view": view, "result": result},
-        )
-    )
-    return DispatchResult(value=result, kind="list", status=status)
-
-
-def _resolve_target(
-    spec: ServiceSpec[Any, Any, Any],
-    *,
-    user: Any,
-    pool_seeds: PoolSeeds,
-    params: Mapping[str, Any],
-    request: Any,
-    view: Any,
-    filter_data: Mapping[str, Any] | None,
-    owned: frozenset[str],
-) -> tuple[str, Any]:
-    """Resolve the mutation target: ``("collection", qs)``, ``("instance", obj)``,
-    or ``("missing", None)`` when a required instance wasn't found.
-
-    A ``collection_selector_spec`` (bulk) takes precedence; an empty collection
-    is a valid no-op (never ``"missing"``).
-
-    ``params`` is the nested selector's *argument* channel; ``filter_data`` is
-    the one its ``filter_set`` reads. That split is what lets a scoping
-    ``filter_set`` on a nested target spec narrow the row a mutation may reach —
-    bound against the body instead, every one of django-filter's optional fields
-    is absent, the set validates clean, and the filter never narrows anything.
-
-    Without ``filter_data`` the lookup's ``filter_set`` falls back to ``params``,
-    unlike the output re-fetch, which then reads nothing. The difference is
-    whether the fields are declared input: a target lookup carrying a
-    ``filter_set`` makes the service's declared set open, and a transport
-    reflects the lookup's ``SelectorSpec`` to advertise them, while nothing
-    declares or advertises the output selector's.
-    """
-    filters = params if filter_data is None else filter_data
-    coll_spec = spec.collection_selector_spec
-    if coll_spec is not None:
-        return (
-            "collection",
-            _resolve_collection(
-                coll_spec,
-                user=user,
-                pool_seeds=pool_seeds,
-                params=params,
-                request=request,
-                view=view,
-                filter_data=filters,
-                owned=owned,
-            ),
-        )
-    found, instance = _resolve_instance(
-        spec,
-        user=user,
-        pool_seeds=pool_seeds,
-        params=params,
-        request=request,
-        view=view,
-        filter_data=filters,
-        owned=owned,
-    )
-    return ("instance", instance) if found else ("missing", None)
-
-
-def _resolve_collection(
-    coll_spec: SelectorSpec[Any, Any],
-    *,
-    user: Any,
-    pool_seeds: PoolSeeds,
-    params: Mapping[str, Any],
-    request: Any,
-    view: Any,
-    filter_data: Mapping[str, Any],
-    owned: frozenset[str],
-) -> Any:
-    if coll_spec.selector is None:
-        raise ImproperlyConfigured(
-            "collection_selector_spec requires a `selector` resolving the target set."
-        )
-    pool: dict[str, Any] = {
-        # No live reporter, deliberately: a lookup has no progress to report, and
-        # one emitting *after* the service finished reads to a watching client as
-        # the work having restarted. These take the no-op ``base_pool`` supplies.
-        **base_pool(user=user, request=request, seeds=pool_seeds),
-        # Reserved seeds stripped from the client spread, as ``merge_arguments``
-        # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
-        # dispatcher in the pool deciding *which row* is mutated.
-        # And a server-owned name, which any callable in the call may have marked
-        # ``NotClientInput``: the caller never fills one, while the route capture
-        # below and the provider still can.
-        **strip_hidden_inputs(strip_reserved_seeds(params, reserved=pool_seeds.reserved), owned),
-        **view_url_kwargs(view, reserved=pool_seeds.reserved),
-    }
-    pool.update(resolve_provider(coll_spec.kwargs, {"view": view, "request": request}))
-    result: Any = run_selector(
-        coll_spec.selector,
-        resolve_dispatch_kwargs(
-            coll_spec.selector, pool, fillable=caller_fillable(coll_spec, params, owned=owned)
-        ),
-    )
-    return shape_queryset(
-        coll_spec,
-        result,
-        view=view,
-        request=request,
-        params=filter_data,
-        source_label=COLLECTION_SOURCE,
-        pool=pool,
-        reserved=pool_seeds.reserved,
-    )
-
-
-def _run_output_selector(
-    spec: ServiceSpec[Any, Any, Any],
-    result: Any,
-    *,
-    user: Any,
-    pool_seeds: PoolSeeds,
-    request: Any,
-    view: Any,
-    filter_data: Mapping[str, Any] | None,
-) -> tuple[Any, bool]:
-    """Re-fetch + shape the service result through ``output_selector_spec``.
-
-    Returns ``(value, is_list)``, the cardinality driven by the nested ``kind``:
-    ``RETRIEVE`` collapses a queryset via ``.first()``; ``LIST`` — valid only
-    alongside ``collection_selector_spec`` over HTTP — returns the shaped set
-    untouched so the transport renders it ``many=True``. With no output selector
-    spec the service return passes through as a single value.
-
-    A nested spec with no ``selector`` re-reads nothing, so the service's own
-    return is presented, and the nested ``kind`` still says what that return is:
-    one value under ``RETRIEVE``, and under ``LIST`` a set, passed through as it
-    came (a ``QuerySet`` stays lazy, as a re-read one does) and reported as a list.
-    A ``LIST`` return that is no set of rows is refused by
-    ``service_return_as_list``.
-
-    Its ``filter_set`` reads ``filter_data`` and nothing else. The call's
-    arguments are the service's input, and neither the input schema nor
-    ``UnknownArguments.REJECT`` knows this selector's filter fields, so reading
-    them here would make an undeclared argument change the result. Without
-    ``filter_data`` the set is bound to an empty mapping -- what an HTTP request
-    with no query string binds -- rather than skipped, so a ``FilterSet`` that
-    scopes in its own ``filter_queryset`` still runs; and never to
-    ``request.query_params``, the fallback ``apply_queryset_shaping`` would take
-    for ``None``, since off HTTP there is often no request at all. Held by
-    ``test_without_filter_data_the_re_read_binds_an_empty_mapping``.
-    """
-    out_spec = spec.output_selector_spec
-    if out_spec is None:
-        return result, False
-    if out_spec.selector is None:
-        # Held by test_the_services_own_return_is_presented_as_a_list (the ``LIST``
-        # arm) and test_a_retrieve_declaration_with_no_re_read_is_still_one_value.
-        if out_spec.kind is SelectorKind.LIST:
-            return service_return_as_list(spec, result), True
-        return result, False
-    # The nested spec's kwargs / permissions are the surrounding mutation's; the
-    # service return joins the pool as both ``result`` and ``instance``.
-    pool: dict[str, Any] = {
-        # No live reporter, deliberately: a lookup has no progress to report, and
-        # one emitting *after* the service finished reads to a watching client as
-        # the work having restarted. These take the no-op ``base_pool`` supplies.
-        **base_pool(user=user, request=request, seeds=pool_seeds),
-        "instance": result,
-        "result": result,
-    }
-    # Not refused when a parameter is unfilled, for the reason an affordance
-    # condition is not: no client input reaches this pool, so naming one would ask
-    # the caller for a value they cannot send. And the write has committed by now,
-    # so a validation error would tell the caller nothing happened, and a caller
-    # that retries on one would write twice. The ``TypeError`` is the author's.
-    selected: Any = run_selector(
-        out_spec.selector,
-        resolve_dispatch_kwargs(out_spec.selector, pool, fillable=NOTHING_FILLABLE),
-    )
-    selected = shape_queryset(
-        out_spec,
-        selected,
-        view=view,
-        request=request,
-        params=filter_data if filter_data is not None else {},
-        source_label=OUTPUT_SOURCE,
-        pool=pool,
-        reserved=pool_seeds.reserved,
-    )
-    if out_spec.kind is SelectorKind.LIST:
-        return selected, True
-    return materialize_retrieve(selected), False
-
-
-def _resolve_instance(
-    spec: ServiceSpec[Any, Any, Any],
-    *,
-    user: Any,
-    pool_seeds: PoolSeeds,
-    params: Mapping[str, Any],
-    request: Any,
-    view: Any,
-    filter_data: Mapping[str, Any],
-    owned: frozenset[str],
-) -> tuple[bool, Any]:
-    """Resolve the mutation target from ``instance_selector_spec`` + ``params``.
-
-    Returns ``(found, instance)``. ``(True, None)`` when no instance is
-    configured (a create); ``(False, None)`` when the lookup matched nothing.
-    """
-    instance_spec = spec.instance_selector_spec
-    if instance_spec is None or instance_spec.selector is None:
-        return (True, None)
-    pool: dict[str, Any] = {
-        # No live reporter, deliberately: a lookup has no progress to report, and
-        # one emitting *after* the service finished reads to a watching client as
-        # the work having restarted. These take the no-op ``base_pool`` supplies.
-        **base_pool(user=user, request=request, seeds=pool_seeds),
-        # Reserved seeds stripped from the client spread, as ``merge_arguments``
-        # does elsewhere: otherwise a caller sending ``{"user": …}`` outranks the
-        # dispatcher in the pool deciding *which row* is mutated.
-        # And a server-owned name, which any callable in the call may have marked
-        # ``NotClientInput``: the caller never fills one, while the route capture
-        # below and the provider still can.
-        **strip_hidden_inputs(strip_reserved_seeds(params, reserved=pool_seeds.reserved), owned),
-        **view_url_kwargs(view, reserved=pool_seeds.reserved),
-    }
-    pool.update(resolve_provider(instance_spec.kwargs, {"view": view, "request": request}))
-    try:
-        result: Any = run_selector(
-            instance_spec.selector,
-            resolve_dispatch_kwargs(
-                instance_spec.selector,
-                pool,
-                fillable=caller_fillable(instance_spec, params, owned=owned),
-            ),
-        )
-        result = shape_queryset(
-            instance_spec,
-            result,
-            view=view,
-            request=request,
-            params=filter_data,
-            source_label=INSTANCE_SOURCE,
-            pool=pool,
-            reserved=pool_seeds.reserved,
-        )
-    except ObjectDoesNotExist:
-        return (False, None)
-    instance: Any = materialize_retrieve(result)
-    if instance is None:
-        return (False, None)
-    return (True, instance)
+        if isinstance(prepared, DispatchResult):
+            return prepared
+        return dispatch(prepared.spec, **prepared.kwargs)
 
 
 __all__ = ["dispatch_spec"]

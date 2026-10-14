@@ -66,7 +66,7 @@ class TestAnOwnedCollectionCreatesTheRow:
         result = update_from_input(
             catalog,
             {"sections": [SectionIn(title="s")]},
-            children={"sections": ChildSpec(model=Section, fk="catalog")},
+            relations={"sections": ChildSpec(model=Section, fk="catalog")},
         )
 
         assert [change.created for change in result.children] == [(Section.objects.get().pk,)]
@@ -78,12 +78,12 @@ class TestAnOwnedCollectionCreatesTheRow:
         sentinel = update_from_input(
             Catalog.objects.create(name="c"),
             {"sections": [SectionIn(title="s")]},
-            children=spec,
+            relations=spec,
         )
         omitted = update_from_input(
             Catalog.objects.create(name="c"),
             {"sections": [{"title": "s"}]},
-            children=spec,
+            relations=spec,
         )
 
         assert [len(change.created) for change in sentinel.children] == [
@@ -101,7 +101,7 @@ class TestAnOwnedCollectionCreatesTheRow:
         result = update_from_input(
             catalog,
             {"sections": [ByTitle(title="s")]},
-            children={"sections": ChildSpec(model=Section, fk="catalog", match_key="title")},
+            relations={"sections": ChildSpec(model=Section, fk="catalog", match_key="title")},
         )
 
         assert [change.created for change in result.children] == [(Section.objects.get().pk,)]
@@ -125,7 +125,7 @@ class TestAnOwnedCollectionCreatesTheRow:
         result = update_from_input(
             catalog,
             {"sections": [SectionIn(pk=section.pk, title="new")]},
-            children={"sections": ChildSpec(model=Section, fk="catalog")},
+            relations={"sections": ChildSpec(model=Section, fk="catalog")},
         )
 
         assert [change.updated for change in result.children] == [(section.pk,)]
@@ -213,7 +213,7 @@ class TestThePrimaryKeyGuardReadsTheSentinelAsAbsent:
         result = update_from_input(
             catalog,
             {"sections": [SectionIn(title="s")]},
-            children={"sections": ChildSpec(model=Section, fk="catalog")},
+            relations={"sections": ChildSpec(model=Section, fk="catalog")},
         )
 
         assert [change.created for change in result.children] == [(Section.objects.get().pk,)]
@@ -227,7 +227,7 @@ class TestThePrimaryKeyGuardReadsTheSentinelAsAbsent:
             update_from_input(
                 catalog,
                 {"sections": [SectionIn(pk=stranger.pk, title="mine")]},
-                children={"sections": ChildSpec(model=Section, fk="catalog")},
+                relations={"sections": ChildSpec(model=Section, fk="catalog")},
             )
 
         # ``[0]`` is the row in either of DRF's shapes, its index or its position.
@@ -243,7 +243,7 @@ class TestTheAsyncPathAgrees:
         result = await aupdate_from_input(
             catalog,
             {"sections": [SectionIn(title="s")]},
-            children={"sections": ChildSpec(model=Section, fk="catalog")},
+            relations={"sections": ChildSpec(model=Section, fk="catalog")},
         )
 
         section = await Section.objects.aget()

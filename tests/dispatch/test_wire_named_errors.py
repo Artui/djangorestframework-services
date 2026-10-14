@@ -137,7 +137,6 @@ class TestTheRenameReachesEveryDepth:
 
         assert excinfo.value.detail == {"chapters": {1: {"heading": ["Too rude."]}}}
 
-    @pytest.mark.usefixtures("rows_keyed_by_index")
     def test_it_meets_a_real_nested_write(self) -> None:
         """End to end: the relation spec names the model, the caller sees the wire."""
 
@@ -145,7 +144,7 @@ class TestTheRenameReachesEveryDepth:
             return create_from_input(
                 Catalog,
                 data,
-                children={
+                relations={
                     "sections": ChildSpec(
                         model=Section,
                         fk="catalog",

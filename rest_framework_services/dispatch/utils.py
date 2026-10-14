@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
+import dataclasses
 import inspect
+import threading
+import weakref
 from collections.abc import Awaitable, Callable, Collection, Iterable, Iterator, Mapping
 from contextlib import contextmanager
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, cast
 
 from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import BooleanField, Model, Value
+from django.http import QueryDict
+from django_service_specs.adapters.filters.filter_set_parameters import filter_set_parameters
+from django_service_specs.dispatch.grant import Grant
+from django_service_specs.dispatch.resolve_target import resolve_target
+from django_service_specs.parameters.coerce_flat import coerce_flat
+from django_service_specs.parameters.parameters import Parameters
+from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
+from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.settings import api_settings
@@ -25,12 +36,22 @@ from rest_framework_services.selectors.utils import (
     apply_queryset_shaping,
     is_queryset,
 )
+from rest_framework_services.service_specs.invalid_arguments import InvalidArguments
+from rest_framework_services.service_specs.kernel_spec_variant import kernel_spec_variant
+from rest_framework_services.service_specs.translate_dispatch_errors import (
+    translate_dispatch_errors,
+)
+from rest_framework_services.service_specs.utils import describe_serializer
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
 from rest_framework_services.types.argument_binding import ArgumentBinding
+from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.marked_input_keys import marked_input_keys
 from rest_framework_services.types.offline_context import OfflineContext
+from rest_framework_services.types.pool_seeds import PoolSeeds
+from rest_framework_services.types.progress_reporter import ProgressReporter
+from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.reserved_pool_seeds import RESERVED_POOL_SEEDS
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -40,6 +61,7 @@ from rest_framework_services.types.typed_dict_input import typed_dict_input
 from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.types.unpack_typed_dict import unpack_typed_dict
 from rest_framework_services.types.unset import UNSET
+from rest_framework_services.types.url_kwarg import UrlKwarg
 from rest_framework_services.types.utils import (
     PER_CALL_POOL_NAMES,
     affordance_alias,
@@ -55,6 +77,433 @@ SELECTOR_SOURCE = "SelectorSpec.selector"
 INSTANCE_SOURCE = "ServiceSpec.instance_selector_spec.selector"
 COLLECTION_SOURCE = "ServiceSpec.collection_selector_spec.selector"
 OUTPUT_SOURCE = "ServiceSpec.output_selector_spec.selector"
+
+
+# ---------------------------------------------------------------------------
+# The DRF edge over the kernel's ``dispatch``.
+#
+# ``dispatch_spec`` and ``adispatch_spec`` differ only in the one call they make
+# to the kernel, so everything before it is ``prepare_edge_call`` (sync: it may
+# resolve the target and run the guard, both of which query) and everything
+# around it is ``edge_errors``. The async half hops once around the first and
+# awaits ``adispatch`` with what it returns.
+# ---------------------------------------------------------------------------
+
+# The pool seed the guard of a selector spec rides in on. A selector spec takes no
+# ``target=``, so the guard runs as a precondition the edge prepends, and a
+# compiled spec is shared by every call, so the per-call guard reaches that
+# precondition through the call's own seeds rather than through the spec.
+TARGET_GUARD_SEED = "_target_guard"
+# The names the edge registers as seeds on every call. ``serializer`` is not one:
+# the Validator's own pool delivers it, and the kernel refuses a Validator that
+# binds a name a seed occupies.
+EDGE_SEEDS: tuple[str, ...] = ("request", "view")
+
+
+@dataclasses.dataclass(frozen=True)
+class EdgeCall:
+    """One call of the DRF edge, prepared: ``dispatch(spec, **kwargs)`` runs it.
+
+    ``spec`` is the compiled variant the ``Grant`` in ``kwargs`` was minted for;
+    ``kwargs`` is everything else ``dispatch`` and ``adispatch`` take, by name.
+    """
+
+    spec: KernelServiceSpec | KernelSelectorSpec
+    kwargs: dict[str, Any]
+
+
+def prepare_edge_call(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
+    *,
+    user: Any,
+    pool_seeds: PoolSeeds,
+    params: Any,
+    request: Any,
+    view: Any,
+    argument_binding: ArgumentBinding,
+    unknown_arguments: UnknownArguments,
+    on_target_resolved: TargetGuard | None,
+    progress: ProgressReporter | None,
+    view_hooks: ViewHooks | None,
+    instance: Any,
+    filter_data: Mapping[str, Any] | None,
+    many_as_argument: bool,
+    partial: bool | None,
+) -> EdgeCall | DispatchResult:
+    """Everything ``dispatch_spec`` does before the kernel's ``dispatch``, as one sync step.
+
+    Returns the prepared call, or the kernel's not-found ``DispatchResult`` when
+    a service spec's target lookup found no row. Runs the guard, so it is the
+    step an async caller hops to a thread for, once. Raise the kernel's own
+    errors; run it inside ``edge_errors``.
+    """
+    refuse_retired_modes(argument_binding, unknown_arguments)
+    if not isinstance(spec, ServiceSpec | SelectorSpec):
+        raise TypeError(
+            f"dispatch_spec expects a ServiceSpec or SelectorSpec; got {type(spec).__name__}."
+        )
+    hooks = view_hooks if view_hooks is not None else ViewHooks()
+    # One object for the whole call: a ``Grant`` binds its principal by identity.
+    principal = user if user is not None else unauthenticated_user()
+    seeds = edge_seeds(pool_seeds, request=request, view=view)
+    shared: dict[str, Any] = {
+        "principal": principal,
+        "unknown_arguments": unknown_arguments,
+        "progress": (
+            progress if hooks.progress is None else combine_progress(progress, hooks.progress)
+        ),
+        "extra_kwargs": hooks.extra_kwargs,
+    }
+    guard_context = OfflineContext(user=user, request=request, view=view)
+    if isinstance(spec, SelectorSpec):
+        variant: Any = kernel_spec_variant(spec, unguarded=True)
+        if on_target_resolved is not None:
+            variant = guarded_selector(variant)
+            guard = on_target_resolved
+
+            def bound_guard(target: Any) -> None:
+                guard(spec, guard_context, instance=target)
+
+            seeds = seeds.extend(**{TARGET_GUARD_SEED: lambda: bound_guard})
+        arguments = edge_arguments(variant, spec, params, request=request, view=view)
+        _route_filter_data(arguments, variant.filter_set, filter_data)
+        return EdgeCall(
+            variant,
+            {
+                **shared,
+                "arguments": arguments,
+                "grant": Grant(variant, principal),
+                "pool_seeds": seeds,
+            },
+        )
+    if spec.many:
+        variant = kernel_spec_variant(spec, partial=partial, unguarded=True)
+        rows = params
+        if many_as_argument:
+            arguments = edge_arguments(variant, spec, params, request=request, view=view)
+        else:
+            arguments = edge_arguments(variant, spec, {}, request=request, view=view)
+            arguments[spec.many_argument] = rows
+        if hooks.input_data and isinstance(arguments.get(spec.many_argument), list):
+            arguments[spec.many_argument] = [
+                {**row, **hooks.input_data} if isinstance(row, Mapping) else row
+                for row in arguments[spec.many_argument]
+            ]
+        # A bulk call acts on no target, as on main: the guard is asked about ``None``.
+        if on_target_resolved is not None:
+            on_target_resolved(spec, guard_context, instance=None)
+        return EdgeCall(
+            variant,
+            {
+                **shared,
+                "arguments": arguments,
+                "grant": Grant(variant, principal, target_checked=True),
+                "pool_seeds": seeds,
+            },
+        )
+    # One arc to coverage, so each conjunct is named by the test that fails
+    # without it: test_a_create_is_guarded_with_none (an unset ``instance`` is
+    # no row) and test_instance_none_on_a_spec_with_no_lookup_is_a_create (a
+    # ``None`` one is no row either, and takes no stand-in lookup).
+    handed = instance is not UNSET and instance is not None
+    # A drfs ``ServiceSpec`` compiles to the kernel's.
+    service = cast(
+        KernelServiceSpec,
+        kernel_spec_variant(spec, partial=partial, unguarded=True, target=handed),
+    )
+    arguments = edge_arguments(service, spec, params, request=request, view=view)
+    target_spec = service.target_selector_spec()
+    if target_spec is not None:
+        _route_filter_data(arguments, target_spec.filter_set, filter_data)
+    if hooks.input_data and isinstance(arguments, dict):
+        # Beneath ``spec.input_data``, which the kernel merges over the arguments.
+        arguments.update(hooks.input_data)
+    if handed:
+        target = instance
+    elif instance is None:
+        # The caller says there is no row, so no lookup runs. On a spec with its
+        # own lookup the kernel answers that ``None`` as ``not_found``
+        # (test_instance_none_on_a_spec_with_a_lookup_is_not_found). A create
+        # with no ``instance`` falls through to ``resolve_target``, which finds
+        # it no target and asks nothing.
+        target = None
+    else:
+        resolved = resolve_target(
+            service,
+            principal=principal,
+            arguments=arguments,
+            grant=Grant(service, principal),
+            pool_seeds=seeds,
+        )
+        if isinstance(resolved, DispatchResult):
+            return resolved
+        target = resolved[0]
+    if on_target_resolved is not None:
+        on_target_resolved(spec, guard_context, instance=target)
+    return EdgeCall(
+        service,
+        {
+            **shared,
+            "arguments": arguments,
+            "grant": Grant(service, principal, target_checked=True),
+            "pool_seeds": seeds,
+            "target": target,
+        },
+    )
+
+
+def refuse_retired_modes(
+    argument_binding: ArgumentBinding, unknown_arguments: UnknownArguments
+) -> None:
+    """Refuse the two policies the kernel's one pool retired; their members stay importable."""
+    if argument_binding is ArgumentBinding.SPREAD_CALLER_WINS:
+        raise ValueError(
+            "ArgumentBinding.SPREAD_CALLER_WINS is retired: a call has one pool, where the "
+            "caller's argument for a declared parameter is what the callable receives unless "
+            "the spec's kwargs provider is annotated to fill it. Pass ArgumentBinding.AUTO, "
+            "and leave the key out of the kwargs provider where the caller's value should win."
+        )
+    if unknown_arguments is UnknownArguments.PASSTHROUGH:
+        raise ValueError(
+            "UnknownArguments.PASSTHROUGH is retired: an argument the spec does not declare "
+            "never reaches a callable. Declare it (a reads entry, a serializer field or a "
+            "parameter), then pass UnknownArguments.IGNORE or UnknownArguments.REJECT."
+        )
+
+
+def unauthenticated_user() -> Any:
+    """DRF's unauthenticated user, as a request with no credentials carries it.
+
+    Read from ``api_settings`` at call time, which imports the class lazily:
+    ``django.contrib.auth.models`` cannot be imported while the app registry is
+    still loading, and this package is imported then. ``None`` where a project
+    sets ``UNAUTHENTICATED_USER`` to ``None``, as DRF's own ``Request`` does.
+    """
+    # A class, or ``None``; DRF's settings object is untyped.
+    factory: Any = api_settings.UNAUTHENTICATED_USER
+    return factory() if factory is not None else None
+
+
+def edge_seeds(pool_seeds: PoolSeeds, *, request: Any, view: Any) -> PoolSeeds:
+    """The caller's seeds, behind this call's ``request`` and ``view``.
+
+    The kernel resolves each seed against the base pool alone, so a resolver of
+    the caller's that declares ``request`` or ``view`` - as this package's seeds
+    always could - is handed them by a wrapper, which stays sync.
+
+    Raises:
+        ImproperlyConfigured: ``pool_seeds`` registers ``request`` or ``view``,
+            which this edge seeds itself from what it was handed.
+    """
+    clash = sorted(pool_seeds.names & set(EDGE_SEEDS))
+    if clash:
+        raise ImproperlyConfigured(
+            f"pool_seeds registers {', '.join(repr(name) for name in clash)}, which "
+            "dispatch_spec seeds itself from the request and view it is handed. Pass them "
+            "as request= and view=, and remove the registration."
+        )
+    ambient = {"request": request, "view": view}
+    wrapped = tuple((name, _with_ambient(resolver, ambient)) for name, resolver in pool_seeds.seeds)
+    return PoolSeeds(seeds=(("request", lambda: request), ("view", lambda: view), *wrapped))
+
+
+def _with_ambient(resolver: Callable[..., Any], ambient: Mapping[str, Any]) -> Callable[..., Any]:
+    def resolve(**pool: Any) -> Any:
+        return resolver(**resolve_callable_kwargs(resolver, {**pool, **ambient}))
+
+    return resolve
+
+
+def edge_arguments(
+    variant: KernelServiceSpec | KernelSelectorSpec,
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
+    params: Any,
+    *,
+    request: Any,
+    view: Any,
+) -> Any:
+    """``params`` as the kernel's ``arguments``, with the declared channels routed both ways.
+
+    A ``QueryDict`` is read flat - a repeated key as a list where the parameter
+    is an array - and coerced as a query string is. Then the names a route
+    captures: each declared ``UrlKwarg``, and what the selector or the target
+    lookup reads. A value on ``view.kwargs`` is the argument, authoritative over
+    ``params`` as a route capture always was, coerced from the string a URLconf
+    may capture; a declared ``UrlKwarg`` the caller sent and the view does not
+    carry goes onto ``view.kwargs``, so a provider reading it there finds it.
+    Each declared ``QueryParam`` the same way with ``request.query_params``.
+    Arguments that are no mapping are handed on as they are, for the kernel's
+    shape check to refuse.
+    """
+    parameters = variant.parameters()
+    if isinstance(params, QueryDict):
+        arguments: dict[str, Any] = coerce_flat(parameters, _flat(parameters, params))
+    elif isinstance(params, Mapping):
+        arguments = dict(params)
+    else:
+        return params
+    declared = tuple(spec.reads or ())
+    url_kwargs = {entry.name for entry in declared if isinstance(entry, UrlKwarg)}
+    reader = variant.target_selector_spec() if isinstance(variant, KernelServiceSpec) else variant
+    routed = url_kwargs | (reader.reads.names() if reader is not None else frozenset())
+    route = getattr(view, "kwargs", None)
+    if isinstance(route, dict):
+        captured = {name: route[name] for name in routed if name in route}
+        arguments.update(coerce_flat(parameters, captured))
+        for name in sorted(url_kwargs - route.keys()):
+            if name in arguments:
+                route[name] = arguments[name]
+    queried = [entry.name for entry in declared if isinstance(entry, QueryParam)]
+    query = getattr(request, "query_params", None)
+    if queried and isinstance(query, QueryDict):
+        sent = {name: arguments[name] for name in queried if name in arguments}
+        absent = [name for name in queried if name not in arguments and name in query]
+        arguments.update(coerce_flat(parameters, _flat(parameters, query, names=absent)))
+        if sent.keys() - query.keys():
+            # The request is the call's own (an offline one is built per call, an
+            # HTTP one per request), so its query string is replaced, never shared.
+            merged = query.copy()
+            for name, value in sent.items():
+                if name not in query:
+                    merged.setlist(name, value if isinstance(value, list) else [value])
+            merged._mutable = False
+            request._request.GET = merged
+    return arguments
+
+
+def _flat(
+    parameters: Parameters, source: QueryDict, *, names: Iterable[str] | None = None
+) -> dict[str, Any]:
+    """A ``QueryDict``'s values, a list where the parameter is an array and the last value else."""
+    wanted = source.keys() if names is None else names
+    flat: dict[str, Any] = {}
+    for name in wanted:
+        declared = parameters.get(name)
+        flat[name] = (
+            source.getlist(name)
+            if declared is not None and declared.type == "array"
+            else source.get(name)
+        )
+    return flat
+
+
+def _route_filter_data(
+    arguments: Any, filter_set: Any, filter_data: Mapping[str, Any] | None
+) -> None:
+    """Put ``filter_data`` into ``arguments``, restricted to the names ``filter_set`` reads.
+
+    With no ``filter_data`` the arguments carry the filter's values themselves,
+    as one flat mapping off HTTP usually does. With it, a filter name is read
+    from it alone, as ``filter_data`` always replaced ``params`` as the filter's
+    source; a ``QueryDict`` is read flat and coerced, a repeated key as a list.
+    """
+    # One arc to coverage, so each operand is named:
+    # test_filter_data_reaches_the_filter_set_and_nothing_else fails without the
+    # second, and test_no_filter_data_leaves_the_arguments_to_filter without the first.
+    if filter_set is None or filter_data is None or not isinstance(arguments, dict):
+        return
+    parameters = filter_set_parameters(filter_set)
+    names = parameters.names()
+    for name in names:
+        arguments.pop(name, None)
+    if isinstance(filter_data, QueryDict):
+        present = [name for name in names if name in filter_data]
+        arguments.update(coerce_flat(parameters, _flat(parameters, filter_data, names=present)))
+        return
+    arguments.update({name: filter_data[name] for name in names if name in filter_data})
+
+
+# id(unguarded variant) -> (a weak reference to it, its guarded twin). By identity,
+# as ``kernel_spec_variant`` keys its own: a ``Grant`` binds the compiled object.
+_GUARDED: dict[int, tuple[weakref.ref[Any], KernelSelectorSpec]] = {}
+_GUARDED_LOCK = threading.Lock()
+
+
+def guarded_selector(variant: KernelSelectorSpec) -> KernelSelectorSpec:
+    """``variant`` with the call's target guard as its first precondition, compiled once.
+
+    The kernel runs a selector spec's preconditions on what it found - the row
+    as ``instance`` for a retrieve, the set as ``collection`` for a list - and
+    never on a missing row or a ``None`` its ``allow_none`` let through. So the
+    guard runs where it always did: after the lookup, before the author's own
+    preconditions, and not at all where there is no row. The guard itself is the
+    call's, read from the ``TARGET_GUARD_SEED`` seed.
+    """
+    with _GUARDED_LOCK:
+        held = _GUARDED.get(id(variant))
+        if held is None:
+            source_id = id(variant)
+            guard = _guard_row if variant.kind is SelectorKind.RETRIEVE else _guard_set
+            twin = dataclasses.replace(
+                variant, preconditions=(guard, *(variant.preconditions or ()))
+            )
+            source = weakref.ref(variant, lambda _dead: _GUARDED.pop(source_id, None))
+            held = _GUARDED[source_id] = (source, twin)
+    return held[1]
+
+
+def _guard_row(*, instance: Any, _target_guard: Callable[[Any], None]) -> None:
+    _target_guard(instance)
+
+
+def _guard_set(*, collection: Any, _target_guard: Callable[[Any], None]) -> None:
+    _target_guard(collection)
+
+
+@contextmanager
+def edge_errors(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
+    params: Any,
+    *,
+    many_as_argument: bool,
+) -> Iterator[None]:
+    """The kernel's refusals as DRF's, around a whole edge call.
+
+    - Every kernel ``DispatchError`` leaves as its dual-base twin, through
+      ``translate_dispatch_errors``.
+    - A ``many`` spec whose rows arrived as ``params`` itself - an HTTP list
+      body - is refused as DRF's list serializer refuses one: an entry per row,
+      ``{}`` for a valid one, and a refusal of the list itself under
+      ``non_field_errors``. The kernel keys both under ``many_argument``, which
+      such a caller never sent.
+    - A validation error a service or a precondition raises is keyed by the
+      names the request used, where the input serializer's ``source=`` makes
+      them differ from the ones the service saw. Never the kernel's own
+      ``InvalidArguments``, which is already keyed by them.
+    """
+    bare_rows = isinstance(spec, ServiceSpec) and spec.many and not many_as_argument
+    try:
+        with translate_dispatch_errors():
+            yield
+    except InvalidArguments as exc:
+        unwrapped = _bare_rows_error(exc, spec.many_argument, params) if bare_rows else None
+        if unwrapped is None:
+            raise
+        raise unwrapped from exc
+    except (ServiceValidationError, ValidationError) as exc:
+        serializer = getattr(spec, "input_serializer", None)
+        if serializer is None:
+            raise
+        raise wire_named_error(exc, describe_serializer(serializer)) from exc
+
+
+def _bare_rows_error(
+    exc: InvalidArguments, many_argument: str, params: Any
+) -> ValidationError | None:
+    """``exc`` in the shape a list body is refused in, or ``None`` to leave it keyed.
+
+    A refusal of anything beside the rows - a declared read the route left out -
+    names something the caller did send, so it keeps its key.
+    """
+    detail: Any = exc.detail
+    if set(detail) != {many_argument}:
+        return None
+    rows = detail[many_argument]
+    if isinstance(rows, dict):
+        # Rows are refused by index only once the body is a list of them.
+        return ValidationError([rows.get(index, {}) for index in range(len(params))])
+    return ValidationError({api_settings.NON_FIELD_ERRORS_KEY: rows})
+
 
 # The calling view. A transport hands it to a provider (``kwargs=``, the
 # ``get_*_kwargs`` hooks, the serializer-context providers) and puts it in no

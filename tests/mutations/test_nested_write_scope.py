@@ -47,7 +47,7 @@ class TestAPayloadCannotNameAnotherParentsRow:
             update_from_input(
                 attacker,
                 {"name": "attacker", "posts": [{"id": theirs.pk, "title": "pwned"}]},
-                children=POSTS,
+                relations=POSTS,
             )
 
         theirs.refresh_from_db()
@@ -67,7 +67,7 @@ class TestAPayloadCannotNameAnotherParentsRow:
             update_from_input(
                 author,
                 {"name": "a", "posts": [{"id": 4242, "title": "t"}]},
-                children=POSTS,
+                relations=POSTS,
             )
         assert Post.objects.count() == 0
 
@@ -90,7 +90,7 @@ class TestAPayloadCannotNameAnotherParentsRow:
             update_from_input(
                 attacker,
                 {"name": "attacker", "posts": [{"ref": theirs.pk, "title": "pwned"}]},
-                children=spec,
+                relations=spec,
             )
 
         theirs.refresh_from_db()
@@ -108,7 +108,7 @@ class TestAPayloadCannotNameAnotherParentsRow:
             update_from_input(
                 attacker,
                 {"name": "attacker", "posts": [{"title": "brand new", "id": theirs.pk}]},
-                children=spec,
+                relations=spec,
             )
 
         theirs.refresh_from_db()
@@ -124,7 +124,7 @@ class TestTheLegitimateCasesStillWork:
         update_from_input(
             author,
             {"name": "a", "posts": [{"id": mine.pk, "title": "after"}]},
-            children=POSTS,
+            relations=POSTS,
         )
 
         mine.refresh_from_db()
@@ -136,7 +136,7 @@ class TestTheLegitimateCasesStillWork:
         update_from_input(
             author,
             {"name": "a", "posts": [{"title": "fresh"}]},
-            children=POSTS,
+            relations=POSTS,
         )
 
         assert Post.objects.get(title="fresh").author_id == author.pk
@@ -151,7 +151,7 @@ class TestTheLegitimateCasesStillWork:
         update_from_input(
             author,
             {"name": "a", "posts": [{"title": "brand new"}]},
-            children=spec,
+            relations=spec,
         )
 
         assert Post.objects.get(title="brand new").author_id == author.pk
@@ -172,7 +172,7 @@ class TestTheAsyncPathBehavesIdentically:
             await aupdate_from_input(
                 attacker,
                 {"name": "attacker", "posts": [{"id": theirs.pk, "title": "pwned"}]},
-                children=POSTS,
+                relations=POSTS,
             )
 
         refreshed = await Post.objects.aget(pk=theirs.pk)
@@ -189,7 +189,7 @@ class TestTheAsyncPathBehavesIdentically:
                 "name": "a",
                 "posts": [{"id": mine.pk, "title": "after"}, {"title": "fresh"}],
             },
-            children=POSTS,
+            relations=POSTS,
         )
 
         refreshed = await Post.objects.aget(pk=mine.pk)
@@ -230,7 +230,7 @@ class TestAServiceOwnedRowIsGuardedToo:
             update_from_input(
                 attacker,
                 {"name": "attacker", "posts": [{"id": theirs.pk, "title": "pwned"}]},
-                children=spec,
+                relations=spec,
             )
 
         assert seen == [], "the service was reached with a foreign primary key"
