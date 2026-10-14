@@ -754,8 +754,9 @@ def edge_arguments(
     captures: each declared ``UrlKwarg``, and what the selector or the target
     lookup reads. A value on ``view.kwargs`` is the argument, authoritative over
     ``params`` as a route capture always was, coerced from the string a URLconf
-    may capture; a declared ``UrlKwarg`` the caller sent and the view does not
-    carry goes onto ``view.kwargs``, so a provider reading it there finds it.
+    may capture; a declared ``UrlKwarg`` the caller sent and an offline view
+    does not carry goes onto ``view.kwargs``, so a provider reading it there
+    finds it. A live DRF view's route is its URLconf's alone (``over_http``).
     Each declared ``QueryParam`` the same way with ``request.query_params``.
     Arguments that are no mapping are handed on as they are, for the kernel's
     shape check to refuse.
@@ -775,9 +776,13 @@ def edge_arguments(
     if isinstance(route, dict):
         captured = {name: route[name] for name in routed if name in route}
         arguments.update(coerce_flat(parameters, captured))
-        for name in sorted(url_kwargs - route.keys()):
-            if name in arguments:
-                route[name] = arguments[name]
+        # A live view's ``kwargs`` are its URLconf's, which a permission class
+        # reads as the author's, so a caller's value is never written there
+        # (test_a_body_value_never_reaches_a_live_views_kwargs).
+        if not over_http(view):
+            for name in sorted(url_kwargs - route.keys()):
+                if name in arguments:
+                    route[name] = arguments[name]
     queried = [entry.name for entry in declared if isinstance(entry, QueryParam)]
     query = getattr(request, "query_params", None)
     if queried and isinstance(query, QueryDict):
