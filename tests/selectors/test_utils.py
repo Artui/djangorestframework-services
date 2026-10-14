@@ -21,6 +21,7 @@ from django_service_specs.selectors.materialize_retrieve import (
     materialize_retrieve as kernel_materialize_retrieve,
 )
 from django_service_specs.selectors.run_selector import run_selector as kernel_run_selector
+from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
@@ -122,8 +123,8 @@ class TestApplyQuerysetShaping:
     # --- what the kernel's shaping changes -----------------------------------------
 
     def test_a_value_the_filter_set_refuses_is_the_kernel_s_invalid_arguments(self) -> None:
-        # Was DRF's ValidationError; the DRF edge translates this one to DRF's at
-        # its boundary. The message is django-filter's own, keyed as the
+        # Was DRF's ValidationError, and is not one now: the adapter does not
+        # translate it. The message is django-filter's own, keyed as the
         # FilterSet keys its errors, and the kernel's leaves are plain strings.
         with pytest.raises(KernelInvalidArguments) as refused:
             _shape(Post.objects.all(), request=_request("/?status=bogus"), filter_set=_Status)
@@ -131,6 +132,7 @@ class TestApplyQuerysetShaping:
         assert refused.value.detail == {
             "status": ["Select a valid choice. bogus is not one of the available choices."]
         }
+        assert not isinstance(refused.value, ValidationError)
 
     def test_a_number_past_any_integer_column_is_refused(self) -> None:
         with pytest.raises(KernelInvalidArguments) as refused:

@@ -86,8 +86,9 @@ def apply_queryset_shaping(
             ``extend_queryset`` answered with an awaitable.
         InvalidArguments: The kernel's, where ``filter_set`` refused its data or
             a value no integer column can hold, keyed as the ``FilterSet`` keys
-            its errors. The DRF edge translates it into DRF's
-            ``ValidationError`` at its boundary.
+            its errors. It reaches the caller as the kernel raised it, not as
+            DRF's ``ValidationError``: nothing here translates it, so a caller
+            inside a DRF view that wants a 400 translates it itself.
     """
     spec = KernelSelectorSpec(
         kind=SelectorKind.LIST,
