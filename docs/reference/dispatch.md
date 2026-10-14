@@ -19,9 +19,9 @@ below — `dispatch_spec` — is documented first.
 Several of these leaves are
 [django-service-specs](https://artui.github.io/django-service-specs/)' own,
 re-exported at the path this package has always exported them from:
-`paginate_output` and `DEFAULT_PAGE_SIZE`, `null_progress`, `combine_progress`,
-`is_async`, `run_service`, `arun_service`, `run_selector`, `arun_selector`,
-`is_queryset`, `materialize_retrieve` and `amaterialize_retrieve`. Each is the
+`null_progress`, `is_async`, `run_service`, `arun_service`, `run_selector`,
+`arun_selector`, `is_queryset`, `materialize_retrieve` and
+`amaterialize_retrieve`. Each is the
 same object under both names, so the import you have keeps working and the
 documentation rendered for it here is the kernel's.
 
