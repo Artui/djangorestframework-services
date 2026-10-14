@@ -15,9 +15,13 @@ from django.core.exceptions import ImproperlyConfigured
 from django.http import QueryDict
 from django.utils.module_loading import import_string
 from django_service_specs.adapters.filters.filter_set_parameters import filter_set_parameters
+from django_service_specs.dispatch.check_call import check_call
 from django_service_specs.dispatch.grant import Grant
 from django_service_specs.dispatch.resolve_target import resolve_target
 from django_service_specs.parameters.coerce_flat import coerce_flat
+from django_service_specs.parameters.invalid_arguments import (
+    InvalidArguments as KernelInvalidArguments,
+)
 from django_service_specs.parameters.parameters import Parameters
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
 from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
@@ -127,7 +131,7 @@ def prepare_edge_call(
     principal = user if user is not None else unauthenticated_user()
     shared: dict[str, Any] = {
         "principal": principal,
-        "unknown_arguments": enforceable_policy(spec, unknown_arguments),
+        "unknown_arguments": enforceable_policy(spec, unknown_arguments, argument_binding),
         "progress": (
             progress if hooks.progress is None else combine_progress(progress, hooks.progress)
         ),
@@ -244,6 +248,14 @@ def prepare_edge_call(
         # it no target and asks nothing.
         target = None
     else:
+        # Only where a lookup will query: a create resolves nothing, and its
+        # refusal stays whole, as a ``many`` call's is. One arc to coverage:
+        # test_an_open_target_lookup_takes_an_undeclared_key_and_drops_it holds
+        # the policy (what ``enforceable_policy`` relaxed refuses nothing), and
+        # the missing-and-unexpected case of test_the_refusal_is_the_workarounds
+        # holds the lookup.
+        if shared["unknown_arguments"] is UnknownArguments.REJECT and target_spec is not None:
+            refuse_unknown_first(service, principal=principal, arguments=arguments, seeds=seeds)
         resolved = resolve_target(
             service,
             principal=principal,
@@ -469,17 +481,29 @@ def without_seed_names(arguments: Any, pool_seeds: PoolSeeds) -> Any:
 
 
 def enforceable_policy(
-    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any], unknown_arguments: UnknownArguments
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
+    unknown_arguments: UnknownArguments,
+    argument_binding: ArgumentBinding,
 ) -> UnknownArguments:
     """``unknown_arguments`` as the kernel can hold ``spec``'s caller to it.
 
-    The kernel closes the argument set on what the spec declares. A selector, or
-    a service's target lookup, taking a bare ``**kwargs`` declares no set: this
-    package never refused a key such a callable could be handed, so ``REJECT``
-    there is answered as ``IGNORE``, which drops an undeclared key rather than
-    refuse it (test_an_open_selector_takes_an_undeclared_key_and_drops_it,
-    test_an_open_target_lookup_takes_an_undeclared_key_and_drops_it). No policy
-    hands it on: ``PASSTHROUGH`` is retired.
+    The kernel closes the argument set on what the spec declares. A callable
+    taking a bare ``**kwargs`` that reads the caller's input declares no set,
+    and this package never refused a key such a callable could be handed, so
+    ``REJECT`` there is answered as ``IGNORE``, which drops an undeclared key
+    rather than refuse it. The callables, read in this package's order:
+
+    - a selector, or a service's target lookup
+      (test_an_open_selector_takes_an_undeclared_key_and_drops_it,
+      test_an_open_target_lookup_takes_an_undeclared_key_and_drops_it); when
+      it is open, nothing else is read;
+    - a service with no ``input_serializer`` dispatched under a spreading
+      ``argument_binding``, whose parameters are then its input
+      (test_an_open_spreading_service_takes_an_undeclared_key_and_drops_it).
+      ``_spread_parameter_keys`` names the test holding each of its
+      conditions.
+
+    No policy hands the key on: ``PASSTHROUGH`` is retired.
 
     Raises:
         ImproperlyConfigured: ``REJECT`` on a callable whose ``**kwargs``
@@ -488,19 +512,72 @@ def enforceable_policy(
     """
     if unknown_arguments is not UnknownArguments.REJECT:
         return unknown_arguments
-    lookup = _target_lookup(spec) if isinstance(spec, ServiceSpec) else spec
-    reader = lookup.selector if lookup is not None else None
-    if reader is None:
-        return unknown_arguments
     try:
-        names = _callable_param_names(reader)
+        is_open = _reads_openly(spec, argument_binding)
     except _UnresolvedExtras as exc:
         raise ImproperlyConfigured(
             f"UnknownArguments.REJECT cannot be enforced: {exc} Make the annotation "
             "resolvable at runtime (import the TypedDict normally rather than under "
             "'if TYPE_CHECKING:'), or dispatch with UnknownArguments.IGNORE."
         ) from exc
-    return UnknownArguments.IGNORE if names is None else unknown_arguments
+    return UnknownArguments.IGNORE if is_open else unknown_arguments
+
+
+def _reads_openly(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any], argument_binding: ArgumentBinding
+) -> bool:
+    """Whether a callable reading ``spec``'s caller's input takes a bare ``**kwargs``.
+
+    Two arcs to coverage, so each condition is named by the test that fails
+    without it: no reader (test_an_open_spreading_service_takes_an_undeclared_key_and_drops_it),
+    a closed one (test_a_closed_lookup_still_refuses_an_undeclared_key), and a
+    selector spec, which spreads no service
+    (test_a_registered_seed_name_is_not_an_unexpected_argument).
+    """
+    lookup = _target_lookup(spec) if isinstance(spec, ServiceSpec) else spec
+    reader = lookup.selector if lookup is not None else None
+    if reader is not None and _callable_param_names(reader) is None:
+        return True
+    return (
+        isinstance(spec, ServiceSpec)
+        and _spread_parameter_keys(
+            spec, argument_binding=argument_binding, reserved=RESERVED_POOL_SEEDS
+        )
+        is None
+    )
+
+
+def refuse_unknown_first(
+    service: KernelServiceSpec, *, principal: Any, arguments: Any, seeds: PoolSeeds
+) -> None:
+    """Refuse the caller's undeclared keys under ``REJECT``, before the target lookup queries.
+
+    ``UnknownArguments.REJECT`` always answered an undeclared key first, so a
+    call naming one is a 400 whether or not its row exists, and the database is
+    not asked for the row
+    (test_an_unknown_key_is_refused_before_the_lookup_asks_the_database).
+    ``resolve_target`` checks only the lookup's own reads, and ``dispatch``
+    checks the rest after it, so the kernel's ``check_call`` runs here, which
+    is ``dispatch``'s own prelude and runs no Validator: every ``"unknown"`` it
+    raises is the kernel's. Only those are raised, alone, as they always were
+    (test_an_unknown_key_ahead_of_the_lookup_is_refused_alone); any other
+    refusal is left for ``dispatch`` to make once there is a row, so a missing
+    row with a field left out is still ``not_found``
+    (test_a_missing_row_and_a_missing_field_is_still_not_found).
+    """
+    try:
+        check_call(
+            service,
+            principal=principal,
+            arguments=arguments,
+            grant=Grant(service, principal),
+            pool_seeds=seeds,
+            unknown_arguments=UnknownArguments.REJECT,
+        )
+    except KernelInvalidArguments as exc:
+        unknown = {name: errors for name, errors in exc.detail.items() if _only_unknown(errors)}
+        if unknown:
+            raise KernelInvalidArguments(unknown) from exc
 
 
 def edge_arguments(
@@ -839,7 +916,7 @@ def edge_errors(
         with translate_dispatch_errors():
             yield
     except InvalidArguments as exc:
-        detail = _unexpected_as_drf(exc.detail)
+        detail = _unexpected_as_drf(exc.detail, spec)
         unwrapped = _bare_rows_error(detail, spec.many_argument, params) if bare_rows else None
         if unwrapped is not None:
             raise unwrapped from exc
@@ -855,33 +932,75 @@ def edge_errors(
         raise wire_named_error(exc, describe_serializer(serializer)) from exc
 
 
-def _unexpected_as_drf(detail: Any) -> Any:
+def _unexpected_as_drf(
+    detail: Any, spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]
+) -> Any:
     """``detail`` with the kernel's unknown-argument refusals in this package's words.
 
     The kernel refuses each undeclared key under its own name, ``"Unknown
     argument."`` with code ``unknown``; this package always answered
     ``UnknownArguments.REJECT`` with one message naming them all, under
-    ``non_field_errors``, and a client reads that. So at each level of the tree,
-    a row's included, the keys refused only as unknown become that message, and
-    every other refusal keeps its key
-    (test_a_field_refusal_beside_an_unknown_key_keeps_its_own_key). The code is
-    what tells the refusal apart, since the message is translated.
+    ``non_field_errors``, and a client reads that. So the keys refused only as
+    unknown become that message, and every other refusal keeps its key
+    (test_a_field_refusal_beside_an_unknown_key_keeps_its_own_key).
+
+    Only where the kernel's refusal can be: the top level of the call and each
+    row of a ``many`` spec, and there only a key the compiled spec does not
+    declare. A Validator's own refusal with that code - under a field it
+    declares, under ``non_field_errors``, or in a row - is left as raised
+    (test_a_validators_unknown_code_is_left_as_it_raised_it,
+    test_a_validators_unknown_code_inside_a_row_is_left_as_it_raised_it).
     """
-    if not isinstance(detail, dict):
-        return detail
-    unknown = sorted(str(name) for name, errors in detail.items() if _only_unknown(errors))
-    reshaped = {
-        name: _unexpected_as_drf(errors)
+    return _reword_unknown(
+        detail, kernel_spec_variant(spec, unguarded=True, server_input=False).parameters()
+    )
+
+
+def _reword_unknown(detail: Mapping[Any, Any], parameters: Parameters) -> dict[Any, Any]:
+    """One level of ``detail``, with its undeclared keys refused only as unknown in one message.
+
+    Then each row of a declared array of objects - a ``many`` spec's rows - is
+    one level of its own, against the rows' parameters
+    (test_an_undeclared_key_inside_an_item_is_refused_at_its_index). Deeper than
+    that is left as raised.
+
+    One arc to coverage, so each condition that rewords a key is named by the
+    test that fails without it: a declared key is a Validator's
+    (test_a_validators_unknown_code_is_left_as_it_raised_it, its ``field``
+    case), ``non_field_errors`` is never a key the kernel refuses as unknown
+    here (its ``object`` case), and an undeclared key refused otherwise keeps
+    its key (test_a_validators_refusal_under_an_undeclared_key_keeps_its_key).
+    The kernel writes every level as a mapping: a refusal of a row that is no
+    object goes under ``non_field_errors`` inside it.
+    """
+    declared = parameters.names()
+    unknown = [
+        name
         for name, errors in detail.items()
-        if not _only_unknown(errors)
-    }
+        if name not in declared
+        and name != api_settings.NON_FIELD_ERRORS_KEY
+        and _only_unknown(errors)
+    ]
+    reworded: dict[Any, Any] = {}
+    for name, errors in detail.items():
+        if name in unknown:
+            continue
+        param = parameters.get(name)
+        rows = param.items if param is not None else None
+        # One arc to coverage, each condition named: a declared object, which
+        # has no rows (test_a_refusal_two_objects_deep_is_left_as_raised), and
+        # a list refused whole, which is no mapping of rows
+        # (test_a_non_list_is_refused_under_the_argument).
+        if isinstance(rows, Parameters) and isinstance(errors, dict):
+            errors = {index: _reword_unknown(row, rows) for index, row in errors.items()}
+        reworded[name] = errors
     if unknown:
-        names = ", ".join(repr(name) for name in unknown)
-        reshaped[api_settings.NON_FIELD_ERRORS_KEY] = [
-            *reshaped.get(api_settings.NON_FIELD_ERRORS_KEY, []),
+        names = ", ".join(repr(name) for name in sorted(str(name) for name in unknown))
+        reworded[api_settings.NON_FIELD_ERRORS_KEY] = [
+            *reworded.get(api_settings.NON_FIELD_ERRORS_KEY, []),
             ErrorDetail(f"Unexpected argument(s): {names}.", code="invalid"),
         ]
-    return reshaped
+    return reworded
 
 
 def _only_unknown(errors: Any) -> bool:
