@@ -17,6 +17,9 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from django.http import QueryDict
 from django.test import override_settings
+from django_service_specs.parameters.invalid_arguments import (
+    InvalidArguments as KernelInvalidArguments,
+)
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
@@ -539,3 +542,132 @@ class TestServerInput:
             view_hooks=ViewHooks(input_data={"tenant": "hook", "title": "hook"}),
         )
         assert result.value == {"title": "hook", "tenant": "spec"}
+
+
+# --- UnknownArguments.REJECT, answered as this package always answered it ------
+
+
+def _scoped(*, pk: int, **filters: Any) -> QuerySet[Post]:
+    return Post.objects.filter(pk=pk)
+
+
+def _keep_pk(*, pk: int) -> int:
+    return pk
+
+
+def _keep(*, instance: Post) -> str:
+    return instance.title
+
+
+class TestRejectAtTheEdge:
+    def _reject(self, spec: Any, params: Any, **kwargs: Any) -> Any:
+        return dispatch_spec(
+            spec, user=None, params=params, unknown_arguments=UnknownArguments.REJECT, **kwargs
+        )
+
+    def test_unknown_keys_are_named_in_one_message(self) -> None:
+        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=lambda *, pk: pk)
+
+        with pytest.raises(ValidationError) as excinfo:
+            self._reject(spec, {"pk": 1, "zeta": 1, "alpha": 2})
+
+        assert excinfo.value.detail == {
+            "non_field_errors": ["Unexpected argument(s): 'alpha', 'zeta'."]
+        }
+
+    def test_a_field_refusal_beside_an_unknown_key_keeps_its_own_key(self) -> None:
+        class _Row(serializers.Serializer):
+            quantity = serializers.IntegerField()
+
+        spec = ServiceSpec(
+            service=lambda *, data: data, input_serializer=_Row, many=True, atomic=False
+        )
+
+        with pytest.raises(ValidationError) as excinfo:
+            self._reject(
+                spec,
+                {"items": [{"quantity": 1, "zeta": 1}, {"quantity": "x"}]},
+                many_as_argument=True,
+            )
+
+        assert excinfo.value.detail == {
+            "items": {
+                0: {"non_field_errors": ["Unexpected argument(s): 'zeta'."]},
+                1: {"quantity": ["Expected an integer."]},
+            }
+        }
+
+    @pytest.mark.django_db
+    def test_an_open_selector_takes_an_undeclared_key_and_drops_it(self) -> None:
+        post = Post.objects.create(title="p")
+        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_scoped)
+
+        assert self._reject(spec, {"pk": post.pk, "colour": "red"}).value == post
+
+    @pytest.mark.django_db
+    def test_an_open_target_lookup_takes_an_undeclared_key_and_drops_it(self) -> None:
+        post = Post.objects.create(title="p")
+        spec = ServiceSpec(
+            service=_keep,
+            instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_scoped),
+            atomic=False,
+        )
+
+        assert self._reject(spec, {"pk": post.pk, "colour": "red"}).value == "p"
+
+    @pytest.mark.django_db
+    def test_a_closed_lookup_still_refuses_an_undeclared_key(self) -> None:
+        post = Post.objects.create(title="p")
+        spec = ServiceSpec(
+            service=_keep,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=lambda *, pk: Post.objects.filter(pk=pk)
+            ),
+            atomic=False,
+        )
+
+        with pytest.raises(ValidationError) as excinfo:
+            self._reject(spec, {"pk": post.pk, "colour": "red"})
+
+        assert excinfo.value.detail == {"non_field_errors": ["Unexpected argument(s): 'colour'."]}
+
+    @pytest.mark.parametrize("name", ["user", "progress", "data"])
+    def test_a_built_in_seed_name_is_not_unexpected(self, name: str) -> None:
+        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=lambda *, pk: pk)
+
+        assert self._reject(spec, {"pk": 1, name: "spoofed"}).value == 1
+
+    def test_the_view_is_unexpected_though_the_edge_seeds_it(self) -> None:
+        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=lambda *, pk: pk)
+
+        with pytest.raises(ValidationError) as excinfo:
+            self._reject(spec, {"pk": 1, "view": "spoofed"})
+
+        assert excinfo.value.detail == {"non_field_errors": ["Unexpected argument(s): 'view'."]}
+
+    def test_a_seed_name_inside_a_row_is_not_unexpected(self) -> None:
+        class _Row(serializers.Serializer):
+            title = serializers.CharField()
+
+        spec = ServiceSpec(
+            service=lambda *, data: [dict(row) for row in data],
+            input_serializer=_Row,
+            many=True,
+            atomic=False,
+        )
+
+        result = self._reject(spec, [{"title": "a", "user": "spoofed"}])
+
+        assert result.value == [{"title": "a"}]
+
+    def test_a_refusal_with_nothing_to_reshape_leaves_as_translated(self) -> None:
+        # Raised from the kernel's own refusal, so the traceback keeps where
+        # dispatch refused; a reshaped one is raised from the translated one.
+        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_keep_pk)
+
+        with pytest.raises(ValidationError) as excinfo:
+            self._reject(spec, {"pk": "x"})
+
+        cause = excinfo.value.__cause__
+        assert isinstance(cause, KernelInvalidArguments)
+        assert not isinstance(cause, ValidationError)

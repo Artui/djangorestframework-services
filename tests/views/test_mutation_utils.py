@@ -15,6 +15,7 @@ from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.views.mutation.utils import (
     build_input_serializer,
+    build_input_serializer_from_data,
     validate_input,
 )
 
@@ -33,9 +34,42 @@ def _drf_request(method: str, data: Any = None) -> Request:
     return Request(raw, parsers=[JSONParser()])
 
 
+class _Named(serializers.Serializer):
+    name = serializers.CharField()
+    team = serializers.CharField()
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        return {**attrs, "seen": self.context.get("seen")}
+
+
 class TestBuildInputSerializer:
     def test_returns_none_when_input_is_none(self) -> None:
         assert build_input_serializer(_drf_request("post", {"name": "x"}), None) is None
+
+    def test_from_data_returns_none_when_input_is_none(self) -> None:
+        assert build_input_serializer_from_data({"name": "x"}, None) is None
+
+    def test_extra_data_reaches_every_item_of_a_list_body(self) -> None:
+        serializer = build_input_serializer(
+            _drf_request("post", [{"name": "a"}, {"name": "b", "team": "theirs"}]),
+            _Named,
+            many=True,
+            extra_data={"team": "ours"},
+        )
+        assert serializer is not None
+        assert [dict(row) for row in serializer.validated_data] == [
+            {"name": "a", "team": "ours", "seen": None},
+            {"name": "b", "team": "ours", "seen": None},
+        ]
+
+    def test_extra_data_on_a_form_body_keeps_its_scalars(self) -> None:
+        raw = factory.post("/", {"name": "a"}, format="multipart")
+        request = Request(raw, parsers=[FormParser(), MultiPartParser()])
+        serializer = build_input_serializer(
+            request, _Named, extra_data={"team": "ours"}, context={"seen": "ctx"}
+        )
+        assert serializer is not None
+        assert dict(serializer.validated_data) == {"name": "a", "team": "ours", "seen": "ctx"}
 
     def test_returns_bound_validated_serializer(self) -> None:
         serializer = build_input_serializer(_drf_request("post", {"name": "Ada"}), _Sample)

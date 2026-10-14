@@ -21,7 +21,7 @@ from django_service_specs.parameters.coerce_flat import coerce_flat
 from django_service_specs.parameters.parameters import Parameters
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
 from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ErrorDetail, ValidationError
 from rest_framework.settings import api_settings
 
 from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
@@ -127,7 +127,7 @@ def prepare_edge_call(
     principal = user if user is not None else unauthenticated_user()
     shared: dict[str, Any] = {
         "principal": principal,
-        "unknown_arguments": unknown_arguments,
+        "unknown_arguments": enforceable_policy(spec, unknown_arguments),
         "progress": (
             progress if hooks.progress is None else combine_progress(progress, hooks.progress)
         ),
@@ -145,7 +145,9 @@ def prepare_edge_call(
                 guard(spec, guard_context, instance=target)
 
             seeds = seeds.extend(**{TARGET_GUARD_SEED: lambda: bound_guard})
-        arguments = edge_arguments(variant, spec, params, request=request, view=view)
+        arguments = without_seed_names(
+            edge_arguments(variant, spec, params, request=request, view=view), pool_seeds
+        )
         _route_filter_data(arguments, variant.filter_set, filter_data)
         return EdgeCall(
             variant,
@@ -173,6 +175,17 @@ def prepare_edge_call(
         else:
             arguments = edge_arguments(variant, spec, {}, request=request, view=view)
             arguments[spec.many_argument] = rows
+        arguments = without_seed_names(arguments, pool_seeds)
+        # Each row as the top level is. One arc to coverage, so each conjunct is
+        # named: test_arguments_that_are_not_an_object_are_refused fails without
+        # the first (a list sent as the arguments), and
+        # test_a_non_list_is_refused_under_the_argument without the second (a
+        # string would be read as rows); test_a_seed_name_inside_a_row_is_not_unexpected
+        # holds the drop itself.
+        if isinstance(arguments, dict) and isinstance(arguments.get(spec.many_argument), list):
+            arguments[spec.many_argument] = [
+                without_seed_names(row, pool_seeds) for row in arguments[spec.many_argument]
+            ]
         # A bulk call acts on no row, so the provider is handed none.
         server = server_input(spec, hooks, view=view, request=request, instance=None)
         if server and isinstance(arguments.get(spec.many_argument), list):
@@ -208,7 +221,9 @@ def prepare_edge_call(
     )
     hooks = _field_extras_to_context(service, hooks)
     seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
-    arguments = edge_arguments(service, spec, params, request=request, view=view)
+    arguments = without_seed_names(
+        edge_arguments(service, spec, params, request=request, view=view), pool_seeds
+    )
     target_spec = service.target_selector_spec()
     if target_spec is not None:
         _route_filter_data(arguments, target_spec.filter_set, filter_data)
@@ -426,6 +441,61 @@ def _with_ambient(resolver: Callable[..., Any], ambient: Mapping[str, Any]) -> C
         return resolver(**resolve_callable_kwargs(resolver, {**pool, **ambient}))
 
     return resolve
+
+
+def without_seed_names(arguments: Any, pool_seeds: PoolSeeds) -> Any:
+    """``arguments`` less every key naming a seed: a reserved one or one the caller registered.
+
+    A seed's name is never the caller's to send, and this package never counted
+    one as unknown: ``UnknownArguments.REJECT`` exempted them, so a strict caller
+    is not refused for a ``user`` key the call would have ignored. The kernel
+    refuses every key it does not declare, a seed's name among them, so the edge
+    drops them first (test_a_built_in_seed_name_is_not_unexpected,
+    test_a_registered_seed_name_is_not_an_unexpected_argument). ``view``, which
+    only the edge seeds, is not dropped: a caller sending it was refused under
+    ``REJECT`` before the edge seeded it, and still is
+    (test_the_view_is_unexpected_though_the_edge_seeds_it). Arguments that are no
+    mapping are handed on as they are, for the kernel's shape check to refuse.
+    """
+    if not isinstance(arguments, dict):
+        return arguments
+    reserved = pool_seeds.reserved
+    return {name: value for name, value in arguments.items() if name not in reserved}
+
+
+def enforceable_policy(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any], unknown_arguments: UnknownArguments
+) -> UnknownArguments:
+    """``unknown_arguments`` as the kernel can hold ``spec``'s caller to it.
+
+    The kernel closes the argument set on what the spec declares. A selector, or
+    a service's target lookup, taking a bare ``**kwargs`` declares no set: this
+    package never refused a key such a callable could be handed, so ``REJECT``
+    there is answered as ``IGNORE``, which drops an undeclared key rather than
+    refuse it (test_an_open_selector_takes_an_undeclared_key_and_drops_it,
+    test_an_open_target_lookup_takes_an_undeclared_key_and_drops_it). No policy
+    hands it on: ``PASSTHROUGH`` is retired.
+
+    Raises:
+        ImproperlyConfigured: ``REJECT`` on a callable whose ``**kwargs``
+            annotation does not resolve at runtime: the surface is unknown, not
+            open, and a strict policy cannot be honoured against it.
+    """
+    if unknown_arguments is not UnknownArguments.REJECT:
+        return unknown_arguments
+    lookup = _target_lookup(spec) if isinstance(spec, ServiceSpec) else spec
+    reader = lookup.selector if lookup is not None else None
+    if reader is None:
+        return unknown_arguments
+    try:
+        names = _callable_param_names(reader)
+    except _UnresolvedExtras as exc:
+        raise ImproperlyConfigured(
+            f"UnknownArguments.REJECT cannot be enforced: {exc} Make the annotation "
+            "resolvable at runtime (import the TypedDict normally rather than under "
+            "'if TYPE_CHECKING:'), or dispatch with UnknownArguments.IGNORE."
+        ) from exc
+    return UnknownArguments.IGNORE if names is None else unknown_arguments
 
 
 def edge_arguments(
@@ -696,10 +766,15 @@ def edge_errors(
         with translate_dispatch_errors():
             yield
     except InvalidArguments as exc:
-        unwrapped = _bare_rows_error(exc, spec.many_argument, params) if bare_rows else None
-        if unwrapped is None:
+        detail = _unexpected_as_drf(exc.detail)
+        unwrapped = _bare_rows_error(detail, spec.many_argument, params) if bare_rows else None
+        if unwrapped is not None:
+            raise unwrapped from exc
+        # Nothing reshaped leaves as translated, raised from the kernel's own
+        # refusal (test_a_refusal_with_nothing_to_reshape_leaves_as_translated).
+        if detail == exc.detail:
             raise
-        raise unwrapped from exc
+        raise InvalidArguments(detail) from exc
     except (ServiceValidationError, ValidationError) as exc:
         serializer = getattr(spec, "input_serializer", None)
         if serializer is None:
@@ -707,15 +782,47 @@ def edge_errors(
         raise wire_named_error(exc, describe_serializer(serializer)) from exc
 
 
-def _bare_rows_error(
-    exc: InvalidArguments, many_argument: str, params: Any
-) -> ValidationError | None:
-    """``exc`` in the shape a list body is refused in, or ``None`` to leave it keyed.
+def _unexpected_as_drf(detail: Any) -> Any:
+    """``detail`` with the kernel's unknown-argument refusals in this package's words.
+
+    The kernel refuses each undeclared key under its own name, ``"Unknown
+    argument."`` with code ``unknown``; this package always answered
+    ``UnknownArguments.REJECT`` with one message naming them all, under
+    ``non_field_errors``, and a client reads that. So at each level of the tree,
+    a row's included, the keys refused only as unknown become that message, and
+    every other refusal keeps its key
+    (test_a_field_refusal_beside_an_unknown_key_keeps_its_own_key). The code is
+    what tells the refusal apart, since the message is translated.
+    """
+    if not isinstance(detail, dict):
+        return detail
+    unknown = sorted(str(name) for name, errors in detail.items() if _only_unknown(errors))
+    reshaped = {
+        name: _unexpected_as_drf(errors)
+        for name, errors in detail.items()
+        if not _only_unknown(errors)
+    }
+    if unknown:
+        names = ", ".join(repr(name) for name in unknown)
+        reshaped[api_settings.NON_FIELD_ERRORS_KEY] = [
+            *reshaped.get(api_settings.NON_FIELD_ERRORS_KEY, []),
+            ErrorDetail(f"Unexpected argument(s): {names}.", code="invalid"),
+        ]
+    return reshaped
+
+
+def _only_unknown(errors: Any) -> bool:
+    # A row's refusals are a mapping keyed by ``int``, whose keys carry no code,
+    # so it is never read as one; the kernel writes no empty refusal.
+    return all(getattr(error, "code", None) == "unknown" for error in errors)
+
+
+def _bare_rows_error(detail: Any, many_argument: str, params: Any) -> ValidationError | None:
+    """``detail`` in the shape a list body is refused in, or ``None`` to leave it keyed.
 
     A refusal of anything beside the rows - a declared read the route left out -
     names something the caller did send, so it keeps its key.
     """
-    detail: Any = exc.detail
     if set(detail) != {many_argument}:
         return None
     rows = detail[many_argument]

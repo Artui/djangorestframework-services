@@ -369,8 +369,7 @@ async def test_an_argument_beside_the_list_is_unknown_under_reject(core: str) ->
         many_as_argument=True,
         unknown_arguments=UnknownArguments.REJECT,
     )
-    assert refusal.detail == {"note": ["Unknown argument."], "extra": ["Unknown argument."]}
-    assert refusal.get_codes() == {"note": ["unknown"], "extra": ["unknown"]}
+    assert refusal.detail == {"non_field_errors": ["Unexpected argument(s): 'extra', 'note'."]}
 
 
 @_CORES
@@ -405,7 +404,9 @@ async def test_an_undeclared_key_inside_an_item_is_refused_at_its_index(core: st
         many_as_argument=True,
         unknown_arguments=UnknownArguments.REJECT,
     )
-    assert refusal.detail == {"items": {1: {"bogus": ["Unknown argument."]}}}
+    assert refusal.detail == {
+        "items": {1: {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}}
+    }
 
 
 @_CORES
@@ -418,7 +419,7 @@ async def test_without_the_flag_an_undeclared_key_inside_an_item_is_refused_in_t
         params=[_GOOD, {**_GOOD, "bogus": 1}],
         unknown_arguments=UnknownArguments.REJECT,
     )
-    assert refusal.detail == [{}, {"bogus": ["Unknown argument."]}]
+    assert refusal.detail == [{}, {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}]
 
 
 @_CORES

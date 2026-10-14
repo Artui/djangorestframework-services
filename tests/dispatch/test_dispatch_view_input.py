@@ -112,8 +112,7 @@ def test_a_callers_view_is_unknown_under_reject(dispatch: Dispatch) -> None:
     with pytest.raises(ValidationError) as excinfo:
         dispatch(_SELECT, params=_SPOOFED, unknown_arguments=UnknownArguments.REJECT)
 
-    assert excinfo.value.detail == {"view": ["Unknown argument."]}
-    assert excinfo.value.get_codes() == {"view": ["unknown"]}
+    assert excinfo.value.detail == {"non_field_errors": ["Unexpected argument(s): 'view'."]}
 
 
 @_CORES
