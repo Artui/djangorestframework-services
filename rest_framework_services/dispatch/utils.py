@@ -30,6 +30,7 @@ from rest_framework.settings import api_settings
 
 from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
 from rest_framework_services.dispatch.combine_progress import combine_progress
+from rest_framework_services.dispatch.provider_keys import provider_keys
 from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
@@ -222,12 +223,7 @@ def prepare_edge_call(
             spec, partial=partial, unguarded=True, target=handed, server_input=False
         ),
     )
-    seeds = _hidden_lookup_captures(
-        spec,
-        service,
-        view,
-        seeds=edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks),
-    )
+    seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
     arguments = without_seed_names(
         edge_arguments(service, spec, params, request=request, view=view), pool_seeds
     )
@@ -238,6 +234,7 @@ def prepare_edge_call(
     extra_kwargs = _route_author_values(
         spec, service, arguments, hooks, seeds=seeds, view=view, request=request
     )
+    seeds = _hidden_lookup_seeds(spec, service, view, seeds=seeds, extra_kwargs=extra_kwargs)
     if handed:
         target = instance
     elif instance is None:
@@ -692,10 +689,17 @@ def _route_author_values(
     found (test_a_provider_handing_over_the_view_is_refused).
     """
     seeded = seeds.reserved
-    hook_values = {
-        name: value for name, value in (hooks.extra_kwargs or {}).items() if name not in seeded
-    }
     provider = spec.kwargs
+    keys = provider_keys(provider)
+    owned = keys.filled if keys is not None else frozenset()
+    hook_values = {
+        name: value
+        for name, value in (hooks.extra_kwargs or {}).items()
+        if name not in seeded and name not in owned
+    }
+    if isinstance(arguments, dict):
+        for name in owned:
+            arguments.pop(name, None)
     provided: dict[str, Any] = {}
     if provider is not None:
         answered = provider(**resolve_callable_kwargs(provider, {"view": view, "request": request}))
@@ -707,14 +711,34 @@ def _route_author_values(
                 "provider's value must never outrank a seeded one; rename the key."
             )
         provided = dict(answered)
+    wire = _source_to_wire(spec)
     return {
-        **_split_author_values(variant, arguments, hook_values),
-        **_split_author_values(variant, arguments, provided),
+        **_split_author_values(variant, arguments, hook_values, wire=wire),
+        **_split_author_values(variant, arguments, provided, wire=wire),
     }
 
 
+def _source_to_wire(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]) -> dict[str, str]:
+    """``{source: wire_name}`` for the top-level fields of a single call's input serializer.
+
+    A view's hooks and the spec's provider have always named what the service
+    is handed, which is a field's ``source`` where it has one, so a value for
+    ``tenant_id`` is the value of the field the request calls ``tenant``
+    (test_a_hook_value_naming_a_fields_source_is_the_fields_value). A ``many``
+    spec's fields are each row's, and are no argument of the call.
+    """
+    if not isinstance(spec, ServiceSpec) or spec.input_serializer is None or spec.many:
+        return {}
+    described = _wire_names(describe_serializer(spec.input_serializer))
+    return {source: wire_name for source, (wire_name, _) in described.items()}
+
+
 def _split_author_values(
-    variant: KernelServiceSpec | KernelSelectorSpec, arguments: Any, values: Mapping[str, Any]
+    variant: KernelServiceSpec | KernelSelectorSpec,
+    arguments: Any,
+    values: Mapping[str, Any],
+    *,
+    wire: Mapping[str, str],
 ) -> dict[str, Any]:
     """Put each of ``values`` naming a caller's argument into ``arguments``; return the rest.
 
@@ -745,11 +769,18 @@ def _split_author_values(
             names |= target_spec.reads.names()
         if variant.validator is not None and not variant.many:
             names |= variant.validator.parameters().names()
-    routed = {name: value for name, value in values.items() if value is not UNSET and name in names}
+    named = {wire.get(name, name) if name not in names else name: name for name in values}
+    routed = {
+        argument: values[name]
+        for argument, name in named.items()
+        if values[name] is not UNSET and argument in names
+    }
     if isinstance(arguments, dict):
         arguments.update(routed)
     return {
-        name: value for name, value in values.items() if name not in routed and value is not UNSET
+        name: values[name]
+        for argument, name in named.items()
+        if argument not in routed and values[name] is not UNSET
     }
 
 
@@ -767,7 +798,7 @@ def _hidden_captures(
 
     A service spec's target lookup is not reached this way: the kernel hands
     ``extra_kwargs`` to a selector spec's selector and a service, never to a
-    target selector, and ``resolve_target`` takes none. ``_hidden_lookup_captures``
+    target selector, and ``resolve_target`` takes none. ``_hidden_lookup_seeds``
     seeds those instead.
     """
     route = getattr(view, "kwargs", None)
@@ -777,10 +808,15 @@ def _hidden_captures(
     return {name: route[name] for name in sorted(hidden) if name in route}
 
 
-def _hidden_lookup_captures(
-    spec: ServiceSpec[Any, Any, Any], service: KernelServiceSpec, view: Any, *, seeds: PoolSeeds
+def _hidden_lookup_seeds(
+    spec: ServiceSpec[Any, Any, Any],
+    service: KernelServiceSpec,
+    view: Any,
+    *,
+    seeds: PoolSeeds,
+    extra_kwargs: dict[str, Any],
 ) -> PoolSeeds:
-    """``seeds``, plus the route's value for each name a service spec's target lookup hides.
+    """``seeds``, plus a value for each name a service spec's target lookup hides and the route captures.
 
     A route capture of a name the lookup marks ``NotClientInput`` always filled
     it - ``/projects/<project_pk>/tasks/<pk>/`` - since the URLconf is the
@@ -788,13 +824,26 @@ def _hidden_lookup_captures(
     kernel's ``extra_kwargs`` never reach a target lookup and ``resolve_target``
     takes none, so each such capture is registered as a seed of this call, which
     the lookup is handed by name, one resolver per value
-    (test_each_route_capture_fills_its_own_hidden_lookup_key). A name the call
-    already seeds is the seed's, as ``view`` always is
-    (test_a_registered_seed_named_like_a_hidden_lookup_key_wins_over_the_capture);
-    and one the spec declares as a parameter - an input serializer's field of the
-    same name - is the caller's, since the kernel refuses a seed occupying a
-    parameter, so that capture reaches nothing
-    (test_a_serializer_field_named_like_a_hidden_lookup_key_stays_the_clients).
+    (test_each_route_capture_fills_its_own_hidden_lookup_key).
+
+    A seed is the one value of its name in the call, and the kernel refuses any
+    other source for it, so:
+
+    - an author's value for the name, a view hook's or the spec's provider's,
+      is seeded instead of the capture and leaves ``extra_kwargs``: it is what
+      the service was handed, and the lookup is handed it too
+      (test_an_authors_value_for_a_hidden_lookup_key_is_seeded_over_the_capture);
+    - a name the lookup's own provider may answer is not seeded, so its
+      provider fills it (test_a_lookup_provider_answering_a_hidden_key_wins);
+      an untyped one may answer any name, so nothing is seeded beside it and
+      a capture does not reach that lookup (the ``untyped`` case of
+      test_a_lookup_provider_answering_a_hidden_key_wins);
+    - a name the call already seeds is the seed's, as ``view`` always is
+      (test_a_registered_seed_named_like_a_hidden_lookup_key_wins_over_the_capture);
+    - a name the spec declares as a parameter - an input serializer's field of
+      the same name - is the caller's
+      (test_a_serializer_field_named_like_a_hidden_lookup_key_stays_the_clients).
+
     A capture the lookup does not hide is no argument, as before.
 
     One arc to coverage, so each condition that seeds nothing is named by the
@@ -808,8 +857,21 @@ def _hidden_lookup_captures(
     lookup = _target_lookup(spec)
     if not isinstance(route, dict) or lookup is None or lookup.selector is None:
         return seeds
-    hidden = hidden_input_keys(lookup.selector) - seeds.reserved - service.parameters().names()
-    captured = {name: _constant(route[name]) for name in sorted(hidden) if name in route}
+    keys = provider_keys(lookup.kwargs)
+    if keys is None:
+        return seeds
+    hidden = (
+        hidden_input_keys(lookup.selector)
+        - seeds.reserved
+        - service.parameters().names()
+        - keys.filled
+        - keys.declinable
+    )
+    captured = {
+        name: _constant(extra_kwargs.pop(name) if name in extra_kwargs else route[name])
+        for name in sorted(hidden)
+        if name in route
+    }
     return seeds.extend(**captured) if captured else seeds
 
 
@@ -903,7 +965,8 @@ def edge_errors(
     - The kernel's refusal of an undeclared key, ``"Unknown argument."`` under
       the key, is answered as this package always answered
       ``UnknownArguments.REJECT``: one ``"Unexpected argument(s): ..."`` message
-      under ``non_field_errors``, at each level of the tree (``_unexpected_as_drf``).
+      under ``non_field_errors``, at the top level and in each row, where the
+      kernel's refusal can be (``_unexpected_as_drf``).
       Here rather than in ``translate_dispatch_errors``, which every transport
       shares: the wording is this edge's answer.
     - A validation error a service or a precondition raises is keyed by the

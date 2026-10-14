@@ -54,9 +54,9 @@ async def adispatch_spec(
 
     The call is prepared exactly as the sync twin prepares it, in one hop to
     Django's thread-sensitive executor: compiling the spec's variant, routing
-    the arguments, resolving a service spec's target and running the
-    ``on_target_resolved`` guard all happen there, since the lookup and the
-    guard query. Then the kernel's ``adispatch`` runs the call, and its own
+    the arguments, calling the spec's ``kwargs`` provider, resolving a service
+    spec's target and running the ``on_target_resolved`` guard all happen
+    there, since the provider, the lookup and the guard may query. Then the kernel's ``adispatch`` runs the call, and its own
     rule for what runs off the loop applies to everything after: a sync
     selector, service, provider, precondition or affordance condition runs in
     the executor, an ``async def`` one is awaited. A selector spec's guard runs

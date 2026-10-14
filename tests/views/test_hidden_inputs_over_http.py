@@ -22,6 +22,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from rest_framework import serializers
 from rest_framework.test import APIRequestFactory
+from typing_extensions import TypedDict
 
 from rest_framework_services import (
     NotClientInput,
@@ -232,6 +233,94 @@ def test_with_no_view_a_hidden_lookup_key_keeps_its_default(seen: list[Any]) -> 
     dispatch_spec(_View.spec, user=None, params={"pk": post.pk})
 
     assert seen == ["own-team"]
+
+
+def _post_for_team_seen_by_both(
+    *, pk: int, team: Annotated[str, NotClientInput] = "own-team"
+) -> QuerySet[Post]:
+    _SEEN.append(("lookup", team))
+    return Post.objects.filter(pk=pk)
+
+
+def _touch_seeing_team(
+    *, instance: Post, team: Annotated[str, NotClientInput] = "service-default"
+) -> Post:
+    _SEEN.append(("service", team))
+    return instance
+
+
+def _both_view(*, kwargs: Any = None, lookup_kwargs: Any = None, **attrs: Any) -> Any:
+    namespace: dict[str, Any] = {
+        "queryset": Post.objects.all(),
+        "spec": ServiceSpec(
+            service=_touch_seeing_team,
+            kwargs=kwargs,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                selector=_post_for_team_seen_by_both,
+                kwargs=lookup_kwargs,
+            ),
+            output_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, output_serializer=PostSerializer
+            ),
+            atomic=False,
+        ),
+        **attrs,
+    }
+    return type("_BothView", (ServiceUpdateView,), namespace).as_view()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "attrs",
+    [
+        {"kwargs": lambda: {"team": "author-team"}},
+        {"get_service_kwargs": lambda self: {"team": "author-team"}},
+    ],
+    ids=["spec-provider", "view-hook"],
+)
+def test_an_authors_value_for_a_hidden_lookup_key_is_seeded_over_the_capture(
+    seen: list[Any], attrs: dict[str, Any]
+) -> None:
+    """Behaviour change: the service is handed the author's value, as it was, and
+    the lookup now is too, where it was handed the capture: a call has one value
+    for a seeded name."""
+    post = Post.objects.create(title="p")
+
+    response = _both_view(**attrs)(
+        factory.put("/", {}, format="json"), pk=post.pk, team="route-team"
+    )
+
+    assert response.status_code == 200
+    assert seen == [("lookup", "author-team"), ("service", "author-team")]
+
+
+class _TeamScope(TypedDict):
+    team: str
+
+
+def _scope_to_the_lookups_team() -> _TeamScope:
+    return {"team": "lookup-team"}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "lookup_kwargs",
+    [_scope_to_the_lookups_team, lambda: {"team": "lookup-team"}],
+    ids=["typed", "untyped"],
+)
+def test_a_lookup_provider_answering_a_hidden_key_wins(seen: list[Any], lookup_kwargs: Any) -> None:
+    """The lookup's own provider fills the name, so the capture is not seeded
+    under it; an untyped one may answer any name, so nothing is seeded beside it
+    (its ``untyped`` case)."""
+    post = Post.objects.create(title="p")
+
+    response = _both_view(lookup_kwargs=lookup_kwargs)(
+        factory.put("/", {}, format="json"), pk=post.pk, team="route-team"
+    )
+
+    assert response.status_code == 200
+    assert seen == [("lookup", "lookup-team"), ("service", "service-default")]
 
 
 class _TeamIn(serializers.Serializer):

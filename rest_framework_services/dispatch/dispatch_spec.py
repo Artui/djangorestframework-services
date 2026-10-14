@@ -85,8 +85,12 @@ def dispatch_spec(
             reads, is taken from them when there, over ``params``; a declared
             ``UrlKwarg`` sent in ``params`` that the view lacks is put onto
             them, and a declared ``QueryParam`` onto ``request.query_params``,
-            so a provider reading either finds it. A route capture nothing
-            declares or reads is no argument.
+            so a provider reading either finds it. A capture of a name the
+            selector, or a service spec's target lookup, marks
+            ``NotClientInput`` fills it: the lookup's is seeded for the call,
+            beneath a seed of that name and the lookup's own provider, and an
+            author's value for the name is seeded in its place. A route
+            capture nothing declares, reads or hides is no argument.
         pool_seeds: The project's seeds. Registering ``request`` or ``view`` is
             refused, since the edge seeds both; a resolver declaring either is
             handed this call's.
@@ -100,8 +104,11 @@ def dispatch_spec(
             ``ValueError``. ``REJECT`` names every undeclared key in one
             ``"Unexpected argument(s): ..."`` message under
             ``non_field_errors``, a row's inside that row; a seed's name is
-            never one, ``view`` aside; and a selector or target lookup taking
-            a bare ``**kwargs`` drops an undeclared key rather than refuse it.
+            never one, ``view`` aside. Where a target lookup will query, an
+            undeclared key is refused before it does, alone. A selector or
+            target lookup taking a bare ``**kwargs``, and a service with no
+            ``input_serializer`` taking one under ``SPREAD_AUTHOR_WINS``, drop
+            an undeclared key rather than refuse it.
         on_target_resolved: The guard, called ``guard(spec, context,
             instance=target)`` with an ``OfflineContext`` of the ``user``,
             ``request`` and ``view`` passed here. A service spec's target is
@@ -113,11 +120,16 @@ def dispatch_spec(
         progress: The transport's progress reporter, combined with
             ``view_hooks.progress``.
         view_hooks: The calling view's resolved hook chains: an ``extra_kwargs``
-            value for a read the spec declares (its callable's or its target
-            lookup's) is put into the arguments over the client's value, and
-            the rest goes to ``dispatch(extra_kwargs=)``, all beneath the spec's
-            own provider; ``input_data`` is merged over the arguments, beneath the spec's
-            ``input_data``; ``progress`` joins ``progress``.
+            value for a name the caller fills (a read of the spec's callable or
+            target lookup, or a field of a single call's input serializer, by
+            its name or its ``source``) is put into the arguments over the
+            client's value and checked as it would be; a value naming a seed is
+            dropped; the rest goes to ``dispatch(extra_kwargs=)``. The spec's
+            ``kwargs`` provider is called here, from ``view`` and ``request``,
+            and its answer is split the same way over the hooks', a key it
+            names a seed refused; a key its ``TypedDict`` fills is never the
+            caller's or a hook's. ``input_data`` is merged over the arguments,
+            beneath the spec's ``input_data``; ``progress`` joins ``progress``.
         instance: The row the caller resolved itself (a view's
             ``get_object()``), handed to ``dispatch`` as its target; no lookup
             runs. ``None`` is a create on a spec that declares no target

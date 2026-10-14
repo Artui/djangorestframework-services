@@ -296,3 +296,77 @@ def test_a_hook_value_naming_no_field_stays_an_extra_beside_a_serializer(
 
     assert result.value["clock"] == "hook"
     assert result.value["context_tenant"] is None
+
+
+class _SourcedTenantIn(serializers.Serializer):
+    title = serializers.CharField()
+    tenant = serializers.CharField(source="tenant_id")
+
+
+def _sourced(*, data: Any, tenant_id: str) -> dict[str, Any]:
+    return {"data": dict(data), "tenant_id": tenant_id}
+
+
+@pytest.mark.django_db
+@_CORES
+def test_a_hook_value_naming_a_fields_source_is_the_fields_value(dispatch: Dispatch) -> None:
+    """A hook names what the service is handed, the field's ``source``; the
+    value is the field's, over the caller's, as a value under its wire name is."""
+    spec = ServiceSpec(service=_sourced, input_serializer=_SourcedTenantIn, atomic=False)
+
+    result = dispatch(
+        spec,
+        params={"title": "t", "tenant": "client"},
+        view_hooks=ViewHooks(extra_kwargs={"tenant_id": "hook"}),
+    )
+
+    assert result.service_result == {
+        "data": {"title": "t", "tenant_id": "hook"},
+        "tenant_id": "hook",
+    }
+
+
+@_CORES
+@pytest.mark.django_db
+def test_a_spec_provider_value_for_a_target_read_picks_the_row(dispatch: Dispatch) -> None:
+    """Behaviour change: the spec's provider scopes the target lookup as a hook
+    value does, where the lookup used to read the caller's value."""
+    sent = Post.objects.create(title="sent")
+    scoped = Post.objects.create(title="scoped")
+    spec = ServiceSpec(
+        service=_touch,
+        kwargs=lambda: {"pk": scoped.pk},
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_posts_by_pk),
+        atomic=False,
+    )
+
+    result = dispatch(spec, params={"pk": sent.pk})
+
+    assert result.service_result == scoped.pk
+
+
+class _OwnsTheTenant(TypedDict):
+    tenant: str
+
+
+def _decline_the_tenant() -> _OwnsTheTenant:
+    return {"tenant": UNSET}
+
+
+@_CORES
+def test_a_typed_provider_owns_the_keys_it_fills_even_when_it_declines(
+    dispatch: Dispatch,
+) -> None:
+    """A key the provider is annotated to fill is never the caller's, nor a view
+    hook's: declining it leaves it missing rather than handing the caller's
+    value through."""
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=_tenant_rows, kwargs=_decline_the_tenant)
+
+    with pytest.raises(ValidationError) as excinfo:
+        dispatch(
+            spec,
+            params={"tenant": "client"},
+            view_hooks=ViewHooks(extra_kwargs={"tenant": "hook"}),
+        )
+
+    assert excinfo.value.get_codes() == {"tenant": ["required"]}
