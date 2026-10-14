@@ -15,13 +15,13 @@ from rest_framework_services.jsonschema.utils import (
     serializer_for_schema,
     serializer_to_schema,
 )
+from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
 from rest_framework_services.types.audience_projection import AudienceProjection
 from rest_framework_services.types.json_schema_registry import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
     JsonSchemaRegistry,
 )
 from rest_framework_services.types.selector_kind import SelectorKind
-from rest_framework_services.types.service_spec import ServiceSpec
 
 
 def output_to_json_schema(
@@ -33,7 +33,7 @@ def output_to_json_schema(
     handle_description: str | None = None,
     registry: JsonSchemaRegistry = DEFAULT_JSON_SCHEMA_REGISTRY,
     max_depth: int | None = None,
-    affordances: Mapping[str, ServiceSpec[Any, Any, Any]] | None = None,
+    affordances: Mapping[str, AffordanceDeclarer] | None = None,
     allow_none: bool = False,
 ) -> dict[str, Any] | None:
     """Build a JSON Schema for an output serializer, or ``None`` when undeclared.

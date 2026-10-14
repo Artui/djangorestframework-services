@@ -117,6 +117,15 @@ class TestSelectorSpecAffordances:
         with pytest.raises(ImproperlyConfigured, match="not its registry name"):
             _listing(affordances={"publish": "publish_post"})
 
+    def test_a_selector_spec_is_refused_in_place_of_a_service_spec(self) -> None:
+        """A ``SelectorSpec`` has an ``affordances`` of its own, so a check by that attribute
+        would let the spec of a read through where the spec of a write is meant."""
+        with pytest.raises(
+            ImproperlyConfigured, match=r"affordances\['publish'\] must be a ServiceSpec"
+        ) as info:
+            _listing(affordances={"publish": SelectorSpec(kind=SelectorKind.LIST)})
+        assert "got SelectorSpec" in str(info.value)
+
     def test_a_generated_annotation_colliding_with_a_declared_one_is_refused(self) -> None:
         with pytest.raises(ImproperlyConfigured, match="which `annotations` already declares"):
             _listing(

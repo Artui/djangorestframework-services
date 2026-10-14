@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **No `if TYPE_CHECKING:` guard remains in the package, and none may be
+  added.** `SelectorSpec` imported `ServiceSpec` under one and imported it
+  again inside a function for the check on its `affordances`, to hide the
+  cycle between the two modules (`service_spec` imports `selector_spec` for
+  the selector specs a service declares). The cycle is broken by structure
+  now: `ServiceSpec` gains a base class, `AffordanceDeclarer`
+  (`rest_framework_services.types.affordance_declarer`, not exported from
+  `types` or the root), which declares the one attribute a selector reads off
+  each value of its `affordances`, `affordances`. The `affordances` annotation
+  on `SelectorSpec` is that base rather than `ServiceSpec`, as is the
+  `affordances` parameter of `output_to_json_schema` (a `ServiceSpec` still
+  satisfies it), and the construction-time refusal still refuses every value it
+  refused before, with the same error and message. The base is nominal rather
+  than a protocol on purpose: a `SelectorSpec` has an `affordances` of its own
+  and would pass a check by attribute. `ruff` bans `typing.TYPE_CHECKING` and
+  `typing_extensions.TYPE_CHECKING` (`TID251`); the tests that exercise an
+  annotation imported only for type checking keep their guard and are
+  exempted by path.
+  Typed code that reads a value out of `SelectorSpec.affordances` now sees an
+  `AffordanceDeclarer` and narrows it with `isinstance(value, ServiceSpec)`
+  before using a `ServiceSpec` attribute; passing a `ServiceSpec` in is
+  unaffected.
+
 ## [0.57.0] — 2026-10-13
 
 ### Changed

@@ -16,6 +16,7 @@ from typing import Any, Final
 
 from django.core.exceptions import ImproperlyConfigured
 
+from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.utils import affordance_alias
@@ -30,7 +31,7 @@ _MISSING: Final = object()
 
 def rendered_affordances(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
-) -> Mapping[str, ServiceSpec[Any, Any, Any]] | None:
+) -> Mapping[str, AffordanceDeclarer] | None:
     """The ``affordances`` mapping on whichever selector spec ``spec`` renders through.
 
     A ``SelectorSpec`` carries its own. A ``ServiceSpec`` renders through its
@@ -45,7 +46,7 @@ def rendered_affordances(
 
 
 def with_affordances(
-    payload: Any, value: Any, affordances: Mapping[str, ServiceSpec[Any, Any, Any]], *, many: bool
+    payload: Any, value: Any, affordances: Mapping[str, AffordanceDeclarer], *, many: bool
 ) -> Any:
     """``payload`` with each rendered object carrying its row's answers.
 
@@ -64,7 +65,7 @@ def with_affordances(
     return [_with_answers(item, row, affordances) for item, row in zip(payload, value, strict=True)]
 
 
-def affordance_schema(affordances: Mapping[str, ServiceSpec[Any, Any, Any]]) -> dict[str, Any]:
+def affordance_schema(affordances: Mapping[str, AffordanceDeclarer]) -> dict[str, Any]:
     """The JSON Schema for the ``affordances`` object ``with_affordances`` adds.
 
     One property per declared name, each an object whose ``available`` is always
@@ -86,7 +87,7 @@ def affordance_schema(affordances: Mapping[str, ServiceSpec[Any, Any, Any]]) -> 
 
 
 def _with_answers(
-    item: Any, row: Any, affordances: Mapping[str, ServiceSpec[Any, Any, Any]]
+    item: Any, row: Any, affordances: Mapping[str, AffordanceDeclarer]
 ) -> dict[str, Any]:
     if not isinstance(item, Mapping):
         raise ImproperlyConfigured(
@@ -101,9 +102,7 @@ def _with_answers(
     return {**item, AFFORDANCES_KEY: _answers(row, affordances)}
 
 
-def _answers(
-    row: Any, affordances: Mapping[str, ServiceSpec[Any, Any, Any]]
-) -> dict[str, dict[str, Any]]:
+def _answers(row: Any, affordances: Mapping[str, AffordanceDeclarer]) -> dict[str, dict[str, Any]]:
     """Each declared name's answer for ``row``, walking its conditions in order.
 
     ``True`` continues. ``False`` is the first unmet condition, reported with its

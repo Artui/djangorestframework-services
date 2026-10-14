@@ -16,6 +16,10 @@
 
 ::: rest_framework_services.types.affordance.Affordance
 
+## `AffordanceDeclarer`
+
+::: rest_framework_services.types.affordance_declarer.AffordanceDeclarer
+
 ## `PolymorphicServiceSpec`
 
 ::: rest_framework_services.types.polymorphic_service_spec.PolymorphicServiceSpec

@@ -27,6 +27,7 @@ from rest_framework_services.selectors.utils import (
 )
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
+from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.marked_input_keys import marked_input_keys
 from rest_framework_services.types.offline_context import OfflineContext
@@ -1252,7 +1253,7 @@ def answer_operation_condition(
 
 
 def split_affordances(
-    affordances: Mapping[str, ServiceSpec[Any, Any, Any]],
+    affordances: Mapping[str, AffordanceDeclarer],
     pool: Mapping[str, Any],
     *,
     reserved: frozenset[str],
