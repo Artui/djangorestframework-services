@@ -75,12 +75,32 @@ class TestTheKernelsRefusals:
         assert type(translated) is NotPermitted
         assert translated.detail == "Only the owner may do this."
 
+    def test_an_invalid_arguments_subclass_keeps_its_message(self) -> None:
+        class _RowsRefused(KernelInvalidArguments):
+            default_message = "Some rows were refused."
+
+        translated = _raised_through(_RowsRefused({"rows": {0: {"n": ["Bad."]}}}))
+        assert type(translated) is InvalidArguments
+        assert isinstance(translated, InvalidArguments)
+        assert translated.message == "Some rows were refused."
+
     async def test_it_translates_around_an_await(self) -> None:
         async def refuse() -> None:
             raise KernelNotPermitted()
 
         with pytest.raises(NotPermitted), translate_dispatch_errors():
             await refuse()
+
+    async def test_as_a_decorator_on_an_async_def_it_translates_nothing(self) -> None:
+        # The decorator wraps the call that creates the coroutine, which raises
+        # nothing; the refusal comes later, from the await, outside the block.
+        @translate_dispatch_errors()
+        async def refuse() -> None:
+            raise KernelNotPermitted()
+
+        with pytest.raises(KernelNotPermitted) as excinfo:
+            await refuse()
+        assert type(excinfo.value) is KernelNotPermitted
 
 
 class TestWhatItLeavesAlone:

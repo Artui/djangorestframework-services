@@ -24,12 +24,12 @@ class PrincipalUnavailable(KernelPrincipalUnavailable, PermissionDenied):
     The default is the kernel's wording, not DRF's, since there is nobody to
     refuse a permission to.
 
-    The kernel's base comes first, so its ``__init__`` sets ``message``; with
-    DRF's first, nothing would, and
-    ``test_the_default_is_the_kernels_message_not_drfs`` fails. DRF's
-    ``__init__`` is then run by name, as ``NotPermitted``'s is, because the
-    kernel's ``super()`` chain passes it no ``code``:
-    ``test_a_code_given_is_kept`` is what fails without the call.
+    Both ``__init__``s run by name, as ``NotPermitted``'s do, so the order of
+    the bases is a choice no test can tell from the other. The kernel's sets
+    ``message``: ``test_the_default_is_the_kernels_message_not_drfs`` fails
+    without it. DRF's sets ``detail`` with the ``code`` given, which the
+    kernel's ``super()`` chain never passes: ``test_a_code_given_is_kept``
+    fails without it.
     """
 
     def __init__(self, message: str | None = None, code: str | None = None) -> None:

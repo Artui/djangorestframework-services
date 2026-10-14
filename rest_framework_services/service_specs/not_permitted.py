@@ -22,12 +22,12 @@ class NotPermitted(KernelNotPermitted, PermissionDenied):
     ``message`` is the kernel's, and ``detail`` is the same words as DRF's
     ``ErrorDetail``, coded ``"permission_denied"`` unless ``code`` is given.
 
-    The kernel's base comes first, so its ``__init__`` sets ``message``; with
-    DRF's first, nothing would, and ``test_the_default_is_the_kernels_message``
-    fails. DRF's ``__init__`` is then run by name rather than left to the
-    kernel's ``super()`` chain, which reaches it only because of where the
-    bases sit and passes it no ``code``: ``test_a_code_given_is_kept`` is what
-    fails without the call.
+    Both ``__init__``s run by name, so neither depends on the order of the
+    bases, which is a choice (the kernel's first, as the class is named) and
+    no test can tell from the other. The kernel's sets ``message``:
+    ``test_the_default_is_the_kernels_message`` fails without it. DRF's sets
+    ``detail`` with the ``code`` given, which the kernel's ``super()`` chain
+    never passes: ``test_a_code_given_is_kept`` fails without it.
     """
 
     def __init__(self, message: str | None = None, code: str | None = None) -> None:

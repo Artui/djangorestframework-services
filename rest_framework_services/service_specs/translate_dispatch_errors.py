@@ -38,7 +38,8 @@ def translate_dispatch_errors() -> Iterator[None]:
       and its ``PrincipalUnavailable`` as
       [`PrincipalUnavailable`][rest_framework_services.service_specs.principal_unavailable.PrincipalUnavailable],
       each with the same message;
-    - a subclass of any of the three leaves as that class's twin.
+    - a subclass of any of the three leaves as that class's twin, with the
+      subclass's message.
 
     The new exception is raised ``from`` the kernel's, so the traceback keeps
     where dispatch refused. Each dual-base class is still the kernel's, so an
@@ -76,7 +77,11 @@ def _drf_twin(exc: DispatchError) -> DispatchError | None:
     if isinstance(exc, APIException):
         return None
     if isinstance(exc, KernelInvalidArguments):
-        return InvalidArguments(exc.detail)
+        # The kernel's class takes no message, so one a subclass declares is
+        # carried across by hand (test_an_invalid_arguments_subclass_keeps_its_message).
+        twin = InvalidArguments(exc.detail)
+        twin.message = exc.message
+        return twin
     if isinstance(exc, KernelNotPermitted):
         return NotPermitted(exc.message)
     if isinstance(exc, KernelPrincipalUnavailable):

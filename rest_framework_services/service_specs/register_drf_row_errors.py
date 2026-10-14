@@ -13,8 +13,7 @@ def register_drf_row_errors() -> None:
 
     A nested write runs a row service per related row, and one written for DRF
     refuses its row with DRF's ``ValidationError``, which the kernel cannot
-    name. Unregistered, that refusal leaves the write carrying only the row's
-    own fields, so the caller cannot tell which row was refused. Registered,
+    name, so it would otherwise escape the write naming no row. Registered,
     it is re-addressed as the kernel's own refusals are - a collection's row
     under its ``int`` index, a message about the row itself under
     ``non_field_errors`` - and rebuilt as DRF's ``ValidationError``, with every
