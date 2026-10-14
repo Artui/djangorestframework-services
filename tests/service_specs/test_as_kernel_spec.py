@@ -884,3 +884,23 @@ def test_a_current_user_default_reads_the_principal() -> None:
     result = dispatch(spec, principal=principal, arguments={"title": "Hi"})
 
     assert result.value == {"title": "Hi", "owner": principal}
+
+
+@pytest.mark.parametrize(
+    ("output", "allow_none"),
+    [
+        (None, True),
+        (SelectorSpec(kind=SelectorKind.RETRIEVE), True),
+        (SelectorSpec(kind=SelectorKind.LIST, selector=_every), True),
+        (SelectorSpec(kind=SelectorKind.LIST), False),
+    ],
+    ids=["no-output", "retrieve-no-re-read", "list-re-read", "list-no-re-read"],
+)
+def test_only_a_list_output_with_no_re_read_turns_allow_none_off(
+    output: Any, allow_none: bool
+) -> None:
+    """Each case holds one conjunct of ``_lists_its_return``: the first its
+    ``None`` check, the second the kind, the third the selector."""
+    spec = ServiceSpec(service=_create, output_selector_spec=output, allow_none=True)
+
+    assert _kernel_service(spec).allow_none is allow_none

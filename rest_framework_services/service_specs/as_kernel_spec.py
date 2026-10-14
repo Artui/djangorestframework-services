@@ -195,6 +195,9 @@ def _service(spec: Any, *, partial: bool | None) -> KernelServiceSpec:
 def _lists_its_return(spec: Any) -> bool:
     """Whether ``spec`` declares a ``LIST`` output it does not re-read."""
     output = spec.output_selector_spec
+    # One arc to coverage: each conjunct is held by its own case of
+    # test_only_a_list_output_with_no_re_read_turns_allow_none_off (no-output,
+    # retrieve-no-re-read and list-re-read, in order).
     return output is not None and output.kind is SelectorKind.LIST and output.selector is None
 
 
@@ -521,7 +524,11 @@ def _parameter(name: str, hint: Any, *, required: bool, default: Any = UNSET) ->
         kind,
         required=required or marked_required,
         nullable=nullable,
-        default=default,
+        # ``InputRequired`` is the author saying the caller must send the key, so a
+        # Python default beside it (``= None``, written so the signature is valid)
+        # is not one the kernel may fill: it lets a required parameter with a
+        # default go absent (test_a_none_defaulted_required_key_is_enforced).
+        default=UNSET if marked_required else default,
         help=read_input_description(hint),
         **extra,
     )
