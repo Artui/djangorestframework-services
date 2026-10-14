@@ -53,12 +53,14 @@ def kernel_spec_variant(
       ``target=`` on a spec with no target selector. The stand-in reads no
       arguments and is never called: a dispatch reaching it raises
       ``ImproperlyConfigured``. A spec with a target lookup keeps its own.
-    - ``server_input``: ``False``, for a service spec only, compiles it with no
-      ``input_data``, which the DRF edge evaluates itself and merges into the
-      arguments: the kernel relaxes a Validator field only for a provider
-      annotated to fill it, so an untyped one, as drfs has always taken, would
-      be refused as missing before it ran. Leaving it on would also call the
-      provider twice.
+    - ``server_input``: ``False`` compiles the spec with no ``kwargs``
+      provider and, on a service spec, no ``input_data``: the DRF edge
+      evaluates both itself and merges what they answer into the arguments.
+      The kernel relaxes a parameter only for a provider annotated to fill it,
+      so an untyped one, as drfs has always taken, would be refused as missing
+      before it ran; and a typed one declining a key it is annotated to fill
+      would reach the kernel's run as a ``KeyError``. Leaving either on would
+      also call the provider twice.
     """
     key: _Variant = (partial, unguarded, target, server_input)
     if key == (None, False, False, True):
@@ -84,8 +86,10 @@ def _compile(
     if unguarded:
         changes["permissions"] = None
     if not server_input:
+        changes["kwargs"] = None
         # A service spec's alone: a selector spec has no ``input_data``.
-        changes["input_data"] = None
+        if isinstance(compiled, KernelServiceSpec):
+            changes["input_data"] = None
     # One arc to coverage, so each conjunct is named:
     # test_a_selector_spec_takes_no_stand_in fails without the first, and
     # test_a_declared_lookup_is_kept without the second.

@@ -230,9 +230,10 @@ def _echo(*, data: Any) -> dict[str, Any]:
 
 @pytest.mark.django_db
 @_CORES
-def test_a_hook_value_naming_a_serializer_field_reaches_its_context(dispatch: Dispatch) -> None:
-    """Not an overlay, which the kernel refuses for a Validator field, and not the
-    field's value, which stays the caller's: the serializer's context."""
+def test_a_hook_value_naming_a_serializer_field_is_the_fields_value(dispatch: Dispatch) -> None:
+    """Behaviour change: the view's value is the server's, so it wins over the
+    caller's for the field and is validated as it, and the serializer's context
+    is left alone."""
     spec = ServiceSpec(service=_echo, input_serializer=_TitleTenantIn, atomic=False)
 
     result = dispatch(
@@ -241,12 +242,29 @@ def test_a_hook_value_naming_a_serializer_field_reaches_its_context(dispatch: Di
         view_hooks=ViewHooks(extra_kwargs={"tenant": "hook"}),
     )
 
-    assert result.value == {"title": "t", "tenant": "client", "context_tenant": "hook"}
+    assert result.value == {"title": "t", "tenant": "hook", "context_tenant": None}
 
 
 @pytest.mark.django_db
 @_CORES
-def test_the_views_own_context_layer_wins_over_a_moved_field_value(dispatch: Dispatch) -> None:
+def test_a_hook_value_for_a_field_is_validated_as_the_field(dispatch: Dispatch) -> None:
+    spec = ServiceSpec(service=_echo, input_serializer=_TitleTenantIn, atomic=False)
+
+    with pytest.raises(ValidationError) as excinfo:
+        dispatch(
+            spec,
+            params={"title": "t", "tenant": "client"},
+            view_hooks=ViewHooks(extra_kwargs={"tenant": None}),
+        )
+
+    assert excinfo.value.get_codes() == {"tenant": ["null"]}
+
+
+@pytest.mark.django_db
+@_CORES
+def test_the_views_own_context_layer_is_the_context_beside_a_field_value(
+    dispatch: Dispatch,
+) -> None:
     spec = ServiceSpec(service=_echo, input_serializer=_TitleTenantIn, atomic=False)
 
     result = dispatch(
@@ -257,7 +275,7 @@ def test_the_views_own_context_layer_wins_over_a_moved_field_value(dispatch: Dis
         ),
     )
 
-    assert result.value["context_tenant"] == "context"
+    assert result.value == {"title": "t", "tenant": "hook", "context_tenant": "context"}
 
 
 @pytest.mark.django_db

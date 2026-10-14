@@ -134,8 +134,7 @@ def prepare_edge_call(
     }
     guard_context = OfflineContext(user=user, request=request, view=view)
     if isinstance(spec, SelectorSpec):
-        variant: Any = kernel_spec_variant(spec, unguarded=True)
-        hooks = _field_extras_to_context(variant, hooks)
+        variant: Any = kernel_spec_variant(spec, unguarded=True, server_input=False)
         seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
         if on_target_resolved is not None:
             variant = guarded_selector(variant)
@@ -156,9 +155,8 @@ def prepare_edge_call(
                 "arguments": arguments,
                 "extra_kwargs": {
                     **_hidden_captures(spec, view, seeds=seeds),
-                    **(
-                        _route_hook_extras(variant, arguments, hooks.extra_kwargs, seeds=seeds)
-                        or {}
+                    **_route_author_values(
+                        spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
                     ),
                 },
                 "grant": Grant(variant, principal),
@@ -167,7 +165,6 @@ def prepare_edge_call(
         )
     if spec.many:
         variant = kernel_spec_variant(spec, partial=partial, unguarded=True, server_input=False)
-        hooks = _field_extras_to_context(variant, hooks)
         seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
         rows = params
         if many_as_argument:
@@ -193,7 +190,9 @@ def prepare_edge_call(
                 {**row, **server} if isinstance(row, Mapping) else row
                 for row in arguments[spec.many_argument]
             ]
-        extra_kwargs = _route_hook_extras(variant, arguments, hooks.extra_kwargs, seeds=seeds)
+        extra_kwargs = _route_author_values(
+            spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
+        )
         # A bulk call acts on no target, as on main: the guard is asked about ``None``.
         if on_target_resolved is not None:
             on_target_resolved(spec, guard_context, instance=None)
@@ -219,7 +218,6 @@ def prepare_edge_call(
             spec, partial=partial, unguarded=True, target=handed, server_input=False
         ),
     )
-    hooks = _field_extras_to_context(service, hooks)
     seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
     arguments = without_seed_names(
         edge_arguments(service, spec, params, request=request, view=view), pool_seeds
@@ -227,8 +225,10 @@ def prepare_edge_call(
     target_spec = service.target_selector_spec()
     if target_spec is not None:
         _route_filter_data(arguments, target_spec.filter_set, filter_data)
-    # Before the lookup, which a hook value for one of its reads scopes.
-    extra_kwargs = _route_hook_extras(service, arguments, hooks.extra_kwargs, seeds=seeds)
+    # Before the lookup, which an author's value for one of its reads scopes.
+    extra_kwargs = _route_author_values(
+        spec, service, arguments, hooks, seeds=seeds, view=view, request=request
+    )
     if handed:
         target = instance
     elif instance is None:
@@ -571,52 +571,103 @@ def _flat(
     return flat
 
 
-def _route_hook_extras(
+def _route_author_values(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     variant: KernelServiceSpec | KernelSelectorSpec,
     arguments: Any,
-    extras: Mapping[str, Any] | None,
+    hooks: ViewHooks,
     *,
     seeds: PoolSeeds,
-) -> Mapping[str, Any] | None:
-    """Split a view hook's extras: a declared read's value into ``arguments``, the rest returned.
+    view: Any,
+    request: Any,
+) -> dict[str, Any]:
+    """The author's values for the call: the view's hook extras, then the spec's ``kwargs`` provider.
 
-    A view's ``get_*_kwargs`` hooks have always supplied values for the names a
-    spec reads - ``get_selector_kwargs()`` returning the selector's ``tenant``
-    - and the kernel refuses ``extra_kwargs`` naming a declared parameter. So a
-    hook value for a read of the compiled spec (its service's or selector's, or
-    a service spec's target lookup's) goes into the arguments, over the
-    client's, as a view layer always outranked the request; what is left is
-    returned for ``dispatch(extra_kwargs=)``. Arguments that are no mapping
-    take nothing, for the kernel's shape check to refuse.
+    Both are the server's, so both outrank the caller, and the spec's provider
+    outranks the view's hooks, as the chain always ran ``get_*_kwargs``, then
+    ``get_<action>_*_kwargs``, then ``spec.kwargs``. Each is split by
+    ``_split_author_values``: a value for a name the caller fills goes into
+    ``arguments``, over the caller's, and is checked there as the caller's
+    would be; the rest is returned for ``dispatch(extra_kwargs=)``.
 
-    The spec's own provider still wins: the kernel drops the caller's value for
-    a name its typed ``kwargs`` provider fills, wherever that value came from
-    (test_the_specs_typed_provider_wins_over_a_hook_value). One arc to coverage,
-    so each condition that keeps a value an extra is named by the test that
-    fails without it: an ``UNSET`` value supplies nothing
-    (test_an_unset_hook_value_leaves_the_clients), and a name that is no read
-    stays the overlay's (test_a_hook_value_for_a_hidden_name_still_goes_as_an_extra).
+    The spec's provider is called here, from ``view`` and ``request``, once per
+    call (test_a_provider_runs_once_per_call), and the dispatched variant
+    carries none (``kernel_spec_variant(server_input=False)``). The kernel
+    relaxes a parameter only for a provider annotated to fill it, so the
+    untyped provider drfs has always taken would meet a missing-argument
+    refusal before it ran (test_a_provider_satisfies_the_requirement), and a
+    typed one declining a key it is annotated to fill would reach the run as a
+    ``KeyError`` (test_a_typed_provider_declining_a_required_key_is_refused_as_missing).
+    A key either answers ``UNSET`` is declined, as main read it, so the
+    caller's value stands.
 
-    A value naming a seed of the call - ``request``, ``view``, ``progress``,
-    ``user`` and the rest of the reserved names, or a project's registered seed
-    - is dropped, so the seed wins: the kernel refuses an overlay naming a seed,
-    and a view's hook was never the place to replace one
-    (test_a_hook_value_naming_a_seed_is_dropped_and_the_seed_wins). A view's
-    progress sink is ``get_progress_reporter``, which joins the call's.
+    A hook's value naming a seed of the call - ``request``, ``view``,
+    ``progress``, ``user`` and the rest of the reserved names, or a project's
+    registered seed - is dropped, so the seed wins: a view's hook was never the
+    place to replace one
+    (test_a_hook_value_naming_a_seed_is_dropped_and_the_seed_wins). The spec's
+    provider naming one is refused, as the kernel refuses it, so the bug is
+    found (test_a_provider_handing_over_the_view_is_refused).
     """
-    if not extras:
-        return extras
-    reads = set(variant.reads.names())
+    seeded = seeds.reserved
+    hook_values = {
+        name: value for name, value in (hooks.extra_kwargs or {}).items() if name not in seeded
+    }
+    provider = spec.kwargs
+    provided: dict[str, Any] = {}
+    if provider is not None:
+        answered = provider(**resolve_callable_kwargs(provider, {"view": view, "request": request}))
+        taken = sorted(answered.keys() & seeded)
+        if taken:
+            label = f"{type(spec).__name__}.kwargs"
+            raise ImproperlyConfigured(
+                f"{label} returned the key(s) {taken}, which dispatch seeds itself. A "
+                "provider's value must never outrank a seeded one; rename the key."
+            )
+        provided = dict(answered)
+    return {
+        **_split_author_values(variant, arguments, hook_values),
+        **_split_author_values(variant, arguments, provided),
+    }
+
+
+def _split_author_values(
+    variant: KernelServiceSpec | KernelSelectorSpec, arguments: Any, values: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Put each of ``values`` naming a caller's argument into ``arguments``; return the rest.
+
+    The names a caller fills at the top level of the call: the reads of the
+    compiled spec (its service's or selector's, and a service spec's target
+    lookup's) and, on a service spec that is not ``many``, its Validator's
+    fields. The kernel refuses ``extra_kwargs`` naming any of them, and the
+    author's value for one is the server's, so it is put over the caller's and
+    validated as the caller's would be: a view's ``get_service_kwargs()``
+    returning the serializer's ``tenant`` decides the tenant, whatever the body
+    said (test_service_kwargs_hook_applies_to_single). A ``many`` spec's
+    Validator fields are each row's, so a value naming one stays an extra the
+    service is handed beside its rows, as it always was
+    (test_service_kwargs_hook_applies_to_bulk); and ``many_argument`` is no
+    such name, or a value named like it would replace the rows. Arguments that
+    are no mapping take nothing, for the kernel's shape check to refuse.
+
+    One arc to coverage, so each condition that keeps a value an extra is
+    named by the test that fails without it: an ``UNSET`` value supplies
+    nothing (test_an_unset_hook_value_leaves_the_clients), and a name that is
+    no argument stays the overlay's
+    (test_a_hook_value_for_a_hidden_name_still_goes_as_an_extra).
+    """
+    names = set(variant.reads.names())
     if isinstance(variant, KernelServiceSpec):
         target_spec = variant.target_selector_spec()
         if target_spec is not None:
-            reads |= target_spec.reads.names()
-    routed = {name: value for name, value in extras.items() if value is not UNSET and name in reads}
+            names |= target_spec.reads.names()
+        if variant.validator is not None and not variant.many:
+            names |= variant.validator.parameters().names()
+    routed = {name: value for name, value in values.items() if value is not UNSET and name in names}
     if isinstance(arguments, dict):
         arguments.update(routed)
-    seeded = seeds.reserved
     return {
-        name: value for name, value in extras.items() if name not in routed and name not in seeded
+        name: value for name, value in values.items() if name not in routed and value is not UNSET
     }
 
 
@@ -641,40 +692,6 @@ def _hidden_captures(
         return {}
     hidden = server_owned_keys(spec) - seeds.reserved
     return {name: route[name] for name in sorted(hidden) if name in route}
-
-
-def _field_extras_to_context(
-    variant: KernelServiceSpec | KernelSelectorSpec, hooks: ViewHooks
-) -> ViewHooks:
-    """``hooks`` with each ``extra_kwargs`` value naming a Validator field moved into its context.
-
-    The kernel refuses an overlay naming a Validator field, since the caller's
-    value for one is what the Validator checks. Such a hook value - a tenant the
-    input serializer also declares - is handed to the serializer instead,
-    through its context, beneath the view's own ``input_serializer_context``
-    layer, and only where the serializer declares that field
-    (test_a_hook_value_naming_a_serializer_field_reaches_its_context). It stays
-    out of the overlay, and the field's value is still the caller's. A value
-    naming a read is not moved: ``_route_hook_extras`` puts it into the
-    arguments (a read and a Validator field never share a name).
-    """
-    validator = variant.validator if isinstance(variant, KernelServiceSpec) else None
-    extras = hooks.extra_kwargs
-    if validator is None or not extras:
-        return hooks
-    # Only a field the kernel declares at the top level of the call, where it
-    # refuses the overlay: a ``many`` spec's fields are each row's, so a hook
-    # value naming one stays an extra the service is handed beside ``data``
-    # (test_service_kwargs_hook_applies_to_bulk).
-    fields = validator.parameters().names() & variant.parameters().names()
-    moved = {name: value for name, value in extras.items() if name in fields}
-    if not moved:
-        return hooks
-    return dataclasses.replace(
-        hooks,
-        extra_kwargs={name: value for name, value in extras.items() if name not in moved},
-        input_serializer_context={**moved, **(hooks.input_serializer_context or {})},
-    )
 
 
 def _route_filter_data(

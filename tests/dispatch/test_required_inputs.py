@@ -69,6 +69,15 @@ def test_url_kwargs_channel_satisfies_the_requirement() -> None:
     assert result.value == [(9, None)]
 
 
+def test_a_provider_satisfies_the_requirement() -> None:
+    """An untyped provider, as drfs has always taken: the edge calls it before
+    the shape check, so the key it answers is there to be checked."""
+    ctx = build_offline_context(None, {})
+    spec = _spec(kwargs=lambda **_kw: {"project_pk": 3})
+    result = dispatch_spec(spec, user=None, params={}, request=ctx.request, view=ctx.view)
+    assert result.value == [(3, None)]
+
+
 class _FillsTheProject(TypedDict):
     project_pk: int
 
@@ -77,18 +86,43 @@ def _fill_the_project(**_kw: Any) -> _FillsTheProject:
     return {"project_pk": 3}
 
 
-def test_a_provider_satisfies_the_requirement() -> None:
-    """A provider annotated to fill the key: the annotation is how the shape check,
-    which runs before any provider, knows the key will arrive."""
+def _decline_the_project(**_kw: Any) -> _FillsTheProject:
+    return {"project_pk": UNSET}
+
+
+def test_a_typed_provider_satisfies_the_requirement() -> None:
     ctx = build_offline_context(None, {})
     spec = _spec(kwargs=_fill_the_project)
     result = dispatch_spec(spec, user=None, params={}, request=ctx.request, view=ctx.view)
     assert result.value == [(3, None)]
 
 
+def test_a_typed_provider_declining_a_required_key_is_refused_as_missing() -> None:
+    """Refused as the untyped provider's declined key is, never a bare ``KeyError``."""
+    ctx = build_offline_context(None, {})
+    spec = _spec(kwargs=_decline_the_project)
+    with pytest.raises(ValidationError) as excinfo:
+        dispatch_spec(spec, user=None, params={}, request=ctx.request, view=ctx.view)
+    assert excinfo.value.detail == {"project_pk": ["This field is required."]}
+
+
+def test_a_provider_runs_once_per_call() -> None:
+    calls: list[int] = []
+
+    def provide(**_kw: Any) -> dict[str, Any]:
+        calls.append(1)
+        return {"project_pk": 3}
+
+    ctx = build_offline_context(None, {})
+    dispatch_spec(_spec(kwargs=provide), user=None, params={}, request=ctx.request, view=ctx.view)
+    assert calls == [1]
+
+
 def test_a_declining_provider_does_not_satisfy_the_requirement() -> None:
     # ``UNSET`` drops the key from the pool entirely, so the requirement is
-    # unmet: the marker must not be fooled by a provider that declined.
+    # unmet: the marker must not be fooled by a provider that declined. The
+    # exact refusal is what holds the decline: an ``UNSET`` handed on as the
+    # value would be refused as the wrong type instead.
     ctx = build_offline_context(None, {})
     spec = _spec(kwargs=lambda **_kw: {"project_pk": UNSET})
     with pytest.raises(ValidationError) as excinfo:
