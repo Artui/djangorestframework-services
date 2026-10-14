@@ -17,7 +17,7 @@ from rest_framework_services.service_specs.as_kernel_spec import as_kernel_spec
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
 from rest_framework_services.service_specs.utils import author_values
 
-_Variant = tuple[bool | None, bool, bool, bool, bool, bool]
+_Variant = tuple[bool | None, bool, bool, bool, bool, bool, frozenset[str]]
 
 # id(source) -> (a weak reference to it, its variants by key). Keyed by identity
 # for the reason ``kernel_spec`` gives: a frozen dataclass compares by its fields,
@@ -36,6 +36,7 @@ def kernel_spec_variant(
     server_input: bool = True,
     spread: bool = False,
     lenient: bool = False,
+    excluded: frozenset[str] = frozenset(),
 ) -> KernelServiceSpec | KernelSelectorSpec:
     """``spec`` compiled as one request of the DRF edge dispatches it, once per variant.
 
@@ -79,9 +80,13 @@ def kernel_spec_variant(
       has always answered alone: a form's ``"on"`` for a boolean, ``123`` for
       a string, every field's refusal at once, in DRF's words. A caller off
       HTTP keeps the kernel's typed check.
+    - ``excluded``: names a service spec's Validator declares no parameter
+      for (``SerializerValidator(excluded=...)``): the edge compiles the
+      names a seed of the call takes, so a serializer field of that name is
+      the serializer's alone rather than a parameter the kernel refuses.
     """
-    key: _Variant = (partial, unguarded, target, server_input, spread, lenient)
-    if key == (None, False, False, True, False, False):
+    key: _Variant = (partial, unguarded, target, server_input, spread, lenient, excluded)
+    if key == (None, False, False, True, False, False, frozenset()):
         return kernel_spec(spec)
     with _LOCK:
         held = _VARIANTS.get(id(spec))
@@ -93,7 +98,7 @@ def kernel_spec_variant(
         compiled = variants.get(key)
         if compiled is None:
             compiled = variants[key] = _compile(
-                spec, partial, unguarded, target, server_input, spread, lenient
+                spec, partial, unguarded, target, server_input, spread, lenient, excluded
             )
     return compiled
 
@@ -106,6 +111,7 @@ def _compile(
     server_input: bool,
     spread: bool,
     lenient: bool,
+    excluded: frozenset[str],
 ) -> KernelServiceSpec | KernelSelectorSpec:
     # One arc to coverage, so each operand is named: test_partial_compiles_the_request_s_flag
     # fails without the first and test_one_spec_answers_each_binding_as_its_own
@@ -127,14 +133,18 @@ def _compile(
         if isinstance(compiled, KernelServiceSpec):
             changes["input_data"] = None
             changes["kwargs"] = author_values
-    # One arc to coverage, so each conjunct is named:
-    # test_an_offline_view_keeps_the_kernels_typed_check fails without the
-    # first, and test_a_create_body_cannot_set_a_service_parameter_over_http (a
-    # spec with no input serializer, so no Validator) without the second.
+    # One arc to coverage, so each operand is named:
+    # test_an_offline_view_keeps_the_kernels_typed_check fails without
+    # ``lenient``, test_a_writable_field_named_like_a_registered_seed_validates
+    # without ``excluded``, and test_a_create_body_cannot_set_a_service_parameter_over_http
+    # (a spec with no input serializer, so no Validator) without the ``isinstance``.
     validator = getattr(compiled, "validator", None)
-    if lenient and isinstance(validator, SerializerValidator):
+    if (lenient or excluded) and isinstance(validator, SerializerValidator):
         changes["validator"] = SerializerValidator(
-            validator.serializer, serializer_context=validator.serializer_context, lenient=True
+            validator.serializer,
+            serializer_context=validator.serializer_context,
+            lenient=lenient,
+            excluded=excluded,
         )
     # One arc to coverage, so each conjunct is named:
     # test_a_selector_spec_takes_no_stand_in fails without the first, and

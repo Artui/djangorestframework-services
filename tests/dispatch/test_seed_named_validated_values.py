@@ -18,6 +18,7 @@ import pytest
 from asgiref.sync import async_to_sync
 from django.contrib.auth.models import User
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from rest_framework_services import (
@@ -27,7 +28,8 @@ from rest_framework_services import (
     adispatch_spec,
     dispatch_spec,
 )
-from rest_framework_services.types.pool_seeds import PoolSeeds
+from rest_framework_services.types.pool_seeds import DEFAULT_POOL_SEEDS, PoolSeeds
+from rest_framework_services.types.unknown_arguments import UnknownArguments
 
 _factory = APIRequestFactory()
 
@@ -173,3 +175,137 @@ def test_each_rows_seed_named_key_stays_in_its_row(dispatch: Dispatch) -> None:
 
     assert seen["data"] == [{"title": "a", "user": alice}, {"title": "b", "user": alice}]
     assert seen["user"] is alice
+
+
+# A writable field named like a seed: the client sends it, the serializer
+# validates it into ``data``, and the seed keeps its own value, as on main.
+
+
+class _PickedUserIn(serializers.Serializer):
+    title = serializers.CharField()
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+
+
+class _ResultIn(serializers.Serializer):
+    result = serializers.CharField()
+
+
+class _TenantFieldIn(serializers.Serializer):
+    title = serializers.CharField()
+    tenant = serializers.CharField()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("fmt", ["json", "multipart"])
+def test_a_writable_field_named_user_validates_over_http(fmt: str) -> None:
+    alice = User.objects.create(username="alice")
+    bob = User.objects.create(username="bob")
+    seen: dict[str, Any] = {}
+
+    class View(ServiceCreateView):
+        spec = ServiceSpec(service=_record(seen), input_serializer=_PickedUserIn, atomic=False)
+
+    request = _factory.post("/", {"title": "t", "user": bob.pk}, format=fmt)
+    force_authenticate(request, user=alice)
+    response = View.as_view()(request)
+
+    assert response.status_code == 204, response.data
+    assert seen["data"] == {"title": "t", "user": bob}
+    assert seen["user"] == alice
+
+
+@pytest.mark.django_db
+@_CORES
+@pytest.mark.parametrize(
+    "unknown_arguments",
+    [UnknownArguments.IGNORE, UnknownArguments.REJECT],
+    ids=["ignore", "reject"],
+)
+def test_a_writable_field_named_user_validates_off_http(
+    dispatch: Dispatch, unknown_arguments: UnknownArguments
+) -> None:
+    alice = User.objects.create(username="alice")
+    bob = User.objects.create(username="bob")
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(service=_record(seen), input_serializer=_PickedUserIn, atomic=False)
+
+    dispatch(
+        spec, user=alice, params={"title": "t", "user": bob.pk}, unknown_arguments=unknown_arguments
+    )
+
+    assert seen["data"] == {"title": "t", "user": bob}
+    assert seen["user"] == alice
+
+
+@pytest.mark.django_db
+@_CORES
+def test_a_writable_field_named_result_validates(dispatch: Dispatch) -> None:
+    seen: dict[str, Any] = {}
+
+    def service(*, data: Any) -> None:
+        seen["data"] = dict(data)
+
+    spec = ServiceSpec(service=service, input_serializer=_ResultIn, atomic=False)
+
+    dispatch(spec, user=None, params={"result": "x"})
+
+    assert seen["data"] == {"result": "x"}
+
+
+@pytest.mark.django_db
+@_CORES
+def test_a_writable_field_named_like_a_registered_seed_validates(dispatch: Dispatch) -> None:
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(service=_record(seen), input_serializer=_TenantFieldIn, atomic=False)
+
+    dispatch(
+        spec,
+        user=None,
+        params={"title": "t", "tenant": "client"},
+        pool_seeds=DEFAULT_POOL_SEEDS.extend(tenant=lambda: "seeded"),
+    )
+
+    assert seen["data"] == {"title": "t", "tenant": "client"}
+    assert seen["tenant"] == "seeded"
+
+
+@pytest.mark.django_db
+def test_a_writable_field_named_user_is_still_required() -> None:
+    """The field is the serializer's to demand, so leaving it out is refused as DRF refuses it."""
+    spec = ServiceSpec(service=lambda *, data: None, input_serializer=_PickedUserIn, atomic=False)
+
+    with pytest.raises(ValidationError) as excinfo:
+        dispatch_spec(spec, user=None, params={"title": "t"})
+
+    assert excinfo.value.get_codes() == {"user": ["required"]}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("over_http", [True, False], ids=["http", "off-http"])
+def test_a_writable_field_named_user_validates_in_each_row(over_http: bool) -> None:
+    alice = User.objects.create(username="alice")
+    bob = User.objects.create(username="bob")
+    seen: dict[str, Any] = {}
+
+    def service(*, data: Any, user: Any) -> None:
+        seen["rows"] = [dict(row) for row in data]
+        seen["user"] = user
+
+    spec = ServiceSpec(service=service, input_serializer=_PickedUserIn, many=True, atomic=False)
+    rows = [{"title": "t", "user": bob.pk}]
+
+    if over_http:
+
+        class View(ServiceCreateView):
+            pass
+
+        View.spec = spec
+        request = _factory.post("/", rows, format="json")
+        force_authenticate(request, user=alice)
+        response = View.as_view()(request)
+        assert response.status_code == 201, response.data
+    else:
+        dispatch_spec(spec, user=alice, params=rows)
+
+    assert seen["rows"] == [{"title": "t", "user": bob}]
+    assert seen["user"] == alice

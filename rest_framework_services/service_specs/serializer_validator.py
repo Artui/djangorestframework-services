@@ -130,6 +130,7 @@ class SerializerValidator(Validator):
         *,
         serializer_context: Callable[..., Mapping[str, Any]] | None = None,
         lenient: bool = False,
+        excluded: frozenset[str] = frozenset(),
     ) -> None:
         # One branch to coverage, so each condition is held by its own test:
         # the ``type`` by test_anything_but_a_serializer_class_or_a_dataclass_is_refused_when_declared[an-instance],
@@ -151,6 +152,7 @@ class SerializerValidator(Validator):
         self.serializer = serializer
         self.serializer_context = serializer_context
         self.lenient = lenient
+        self.excluded = excluded
         # The kernel reads this per instance: the answer belongs to the
         # declaration. A dataclass read through a DataclassSerializer, and a
         # DataclassSerializer subclass declared outright (as the gallery
@@ -163,12 +165,31 @@ class SerializerValidator(Validator):
     def parameters(self) -> Parameters:
         """The serializer's input fields, as Parameters. Never queries.
 
+        A field named like a seed of the call is no parameter: one of the
+        dispatcher's own names (``RESERVED_POOL_SEEDS``,
+        test_a_writable_field_named_user_validates_off_http) always, and each of
+        ``excluded``, which the DRF edge compiles with the names the call's
+        registered seeds take
+        (test_a_writable_field_named_like_a_registered_seed_validates). The
+        kernel refuses a parameter a seed occupies, where a serializer was
+        always free to declare such a field: the client sent its value, the
+        serializer validated it into ``data``, and the seed kept its own. So
+        the field is the serializer's alone, read from the body the edge hands
+        it (``validator_input``), and never meets the seed in the call's pool.
+
         ``lenient`` declares each field by name alone - any value, optional,
         nullable - so the kernel's shape check passes every value through and
         the serializer is the one to answer it, as a live DRF view's request
         always was answered (``kernel_spec_variant(lenient=True)``).
         """
-        walked = input_parameters(describe_serializer(self.serializer))
+        seeded = RESERVED_POOL_SEEDS | self.excluded
+        walked = Parameters.of(
+            *(
+                param
+                for param in input_parameters(describe_serializer(self.serializer))
+                if param.name not in seeded
+            )
+        )
         if not self.lenient:
             return walked
         return Parameters.of(
@@ -192,7 +213,10 @@ class SerializerValidator(Validator):
     ) -> Validated:
         """The rows validated once as DRF's list serializer, the one serializer bound for the call."""
         self._refuse_partial(context)
-        arguments = list(rows.values())
+        # The rows sent, where the edge hands them, at the indices the kernel
+        # passed: a row it refused is not bound twice.
+        sent = validator_input(self, None)
+        arguments = [sent[index] for index in rows] if sent is not None else list(rows.values())
         serializer = bind_serializer(
             self.serializer,
             data=arguments,

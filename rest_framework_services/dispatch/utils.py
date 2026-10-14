@@ -47,6 +47,7 @@ from rest_framework_services.service_specs.utils import (
     bind_serializer,
     describe_serializer,
     edge_call_state,
+    input_parameters,
 )
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.dispatch_result import DispatchResult
@@ -217,8 +218,11 @@ def prepare_edge_call(
             },
         )
     if spec.many:
-        variant = kernel_spec_variant(
-            spec, partial=partial, unguarded=True, server_input=False, lenient=over_http(view)
+        variant = cast(
+            KernelServiceSpec,
+            kernel_spec_variant(
+                spec, partial=partial, unguarded=True, server_input=False, lenient=over_http(view)
+            ),
         )
         seeds = edge_seeds(pool_seeds, request=request, view=view)
         rows = params
@@ -234,9 +238,11 @@ def prepare_edge_call(
         # test_a_non_list_is_refused_under_the_argument without the second (a
         # string would be read as rows); test_a_seed_name_inside_a_row_is_not_unexpected
         # holds the drop itself.
+        sent_rows: list[Any] | None = None
         if isinstance(arguments, dict) and isinstance(arguments.get(spec.many_argument), list):
+            sent_rows = arguments[spec.many_argument]
             arguments[spec.many_argument] = [
-                without_seed_names(row, pool_seeds) for row in arguments[spec.many_argument]
+                without_seed_names(row, pool_seeds) for row in sent_rows
             ]
         # A bulk call acts on no row, so the provider is handed none.
         server = server_input(spec, hooks, view=view, request=request, instance=None)
@@ -245,6 +251,15 @@ def prepare_edge_call(
                 {**row, **server} if isinstance(row, Mapping) else row
                 for row in arguments[spec.many_argument]
             ]
+        # The rows the serializer binds are the ones sent, the server's keys over
+        # each, as ``input_data`` always merged per row: a seed's name in a row
+        # is the serializer's own field
+        # (test_a_writable_field_named_user_validates_in_each_row).
+        if sent_rows is not None:
+            state.validator_input = (
+                variant.validator,
+                [{**row, **server} if isinstance(row, Mapping) else row for row in sent_rows],
+            )
         extra_kwargs = _route_author_values(
             spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
         )
@@ -271,6 +286,7 @@ def prepare_edge_call(
     # for a service, which hands the caller's values to what reads them and to
     # nothing else (test_a_client_value_never_fills_a_service_parameter_off_http).
     spread = resolve_argument_binding(spec, argument_binding) is ArgumentBinding.SPREAD_AUTHOR_WINS
+    seeds = edge_seeds(pool_seeds, request=request, view=view)
     service = cast(
         KernelServiceSpec,
         kernel_spec_variant(
@@ -281,9 +297,9 @@ def prepare_edge_call(
             server_input=False,
             spread=spread,
             lenient=over_http(view),
+            excluded=_seeded_fields(spec, seeds),
         ),
     )
-    seeds = edge_seeds(pool_seeds, request=request, view=view)
     arguments = without_seed_names(
         edge_arguments(service, spec, params, request=request, view=view), pool_seeds
     )
@@ -414,6 +430,22 @@ def _validator_body(
                 body[name] = value
         return body
     return {**{name: value for name, value in params.items() if name not in taken}, **put}
+
+
+def _seeded_fields(spec: ServiceSpec[Any, Any, Any], seeds: PoolSeeds) -> frozenset[str]:
+    """The input serializer's fields a seed the call registers takes: ``request``, ``view``, a project's.
+
+    Compiled as ``kernel_spec_variant(excluded=)``, so each is the serializer's
+    field alone, validated from the body into ``data``, while the seed keeps
+    its own value, as on main
+    (test_a_writable_field_named_like_a_registered_seed_validates). The kernel
+    refuses a parameter a registered seed occupies; the dispatcher's own names
+    the Validator never declares (``SerializerValidator.parameters``).
+    """
+    if spec.input_serializer is None:
+        return frozenset()
+    fields = input_parameters(describe_serializer(spec.input_serializer)).names()
+    return frozenset(fields & seeds.names)
 
 
 def server_input(
