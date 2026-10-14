@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import dataclasses
 import decimal
-import importlib
-from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
 
@@ -16,7 +14,6 @@ from django_service_specs.dispatch.audience_projection_for_spec import (
 )
 from django_service_specs.dispatch.dispatch_result import DispatchResult
 from django_service_specs.dispatch.present import present
-from django_service_specs.output.audience_projection import AudienceProjection
 from django_service_specs.output.field_marking import FieldMarking
 from django_service_specs.output.output import Output, OutputField
 from django_service_specs.specs.selector_spec import SelectorSpec
@@ -370,26 +367,6 @@ def test_a_second_label_from_field_audiences_is_refused_where_it_is_projected() 
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def drfs_walk_reads_kernel_types(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """drfs' serializer walk, matching and building the kernel's marking types.
-
-    This release makes drfs' ``FieldMarking``, ``FieldAudience`` and
-    ``AudienceProjection`` re-exports of the kernel's, and the comparison below
-    needs both sides to speak those types. Until the re-exports are on this
-    branch, pointing the walk's own module globals at the kernel's classes is
-    that re-export, applied to the one module these tests read; once they are,
-    each ``setattr`` puts back the object already there, and the fixture is a
-    no-op.
-    """
-    walk = importlib.import_module("rest_framework_services.audience.build_audience_projection")
-    monkeypatch.setattr(walk, "FieldMarking", FieldMarking)
-    monkeypatch.setattr(walk, "FieldAudience", FieldAudience)
-    monkeypatch.setattr(walk, "AudienceProjection", AudienceProjection)
-    yield
-
-
-@pytest.mark.usefixtures("drfs_walk_reads_kernel_types")
 def test_the_projection_equals_drfs_for_a_marked_serializer() -> None:
     projection = audience_projection_for_spec(_spec(SerializerPresenter(_Invoice)))
 
@@ -413,7 +390,6 @@ _OVERRIDES = {
 }
 
 
-@pytest.mark.usefixtures("drfs_walk_reads_kernel_types")
 def test_the_projection_equals_drfs_for_spec_level_overrides() -> None:
     projection = audience_projection_for_spec(
         _spec(SerializerPresenter(_Invoice, field_audiences=_OVERRIDES))
@@ -425,7 +401,6 @@ def test_the_projection_equals_drfs_for_spec_level_overrides() -> None:
     assert projection.audience("etag") is FieldAudience.CONTENT
 
 
-@pytest.mark.usefixtures("drfs_walk_reads_kernel_types")
 def test_the_projection_equals_drfs_for_a_nested_serializer() -> None:
     class _Leaf(serializers.Serializer):
         key = serializers.CharField(style={MARKING: FieldMarking.handle()})
@@ -450,7 +425,6 @@ def test_the_projection_equals_drfs_for_a_nested_serializer() -> None:
     assert projection.nested["branches"].nested["best"].choice_labels == {"kind": {"x": "Ex"}}
 
 
-@pytest.mark.usefixtures("drfs_walk_reads_kernel_types")
 def test_feeding_field_audiences_back_as_overrides_changes_nothing() -> None:
     """A transport that reads ``field_audiences`` off the registry entry and hands
     them back as ``overrides=``, as the published agent transports do, layers them
