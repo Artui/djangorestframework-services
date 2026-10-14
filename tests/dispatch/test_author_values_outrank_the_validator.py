@@ -22,6 +22,7 @@ from rest_framework.test import APIRequestFactory
 from typing_extensions import TypedDict
 
 from rest_framework_services import (
+    ArgumentBinding,
     DispatchResult,
     ServiceCreateView,
     ServiceSpec,
@@ -232,3 +233,32 @@ def test_a_call_with_no_author_value_registers_no_seat_for_them(dispatch: Dispat
     )
 
     assert AUTHOR_VALUES_SEED not in seen["rest"]
+
+
+@pytest.mark.django_db
+@_CORES
+@pytest.mark.parametrize("via", ["hook", "provider"])
+@pytest.mark.parametrize(
+    "binding", [ArgumentBinding.AUTO, ArgumentBinding.SPREAD_AUTHOR_WINS], ids=["auto", "spread"]
+)
+def test_a_required_parameter_only_an_author_fills_is_filled(
+    dispatch: Dispatch, via: str, binding: ArgumentBinding
+) -> None:
+    # The seat the author's values travel through is untyped, and the kernel
+    # relaxes a required parameter only for a provider annotated to fill it, so
+    # a spreading call that declares the parameter must still see it filled.
+    seen: dict[str, Any] = {}
+
+    def close(*, reason: str) -> None:
+        seen["reason"] = reason
+
+    if via == "provider":
+        spec = ServiceSpec(service=close, kwargs=lambda: {"reason": "server"}, atomic=False)
+        hooks = None
+    else:
+        spec = ServiceSpec(service=close, atomic=False)
+        hooks = ViewHooks(extra_kwargs={"reason": "server"})
+
+    dispatch(spec, params={}, argument_binding=binding, view_hooks=hooks)
+
+    assert seen == {"reason": "server"}
