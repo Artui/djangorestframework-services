@@ -28,6 +28,7 @@ from typing import (
 )
 
 import pytest
+from django_service_specs.pool.provider_keys import provider_keys as kernel_provider_keys
 from typing_extensions import NotRequired, ReadOnly, Required, TypedDict
 from typing_extensions import TypeVar as TypeVarWithDefault
 
@@ -815,3 +816,8 @@ def test_a_type_parameter_resolved_elsewhere_first_does_not_decide_the_answer(
     get_type_hints(module.Recurring)
 
     assert provider_keys(module.provider) == (frozenset({"tags"}), frozenset({"tenant"}))
+
+
+def test_is_the_kernel_s_object_at_drfs_path() -> None:
+    """The behaviour above is held here too: its answers depend on drfs' types being the kernel's."""
+    assert provider_keys is kernel_provider_keys

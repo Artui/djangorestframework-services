@@ -5,9 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from django_service_specs.output.annotate_output_schema import (
+    annotate_output_schema as kernel_annotate_output_schema,
+)
 from jsonschema import Draft202012Validator
 from rest_framework import serializers
 
+import rest_framework_services
 from rest_framework_services.audience.annotate_output_schema import annotate_output_schema
 from rest_framework_services.audience.build_audience_projection import build_audience_projection
 from rest_framework_services.audience.project_payload import project_payload
@@ -541,3 +545,53 @@ def test_a_formatter_replaces_the_choice_declaration_it_beats() -> None:
 def test_a_handle_is_not_reformatted_in_the_schema_either() -> None:
     """Suppressed on both sides from one place, so the two cannot diverge."""
     assert _formatted_properties()["id"] == {"type": "string", "format": "date-time"}
+
+
+class _NullableFormattedChoice(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=[("PENDING_REVIEW", "Awaiting review")],
+        allow_null=True,
+        style={MARKING: FieldMarking.formatted(ValueFormatter(str.title, "string"))},
+    )
+
+
+def test_a_formatted_nullable_choice_keeps_its_null() -> None:
+    """The server still serves ``null`` for it, so the schema must admit it.
+
+    ``ChoiceField(allow_null=True)`` states its null as a ``{"const": None}`` entry
+    of its ``oneOf``, and the formatter's redeclaration used to drop it.
+    """
+    status = annotate_output_schema(
+        output_to_json_schema(_NullableFormattedChoice),
+        build_audience_projection(_NullableFormattedChoice),
+    )["properties"]["status"]
+
+    assert status["type"] == ["string", "null"]
+    Draft202012Validator(status).validate(None)
+
+
+@pytest.mark.parametrize(
+    "stated",
+    [
+        pytest.param({"type": ["integer", "null"]}, id="type-list"),
+        pytest.param({"anyOf": [{"type": "integer"}, {"type": "null"}]}, id="any-of-member"),
+        pytest.param({"type": "integer", "enum": [1, 2, None]}, id="none-in-an-enum"),
+    ],
+)
+def test_a_formatted_property_keeps_a_null_in_every_spelling(stated: dict[str, Any]) -> None:
+    """A dataclass field typed ``X | None`` states its null as an ``anyOf`` member."""
+    schema = {"type": "object", "properties": {"value": stated}}
+    projection = AudienceProjection(
+        fields={"value": FieldMarking.formatted(ValueFormatter(str, "string"))}
+    )
+
+    value = annotate_output_schema(schema, projection)["properties"]["value"]
+
+    assert value["type"] == ["string", "null"]
+    Draft202012Validator(value).validate(None)
+
+
+def test_annotate_output_schema_is_the_kernel_s_object_at_drfs_path_and_root() -> None:
+    """The kernel owns the walk; what this file keeps is drfs' serializers feeding it."""
+    assert annotate_output_schema is kernel_annotate_output_schema
+    assert rest_framework_services.annotate_output_schema is kernel_annotate_output_schema
