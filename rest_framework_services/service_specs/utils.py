@@ -226,7 +226,9 @@ def input_type(field: serializers.Field) -> tuple[str, str | None]:
     # test_each_field_declares_its_json_type_and_format[date] declares no format for an ISO date.
     if formats is not None and any(each != ISO_8601 for each in formats):
         return json_type, None
-    # test_each_field_declares_its_json_type_and_format[decimal] holds ``localize``.
+    # One branch to coverage: without the isinstance every field but a
+    # decimal raises AttributeError, and test_each_field_declares_its_json_type_and_format[decimal]
+    # holds ``localize``.
     if isinstance(field, serializers.DecimalField) and field.localize:
         return "any", None
     return json_type, fmt

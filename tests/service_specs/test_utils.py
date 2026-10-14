@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime
+import uuid
 from decimal import Decimal
 from typing import Any
 
@@ -466,6 +468,17 @@ def test_the_shape_check_passes_what_the_field_takes(field: serializers.Field, v
             list(range(1001)),
             id="past-the-kernel-s-list-cap",
         ),
+        # Python values, which only an in-process caller can send.
+        pytest.param(serializers.DateField(), datetime.date(2026, 10, 14), id="a-date"),
+        pytest.param(
+            serializers.DateTimeField(), datetime.datetime(2026, 10, 14, 10), id="a-datetime"
+        ),
+        pytest.param(serializers.TimeField(), datetime.time(10), id="a-time"),
+        pytest.param(serializers.DurationField(), datetime.timedelta(hours=1), id="a-timedelta"),
+        pytest.param(serializers.DecimalField(**_TWO_PLACES), Decimal("1.5"), id="a-decimal"),
+        pytest.param(
+            serializers.UUIDField(), uuid.UUID("12345678-1234-5678-1234-567812345678"), id="a-uuid"
+        ),
     ],
 )
 def test_the_shape_check_refuses_what_drf_coerces_across_json_types(
@@ -473,9 +486,11 @@ def test_the_shape_check_refuses_what_drf_coerces_across_json_types(
 ) -> None:
     # The named exceptions to never-stricter: a value of another JSON type
     # that DRF coerces, which the declared type refuses as the JSON Schema it
-    # renders would, and the kernel's default bound on a list's length. Each
-    # is a difference from drfs' own dispatch that the CHANGELOG states; a
-    # case here that starts passing is one to strike from it.
+    # renders would; a Python value no JSON body carries, which the kernel's
+    # check, reading JSON values only, refuses where DRF reads it as parsed;
+    # and the kernel's default bound on a list's length. Each is a difference
+    # from drfs' own dispatch that the CHANGELOG states; a case here that
+    # starts passing is one to strike from it.
     assert _shape_check(field, value) == (True, False)
 
 
