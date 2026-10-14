@@ -183,6 +183,17 @@ REEXPORTS: list[tuple[str, str, str]] = [
         "django_service_specs.pool.reserved_pool_seeds",
         "RESERVED_POOL_SEEDS",
     ),
+    # What dispatch answers, and how it treats an argument nothing declares.
+    (
+        "rest_framework_services.types.dispatch_result",
+        "django_service_specs.dispatch.dispatch_result",
+        "DispatchResult",
+    ),
+    (
+        "rest_framework_services.types.unknown_arguments",
+        "django_service_specs.types.unknown_arguments",
+        "UnknownArguments",
+    ),
 ]
 
 
