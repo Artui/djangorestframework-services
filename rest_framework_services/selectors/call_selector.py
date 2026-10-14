@@ -29,7 +29,8 @@ def call_selector(
 
     ``request`` is required; ``user`` is derived from ``request.user``, and
     ``view`` is the view DRF recorded on the request it built (a plain
-    ``HttpRequest`` records none, and then ``view`` is left to ``extras``).
+    ``HttpRequest`` records none). ``extras`` are spread last, so a key in them
+    replaces either seed; ``call_service`` drops such a key instead.
     Async selectors are bridged via ``async_to_sync``.
     """
     pool: dict[str, Any] = {**request_seeds(request), **extras}

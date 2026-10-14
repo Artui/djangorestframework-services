@@ -232,3 +232,18 @@ def test_a_request_carrying_no_view_leaves_the_name_to_the_caller() -> None:
 
     assert call_service(service, request=APIRequestFactory().get("/"), view="mine") == 1
     assert seen["view"] == "mine"
+
+
+def test_a_view_extra_does_not_replace_the_recorded_view() -> None:
+    """A seed is never overridden by ``extras``, ``view`` included: inside a view
+    the callable gets the view DRF recorded, not a ``view`` key spread in."""
+    seen: dict[str, Any] = {}
+    view = object()
+
+    def service(*, view: Any) -> int:
+        seen["view"] = view
+        return 1
+
+    request = Request(APIRequestFactory().get("/"), parser_context={"view": view})
+    assert call_service(service, request=request, view="spoof") == 1
+    assert seen["view"] is view

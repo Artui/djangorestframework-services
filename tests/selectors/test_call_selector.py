@@ -98,3 +98,17 @@ def test_a_request_carrying_no_view_leaves_the_name_to_the_caller() -> None:
 
     assert call_selector(selector, request=APIRequestFactory().get("/"), view="mine") == 1
     assert seen["view"] == "mine"
+
+
+def test_a_view_extra_replaces_the_recorded_view() -> None:
+    """Unlike ``call_service``, the selector helper spreads ``extras`` last, so a
+    ``view`` key in them replaces the recorded view, as a ``user`` key does."""
+    seen: dict[str, Any] = {}
+
+    def selector(*, view: Any) -> int:
+        seen["view"] = view
+        return 1
+
+    request = Request(APIRequestFactory().get("/"), parser_context={"view": object()})
+    assert call_selector(selector, request=request, view="mine") == 1
+    assert seen["view"] == "mine"
