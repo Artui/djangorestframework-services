@@ -3,48 +3,29 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Awaitable, Callable
 from typing import Any
 
-from asgiref.sync import async_to_sync
 from django.core.exceptions import ImproperlyConfigured
-from django.db.models import Exists, Model, OuterRef, QuerySet
-from django.db.models.manager import BaseManager
+from django.db.models import Exists, Model, OuterRef
+
+# The kernel's own. Re-exported under ``as`` because this module is the path drfs
+# has always exported them from, and ``dispatch/`` and the views still import them
+# from here.
+from django_service_specs.selectors.amaterialize_retrieve import (
+    amaterialize_retrieve as amaterialize_retrieve,
+)
+from django_service_specs.selectors.arun_selector import arun_selector as arun_selector
+from django_service_specs.selectors.is_queryset import is_queryset as is_queryset
+from django_service_specs.selectors.materialize_retrieve import (
+    materialize_retrieve as materialize_retrieve,
+)
+from django_service_specs.selectors.run_selector import run_selector as run_selector
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.request import Request
 
-from rest_framework_services.is_async import is_async
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.views.utils import resolve_view_hooks
-
-
-def is_queryset(obj: Any) -> bool:
-    """True for Django ``QuerySet`` objects and ``Manager`` instances.
-
-    The one definition of a queryset-shaping target: what the shaping fields may
-    be applied to, and what a RETRIEVE selector materializes from. Tested by type
-    rather than by ``hasattr(…, "first")``, which would also match a domain
-    object that happens to expose ``first``. ``QuerySet`` subclasses all pass.
-    """
-    return isinstance(obj, (QuerySet, BaseManager))
-
-
-def run_selector(fn: Callable[..., Any], kwargs: dict[str, Any]) -> Any:
-    """Call a selector from sync code, transparently bridging async ones."""
-    if is_async(fn):
-        return async_to_sync(fn)(**kwargs)
-    return fn(**kwargs)
-
-
-async def arun_selector(
-    fn: Callable[..., Any] | Callable[..., Awaitable[Any]],
-    kwargs: dict[str, Any],
-) -> Any:
-    """Call a selector from async code; sync ones run inline."""
-    if is_async(fn):
-        return await fn(**kwargs)
-    return fn(**kwargs)
 
 
 def apply_queryset_shaping(
@@ -190,35 +171,6 @@ def affordance_expression(model: type[Model], when: Any) -> Exists:
     the same relation cannot hide rows from the answer.
     """
     return Exists(model._base_manager.filter(pk=OuterRef("pk")).filter(when))
-
-
-def materialize_retrieve(result: Any) -> Any:
-    """Collapse a RETRIEVE selector's return to the single instance, or ``None``.
-
-    The one definition of what ``kind=RETRIEVE`` means once the selector has run:
-    a queryset materializes through ``.first()`` — so an author can write
-    ``selector=lambda *, pk: Model.objects.filter(pk=pk)`` and still get the
-    spec's shaping applied first — and anything else passes through as the
-    resolved object. What each caller does with a ``None`` differs; how the value
-    is arrived at does not.
-
-    Exported for a transport that runs a ``RETRIEVE`` selector without
-    ``dispatch_spec`` -- a chain step running each spec itself -- so the row its
-    object-level permissions judge is the row the core would have resolved. Run
-    on a queryset rather than the row, ``enforce_permissions`` skips
-    ``has_object_permission`` by design, since a set is authorized per-set.
-    Blocks on the query, so call ``amaterialize_retrieve`` from a coroutine.
-    """
-    return result.first() if is_queryset(result) else result
-
-
-async def amaterialize_retrieve(result: Any) -> Any:
-    """Async twin of ``materialize_retrieve``, awaiting ``.afirst()``.
-
-    Separate because the materialization *is* the query — ``.first()`` would
-    block the event loop. Same rule otherwise; keep the two in step.
-    """
-    return await result.afirst() if is_queryset(result) else result
 
 
 def check_view_object_permissions(

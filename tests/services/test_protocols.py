@@ -1,5 +1,8 @@
 """Tests for the lenient shape of the unified service Protocols.
 
+The Protocols are django-service-specs' own, re-exported at drfs' paths; these
+tests hold that a drfs ``ServiceSpec`` takes a callable of their shape.
+
 The Protocols are structural and not runtime-checkable; these tests cover
 that ordinary callables matching the shape are accepted as service callables
 on a parameterized ``ServiceSpec`` without runtime errors. Static enforcement
@@ -18,6 +21,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
+from django_service_specs.services.create_service import CreateService as KernelCreateService
+from django_service_specs.services.delete_service import DeleteService as KernelDeleteService
+from django_service_specs.services.update_service import UpdateService as KernelUpdateService
 
 from rest_framework_services import (
     CreateService,
@@ -51,6 +57,12 @@ def _update(*, instance: _Author, data: _AuthorIn, **kwargs: Any) -> _Author:
 
 def _delete(*, instance: _Author, **kwargs: Any) -> None:
     return None
+
+
+def test_the_service_protocols_are_the_kernel_s() -> None:
+    assert CreateService is KernelCreateService
+    assert UpdateService is KernelUpdateService
+    assert DeleteService is KernelDeleteService
 
 
 def test_create_service_protocol_accepts_matching_callable() -> None:
