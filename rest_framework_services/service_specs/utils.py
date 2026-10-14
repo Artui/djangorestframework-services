@@ -25,7 +25,7 @@ two dialects differ and why.
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
@@ -36,6 +36,7 @@ from rest_framework.settings import api_settings
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
+from rest_framework_services.dispatch.build_offline_context import build_offline_context
 from rest_framework_services.types.unset import UNSET
 
 MAX_SERIALIZER_APPEARANCES = 4
@@ -100,6 +101,36 @@ def bind_serializer(declaration: Any, **kwargs: Any) -> serializers.Serializer:
         f"{declaration!r} cannot be read as a serializer: declare a Serializer subclass or a "
         "dataclass, as an input_serializer takes."
     )
+
+
+def serializer_context(
+    principal: Any, ambient: Mapping[str, Any], arguments: Mapping[str, Any] | list[Any] | None
+) -> dict[str, Any]:
+    """The serializer context a call's serializer is built under, from the call's ambient seeds.
+
+    The ``request`` and ``view`` the call registered are the serializer's own,
+    as they are on HTTP, so a field or a ``validate()`` reading either finds
+    what the transport put there; a registered view that answers
+    ``get_serializer_context`` supplies the whole context, as DRF's views do.
+    **Only when the call registered neither** is an offline pair built, with
+    ``principal`` as the request's ``user`` and ``arguments`` as its data, so a
+    ``CurrentUserDefault`` reads the principal and a serializer reading
+    ``self.context["request"]`` finds a request off HTTP too. One seed alone
+    is kept as it is, beside a ``None`` for the other: pairing a registered
+    request with a view built around another one would describe a call that
+    never happened.
+
+    One branch to coverage: the request seed alone is held by
+    test_a_registered_request_alone_is_kept_beside_no_view, the view seed alone
+    by test_a_registered_view_alone_answers_for_the_serializer_context, and
+    neither by test_the_serializer_context_carries_an_offline_request_for_the_principal.
+    """
+    request = ambient.get("request")
+    view = ambient.get("view")
+    if request is None and view is None:
+        offline = build_offline_context(principal, arguments)
+        request, view = offline.request, offline.view
+    return base_serializer_context(view=view, request=request)
 
 
 def is_input(field: serializers.Field) -> bool:

@@ -4,24 +4,31 @@ from __future__ import annotations
 
 import dataclasses
 import decimal
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 from typing import Any
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured
+from django_service_specs.authorization.unrestricted import Unrestricted
 from django_service_specs.dispatch.audience_projection_for_spec import (
     audience_projection_for_spec,
 )
+from django_service_specs.dispatch.dispatch import dispatch
 from django_service_specs.dispatch.dispatch_result import DispatchResult
 from django_service_specs.dispatch.present import present
 from django_service_specs.output.field_marking import FieldMarking
 from django_service_specs.output.output import Output, OutputField
+from django_service_specs.output.presentation_context import PresentationContext
+from django_service_specs.pool.pool_seeds import DEFAULT_POOL_SEEDS
 from django_service_specs.specs.selector_spec import SelectorSpec
+from django_service_specs.specs.service_spec import ServiceSpec
 from django_service_specs.types.field_audience import FieldAudience
 from django_service_specs.types.selector_kind import SelectorKind
 from rest_framework import serializers
 
 from rest_framework_services.audience.build_audience_projection import build_audience_projection
+from rest_framework_services.dispatch.build_offline_context import build_offline_context
 from rest_framework_services.service_specs.serializer_presenter import SerializerPresenter
 from rest_framework_services.types.field_marking import MARKING
 
@@ -131,7 +138,7 @@ def test_output_reads_order_types_formats_labels_and_presence() -> None:
     }
 
 
-def test_a_field_with_no_json_type_is_declared_a_string() -> None:
+def test_a_field_with_no_json_type_is_declared_any() -> None:
     class _Untyped(serializers.Serializer):
         computed = serializers.SerializerMethodField()
         blob = serializers.JSONField()
@@ -141,9 +148,9 @@ def test_a_field_with_no_json_type_is_declared_a_string() -> None:
 
     output = SerializerPresenter(_Untyped).output()
 
-    # The kernel's OutputField has no "any" type; the declaration says so in
-    # the presenter's docstring and the lane's report.
-    assert [(f.name, f.type) for f in output] == [("computed", "string"), ("blob", "string")]
+    # A computed value or a JSON column may hold any type, and a schema must not
+    # claim it is a string.
+    assert [(f.name, f.type) for f in output] == [("computed", "any"), ("blob", "any")]
 
 
 def test_choices_are_value_display_pairs_typed_by_their_values() -> None:
@@ -170,12 +177,15 @@ def test_choices_are_value_display_pairs_typed_by_their_values() -> None:
         "half": "number",
         # ``None`` names no type of its own, so the other values decide.
         "maybe": "string",
-        # Values of two types share none, and fall back like an untyped field.
-        "mixed": "string",
+        # Values of two types share none, and the field is untyped like any other.
+        "mixed": "any",
         # A value JSON has no type for names none either.
-        "amount": "string",
+        "amount": "any",
         "perms": "array",
     }
+    # The kernel lists no choices on an untyped value, so the labels of a mixed
+    # set are not declared rather than declared against a type they do not have.
+    assert {f.name: f.choices for f in output if f.type == "any"} == {"mixed": None, "amount": None}
     perms = output.get("perms")
     assert perms is not None
     # A list's choices are its element's, as the kernel's other adapters declare them.
@@ -466,3 +476,137 @@ def test_a_list_is_presented_row_by_row_as_drf_renders_many() -> None:
 
     assert presented == _Line(rows, many=True).data
     assert [row["sku"] for row in presented] == ["A-1", "B-2"]
+
+
+def test_a_set_of_mixed_choices_is_an_array_of_any_that_keeps_its_choices() -> None:
+    class _Mixed(serializers.Serializer):
+        picks = serializers.MultipleChoiceField(choices=[(1, "One"), ("two", "Two")])
+
+    picks = SerializerPresenter(_Mixed).output().get("picks")
+
+    # ``items="any"`` is a spelling the kernel refuses: an array with no items
+    # already takes any element, and the array may list its choices.
+    assert picks == OutputField("picks", "array", choices=((1, "One"), ("two", "Two")))
+
+
+# ---------------------------------------------------------------------------
+# presented(): the serializer under the call's context
+# ---------------------------------------------------------------------------
+
+
+class _Who(serializers.Serializer):
+    name = serializers.CharField()
+    viewer = serializers.SerializerMethodField()
+    request_seen = serializers.SerializerMethodField()
+    view_seen = serializers.SerializerMethodField()
+
+    def get_viewer(self, obj: Any) -> Any:
+        request = self.context["request"]
+        return None if request is None else request.user
+
+    def get_request_seen(self, obj: Any) -> Any:
+        return self.context["request"]
+
+    def get_view_seen(self, obj: Any) -> Any:
+        return self.context["view"]
+
+
+def _row(name: str = "x") -> SimpleNamespace:
+    return SimpleNamespace(name=name)
+
+
+def test_presented_reads_the_principal_off_a_request_it_builds_when_none_is_registered() -> None:
+    principal = object()
+
+    payload = SerializerPresenter(_Who).presented(_row(), PresentationContext(principal))
+
+    assert payload["viewer"] is principal
+    assert payload["request_seen"].user is principal
+    assert payload["view_seen"].request is payload["request_seen"]
+
+
+def test_presented_hands_the_serializer_the_registered_request_and_view() -> None:
+    principal = object()
+    offline = build_offline_context(principal, {})
+    context = PresentationContext(
+        principal,
+        ambient=MappingProxyType({"request": offline.request, "view": offline.view}),
+    )
+
+    payload = SerializerPresenter(_Who).presented(_row(), context)
+
+    assert payload["request_seen"] is offline.request
+    assert payload["view_seen"] is offline.view
+
+
+def test_presented_with_no_context_is_the_context_free_present() -> None:
+    presenter = SerializerPresenter(_Who)
+
+    payload = presenter.presented(_row(), None)
+
+    # No principal and no request, as ``present`` has always rendered.
+    assert payload["request_seen"] is None and payload["viewer"] is None
+    assert payload == presenter.present(_row())
+
+
+def test_present_delegates_and_presented_is_what_the_kernel_calls() -> None:
+    calls: list[Any] = []
+
+    class Spy(SerializerPresenter):
+        def presented(self, value: Any, context: Any) -> Any:
+            calls.append(context)
+            return super().presented(value, context)
+
+    Spy(_Who).present(_row())
+
+    # ``present`` is the context-free form: it asks ``presented`` with no context.
+    assert calls == [None]
+
+
+def test_presented_none_is_none_whatever_the_context() -> None:
+    assert SerializerPresenter(_Who).presented(None, PresentationContext(object())) is None
+
+
+@pytest.mark.django_db
+def test_dispatch_carries_the_call_s_context_to_a_selector_spec_s_serializer() -> None:
+    user = get_user_model().objects.create(username="ada")
+    offline = build_offline_context(user, {})
+    seeds = DEFAULT_POOL_SEEDS.extend(request=lambda: offline.request, view=lambda: offline.view)
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE,
+        selector=lambda: SimpleNamespace(name="x"),
+        permissions=[Unrestricted()],
+        presenter=SerializerPresenter(_Who),
+    )
+
+    result = dispatch(spec, principal=user, arguments={}, pool_seeds=seeds)
+    payload = present(spec, result)
+
+    assert result.context is not None and result.context.principal is user
+    assert payload["request_seen"] is offline.request
+    assert payload["view_seen"] is offline.view
+    assert payload["viewer"] is user
+
+
+@pytest.mark.django_db
+def test_dispatch_carries_the_call_s_context_to_a_list_and_a_service_spec() -> None:
+    user = get_user_model().objects.create(username="grace")
+    offline = build_offline_context(user, {})
+    seeds = DEFAULT_POOL_SEEDS.extend(request=lambda: offline.request)
+    listing = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=lambda: [_row("a"), _row("b")],
+        permissions=[Unrestricted()],
+        presenter=SerializerPresenter(_Who),
+    )
+    service = ServiceSpec(
+        service=lambda: _row("made"),
+        permissions=[Unrestricted()],
+        presenter=SerializerPresenter(_Who),
+    )
+
+    rows = present(listing, dispatch(listing, principal=user, arguments={}, pool_seeds=seeds))
+    made = present(service, dispatch(service, principal=user, arguments={}, pool_seeds=seeds))
+
+    assert [row["request_seen"] for row in rows] == [offline.request, offline.request]
+    assert made["request_seen"] is offline.request
