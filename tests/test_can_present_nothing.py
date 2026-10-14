@@ -112,13 +112,6 @@ _TABLE: list[Any] = [
     pytest.param(
         _service(_re_read(LIST), allow_none=True), False, id="service-list-re-read-allow-none"
     ),
-    # ServiceSpec, a list payload
-    pytest.param(_service(allow_none=True, many=True), False, id="service-many-allow-none"),
-    pytest.param(
-        _service(_re_read(RETRIEVE), allow_none=True, many=True),
-        False,
-        id="service-many-with-a-re-read",
-    ),
 ]
 
 
@@ -150,8 +143,15 @@ def test_a_re_read_spec_without_a_selector_is_no_re_read() -> None:
     assert can_present_nothing(_service(_re_read(RETRIEVE, selector=False))) is False
 
 
-def test_a_list_payload_never_presents_nothing() -> None:
-    assert can_present_nothing(_service(_re_read(RETRIEVE), allow_none=True, many=True)) is False
+def test_many_is_not_read() -> None:
+    # The kernel answers a ``many`` service as any other: ``many`` decides whether
+    # the result is a list of what the service wrote, not whether it may be
+    # ``None``. So the declaration answers without a re-read, and the re-read's
+    # kind answers with one.
+    assert can_present_nothing(_service(allow_none=True, many=True)) is True
+    assert can_present_nothing(_service(many=True)) is False
+    assert can_present_nothing(_service(_re_read(RETRIEVE), many=True)) is True
+    assert can_present_nothing(_service(_re_read(LIST), allow_none=True, many=True)) is False
 
 
 def test_it_is_exported_from_the_package() -> None:
