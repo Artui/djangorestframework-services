@@ -180,8 +180,9 @@ class TestScopeIsWhatMakesMatchingSafe:
                 },
             )
 
-        # ``[0]`` is the row in either of DRF's shapes, its index or its position.
-        [message] = excinfo.value.detail["tags"][0]
+        # ``[0]`` is the row in either of DRF's shapes, its index or its position;
+        # the refusal is the row's own, under its ``non_field_errors``.
+        [message] = excinfo.value.detail["tags"][0]["non_field_errors"]
         assert "outside the scope" in message
         theirs.refresh_from_db()
         assert theirs.name == "theirs"
@@ -371,8 +372,9 @@ class TestTheAsyncPathWritesTheSameWay:
                 },
             )
 
-        # ``[0]`` is the row in either of DRF's shapes, its index or its position.
-        [message] = excinfo.value.detail["tags"][0]
+        # ``[0]`` is the row in either of DRF's shapes, its index or its position;
+        # the refusal is the row's own, under its ``non_field_errors``.
+        [message] = excinfo.value.detail["tags"][0]["non_field_errors"]
         assert "outside the scope" in message
 
     async def test_a_foreign_primary_key_is_refused_here_too(self) -> None:

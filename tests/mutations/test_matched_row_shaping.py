@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+from django_service_specs.parameters.invalid_arguments import InvalidArguments
 
 from rest_framework_services import (
     ChildSpec,
@@ -131,7 +132,7 @@ class TestTheAsyncWritersAgree:
         author = await Author.objects.acreate(name="Ursula")
         post = await Post.objects.acreate(title="t", author=author)
 
-        with pytest.raises(ServiceValidationError) as excinfo:
+        with pytest.raises(InvalidArguments) as excinfo:
             await aupdate_from_input(
                 author,
                 {"posts": [{"pk": post.pk, "views": "not-a-number"}]},
@@ -273,10 +274,12 @@ class TestARowsWriteFailsAsThatRow:
     def test_a_django_value_error_is_named_rather_than_escaping(self) -> None:
         # The backstop. Django raises a bare ``ValueError`` -- no ``detail`` to
         # namespace -- when a row's own data cannot be written at all, and
-        # untranslated it leaves the service as a 500 naming no row.
+        # untranslated it leaves the service as a 500 naming no row. Called
+        # directly, the writer raises the kernel's ``InvalidArguments``, which the
+        # DRF edge translates to DRF's at its boundary.
         author = Author.objects.create(name="Ursula")
 
-        with pytest.raises(ServiceValidationError) as excinfo:
+        with pytest.raises(InvalidArguments) as excinfo:
             update_from_input(
                 author,
                 {"posts": [{"title": "a"}, {"title": "b", "views": "not-a-number"}]},
@@ -295,7 +298,7 @@ class TestARowsWriteFailsAsThatRow:
         author = Author.objects.create(name="Ursula")
         post = Post.objects.create(title="t", author=author)
 
-        with pytest.raises(ServiceValidationError) as excinfo:
+        with pytest.raises(InvalidArguments) as excinfo:
             update_from_input(
                 author,
                 {"posts": [{"pk": post.pk, "views": "not-a-number"}]},

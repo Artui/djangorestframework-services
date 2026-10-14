@@ -230,8 +230,9 @@ class TestThePrimaryKeyGuardReadsTheSentinelAsAbsent:
                 relations={"sections": ChildSpec(model=Section, fk="catalog")},
             )
 
-        # ``[0]`` is the row in either of DRF's shapes, its index or its position.
-        [message] = excinfo.value.detail["sections"][0]
+        # ``[0]`` is the row in either of DRF's shapes, its index or its position;
+        # the refusal is the row's own, under its ``non_field_errors``.
+        [message] = excinfo.value.detail["sections"][0]["non_field_errors"]
         assert "which this write did not match" in message
 
 
