@@ -523,23 +523,67 @@ class TestServiceFields:
 
         assert compiled == _kernel_service(ServiceSpec(service=_create))
 
-    def test_the_serializer_context_providers_have_no_seat_yet(self) -> None:
-        """``input_serializer_context`` and ``output_serializer_context`` are not carried."""
+    def test_the_serializer_context_callables_ride_on_the_adapters(self) -> None:
+        """``input_serializer_context`` on the Validator, ``output_serializer_context`` on the Presenter."""
+
+        def input_context() -> dict[str, Any]:
+            return {"a": 1}
+
+        def output_context() -> dict[str, Any]:
+            return {"b": 2}
+
         spec = ServiceSpec(
             service=_create,
             input_serializer=_Note,
-            input_serializer_context=lambda: {"a": 1},
+            input_serializer_context=input_context,
             output_selector_spec=SelectorSpec(
                 kind=SelectorKind.RETRIEVE,
                 output_serializer=_Note,
-                output_serializer_context=lambda: {"b": 2},
+                output_serializer_context=output_context,
             ),
         )
 
         compiled = _kernel_service(spec)
 
         assert isinstance(compiled.validator, SerializerValidator)
+        assert compiled.validator.serializer_context is input_context
         assert isinstance(compiled.presenter, SerializerPresenter)
+        assert compiled.presenter.serializer_context is output_context
+        assert compiled.presenter.value_keyword == "result"
+
+    def test_an_output_selector_s_presenter_reads_the_result_and_a_retrieve_s_the_instance(
+        self,
+    ) -> None:
+        def output_context() -> dict[str, Any]:
+            return {}
+
+        selected = _kernel_service(
+            ServiceSpec(
+                service=_create,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=_lookup,
+                    output_serializer=_Note,
+                    output_serializer_context=output_context,
+                ),
+            )
+        )
+        retrieve = _kernel_selector(
+            SelectorSpec(
+                kind=SelectorKind.RETRIEVE,
+                selector=_lookup,
+                output_serializer=_Note,
+                output_serializer_context=output_context,
+            )
+        )
+
+        assert selected.output_selector_spec is not None
+        output_presenter = selected.output_selector_spec.presenter
+        assert isinstance(output_presenter, SerializerPresenter)
+        assert output_presenter.serializer_context is output_context
+        assert output_presenter.value_keyword == "result"
+        assert isinstance(retrieve.presenter, SerializerPresenter)
+        assert retrieve.presenter.value_keyword == "instance"
 
 
 class TestTheOutput:

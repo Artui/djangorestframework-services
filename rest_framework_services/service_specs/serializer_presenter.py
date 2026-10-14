@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from types import MappingProxyType
 from typing import Any, Final
 
@@ -19,7 +19,7 @@ from rest_framework_services.service_specs.base_serializer_context import base_s
 from rest_framework_services.service_specs.renderable_serializer_class import (
     renderable_serializer_class,
 )
-from rest_framework_services.service_specs.utils import serializer_context
+from rest_framework_services.service_specs.utils import output_view_layers, serializer_context
 from rest_framework_services.types.field_marking import MARKING
 
 # How many times one serializer class may appear on the walk's path before the
@@ -109,13 +109,27 @@ class SerializerPresenter(Presenter):
         ``self.context["request"].user`` renders for the principal the call ran
         for. A list result is presented row by row by the kernel's ``present``,
         each row with the same context, which is what a ``many=True`` render is.
+        Over that, the output half of the view hooks a DRF edge registered for
+        the call, resolved with the value, then ``serializer_context``, the
+        spec's own ``output_serializer_context``, each winning on a key it shares
+        with what it layers over (see
+        ``serializer_context`` in ``service_specs/utils.py``).
+        The callable declares what it reads from the call's pool, ``request``,
+        ``view``, ``user`` or a registered seed, and the value being presented
+        under ``value_keyword``: ``result`` for a service's output, ``instance``
+        for a retrieve. **It is asked once per value presented**, so for a list
+        once per row, and no keyword names the row then: the kernel presents a
+        list row by row, and the whole page a list's callable may declare as
+        ``page`` is never in hand here.
 
         ``present(value)`` is the context-free form, and delegates to
         ``presented(value, None)``: a ``None`` context is the serializer context
         drfs describes a serializer with (``request``, ``view`` and ``format``
         present, each ``None``), so a ``get_fields`` reading
         ``self.context["request"]`` neither raises there nor sees a principal. It
-        is what a ``DispatchResult`` a transport built by hand is presented with.
+        is what a ``DispatchResult`` a transport built by hand is presented with,
+        and with no call to resolve it against, ``serializer_context`` is not
+        asked (test_present_with_no_call_runs_no_callable).
 
         A dataclass type is read and rendered through the ``DataclassSerializer``
         drfs renders it with, and a ``BaseSerializer`` that is not a ``Serializer``
@@ -127,6 +141,8 @@ class SerializerPresenter(Presenter):
         serializer_class: type,
         *,
         field_audiences: Mapping[str, FieldMarking] | None = None,
+        serializer_context: Callable[..., Mapping[str, Any]] | None = None,
+        value_keyword: str | None = "result",
     ) -> None:
         # Resolved at construction but never instantiated: specs are built at
         # import time, and a ``ModelSerializer`` reads the app registry when its
@@ -146,6 +162,8 @@ class SerializerPresenter(Presenter):
         self.field_audiences: Mapping[str, FieldMarking] = MappingProxyType(
             dict(field_audiences or {})
         )
+        self.serializer_context = serializer_context
+        self.value_keyword = value_keyword
 
     def output(self) -> Output:
         """The serializer's fields as an Output, with ``field_audiences`` layered on. Never queries."""
@@ -185,7 +203,19 @@ class SerializerPresenter(Presenter):
         """
         if value is None:
             return None
-        return self.serializer_class(value, context=_context(context)).data
+        if context is None:
+            return self.serializer_class(value, context=_context()).data
+        return self.serializer_class(
+            value,
+            context=serializer_context(
+                context.principal,
+                context.ambient,
+                None,
+                view_layers=output_view_layers(context.ambient, value),
+                provider=self.serializer_context,
+                extras={self.value_keyword: value} if self.value_keyword is not None else None,
+            ),
+        ).data
 
 
 _REFUSED: Final = (
@@ -193,11 +223,9 @@ _REFUSED: Final = (
 )
 
 
-def _context(call: PresentationContext | None = None) -> dict[str, Any]:
-    """The serializer context for ``call``: drfs' description context (no view, no request) with none."""
-    if call is None:
-        return base_serializer_context(view=None, request=None)
-    return serializer_context(call.principal, call.ambient, None)
+def _context() -> dict[str, Any]:
+    """drfs' description context: DRF's three keys, each ``None``, for no call."""
+    return base_serializer_context(view=None, request=None)
 
 
 def _output(serializer: serializers.Serializer, *, path: tuple[type, ...]) -> Output:

@@ -25,11 +25,12 @@ two dialects differ and why.
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
 from django_service_specs.parameters.parameters import Parameter, Parameters
+from django_service_specs.pool.resolve_callable_kwargs import resolve_callable_kwargs
 from django_service_specs.types.unset import UNSET as KERNEL_UNSET
 from rest_framework import ISO_8601, relations, serializers
 from rest_framework.settings import api_settings
@@ -38,6 +39,7 @@ from rest_framework_dataclasses.serializers import DataclassSerializer
 from rest_framework_services.service_specs.base_serializer_context import base_serializer_context
 from rest_framework_services.service_specs.build_offline_context import build_offline_context
 from rest_framework_services.types.unset import UNSET
+from rest_framework_services.types.view_hooks import ViewHooks
 
 MAX_SERIALIZER_APPEARANCES = 4
 """How many times one serializer class may appear on the walk's current path
@@ -103,34 +105,105 @@ def bind_serializer(declaration: Any, **kwargs: Any) -> serializers.Serializer:
     )
 
 
+SERIALIZER_CONTEXT_SEED = "_serializer_context_layers"
+"""The pool seed carrying the view's serializer context layers into a call.
+
+DRF's edge registers the calling view's resolved
+[`ViewHooks`][rest_framework_services.types.view_hooks.ViewHooks] under this
+name, and the adapters read its two context halves from the call's ``ambient``:
+``input_serializer_context`` for the Validator, ``output_serializer_context``
+(lazy, handed the value presented) for the Presenter. Those halves are the
+directional and per-action view hooks, the second and third of the four layers,
+which only a view can resolve and which a compiled spec, shared by every call,
+cannot carry. A call registering nothing under it, as a transport with no view
+does, has no such layers. Underscored, as the edge's other private seed is, so
+no parameter a spec declares is likely to collide with it."""
+
+
+def input_view_layers(ambient: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """The input half of the view hooks the call registered, or ``None``."""
+    hooks: ViewHooks | None = ambient.get(SERIALIZER_CONTEXT_SEED)
+    return hooks.input_serializer_context if hooks is not None else None
+
+
+def output_view_layers(ambient: Mapping[str, Any], value: Any) -> Mapping[str, Any] | None:
+    """The output half of the view hooks the call registered, resolved for ``value``, or ``None``.
+
+    Lazy on the carrier, because a view's output hook may declare the
+    ``result`` it renders, which exists only once the call has run. One branch
+    to coverage, so each condition is named by the test that fails without it:
+    test_the_output_callable_reaches_the_output_serializer (no hooks
+    registered, a call that reached no edge) and
+    test_the_spec_s_output_callable_layers_over_the_view_with_no_hooks (hooks
+    registered with no output half).
+    """
+    hooks: ViewHooks | None = ambient.get(SERIALIZER_CONTEXT_SEED)
+    if hooks is None or hooks.output_serializer_context is None:
+        return None
+    return hooks.output_serializer_context(value)
+
+
 def serializer_context(
-    principal: Any, ambient: Mapping[str, Any], arguments: Mapping[str, Any] | list[Any] | None
+    principal: Any,
+    ambient: Mapping[str, Any],
+    arguments: Mapping[str, Any] | list[Any] | None,
+    *,
+    view_layers: Mapping[str, Any] | None = None,
+    provider: Callable[..., Mapping[str, Any]] | None = None,
+    extras: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """The serializer context a call's serializer is built under, from the call's ambient seeds.
+    """The serializer context a call's serializer is built under: four layers, later wins.
 
-    The ``request`` and ``view`` the call registered are the serializer's own,
-    as they are on HTTP, so a field or a ``validate()`` reading either finds
-    what the transport put there; a registered view that answers
-    ``get_serializer_context`` supplies the whole context, as DRF's views do.
-    **Only when the call registered neither** is an offline pair built, with
-    ``principal`` as the request's ``user`` and ``arguments`` as its data, so a
-    ``CurrentUserDefault`` reads the principal and a serializer reading
-    ``self.context["request"]`` finds a request off HTTP too. One seed alone
-    is kept as it is, beside a ``None`` for the other: pairing a registered
-    request with a view built around another one would describe a call that
-    never happened.
+    1. **DRF's own.** The ``request`` and ``view`` the call registered are the
+       serializer's own, as they are on HTTP, so a field or a ``validate()``
+       reading either finds what the transport put there; a registered view
+       that answers ``get_serializer_context`` supplies the whole context, as
+       DRF's views do. **Only when the call registered neither** is an offline
+       pair built, with ``principal`` as the request's ``user`` and
+       ``arguments`` as its data, so a ``CurrentUserDefault`` reads the
+       principal and a serializer reading ``self.context["request"]`` finds a
+       request off HTTP too. One seed alone is kept as it is, beside a ``None``
+       for the other: pairing a registered request with a view built around
+       another one would describe a call that never happened.
+    2. and 3. **The view's hooks**, ``view_layers``: the directional and
+       per-action hooks the view resolved, one direction's half of what the
+       edge registered under ``SERIALIZER_CONTEXT_SEED``.
+    4. **The spec's own callable**, ``provider``, which has the final say. It
+       is called through the kernel's declared-kwargs resolver, as every other
+       spec callable is, from a pool of the call's ``arguments`` (a mapping's
+       entries; a ``many`` call's rows are no names, held by
+       test_a_many_spec_s_rows_validate_under_the_input_callable_once), beneath its ``ambient``
+       seeds, beneath the ``request`` and ``view`` of layer 1 and ``user`` (the
+       principal), beneath ``extras`` (the value an output callable renders).
+       A client's argument never stands in for one of the call's own objects
+       (test_an_argument_never_stands_in_for_the_request_the_callable_declares).
+       A key it answers with ``UNSET`` is declined, leaving the layer beneath,
+       as on every transport drfs has (test_an_unset_value_declines_the_key_and_keeps_the_layer_beneath).
 
-    One branch to coverage: the request seed alone is held by
-    test_a_registered_request_alone_is_kept_beside_no_view, the view seed alone
-    by test_a_registered_view_alone_answers_for_the_serializer_context, and
-    neither by test_the_serializer_context_carries_an_offline_request_for_the_principal.
+    One branch to coverage for the offline pair: the request seed alone is held
+    by test_a_registered_request_alone_is_kept_beside_no_view, the view seed
+    alone by test_a_registered_view_alone_answers_for_the_serializer_context,
+    and neither by test_the_serializer_context_carries_an_offline_request_for_the_principal.
     """
     request = ambient.get("request")
     view = ambient.get("view")
     if request is None and view is None:
         offline = build_offline_context(principal, arguments)
         request, view = offline.request, offline.view
-    return base_serializer_context(view=view, request=request)
+    context = base_serializer_context(view=view, request=request)
+    context.update(view_layers or {})
+    if provider is not None:
+        pool: dict[str, Any] = {
+            **(arguments if isinstance(arguments, Mapping) else {}),
+            **ambient,
+            "request": request,
+            "view": view,
+            "user": principal,
+            **(extras or {}),
+        }
+        resolved = provider(**resolve_callable_kwargs(provider, pool))
+        context.update({key: value for key, value in resolved.items() if value is not UNSET})
+    return context
 
 
 def is_input(field: serializers.Field) -> bool:

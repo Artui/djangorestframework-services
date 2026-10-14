@@ -278,3 +278,37 @@ authorization list and is routinely a wildcard or an internal load-balancer name
 — would emit confidently-wrong links that look valid. A relative URL is what
 those DRF fields already fall back to when there's no request in the context at
 all.
+
+## Through the kernel
+
+A drfs spec compiles to a [django-service-specs](https://github.com/Artui/django-service-specs)
+spec (see [Service specs on the kernel](../reference/service-specs.md)): its input
+serializer becomes a `SerializerValidator` and its output serializer a
+`SerializerPresenter`, and the two context callables ride on them.
+`dispatch_spec` validates through the first, and the kernel's `present` renders
+through the second. Each builds the context in the same four layers:
+
+| Layer | Through `dispatch_spec` | The compiled spec, dispatched by the kernel |
+|---|---|---|
+| 1. DRF default | the `view`'s `get_serializer_context()` | the same for a registered `view` seed, else DRF's three keys, from the registered `request` or an offline pair built for the principal |
+| 2. and 3. View hooks | what the view resolved into `view_hooks=`, registered as a seed of the call | none |
+| 4. Per-spec callable | `*_serializer_context` on the spec | the same, with the final say |
+
+The callable declares what it reads, as every spec callable does:
+
+- `request`, `view` and `user` (the principal), the call's own, which no
+  argument a client sends can stand in for;
+- any pool seed the call registered;
+- on input, an argument by name, beneath everything above;
+- on output, the value being rendered: `result` for a service's output,
+  `instance` for a retrieve.
+
+A key it answers with `UNSET` is declined and keeps the layer beneath. The
+input callable is asked once per call, a `many` call included, where the rows
+are validated together.
+
+**A list is presented row by row.** The kernel's `present` renders a list one
+row at a time, so a list's output callable is asked once per row there, and
+no keyword names the row: the whole `page` a list's callable may declare is
+never in hand. A callable that declares `page` belongs on the paths that render
+a page at once, `render_spec_output` and DRF's list views.

@@ -129,9 +129,10 @@ def as_kernel_spec(
     over.
 
     ``success_status``, ``document_service_error`` and ``response_finalizer``
-    are the HTTP views', and ``input_serializer_context`` and
-    ``output_serializer_context`` have no seat on the adapters yet; none of
-    them is carried.
+    are the HTTP views', and none of them is carried. ``input_serializer_context``
+    rides on the ``SerializerValidator`` and ``output_serializer_context`` on the
+    ``SerializerPresenter``, which hands it the value it presents as ``result``
+    for a service's output and as ``instance`` for a retrieve.
     """
     if isinstance(spec, AffordanceDeclarer):
         return _service(spec, partial=partial)
@@ -164,7 +165,9 @@ def _service(spec: Any, *, partial: bool | None) -> KernelServiceSpec:
         many_argument=spec.many_argument,
         **_list_bounds(spec),
         validator=(
-            SerializerValidator(spec.input_serializer)
+            SerializerValidator(
+                spec.input_serializer, serializer_context=spec.input_serializer_context
+            )
             if spec.input_serializer is not None
             else None
         ),
@@ -233,7 +236,13 @@ def _selector(
         reads=reads,
         # A target lookup's rows are the service's to consume, never presented.
         presenter=(
-            _presenter(spec.output_serializer, audiences, label=label)
+            _presenter(
+                spec.output_serializer,
+                audiences,
+                label=label,
+                context=spec.output_serializer_context,
+                value_keyword=_value_keyword(spec, role),
+            )
             if role in (None, "output")
             else None
         ),
@@ -282,11 +291,34 @@ def _output(spec: Any) -> tuple[KernelSelectorSpec | None, SerializerPresenter |
             output, role="output", hidden=frozenset(), declared=(), audiences=audiences
         ), None
     _refuse_nested_runs(output, "ServiceSpec.output_selector_spec")
-    return None, _presenter(output.output_serializer, audiences, label="ServiceSpec")
+    return None, _presenter(
+        output.output_serializer,
+        audiences,
+        label="ServiceSpec",
+        context=output.output_serializer_context,
+        value_keyword="result",
+    )
+
+
+def _value_keyword(spec: Any, role: str | None) -> str | None:
+    """The name an output context callable reads the presented value by, as drfs offers it.
+
+    ``result`` for a service's output, ``instance`` for a retrieve, and none
+    for a list, which the kernel presents row by row: drfs offers a list's
+    callable the whole ``page``, which is never in hand there.
+    """
+    if role == "output":
+        return "result"
+    return "instance" if spec.kind == SelectorKind.RETRIEVE else None
 
 
 def _presenter(
-    serializer: Any, audiences: Mapping[str, FieldMarking] | None, *, label: str
+    serializer: Any,
+    audiences: Mapping[str, FieldMarking] | None,
+    *,
+    label: str,
+    context: Callable[..., Mapping[str, Any]] | None = None,
+    value_keyword: str | None = None,
 ) -> SerializerPresenter | None:
     if serializer is None:
         if audiences:
@@ -297,7 +329,12 @@ def _presenter(
                 "remove field_audiences."
             )
         return None
-    return SerializerPresenter(serializer, field_audiences=audiences)
+    return SerializerPresenter(
+        serializer,
+        field_audiences=audiences,
+        serializer_context=context,
+        value_keyword=value_keyword,
+    )
 
 
 def _audiences(
