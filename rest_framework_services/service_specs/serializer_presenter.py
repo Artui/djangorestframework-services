@@ -118,9 +118,11 @@ class SerializerPresenter(Presenter):
         ``view``, ``user`` or a registered seed, and the value being presented
         under ``value_keyword``: ``result`` for a service's output, ``instance``
         for a retrieve. **It is asked once per value presented**, so for a list
-        once per row, and no keyword names the row then: the kernel presents a
-        list row by row, and the whole page a list's callable may declare as
-        ``page`` is never in hand here.
+        or a ``many`` service's output once per row, and no keyword names the
+        row then (``value_keyword`` is ``None``), nor is the view's hook handed
+        it: the kernel presents a set row by row, and the whole set a callable
+        may declare, a list's ``page`` or a ``many`` output's ``result``, is
+        never in hand here.
 
         ``present(value)`` is the context-free form, and delegates to
         ``presented(value, None)``: a ``None`` context is the serializer context
@@ -211,7 +213,11 @@ class SerializerPresenter(Presenter):
                 context.principal,
                 context.ambient,
                 None,
-                view_layers=output_view_layers(context.ambient, value),
+                # A presenter naming no value is presenting one row of a set,
+                # which the view's hook, written for the whole set, is not handed.
+                view_layers=output_view_layers(
+                    context.ambient, value if self.value_keyword is not None else None
+                ),
                 provider=self.serializer_context,
                 extras={self.value_keyword: value} if self.value_keyword is not None else None,
             ),

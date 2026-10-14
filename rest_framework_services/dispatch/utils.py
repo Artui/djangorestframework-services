@@ -292,9 +292,16 @@ def edge_seeds(
 
     The kernel resolves each seed against the base pool alone, so a resolver of
     the caller's that declares ``request`` or ``view`` - as this package's seeds
-    always could - is handed them by a wrapper, which stays sync. ``view_hooks``
-    is registered under ``SERIALIZER_CONTEXT_SEED``, where the adapters read the
-    view's serializer context layers from.
+    always could - is handed them by a wrapper, which stays sync.
+
+    ``view_hooks`` is registered under ``SERIALIZER_CONTEXT_SEED``, where the
+    adapters read the view's serializer context layers from, **only when it
+    carries one**: a seed is in every ``**kwargs`` callable's pool, so a call
+    with no context hooks, as every transport but the HTTP views makes, adds
+    nothing there (test_a_call_with_no_context_hooks_registers_no_seed). One
+    branch to coverage, so each condition is named by the test that fails
+    without it: test_an_input_half_alone_reaches_the_input_serializer and
+    test_an_output_half_alone_reaches_the_output_serializer.
 
     Raises:
         ImproperlyConfigured: ``pool_seeds`` registers ``request``, ``view`` or
@@ -310,13 +317,14 @@ def edge_seeds(
         )
     ambient = {"request": request, "view": view}
     wrapped = tuple((name, _with_ambient(resolver, ambient)) for name, resolver in pool_seeds.seeds)
+    layers: tuple[tuple[str, Callable[..., Any]], ...] = ()
+    if (
+        view_hooks.input_serializer_context is not None
+        or view_hooks.output_serializer_context is not None
+    ):
+        layers = ((SERIALIZER_CONTEXT_SEED, lambda: view_hooks),)
     return PoolSeeds(
-        seeds=(
-            ("request", lambda: request),
-            ("view", lambda: view),
-            (SERIALIZER_CONTEXT_SEED, lambda: view_hooks),
-            *wrapped,
-        )
+        seeds=(("request", lambda: request), ("view", lambda: view), *layers, *wrapped)
     )
 
 

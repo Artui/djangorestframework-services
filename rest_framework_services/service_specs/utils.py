@@ -134,8 +134,8 @@ def output_view_layers(ambient: Mapping[str, Any], value: Any) -> Mapping[str, A
     to coverage, so each condition is named by the test that fails without it:
     test_the_output_callable_reaches_the_output_serializer (no hooks
     registered, a call that reached no edge) and
-    test_the_spec_s_output_callable_layers_over_the_view_with_no_hooks (hooks
-    registered with no output half).
+    test_an_input_half_alone_reaches_the_input_serializer (hooks registered
+    with no output half).
     """
     hooks: ViewHooks | None = ambient.get(SERIALIZER_CONTEXT_SEED)
     if hooks is None or hooks.output_serializer_context is None:

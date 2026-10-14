@@ -301,14 +301,16 @@ The callable declares what it reads, as every spec callable does:
 - any pool seed the call registered;
 - on input, an argument by name, beneath everything above;
 - on output, the value being rendered: `result` for a service's output,
-  `instance` for a retrieve.
+  `instance` for a retrieve (but see below for a set).
 
 A key it answers with `UNSET` is declined and keeps the layer beneath. The
 input callable is asked once per call, a `many` call included, where the rows
 are validated together.
 
-**A list is presented row by row.** The kernel's `present` renders a list one
-row at a time, so a list's output callable is asked once per row there, and
-no keyword names the row: the whole `page` a list's callable may declare is
-never in hand. A callable that declares `page` belongs on the paths that render
-a page at once, `render_spec_output` and DRF's list views.
+**A set is presented row by row.** The kernel's `present` renders a list, and
+a `many` service's output, one row at a time, so the output callable is asked
+once per row there, and no keyword names the row: the whole set a callable may
+declare, a list's `page` or a `many` output's `result`, is never in hand. The
+view's output hook is handed no value there either. A callable that reads the
+whole set belongs on the paths that render it at once, `render_spec_output`
+and DRF's own views.

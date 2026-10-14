@@ -232,6 +232,24 @@ def test_a_many_spec_s_rows_validate_under_the_input_callable_once() -> None:
     assert [context["tenant"] for context in seen] == ["acme", "acme"]
 
 
+@pytest.mark.django_db
+def test_a_registered_seed_reaches_the_input_callable() -> None:
+    seen: list[dict[str, Any]] = []
+    spec = _service(
+        input_serializer=_capturing(seen),
+        input_serializer_context=lambda tenant: {"tenant": tenant},
+    )
+
+    dispatch(
+        spec,
+        principal=None,
+        arguments={"title": "hi"},
+        pool_seeds=DEFAULT_POOL_SEEDS.extend(tenant=lambda: "acme"),
+    )
+
+    assert seen[0]["tenant"] == "acme"
+
+
 @pytest.mark.django_db(transaction=True)
 async def test_an_input_callable_that_queries_runs_off_the_event_loop() -> None:
     seen: list[dict[str, Any]] = []
@@ -327,6 +345,34 @@ def test_a_list_s_output_callable_is_asked_per_row_and_offered_no_row_by_name() 
     assert [row["context"]["tenant"] for row in payload] == ["acme", "acme"]
     assert len(received) == 2
     assert not {"page", "instance", "result"} & set(received[0])
+
+
+@pytest.mark.django_db
+def test_a_many_service_s_output_callable_is_offered_no_row_by_name() -> None:
+    """A ``many`` output's ``result`` is the whole list on drfs' own render; one row is never it."""
+    received: list[dict[str, Any]] = []
+
+    def provider(**pool: Any) -> dict[str, Any]:
+        received.append(pool)
+        return {"tenant": "acme"}
+
+    spec = ServiceSpec(
+        service=lambda *, data: [SimpleNamespace(**row) for row in data],
+        permission_classes=[],
+        many=True,
+        input_serializer=_capturing([]),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            output_serializer=_Out,
+            output_serializer_context=provider,
+        ),
+    )
+
+    result = dispatch(spec, principal=None, arguments={"items": [{"title": "a"}, {"title": "b"}]})
+    payload = present(spec, result)
+
+    assert [row["context"]["tenant"] for row in payload] == ["acme", "acme"]
+    assert not {"result", "instance", "page"} & set(received[0])
 
 
 def test_present_with_no_call_runs_no_callable() -> None:

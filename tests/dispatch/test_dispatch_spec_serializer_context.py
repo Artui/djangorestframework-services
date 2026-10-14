@@ -190,6 +190,96 @@ class TestTheOutputSerializer:
 
 
 @pytest.mark.django_db
+class TestWhichLayersRide:
+    def test_an_input_half_alone_reaches_the_input_serializer(self) -> None:
+        seen: list[dict[str, Any]] = []
+        spec = _spec(seen)
+        result, _ = _call(spec, hooks=ViewHooks(input_serializer_context={"hook_in": "in"}))
+
+        payload = present(spec, result)
+
+        assert seen == [{"base": "view", "shared": "view", "hook_in": "in"}]
+        assert payload["context"] == {"base": "view", "shared": "view"}
+
+    def test_an_output_half_alone_reaches_the_output_serializer(self) -> None:
+        seen: list[dict[str, Any]] = []
+        spec = _spec(seen)
+        hooks = ViewHooks(output_serializer_context=lambda result: {"hook_out": result.title})
+        result, _ = _call(spec, hooks=hooks)
+
+        payload = present(spec, result)
+
+        assert seen == [{"base": "view", "shared": "view"}]
+        assert payload["context"] == {"base": "view", "shared": "view", "hook_out": "hi"}
+
+    def test_a_call_with_no_context_hooks_registers_no_seed(self) -> None:
+        """A seed is in every ``**kwargs`` callable's pool, so a call with no context hooks adds none."""
+        pools: list[dict[str, Any]] = []
+
+        def service(**pool: Any) -> None:
+            pools.append(pool)
+
+        dispatch_spec(
+            ServiceSpec(service=service),
+            user=None,
+            params={},
+            view_hooks=ViewHooks(extra_kwargs={"x": 1}),
+        )
+
+        assert "_serializer_context_layers" not in pools[0]
+
+    def test_a_registered_seed_reaches_both_callables(self) -> None:
+        seen: list[dict[str, Any]] = []
+        spec = _spec(
+            seen,
+            input_context=lambda tenant: {"spec_in": tenant},
+            output_context=lambda tenant: {"spec_out": tenant},
+        )
+        view = _View(build_offline_context(None).request)
+
+        result = dispatch_spec(
+            spec,
+            user=None,
+            params={"title": "hi"},
+            request=view.request,
+            view=view,
+            pool_seeds=DEFAULT_POOL_SEEDS.extend(tenant=lambda: "acme"),
+        )
+
+        assert seen[0]["spec_in"] == "acme"
+        assert present(spec, result)["context"]["spec_out"] == "acme"
+
+    def test_a_many_output_s_view_hook_is_handed_no_row(self) -> None:
+        """On drfs' own render the hook's ``result`` is the whole list; one row is never it."""
+        handed: list[Any] = []
+
+        def hook(result: Any) -> dict[str, Any]:
+            handed.append(result)
+            return {"hook_out": "set"}
+
+        spec = ServiceSpec(
+            service=lambda *, data: [SimpleNamespace(**row) for row in data],
+            many=True,
+            input_serializer=_spec([]).input_serializer,
+            output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_Out),
+        )
+        view = _View(build_offline_context(None).request)
+
+        result = dispatch_spec(
+            spec,
+            user=None,
+            params=[{"title": "a"}, {"title": "b"}],
+            request=view.request,
+            view=view,
+            view_hooks=ViewHooks(output_serializer_context=hook),
+        )
+        payload = present(spec, result)
+
+        assert [row["context"]["hook_out"] for row in payload] == ["set", "set"]
+        assert handed == [None, None]
+
+
+@pytest.mark.django_db
 def test_a_caller_registering_the_context_seed_is_refused() -> None:
     """The edge registers the view-hook layers itself; a caller's registration would shadow them."""
     seeds = DEFAULT_POOL_SEEDS.extend(_serializer_context_layers=lambda: None)

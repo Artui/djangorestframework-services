@@ -194,6 +194,7 @@ def _selector(
     hidden: frozenset[str],
     declared: Sequence[Parameter],
     audiences: Mapping[str, FieldMarking] | None = None,
+    many: bool = False,
 ) -> KernelSelectorSpec:
     """A top-level selector spec (``role`` ``None``), or a service's nested one by its role.
 
@@ -241,7 +242,7 @@ def _selector(
                 audiences,
                 label=label,
                 context=spec.output_serializer_context,
-                value_keyword=_value_keyword(spec, role),
+                value_keyword=_value_keyword(spec, role, many=many),
             )
             if role in (None, "output")
             else None
@@ -288,7 +289,12 @@ def _output(spec: Any) -> tuple[KernelSelectorSpec | None, SerializerPresenter |
     audiences = _audiences(output, spec.field_audiences)
     if output.selector is not None:
         return _selector(
-            output, role="output", hidden=frozenset(), declared=(), audiences=audiences
+            output,
+            role="output",
+            hidden=frozenset(),
+            declared=(),
+            audiences=audiences,
+            many=spec.many,
         ), None
     _refuse_nested_runs(output, "ServiceSpec.output_selector_spec")
     return None, _presenter(
@@ -296,19 +302,22 @@ def _output(spec: Any) -> tuple[KernelSelectorSpec | None, SerializerPresenter |
         audiences,
         label="ServiceSpec",
         context=output.output_serializer_context,
-        value_keyword="result",
+        value_keyword=_value_keyword(output, "output", many=spec.many),
     )
 
 
-def _value_keyword(spec: Any, role: str | None) -> str | None:
+def _value_keyword(spec: Any, role: str | None, *, many: bool = False) -> str | None:
     """The name an output context callable reads the presented value by, as drfs offers it.
 
     ``result`` for a service's output, ``instance`` for a retrieve, and none
-    for a list, which the kernel presents row by row: drfs offers a list's
-    callable the whole ``page``, which is never in hand there.
+    for what the kernel presents row by row: a list, whose callable drfs hands
+    the whole ``page``, and a ``many`` service's output, whose ``result`` is
+    the whole list of rows. Neither is in hand when one row is presented, and a
+    row under either name would answer a callable written for the whole set
+    (test_a_many_service_s_output_callable_is_offered_no_row_by_name).
     """
     if role == "output":
-        return "result"
+        return None if many else "result"
     return "instance" if spec.kind == SelectorKind.RETRIEVE else None
 
 
