@@ -592,7 +592,11 @@ def _field_extras_to_context(
     extras = hooks.extra_kwargs
     if validator is None or not extras:
         return hooks
-    fields = validator.parameters().names()
+    # Only a field the kernel declares at the top level of the call, where it
+    # refuses the overlay: a ``many`` spec's fields are each row's, so a hook
+    # value naming one stays an extra the service is handed beside ``data``
+    # (test_service_kwargs_hook_applies_to_bulk).
+    fields = validator.parameters().names() & variant.parameters().names()
     moved = {name: value for name, value in extras.items() if name in fields}
     if not moved:
         return hooks
