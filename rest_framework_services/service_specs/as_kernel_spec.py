@@ -74,12 +74,9 @@ def as_kernel_spec(
 
     Each field lands on one seat:
 
-    - ``input_serializer`` becomes the
-      [`SerializerValidator`][rest_framework_services.service_specs.serializer_validator.SerializerValidator],
-      and the output serializer the
-      [`SerializerPresenter`][rest_framework_services.service_specs.serializer_presenter.SerializerPresenter],
-      with the spec's ``field_audiences`` layered over the serializer's
-      markings. A ``ServiceSpec``'s output serializer is its
+    - ``input_serializer`` becomes the ``SerializerValidator``, and the output
+      serializer the ``SerializerPresenter``, with the spec's
+      ``field_audiences`` layered over the serializer's markings. A ``ServiceSpec``'s output serializer is its
       ``output_selector_spec``'s; one whose ``selector`` is ``None`` re-reads
       nothing, so it compiles to no output selector, and its serializer is the
       compiled spec's own presenter.

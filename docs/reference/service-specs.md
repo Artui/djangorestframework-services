@@ -95,9 +95,3 @@ never asked about an object, as on HTTP.
 ::: rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec
 
 ::: rest_framework_services.service_specs.kernel_spec_variant.kernel_spec_variant
-
-## The serializer seats
-
-::: rest_framework_services.service_specs.serializer_validator.SerializerValidator
-
-::: rest_framework_services.service_specs.serializer_presenter.SerializerPresenter
