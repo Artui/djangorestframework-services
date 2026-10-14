@@ -1,11 +1,13 @@
-"""Over HTTP, dropping a ``NotClientInput`` key matters only in a target lookup.
+"""Over HTTP, a ``NotClientInput`` key is the route's to fill and never the body's.
 
-A selector view dispatches with ``ArgumentBinding.BUNDLE`` and a mutation's service
-with its bundled ``data``, so neither spreads the request into a keyword pool. A
-service's ``instance_selector_spec`` and ``collection_selector_spec`` are
-different: the core resolves them with the request body as their argument
-channel. So the body's value for a key the lookup marks ``NotClientInput`` is
-dropped there too, while a route capture of that name still fills it.
+A call has one pool, and a key a callable marks ``NotClientInput`` is no argument
+of it, so the body's value for one is dropped wherever it is sent: to a
+service's ``instance_selector_spec`` or ``collection_selector_spec`` as much as
+to a selector. The URLconf is the author's, so a route capture of that name still
+fills it: a selector's, as a call extra, and a target lookup's, as a seed of the
+call, unless a seed of that name, the lookup's own provider or an author's value
+answers it first. An input serializer field of the same name does not stop the
+capture: the field is the client's, validated from the body into ``data``.
 
 ``view`` is a seed, as ``request`` is: every callable declaring it is handed the
 calling view, and no body, query string or route capture of that name stands in

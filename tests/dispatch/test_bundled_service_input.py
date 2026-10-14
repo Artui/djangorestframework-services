@@ -226,3 +226,18 @@ def test_the_compiled_spec_declares_no_service_parameter() -> None:
     spec = ServiceSpec(service=_recording({}), instance_selector_spec=_LOOKUP, atomic=False)
 
     assert set(kernel_spec(spec).parameters().names()) == {"pk"}
+
+
+@pytest.mark.django_db
+@_CORES
+@pytest.mark.parametrize("binding", [ArgumentBinding.BUNDLE, ArgumentBinding.SPREAD_AUTHOR_WINS])
+def test_a_selectors_reads_are_the_callers_under_every_binding(
+    dispatch: Dispatch, binding: ArgumentBinding
+) -> None:
+    """The binding decides only whether a service's own parameters are caller input."""
+    post = Post.objects.create(title="p")
+    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_by_pk)
+
+    result = dispatch(spec, params={"pk": post.pk}, argument_binding=binding)
+
+    assert result.value == post

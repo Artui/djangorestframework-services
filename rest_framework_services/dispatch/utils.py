@@ -1362,11 +1362,11 @@ def _bare_rows_error(detail: Any, many_argument: str, params: Any) -> Validation
 # hides it from a selector's parameters, as it hides ``request`` and ``user``, so a
 # caller is never told it may send one.
 #
-# It is not in ``RESERVED_POOL_SEEDS``, deliberately: that set is public, read by
-# the transport adapters to refuse tool-argument names, by ``PoolSeeds`` to refuse
-# a registration, and by ``view_url_kwargs`` to strip route captures, so adding it
-# there would change all three. Dispatch instead treats it as every callable
-# marking it ``NotClientInput`` (``hidden_input_keys``).
+# It is not in ``RESERVED_POOL_SEEDS``, deliberately: that set is public and the
+# kernel's, read by the transport adapters to refuse tool-argument names and by
+# ``PoolSeeds`` to refuse a registration, so adding it there would change both.
+# Dispatch instead treats it as every callable marking it ``NotClientInput``
+# (``hidden_input_keys``).
 TRANSPORT_ONLY_NAMES: frozenset[str] = frozenset({"view"})
 
 

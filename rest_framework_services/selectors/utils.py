@@ -180,25 +180,30 @@ def dispatch_selector_for_spec(view: Any, spec: SelectorSpec[Any, Any]) -> Any:
     unless the spec sets ``allow_none=True`` (then ``None``, and the retrieve views
     render 200 + JSON ``null``). ``SelectorKind.LIST`` returns the shaped queryset.
 
-    **``argument_binding=BUNDLE`` is what keeps HTTP semantics.** Off HTTP the
-    flat ``params`` mapping *is* the argument channel; over HTTP a selector's
-    kwargs come from route captures plus the hook chain, and the query string
-    belongs to ``filter_set`` / the filter backends. ``BUNDLE`` spreads nothing,
-    so passing ``query_params`` feeds the filter without widening the argument
-    channel.
+    **The request is no argument mapping.** Off HTTP the flat ``params``
+    mapping *is* the argument channel; over HTTP it is empty, and a selector's
+    arguments come from what the spec declares it reads: a route capture of
+    one of its reads or a declared ``UrlKwarg`` from ``view.kwargs``, a
+    declared ``QueryParam`` from the query string, and the hook chain's values.
+    The query string reaches the ``filter_set`` as ``filter_data``, restricted
+    to the names the filter reads, so it feeds the filter without widening the
+    argument channel.
 
     There is deliberately no ``extra_url_kwargs`` parameter: the core reads
-    ``view.kwargs`` itself via ``view_url_kwargs``, which **strips the reserved
-    pool seeds**, so a nested route like ``/users/<user>/posts/`` cannot let the
-    captured value shadow the authenticated ``user``. Taking the mapping from a
-    caller would reopen that.
+    ``view.kwargs`` itself, for the names the spec reads and the ones its
+    callables mark ``NotClientInput``, and a capture named like a seed of the
+    call never replaces the seed, so a nested route like
+    ``/users/<user>/posts/`` cannot let the captured value shadow the
+    authenticated ``user`` (test_url_kwarg_cannot_shadow_the_authenticated_user_over_http).
+    Taking the mapping from a caller would reopen that.
 
     The caller must check ``spec.selector is not None`` first and fall back to
     vanilla DRF otherwise.
     """
-    # Local import: ``dispatch_spec`` composes ``run_selector`` /
-    # ``materialize_retrieve`` from this module, so the cycle is real and the
-    # dependency one-directional only at runtime.
+    # Local import: ``dispatch/utils.py`` imports the keyword-pool resolver from
+    # ``views/utils.py``, which initialises the ``views`` package and so the
+    # selector views importing this module; a module-level import of
+    # ``dispatch_spec`` here would meet ``dispatch/utils.py`` half-initialised.
     from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 
     assert spec.selector is not None  # noqa: S101 — caller guarantees this

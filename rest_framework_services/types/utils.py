@@ -1,9 +1,7 @@
 """Internal helpers shared across the ``types`` package.
 
-``pk_input_targets`` is one exception to the package name: the write
-path shares it, so the three spellings of a primary key are written down
-once rather than agreed between two modules. ``callable_type_hints`` is the
-other: the input-schema reflection shares it, so the schema and dispatch read
+``callable_type_hints`` is one exception to the package name: the
+input-schema reflection shares it, so the schema and dispatch read
 a callable's markers off the same annotations, and ``typed_dict_input`` reads a
 ``TypedDict``'s keys through the same ``annotation_hints``.
 """
@@ -19,7 +17,6 @@ from types import SimpleNamespace
 from typing import Annotated, Any, Final, ForwardRef, get_args
 
 from django.core.exceptions import ImproperlyConfigured
-from django.db.models import Model
 from typing_extensions import Format, get_annotations, get_type_hints
 
 from rest_framework_services.types.field_marking import FieldMarking
@@ -27,7 +24,6 @@ from rest_framework_services.types.input_required import InputRequired
 from rest_framework_services.types.not_client_input import NotClientInput
 from rest_framework_services.types.offline_contract import OfflineContract
 from rest_framework_services.types.query_param import QueryParam
-from rest_framework_services.types.relation_orphan import RelationOrphan
 from rest_framework_services.types.url_kwarg import UrlKwarg
 
 
@@ -99,83 +95,6 @@ def agent_contract_for(
         url_kwargs=tuple(entry for entry in reads if isinstance(entry, UrlKwarg)),
         query_params=tuple(entry for entry in reads if isinstance(entry, QueryParam)),
         field_audiences=dict(field_audiences) if field_audiences else None,
-    )
-
-
-VALID_RELATION_ORPHANS = tuple(orphan.value for orphan in RelationOrphan)
-
-
-def validate_relation_orphan(orphan: str, *, delete_service: Any, label: str) -> None:
-    """Check ``orphan``, and refuse it beside the service that would silence it.
-
-    A ``delete_service`` replaces the unlink-or-delete rule outright, so an
-    explicit ``orphan`` beside one would decide nothing and be silently ignored.
-    ``AUTO`` is exempt because it states nothing — it is what every spec written
-    before the field existed carries.
-    """
-    if orphan not in VALID_RELATION_ORPHANS:
-        raise ValueError(f"{label}.orphan must be one of {VALID_RELATION_ORPHANS}; got {orphan!r}.")
-    if delete_service is None or orphan == RelationOrphan.AUTO:
-        return
-    raise ImproperlyConfigured(
-        f"{label}: orphan={RelationOrphan(orphan).value!r} declared alongside delete_service. "
-        "The service replaces the unlink-or-delete rule entirely, so the flag would decide "
-        "nothing. Dispose of the row in the service, or drop the service and let orphan= say "
-        "what happens to it."
-    )
-
-
-def pk_input_targets(model: type[Model]) -> frozenset[str]:
-    """The names an incoming row can use to mean ``model``'s primary key.
-
-    Three spellings reach the same column and a payload may send any of them:
-    ``pk``, the field's ``name``, and its ``attname`` (``id``/``id`` for an
-    implicit key, ``author``/``author_id`` where a one-to-one *is* the key).
-    """
-    return frozenset({"pk", model._meta.pk.name, model._meta.pk.attname})
-
-
-def validate_pk_field_map(
-    *,
-    label: str,
-    model: type[Model],
-    match_key: str,
-    field_map: Mapping[str, str] | None,
-) -> None:
-    """Refuse a ``field_map`` that renames an input key onto the primary key,
-    on a spec that also matches *by* the primary key.
-
-    The two readers of a nested row disagree about ``field_map``, and where the
-    match key is the primary key that disagreement leaves no working payload.
-    Matching reads the row exactly as it arrived (``item[match_key]``), so a
-    payload spelling its key ``ident`` never matches; the primary-key guard
-    *does* fold ``field_map`` in, sees ``ident``, reads it as a key nothing
-    matched, and refuses the row. Every payload using the mapped name is
-    rejected, and none can ever match.
-
-    Scoped to a primary-key ``match_key`` because that is the whole of what is
-    unreachable. Mapped onto a *natural* match key the same declaration is
-    coherent -- the row matches on its natural key and the alias goes on
-    guarding creates, exactly as a plainly-spelled ``pk`` would.
-
-    Refused rather than resolved: ``match_key`` names an input key on one side
-    and a model field on the other, so "apply ``field_map`` to it too" has no
-    single correct answer, and a spec no payload can reach is better caught
-    where it is written than on the first request that tries.
-    """
-    targets: frozenset[str] = pk_input_targets(model)
-    if match_key not in targets:
-        return
-    mapped: list[str] = sorted(src for src, dest in (field_map or {}).items() if dest in targets)
-    if not mapped:
-        return
-    raise ImproperlyConfigured(
-        f"{label}: field_map renames {', '.join(repr(name) for name in mapped)} onto the "
-        f"primary key of {model.__name__}, which match_key={match_key!r} also matches on. "
-        "Matching reads the row as it arrived and does not apply field_map, so a payload "
-        "using the mapped name can never match, while the primary-key guard does apply it "
-        "and refuses the row. Send the key under a name match_key reads, or match on a "
-        "field the mapping does not rename."
     )
 
 
