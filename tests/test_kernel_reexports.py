@@ -167,6 +167,18 @@ REEXPORTS: list[tuple[str, str, str]] = [
         "django_service_specs.relations.relation_spec",
         "RelationSpec",
     ),
+    # Names no lane's list carried: the binding for a service with no body, and
+    # the answer a ``kwargs=`` provider reads to.
+    (
+        "rest_framework_services.types.no_input",
+        "django_service_specs.types.no_input",
+        "NoInput",
+    ),
+    (
+        "rest_framework_services.types.provider_keys",
+        "django_service_specs.types.provider_keys",
+        "ProviderKeys",
+    ),
     # The keyword pool's seed registry.
     (
         "rest_framework_services.types.pool_seeds",
