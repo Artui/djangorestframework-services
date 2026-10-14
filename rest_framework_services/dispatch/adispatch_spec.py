@@ -9,7 +9,7 @@ from typing import Any
 from asgiref.sync import sync_to_async
 from django_service_specs.dispatch.adispatch import adispatch
 
-from rest_framework_services.dispatch.utils import edge_errors, prepare_edge_call
+from rest_framework_services.dispatch.utils import edge_errors, listed_output, prepare_edge_call
 from rest_framework_services.service_specs.register_drf_row_errors import (
     register_drf_row_errors,
 )
@@ -87,7 +87,8 @@ async def adispatch_spec(
         )
         if isinstance(prepared, DispatchResult):
             return prepared
-        return await adispatch(prepared.spec, **prepared.kwargs)
+        result = await adispatch(prepared.spec, **prepared.kwargs)
+    return listed_output(spec, result)
 
 
 __all__ = ["adispatch_spec"]

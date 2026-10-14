@@ -273,6 +273,62 @@ def server_input(
     return merged
 
 
+def listed_output(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any], result: DispatchResult
+) -> DispatchResult:
+    """``result`` as a list where ``spec`` declares a ``LIST`` output it does not re-read.
+
+    ``output_selector_spec=SelectorSpec(kind=LIST)`` with no ``selector``
+    compiles to no output selector, so the kernel presents the service's own
+    return and reports it as one value. The declaration says that return is the
+    set of rows, so the edge reports ``kind="list"`` for it and the transport
+    presents it per row, once ``service_return_as_list`` has found it is one.
+    A not-found result, and every other spec, comes back as it was. Both cores
+    call it after the kernel returns, and it runs no query.
+    """
+    if not isinstance(spec, ServiceSpec):
+        return result
+    output = spec.output_selector_spec
+    # One arc to coverage, so each condition is named by the test that fails
+    # without it: test_a_retrieve_declaration_with_no_re_read_is_still_one_value
+    # (the declared kind) and
+    # test_a_missing_row_under_a_list_declaration_stays_not_found (the result's).
+    # A ``LIST`` output that re-reads needs no condition of its own: the kernel
+    # already answers it ``"list"``, so the second condition returns it as is.
+    if output is None or output.kind is not SelectorKind.LIST or result.kind != "instance":
+        return result
+    return dataclasses.replace(
+        result, kind="list", value=service_return_as_list(spec, result.value)
+    )
+
+
+def service_return_as_list(spec: ServiceSpec[Any, Any, Any], value: Any) -> Any:
+    """``value``, once it is a set of rows a ``LIST`` declaration can present.
+
+    The declaration says the service returns the set, so a return that cannot be
+    one is the author's error: a mapping, a ``str`` or ``bytes`` (iterable, but by
+    key or character rather than by row), anything else that does not iterate, and
+    ``None``, since a list is empty rather than absent. It is raised as
+    ``ImproperlyConfigured``, not a refusal: the service has run and its write
+    stands, so it must not reach a caller as a validation error saying nothing
+    happened.
+
+    The test is one arc to coverage, so each member is a row of
+    ``test_a_return_that_is_not_a_set_of_rows_is_the_authors_error``, which fails
+    without it: ``mapping``, ``str``, ``bytes``, ``non-iterable`` and ``none``.
+    """
+    if isinstance(value, Mapping | str | bytes) or not isinstance(value, Iterable):
+        label = getattr(spec.service, "__qualname__", repr(spec.service))
+        raise ImproperlyConfigured(
+            "output_selector_spec declares kind=LIST with no selector, so the service's "
+            f"own return is the list presented, and {label} returned "
+            f"{type(value).__name__}, which is neither a QuerySet nor an iterable of "
+            "rows. Return the rows, or declare kind=SelectorKind.RETRIEVE to present one "
+            "value. The service has already run, so its write stands."
+        )
+    return value
+
+
 def refuse_retired_modes(
     argument_binding: ArgumentBinding, unknown_arguments: UnknownArguments
 ) -> None:

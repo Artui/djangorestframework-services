@@ -206,3 +206,22 @@ def test_a_retrieve_declaration_with_no_re_read_is_still_one_value(dispatch: Dis
     schema = spec_to_json_schema(spec, phase="output")
     assert schema is not None
     assert schema["type"] == "object"
+
+
+@pytest.mark.django_db
+@_CORES
+def test_a_missing_row_under_a_list_declaration_stays_not_found(dispatch: Dispatch) -> None:
+    lookup = SelectorSpec(
+        kind=SelectorKind.RETRIEVE, selector=lambda *, pk: Post.objects.filter(pk=pk)
+    )
+    spec = ServiceSpec(
+        service=lambda *, instance: [instance],
+        instance_selector_spec=lookup,
+        output_selector_spec=_DECLARED_LIST,
+        atomic=False,
+    )
+
+    result = dispatch(spec, instance=None)
+
+    assert result.kind == "not_found"
+    assert result.value is None

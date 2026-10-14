@@ -175,7 +175,12 @@ def _service(spec: Any, *, partial: bool | None) -> KernelServiceSpec:
         collection_selector_spec=collection,
         output_selector_spec=output,
         presenter=presenter,
-        allow_none=spec.allow_none,
+        # A ``LIST`` output with no re-read presents the service's return as the
+        # rows, so ``None`` is never presented, whatever ``allow_none`` says: the
+        # edge refuses it as the author's error, and the kernel's
+        # ``can_present_nothing`` reads the compiled flag
+        # (test_the_schema_the_kind_and_the_predicate_agree).
+        allow_none=spec.allow_none and not _lists_its_return(spec),
         affordances=spec.affordances,
         atomic=spec.atomic,
         idempotent=spec.idempotent,
@@ -185,6 +190,12 @@ def _service(spec: Any, *, partial: bool | None) -> KernelServiceSpec:
         progress_reporter=spec.progress_reporter,
         metadata=spec.metadata,
     )
+
+
+def _lists_its_return(spec: Any) -> bool:
+    """Whether ``spec`` declares a ``LIST`` output it does not re-read."""
+    output = spec.output_selector_spec
+    return output is not None and output.kind is SelectorKind.LIST and output.selector is None
 
 
 def _selector(

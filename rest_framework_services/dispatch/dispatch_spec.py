@@ -7,7 +7,7 @@ from typing import Any
 
 from django_service_specs.dispatch.dispatch import dispatch
 
-from rest_framework_services.dispatch.utils import edge_errors, prepare_edge_call
+from rest_framework_services.dispatch.utils import edge_errors, listed_output, prepare_edge_call
 from rest_framework_services.service_specs.register_drf_row_errors import (
     register_drf_row_errors,
 )
@@ -132,9 +132,14 @@ def dispatch_spec(
 
     Returns:
         The kernel's ``DispatchResult``. A required row that does not exist is
-        ``kind="not_found"``, for the transport to answer.
+        ``kind="not_found"``, for the transport to answer. A service spec whose
+        ``output_selector_spec`` is a ``LIST`` with no ``selector`` answers
+        ``kind="list"``, its value the service's own return, presented per row.
 
     Raises:
+        ImproperlyConfigured: under that ``LIST`` declaration, the service
+            returned something that is not a set of rows (a mapping, a ``str``
+            or ``bytes``, a non-iterable, ``None``); its write stands.
         TypeError: ``spec`` is neither a ``ServiceSpec`` nor a ``SelectorSpec``.
         ValueError: a retired ``argument_binding`` or ``unknown_arguments``.
         InvalidArguments: the kernel refused the arguments.
@@ -159,7 +164,8 @@ def dispatch_spec(
         )
         if isinstance(prepared, DispatchResult):
             return prepared
-        return dispatch(prepared.spec, **prepared.kwargs)
+        result = dispatch(prepared.spec, **prepared.kwargs)
+    return listed_output(spec, result)
 
 
 __all__ = ["dispatch_spec"]
