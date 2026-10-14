@@ -236,7 +236,8 @@ def dispatch_selector_for_spec(view: Any, spec: SelectorSpec[Any, Any]) -> Any:
     result = dispatch_spec(
         spec,
         user=getattr(request, "user", None),
-        params=request.query_params,
+        params={},
+        filter_data=request.query_params,
         request=request,
         view=view,
         argument_binding=ArgumentBinding.BUNDLE,
