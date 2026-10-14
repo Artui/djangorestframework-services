@@ -384,7 +384,8 @@ def test_retrieve_missing_is_404_on_both() -> None:
     http = _retrieve_viewset(spec)(APIRequestFactory().get("/x/999/"), pk=999)
     offline = dispatch_spec(spec, user=None, params={"pk": 999})
     assert http.status_code == 404
-    assert (offline.kind, offline.status) == ("not_found", 404)
+    # The result carries no status: each transport maps ``not_found`` to its own.
+    assert offline.kind == "not_found"
 
 
 @pytest.mark.django_db

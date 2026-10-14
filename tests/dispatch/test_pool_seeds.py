@@ -8,13 +8,13 @@ stripped from the spread, and the name still read as an unexpected argument.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
 
 from rest_framework_services.dispatch.adispatch_spec import adispatch_spec
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
-from rest_framework_services.types.argument_binding import ArgumentBinding
+from rest_framework_services.types.not_client_input import NotClientInput
 from rest_framework_services.types.pool_seeds import DEFAULT_POOL_SEEDS
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -22,6 +22,10 @@ from rest_framework_services.types.unknown_arguments import UnknownArguments
 from tests.testapp.models import Post
 
 TENANT_SEEDS = DEFAULT_POOL_SEEDS.extend(tenant=lambda *, user: f"tenant-of-{user}")
+
+# A parameter a registered seed fills is marked ``NotClientInput``: the kernel
+# refuses one a caller could also fill, since an argument never meets a seed in one
+# pool. The marker is the author saying the caller has no say in it.
 
 
 def _titles(value: Any) -> list[str]:
@@ -34,7 +38,7 @@ def test_a_registered_seed_reaches_a_selector_that_declares_it() -> None:
     Post.objects.create(title="p")
     seen: dict[str, Any] = {}
 
-    def selector(*, tenant: str) -> Any:
+    def selector(*, tenant: Annotated[str, NotClientInput]) -> Any:
         seen["tenant"] = tenant
         return Post.objects.all()
 
@@ -56,7 +60,7 @@ def test_a_registered_seed_outranks_client_input_of_the_same_name() -> None:
     Post.objects.create(title="p")
     seen: dict[str, Any] = {}
 
-    def selector(*, tenant: str) -> Any:
+    def selector(*, tenant: Annotated[str, NotClientInput]) -> Any:
         seen["tenant"] = tenant
         return Post.objects.all()
 
@@ -65,7 +69,6 @@ def test_a_registered_seed_outranks_client_input_of_the_same_name() -> None:
         spec,
         user="u",
         params={"tenant": "supplied-by-the-caller"},
-        argument_binding=ArgumentBinding.SPREAD_CALLER_WINS,
         pool_seeds=TENANT_SEEDS,
     )
 
@@ -82,7 +85,7 @@ def test_a_registered_seed_name_is_not_an_unexpected_argument() -> None:
     """
     Post.objects.create(title="p")
 
-    def selector(*, tenant: str) -> Any:
+    def selector(*, tenant: Annotated[str, NotClientInput]) -> Any:
         return Post.objects.all()
 
     spec = SelectorSpec(kind=SelectorKind.LIST, selector=selector)
@@ -112,7 +115,7 @@ async def test_the_async_core_seeds_the_pool_the_same_way() -> None:
     await Post.objects.acreate(title="p")
     seen: dict[str, Any] = {}
 
-    def selector(*, tenant: str) -> Any:
+    def selector(*, tenant: Annotated[str, NotClientInput]) -> Any:
         seen["tenant"] = tenant
         return Post.objects.all()
 
@@ -121,7 +124,6 @@ async def test_the_async_core_seeds_the_pool_the_same_way() -> None:
         spec,
         user="u",
         params={"tenant": "supplied-by-the-caller"},
-        argument_binding=ArgumentBinding.SPREAD_CALLER_WINS,
         pool_seeds=TENANT_SEEDS,
     )
 

@@ -377,7 +377,7 @@ def test_a_catch_all_callable_never_sees_the_calls_target_or_input() -> None:
     )
     dispatch_spec(spec, user=None, params={"title": "x"}, instance=_post())
 
-    assert set(seen) == {"user", "request", "progress"}
+    assert set(seen) == {"user", "request", "view", "progress"}
 
 
 class _MonthEndIn(serializers.Serializer):
@@ -406,10 +406,10 @@ def test_a_client_argument_never_reaches_a_condition() -> None:
             user=None,
             params={"is_month_end": False},
             instance=_post(),
-            argument_binding=ArgumentBinding.SPREAD_CALLER_WINS,
+            argument_binding=ArgumentBinding.AUTO,
         )
     assert "is_month_end" not in seen
-    assert set(seen) == {"user", "request", "progress"}
+    assert set(seen) == {"user", "request", "view", "progress"}
 
 
 @pytest.mark.django_db

@@ -725,17 +725,13 @@ def _bare_rows_error(
     return ValidationError({api_settings.NON_FIELD_ERRORS_KEY: rows})
 
 
-# The calling view. A transport hands it to a provider (``kwargs=``, the
-# ``get_*_kwargs`` hooks, the serializer-context providers) and puts it in no
-# callable's pool, so a selector or service that wants it takes it from one of
-# those; a selector or a target lookup can also take it from a route capture of
-# that name, which reaches no service's pool. The input schema hides it from a
-# selector's parameters, as it hides ``request`` and ``user``, so a caller is never
-# told it may send one.
+# The calling view. The edge seeds it on every call (``edge_seeds``), so a
+# callable declaring ``view`` receives the transport's, or ``None`` off HTTP, and
+# a provider or route capture of that name never outranks it. The input schema
+# hides it from a selector's parameters, as it hides ``request`` and ``user``, so a
+# caller is never told it may send one.
 #
-# It is not a reserved seed, deliberately. A reserved name is exempt from
-# unknown-argument accounting, so ``REJECT`` would drop a caller's ``view`` in
-# silence rather than refuse it; and ``RESERVED_POOL_SEEDS`` is public, read by
+# It is not in ``RESERVED_POOL_SEEDS``, deliberately: that set is public, read by
 # the transport adapters to refuse tool-argument names, by ``PoolSeeds`` to refuse
 # a registration, and by ``view_url_kwargs`` to strip route captures, so adding it
 # there would change all three. Dispatch instead treats it as every callable

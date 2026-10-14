@@ -266,7 +266,7 @@ def test_a_callable_condition_is_answered_once_per_dispatch_not_per_row() -> Non
     )
 
     assert len(seen) == 1
-    assert set(seen[0]) == {"user", "request", "progress"}
+    assert set(seen[0]) == {"user", "request", "view", "progress"}
     assert seen[0]["user"] == author
     assert [row.affordance__refund__books_closed for row in rows] == [False] * 6
 
