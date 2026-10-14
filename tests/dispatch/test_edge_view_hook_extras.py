@@ -17,6 +17,7 @@ from typing import Annotated, Any
 import pytest
 from asgiref.sync import async_to_sync
 from django.db.models import QuerySet
+from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from typing_extensions import TypedDict
 
@@ -30,6 +31,7 @@ from rest_framework_services import (
     dispatch_spec,
 )
 from rest_framework_services.types.not_client_input import NotClientInput
+from rest_framework_services.types.pool_seeds import DEFAULT_POOL_SEEDS
 from rest_framework_services.types.unknown_arguments import UnknownArguments
 from rest_framework_services.types.unset import UNSET
 from tests.testapp.models import Post
@@ -183,3 +185,96 @@ def test_arguments_that_are_no_object_are_refused_as_the_clients_error(
         dispatch(
             _TENANT_LIST, params=["acme"], view_hooks=ViewHooks(extra_kwargs={"tenant": "acme"})
         )
+
+
+_SEEDED_NAMES = pytest.mark.parametrize("name", ["request", "view", "progress", "user", "clock"])
+
+
+@_CORES
+@_SEEDED_NAMES
+def test_a_hook_value_naming_a_seed_is_dropped_and_the_seed_wins(
+    dispatch: Dispatch, name: str
+) -> None:
+    """Never overlaid and never refused: the kernel refuses an overlay naming a
+    seed, so the edge leaves the seed's value alone."""
+    seen: dict[str, Any] = {}
+
+    def rows(**pool: Any) -> list[Any]:
+        seen.update(pool)
+        return []
+
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=rows)
+    seeds = DEFAULT_POOL_SEEDS.extend(clock=lambda: "the-seed")
+
+    dispatch(
+        spec,
+        params={},
+        pool_seeds=seeds,
+        view_hooks=ViewHooks(extra_kwargs={name: "from-the-hook"}),
+    )
+
+    assert seen[name] != "from-the-hook"
+
+
+class _TitleTenantIn(serializers.Serializer):
+    title = serializers.CharField()
+    tenant = serializers.CharField()
+
+    def validate(self, attrs: Any) -> Any:
+        return {**attrs, "context_tenant": self.context.get("tenant")}
+
+
+def _echo(*, data: Any) -> dict[str, Any]:
+    return dict(data)
+
+
+@pytest.mark.django_db
+@_CORES
+def test_a_hook_value_naming_a_serializer_field_reaches_its_context(dispatch: Dispatch) -> None:
+    """Not an overlay, which the kernel refuses for a Validator field, and not the
+    field's value, which stays the caller's: the serializer's context."""
+    spec = ServiceSpec(service=_echo, input_serializer=_TitleTenantIn, atomic=False)
+
+    result = dispatch(
+        spec,
+        params={"title": "t", "tenant": "client"},
+        view_hooks=ViewHooks(extra_kwargs={"tenant": "hook"}),
+    )
+
+    assert result.value == {"title": "t", "tenant": "client", "context_tenant": "hook"}
+
+
+@pytest.mark.django_db
+@_CORES
+def test_the_views_own_context_layer_wins_over_a_moved_field_value(dispatch: Dispatch) -> None:
+    spec = ServiceSpec(service=_echo, input_serializer=_TitleTenantIn, atomic=False)
+
+    result = dispatch(
+        spec,
+        params={"title": "t", "tenant": "client"},
+        view_hooks=ViewHooks(
+            extra_kwargs={"tenant": "hook"}, input_serializer_context={"tenant": "context"}
+        ),
+    )
+
+    assert result.value["context_tenant"] == "context"
+
+
+@pytest.mark.django_db
+@_CORES
+def test_a_hook_value_naming_no_field_stays_an_extra_beside_a_serializer(
+    dispatch: Dispatch,
+) -> None:
+    def service(*, data: Any, clock: str) -> dict[str, Any]:
+        return {**data, "clock": clock}
+
+    spec = ServiceSpec(service=service, input_serializer=_TitleTenantIn, atomic=False)
+
+    result = dispatch(
+        spec,
+        params={"title": "t", "tenant": "client"},
+        view_hooks=ViewHooks(extra_kwargs={"clock": "hook"}),
+    )
+
+    assert result.value["clock"] == "hook"
+    assert result.value["context_tenant"] is None

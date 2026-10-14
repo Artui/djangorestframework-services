@@ -125,7 +125,6 @@ def prepare_edge_call(
     hooks = view_hooks if view_hooks is not None else ViewHooks()
     # One object for the whole call: a ``Grant`` binds its principal by identity.
     principal = user if user is not None else unauthenticated_user()
-    seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
     shared: dict[str, Any] = {
         "principal": principal,
         "unknown_arguments": unknown_arguments,
@@ -136,6 +135,8 @@ def prepare_edge_call(
     guard_context = OfflineContext(user=user, request=request, view=view)
     if isinstance(spec, SelectorSpec):
         variant: Any = kernel_spec_variant(spec, unguarded=True)
+        hooks = _field_extras_to_context(variant, hooks)
+        seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
         if on_target_resolved is not None:
             variant = guarded_selector(variant)
             guard = on_target_resolved
@@ -151,13 +152,17 @@ def prepare_edge_call(
             {
                 **shared,
                 "arguments": arguments,
-                "extra_kwargs": _route_hook_extras(variant, arguments, hooks.extra_kwargs),
+                "extra_kwargs": _route_hook_extras(
+                    variant, arguments, hooks.extra_kwargs, seeds=seeds
+                ),
                 "grant": Grant(variant, principal),
                 "pool_seeds": seeds,
             },
         )
     if spec.many:
         variant = kernel_spec_variant(spec, partial=partial, unguarded=True, server_input=False)
+        hooks = _field_extras_to_context(variant, hooks)
+        seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
         rows = params
         if many_as_argument:
             arguments = edge_arguments(variant, spec, params, request=request, view=view)
@@ -171,7 +176,7 @@ def prepare_edge_call(
                 {**row, **server} if isinstance(row, Mapping) else row
                 for row in arguments[spec.many_argument]
             ]
-        extra_kwargs = _route_hook_extras(variant, arguments, hooks.extra_kwargs)
+        extra_kwargs = _route_hook_extras(variant, arguments, hooks.extra_kwargs, seeds=seeds)
         # A bulk call acts on no target, as on main: the guard is asked about ``None``.
         if on_target_resolved is not None:
             on_target_resolved(spec, guard_context, instance=None)
@@ -197,12 +202,14 @@ def prepare_edge_call(
             spec, partial=partial, unguarded=True, target=handed, server_input=False
         ),
     )
+    hooks = _field_extras_to_context(service, hooks)
+    seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
     arguments = edge_arguments(service, spec, params, request=request, view=view)
     target_spec = service.target_selector_spec()
     if target_spec is not None:
         _route_filter_data(arguments, target_spec.filter_set, filter_data)
     # Before the lookup, which a hook value for one of its reads scopes.
-    extra_kwargs = _route_hook_extras(service, arguments, hooks.extra_kwargs)
+    extra_kwargs = _route_hook_extras(service, arguments, hooks.extra_kwargs, seeds=seeds)
     if handed:
         target = instance
     elif instance is None:
@@ -494,6 +501,8 @@ def _route_hook_extras(
     variant: KernelServiceSpec | KernelSelectorSpec,
     arguments: Any,
     extras: Mapping[str, Any] | None,
+    *,
+    seeds: PoolSeeds,
 ) -> Mapping[str, Any] | None:
     """Split a view hook's extras: a declared read's value into ``arguments``, the rest returned.
 
@@ -513,6 +522,13 @@ def _route_hook_extras(
     fails without it: an ``UNSET`` value supplies nothing
     (test_an_unset_hook_value_leaves_the_clients), and a name that is no read
     stays the overlay's (test_a_hook_value_for_a_hidden_name_still_goes_as_an_extra).
+
+    A value naming a seed of the call - ``request``, ``view``, ``progress``,
+    ``user`` and the rest of the reserved names, or a project's registered seed
+    - is dropped, so the seed wins: the kernel refuses an overlay naming a seed,
+    and a view's hook was never the place to replace one
+    (test_a_hook_value_naming_a_seed_is_dropped_and_the_seed_wins). A view's
+    progress sink is ``get_progress_reporter``, which joins the call's.
     """
     if not extras:
         return extras
@@ -524,7 +540,40 @@ def _route_hook_extras(
     routed = {name: value for name, value in extras.items() if value is not UNSET and name in reads}
     if isinstance(arguments, dict):
         arguments.update(routed)
-    return {name: value for name, value in extras.items() if name not in routed}
+    seeded = seeds.reserved
+    return {
+        name: value for name, value in extras.items() if name not in routed and name not in seeded
+    }
+
+
+def _field_extras_to_context(
+    variant: KernelServiceSpec | KernelSelectorSpec, hooks: ViewHooks
+) -> ViewHooks:
+    """``hooks`` with each ``extra_kwargs`` value naming a Validator field moved into its context.
+
+    The kernel refuses an overlay naming a Validator field, since the caller's
+    value for one is what the Validator checks. Such a hook value - a tenant the
+    input serializer also declares - is handed to the serializer instead,
+    through its context, beneath the view's own ``input_serializer_context``
+    layer, and only where the serializer declares that field
+    (test_a_hook_value_naming_a_serializer_field_reaches_its_context). It stays
+    out of the overlay, and the field's value is still the caller's. A value
+    naming a read is not moved: ``_route_hook_extras`` puts it into the
+    arguments (a read and a Validator field never share a name).
+    """
+    validator = variant.validator if isinstance(variant, KernelServiceSpec) else None
+    extras = hooks.extra_kwargs
+    if validator is None or not extras:
+        return hooks
+    fields = validator.parameters().names()
+    moved = {name: value for name, value in extras.items() if name in fields}
+    if not moved:
+        return hooks
+    return dataclasses.replace(
+        hooks,
+        extra_kwargs={name: value for name, value in extras.items() if name not in moved},
+        input_serializer_context={**moved, **(hooks.input_serializer_context or {})},
+    )
 
 
 def _route_filter_data(
