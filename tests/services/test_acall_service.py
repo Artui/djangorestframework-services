@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from rest_framework import exceptions as drf_exceptions
+from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import acall_service
@@ -124,3 +125,33 @@ async def test_extras_still_carry_names_the_helper_does_not_seed() -> None:
     await acall_service(aservice, request=_build_request(user="alice"), progress=reporter)
 
     assert captured["progress"] is reporter
+
+
+@pytest.mark.asyncio
+async def test_the_view_a_drf_request_carries_is_seeded() -> None:
+    """The framework seeds ``view`` beside ``request``, so the helper does too,
+    from the view DRF records on the request it builds."""
+    seen: dict[str, Any] = {}
+    view = object()
+
+    def service(*, view: Any) -> int:
+        seen["view"] = view
+        return 1
+
+    request = Request(APIRequestFactory().get("/"), parser_context={"view": view})
+    assert await acall_service(service, request=request) == 1
+    assert seen["view"] is view
+
+
+@pytest.mark.asyncio
+async def test_a_request_carrying_no_view_leaves_the_name_to_the_caller() -> None:
+    """Off a view (a plain ``HttpRequest``), nothing is seeded, so a ``view`` the
+    caller passes reaches the callable."""
+    seen: dict[str, Any] = {}
+
+    def service(*, view: Any) -> int:
+        seen["view"] = view
+        return 1
+
+    assert await acall_service(service, request=APIRequestFactory().get("/"), view="mine") == 1
+    assert seen["view"] == "mine"

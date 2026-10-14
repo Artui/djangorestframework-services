@@ -12,7 +12,7 @@ from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.is_async import is_async
 from rest_framework_services.types.unset import UNSET
 from rest_framework_services.views.mutation.map_service_error import map_service_error
-from rest_framework_services.views.utils import resolve_callable_kwargs
+from rest_framework_services.views.utils import request_seeds, resolve_callable_kwargs
 
 ResultT = TypeVar("ResultT")
 
@@ -36,10 +36,7 @@ async def acall_service(
     ``**extras`` never overrides a seed this helper derives, exactly as in the sync
     twin: a ``user`` key spread in from client-supplied data is dropped rather than
     replacing ``request.user``."""
-    pool: dict[str, Any] = {
-        "request": request,
-        "user": getattr(request, "user", None),
-    }
+    pool: dict[str, Any] = request_seeds(request)
     if data is not UNSET:
         pool["data"] = data
     if instance is not UNSET:

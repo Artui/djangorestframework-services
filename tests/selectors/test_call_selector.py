@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import call_selector
@@ -69,3 +70,31 @@ def test_async_selector_bridged_via_async_to_sync() -> None:
         return value * 4
 
     assert call_selector(aselector, request=_build_request(user="x"), value=3) == 12
+
+
+def test_the_view_a_drf_request_carries_is_seeded() -> None:
+    """The framework seeds ``view`` beside ``request``, so the helper does too,
+    from the view DRF records on the request it builds."""
+    seen: dict[str, Any] = {}
+    view = object()
+
+    def selector(*, view: Any) -> int:
+        seen["view"] = view
+        return 1
+
+    request = Request(APIRequestFactory().get("/"), parser_context={"view": view})
+    assert call_selector(selector, request=request) == 1
+    assert seen["view"] is view
+
+
+def test_a_request_carrying_no_view_leaves_the_name_to_the_caller() -> None:
+    """Off a view (a plain ``HttpRequest``), nothing is seeded, so a ``view`` the
+    caller passes reaches the callable."""
+    seen: dict[str, Any] = {}
+
+    def selector(*, view: Any) -> int:
+        seen["view"] = view
+        return 1
+
+    assert call_selector(selector, request=APIRequestFactory().get("/"), view="mine") == 1
+    assert seen["view"] == "mine"

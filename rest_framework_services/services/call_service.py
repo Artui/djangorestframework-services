@@ -12,7 +12,7 @@ from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.is_async import is_async
 from rest_framework_services.types.unset import UNSET
 from rest_framework_services.views.mutation.map_service_error import map_service_error
-from rest_framework_services.views.utils import resolve_callable_kwargs
+from rest_framework_services.views.utils import request_seeds, resolve_callable_kwargs
 
 ResultT = TypeVar("ResultT")
 
@@ -40,8 +40,10 @@ def call_service(
         service: The service callable, sync or async.
         request: Required — the helper is HTTP-scoped by design. ``user`` is
             derived from ``request.user`` (``None`` if the request bypassed
-            authentication middleware), matching the framework's own pool
-            construction.
+            authentication middleware), and ``view`` is the view DRF recorded
+            on the request it built, matching the seeds the framework's own
+            dispatch hands a service. A plain ``HttpRequest`` records no view,
+            and then ``view`` is a name like any other ``extras`` key.
         data: Passed into the pool when not ``UNSET``; omitting it along with
             ``instance`` mirrors the create / list call shape.
         instance: Passed into the pool when not ``UNSET``.
@@ -54,16 +56,13 @@ def call_service(
         **extras: Merged into the pool; the signature filter
             (``resolve_callable_kwargs``) decides which keys reach the
             service. **A seed this helper derives is never overridden here:**
-            an ``extras`` key named ``user`` (or ``data`` / ``instance`` when
-            the matching argument was passed) is dropped, so spreading a
+            an ``extras`` key named ``user`` (or ``view`` / ``data`` /
+            ``instance`` when the helper seeded it) is dropped, so spreading a
             serializer's ``validated_data`` cannot hand the service a
             client-supplied principal in place of ``request.user``. Keys the
             helper does not seed reach the service unchanged.
     """
-    pool: dict[str, Any] = {
-        "request": request,
-        "user": getattr(request, "user", None),
-    }
+    pool: dict[str, Any] = request_seeds(request)
     if data is not UNSET:
         pool["data"] = data
     if instance is not UNSET:

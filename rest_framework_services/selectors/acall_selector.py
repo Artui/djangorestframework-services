@@ -9,7 +9,7 @@ from typing import Any, TypeVar, cast
 from rest_framework.request import Request
 
 from rest_framework_services.is_async import is_async
-from rest_framework_services.views.utils import resolve_callable_kwargs
+from rest_framework_services.views.utils import request_seeds, resolve_callable_kwargs
 
 ResultT = TypeVar("ResultT")
 
@@ -24,11 +24,7 @@ async def acall_selector(
 
     Async selectors are awaited; sync selectors are called inline.
     """
-    pool: dict[str, Any] = {
-        "request": request,
-        "user": getattr(request, "user", None),
-        **extras,
-    }
+    pool: dict[str, Any] = {**request_seeds(request), **extras}
     kwargs = resolve_callable_kwargs(selector, pool)
     if is_async(selector):
         async_selector = cast("Callable[..., Awaitable[ResultT]]", selector)
