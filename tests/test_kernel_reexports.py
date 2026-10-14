@@ -194,6 +194,17 @@ REEXPORTS: list[tuple[str, str, str]] = [
         "django_service_specs.types.unknown_arguments",
         "UnknownArguments",
     ),
+    # The registry a project declares its operations in once.
+    (
+        "rest_framework_services.types.registered_spec",
+        "django_service_specs.registry.registered_spec",
+        "RegisteredSpec",
+    ),
+    (
+        "rest_framework_services.registry.spec_registry",
+        "django_service_specs.registry.spec_registry",
+        "SpecRegistry",
+    ),
 ]
 
 
