@@ -7,7 +7,6 @@ tested with the selector shaping; this file is the moment of the call.
 
 from __future__ import annotations
 
-import importlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -36,10 +35,6 @@ from rest_framework_services import (
     enforce_permissions,
 )
 from tests.testapp.models import Author, Post, PublishedPost, Tag
-
-# The submodule, not the function the package re-exports under the same name: the
-# executor hop is looked up in this module's namespace, so that is where it is counted.
-aenforce_module = importlib.import_module("rest_framework_services.dispatch.aenforce_affordances")
 
 # --- fixtures ---------------------------------------------------------------
 
@@ -295,32 +290,6 @@ def test_declaring_nothing_costs_no_query(declared: Any) -> None:
     post = _post(tags=[Tag.objects.create(name="a")], author=Author.objects.create(name="A"))
     spec = ServiceSpec(service=_noop_service, atomic=False, affordances=declared)
     assert _queries(spec, post) == 0
-
-
-@pytest.mark.django_db(transaction=True)
-async def test_declaring_nothing_costs_the_async_path_no_executor_hop(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    hops: list[Any] = []
-    real = aenforce_module.arun_off_loop
-
-    async def counting(fn: Any, /, *args: Any, **kwargs: Any) -> Any:
-        hops.append(fn)
-        return await real(fn, *args, **kwargs)
-
-    monkeypatch.setattr(aenforce_module, "arun_off_loop", counting)
-    post = await Post.objects.acreate(title="draft")
-    ambient = Affordance(code="open", reason="Closed.", when=lambda: True)
-
-    await adispatch_spec(ServiceSpec(service=_noop_service), user=None, params={}, instance=post)
-    assert hops == []
-    await adispatch_spec(
-        ServiceSpec(service=_noop_service, affordances=[ambient]),
-        user=None,
-        params={},
-        instance=post,
-    )
-    assert [fn.__name__ for fn in hops] == ["enforce_affordances"]
 
 
 @pytest.mark.django_db

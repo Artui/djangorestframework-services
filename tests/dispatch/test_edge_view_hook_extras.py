@@ -160,8 +160,8 @@ def _tenant_from_the_spec() -> _TenantKwargs:
 
 @_CORES
 def test_the_specs_typed_provider_wins_over_a_hook_value(dispatch: Dispatch) -> None:
-    """The view layers sit beneath the spec's own provider; a key that provider
-    fills stays an extra, which the kernel drops beneath it."""
+    """The view layers sit beneath the spec's own provider: the kernel drops any
+    caller's value for a name that provider fills, a hook's routed one included."""
     spec = SelectorSpec(kind=SelectorKind.LIST, selector=_tenant_rows, kwargs=_tenant_from_the_spec)
 
     result = dispatch(

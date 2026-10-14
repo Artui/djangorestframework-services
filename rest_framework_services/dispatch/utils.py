@@ -18,7 +18,6 @@ from django_service_specs.dispatch.grant import Grant
 from django_service_specs.dispatch.resolve_target import resolve_target
 from django_service_specs.parameters.coerce_flat import coerce_flat
 from django_service_specs.parameters.parameters import Parameters
-from django_service_specs.pool.provider_keys import provider_keys
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
 from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
 from rest_framework.exceptions import ValidationError
@@ -387,13 +386,13 @@ def route_hook_extras(
     returned for ``dispatch(extra_kwargs=)``. Arguments that are no mapping
     take nothing, for the kernel's shape check to refuse.
 
-    One arc to coverage, so each condition that keeps a value an extra is named
-    by the test that fails without it: an ``UNSET`` value supplies nothing
-    (test_an_unset_hook_value_leaves_the_clients), a name that is no read stays
-    the overlay's (test_a_hook_value_for_a_hidden_name_still_goes_as_an_extra),
-    and a name the spec's typed ``kwargs`` provider fills stays beneath that
-    provider, where the kernel drops it
-    (test_the_specs_typed_provider_wins_over_a_hook_value).
+    The spec's own provider still wins: the kernel drops the caller's value for
+    a name its typed ``kwargs`` provider fills, wherever that value came from
+    (test_the_specs_typed_provider_wins_over_a_hook_value). One arc to coverage,
+    so each condition that keeps a value an extra is named by the test that
+    fails without it: an ``UNSET`` value supplies nothing
+    (test_an_unset_hook_value_leaves_the_clients), and a name that is no read
+    stays the overlay's (test_a_hook_value_for_a_hidden_name_still_goes_as_an_extra).
     """
     if not extras:
         return extras
@@ -402,13 +401,7 @@ def route_hook_extras(
         target_spec = variant.target_selector_spec()
         if target_spec is not None:
             reads |= target_spec.reads.names()
-    keys = provider_keys(variant.kwargs)
-    filled = keys.filled if keys is not None else frozenset()
-    routed = {
-        name: value
-        for name, value in extras.items()
-        if value is not UNSET and name in reads and name not in filled
-    }
+    routed = {name: value for name, value in extras.items() if value is not UNSET and name in reads}
     if isinstance(arguments, dict):
         arguments.update(routed)
     return {name: value for name, value in extras.items() if name not in routed}
@@ -574,23 +567,18 @@ def server_owned_keys(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any])
     only the server decides, such as which tenant a gate checks, or which tenant a
     ``setattr`` loop over an open ``**changes`` writes onto the row.
 
-    Three things follow for each name, so they always agree:
-
-    - the caller's value is dropped at every site that spreads caller input, under
-      every policy and whatever the binding's precedence (``strip_hidden_inputs``);
-    - it is not declared input (``declared_input_keys``), so ``REJECT`` refuses it
-      on a closed spec, and ``spec_to_json_schema`` does not list it;
-    - one nothing filled is not named as a missing argument (``caller_fillable``),
-      since no value the caller sends could fill it.
+    Dispatch never takes the caller's value for one: the compiled spec reads no
+    ``NotClientInput`` name, so the kernel's ``dispatch`` drops it under ``IGNORE``
+    and refuses it under ``REJECT``. This set is the same answer for a transport
+    that reads the spec without dispatching it: it is not declared input
+    (``declared_input_keys``), and ``spec_to_json_schema`` does not list it.
 
     **The set governs the keyword pool, not an input serializer's fields.** A
     field the ``input_serializer`` declares under an owned name stays client input:
     the schema lists it, ``REJECT`` admits it, and the caller's value is validated
-    into ``data``, the one place it reaches the service, since it is kept out of
-    the spread. The two may mean different things, such as a destination tenant in
-    ``data`` beside the server's current tenant at the gate, so the declaration is
-    not refused. Held by
-    ``test_a_field_named_like_an_owned_key_stays_the_callers_input``.
+    into ``data``, the one place it reaches the service. The two may mean
+    different things, such as a destination tenant in ``data`` beside the server's
+    current tenant at the gate, so the declaration is not refused.
 
     A provider, a registered pool seed, ``input_data`` and the parameter's default
     still fill it, and so does a route capture for a selector, its preconditions
@@ -604,15 +592,9 @@ def server_owned_keys(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any])
     nested lookup's, or a key the service or one of its preconditions hides is
     missed. ``spec_to_json_schema`` already does both.
 
-    Each callable is one part of the union,
-    held by its own test in ``tests/dispatch/test_dispatch_hidden_inputs.py``:
-
-    - the selector or service's own keys:
-      ``test_a_callers_hidden_key_never_reaches_the_selector``;
-    - each precondition's:
-      ``test_a_key_a_precondition_hides_is_server_owned_for_the_whole_call``;
-    - the target lookup's:
-      ``test_a_key_the_lookup_hides_never_reaches_a_service_naming_it``.
+    Each callable is one part of the union, and
+    ``test_a_service_owns_what_its_service_preconditions_and_lookup_hide`` names a
+    key from each, so it fails without any one of them.
     """
     owned: set[str] = set(TRANSPORT_ONLY_NAMES)
     callables: list[Callable[..., Any] | None] = [
@@ -678,11 +660,8 @@ def _callable_param_names(fn: Callable[..., Any]) -> set[str] | None:
     (``hidden_input_keys``). That is ``fn``'s own share only: ``declared_input_keys``
     subtracts the whole call's ``server_owned_keys``.
 
-    It feeds the unknown-argument check, and for one spec it also decides delivery:
-    a ``SPREAD_*`` service with no ``input_serializer`` takes the caller's input as
-    these parameters, so ``service_extras`` lets into its pool the caller's values
-    for exactly these names (see ``_spread_parameter_keys``). Everywhere else the
-    pool is filled as before, and this only says which keys are unknown.
+    It feeds ``declared_input_keys``, which a transport reads to say which keys a
+    spec takes without dispatching it.
     """
     parameters = inspect.signature(fn).parameters
     names: set[str] = set()
@@ -731,25 +710,19 @@ def _spread_parameter_keys(
     (``_callable_param_names``: keyword-passable, ``Unpack[TypedDict]`` keys, no
     ``NotClientInput`` and no ``view``) are the input, less the reserved seeds
     client input can never carry. A bare ``**kwargs`` is open, and an unresolvable
-    annotated one raises ``_UnresolvedExtras``; ``service_extras`` decides what an
-    open surface takes. A ``many=True`` spec reaches here only under a binding
-    that resolves to ``BUNDLE``, and gets the empty set: a ``SPREAD_*`` binding
-    beside ``many`` is refused before any item is read
-    (``test_a_serializer_less_many_spec_is_never_dispatched_spread``).
+    annotated one raises ``_UnresolvedExtras``.
 
     Each condition is one conjunct of a single branch arc, which coverage cannot
-    see, so each names the test that fails without it (in
-    ``tests/dispatch/test_dispatch_spread_parameters.py``):
+    see, so each names the test that fails without it:
 
     - no ``input_serializer``: with one, the serializer declares the input and a
       parameter it does not name stays unknown.
-      ``test_a_serializer_still_declares_the_input_under_reject``.
+      ``test_a_serializer_keeps_its_set_under_a_spreading_binding``.
     - a ``SPREAD_*`` binding: ``BUNDLE`` (and ``AUTO``, which resolves to it for a
-      service) spreads nothing, so admitting a parameter would admit a value no
-      parameter receives. ``test_a_bundled_service_still_declares_only_the_lookup``.
-    - less ``reserved``: the caller's ``user`` or ``data`` would otherwise land in
-      the ``data`` the service receives.
-      ``test_a_reserved_seed_is_never_taken_from_the_caller``.
+      service) declares none of the service's parameters.
+      ``test_without_a_spreading_binding_the_set_is_the_lookup``.
+    - less ``reserved``: a seed's name is never the caller's to send.
+      ``test_a_registered_seed_leaves_the_set_too``.
     """
     binding = resolve_argument_binding(spec, argument_binding)
     if spec.input_serializer is not None or binding is ArgumentBinding.BUNDLE:
@@ -759,7 +732,7 @@ def _spread_parameter_keys(
 
 
 def _target_lookup(spec: ServiceSpec[Any, Any, Any]) -> SelectorSpec[Any, Any] | None:
-    """The one target lookup dispatch calls for ``spec``, by ``_resolve_target``'s precedence.
+    """The one target lookup a dispatch of ``spec`` calls.
 
     A declared ``collection_selector_spec``; otherwise the ``instance_selector_spec``,
     or ``None``. An instance lookup beside a collection one is refused at
@@ -781,19 +754,13 @@ def declared_input_keys(
 
     Derived from the spec and the dispatch's ``argument_binding`` — no transport
     knowledge. A ``ServiceSpec`` declares its ``input_serializer`` fields plus the
-    keys of the **one** target lookup dispatch calls, chosen by the precedence
-    ``_resolve_target`` applies, so a key is admitted only when something reads it:
+    keys of the **one** target lookup dispatch calls, so a key is admitted only
+    when something reads it:
 
-    - ``many=True`` resolves no target at all (``_dispatch_service_many`` never
-      reaches ``_resolve_target``), and needs no branch of its own to say so:
-      either lookup beside ``many`` is refused when the spec is built, so there is
-      no lookup to read, and ``guard_many_argument_binding`` refuses a ``SPREAD_*``
-      binding before an item is read, so the per-item check runs under ``AUTO``,
-      which is ``BUNDLE`` for a service and declares none of its parameters. What
-      is left is the item serializer's fields. Held by
-      ``test_service_many_declares_no_lookup_keys``, through dispatch by
-      ``test_reject_refuses_a_lookup_key_inside_an_item``, and the refusal by
-      ``test_a_serializer_less_many_spec_is_never_dispatched_spread``.
+    - ``many=True`` resolves no target at all, and needs no branch of its own to
+      say so: either lookup beside ``many`` is refused when the spec is built, so
+      there is no lookup to read. What is left is the item serializer's fields.
+      Held by ``test_service_many_declares_no_lookup_keys``.
     - A declared ``collection_selector_spec`` is the lookup; an instance lookup
       beside it is refused at construction.
     - Otherwise ``instance_selector_spec`` (e.g. the ``pk`` it reads). Held by
@@ -807,7 +774,7 @@ def declared_input_keys(
     a caller that does not pass it gets the set without them. The lookup is read
     first: when it is open, the set is open whatever the service declares, and the
     service's surface is not read, so an unresolvable one raises nothing. Held by
-    ``test_an_open_lookup_leaves_reject_enforceable_beside_an_unresolvable_service``.
+    ``test_an_open_lookup_leaves_the_set_open_before_the_service_is_read``.
 
     Read from the spec alone, because it is also what a transport advertises, so a
     direct caller passing ``instance=``, which skips the lookup, still has that
@@ -816,12 +783,11 @@ def declared_input_keys(
     **A parameter no callable in the call lets the caller fill is not declared**:
     the selector's, the lookup's and the service's parameters lose
     ``server_owned_keys``, so a key a precondition or the lookup hides is unknown
-    even where the selector or service names it plainly, and ``REJECT`` refuses
-    the value the strip would drop. An ``input_serializer``'s fields are not
-    reduced: a field is that serializer's payload and reaches ``data`` as sent,
-    while the strip keeps it out of the spread. Held by
-    ``test_a_key_a_precondition_hides_is_server_owned_for_the_whole_call`` and
-    ``test_a_key_the_lookup_hides_is_refused_beside_a_service_naming_it``.
+    even where the selector or service names it plainly. An
+    ``input_serializer``'s fields are not reduced: a field is that serializer's
+    payload and reaches ``data`` as sent. Held, for a selector, by
+    ``test_selector_loses_a_key_its_precondition_hides`` and, for a service, by
+    ``test_a_key_another_callable_in_the_call_hides_is_not_listed``.
 
     ``None`` means the set is not enumerable, so nothing can be flagged unknown.
     Propagates ``_UnresolvedExtras`` when a callable it reads has a ``**kwargs``
@@ -946,19 +912,11 @@ def resolve_output_context(
 async def arun_off_loop(fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
     """Run a sync callable in Django's thread-sensitive executor and await it.
 
-    The async dispatch path must route **every user-supplied sync callable**
-    through here — ``kwargs`` providers, ``extend_queryset``, ``filter_set``,
-    serializer-context providers, the ``progress_reporter`` provider, a callable
-    ``success_status``. None of them may be async, so calling one from the event
-    loop raises
-    ``SynchronousOnlyOperation`` the moment it touches the ORM — a failure that
-    surfaces only under the async transport, only for specs that happen to query.
-    ``thread_sensitive=True`` puts them in the same executor as the surrounding
-    selector / service / permission calls, so they share one connection and see
-    the same transaction state as on the sync path.
-
-    Not for the spec's own selector / service, which may be ``async def``; those
-    go through ``arun_callable`` / ``arun_service_callable``.
+    For the async render twins, whose serializer and context providers are sync
+    and query: called from the event loop, one raises ``SynchronousOnlyOperation``
+    the moment it touches the ORM. ``thread_sensitive=True`` puts it in the same
+    executor as the kernel's ``adispatch`` runs sync callables in, so they share
+    one connection and see the same transaction state as on the sync path.
     """
     return await sync_to_async(fn, thread_sensitive=True)(*args, **kwargs)
 

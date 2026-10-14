@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, Any
 
+import django_filters
 import pytest
 from rest_framework import serializers
 from typing_extensions import TypedDict, Unpack
@@ -155,3 +156,21 @@ def test_an_unresolvable_var_keyword_raises() -> None:
 
 def test_an_unresolvable_var_keyword_is_read_only_under_a_spreading_binding() -> None:
     assert declared_input_keys(_spec(_close_for_tenant), serializer=None) == {"pk"}
+
+
+class _TitleFilter(django_filters.FilterSet):
+    title = django_filters.CharFilter()
+
+
+def test_an_open_lookup_leaves_the_set_open_before_the_service_is_read() -> None:
+    """The lookup is read first, so an unresolvable service surface beside an
+    open lookup raises nothing: the set is open whatever the service declares."""
+    open_lookup = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_by_pk, filter_set=_TitleFilter)
+    spec = ServiceSpec(service=_close_for_tenant, instance_selector_spec=open_lookup, atomic=False)
+
+    assert (
+        declared_input_keys(
+            spec, serializer=None, argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS
+        )
+        is None
+    )

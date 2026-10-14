@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -18,6 +18,7 @@ from rest_framework_services.dispatch.utils import (
     resolve_unknown_arguments,
 )
 from rest_framework_services.types.argument_binding import ArgumentBinding
+from rest_framework_services.types.not_client_input import NotClientInput
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
@@ -131,6 +132,17 @@ class TestDeclaredInputKeys:
         )
         with pytest.raises(_UnresolvedExtras):
             declared_input_keys(spec, serializer=None)
+
+    def test_selector_loses_a_key_its_precondition_hides(self) -> None:
+        """A key one callable in the call hides is the server's for all of them, so
+        a selector naming it plainly does not declare it."""
+
+        def gate(*, tenant: Annotated[str, NotClientInput] = "own") -> None: ...
+
+        def rows(*, tenant: str = "own", limit: int = 10) -> Any: ...
+
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=rows, preconditions=[gate])
+        assert declared_input_keys(spec, serializer=None) == {"limit"}
 
     def test_selector_without_selector_is_empty(self) -> None:
         # Unreachable through dispatch (a None selector raises first), but the
