@@ -360,6 +360,18 @@ class TestFilterData:
         result = dispatch_spec(spec, user=None, params={"title": "a"})
         assert [post.title for post in result.value] == ["a"]
 
+    def test_arguments_that_are_no_object_take_no_filter_data(self) -> None:
+        """They are left for the shape check to refuse, filter data or not."""
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=lambda: Post.objects.order_by("pk"),
+            filter_set=_TitleFilter,
+            permission_classes=[],
+        )
+        with pytest.raises(ValidationError) as excinfo:
+            dispatch_spec(spec, user=None, params=["a"], filter_data={"title": "a"})
+        assert excinfo.value.detail == {"non_field_errors": ["Expected an object."]}
+
 
 @pytest.mark.django_db
 class TestPoolSeeds:

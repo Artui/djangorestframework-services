@@ -370,3 +370,30 @@ def test_a_typed_provider_owns_the_keys_it_fills_even_when_it_declines(
         )
 
     assert excinfo.value.get_codes() == {"tenant": ["required"]}
+
+
+class _SourcedRowIn(serializers.Serializer):
+    title = serializers.CharField()
+    org = serializers.CharField(source="org_id", required=False)
+
+
+@_CORES
+def test_a_many_specs_hook_values_are_named_as_the_service_is_handed_them(
+    dispatch: Dispatch,
+) -> None:
+    """A ``many`` spec's fields are each row's, so a hook value is never renamed to
+    a field's wire name: ``org_id`` and ``org`` are two values, not one."""
+    seen: dict[str, Any] = {}
+
+    def service(*, data: Any, org_id: str, org: str) -> None:
+        seen.update(org_id=org_id, org=org)
+
+    spec = ServiceSpec(service=service, input_serializer=_SourcedRowIn, many=True, atomic=False)
+
+    dispatch(
+        spec,
+        params=[{"title": "t"}],
+        view_hooks=ViewHooks(extra_kwargs={"org_id": "by-source", "org": "by-name"}),
+    )
+
+    assert seen == {"org_id": "by-source", "org": "by-name"}

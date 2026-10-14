@@ -892,7 +892,9 @@ def _source_to_wire(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]) -
     is handed, which is a field's ``source`` where it has one, so a value for
     ``tenant_id`` is the value of the field the request calls ``tenant``
     (test_a_hook_value_naming_a_fields_source_is_the_fields_value). A ``many``
-    spec's fields are each row's, and are no argument of the call.
+    spec's fields are each row's, and are no argument of the call, so a value
+    is never renamed to one of their wire names
+    (test_a_many_specs_hook_values_are_named_as_the_service_is_handed_them).
     """
     if not isinstance(spec, ServiceSpec) or spec.input_serializer is None or spec.many:
         return {}
@@ -1103,9 +1105,11 @@ def _route_filter_data(
     source; a ``QueryDict`` is read flat and coerced, a repeated key as a list.
     """
     # One arc to coverage, so each operand is named:
-    # test_filter_data_reaches_the_filter_set_and_nothing_else fails without the
-    # second, and test_no_filter_data_leaves_the_arguments_to_filter without the first.
-    if filter_set is None or filter_data is None or not isinstance(arguments, dict):
+    # test_no_filter_data_leaves_the_arguments_to_filter fails without the
+    # first, and test_arguments_that_are_no_object_take_no_filter_data without
+    # the second. No ``filter_set`` reads nothing: ``filter_set_parameters``
+    # answers ``None`` with no Parameters, so its names are none to route.
+    if filter_data is None or not isinstance(arguments, dict):
         return
     parameters = filter_set_parameters(filter_set)
     names = parameters.names()
