@@ -424,23 +424,38 @@ def _output_schema(
         nested = spec.output_selector_spec
         if nested is None:
             return None
-        return output_to_json_schema(
-            nested.output_serializer,
-            kind=_rendered_kind(spec, nested),
-            registry=registry,
-            max_depth=max_depth,
-            affordances=nested.affordances,
-            allow_none=can_present_nothing(spec),
-        )
-    return output_to_json_schema(
-        spec.output_serializer,
-        kind=spec.kind,
+        declared = (nested.output_serializer, _rendered_kind(spec, nested), nested.affordances)
+    else:
+        declared = (spec.output_serializer, spec.kind, spec.affordances)
+    output_serializer, kind, affordances = declared
+    schema = output_to_json_schema(
+        output_serializer,
+        kind=kind,
         registry=registry,
         max_depth=max_depth,
-        affordances=spec.affordances,
-        # The same question as the branch above, asked of the same function, so the
-        # schema and every transport calling it answer it alike.
-        allow_none=can_present_nothing(spec),
+        affordances=affordances,
+    )
+    # The walk comes first, so a serializer it cannot describe is refused with the
+    # walk's own ``TypeError`` rather than by whatever compiling the spec refuses
+    # first (test_an_unwalkable_selector_output_is_refused_through_the_spec and
+    # test_an_unwalkable_output_behind_a_service_is_refused_through_the_spec). Then
+    # ``None`` is asked about only where it can widen the schema: a list never
+    # presents it, and no schema has nothing to widen. One arc to coverage, each
+    # operand held by its own test: test_service_output_without_selector_spec_is_none
+    # and test_selector_output_without_serializer_is_none (no schema),
+    # test_a_many_service_output_is_an_array_whatever_its_selector_kind (a list),
+    # and test_an_allow_none_retrieve_admits_the_null_it_serves (the answer).
+    if schema is None or kind is SelectorKind.LIST or not can_present_nothing(spec):
+        return schema
+    # The same question for both spec classes, asked of the same function, so the
+    # schema and every transport calling it answer it alike.
+    return output_to_json_schema(
+        output_serializer,
+        kind=kind,
+        registry=registry,
+        max_depth=max_depth,
+        affordances=affordances,
+        allow_none=True,
     )
 
 
