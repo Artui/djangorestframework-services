@@ -13,6 +13,7 @@ from rest_framework_services.dispatch.utils import (
     edge_call,
     edge_errors,
     listed_output,
+    over_http,
     prepare_edge_call,
     with_output_layers,
 )
@@ -75,7 +76,10 @@ async def adispatch_spec(
     does both).
     """
     state = EdgeCallState()
-    with edge_errors(spec, params, many_as_argument=many_as_argument), edge_call(state):
+    with (
+        edge_errors(spec, params, many_as_argument=many_as_argument, http=over_http(view)),
+        edge_call(state),
+    ):
         prepared = await sync_to_async(prepare_edge_call, thread_sensitive=True)(
             spec,
             user=user,

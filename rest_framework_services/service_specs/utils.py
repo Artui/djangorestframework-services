@@ -137,6 +137,10 @@ class EdgeCallState:
       (``author_values``) hands back over the Validator's values.
     - ``view_hooks``: the view's serializer context layers, whose input half
       the Validator reads (``input_view_layers``).
+    - ``validator_input``: the Validator the edge dispatches, and the body it
+      binds rather than the kernel's checked arguments (``validator_input``):
+      the caller's own, a ``QueryDict`` kept one, with what the edge put over
+      it, as DRF's serializer has always been handed the request's data.
 
     Mutable, so the edge can set it before the sync step it hops to a thread
     for and fill it there: the thread runs in a copy of the context that holds
@@ -146,6 +150,7 @@ class EdgeCallState:
     target_guard: Callable[[Any], None] | None = None
     author_values: Mapping[str, Any] = dataclasses.field(default_factory=dict)
     view_hooks: ViewHooks = dataclasses.field(default_factory=ViewHooks)
+    validator_input: tuple[Any, Any] | None = None
 
 
 EDGE_CALL: ContextVar[EdgeCallState | None] = ContextVar(
@@ -162,6 +167,17 @@ context, and ``adispatch``'s thread hops run in a copy of it, which
 def edge_call_state() -> EdgeCallState:
     """The state of the edge call in progress, or an empty one outside any call."""
     return EDGE_CALL.get() or EdgeCallState()
+
+
+def validator_input(validator: Any, arguments: Any) -> Any:
+    """What ``validator`` binds for the call: the edge's body for it, else ``arguments``.
+
+    Only the Validator the edge call names reads the edge's body, so a kernel
+    call made inside the service, of another spec or of this one, binds its
+    own arguments (test_a_kernel_call_inside_the_service_binds_its_own_arguments).
+    """
+    held = edge_call_state().validator_input
+    return held[1] if held is not None and held[0] is validator else arguments
 
 
 def author_values() -> dict[str, Any]:

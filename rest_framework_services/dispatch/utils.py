@@ -44,6 +44,7 @@ from rest_framework_services.service_specs.utils import (
     EDGE_CALL,
     SERIALIZER_CONTEXT_SEED,
     EdgeCallState,
+    bind_serializer,
     describe_serializer,
     edge_call_state,
 )
@@ -51,6 +52,7 @@ from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.marked_input_keys import marked_input_keys
 from rest_framework_services.types.offline_context import OfflineContext
+from rest_framework_services.types.offline_service_view import OfflineServiceView
 from rest_framework_services.types.pool_seeds import PoolSeeds
 from rest_framework_services.types.progress_reporter import ProgressReporter
 from rest_framework_services.types.query_param import QueryParam
@@ -215,7 +217,9 @@ def prepare_edge_call(
             },
         )
     if spec.many:
-        variant = kernel_spec_variant(spec, partial=partial, unguarded=True, server_input=False)
+        variant = kernel_spec_variant(
+            spec, partial=partial, unguarded=True, server_input=False, lenient=over_http(view)
+        )
         seeds = edge_seeds(pool_seeds, request=request, view=view)
         rows = params
         if many_as_argument:
@@ -276,12 +280,16 @@ def prepare_edge_call(
             target=handed,
             server_input=False,
             spread=spread,
+            lenient=over_http(view),
         ),
     )
     seeds = edge_seeds(pool_seeds, request=request, view=view)
     arguments = without_seed_names(
         edge_arguments(service, spec, params, request=request, view=view), pool_seeds
     )
+    # What the caller's body became before the edge put anything over it, so
+    # the body the Validator binds takes exactly what the edge put there.
+    sent = dict(arguments) if isinstance(arguments, dict) else None
     target_spec = service.target_selector_spec()
     if target_spec is not None:
         _route_filter_data(arguments, target_spec.filter_set, filter_data)
@@ -325,6 +333,15 @@ def prepare_edge_call(
     server = server_input(spec, hooks, view=view, request=request, instance=target)
     if server and isinstance(arguments, dict):
         arguments.update(server)
+    # One arc to coverage, so each conjunct is named: a spec with no input
+    # serializer has no Validator (test_the_return_is_passed_through_as_it_came),
+    # and a body that is no object has no fields to bind
+    # (test_a_single_call_body_that_is_no_object_is_refused_in_drfs_words).
+    if service.validator is not None and sent is not None:
+        state.validator_input = (
+            service.validator,
+            _validator_body(params, sent, arguments, service.validator.parameters().names()),
+        )
     return EdgeCall(
         service,
         {
@@ -336,6 +353,67 @@ def prepare_edge_call(
             "extra_kwargs": extra_kwargs,
         },
     )
+
+
+def over_http(view: Any) -> bool:
+    """Whether the call is a request a live DRF view dispatches.
+
+    Such a request is validated by its serializer alone, as DRF's views always
+    validated one (``kernel_spec_variant(lenient=True)``), and refused in
+    DRF's words (``edge_errors``). Read off the view without importing DRF's
+    views, which the dispatch core does not: a call with no view, or with the
+    ``OfflineServiceView`` an agent transport builds, keeps the kernel's typed
+    check (each case of test_an_offline_view_keeps_the_kernels_typed_check
+    holds one of the two conditions), and any other view is a transport's
+    own, as a DRF view is.
+    """
+    return view is not None and not isinstance(view, OfflineServiceView)
+
+
+def _validator_body(
+    params: Mapping[str, Any],
+    sent: Mapping[str, Any],
+    arguments: Mapping[str, Any],
+    fields: frozenset[str],
+) -> Any:
+    """The body a service spec's Validator binds: the caller's ``params``, with the edge's keys.
+
+    DRF's serializer was always handed the request's data as the request parsed
+    it, so a ``QueryDict`` stays one and is read as HTML input: a checkbox's
+    ``"on"``, a form's empty string for an optional field, an unchecked box's
+    absence as ``False`` (test_a_form_body_is_read_as_html_input). The kernel's
+    arguments are a flat copy, so what the edge put over the caller's values
+    for a Validator field - the server's ``input_data``, an author's value - is
+    written onto the body the way ``input_data`` always was, a list through
+    ``setlist`` (test_input_data_reaches_a_form_body_as_a_list), and a value the
+    edge took away, which a typed provider declined, is taken from it too
+    (test_a_declined_owned_field_is_taken_from_the_body). Nothing put over it
+    hands ``params`` on as it is. A seed's name the edge dropped from the
+    arguments stays in the body, where the serializer reads its own field of
+    that name.
+    """
+    # A key the edge added (test_the_specs_value_wins_over_the_view_hooks, an
+    # ``input_data`` key the caller never sent) or replaced
+    # (test_a_hook_value_naming_a_serializer_field_is_the_fields_value).
+    put = {
+        name: arguments[name]
+        for name in fields
+        if name in arguments and (name not in sent or arguments[name] is not sent[name])
+    }
+    taken = [name for name in fields if name in sent and name not in arguments]
+    if not put and not taken:
+        return params
+    if isinstance(params, QueryDict):
+        body = params.copy()
+        for name in taken:
+            body.pop(name, None)
+        for name, value in put.items():
+            if isinstance(value, list | tuple):
+                body.setlist(name, list(value))
+            else:
+                body[name] = value
+        return body
+    return {**{name: value for name, value in params.items() if name not in taken}, **put}
 
 
 def server_input(
@@ -1031,6 +1109,7 @@ def edge_errors(
     params: Any,
     *,
     many_as_argument: bool,
+    http: bool,
 ) -> Iterator[None]:
     """The kernel's refusals as DRF's, around a whole edge call.
 
@@ -1052,12 +1131,19 @@ def edge_errors(
       names the request used, where the input serializer's ``source=`` makes
       them differ from the ones the service saw. Never the kernel's own
       ``InvalidArguments``, which is already keyed by them.
+    - On ``http``, a request a live DRF view dispatches (``over_http``), a
+      body that is not what the input serializer takes - no object for a
+      single call, no list for a ``many`` one - is refused as the serializer
+      refuses it, in DRF's words (``_drf_body_refusal``).
     """
     bare_rows = isinstance(spec, ServiceSpec) and spec.many and not many_as_argument
     try:
         with translate_dispatch_errors():
             yield
     except InvalidArguments as exc:
+        drf = _drf_body_refusal(spec, params, bare_rows=bare_rows) if http else None
+        if drf is not None:
+            raise drf from exc
         detail = _unexpected_as_drf(exc.detail, spec)
         unwrapped = _bare_rows_error(detail, spec.many_argument, params) if bare_rows else None
         if unwrapped is not None:
@@ -1072,6 +1158,38 @@ def edge_errors(
         if serializer is None:
             raise
         raise wire_named_error(exc, describe_serializer(serializer)) from exc
+
+
+def _drf_body_refusal(
+    spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any], params: Any, *, bare_rows: bool
+) -> ValidationError | None:
+    """DRF's own refusal of a body its input serializer cannot take, or ``None``.
+
+    The kernel refuses a body of the wrong shape before any Validator runs, as
+    ``"Expected an object."`` or ``"Expected an array."``; a DRF view's
+    serializer refused it as ``'Invalid data. Expected a dictionary, but got
+    list.'`` (test_a_single_call_body_that_is_no_object_is_refused_in_drfs_words)
+    or ``'Expected a list of items but got type "dict".'``
+    (test_a_bulk_body_that_is_no_list_is_refused_in_drfs_words), so the
+    serializer is asked. It refuses the shape before it reads a field, so it
+    is bound with no context. A spec with no input serializer has no DRF
+    answer to give, and a ``many`` spec whose rows sit under an argument is
+    no body, so both keep the kernel's.
+    """
+    # A selector spec declares no input serializer, so the second operand alone
+    # answers it the same; the first narrows ``spec`` for ``.many`` below. The
+    # second is held by
+    # test_a_body_with_no_serializer_to_answer_it_keeps_the_kernels_refusal.
+    if not isinstance(spec, ServiceSpec) or spec.input_serializer is None:
+        return None
+    if bare_rows:
+        if isinstance(params, list):
+            return None
+    elif spec.many or isinstance(params, Mapping):
+        return None
+    bound = bind_serializer(spec.input_serializer, data=params, many=bare_rows)
+    bound.is_valid()
+    return ValidationError(bound.errors)
 
 
 def _unexpected_as_drf(

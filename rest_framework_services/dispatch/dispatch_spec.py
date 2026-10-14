@@ -11,6 +11,7 @@ from rest_framework_services.dispatch.utils import (
     edge_call,
     edge_errors,
     listed_output,
+    over_http,
     prepare_edge_call,
     with_output_layers,
 )
@@ -178,7 +179,10 @@ def dispatch_spec(
         InvalidArguments: the kernel refused the arguments.
     """
     state = EdgeCallState()
-    with edge_errors(spec, params, many_as_argument=many_as_argument), edge_call(state):
+    with (
+        edge_errors(spec, params, many_as_argument=many_as_argument, http=over_http(view)),
+        edge_call(state),
+    ):
         prepared = prepare_edge_call(
             spec,
             user=user,

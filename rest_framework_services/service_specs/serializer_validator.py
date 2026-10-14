@@ -8,7 +8,7 @@ from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
-from django_service_specs.parameters.parameters import Parameters
+from django_service_specs.parameters.parameters import Parameter, Parameters
 from django_service_specs.pool.reserved_pool_seeds import RESERVED_POOL_SEEDS
 from django_service_specs.validation.validated import Validated
 from django_service_specs.validation.validation_context import ValidationContext
@@ -23,6 +23,7 @@ from rest_framework_services.service_specs.utils import (
     input_parameters,
     input_view_layers,
     serializer_context,
+    validator_input,
 )
 
 
@@ -45,6 +46,12 @@ class SerializerValidator(Validator):
     rendered in the language active when it is asked for. It never queries.
 
     ``validate()`` builds the serializer as a DRF view would:
+
+    - **over the body the call was sent**, where a DRF edge call names this
+      Validator (``validator_input``): the caller's own data, a ``QueryDict``
+      kept one, with what the edge put over it, as a DRF view's serializer was
+      always handed ``request.data``. Anywhere else, the kernel's checked
+      arguments.
 
     - **with the target as** ``instance``, so an update's uniqueness checks
       exclude the row being updated. The queryset a collection selector
@@ -122,6 +129,7 @@ class SerializerValidator(Validator):
         serializer: type[Any],
         *,
         serializer_context: Callable[..., Mapping[str, Any]] | None = None,
+        lenient: bool = False,
     ) -> None:
         # One branch to coverage, so each condition is held by its own test:
         # the ``type`` by test_anything_but_a_serializer_class_or_a_dataclass_is_refused_when_declared[an-instance],
@@ -142,6 +150,7 @@ class SerializerValidator(Validator):
             )
         self.serializer = serializer
         self.serializer_context = serializer_context
+        self.lenient = lenient
         # The kernel reads this per instance: the answer belongs to the
         # declaration. A dataclass read through a DataclassSerializer, and a
         # DataclassSerializer subclass declared outright (as the gallery
@@ -152,8 +161,19 @@ class SerializerValidator(Validator):
         )
 
     def parameters(self) -> Parameters:
-        """The serializer's input fields, as Parameters. Never queries."""
-        return input_parameters(describe_serializer(self.serializer))
+        """The serializer's input fields, as Parameters. Never queries.
+
+        ``lenient`` declares each field by name alone - any value, optional,
+        nullable - so the kernel's shape check passes every value through and
+        the serializer is the one to answer it, as a live DRF view's request
+        always was answered (``kernel_spec_variant(lenient=True)``).
+        """
+        walked = input_parameters(describe_serializer(self.serializer))
+        if not self.lenient:
+            return walked
+        return Parameters.of(
+            *(Parameter(param.name, "any", required=False, nullable=True) for param in walked)
+        )
 
     def validate(self, arguments: Mapping[str, Any], context: ValidationContext) -> dict[str, Any]:
         """The validated values, keyed by source, or ``InvalidArguments`` carrying DRF's detail."""
@@ -218,15 +238,16 @@ class SerializerValidator(Validator):
     def _bind(
         self, arguments: Mapping[str, Any], context: ValidationContext
     ) -> serializers.Serializer:
-        """The serializer, bound to ``arguments`` for this call."""
+        """The serializer, bound to the call's input: the edge's body for it, else ``arguments``."""
         target = context.target
+        data = validator_input(self, arguments)
         return bind_serializer(
             self.serializer,
-            data=arguments,
+            data=data,
             # The collection a collection selector resolves is no row to update.
             instance=None if isinstance(target, QuerySet) else target,
             partial=context.partial,
-            context=self._context(context, arguments),
+            context=self._context(context, data),
         )
 
     def _context(
