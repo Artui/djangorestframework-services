@@ -8,6 +8,7 @@ import threading
 import weakref
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
+from types import MappingProxyType
 from typing import Any, cast
 
 from asgiref.sync import sync_to_async
@@ -40,9 +41,11 @@ from rest_framework_services.service_specs.translate_dispatch_errors import (
     translate_dispatch_errors,
 )
 from rest_framework_services.service_specs.utils import (
-    AUTHOR_VALUES_SEED,
+    EDGE_CALL,
     SERIALIZER_CONTEXT_SEED,
+    EdgeCallState,
     describe_serializer,
+    edge_call_state,
 )
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.dispatch_result import DispatchResult
@@ -77,21 +80,13 @@ from rest_framework_services.views.utils import resolve_callable_kwargs
 # awaits ``adispatch`` with what it returns.
 # ---------------------------------------------------------------------------
 
-# The pool seed the guard of a selector spec rides in on. A selector spec takes no
-# ``target=``, so the guard runs as a precondition the edge prepends, and a
-# compiled spec is shared by every call, so the per-call guard reaches that
-# precondition through the call's own seeds rather than through the spec.
-TARGET_GUARD_SEED = "_target_guard"
 # The names the edge registers as seeds on every call. ``serializer`` is not one:
 # the Validator's own pool delivers it, and the kernel refuses a Validator that
-# binds a name a seed occupies. The view's serializer context layers ride in the
-# third, read by the adapters beneath the spec's own context callables.
-EDGE_SEEDS: tuple[str, ...] = ("request", "view", SERIALIZER_CONTEXT_SEED)
-# The seeds the edge registers for its own machinery, each only on a call that
-# needs it: never an author's or a caller's value of that name.
-INTERNAL_SEEDS: frozenset[str] = frozenset(
-    {TARGET_GUARD_SEED, SERIALIZER_CONTEXT_SEED, AUTHOR_VALUES_SEED}
-)
+# binds a name a seed occupies. What the edge carries for its own machinery - a
+# selector spec's guard, the author values, the view's serializer context
+# layers - is no seed: it rides in ``EdgeCallState``, so a callable taking a bare
+# ``**kwargs`` is never handed it.
+EDGE_SEEDS: tuple[str, ...] = ("request", "view")
 # What the Validator binds for the call. An author's value of that name stays in
 # ``extra_kwargs``, the tier beneath it, so the bound serializer is what a
 # service declaring ``serializer`` receives, as it always was
@@ -111,6 +106,40 @@ class EdgeCall:
     kwargs: dict[str, Any]
 
 
+@contextmanager
+def edge_call(state: EdgeCallState) -> Iterator[None]:
+    """``state`` as the edge call in progress, for the whole of the ``with`` block.
+
+    Both cores enter it before ``prepare_edge_call`` fills ``state`` and leave
+    it once the kernel has returned, so every compiled piece that reads it -
+    the guarded precondition, the ``kwargs`` seat, the Validator - runs inside
+    it, and a nested edge call restores the outer one's on the way out.
+    """
+    token = EDGE_CALL.set(state)
+    try:
+        yield
+    finally:
+        EDGE_CALL.reset(token)
+
+
+def with_output_layers(result: DispatchResult, state: EdgeCallState) -> DispatchResult:
+    """``result`` carrying the view's output serializer context layers, for its presenter.
+
+    The presenter runs when the transport renders, after the call, so the
+    view's lazy ``output_serializer_context`` hook travels on the result's
+    presentation context, under ``SERIALIZER_CONTEXT_SEED``, rather than
+    through the call's pool.
+    """
+    # A missing row is presented by no one, and the kernel builds it no context
+    # (test_a_missing_row_under_output_hooks_is_still_not_found).
+    if result.context is None:
+        return result
+    ambient = MappingProxyType(
+        {**result.context.ambient, SERIALIZER_CONTEXT_SEED: state.view_hooks}
+    )
+    return dataclasses.replace(result, context=dataclasses.replace(result.context, ambient=ambient))
+
+
 def prepare_edge_call(
     spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any],
     *,
@@ -128,13 +157,15 @@ def prepare_edge_call(
     filter_data: Mapping[str, Any] | None,
     many_as_argument: bool,
     partial: bool | None,
+    state: EdgeCallState,
 ) -> EdgeCall | DispatchResult:
     """Everything ``dispatch_spec`` does before the kernel's ``dispatch``, as one sync step.
 
     Returns the prepared call, or the kernel's not-found ``DispatchResult`` when
     a service spec's target lookup found no row. Runs the guard, so it is the
     step an async caller hops to a thread for, once. Raise the kernel's own
-    errors; run it inside ``edge_errors``.
+    errors; run it inside ``edge_errors``, and inside ``edge_call(state)``,
+    since what it carries for the call's machinery it writes to ``state``.
     """
     refuse_retired_modes(argument_binding, unknown_arguments)
     if not isinstance(spec, ServiceSpec | SelectorSpec):
@@ -142,6 +173,7 @@ def prepare_edge_call(
             f"dispatch_spec expects a ServiceSpec or SelectorSpec; got {type(spec).__name__}."
         )
     hooks = view_hooks if view_hooks is not None else ViewHooks()
+    state.view_hooks = hooks
     # One object for the whole call: a ``Grant`` binds its principal by identity.
     principal = user if user is not None else unauthenticated_user()
     shared: dict[str, Any] = {
@@ -154,7 +186,7 @@ def prepare_edge_call(
     guard_context = OfflineContext(user=user, request=request, view=view)
     if isinstance(spec, SelectorSpec):
         variant: Any = kernel_spec_variant(spec, unguarded=True, server_input=False)
-        seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
+        seeds = edge_seeds(pool_seeds, request=request, view=view)
         if on_target_resolved is not None:
             variant = guarded_selector(variant)
             guard = on_target_resolved
@@ -162,7 +194,7 @@ def prepare_edge_call(
             def bound_guard(target: Any) -> None:
                 guard(spec, guard_context, instance=target)
 
-            seeds = seeds.extend(**{TARGET_GUARD_SEED: lambda: bound_guard})
+            state.target_guard = bound_guard
         arguments = without_seed_names(
             edge_arguments(variant, spec, params, request=request, view=view), pool_seeds
         )
@@ -184,7 +216,7 @@ def prepare_edge_call(
         )
     if spec.many:
         variant = kernel_spec_variant(spec, partial=partial, unguarded=True, server_input=False)
-        seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
+        seeds = edge_seeds(pool_seeds, request=request, view=view)
         rows = params
         if many_as_argument:
             arguments = edge_arguments(variant, spec, params, request=request, view=view)
@@ -246,7 +278,7 @@ def prepare_edge_call(
             spread=spread,
         ),
     )
-    seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
+    seeds = edge_seeds(pool_seeds, request=request, view=view)
     arguments = without_seed_names(
         edge_arguments(service, spec, params, request=request, view=view), pool_seeds
     )
@@ -258,7 +290,7 @@ def prepare_edge_call(
         spec, service, arguments, hooks, seeds=seeds, view=view, request=request
     )
     seeds = _hidden_lookup_seeds(spec, service, view, seeds=seeds, extra_kwargs=extra_kwargs)
-    seeds, extra_kwargs = _seat_author_values(seeds, extra_kwargs)
+    state.author_values, extra_kwargs = _seat_author_values(extra_kwargs)
     if handed:
         target = instance
     elif instance is None:
@@ -431,47 +463,27 @@ def unauthenticated_user() -> Any:
     return factory()
 
 
-def edge_seeds(
-    pool_seeds: PoolSeeds, *, request: Any, view: Any, view_hooks: ViewHooks
-) -> PoolSeeds:
-    """The caller's seeds, behind this call's ``request``, ``view`` and view hooks.
+def edge_seeds(pool_seeds: PoolSeeds, *, request: Any, view: Any) -> PoolSeeds:
+    """The caller's seeds, behind this call's ``request`` and ``view``.
 
     The kernel resolves each seed against the base pool alone, so a resolver of
     the caller's that declares ``request`` or ``view`` - as this package's seeds
     always could - is handed them by a wrapper, which stays sync.
 
-    ``view_hooks`` is registered under ``SERIALIZER_CONTEXT_SEED``, where the
-    adapters read the view's serializer context layers from, **only when it
-    carries one**: a seed is in every ``**kwargs`` callable's pool, so a call
-    with no context hooks, as every transport but the HTTP views makes, adds
-    nothing there (test_a_call_with_no_context_hooks_registers_no_seed). One
-    branch to coverage, so each condition is named by the test that fails
-    without it: test_an_input_half_alone_reaches_the_input_serializer and
-    test_an_output_half_alone_reaches_the_output_serializer.
-
     Raises:
-        ImproperlyConfigured: ``pool_seeds`` registers ``request``, ``view`` or
-            ``SERIALIZER_CONTEXT_SEED``, which this edge seeds itself from what
-            it was handed.
+        ImproperlyConfigured: ``pool_seeds`` registers ``request`` or ``view``,
+            which this edge seeds itself from what it was handed.
     """
     clash = sorted(pool_seeds.names & set(EDGE_SEEDS))
     if clash:
         raise ImproperlyConfigured(
             f"pool_seeds registers {', '.join(repr(name) for name in clash)}, which "
-            "dispatch_spec seeds itself from the request, view and view_hooks it is handed. "
-            "Pass them as request=, view= and view_hooks=, and remove the registration."
+            "dispatch_spec seeds itself from the request and view it is handed. "
+            "Pass them as request= and view=, and remove the registration."
         )
     ambient = {"request": request, "view": view}
     wrapped = tuple((name, _with_ambient(resolver, ambient)) for name, resolver in pool_seeds.seeds)
-    layers: tuple[tuple[str, Callable[..., Any]], ...] = ()
-    if (
-        view_hooks.input_serializer_context is not None
-        or view_hooks.output_serializer_context is not None
-    ):
-        layers = ((SERIALIZER_CONTEXT_SEED, lambda: view_hooks),)
-    return PoolSeeds(
-        seeds=(("request", lambda: request), ("view", lambda: view), *layers, *wrapped)
-    )
+    return PoolSeeds(seeds=(("request", lambda: request), ("view", lambda: view), *wrapped))
 
 
 def _with_ambient(resolver: Callable[..., Any], ambient: Mapping[str, Any]) -> Callable[..., Any]:
@@ -899,18 +911,16 @@ def _hidden_lookup_seeds(
     return seeds.extend(**captured) if captured else seeds
 
 
-def _seat_author_values(
-    seeds: PoolSeeds, extra_kwargs: dict[str, Any]
-) -> tuple[PoolSeeds, dict[str, Any]]:
-    """``seeds`` carrying a single service call's author values, and what stays an overlay.
+def _seat_author_values(extra_kwargs: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """A single service call's author values, and what stays an overlay.
 
     The author's values that name no argument - a view hook's, the spec's
     ``kwargs`` provider's - have always outranked whatever the client's input
     became: a key the input serializer's ``validate()`` derives, or a
     ``source="*"`` nested field flattened into ``validated_data``. The kernel
     hands ``extra_kwargs`` beneath every key the Validator returns, so they are
-    registered under ``AUTHOR_VALUES_SEED`` instead, which the compiled spec's
-    ``kwargs`` provider hands back from the seat over the Validator's values
+    carried in the call's ``EdgeCallState`` instead, which the compiled spec's
+    ``kwargs`` seat hands back over the Validator's values
     (test_a_hooks_value_outranks_the_validators_off_http,
     test_the_specs_provider_outranks_the_validators_off_http). The client's
     value stays in ``data``, where it was validated. What the Validator binds
@@ -919,17 +929,13 @@ def _seat_author_values(
     (test_the_bound_serializer_outranks_an_authors_value_of_its_name), and the
     author's value reaches a service no Validator binds one for
     (test_an_authors_serializer_value_reaches_a_service_no_validator_binds_one_for).
-    A call with no author value registers no seed, since a seed is in every
-    pool (test_a_call_with_no_author_value_registers_no_seat_for_them).
 
     A ``many`` spec's values are its rows alone, and a selector spec has no
     Validator, so neither is seated: both keep their ``extra_kwargs``.
     """
     seated = {name: value for name, value in extra_kwargs.items() if name not in VALIDATOR_BOUND}
-    if not seated:
-        return seeds, extra_kwargs
     overlay = {name: value for name, value in extra_kwargs.items() if name in VALIDATOR_BOUND}
-    return seeds.extend(**{AUTHOR_VALUES_SEED: _constant(seated)}), overlay
+    return seated, overlay
 
 
 def _constant(value: Any) -> Callable[[], Any]:
@@ -980,7 +986,7 @@ def guarded_selector(variant: KernelSelectorSpec) -> KernelSelectorSpec:
     never on a missing row or a ``None`` its ``allow_none`` let through. So the
     guard runs where it always did: after the lookup, before the author's own
     preconditions, and not at all where there is no row. The guard itself is the
-    call's, read from the ``TARGET_GUARD_SEED`` seed.
+    call's, read from its ``EdgeCallState``.
     """
     with _GUARDED_LOCK:
         held = _GUARDED.get(id(variant))
@@ -995,12 +1001,28 @@ def guarded_selector(variant: KernelSelectorSpec) -> KernelSelectorSpec:
     return held[1]
 
 
-def _guard_row(*, instance: Any, _target_guard: Callable[[Any], None]) -> None:
-    _target_guard(instance)
+def _guard_row(*, instance: Any) -> None:
+    _call_guard(instance)
 
 
-def _guard_set(*, collection: Any, _target_guard: Callable[[Any], None]) -> None:
-    _target_guard(collection)
+def _guard_set(*, collection: Any) -> None:
+    _call_guard(collection)
+
+
+def _call_guard(target: Any) -> None:
+    """Run the guard of the edge call in progress on ``target``, refusing a call that carries none.
+
+    Only the edge dispatches a guarded twin, and always with its guard, so a
+    twin reached any other way fails closed rather than skipping the check
+    (test_a_guarded_twin_dispatched_without_its_guard_is_refused).
+    """
+    guard = edge_call_state().target_guard
+    if guard is None:
+        raise ImproperlyConfigured(
+            "A guarded selector spec was dispatched outside the call that guards it. "
+            "Dispatch the selector spec through dispatch_spec with on_target_resolved=."
+        )
+    guard(target)
 
 
 @contextmanager

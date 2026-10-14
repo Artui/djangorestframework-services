@@ -58,8 +58,8 @@ def kernel_spec_variant(
     - ``server_input``: ``False`` compiles the spec with no ``kwargs``
       provider of its own and, on a service spec, no ``input_data``: the DRF
       edge evaluates both itself and merges what they answer into the
-      arguments, and a service spec's ``kwargs`` seat hands back what the edge
-      registered under ``AUTHOR_VALUES_SEED`` instead.
+      arguments, and a service spec's ``kwargs`` seat hands back the author
+      values the edge call carries (``author_values``) instead.
       The kernel relaxes a parameter only for a provider annotated to fill it,
       so an untyped one, as drfs has always taken, would be refused as missing
       before it ran; and a typed one declining a key it is annotated to fill

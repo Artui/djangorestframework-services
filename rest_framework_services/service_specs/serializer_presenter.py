@@ -109,8 +109,8 @@ class SerializerPresenter(Presenter):
         ``self.context["request"].user`` renders for the principal the call ran
         for. A list result is presented row by row by the kernel's ``present``,
         each row with the same context, which is what a ``many=True`` render is.
-        Over that, the output half of the view hooks a DRF edge registered for
-        the call, resolved with the value, then ``serializer_context``, the
+        Over that, the output half of the view hooks a DRF edge adds to the
+        result's context (``output_view_layers``), resolved with the value, then ``serializer_context``, the
         spec's own ``output_serializer_context``, each winning on a key it shares
         with what it layers over (see
         ``serializer_context`` in ``service_specs/utils.py``).

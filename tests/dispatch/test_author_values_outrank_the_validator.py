@@ -30,7 +30,6 @@ from rest_framework_services import (
     adispatch_spec,
     dispatch_spec,
 )
-from rest_framework_services.service_specs.utils import AUTHOR_VALUES_SEED
 
 _factory = APIRequestFactory()
 
@@ -217,22 +216,6 @@ def test_an_authors_serializer_value_reaches_a_service_no_validator_binds_one_fo
     dispatch(spec, params={}, view_hooks=hooks)
 
     assert seen == {"serializer": "hook", "tenant_id": "server"}
-
-
-@pytest.mark.django_db
-@_CORES
-def test_a_call_with_no_author_value_registers_no_seat_for_them(dispatch: Dispatch) -> None:
-    # A seed is in every pool, so an open service would be handed an empty one.
-    seen: dict[str, Any] = {}
-
-    def service(*, data: Any, **rest: Any) -> None:
-        seen["rest"] = set(rest)
-
-    dispatch(
-        ServiceSpec(service=service, input_serializer=_TitleIn, atomic=False), params={"title": "t"}
-    )
-
-    assert AUTHOR_VALUES_SEED not in seen["rest"]
 
 
 @pytest.mark.django_db

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import dataclasses
 from collections.abc import Callable, Mapping, Sequence
+from contextvars import ContextVar
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
@@ -106,48 +107,77 @@ def bind_serializer(declaration: Any, **kwargs: Any) -> serializers.Serializer:
 
 
 SERIALIZER_CONTEXT_SEED = "_serializer_context_layers"
-"""The pool seed carrying the view's serializer context layers into a call.
+"""The key a DRF edge adds to a result's presentation context for the view's output layers.
 
-DRF's edge registers the calling view's resolved
-[`ViewHooks`][rest_framework_services.types.view_hooks.ViewHooks] under this
-name, and the adapters read its two context halves from the call's ``ambient``:
-``input_serializer_context`` for the Validator, ``output_serializer_context``
-(lazy, handed the value presented) for the Presenter. Those halves are the
-directional and per-action view hooks, the second and third of the four layers,
-which only a view can resolve and which a compiled spec, shared by every call,
-cannot carry. A call registering nothing under it, as a transport with no view
-does, has no such layers. Underscored, as the edge's other private seed is, so
-no parameter a spec declares is likely to collide with it."""
+Only ever a key of the ``ambient`` of a ``DispatchResult``'s
+``PresentationContext``, added by the edge once the kernel has returned, never
+a pool seed: the presenter runs when the transport renders, after the call, so
+the view's ``output_serializer_context`` hook - lazy, handed the value
+presented - travels with the result rather than through the call's pool, where
+a callable taking a bare ``**kwargs`` would be handed it
+(test_a_bare_kwargs_service_sees_no_edge_machinery)."""
 
 
-AUTHOR_VALUES_SEED = "_author_values"
-"""The pool seed carrying a service spec's author values into a call.
+@dataclasses.dataclass
+class EdgeCallState:
+    """What one call of the DRF edge carries for its own machinery, beside the kernel's pool.
 
-A view's ``get_*_kwargs`` hooks and the spec's own ``kwargs`` provider, merged
-by a DRF edge for the call: the values naming no parameter the caller fills.
-The kernel hands a call's ``extra_kwargs`` beneath every key the Validator
-returns, and the author's value has always outranked one (a key a
-``validate()`` derives from the body, a ``source="*"`` nested field), so the
-edge registers them here instead and the compiled spec's ``kwargs`` provider,
-``author_values``, hands them back in the provider's seat, over the Validator's
-values. Registered only when there are any, since a seed is in every pool."""
+    Everything here is the edge's, never an argument or a seed of the call, so
+    it does not travel through the pool the kernel hands a callable taking a
+    bare ``**kwargs``, which on main held ``progress``, ``request``,
+    ``serializer``, ``user`` and the call's extras and nothing of the edge's
+    (test_a_bare_kwargs_service_sees_no_edge_machinery). The edge sets it in
+    ``EDGE_CALL`` around the whole call, and the compiled pieces that need it
+    read it from there:
+
+    - ``target_guard``: a selector spec's guard, run by the precondition the
+      edge prepends (``guarded_selector``).
+    - ``author_values``: a view hook's and the spec's ``kwargs`` provider's
+      values naming no argument, which the compiled spec's ``kwargs`` seat
+      (``author_values``) hands back over the Validator's values.
+    - ``view_hooks``: the view's serializer context layers, whose input half
+      the Validator reads (``input_view_layers``).
+
+    Mutable, so the edge can set it before the sync step it hops to a thread
+    for and fill it there: the thread runs in a copy of the context that holds
+    this same object.
+    """
+
+    target_guard: Callable[[Any], None] | None = None
+    author_values: Mapping[str, Any] = dataclasses.field(default_factory=dict)
+    view_hooks: ViewHooks = dataclasses.field(default_factory=ViewHooks)
 
 
-def author_values(**pool: Any) -> dict[str, Any]:
-    """The author values a DRF edge registered for the call, as a ``kwargs`` provider answers.
+EDGE_CALL: ContextVar[EdgeCallState | None] = ContextVar(
+    "rest_framework_services_edge_call", default=None
+)
+"""The DRF edge's state for the call in progress, or ``None`` outside one.
+
+A context variable rather than a pool seed, so nothing the edge carries for
+itself reaches a spec's callables. The kernel's sync steps run in this
+context, and ``adispatch``'s thread hops run in a copy of it, which
+``asgiref`` makes for every ``sync_to_async`` call."""
+
+
+def edge_call_state() -> EdgeCallState:
+    """The state of the edge call in progress, or an empty one outside any call."""
+    return EDGE_CALL.get() or EdgeCallState()
+
+
+def author_values() -> dict[str, Any]:
+    """The author values a DRF edge carries for the call, as a ``kwargs`` provider answers.
 
     The compiled form of a service spec the edge dispatches carries this as its
     ``kwargs`` provider (``kernel_spec_variant(server_input=False)``), since the
-    edge calls the spec's own provider itself. Empty for a call that registered
-    none under ``AUTHOR_VALUES_SEED``.
+    edge calls the spec's own provider itself. Empty outside an edge call, and
+    for a call that carries none.
     """
-    return dict(pool.get(AUTHOR_VALUES_SEED) or {})
+    return dict(edge_call_state().author_values)
 
 
-def input_view_layers(ambient: Mapping[str, Any]) -> Mapping[str, Any] | None:
-    """The input half of the view hooks the call registered, or ``None``."""
-    hooks: ViewHooks | None = ambient.get(SERIALIZER_CONTEXT_SEED)
-    return hooks.input_serializer_context if hooks is not None else None
+def input_view_layers() -> Mapping[str, Any] | None:
+    """The input half of the view hooks the edge call carries, or ``None``."""
+    return edge_call_state().view_hooks.input_serializer_context
 
 
 def output_view_layers(ambient: Mapping[str, Any], value: Any) -> Mapping[str, Any] | None:
@@ -191,7 +221,9 @@ def serializer_context(
        another one would describe a call that never happened.
     2. and 3. **The view's hooks**, ``view_layers``: the directional and
        per-action hooks the view resolved, one direction's half of what the
-       edge registered under ``SERIALIZER_CONTEXT_SEED``.
+       edge carries: the input half from the call's ``EdgeCallState``, the
+       output half from the result's presentation context, under
+       ``SERIALIZER_CONTEXT_SEED``.
     4. **The spec's own callable**, ``provider``, which has the final say. It
        is called through the kernel's declared-kwargs resolver, as every other
        spec callable is, from a pool of the call's ``arguments`` (a mapping's
@@ -219,7 +251,10 @@ def serializer_context(
     if provider is not None:
         pool: dict[str, Any] = {
             **(arguments if isinstance(arguments, Mapping) else {}),
-            **ambient,
+            # The edge's key for the output layers is no seed of the call, and
+            # stays out of a callable's pool as every seed-free value does
+            # (test_a_bare_kwargs_service_sees_no_edge_machinery).
+            **{name: value for name, value in ambient.items() if name != SERIALIZER_CONTEXT_SEED},
             "request": request,
             "view": view,
             "user": principal,

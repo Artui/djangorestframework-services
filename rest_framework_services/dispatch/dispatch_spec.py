@@ -7,10 +7,17 @@ from typing import Any
 
 from django_service_specs.dispatch.dispatch import dispatch
 
-from rest_framework_services.dispatch.utils import edge_errors, listed_output, prepare_edge_call
+from rest_framework_services.dispatch.utils import (
+    edge_call,
+    edge_errors,
+    listed_output,
+    prepare_edge_call,
+    with_output_layers,
+)
 from rest_framework_services.service_specs.register_drf_row_errors import (
     register_drf_row_errors,
 )
+from rest_framework_services.service_specs.utils import EdgeCallState
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.dispatch_result import DispatchResult
 from rest_framework_services.types.pool_seeds import DEFAULT_POOL_SEEDS, PoolSeeds
@@ -170,7 +177,8 @@ def dispatch_spec(
         ValueError: a retired ``argument_binding`` or ``unknown_arguments``.
         InvalidArguments: the kernel refused the arguments.
     """
-    with edge_errors(spec, params, many_as_argument=many_as_argument):
+    state = EdgeCallState()
+    with edge_errors(spec, params, many_as_argument=many_as_argument), edge_call(state):
         prepared = prepare_edge_call(
             spec,
             user=user,
@@ -187,11 +195,12 @@ def dispatch_spec(
             filter_data=filter_data,
             many_as_argument=many_as_argument,
             partial=partial,
+            state=state,
         )
         if isinstance(prepared, DispatchResult):
             return prepared
         result = dispatch(prepared.spec, **prepared.kwargs)
-    return listed_output(spec, result)
+    return listed_output(spec, with_output_layers(result, state))
 
 
 __all__ = ["dispatch_spec"]

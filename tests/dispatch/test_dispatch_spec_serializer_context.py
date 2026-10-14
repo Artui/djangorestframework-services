@@ -14,7 +14,6 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from django.core.exceptions import ImproperlyConfigured
 from django_service_specs.dispatch.present import present
 from rest_framework import serializers
 
@@ -212,8 +211,8 @@ class TestWhichLayersRide:
         assert seen == [{"base": "view", "shared": "view"}]
         assert payload["context"] == {"base": "view", "shared": "view", "hook_out": "hi"}
 
-    def test_a_call_with_no_context_hooks_registers_no_seed(self) -> None:
-        """A seed is in every ``**kwargs`` callable's pool, so a call with no context hooks adds none."""
+    def test_context_hooks_reach_no_kwargs_callables_pool(self) -> None:
+        """The view's layers ride on the edge call, never in a ``**kwargs`` callable's pool."""
         pools: list[dict[str, Any]] = []
 
         def service(**pool: Any) -> None:
@@ -223,7 +222,11 @@ class TestWhichLayersRide:
             ServiceSpec(service=service),
             user=None,
             params={},
-            view_hooks=ViewHooks(extra_kwargs={"x": 1}),
+            view_hooks=ViewHooks(
+                extra_kwargs={"x": 1},
+                input_serializer_context={"hook_in": "in"},
+                output_serializer_context=lambda result: {"hook_out": "out"},
+            ),
         )
 
         assert "_serializer_context_layers" not in pools[0]
@@ -280,9 +283,17 @@ class TestWhichLayersRide:
 
 
 @pytest.mark.django_db
-def test_a_caller_registering_the_context_seed_is_refused() -> None:
-    """The edge registers the view-hook layers itself; a caller's registration would shadow them."""
+def test_a_callers_seed_named_like_the_edges_layer_key_shadows_nothing() -> None:
+    """The view's layers travel on the edge call, not as a seed, so a caller's seed is its own."""
+    seen: list[dict[str, Any]] = []
     seeds = DEFAULT_POOL_SEEDS.extend(_serializer_context_layers=lambda: None)
 
-    with pytest.raises(ImproperlyConfigured, match="_serializer_context_layers"):
-        dispatch_spec(_spec([]), user=None, params={"title": "hi"}, pool_seeds=seeds)
+    dispatch_spec(
+        _spec(seen),
+        user=None,
+        params={"title": "hi"},
+        pool_seeds=seeds,
+        view_hooks=ViewHooks(input_serializer_context={"hook_in": "in"}),
+    )
+
+    assert seen[0]["hook_in"] == "in"
