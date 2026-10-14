@@ -19,6 +19,7 @@ from django_service_specs.dispatch.grant import Grant
 from django_service_specs.dispatch.resolve_target import resolve_target
 from django_service_specs.parameters.coerce_flat import coerce_flat
 from django_service_specs.parameters.parameters import Parameters
+from django_service_specs.pool.provider_keys import provider_keys
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
 from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
 from rest_framework import serializers
@@ -152,7 +153,6 @@ def prepare_edge_call(
         "progress": (
             progress if hooks.progress is None else combine_progress(progress, hooks.progress)
         ),
-        "extra_kwargs": hooks.extra_kwargs,
     }
     guard_context = OfflineContext(user=user, request=request, view=view)
     if isinstance(spec, SelectorSpec):
@@ -172,6 +172,7 @@ def prepare_edge_call(
             {
                 **shared,
                 "arguments": arguments,
+                "extra_kwargs": route_hook_extras(variant, arguments, hooks.extra_kwargs),
                 "grant": Grant(variant, principal),
                 "pool_seeds": seeds,
             },
@@ -189,6 +190,7 @@ def prepare_edge_call(
                 {**row, **hooks.input_data} if isinstance(row, Mapping) else row
                 for row in arguments[spec.many_argument]
             ]
+        extra_kwargs = route_hook_extras(variant, arguments, hooks.extra_kwargs)
         # A bulk call acts on no target, as on main: the guard is asked about ``None``.
         if on_target_resolved is not None:
             on_target_resolved(spec, guard_context, instance=None)
@@ -197,6 +199,7 @@ def prepare_edge_call(
             {
                 **shared,
                 "arguments": arguments,
+                "extra_kwargs": extra_kwargs,
                 "grant": Grant(variant, principal, target_checked=True),
                 "pool_seeds": seeds,
             },
@@ -218,6 +221,8 @@ def prepare_edge_call(
     if hooks.input_data and isinstance(arguments, dict):
         # Beneath ``spec.input_data``, which the kernel merges over the arguments.
         arguments.update(hooks.input_data)
+    # Before the lookup, which a hook value for one of its reads scopes.
+    extra_kwargs = route_hook_extras(service, arguments, hooks.extra_kwargs)
     if handed:
         target = instance
     elif instance is None:
@@ -248,6 +253,7 @@ def prepare_edge_call(
             "grant": Grant(service, principal, target_checked=True),
             "pool_seeds": seeds,
             "target": target,
+            "extra_kwargs": extra_kwargs,
         },
     )
 
@@ -385,6 +391,49 @@ def _flat(
             else source.get(name)
         )
     return flat
+
+
+def route_hook_extras(
+    variant: KernelServiceSpec | KernelSelectorSpec,
+    arguments: Any,
+    extras: Mapping[str, Any] | None,
+) -> Mapping[str, Any] | None:
+    """Split a view hook's extras: a declared read's value into ``arguments``, the rest returned.
+
+    A view's ``get_*_kwargs`` hooks have always supplied values for the names a
+    spec reads - ``get_selector_kwargs()`` returning the selector's ``tenant``
+    - and the kernel refuses ``extra_kwargs`` naming a declared parameter. So a
+    hook value for a read of the compiled spec (its service's or selector's, or
+    a service spec's target lookup's) goes into the arguments, over the
+    client's, as a view layer always outranked the request; what is left is
+    returned for ``dispatch(extra_kwargs=)``. Arguments that are no mapping
+    take nothing, for the kernel's shape check to refuse.
+
+    One arc to coverage, so each condition that keeps a value an extra is named
+    by the test that fails without it: an ``UNSET`` value supplies nothing
+    (test_an_unset_hook_value_leaves_the_clients), a name that is no read stays
+    the overlay's (test_a_hook_value_for_a_hidden_name_still_goes_as_an_extra),
+    and a name the spec's typed ``kwargs`` provider fills stays beneath that
+    provider, where the kernel drops it
+    (test_the_specs_typed_provider_wins_over_a_hook_value).
+    """
+    if not extras:
+        return extras
+    reads = set(variant.reads.names())
+    if isinstance(variant, KernelServiceSpec):
+        target_spec = variant.target_selector_spec()
+        if target_spec is not None:
+            reads |= target_spec.reads.names()
+    keys = provider_keys(variant.kwargs)
+    filled = keys.filled if keys is not None else frozenset()
+    routed = {
+        name: value
+        for name, value in extras.items()
+        if value is not UNSET and name in reads and name not in filled
+    }
+    if isinstance(arguments, dict):
+        arguments.update(routed)
+    return {name: value for name, value in extras.items() if name not in routed}
 
 
 def _route_filter_data(

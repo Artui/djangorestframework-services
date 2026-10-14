@@ -8,20 +8,17 @@ sibling) and asserts the two agree. A fix applied to one core and not the other
 fails here, rather than reaching an async transport as a silently different
 answer.
 
-The kernel the twins share, and are therefore most likely to drift on:
+Both cores prepare a call with one shared step and differ only in whether
+they call the kernel's ``dispatch`` or await its ``adispatch``, so what they
+are most likely to drift on is:
 
-- **the hand-built pools in target resolution** — each core assembles its own
-  pool for ``instance_selector_spec`` / ``collection_selector_spec``, and each
-  has to strip the reserved seeds itself, because that pool decides *which row*
-  gets mutated and off HTTP the params are the caller's tool call;
-- **the mutation tail** — the ``DispatchResult`` fields the mutation path fills
-  in, and the stale-prefetch clear that runs before the output re-fetch;
-- **the signatures themselves** — a parameter added to one twin and not the
+- **the hop itself** - the preparation resolves the target and runs the guard,
+  so the async core must take it off the loop and hand ``adispatch`` exactly
+  what the sync core hands ``dispatch``;
+- **the mutation tail** - the ``DispatchResult`` fields the kernel fills in;
+- **the signatures themselves** - a parameter added to one twin and not the
   other is drift that no behavioural test can see, because the async surface
-  simply cannot be handed the argument. The pair of public entry points is not
-  the whole story: the private target-resolution helpers each core keeps take
-  the same arguments too, and that is where a channel added to one core alone
-  would hide.
+  simply cannot be handed the argument.
 """
 
 from __future__ import annotations
@@ -30,6 +27,7 @@ import inspect
 from collections.abc import Callable, Mapping
 from typing import Annotated, Any
 
+import django_filters
 import pytest
 from asgiref.sync import sync_to_async
 from django.contrib.auth.models import User
@@ -56,19 +54,9 @@ from rest_framework_services import (
     render_for_audience,
     render_spec_output,
 )
-from rest_framework_services.dispatch.adispatch_spec import (
-    _aresolve_instance,
-    _aresolve_target,
-    _arun_output_selector,
-)
 from rest_framework_services.dispatch.aenforce_affordances import aenforce_affordances
 from rest_framework_services.dispatch.aunmet_operation_affordance import (
     aunmet_operation_affordance,
-)
-from rest_framework_services.dispatch.dispatch_spec import (
-    _resolve_instance,
-    _resolve_target,
-    _run_output_selector,
 )
 from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
 from rest_framework_services.dispatch.unmet_operation_affordance import (
@@ -101,13 +89,12 @@ def _plain(value: Any) -> Any:
 def _summarize(result: DispatchResult) -> dict[str, Any]:
     """Every field of the result contract, reduced to comparable form.
 
-    All six, deliberately: a summary that only carried ``value`` / ``kind`` /
-    ``status`` would agree across cores that disagreed about the mutation tail,
+    All five, deliberately: a summary that only carried ``value`` and ``kind``
+    would agree across cores that disagreed about the mutation tail,
     which is exactly the drift this module exists to catch.
     """
     return {
         "kind": result.kind,
-        "status": result.status,
         "value": _plain(result.value),
         "service_result": _plain(result.service_result),
         "instance": _plain(result.instance),
@@ -156,19 +143,14 @@ def _all_posts() -> QuerySet[Post]:
     return Post.objects.all().order_by("id")
 
 
-class _PublishedOnly:
-    """Duck-typed FilterSet narrowing by ``published``, as django-filter would."""
+class _PublishedOnly(django_filters.FilterSet):
+    """Narrows by ``published``; a duck-typed set is refused when the spec compiles."""
 
-    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
-        self._data = data
-        self._queryset = queryset
+    published = django_filters.BooleanFilter()
 
-    @property
-    def qs(self) -> QuerySet[Post]:
-        raw = self._data.get("published")
-        if raw is None:
-            return self._queryset
-        return self._queryset.filter(published=str(raw).lower() == "true")
+    class Meta:
+        model = Post
+        fields = ("published",)
 
 
 # --- the twins take the same arguments -----------------------------------
@@ -179,11 +161,8 @@ class _PublishedOnly:
 # invisible to every behavioural test, since the drifted surface cannot be
 # handed the argument at all — the caller finds out with a ``TypeError``.
 #
-# The private target-resolution helpers are checked alongside the public entry
-# points. They are where a channel reaches the nested selector specs, so a
-# channel threaded through one core and not the other would leave the drifted
-# core resolving a mutation target from a different mapping — the same class of
-# silent divergence, one layer down and with authorization riding on it.
+# The two edge cores share their preparation (``prepare_edge_call``), so there
+# is no private pair left to drift: what each hands the kernel is built once.
 
 
 def _parameters(fn: Any) -> list[tuple[str, Any]]:
@@ -196,9 +175,6 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
         (dispatch_spec, adispatch_spec),
         (render_spec_output, arender_spec_output),
         (render_for_audience, arender_for_audience),
-        (_resolve_target, _aresolve_target),
-        (_resolve_instance, _aresolve_instance),
-        (_run_output_selector, _arun_output_selector),
         (enforce_affordances, aenforce_affordances),
         (unmet_operation_affordance, aunmet_operation_affordance),
     ],
@@ -206,9 +182,6 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
         "dispatch_spec",
         "render_spec_output",
         "render_for_audience",
-        "resolve_target",
-        "resolve_instance",
-        "run_output_selector",
         "enforce_affordances",
         "unmet_operation_affordance",
     ],
@@ -321,7 +294,10 @@ async def test_a_key_a_precondition_hides_is_the_servers_on_either_core() -> Non
 @pytest.mark.django_db(transaction=True)
 async def test_a_key_the_lookup_hides_never_reaches_open_changes_on_either_core() -> None:
     """The lookup's hidden ``tenant`` stays out of an open spread service's
-    ``**changes``, where a ``setattr`` loop would write it onto the row."""
+    ``**changes``, where a ``setattr`` loop would write it onto the row.
+
+    So does the undeclared ``title``: the argument set is closed, and a bare
+    ``**changes`` declares nothing."""
     post = await Post.objects.acreate(title="p")
 
     def target(*, pk: Any, tenant: Annotated[str, NotClientInput] = "own") -> QuerySet[Post]:
@@ -343,8 +319,7 @@ async def test_a_key_the_lookup_hides_never_reaches_open_changes_on_either_core(
         },
     )
     assert sync_summary == async_summary
-    assert "tenant" not in sync_summary["service_result"]
-    assert "title" in sync_summary["service_result"]
+    assert not {"tenant", "title"} & set(sync_summary["service_result"])
 
 
 @pytest.mark.django_db(transaction=True)
@@ -360,7 +335,7 @@ async def test_a_registered_pool_seed_reaches_target_resolution_on_either_core()
     real = await User.objects.acreate(username="real")
     post = await Post.objects.acreate(title="p")
 
-    def target(*, pk: Any, tenant: Any) -> QuerySet[Post]:
+    def target(*, pk: Any, tenant: Annotated[Any, NotClientInput]) -> QuerySet[Post]:
         seen.append(tenant)
         return Post.objects.filter(pk=pk)
 
@@ -446,14 +421,13 @@ async def test_filter_data_narrows_the_instance_target_on_either_core() -> None:
             "user": None,
             # ``published=false`` sits in the argument channel, where a body
             # value would; the filter channel asks for published rows only.
-            "params": {"pk": draft.pk, "published": "false"},
-            "filter_data": {"published": "true"},
+            "params": {"pk": draft.pk, "published": False},
+            "filter_data": {"published": True},
         },
     )
     assert sync_summary == async_summary
     # The draft is out of scope, so there is no row to mutate.
     assert async_summary["kind"] == "not_found"
-    assert async_summary["status"] == 404
 
 
 @pytest.mark.django_db(transaction=True)
@@ -471,8 +445,8 @@ async def test_filter_data_narrows_the_collection_target_on_either_core() -> Non
         spec,
         lambda: {
             "user": None,
-            "params": {"published": "false"},
-            "filter_data": {"published": "true"},
+            "params": {"published": False},
+            "filter_data": {"published": True},
         },
     )
     assert sync_summary == async_summary
@@ -590,10 +564,9 @@ async def test_a_refused_list_return_reads_the_same_on_either_core() -> None:
     assert "returned dict" in str(async_refusal.value)
 
 
-async def test_a_bundled_selector_parameter_is_the_author_s_error_on_either_core() -> None:
-    """Each core asks ``caller_fillable`` at its own selector site, and each must pass
-    the binding: under ``BUNDLE`` no resend fills ``tenant``, so neither names it.
-    Nothing is read, so no database is needed."""
+async def test_a_missing_selector_parameter_is_refused_alike_on_either_core() -> None:
+    """A required parameter nobody sent is the caller's 400, the same on both cores,
+    whatever the binding. Nothing is read, so no database is needed."""
 
     def rows(*, tenant: str) -> list[str]:
         return [tenant]
@@ -604,12 +577,12 @@ async def test_a_bundled_selector_parameter_is_the_author_s_error_on_either_core
         "params": {},
         "argument_binding": ArgumentBinding.BUNDLE,
     }
-    with pytest.raises(TypeError) as sync_error:
+    with pytest.raises(ValidationError) as sync_error:
         await sync_to_async(dispatch_spec, thread_sensitive=True)(spec, **kwargs)
-    with pytest.raises(TypeError) as async_error:
+    with pytest.raises(ValidationError) as async_error:
         await adispatch_spec(spec, **kwargs)
-    assert str(sync_error.value) == str(async_error.value)
-    assert "tenant" in str(async_error.value)
+    assert sync_error.value.detail == async_error.value.detail
+    assert set(async_error.value.detail) == {"tenant"}
 
 
 # --- the mutated target's stale prefetch ----------------------------------
@@ -693,8 +666,11 @@ async def test_a_caller_resolved_instance_pins_the_target_on_either_core() -> No
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_an_explicit_none_instance_is_a_create_on_either_core() -> None:
-    """``None`` is supplied, not omitted — the sentinel default is load-bearing."""
+async def test_an_explicit_none_instance_is_no_row_on_either_core() -> None:
+    """``None`` is supplied, not omitted - the sentinel default is load-bearing.
+
+    The caller says there is no row, so the lookup never runs, and a spec that
+    declares one admits no missing row: not found, on both cores."""
     seen: list[Any] = []
 
     def target(**_: Any) -> QuerySet[Post]:
@@ -709,8 +685,7 @@ async def test_an_explicit_none_instance_is_a_create_on_either_core() -> None:
         spec, lambda: {"user": None, "params": {}, "instance": None}
     )
     assert sync_summary == async_summary
-    assert async_summary["value"] == "created"
-    assert async_summary["instance"] is None
+    assert async_summary["kind"] == "not_found"
     assert seen == []
 
 
