@@ -377,6 +377,20 @@ wheels = [
 ]
 
 [[package]]
+name = "django-service-specs"
+version = "0.7.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django", version = "5.2.17", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "django", version = "6.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/20/3a/25262dfab62cedbe78b0fcf0e9eda07f58afc840f66da5c650b40d8e30d6/django_service_specs-0.7.0.tar.gz", hash = "sha256:da9e5bfd21ffb7339f6c8c04a72f9fc48aa5a21ec245b9ddb9126609e8b8b691", size = 912084, upload-time = "2026-10-14T12:48:13.178Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e9/57/1200e0592bc76df5e0a3ac41e379903552bea167d23f11b0cfc1d3c88d06/django_service_specs-0.7.0-py3-none-any.whl", hash = "sha256:69796c596e319e973279df1d4931590df5516b2db0a53ca86b0a9fb729c88554", size = 425367, upload-time = "2026-10-14T12:48:11.718Z" },
+]
+
+[[package]]
 name = "django-stubs"
 version = "6.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -440,6 +454,7 @@ source = { editable = "." }
 dependencies = [
     { name = "django", version = "5.2.17", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "django", version = "6.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "django-service-specs" },
     { name = "djangorestframework" },
     { name = "djangorestframework-dataclasses" },
     { name = "typing-extensions" },
@@ -479,6 +494,7 @@ docs = [
 requires-dist = [
     { name = "django", specifier = ">=4.2" },
     { name = "django-filter", marker = "extra == 'filter'", specifier = ">=23.1" },
+    { name = "django-service-specs", specifier = ">=0.7.0" },
     { name = "djangorestframework", specifier = ">=3.14" },
     { name = "djangorestframework-dataclasses", specifier = ">=1.3.1" },
     { name = "drf-spectacular", marker = "extra == 'spectacular'", specifier = ">=0.27,<1.0" },

@@ -47,6 +47,11 @@ dependencies = [
     # where ``2`` is the internal ``VALUE_WITH_FAKE_GLOBALS`` and raises, so
     # ``provider_keys`` would read every typed provider as untyped there.
     "typing-extensions>=4.14",
+    # The engine every spec dispatches through: ``dispatch_spec`` compiles a
+    # spec to this package's and hands it to ``dispatch``. 0.7.0 is the first
+    # release whose module graph has no ring (``mutations/nested_writes.py``)
+    # and whose ``tests/test_drfs_surface.py`` pins every name re-exported here.
+    "django-service-specs>=0.7.0",
 ]
 
 [project.optional-dependencies]
