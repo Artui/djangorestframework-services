@@ -12,6 +12,7 @@ from typing import Any, cast
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django_service_specs.authorization.unrestricted import Unrestricted
+from django_service_specs.dispatch.dispatch import dispatch
 from django_service_specs.specs.kernel_spec import kernel_spec
 from django_service_specs.specs.selector_spec import SelectorSpec
 from django_service_specs.specs.service_spec import ServiceSpec
@@ -70,3 +71,5 @@ def test_a_polymorphic_spec_is_refused_with_a_pointer_at_its_variants() -> None:
     assert len(registry) == 0
     with pytest.raises(TypeError, match="Register each variant"):
         kernel_spec(cast(Any, poly))
+    with pytest.raises(TypeError, match="Register each variant"):
+        dispatch(cast(Any, poly), principal=None, arguments={})
