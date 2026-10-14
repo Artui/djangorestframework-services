@@ -20,6 +20,7 @@ from django.core.exceptions import ImproperlyConfigured
 from rest_framework.permissions import BasePermission
 from rest_framework.serializers import Serializer
 
+from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
 from rest_framework_services.types.marked_input_keys import marked_input_keys
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
 from rest_framework_services.types.selector_kind import SelectorKind
@@ -635,7 +636,7 @@ def _marker_reading_callables(
 
 
 def _callable_conditions(
-    spec: ServiceSpec[Any, Any, Any], *, label: str
+    spec: AffordanceDeclarer, *, label: str
 ) -> Iterator[tuple[str, Callable[..., Any]]]:
     # A condition on the row is an ORM expression, compiled into the query rather
     # than called, so only a callable one is bound from the pool. Held by

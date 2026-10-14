@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
@@ -12,15 +12,10 @@ from django.db.models.query import Prefetch
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 
+from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.service_view import ServiceView
 from rest_framework_services.types.utils import affordance_alias, validate_metadata
-
-if TYPE_CHECKING:
-    # Annotation only. ``service_spec`` imports this module at runtime -- a
-    # ``ServiceSpec`` nests ``SelectorSpec``s -- so a runtime import here is a
-    # cycle; the one runtime check that needs the class imports it locally.
-    from rest_framework_services.types.service_spec import ServiceSpec
 
 ResultT = TypeVar("ResultT")
 ExtraT = TypeVar("ExtraT", bound=Mapping[str, object])
@@ -246,7 +241,7 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
     # needs, here the answer for each row. Keyed by a name the caller chooses
     # rather than taken from a registry, since a ``ServiceSpec`` does not know
     # what it is called.
-    affordances: Mapping[str, ServiceSpec[Any, Any, Any]] | None = None
+    affordances: Mapping[str, AffordanceDeclarer] | None = None
 
     # Cross-cutting.
     kwargs: Callable[..., ExtraT] | None = None
@@ -284,10 +279,6 @@ def _validate_affordances(spec: SelectorSpec[Any, Any]) -> None:
     At construction, like ``ServiceSpec``'s own check: a selector reaches
     transports that never mount it on a view.
     """
-    # Genuine circular import, deliberately local: ``service_spec`` imports this
-    # module at runtime, and this is the one place the class itself is needed.
-    from rest_framework_services.types.service_spec import ServiceSpec
-
     affordances: Any = spec.affordances
     if affordances is None:
         return
@@ -303,7 +294,11 @@ def _validate_affordances(spec: SelectorSpec[Any, Any]) -> None:
             raise ImproperlyConfigured(
                 f"SelectorSpec.affordances keys must be non-empty strings; got {name!r}."
             )
-        if not isinstance(service_spec, ServiceSpec):
+        # Nominal on purpose: ``AffordanceDeclarer`` is what ``ServiceSpec``
+        # inherits, and a ``SelectorSpec``, which has an ``affordances`` of its
+        # own, is refused too
+        # (test_a_selector_spec_is_refused_in_place_of_a_service_spec).
+        if not isinstance(service_spec, AffordanceDeclarer):
             raise ImproperlyConfigured(
                 f"SelectorSpec.affordances[{name!r}] must be a ServiceSpec; got "
                 f"{type(service_spec).__name__}. The mapping holds the spec whose "

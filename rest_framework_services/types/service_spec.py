@@ -12,6 +12,7 @@ from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 
 from rest_framework_services.types.affordance import Affordance
+from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
 from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.utils import is_row_condition, validate_metadata
 
@@ -31,7 +32,7 @@ _MANY_ARGUMENT_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 @dataclass(frozen=True)
-class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
+class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
     """All wiring for a single mutation action in one record.
 
     Used as a value in ``ServiceViewSet.action_specs`` and as the ``spec=`` argument to
