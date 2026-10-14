@@ -421,7 +421,9 @@ class _Account:
 
 
 def _account_spec(kind: SelectorKind = SelectorKind.RETRIEVE) -> SelectorSpec[Any, Any]:
-    return SelectorSpec(kind=kind, output_serializer=_Account)
+    # A stand-in selector: the kernel refuses a selector spec with nothing to run,
+    # and these tests only render and describe what it presents.
+    return SelectorSpec(kind=kind, selector=lambda: None, output_serializer=_Account)
 
 
 # One account leaves the optional enum unset and one sets it, so both arms of

@@ -480,10 +480,11 @@ def test_a_code_outside_the_declaration_fails_the_schema(two_posts: tuple[Post, 
 
 
 def test_the_manifest_lists_the_codes_a_mutation_can_answer_with() -> None:
+    # Open on purpose: the registry refuses a spec that declares no permissions.
     registry = SpecRegistry()
-    registry.register("publish_post", PUBLISH)
-    registry.register("edit_post", EDIT)
-    registry.register("list_posts", _listing())
+    registry.register("publish_post", dataclasses.replace(PUBLISH, permission_classes=[]))
+    registry.register("edit_post", dataclasses.replace(EDIT, permission_classes=[]))
+    registry.register("list_posts", _listing(permission_classes=[]))
 
     operations = {op["name"]: op for op in capability_manifest(registry)["operations"]}
 

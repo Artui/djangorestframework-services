@@ -21,6 +21,9 @@ def test_there_is_no_status() -> None:
         "service_result",
         "instance",
         "data",
+        # The presentation context the kernel carries from 0.8.0, which a
+        # transport presenting the value itself hands back to the presenter.
+        "context",
     ]
     with pytest.raises(TypeError, match="status"):
         DispatchResult(kind="list", value=[], status=200)  # ty: ignore[unknown-argument]
