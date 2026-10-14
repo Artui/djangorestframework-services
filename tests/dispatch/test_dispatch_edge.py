@@ -257,6 +257,18 @@ class TestFilterData:
         assert [post.title for post in result.value] == ["b"]
         assert seen == {"body": ""}
 
+    def test_no_filter_data_leaves_the_arguments_to_filter(self) -> None:
+        Post.objects.create(title="a")
+        Post.objects.create(title="b")
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=lambda: Post.objects.order_by("pk"),
+            filter_set=_TitleFilter,
+            permission_classes=[],
+        )
+        result = dispatch_spec(spec, user=None, params={"title": "a"})
+        assert [post.title for post in result.value] == ["a"]
+
 
 @pytest.mark.django_db
 class TestPoolSeeds:
