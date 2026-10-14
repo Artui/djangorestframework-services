@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **drfs is now a DRF adapter over
+  [django-service-specs](https://github.com/Artui/django-service-specs)**,
+  which it depends on from `>=0.8.0`. A `ServiceSpec` or `SelectorSpec`
+  declared here compiles to the kernel's spec, and `dispatch_spec` /
+  `adispatch_spec` hand it to the kernel's `dispatch`; the views and viewsets
+  go through the same call. What drfs keeps is the DRF half: the serializer
+  as the kernel's validator and presenter, DRF's permission classes as its
+  guard, the HTTP views, the OpenAPI integration and the JSON-schema helpers.
+  The adapter lives in `rest_framework_services.service_specs`, one name per
+  leaf module:
+  - `as_kernel_spec` compiles a spec to the kernel's, and
+    `kernel_spec_variant` compiles it as one request of the DRF edge
+    dispatches it (partial, unguarded, as a target lookup). Both spec classes
+    gain an `as_kernel_spec()` method, so the kernel's `dispatch`, registry
+    and schemas take a drfs spec as it is.
+  - `SerializerValidator` and `SerializerPresenter` are an input and an
+    output serializer as the kernel's `Validator` and `Presenter`, the
+    `input_serializer_context` / `output_serializer_context` callables riding
+    on them. A context callable may declare `user`, the call's pool seeds and,
+    on input, an argument by name; the kernel's `present` asks a list's
+    output context callable once per row.
+  - `DRFPermissionCheck` is a DRF permission class as the kernel's
+    `PermissionCheck`.
+  - `translate_dispatch_errors()` turns the kernel's refusals into DRF's, as
+    `InvalidArguments` (a 400), `NotPermitted` (a 403) and
+    `PrincipalUnavailable` (a 403). Each is the kernel's exception and DRF's
+    at once, so code catching either still catches it.
+  - `register_drf_row_errors()` keeps a DRF `ValidationError` raised by a
+    row's service as DRF's inside a relation write. It is called when
+    `dispatch_spec` is imported.
+  - `build_offline_context`, `base_serializer_context` and
+    `renderable_serializer_class` moved here and are still importable from
+    `rest_framework_services.dispatch`.
+- **`reads` and `field_audiences` on `ServiceSpec` and `SelectorSpec`**, and
+  an `agent_contract()` method answering the `OfflineContract` the two
+  declare. `reads=[UrlKwarg(...), QueryParam(...)]` declares the route
+  captures and query values a spec reads; a declared one is routed both
+  ways, onto the call's arguments and back onto `view.kwargs` /
+  `request.query_params` for a permission class reading it there.
+  `field_audiences` maps an output field to its `FieldMarking`.
+- **`dispatch_spec(partial=...)`**, the request's partial flag (a `PATCH`).
+  `None`, the default, reads the spec's own.
+- **`DispatchResult.context`**, the call a presenter renders for (its
+  principal, its target and its resolved seeds). It takes no part in
+  equality.
+
 ### Changed
 
 - **No `if TYPE_CHECKING:` guard remains in the package, and none may be
@@ -31,6 +79,169 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `AffordanceDeclarer` and narrows it with `isinstance(value, ServiceSpec)`
   before using a `ServiceSpec` attribute; passing a `ServiceSpec` in is
   unaffected.
+
+- **Breaking: 83 of the root's public names are now django-service-specs'
+  own objects, re-exported at the same import paths.** Nothing was added to
+  or removed from `rest_framework_services.__all__`, and every import keeps
+  working, but `ServiceError` and its subclasses, `UNSET`, `SpecRegistry`
+  and `RegisteredSpec`, `DispatchResult`, `Affordance`, the relation specs
+  (`RelationSpec`, `ChildSpec`, `ManyToManySpec` and the rest), the
+  mutation and model helpers (`create_from_input`, `apply_input`,
+  `create_model`, `delete_collection` and their async siblings), the
+  selector and service protocols, `base_pool`, `PoolSeeds`,
+  `RESERVED_POOL_SEEDS`, `ValueFormatter`, `paginate_output` and the
+  affordance and audience helpers are each the kernel's, so `isinstance`
+  and `is` answer the same for a drfs name and the kernel's. Their
+  behaviour is the kernel's too, and where it differed from drfs' the
+  differences are:
+  - `DispatchResult` has no `status`; its fields are `kind`, `value`,
+    `service_result`, `instance`, `data` and `context`. `dispatch_spec`
+    still accepts `success_status` and ignores it; the HTTP views still
+    answer with the spec's `success_status`.
+  - `base_pool` is `base_pool(*, user, progress=None, seeds=..., **extra)`:
+    it no longer requires `request`, and keeps a falsy progress reporter
+    rather than replacing it.
+  - `ServiceValidationError` takes a lazy translation (`gettext_lazy`) as
+    its message.
+  - An `Affordance` whose callable `when` is `async def`, or reads `result`
+    or `queryset`, is refused with `ImproperlyConfigured` when declared.
+  - `ValueFormatter.timestamp()` reports a date-time-shaped string that names
+    no real moment as stored, instead of raising, and its refusal of `type`
+    in `schema=` now reads " - " where it read an em dash.
+  - `annotate_output_schema` keeps a formatted property's `null`.
+  - `can_present_nothing` reads the compiled spec rather than `many`, so a
+    `many=True` service with `allow_none=True`, and a `RETRIEVE` re-read
+    declared with `many`, now answer `True`.
+  - `UnknownArguments` is a `str` enum ordered `REJECT`, `IGNORE`,
+    `PASSTHROUGH`.
+- **Breaking: a call has one argument pool, whatever its
+  `argument_binding`.** `BUNDLE` and `SPREAD_AUTHOR_WINS` both mean it, and
+  `ArgumentBinding.SPREAD_CALLER_WINS` and `UnknownArguments.PASSTHROUGH`,
+  which stay importable, raise `ValueError` when a call passes them. A
+  service with no input serializer receives its own parameters by name under
+  every binding.
+  - Under `REJECT`, undeclared keys are named in one message,
+    `"Unexpected argument(s): 'zzz'."`, under `non_field_errors` (a row's
+    inside that row), and are refused before a target lookup queries. A
+    seed's name (built-in or registered, `view` aside) is never an
+    unexpected argument. A Validator's own `code="unknown"` error is no
+    longer reworded as one.
+  - A callable taking a bare `**kwargs` receives the declared arguments and
+    the seeds, never an undeclared key. A selector or target lookup taking
+    one drops an undeclared key under `REJECT`, as does a service with no
+    input serializer dispatched under `SPREAD_AUTHOR_WINS`.
+  - `REJECT` over a `**kwargs: Unpack[...]` whose `TypedDict` cannot be
+    resolved at runtime raises `ImproperlyConfigured`.
+  - `InputRequired` holds a parameter required whatever its Python default,
+    and a missing one is refused as `{"name": ["This field is required."]}`.
+- **Breaking: pool seeds.** `RESERVED_POOL_SEEDS` is `user`, `data`,
+  `instance`, `collection`, `result`, `queryset` and `progress`. A
+  registered seed named `result` or `queryset` is refused, as is a resolver
+  that returns an awaitable. `dispatch_spec` seeds `request` and `view`
+  itself, so registering either in `pool_seeds` raises
+  `ImproperlyConfigured`.
+  - `view` is seeded on every call: a callable declaring it gets the
+    transport's view or `None`, a provider returning a `view` key raises
+    `ImproperlyConfigured`, a caller's `view` is refused under `REJECT` and
+    dropped under `IGNORE`, and `call_service` drops a `view=` passed inside
+    a view.
+  - A view-hook extra naming a pool seed is dropped and the seed wins.
+- **Breaking: `SpecRegistry.register` compiles the spec.** It takes no
+  `agent_contract=`; `RegisteredSpec.agent_contract` is read-only and
+  answered by the spec's own `agent_contract()`. A spec with no permissions
+  is refused (`permission_classes=[]` still registers, with no guards), a
+  value that is not a spec raises `TypeError`, and
+  `capability_manifest()["unguarded"]` is always an empty list.
+- **Breaking: relation writes are the kernel's.** The `children=` alias is
+  gone (use `relations=`), and every relation option after the model, and
+  after the foreign key where there is one, is keyword-only. A `None` row is
+  refused. Row errors are keyed by row index; a string or list detail is
+  placed under the row's `non_field_errors`, and DRF's
+  `LIST_SERIALIZER_ERRORS_AS_DICT` setting is no longer followed. A file
+  field written through `apply_input` follows Django's form rule (`None`
+  keeps the stored file, `False` clears it), and an `ImageField`'s dimension
+  columns join `update_fields`. `update_from_input` called directly raises
+  the kernel's `InvalidArguments` for a row's `ValueError`.
+- **Breaking: `apply_queryset_shaping` and `filter_set` shape through the
+  kernel's `shape_queryset`.**
+  - `filter_set` must be a django-filter `FilterSet`; one duck-typed on
+    `(data, queryset) -> .qs` is refused with `ImproperlyConfigured`. So is a
+    filter sharing its name with an input-serializer field.
+  - Invalid filter data raises the kernel's `InvalidArguments`
+    (`django_service_specs.parameters.invalid_arguments`), keyed and worded
+    as the `FilterSet` reports it. `dispatch_spec` and the views translate
+    it to a 400; a direct caller of `apply_queryset_shaping` translates it
+    itself.
+  - A value past any integer column is refused, and an `extend_queryset`
+    that returns an awaitable is refused. `extend_queryset` is still called
+    as `extend_queryset(qs, view, request)`.
+  - A query string is read flat and coerced to each filter's declared type,
+    a repeated key reaching a multi-valued filter as a list. Off HTTP, filter
+    values are type-checked against the filters: `{"published": "true"}` is
+    refused where `True` passes.
+  - `filter_data` reaches only the filter's own names, and neither it nor
+    the query string narrows an output selector's `filter_set` any longer.
+- **Arguments are shape-checked against what the spec declares**, which
+  refuses some inputs drfs' dispatch accepted:
+  - text or a number for a boolean; a number for a string, a UUID, a
+    duration or a text choice; text for a boolean choice;
+  - a list longer than 1000 items;
+  - in-process Python `date`, `datetime`, `time`, `timedelta`, `Decimal`
+    and `UUID` values.
+
+  A partial call over a dataclass input, or a `DataclassSerializer`
+  subclass, is refused with `ImproperlyConfigured`; a `PATCH` over one is
+  validated whole. A `many` spec needs an input serializer, and takes its
+  list bounds from the `ListSerializer`. A `many` call's refusals are keyed
+  by row (in DRF's list shape when the rows arrive bare); a non-list, null or
+  out-of-bounds list is refused under `many_argument`, and other keys beside
+  the rows are dropped under `IGNORE`.
+- **Route captures and the principal.** A route capture or query value is
+  coerced to its parameter's type, and a capture no callable declares is no
+  argument. A declared `UrlKwarg` or `QueryParam` is routed both ways (see
+  `reads` above). `user=None` acts as `UNAUTHENTICATED_USER`, or `AnonymousUser`
+  when that setting is `None`, while the permission check still sees `None`;
+  a deactivated principal answers `PrincipalUnavailable` (403).
+  `instance=None` with a lookup answers `not_found`.
+- **Providers.** The spec's `kwargs` provider outranks the view's hooks, is
+  called once per call from `view` and `request`, and, like a view hook,
+  picks the row a target lookup reads; a key its `TypedDict` fills is never
+  taken from the client or a hook.
+- **Smaller changes in what a call answers.** A `LIST`
+  `output_selector_spec` with no selector answers `kind="list"`, and a
+  service return that is not a set of rows raises `ImproperlyConfigured`. An
+  `instance_selector_spec` with no selector compiles to no lookup.
+  `SerializerPresenter` no longer projects markings on write-only fields, and
+  refuses a `field_audiences` name that matches no output field.
+  `spec_to_json_schema` walks an output serializer before asking whether the
+  spec can present nothing, so an output it cannot walk is still refused
+  with `TypeError`.
+
+### Removed
+
+- **`affordance_expression`** from `rest_framework_services.selectors.utils`,
+  and **`validate_relation_mode`, `validate_relation_services` and
+  `VALID_RELATION_MODES`** from `rest_framework_services.types.utils`. None
+  was exported; the relation checks are the kernel's.
+- **The private `rest_framework_services.mutations.utils` and
+  `rest_framework_services.services._resolve_m2m` modules.** The relation
+  layer they carried is the kernel's.
+
+### Fixed
+
+- **A value a view hook or the spec's `kwargs` provider gives for an
+  input-serializer field now decides that field.** A key naming a field of
+  `input_serializer`, by its name or by its `source`, is written into the
+  field over whatever the client sent and validated as the field validates.
+  It used to be handed to the service beside the client's validated value,
+  so a service reading `data` saw the client's: a hook supplying
+  `{"tenant": request.user.tenant}` could be overridden by a body carrying
+  `tenant`.
+- **The query string on a selector view feeds its `filter_set` and is never
+  an argument to the selector**, unless the spec declares the name with
+  `reads=[QueryParam(...)]`. This held before and is kept across the move to
+  one argument pool, where it would otherwise have widened: a `?tenant=`
+  cannot reach a selector's `tenant` keyword.
 
 ## [0.57.0] — 2026-10-13
 

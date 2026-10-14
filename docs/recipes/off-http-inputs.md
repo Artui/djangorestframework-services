@@ -13,9 +13,11 @@ with no input serializer declares.
 
 ## The channel: `build_offline_context(kwargs=…)`
 
-`kwargs=` is the off-HTTP counterpart of `view.kwargs`. Everything you pass there
-is spread into the selector and target pools exactly as a route capture would be
-— authoritative over the spec params, below a `spec.kwargs` provider.
+`kwargs=` is the off-HTTP counterpart of `view.kwargs`. A name you pass there
+reaches the selector and the target lookup exactly as a route capture would,
+over the spec params, below a `spec.kwargs` provider, when the spec declares it:
+a `UrlKwarg` in its `reads`, or a parameter the selector or target lookup reads.
+A capture nothing declares, reads or hides is no argument.
 
 ```python
 from rest_framework_services import build_offline_context, dispatch_spec
@@ -86,15 +88,17 @@ class WidgetExtras(HttpExtras[MyUser], total=False):
 
 Two things follow. The key joins the schema's `required` list, so a
 schema-driven caller is told up front. And `dispatch_spec` / `adispatch_spec`
-raise [`ServiceValidationError`][rest_framework_services.exceptions.service_validation_error.ServiceValidationError]
-when the key is absent and the caller could have sent it (see the table below) —
-a caller-visible validation failure every transport already maps, instead of a
-bare `KeyError` that none of them do.
+refuse a call that lacks it, with a DRF `ValidationError` keyed by the missing
+argument (`InvalidArguments`, see
+[the kernel's refusals as DRF's](../reference/service-specs.md#the-kernels-refusals-as-drfs)),
+which every transport already maps, instead of a bare `KeyError` that none of
+them do: `{"project_pk": ["This field is required."]}`, code `required`. The
+marker holds the key required whatever its Python default.
 
 **Any channel satisfies the requirement**: the caller's `params`, the `kwargs=`
-channel above, or a `spec.kwargs` provider. The marker says the value must
-arrive, not where from. A provider that *declines* with `UNSET` does not satisfy
-it — declining removes the key from the pool entirely.
+channel above, or a `spec.kwargs` provider, typed or not. The marker says the
+value must arrive, not where from. A typed provider that *declines* with `UNSET`
+does not satisfy it: declining removes the key from the pool entirely.
 
 A plain keyword parameter is the other case. `get_widget(user, *, pk)` cannot run
 without `pk` either, and its signature already says so, because `pk` has no
@@ -104,84 +108,21 @@ itself along with the reserved pool seeds, which no caller can send. Without
 `supplied`, only the marker makes a parameter required. See
 [what a transport supplies](../reference/jsonschema.md#what-a-transport-supplies-supplied).
 
-Dispatch enforces that one without a marker too. A parameter with no default
-that nothing filled — the caller did not send it, a `kwargs=` provider declined it
-with `UNSET`, or there is no provider — is refused with the same
-`ServiceValidationError` rather than reaching the callable as a `TypeError`, and
-one message lists every missing name, marked or not:
-`{"non_field_errors": ["Missing required argument(s): 'pk', 'tenant'."]}`.
+Dispatch enforces that one without a marker too. The compiled spec declares a
+parameter with no default as required, so a call that lacks it is refused the
+same way, every missing name keyed in the one refusal. That holds for the
+selector, a service with no `input_serializer` (an `input_serializer` declares
+its own required fields), and the target lookup. A name no caller can send is
+never required of one: a pool seed, a key any callable of the call marks
+`NotClientInput`, or a key a typed `kwargs` provider fills. One of those that
+nothing fills is the author's configuration error, raised as the callable's own,
+not a refusal naming the key, since no resend could fix it.
 
-Both checks name a key only where **the caller could have filled it**, which is
-the input its call declares:
+## A service with no input serializer
 
-| The callable | What a caller could fill |
-| --- | --- |
-| a selector under a `SPREAD_*` binding, which `AUTO` resolves to for a selector, and its preconditions | the selector's parameters: every name under a `filter_set` or a bare `**kwargs` |
-| a selector under `BUNDLE`, as an HTTP selector view dispatches it, and its preconditions | nothing: no caller input reaches the pool |
-| a service under `BUNDLE` (the default), and its preconditions | nothing: the caller's input arrives as `data`, never by name |
-| a service under a `SPREAD_*` binding, and its preconditions | what `REJECT` admits: the input serializer's fields or, with none, the service's own parameters, beside the target lookup's keys that reach the service, which are none of them beside an input serializer and otherwise those the service names; every name where a bare `**kwargs` opens the set, less the lookup's keys the service does not name |
-| a target lookup (`instance_selector_spec` / `collection_selector_spec`) | the lookup selector's parameters, whatever the service's binding, since its pool is spread from the caller's arguments |
-
-The table reads declared input, so a precondition parameter its selector or
-service does not declare, left unfilled, fails as the callable's `TypeError`, even
-where `IGNORE` or `PASSTHROUGH` would deliver a resend carrying it; naming it
-would send a `REJECT` caller from a missing argument to an unexpected one. An
-author who wants such a parameter refused as missing declares it on the selector
-or service. And an input serializer field with `source=` reaches the spread under
-its source, not its own name, so a service or precondition naming the field is
-asked for it, and the resend carrying it still fails as the `TypeError`; name the
-source instead.
-
-Less, in every case, a key any callable in the call marks `NotClientInput` (see
-[below](#hiding-provider-owned-inputs-notclientinput)), and the keys the caller
-sent: a sent key that never arrived was dropped by something the caller cannot
-change. So a refusal only ever names a key the caller can send and has not, and a
-client that resends with that key is past it, rather than retrying on the same
-error forever, as an agent would. A parameter with a default, `**kwargs`, a
-positional-only parameter, a reserved pool seed such as `data` or `instance`, and
-every parameter of a `functools.wraps` wrapper that takes `**kwargs` (which may
-fill any of them itself, as a decorator injecting a scope does) are never missing.
-Anything else that nothing fills, a provider gap under `BUNDLE` say, is a
-configuration error no client can fix, and fails as the callable's own `TypeError`,
-as it always did. The sibling kernel django-service-specs draws the same line.
-That holds for an `InputRequired` key too: the marker says the value must arrive,
-but where no caller could send it, as for any key under `BUNDLE`, a refusal naming
-it would only be answered by the same refusal, so it fails as the callable's own
-error, a `TypeError` for a parameter, and whatever reading it raises for a key of
-an unpacked `TypedDict`, such as `KeyError`.
-
-Two callables are not checked at all, for a marked key or a plain parameter,
-because no caller argument reaches their pool: an affordance's `when` condition,
-which sees only the seeds, and the `output_selector_spec` re-read, which sees the seeds and the service's result. The
-re-read also runs after the service's write has committed, so a validation error
-there would tell the caller nothing happened, and a caller that retries on one
-would write twice.
-
-!!! note "Over HTTP, a lookup gap is a `400` and a hook gap a `500`"
-    Both checks live in the dispatch core, which the HTTP views share, so they run
-    there too, but only a mutation view maps the refusal to a response, a `400`. A
-    selector view dispatches `BUNDLE`, so nothing it calls is refused, and a gap
-    answers `500` as the `TypeError` it is. They rarely fire,
-    because the route guarantees its captures, and a mutation's `as_view()`
-    refuses a parameter of its service, preconditions or output re-read that
-    nothing could feed, unless a `kwargs=` provider or view hook is declared.
-    A mutation dispatches its service `BUNDLE`, so a declared provider or hook
-    that leaves a service or precondition parameter out is not refused, marked
-    `InputRequired` or not: no request could fill it, and it fails as the
-    `TypeError` it is, a `500`. A
-    target lookup parameter nothing fills is refused with a `400`, because a
-    mutation reads the lookup's keys from the request body, which `as_view()`
-    never checks. `as_view()` never refuses a selector's parameter as unfed
-    either, and dispatch never refuses the output re-read's: past a declared
-    hook, one nothing fills is still the `TypeError`. The marker exists because
-    off HTTP there is no route to provide that guarantee.
-
-## A spread service with no input serializer
-
-A `ServiceSpec` with no `input_serializer`, dispatched with a `SPREAD_*`
-`argument_binding`, has nothing but its service's signature to read the caller's
-input against. So the service's own parameters are declared input, beside the
-keys of the target lookup:
+A `ServiceSpec` with no `input_serializer` has nothing but its service's
+signature to read the caller's input against, so the service's own parameters
+are declared input, beside the keys of the target lookup:
 
 ```python
 def close_ticket(*, instance: Ticket, reason: str, notify: bool = False) -> Ticket: ...
@@ -191,53 +132,38 @@ spec = ServiceSpec(
     service=close_ticket,
     instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=ticket_by_pk),
 )
-dispatch_spec(
-    spec,
-    user=user,
-    params={"pk": 7, "reason": "duplicate"},
-    argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
-)
+dispatch_spec(spec, user=user, params={"pk": 7, "reason": "duplicate"})
 ```
 
-`pk` goes to the lookup and `reason` to the service, under every
-`UnknownArguments` policy. Leaving `reason` out is
-`Missing required argument(s): 'reason'.` under every policy too, and `notify`
-keeps its default unless the caller sends it.
+`pk` goes to the lookup and `reason` to the service, whichever
+`argument_binding` is passed: a call has one argument pool. Leaving `reason` out
+is `{"reason": ["This field is required."]}`, and `notify` keeps its default
+unless the caller sends it.
 
-| The caller sends… | `IGNORE` | `REJECT` | `PASSTHROUGH` |
-| --- | --- | --- | --- |
-| a parameter of the service | delivered | delivered | delivered |
-| a key neither the service nor the lookup declares | dropped | refused | delivered |
+| The caller sends... | `IGNORE` | `REJECT` |
+| --- | --- | --- |
+| a parameter of the service or the lookup | delivered | delivered |
+| a key neither declares | dropped | refused: `Unexpected argument(s): 'zzz'.` |
 
 A parameter counts when the caller could fill it by name: a keyword parameter,
-or a key of an `Unpack[TypedDict]` `**kwargs`. These do not count, and so are
-unknown keys:
+or a key of an `Unpack[TypedDict]` `**kwargs`. These do not count:
 
-- a reserved pool seed such as `user`, `data` or `instance`, or a seed your
-  `PoolSeeds` registers. The pool's value fills it, never the caller's;
+- a pool seed such as `user`, `data` or `instance`, or a seed your `PoolSeeds`
+  registers. The pool's value fills it, never the caller's, and the seed's name
+  is never reported as an unexpected argument;
 - a positional-only parameter, which dispatch never passes by name;
-- a `NotClientInput` parameter, or one named `view`, whose value the caller never
-  supplies (see below). That includes a key a precondition or the target lookup
-  marks, even where the service names it plainly.
+- a `NotClientInput` parameter, including a key a precondition or the target
+  lookup marks, even where the service names it plainly.
 
-A bare `**kwargs` declares every name, so the set is open: nothing is refused, and
-every key the caller sent reaches the service but two kinds. The reserved seeds
-never do. And **the target lookup's keys reach the service only by name**: the
-lookup consumed `pk` to find the `instance` the service receives, so
-`def update(*, instance, **changes)` does not find `pk` in `changes`, where
-applying them would write it onto the row, while
-`def update(*, instance, pk, **changes)` names it and receives it. A key the
-lookup reads only through its own `**kwargs` or its `filter_set` is not one it
-names, so it still reaches the service. An annotated `**kwargs` whose `TypedDict`
-cannot be resolved at runtime makes `REJECT` raise `ImproperlyConfigured`, as it
-does on a selector, and the other two policies treat it as open, the same way.
+A bare `**kwargs` declares no name. It receives the declared arguments and the
+seeds the call carries, never an undeclared key: under `REJECT` such a key is
+refused, except under `ArgumentBinding.SPREAD_AUTHOR_WINS`, where an open
+service drops it instead. An annotated `**kwargs` whose `TypedDict` cannot be
+resolved at runtime makes `REJECT` raise `ImproperlyConfigured`.
 
-With no serializer, a service that declares `data` receives what the spread
-carries: the parameters it took by name, plus the `PASSTHROUGH` extras.
-
-The input schema says the same when it is told the binding. Pass the one you
-dispatch with to `spec_to_json_schema`, and it lists the service's parameters,
-exactly the set the table above calls declared:
+The input schema says the same when it is told the binding. Pass
+`SPREAD_AUTHOR_WINS` to `spec_to_json_schema`, and it lists the service's
+parameters:
 
 ```python
 spec_to_json_schema(spec, argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS)
@@ -246,17 +172,10 @@ spec_to_json_schema(spec, argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS)
 ```
 
 The lookup's `pk` is not in it: a transport merges a target lookup's keys
-itself, by reflecting the lookup's `SelectorSpec`. A bare `**kwargs` lists the
-parameters the service names and states no `additionalProperties`, so a
-transport decides from its own policy whether to close the tool. Without the
-argument, `AUTO` is `BUNDLE` and the schema is the bare `{"type": "object"}` it
+itself, by reflecting the lookup's `SelectorSpec`. Without the argument, `AUTO`
+is `BUNDLE` for a service and the schema is the bare `{"type": "object"}` it
 always was. See
 [a spreading service's own parameters](../reference/jsonschema.md#a-spreading-services-own-parameters-argument_binding).
-
-Every other spec keeps the set it had. Under `BUNDLE`, which `AUTO` resolves to
-for a service, nothing is spread, so a service parameter is still an unknown key
-there. An `input_serializer` declares the input itself, and a `many=True` spec
-takes its items in one list.
 
 ## Hiding provider-owned inputs: `NotClientInput`
 
@@ -270,74 +189,55 @@ class WidgetExtras(HttpExtras[MyUser], total=False):
 ```
 
 `team_role` disappears from `properties`, and the caller's value for it never
-reaches the callable. `dispatch_spec` / `adispatch_spec` drop it from the caller's
-input before the spread, under every `UnknownArguments` policy:
+reaches the callable. `dispatch_spec` / `adispatch_spec` treat it as no argument
+the caller may send:
 
-| The caller sends `team_role`, and the spec is… | What happens |
+| The caller sends `team_role`, and the policy is... | What happens |
 | --- | --- |
-| closed (no `filter_set`, no bare `**kwargs`), under `REJECT` | refused: `Unexpected argument(s): 'team_role'.` |
-| closed, under `IGNORE` or `PASSTHROUGH` | the value is dropped |
-| open, under any policy | the value is dropped |
+| `REJECT` | refused: `Unexpected argument(s): 'team_role'.` |
+| `IGNORE` | the value is dropped |
 
 The provider still fills it in. So can a registered pool seed, a service's
-`input_data`, the parameter's own default, or, for a selector and its
-preconditions or a service's target lookup, a route capture (`view.kwargs`, or
-`build_offline_context(kwargs=…)` off HTTP), which reaches no service's own
-pool; those are channels the caller does not control. The same holds for a service whose input is spread, which never receives the key from
-`PASSTHROUGH` either, and for a service's `instance_selector_spec` /
-`collection_selector_spec` lookup, whose pool is spread from the caller's
-arguments. Over HTTP a selector view spreads nothing, so the lookups are the one
-place the marker changes what an HTTP request can do: a request body's value for a
-key the lookup marks hidden is dropped there too.
+`input_data`, the parameter's own default, or, for a selector or a service's
+target lookup, a route capture of that name (`view.kwargs`, or
+`build_offline_context(kwargs=...)` off HTTP); those are channels the caller
+does not control. For a target lookup, a registered seed of that name and the
+lookup's own provider win over the capture, and an author's value for the name
+(a view hook's or the spec's `kwargs` provider's) takes the capture's place.
 
 **A key is server-owned for the whole call** once any callable in it marks it:
 the selector or service, any of `spec.preconditions`, or the target lookup.
 The callables of one call read the same caller input, so a key one of them
-hides is dropped before any of them sees it, and is gone from the declared set
-`REJECT` admits and from the input schema, wherever else it is a plain
-parameter. A field the `input_serializer` declares under that name is the one
-exception, because it is not a parameter: it stays declared and listed, and the
-caller's value reaches the service only in `data`, never the spread, since a
-same-named field can mean something else, such as a destination tenant beside
-the server's current one. A precondition taking `tenant: Annotated[int, NotClientInput]` beside
-a selector that reads `tenant` plainly makes the selector's `tenant` the
-provider's too. A key the target lookup hides never reaches an open spread
-service's `**changes`, and a service naming it receives the server's value: the
-provider's, `input_data`'s or its default. The set is public as
+hides is gone from the declared set `REJECT` admits and from the input schema,
+wherever else it is a plain parameter. A field the `input_serializer` declares
+under that name is the one exception, because it is not a parameter: it stays
+declared and listed, and the caller's value reaches the service only in `data`,
+since a same-named field can mean something else, such as a destination tenant
+beside the server's current one. The set is public as
 [`server_owned_keys(spec)`](../reference/dispatch.md#server_owned_keys), for a
 transport that builds an input schema of its own and must leave out the same
 keys.
 
 A hidden parameter with no default that nothing fills is not named as a missing
-argument either: the caller could not send it, so the call fails as the author's
-`TypeError`.
+argument either: the caller could not send it, so the call fails as the
+author's error.
 
-`input_data` (or a `get_input_data` view hook) is the spec author's own code, merged
-over the caller's input with its keys winning, so its value for a hidden key is the
-server's and is never dropped. Where the caller sends the same key, the server's
-value is the one that arrives. It reaches the service through an input serializer
-field of that name under every policy, as a `PASSTHROUGH` extra, and through a
-spread service's bare `**kwargs`, except a key the target lookup names, its `pk`
-or a key it marks hidden: that one reaches a spread service only through a
-parameter of the same name, never its `**kwargs`, as the caller's `pk` does
-([above](#a-spread-service-with-no-input-serializer)). The marker still keeps the key out of the declared
-set, so on a closed spec with no such field `IGNORE` drops it and `REJECT`, which
-judges the merged arguments, refuses it, as it refuses any `input_data` key nothing
-declares.
+`input_data` (or a `get_input_data` view hook) is the spec author's own code,
+merged over the caller's input with its keys winning, the spec's over the
+hook's, so its value for a hidden key is the server's and is never dropped.
 
 !!! warning "What is left to decide the value"
-    Because the caller's value is gone before the precedence is applied, neither
-    `SPREAD_CALLER_WINS` nor a provider declining with `UNSET` can let it back in.
-    What a declining provider leaves is the parameter's default. A caller that used
-    to fill the key through its arguments, such as a task runner or a test, loses
-    the value the same way: silently where the parameter has a default, and with
-    the callable's own `TypeError` where it has none, which over HTTP is a `500`.
-    Move such a value to a provider, `input_data` or a pool seed. For a **scoping**
-    key whose default reads as "everything", that is still a cross-scope read, so
-    a provider owning a scoping key must always resolve it. A key the callable
-    does *not* mark is still decided by the precedence: under
-    `SPREAD_AUTHOR_WINS` the provider overrides caller input, and opting into
-    `SPREAD_CALLER_WINS` on a scoped spec gives the caller the last word.
+    Because the caller's value is gone before anything else is read, a provider
+    declining with `UNSET` cannot let it back in: what a declining provider
+    leaves is the parameter's default. A caller that used to fill the key through
+    its arguments, such as a task runner or a test, loses the value the same way:
+    silently where the parameter has a default, and as the author's error where
+    it has none, which over HTTP is a `500`. Move such a value to a provider,
+    `input_data` or a pool seed. For a **scoping** key whose default reads as
+    "everything", that is still a cross-scope read, so a provider owning a
+    scoping key must always resolve it. A key the callable does *not* mark is
+    the caller's unless the spec's `kwargs` provider is annotated to fill it:
+    a key its `TypedDict` fills is never taken from the caller or a hook.
 
 Marking a key both `InputRequired` and `NotClientInput` raises — the caller cannot
 be required to supply a value it is never told about.
@@ -356,26 +256,19 @@ be required to supply a value it is never told about.
     published and a marker placed too deep is not refused, so import the names a
     marked annotation uses at runtime where you can. The one thing that stays
     unknown is a `**kwargs: Unpack[Extras]` whose `TypedDict` does not resolve:
-    nothing says which keys it has, so none is hidden, `REJECT` refuses to run on
-    it and the other policies deliver what the caller sent (see the warning about
-    importing the `TypedDict` at runtime, above).
+    nothing says which keys it has, so none is hidden and `REJECT` refuses to run
+    on it (see the warning about importing the `TypedDict` at runtime, above).
 
 ### `view` is never caller input
 
-No pool carries `view`. A selector or service that wants the calling view takes it
-from a `kwargs=` provider or a `get_*_kwargs` view hook; a selector or a target
-lookup can also take it from a route capture of that name, which reaches no
-service's pool. The input schema hides it from a selector's parameters, as it hides
-`request` and `user`, so dispatch treats `view` as though every callable marked it
-`NotClientInput`: the caller's value is dropped at every site above, under every
-policy, `REJECT` refuses it as `Unexpected argument(s): 'view'.` on a closed spec,
-and a required `view` nothing filled is never named as a missing argument. It
-fails as the `TypeError` it always did, because no value a caller could send would
-be the view.
-
-Over HTTP a provider, a hook and, to a selector or a target lookup, a route
-capture deliver the real view as they did. As with a hidden key, the one thing an HTTP request can no longer do is have
-its body's `view` reach a mutation's target lookup.
+`dispatch_spec` seeds `view` on every call: a selector, service or provider
+declaring it receives the view the transport passed, or `None` off HTTP. A
+caller's `view` is never an argument (under `REJECT` it is refused as
+`Unexpected argument(s): 'view'.`, under `IGNORE` dropped), and a `kwargs`
+provider or a route capture named `view` cannot outrank the seed. A spec's
+`kwargs` provider returning a `view` key raises `ImproperlyConfigured`, a view
+hook's `view` is dropped for the seed, and registering `view` (or `request`) in
+`pool_seeds` raises `ImproperlyConfigured`, since the edge seeds both.
 
 ## Describing an input: `InputDescription`
 
@@ -426,25 +319,39 @@ value read only by a `spec.kwargs` provider off `view.kwargs`, because that valu
 appears in no signature at all — nor a closed-surface spec whose route capture
 must still be caller-suppliable.
 
-For those, a transport adapter registers a
-[`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg]:
+For those, the spec declares a
+[`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg] in its own
+`reads`:
 
 ```python
 from rest_framework_services import UrlKwarg
 
-UrlKwarg("project_pk", type="integer", description="Owning project.", required=True)
+list_widgets_spec = SelectorSpec(
+    kind=SelectorKind.LIST,
+    selector=list_widgets,
+    reads=[UrlKwarg("project_pk", type="integer", description="Owning project.", required=True)],
+)
 ```
 
-The adapter merges its `json_schema()` into the operation's input schema, pops the
-argument out of the caller's arguments, and routes it to
-`build_offline_context(kwargs=…)`. `required=True` is the registered-declaration
+Each entry is a parameter of the compiled spec, so it is an argument a caller
+sends, the schema lists and `REJECT` admits (see
+[what a spec declares for a caller off HTTP](../reference/service-specs.md#what-a-spec-declares-for-a-caller-off-http)).
+`dispatch_spec` routes it both ways: a declared `UrlKwarg` sent as an argument is
+written onto `view.kwargs`, so a provider reading the route finds it, and one the
+caller did not send is read from `view.kwargs`. Route captures and query values
+are coerced to the type the entry declares. `required=True` is the declared
 counterpart of the `InputRequired` marker: both land the name in the schema's
-`required` list, and they differ only in where the key is declared.
+`required` list, and they differ only in where the key is declared. A transport
+adapter that keeps its own registration and routes the value to
+`build_offline_context(kwargs=...)` itself, as earlier releases needed, still
+reaches a provider reading `view.kwargs`; the value is an argument only where
+the spec declares or reads the name.
 
 `QueryParam` is the sibling for read-shaping values that belong on
 `request.query_params` (django-restql field selection, a serializer that branches
 on the query string). It has **no** `required` flag on purpose — omitting a
-read-shaping param is legitimate by construction.
+read-shaping param is legitimate by construction. A declared `QueryParam` sent as
+an argument joins `request.query_params` when the query string lacks it.
 
 Both types live here rather than in each adapter so the same declaration means the
 same thing on every transport. Adapters validate a registration set with
@@ -464,9 +371,9 @@ pagination names on top.
 | read off `request.query_params` to shape output | `QueryParam(...)` |
 
 A key can be *both* reflected and `UrlKwarg`-registered — a `project_pk` the
-selector reads *and* a scoping provider reads off `view.kwargs`. The adapter's
-schema merge dedupes to one property (the explicit registration wins), the
-registration pops the argument into `kwargs=`, and the authoritative spread still
-delivers it to the selector pool, so both readers see it.
+selector reads *and* a scoping provider reads off `view.kwargs`. The
+`reads` entry replaces the reflected parameter of the same name, and
+`dispatch_spec` both delivers the argument to the selector and writes it onto
+`view.kwargs`, so both readers see it.
 
 [pep692]: https://peps.python.org/pep-0692/

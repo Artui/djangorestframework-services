@@ -174,10 +174,10 @@ lookup, reflect its `instance_selector_spec` or `collection_selector_spec` (a
 ### A spreading service's own parameters: `argument_binding=`
 
 A `ServiceSpec`'s input schema is its `input_serializer`'s. A service with no
-serializer, dispatched under a `SPREAD_*` `argument_binding`, has nothing but its
-own signature to read the caller's input, so dispatch declares the service's
-parameters as that input, and `UnknownArguments.REJECT` admits them. A transport
-passes the binding it dispatches with, and the schema lists the same parameters:
+serializer has nothing but its own signature to read the caller's input, so
+dispatch declares the service's parameters as that input, under every
+`argument_binding`, and `UnknownArguments.REJECT` admits them. The schema lists
+them when the transport passes `SPREAD_AUTHOR_WINS`:
 
 ```python
 def close_ticket(*, instance, reason: str, note: str = "", user) -> Ticket: ...
@@ -209,15 +209,16 @@ Three things are not in it:
 - **The target lookup's keys.** The `pk` that `ticket_by_pk` reads belongs to
   the lookup, not the service. Transports merge it themselves, by reflecting the
   lookup's `SelectorSpec`, as they do beside an `input_serializer`.
-- **Closure.** A bare `**kwargs` makes dispatch admit every key, and the schema
+- **Closure.** A bare `**kwargs` never passes an undeclared key on (`REJECT`
+  refuses it, or under `SPREAD_AUTHOR_WINS` dispatch drops it), and the schema
   lists the parameters the service names without `additionalProperties`. drfs
   states `additionalProperties: false` only around a `many=True` list, and a
   transport closes a tool's input, or not, from its own policy.
-- **Anything under `AUTO`.** `AUTO`, the default, is `BUNDLE` for a service, and
-  `BUNDLE` spreads nothing, so a caller that does not pass the argument gets the
-  schema it always had: `{"type": "object"}` with no serializer. A `many=True`
-  spec, one with an `input_serializer`, a `SelectorSpec` and the output phase do
-  not read it.
+- **Anything under `AUTO` or `BUNDLE`.** A caller that does not pass
+  `SPREAD_AUTHOR_WINS` gets the schema it always had: `{"type": "object"}` with
+  no serializer, although dispatch admits the service's parameters under those
+  bindings too. A `many=True` spec, one with an `input_serializer`, a
+  `SelectorSpec` and the output phase do not read it.
 
 ### What an annotation publishes
 

@@ -76,6 +76,20 @@ the serializer is built for a call, over DRF's own context and the view hooks
 `dispatch_spec` registers for the call; see
 [Customise serializer context](../recipes/serializer-context.md#through-the-kernel).
 
+## The serializer as Validator and Presenter
+
+`SerializerValidator` is the kernel's `Validator` over an `input_serializer`
+(a DRF serializer or a dataclass): its parameters are the serializer's fields,
+and it validates a call with the target as `instance`, the call's `partial`,
+and a serializer context built for the principal, so `CurrentUserDefault`
+reads it. A `HiddenField` or a read-only field is not a parameter.
+`SerializerPresenter` is the kernel's `Presenter` over an output serializer,
+with the spec's `field_audiences` layered over the serializer's own markings.
+
+::: rest_framework_services.service_specs.serializer_validator.SerializerValidator
+
+::: rest_framework_services.service_specs.serializer_presenter.SerializerPresenter
+
 ## DRF permission classes off HTTP
 
 `DRFPermissionCheck` asks each class in order against the offline request and
@@ -95,6 +109,45 @@ never asked about an object, as on HTTP.
 ::: rest_framework_services.service_specs.not_permitted.NotPermitted
 
 ::: rest_framework_services.service_specs.build_offline_context.build_offline_context
+
+## The kernel's refusals as DRF's
+
+The kernel raises its own `InvalidArguments`, `NotPermitted` and
+`PrincipalUnavailable`, which neither DRF's exception handler nor a transport
+catching DRF's `ValidationError` or `PermissionDenied` knows. The edge runs the
+kernel inside `translate_dispatch_errors()`, so what `dispatch_spec` and
+`adispatch_spec` raise is one of the three classes below, each both the
+kernel's refusal and DRF's: an `except` written against either package catches
+it, `detail` carries `ErrorDetail`s with their codes, and DRF answers it 400 or
+403.
+
+A caller running the kernel's `dispatch`, `resolve_target` or
+`shape_queryset` itself, or calling
+[`apply_queryset_shaping`](dispatch.md#apply_queryset_shaping), gets the
+kernel's classes and wraps the call in the same block where it wants DRF's.
+
+A deactivated principal is `PrincipalUnavailable`, a 403.
+
+### `translate_dispatch_errors`
+
+::: rest_framework_services.service_specs.translate_dispatch_errors.translate_dispatch_errors
+
+### `InvalidArguments`
+
+::: rest_framework_services.service_specs.invalid_arguments.InvalidArguments
+
+### `PrincipalUnavailable`
+
+::: rest_framework_services.service_specs.principal_unavailable.PrincipalUnavailable
+
+### `register_drf_row_errors`
+
+A nested write's row service written for DRF refuses its row with DRF's
+`ValidationError`. Registered, which `dispatch_spec`'s module does when it is
+imported, that refusal lands at its row, `{"books": {1: {...}}}`, with its
+codes, and is still DRF's `ValidationError`.
+
+::: rest_framework_services.service_specs.register_drf_row_errors.register_drf_row_errors
 
 ## Compiling
 

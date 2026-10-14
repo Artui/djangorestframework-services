@@ -16,13 +16,23 @@ a view, read its URL kwargs, and walk the `get_<action>_*_kwargs` hook
 chains). The transport-neutral spec dispatcher that composes the leaves
 below — `dispatch_spec` — is documented first.
 
-Several of these leaves are
-[django-service-specs](https://artui.github.io/django-service-specs/)' own,
-re-exported at the path this package has always exported them from:
-`null_progress`, `is_async`, `run_service`, `arun_service`, `run_selector`,
-`arun_selector`, `is_queryset`, `materialize_retrieve` and
-`amaterialize_retrieve`. Each is the
-same object under both names, so the import you have keeps working and the
+`dispatch_spec` and `adispatch_spec` are the DRF edge over
+[django-service-specs](https://artui.github.io/django-service-specs/)'
+`dispatch` and `adispatch`: they compile the spec to the kernel's
+([Service specs on the kernel](service-specs.md)), hand it the call, and
+translate what it refuses into DRF's exceptions. The order of a call, the
+closed argument set, validation, affordances, preconditions, the run and the
+output re-read are the kernel's, documented on its `dispatch`.
+
+Most leaves on this page are the kernel's own too, re-exported at the path this
+package has always exported them from: `DispatchResult`, `UnknownArguments`,
+`OutputPage`, `paginate_output`, `DEFAULT_PAGE_SIZE`, `enforce_affordances`,
+`aenforce_affordances`, `unmet_operation_affordance`,
+`aunmet_operation_affordance`, `operation_affordances`, `provider_keys`,
+`ProviderKeys`, `is_async`, `run_service`, `arun_service`, `run_selector`,
+`arun_selector`, `is_queryset`, `materialize_retrieve`,
+`amaterialize_retrieve`, `base_pool` and `null_progress`. Each is the same
+object under both names, so the import you have keeps working and the
 documentation rendered for it here is the kernel's.
 
 ## Transport-neutral dispatch
@@ -139,6 +149,12 @@ or a dataclass output raises where a serializer would have rendered.
 
 ::: rest_framework_services.types.dispatch_result.DispatchResult
 
+It carries no `status`: a transport answers its own, which over HTTP is the
+view's `success_status`. `dispatch_spec` still accepts `success_status=` for
+the transports that pass it, and ignores it. `context`, new with the kernel,
+is the call a presenter renders for, which the output serializer's context is
+built from.
+
 A `ServiceSpec`'s `kind` is `"list"` for a `many=True` spec, and otherwise
 whenever its `output_selector_spec` declares `kind=SelectorKind.LIST`, with a
 `selector` to re-read through or without one. Without one, the `value` is the
@@ -155,49 +171,44 @@ which states the same array.
 Three optional, caller-side policies let a transport map its wire onto a spec
 without `dispatch_spec` baking in HTTP's implicit answers. The **spec declares
 *what*** (its inputs, filters, output shape, permissions); the **caller declares
-*how*** its flat input becomes callable arguments, how strict to be about
-undeclared keys, and how to authorize a resolved target. The defaults reproduce
-the pre-policy behaviour exactly, so a caller that passes none is unaffected.
+*how*** strict to be about undeclared keys and how to authorize a resolved
+target.
 
 ### `ArgumentBinding`
 
-How the flat `params` map onto a dispatched callable's keyword arguments —
-bundled as one `data` payload or spread as individual kwargs, and how the spread
-ranks against the spec author's `kwargs`.
+Kept for the transports that pass it. A call has **one argument pool**: the
+caller's argument for a declared parameter is what the callable receives, unless
+the spec's `kwargs` provider is annotated to fill that key, and then the
+provider's value is used and the caller's is dropped. `AUTO`, `BUNDLE` and
+`SPREAD_AUTHOR_WINS` all mean that pool, and a selector receives its reads under
+`BUNDLE` as well. `SPREAD_CALLER_WINS` is refused with `ValueError` naming
+`AUTO`: leave a key out of the `kwargs` provider where the caller's value should
+win. The member's own docstring below still describes the separate pools of
+earlier releases.
 
 ::: rest_framework_services.types.argument_binding.ArgumentBinding
 
 ### `UnknownArguments`
 
 How strict `dispatch_spec` is about `params` keys outside the spec's declared
-set — drop them, reject them, or pass them through to the callable.
+set: drop them (`IGNORE`, `dispatch_spec`'s default) or refuse them (`REJECT`,
+the kernel's default). `PASSTHROUGH` stays importable, as the kernel's member,
+but passed to `dispatch_spec` it is refused with `ValueError`: an argument the
+spec does not declare never reaches a callable. Declare it instead, as a `reads`
+entry, a serializer field or a parameter.
 
-A `ServiceSpec`'s declared set takes lookup keys from the one target lookup
-dispatch calls, never from both. A `collection_selector_spec` is that lookup
-whenever one is declared, so an `instance_selector_spec` beside it is not read:
-its `pk` is refused under `REJECT` and comes back as an extra under
-`PASSTHROUGH`, and it cannot open the set or make `REJECT` unenforceable.
-Without a collection lookup, the instance lookup's keys are declared. A
-`many=True` spec resolves no target, so neither lookup's keys are declared for
-its items, and a lookup on it cannot open the set or make `REJECT`
-unenforceable.
-The set is read from the spec alone, so a direct caller passing `instance=`,
-which skips the lookup, still has that lookup's keys admitted.
-
-A `ServiceSpec` with no `input_serializer`, dispatched under a `SPREAD_*`
-`argument_binding`, also declares its service's own parameters beside the
-lookup's keys, because nothing else reads the caller's input there: its keyword
-parameters and `Unpack[TypedDict]` keys, less the reserved pool seeds (registered
-ones included), positional-only parameters, `NotClientInput` keys and `view`.
-The parameters and lookup keys in every declared set, a selector's included,
-also leave out a key that any callable in the call marks `NotClientInput`: the
-selector or service, a precondition, or the target lookup. Such a key is
-server-owned for the whole call, so the caller's value for it is dropped before
-any of them reads it. An `input_serializer` field is the serializer's own
-declaration, and stays declared.
-Under `BUNDLE`, which `AUTO` resolves to for a service, they are not declared. A
-bare `**kwargs` on that service opens the set. See
-[a spread service with no input serializer](../recipes/off-http-inputs.md#a-spread-service-with-no-input-serializer).
+The declared set is the compiled spec's parameters
+([Service specs on the kernel](service-specs.md#where-each-field-lands)): the
+`input_serializer`'s fields, or a service's own signature when it has none; a
+selector's signature, less the names its `filter_set` owns, which are the
+filter's; the target lookup's; and every `reads` entry. A key that any callable
+in the call marks `NotClientInput`, and every pool seed's name, is
+server-owned and never declared. `REJECT` names every undeclared key in one
+`"Unexpected argument(s): ..."` message under `non_field_errors`, a row's
+inside that row; a seed's name is never one, `view` aside. Where a target lookup
+will query, an undeclared key is refused before it does. A selector or target
+lookup taking a bare `**kwargs`, and a service with no `input_serializer` taking
+one under `SPREAD_AUTHOR_WINS`, drop an undeclared key rather than refuse it.
 
 ::: rest_framework_services.types.unknown_arguments.UnknownArguments
 
@@ -218,6 +229,14 @@ omits it and nothing changes. It carries the *view* layers only
 per-action twins); the spec's own `kwargs` / `input_data` /
 `input_serializer_context` providers stay the core's job, so they resolve exactly
 once no matter who dispatches.
+
+The spec's `kwargs` provider outranks the view's hooks. A hook value for a name
+the call reads (a parameter of the spec's callable or target lookup, or a field
+of the input serializer, by its name or its `source`) is that argument's value,
+over the client's, and is validated as the client's would be; a value naming a
+seed (`request`, `view`, `progress`) is dropped, the seed winning; anything else
+reaches the callables beside the arguments. `input_data` from the hooks is
+merged beneath the spec's own `input_data`.
 
 ::: rest_framework_services.types.view_hooks.ViewHooks
 
@@ -269,8 +288,9 @@ serializer that branches on `request.query_params` (django-restql field selectio
 custom serializers), and a request-scoped `FilterSet` that reads
 `self.request.query_params` itself. It is not what a `filter_set` is bound to:
 `dispatch_spec` binds a `SelectorSpec`'s own `filter_set`, and a target lookup's,
-to `filter_data`, else to `params`, and a service's `output_selector_spec.filter_set`
-to `filter_data`, else to an empty mapping. To filter from the synthetic query
+to `filter_data` when it is passed, else to `params`, reading only the filter's
+own names from either. A service's `output_selector_spec.filter_set` is handed
+no arguments, so neither narrows the re-read. To filter from the synthetic query
 string, pass `filter_data=context.request.query_params`. It does **not** make DRF
 `filter_backends` (`SearchFilter` / `OrderingFilter`) run — the offline path never
 calls `filter_queryset`; `filter_set` is the drf-services-native equivalent.
@@ -454,17 +474,41 @@ preconditions hides is still advertised, then dropped.
 
 ### `apply_queryset_shaping`
 
+drfs' signature over the kernel's `shape_queryset`, for a caller holding a view
+and a request rather than a spec. Two things differ from the releases before
+the kernel:
+
+- **`filter_set` must be a django-filter `FilterSet`.** One duck-typed on
+  `(data, queryset) -> .qs` is refused with `ImproperlyConfigured`. Each value
+  is coerced to the type its filter declares, and a repeated query-string key
+  reaches a filter taking several values as a list.
+- **Invalid filter data raises the kernel's `InvalidArguments`**
+  (`django_service_specs.parameters.invalid_arguments`), keyed as the
+  `FilterSet` keys its errors, and nothing here translates it. It is not a DRF
+  exception, so a caller inside a DRF view that wants a 400 translates it itself,
+  with
+  [`translate_dispatch_errors`](service-specs.md#translate_dispatch_errors).
+  `dispatch_spec`, and every view that dispatches through it, shapes inside the
+  kernel's `dispatch` and translates for you, answering 400.
+
+`extend_queryset` is still called as `extend_queryset(qs, view, request)`, by
+position; one answering with an awaitable is refused.
+
 ::: rest_framework_services.selectors.utils.apply_queryset_shaping
 
 ## Pool seeds
 
-Every kwargs pool this package builds for a dispatched spec starts from
-`base_pool` — the HTTP view layer and off-HTTP `dispatch_spec` alike — so a spec
-callable that declares a seed behaves the same over either.
+Every kwargs pool the kernel builds for a dispatched spec starts from
+`base_pool`, whether `dispatch_spec` was called by an HTTP view or by a
+transport off HTTP, so a spec callable that declares a seed behaves the same
+over either. `request` is not one of its parameters: `dispatch_spec` registers
+`request` and `view` as seeds of each call, so a project registering either in
+`pool_seeds` is refused with `ImproperlyConfigured`. A falsy progress reporter
+is kept rather than swapped for `null_progress`.
 
 `base_pool` is a builder, not a gate, and nothing checks a pool assembled
 elsewhere. **If you are writing a transport adapter, build your pool by calling
-it** — `base_pool(user=…, request=…, **your_own_entries)` — rather than writing a
+it** — `base_pool(user=…, **your_own_entries)` — rather than writing a
 dict literal of your own:
 
 - A literal that omits a seed carries no trace of it. `resolve_callable_kwargs`
@@ -475,7 +519,7 @@ dict literal of your own:
   documented `progress: ProgressReporter` form and never see that anything is
   missing until a pool without it comes along.
 - Spreading your own entries through `**extra` makes a name collision loud. An
-  entry called `user` or `request` raises `TypeError` at the `base_pool` call;
+  entry called `user` raises `TypeError` at the `base_pool` call;
   in a dict literal the same entry silently outranks the value your transport
   authenticated.
 

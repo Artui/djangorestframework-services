@@ -18,6 +18,14 @@ that doesn't belong on a model. `djangorestframework-services` keeps DRF's
 routing, validation, and serialization for what they're good at, and gives
 you a precise, well-typed seam for the bits in the middle.
 
+Under the views it is a DRF adapter over
+[django-service-specs](https://github.com/Artui/django-service-specs): a spec
+declared here compiles to that kernel's spec, the kernel runs the call, and the
+serializer and DRF's permission classes are the validator, the presenter and the
+guard it calls back into. The kernel's names (`ServiceError`, `SpecRegistry`, the
+mutation helpers and the relation specs among them) are re-exported here as the
+same objects, so one import path serves both.
+
 - **Services** — plain callables. The library does not define a `Service`
   base class or prescribe a signature.
 - **Selectors** — plain callables that override `get_queryset()` /
@@ -817,8 +825,11 @@ builds on:
   `SelectorSpec` with just the acting `user` and a flat `params` mapping;
   get back a `DispatchResult` to format for your wire. See
   [Dispatch reference](https://artui.github.io/djangorestframework-services/reference/dispatch/).
-- **`filter_set` on selectors** — declare filtering on a `SelectorSpec`
-  once and it applies transport-neutrally, off the HTTP query-string path.
+- **`filter_set` on selectors** — declare a django-filter `FilterSet` on a
+  `SelectorSpec` once and it applies transport-neutrally, off the HTTP
+  query-string path. On a selector view the query string feeds the filter; a
+  query value becomes an argument to the selector only where the spec declares
+  it with `reads=[QueryParam(...)]`.
 - **Bulk and nested writes** — `many=True` on a spec mutates a whole
   collection, and the mutation helpers accept a `relations=` argument that
   writes every relation kind Django has from one payload (forward FK and
@@ -862,6 +873,7 @@ python manage.py runserver
 | Python | 3.10 – 3.14 |
 | Django | 4.2, 5.0, 5.1, 5.2, 6.0 |
 | DRF | ≥ 3.14 |
+| django-service-specs | ≥ 0.8.0 |
 
 CI runs the full Python × Django matrix with 100% coverage gating.
 

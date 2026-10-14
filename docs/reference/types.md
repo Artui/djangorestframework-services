@@ -121,10 +121,9 @@ Being the kernel's changes what a few of them refuse, each where it is built:
 
 ## `InputRequired`
 
-Dispatch refuses a missing marked key only where the caller could have sent it.
-Where no caller input reaches the callable by name, as under `BUNDLE`, a
-refusal could only be answered by the same refusal, so the gap fails as the
-callable's own error instead. See
+Dispatch refuses a missing marked key as the kernel's `InvalidArguments`,
+`{"code": ["This field is required."]}`, under every `argument_binding`: there is
+one argument pool, so the caller can always send it. See
 [what a caller could fill](../recipes/off-http-inputs.md#requiredness-inputrequired).
 
 ::: rest_framework_services.types.input_required

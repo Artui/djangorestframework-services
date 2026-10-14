@@ -16,6 +16,18 @@ applied in order of increasing specificity (later wins on overlapping keys):
 
 Use whichever level matches the granularity of your contract.
 
+The per-spec callable is called once per call, from `view` and `request`, and a
+key its `TypedDict` return annotation fills is never taken from the client or a
+hook. A key a view hook returns that names a pool seed (`user`, `data`,
+`instance` and the rest) is dropped, and the seed wins.
+
+**A key naming an input-serializer field is that field's value.** Where a hook
+or the spec's `kwargs` returns a key that matches a field of `input_serializer`,
+by its name or by its `source`, the value is written into the field, over
+whatever the client sent, and validated as the field validates. A hook returning
+`{"tenant": request.user.tenant}` therefore decides the `tenant` the service
+receives in `data`; a client cannot spoof it by putting `tenant` in the body.
+
 > `view` is seeded beside `request`: a service or selector declaring it is
 > handed the calling view, and a hook or provider returning a `view` key is
 > refused. Services and selectors are still best kept plain business logic;

@@ -29,17 +29,20 @@ exists for the two cases `filter_backends` can't serve:
    "latest matching", a stats-style read scoped by `?since=…` — had no declarative
    hook and had to hand-roll the filtering inside the selector. `filter_set` narrows
    the queryset before the framework `.first()`s it.
-2. **Transport-neutral declaration.** A `FilterSet` is fundamentally
-   `(data, queryset) -> .qs` — a contract that doesn't care where `data` comes
+2. **Transport-neutral declaration.** A `FilterSet`'s filters are declared as
+   the selector's arguments, so the contract doesn't care where the values come
    from. The same `SelectorSpec` can drive an alternate transport (the
    `djangorestframework-mcp-server` bridge), where the values arrive in a tool-call
    args dict instead of `request.query_params`. Declaring the filter on the spec
    means it's written once and consumed by every transport, instead of each one
    re-implementing it.
 
-The library applies the FilterSet by **duck typing** — it imports nothing, so
-`filter_set` adds no dependency. You only need `django-filter` installed to *write*
-the FilterSet:
+`filter_set` must be a real django-filter `FilterSet`: its `base_filters` are what
+the selector's arguments are read from. An object duck-typed on
+`(data, queryset) -> .qs` is refused with `ImproperlyConfigured` when the spec is
+compiled. A filter sharing its name with a field of the input serializer is refused
+the same way, since one name would then come from two sources. The library imports
+nothing from `django-filter` itself, so install it to write the FilterSet:
 
 ```bash
 pip install django-filter
@@ -195,7 +198,12 @@ never off the request body, even on a `PUT` / `PATCH` that has one. That split i
 what keeps the two channels honest: the body is validated by `input_serializer`,
 and merging the two would let a query parameter satisfy a serializer field (and a
 body field decide which rows are writable). Off HTTP, where a transport hands the
-dispatch one flat mapping, that mapping is both channels and nothing changes.
+dispatch one flat mapping, the filter reads its own names out of that mapping and
+nothing else, and refusing a filter named like an input field is what keeps one
+key from being both.
+
+The `filter_set` on an `output_selector_spec` is different: it shapes the
+response's re-read, and neither the query string nor `filter_data` narrows it.
 
 Note what a body-bound filter would have done, since it is quiet: a `FilterSet`'s
 fields are all optional, so a mapping containing none of them validates cleanly
@@ -211,21 +219,19 @@ queryset in django-filter's default non-strict mode. So a bad `?field=` value �
 non-numeric `min_views` above, a `ChoiceFilter` value outside its choices —
 would quietly answer `200` with every row instead of the `400` the backend gives.
 
-`filter_set` validates, and raises the FilterSet's `errors` as a DRF
-`ValidationError`:
+`filter_set` validates before `.qs` is read, and refuses the FilterSet's
+`errors` as the kernel's `InvalidArguments`, which a view and
+[`dispatch_spec`](../reference/dispatch.md) translate to a 400:
 
 ```text
 GET /posts/?min_views=lots      → 400 {"min_views": ["Enter a number."]}
 ```
 
-The errors render in the usual `{field: [message]}` shape, because a Django form
-`ErrorDict` is what DRF already knows how to render — which is how the core stays
-free of any `django-filter` import.
-
-This is enforced only when the object you hand to `filter_set` actually exposes
-`is_valid`. A bare `(data, queryset) -> .qs` duck-typed stand-in that doesn't opt
-into validation keeps its pass-through behaviour — it never had a form to
-validate.
+The errors keep the usual `{field: [message]}` shape. Query-string values are
+coerced to the type each filter declares before the FilterSet sees them, so
+`?published=true` is a boolean by the time it is validated. Off HTTP there is no
+string to coerce: a `BooleanFilter` takes `True`, and the string `"true"` is
+refused with `{"published": ["Expected a boolean."]}`.
 
 ## The request inside a `filter_set`
 
@@ -236,9 +242,7 @@ override. `DjangoFilterBackend` fills `self.request` view-side; **`filter_set`
 fills it too.** The dispatcher forwards the request into the FilterSet whenever its
 constructor declares one (`django-filter`'s `__init__` does), so a request-scoped
 FilterSet behaves the same on a spec as behind the backend, instead of seeing
-`self.request is None` and raising `AttributeError` (a 500). A bare
-`(data, queryset)` duck-typed stand-in that doesn't declare `request` is called
-exactly as before — nothing is forced on it.
+`self.request is None` and raising `AttributeError` (a 500).
 
 Forwarding is safe on every transport because the request is *always present* at
 the point filtering runs — it's the same object `extend_queryset` already receives
@@ -260,9 +264,7 @@ FilterSet you know is HTTP-only.
 Why forward at all, rather than keep filters request-free? Because the request is
 already threaded to every other queryset-shaping hook, so withholding it from
 `filter_set` alone was the inconsistency — it made a FilterSet that worked behind
-`DjangoFilterBackend` fail once moved onto a spec. Forwarding closes that gap while
-the signature gate preserves the transport-neutral `(data, queryset) -> .qs`
-contract for stand-ins that want nothing to do with a request.
+`DjangoFilterBackend` fail once moved onto a spec. Forwarding closes that gap.
 
 ## OpenAPI schema
 

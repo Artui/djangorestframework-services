@@ -217,20 +217,29 @@ input schema declares as a date-time, and rejects.
 The serializer is the declaration and stays authoritative. The exception is a
 single tool that must return a field its neighbours drop — a lookup whose whole
 job is handing back the identifier the list view hides. That is an override, and
-it belongs on the registry entry rather than on any one transport:
+it belongs on the spec rather than on any one transport:
 
 ```python
-registry.register(
-    "lookup_invoice",
-    lookup_spec,
-    agent_contract=OfflineContract(field_audiences={"etag": FieldMarking()}),
+lookup_spec = SelectorSpec(
+    kind=SelectorKind.RETRIEVE,
+    selector=invoice_by_number,
+    output_serializer=InvoiceSerializer,
+    permission_classes=[IsAuthenticated],
+    field_audiences={"etag": FieldMarking()},
 )
+registry.register("lookup_invoice", lookup_spec)
 ```
 
-Every agent transport reads that one contract, so the field set an agent sees
-cannot depend on which transport served it. `build_audience_projection` layers it:
+The spec compiles the override onto its output, and the registry entry answers
+it as a read-only `entry.agent_contract`, so every agent transport reads the one
+declaration and the field set an agent sees cannot depend on which transport
+served it. A name in `field_audiences` that matches no output field (a typo, a
+write-only field) is refused, and so is declaring them on a spec with no output
+serializer. `register()` takes no `agent_contract=`. `build_audience_projection`
+layers it:
 
 ```python
+contract = registry.get("lookup_invoice").agent_contract
 projection = build_audience_projection(
     InvoiceSerializer, overrides=contract.field_audiences, name="lookup_invoice"
 )
