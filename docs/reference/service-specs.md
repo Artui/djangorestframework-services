@@ -44,6 +44,8 @@ list_tasks = SelectorSpec(
 | `permission_classes` | one `DRFPermissionCheck`; `[]` is `Unrestricted()`, and `None` is no permissions, which a registry refuses |
 | `input_serializer` | `validator` (a `SerializerValidator`) |
 | `output_selector_spec.output_serializer`, `output_serializer` | `presenter` (a `SerializerPresenter`) |
+| `input_serializer_context` | the `SerializerValidator`'s `serializer_context` |
+| `output_selector_spec.output_serializer_context`, `output_serializer_context` | the `SerializerPresenter`'s `serializer_context` |
 | `partial` | `partial`, kept only with an `input_serializer` |
 | `many`, `many_argument` | the same; the list bounds come from the serializer's `ListSerializer` |
 | `extend_queryset` | `extend_queryset`, called as `extend(queryset, view, request)` |
@@ -67,8 +69,12 @@ A nested spec compiles to what the kernel runs:
   refused.
 
 `success_status`, `document_service_error` and `response_finalizer` are the
-HTTP views' and are not compiled. `input_serializer_context` and
-`output_serializer_context` have no kernel seat yet.
+HTTP views' and are not compiled.
+
+The two serializer context callables ride on the adapters and are asked when
+the serializer is built for a call, over DRF's own context and the view hooks
+`dispatch_spec` registers for the call; see
+[Customise serializer context](../recipes/serializer-context.md#through-the-kernel).
 
 ## DRF permission classes off HTTP
 
