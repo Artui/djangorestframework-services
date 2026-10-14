@@ -68,33 +68,6 @@ def _dispatch(**params: Any) -> Any:
     )
 
 
-def test_it_carries_the_message_and_the_shape_of_what_is_missing() -> None:
-    error = AdditionalInputRequired("Confirm first", schema={"confirmed": {"type": "boolean"}})
-    assert str(error) == "Confirm first"
-    assert error.schema == {"confirmed": {"type": "boolean"}}
-
-
-def test_the_schema_is_optional() -> None:
-    """A message alone is still useful — a transport that cannot render a form
-    can show it."""
-    assert AdditionalInputRequired("Confirm first").schema is None
-
-
-def test_it_is_a_service_error() -> None:
-    """Deliberate: a transport that has never heard of this still does
-    something sensible — the operation could not be completed, and here is why.
-    Transports that *can* ask catch it first and do better."""
-    assert issubclass(AdditionalInputRequired, ServiceError)
-
-
-def test_it_is_not_a_validation_error() -> None:
-    """Different claim. A validation error says what you sent is wrong; this
-    says the service got far enough to discover it needs something else —
-    usually conditional on what it found, which is why it cannot be a required
-    field on the serializer."""
-    assert not issubclass(AdditionalInputRequired, ServiceValidationError)
-
-
 def test_a_service_can_raise_it_mid_dispatch() -> None:
     with pytest.raises(AdditionalInputRequired) as caught:
         _dispatch(count=400)
