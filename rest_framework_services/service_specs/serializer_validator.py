@@ -8,11 +8,6 @@ from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
-
-# The one refusal this module raises. The kernel's class for now; the DRF
-# adapter's own, which is a DRF ``ValidationError`` as well, replaces this
-# import and nothing else.
-from django_service_specs.parameters.invalid_arguments import InvalidArguments
 from django_service_specs.parameters.parameters import Parameters
 from django_service_specs.validation.validated import Validated
 from django_service_specs.validation.validation_context import ValidationContext
@@ -20,12 +15,12 @@ from django_service_specs.validation.validator import Validator
 from rest_framework import serializers
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
-from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
-from rest_framework_services.dispatch.build_offline_context import build_offline_context
+from rest_framework_services.service_specs.invalid_arguments import InvalidArguments
 from rest_framework_services.service_specs.utils import (
     bind_serializer,
     describe_serializer,
     input_parameters,
+    serializer_context,
 )
 
 
@@ -58,19 +53,24 @@ class SerializerValidator(Validator):
     - **partial as the call is**, the context's ``partial``, so a partial call
       may leave out a required field and returns only what was sent.
     - **under the serializer context DRF builds on HTTP**, ``request``,
-      ``format`` and ``view``, around an offline request whose ``user`` is the
+      ``format`` and ``view``. The ``request`` and ``view`` the call
+      registered as pool seeds are the serializer's own, read from
+      ``ValidationContext.ambient`` as the kernel resolved them. A call that
+      registered neither gets an offline request whose ``user`` is the
       principal and whose ``data`` is the arguments, built by
-      [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context].
-      A ``CurrentUserDefault`` therefore reads the principal, and a field or a
+      [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context],
+      so a ``CurrentUserDefault`` reads the principal and a field or a
       ``validate()`` reading ``self.context["request"]`` finds a request
-      rather than a ``KeyError``.
+      rather than a ``KeyError``. What a registered request's ``user`` is, is
+      the transport's to make the principal; the Validator never writes to a
+      call's own objects.
 
     A refusal is one
-    [`InvalidArguments`][django_service_specs.parameters.invalid_arguments.InvalidArguments]
-    carrying the serializer's ``errors`` unchanged: DRF's ``ErrorDetail``
-    leaves, each with its code, cross-field messages under
-    ``non_field_errors``, and a nested list's errors in whichever shape the
-    installed DRF writes them.
+    [`InvalidArguments`][rest_framework_services.service_specs.invalid_arguments.InvalidArguments],
+    the kernel's refusal that is DRF's ``ValidationError`` as well, carrying
+    the serializer's ``errors`` unchanged: DRF's ``ErrorDetail`` leaves, each
+    with its code, cross-field messages under ``non_field_errors``, and a
+    nested list's errors in whichever shape the installed DRF writes them.
 
     ``validated()`` hands the service what drfs' dispatch hands it: ``data``
     is the serializer's ``validated_data`` - the validated mapping, or the
@@ -86,11 +86,22 @@ class SerializerValidator(Validator):
     **A partial call over a dataclass is refused**, a ``DataclassSerializer``
     subclass included: one builds its instance from every field, and a field
     a partial call left out fails as a ``TypeError`` from inside the library.
-    The refusal is ``ImproperlyConfigured``, raised when the partial call
-    arrives: ``supports_partial`` stays the class's ``True``, because the
-    kernel declares it a ``ClassVar`` and this answer belongs to the
-    declaration, so a spec declaring ``partial=True`` over a dataclass is
-    accepted when it is built and refused on its first call.
+    ``supports_partial`` is therefore answered per instance, ``False`` for
+    either declaration and ``True`` for any other serializer, so a spec
+    declaring ``partial=True`` over a dataclass is refused when it is built.
+    A partial call made on the Validator directly is refused with
+    ``ImproperlyConfigured`` as well.
+
+    ``validated_many()`` validates a ``many`` spec's rows as DRF's own list
+    serializer does, once: the serializer's child class under
+    ``many=True`` (so a ``Meta.list_serializer_class`` and its list-level
+    ``validate()`` run), with the call's context and partial flag. The one
+    list serializer is bound for the call as ``serializer``, ``data`` is the
+    list of each row's ``validated_data`` and the values are the rows' values
+    under ``many_argument``. A refusal is an ``InvalidArguments`` whose detail
+    keys each failing row by the index the caller's list gave it, whichever of
+    DRF's two shapes the installed version reports item errors in, and whose
+    list-level message sits under ``non_field_errors``.
     """
 
     def __init__(self, serializer: type[Any]) -> None:
@@ -112,14 +123,13 @@ class SerializerValidator(Validator):
                 f"SerializerValidator takes a Serializer subclass or a dataclass; got {serializer!r}."
             )
         self.serializer = serializer
-        # Whether the serializer builds a dataclass instance: a dataclass read
-        # through a DataclassSerializer, or a DataclassSerializer subclass
-        # declared outright, as the gallery declares its inputs. Each is held
-        # by its own case of test_a_partial_call_over_a_dataclass_is_refused.
-        # Not ``supports_partial``, which the kernel declares a ``ClassVar``
-        # and so describes the class: this answer is the declaration's.
-        self._builds_instance: bool = dataclasses.is_dataclass(serializer) or issubclass(
-            serializer, DataclassSerializer
+        # The kernel reads this per instance: the answer belongs to the
+        # declaration. A dataclass read through a DataclassSerializer, and a
+        # DataclassSerializer subclass declared outright (as the gallery
+        # declares its inputs), each build the instance from every field. Each
+        # is held by its own case of test_supports_partial_is_answered_per_declaration.
+        self.supports_partial = not (
+            dataclasses.is_dataclass(serializer) or issubclass(serializer, DataclassSerializer)
         )
 
     def parameters(self) -> Parameters:
@@ -134,31 +144,60 @@ class SerializerValidator(Validator):
         """The values, ``validated_data`` as the call's ``data``, and the bound ``serializer``."""
         return self._validated(arguments, context)
 
+    def validated_many(
+        self,
+        rows: Mapping[int, Mapping[str, Any]],
+        context: ValidationContext,
+        *,
+        many_argument: str,
+    ) -> Validated:
+        """The rows validated once as DRF's list serializer, the one serializer bound for the call."""
+        self._refuse_partial(context)
+        arguments = list(rows.values())
+        serializer = bind_serializer(
+            self.serializer,
+            data=arguments,
+            many=True,
+            partial=context.partial,
+            context=serializer_context(context.principal, context.ambient, arguments),
+        )
+        if not serializer.is_valid():
+            raise InvalidArguments(_by_row(serializer.errors, list(rows)))
+        data: list[Any] = list(serializer.validated_data)
+        return Validated(
+            values={many_argument: [_values(row) for row in data]},
+            data=data,
+            pool={"serializer": serializer},
+        )
+
     def _validated(self, arguments: Mapping[str, Any], context: ValidationContext) -> Validated:
         # Neither public method calls the other, so a subclass may extend
         # either through the other without the two calling each other forever.
-        # One branch to coverage: test_a_partial_call_over_a_dataclass_is_refused
-        # holds both together, and each alone is held by a call it must not
-        # refuse: test_a_partial_call_takes_a_required_field_left_out_and_returns_what_was_sent
-        # (a partial serializer) and test_a_dataclass_s_data_is_its_instance_and_its_values_its_fields
-        # (a whole dataclass call).
-        if context.partial and self._builds_instance:
-            raise ImproperlyConfigured(
-                f"SerializerValidator({self.serializer.__qualname__}) cannot validate a partial "
-                "call: a DataclassSerializer builds its instance from every field. Declare the "
-                "input as a Serializer subclass to take a partial call."
-            )
+        self._refuse_partial(context)
         serializer = self._bind(arguments, context)
         if not serializer.is_valid():
             raise InvalidArguments(serializer.errors)
         data: Any = serializer.validated_data
         return Validated(values=_values(data), data=data, pool={"serializer": serializer})
 
+    def _refuse_partial(self, context: ValidationContext) -> None:
+        # One branch to coverage: test_a_partial_call_over_a_dataclass_is_refused
+        # holds both together, and each alone is held by a call it must not
+        # refuse: test_a_partial_call_takes_a_required_field_left_out_and_returns_what_was_sent
+        # (a partial serializer) and test_a_dataclass_s_data_is_its_instance_and_its_values_its_fields
+        # (a whole dataclass call). The kernel refuses a partial spec over
+        # this when it is built; this is the Validator called directly.
+        if context.partial and not self.supports_partial:
+            raise ImproperlyConfigured(
+                f"SerializerValidator({self.serializer.__qualname__}) cannot validate a partial "
+                "call: a DataclassSerializer builds its instance from every field. Declare the "
+                "input as a Serializer subclass to take a partial call."
+            )
+
     def _bind(
         self, arguments: Mapping[str, Any], context: ValidationContext
     ) -> serializers.Serializer:
         """The serializer, bound to ``arguments`` for this call."""
-        offline = build_offline_context(context.principal, arguments)
         target = context.target
         return bind_serializer(
             self.serializer,
@@ -166,8 +205,26 @@ class SerializerValidator(Validator):
             # The collection a collection selector resolves is no row to update.
             instance=None if isinstance(target, QuerySet) else target,
             partial=context.partial,
-            context=base_serializer_context(view=offline.view, request=offline.request),
+            context=serializer_context(context.principal, context.ambient, arguments),
         )
+
+
+def _by_row(errors: Any, indices: list[int]) -> dict[Any, Any]:
+    """A list serializer's errors, each failing row keyed by the caller's own index.
+
+    DRF counts positions in the list it was handed, and the shape check may
+    have refused rows before it (test_validated_many_keys_a_row_s_refusal_by_the_caller_s_index_not_the_position,
+    which names row 2 where DRF says 1). DRF below 3.18 reports item errors as
+    a list with an empty entry for every valid row, and from 3.18 as a mapping
+    of the invalid rows' positions; the list becomes the mapping, as the kernel
+    reads it
+    (test_item_errors_reported_as_a_list_are_keyed_by_the_callers_index_too).
+    The list's own refusals are a mapping under ``non_field_errors`` on every
+    version and keep that key (test_a_list_level_refusal_sits_under_non_field_errors).
+    """
+    if isinstance(errors, list):
+        errors = {position: row for position, row in enumerate(errors) if row}
+    return {indices[key] if isinstance(key, int) else key: detail for key, detail in errors.items()}
 
 
 def _values(data: Any) -> dict[str, Any]:

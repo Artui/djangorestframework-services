@@ -10,12 +10,14 @@ from typing import Any, Final
 from django.core.exceptions import ImproperlyConfigured
 from django_service_specs.output.field_marking import FieldMarking
 from django_service_specs.output.output import Output, OutputField
+from django_service_specs.output.presentation_context import PresentationContext
 from django_service_specs.output.presenter import Presenter
 from rest_framework import serializers
 from rest_framework.fields import empty as _drf_empty
 
 from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
 from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
+from rest_framework_services.service_specs.utils import serializer_context
 from rest_framework_services.types.field_marking import MARKING
 
 # How many times one serializer class may appear on the walk's path before the
@@ -45,15 +47,6 @@ _SCALARS: Final[tuple[tuple[type[serializers.Field], str, str | None], ...]] = (
     (serializers.DictField, "object", None),
 )
 
-# The type a field is declared with when DRF names none: a
-# ``SerializerMethodField``, a ``JSONField``, a ``ReadOnlyField``, a related
-# field rendering a key, a custom field, and a choice whose values share no type.
-# The kernel's ``OutputField`` admits only JSON's own types, with no ``any`` as
-# ``Parameter`` has, so one has to be named; ``string`` is what a table renders
-# such a value as. It is a claim drfs' own schema does not make (``{}`` there),
-# which is why the type is one constant rather than a choice per call site.
-_UNTYPED: Final = "string"
-
 
 @dataclasses.dataclass(frozen=True)
 class _Shape:
@@ -70,50 +63,61 @@ class _Shape:
 class SerializerPresenter(Presenter):
     """An operation's output declared as a DRF serializer, rendered through it.
 
-    ``output()`` reads the serializer's fields into the kernel's
-    [`Output`][django_service_specs.output.output.Output], in declaration order,
-    the way drfs' own output schema and audience walk read them:
+        ``output()`` reads the serializer's fields into the kernel's
+        [`Output`][django_service_specs.output.output.Output], in declaration order,
+        the way drfs' own output schema and audience walk read them:
 
-    - A ``write_only`` field is never rendered, so it is not declared.
-    - **Type**: JSON's own, with ``decimal``, ``date-time`` and ``date`` as
-      formats. A nested serializer is an object carrying its own ``Output``; a
-      ``many=True`` serializer, and a ``ListField`` whose child is one, is an
-      array of that ``Output``; a ``MultipleChoiceField`` is an array of its
-      choices. A field DRF gives no type, a ``SerializerMethodField`` say, is
-      declared a ``string``, because the kernel's output field has no type for
-      "any value".
+        - A ``write_only`` field is never rendered, so it is not declared.
+        - **Type**: JSON's own, with ``decimal``, ``date-time`` and ``date`` as
+          formats. A nested serializer is an object carrying its own ``Output``; a
+          ``many=True`` serializer, and a ``ListField`` whose child is one, is an
+          array of that ``Output``; a ``MultipleChoiceField`` is an array of its
+          choices. A field DRF gives no type, a
+          ``SerializerMethodField`` or a ``JSONField`` say, is declared ``any``,
+          so a schema describes it with no ``type`` rather than as a string it may
+          not be.
     - **Label**: the author's, when one was written. DRF derives ``Vat id`` from
-      ``vat_id`` when none was, and that is ``None`` here, as it is no ``title``
-      in drfs' schema.
-    - **Choices**: every ``(value, display)`` pair a ``ChoiceField`` holds,
-      typed by the values when they share a type.
-    - **Presence**: ``always_present`` is true where DRF is bound to emit the
-      key: a required field, one with a default, and one allowing ``null``. A
-      read-only field with neither is dropped when DRF cannot read it.
-    - **Marking**: the ``FieldMarking`` found in the field's ``style``, under
-      ``MARKING`` or any other key, and a value under ``MARKING`` that is not
-      one refused, as drfs' walk reads it. Nested outputs carry their own.
+          ``vat_id`` when none was, and that is ``None`` here, as it is no ``title``
+          in drfs' schema.
+        - **Choices**: every ``(value, display)`` pair a ``ChoiceField`` holds,
+          typed by the values when they share a type.
+        - **Presence**: ``always_present`` is true where DRF is bound to emit the
+          key: a required field, one with a default, and one allowing ``null``. A
+          read-only field with neither is dropped when DRF cannot read it.
+        - **Marking**: the ``FieldMarking`` found in the field's ``style``, under
+          ``MARKING`` or any other key, and a value under ``MARKING`` that is not
+          one refused, as drfs' walk reads it. Nested outputs carry their own.
 
-    ``field_audiences`` is the spec's own output declaration, a field name to a
-    ``FieldMarking``, layered over the serializer's markings **at the top level
-    only**, as drfs' ``overrides=`` always has been. The layered marking is the
-    compiled ``OutputField.marking``, which is the seat
-    [`audience_projection_for_spec`][django_service_specs.dispatch.audience_projection_for_spec.audience_projection_for_spec]
-    reads, so every engine projects the one declaration with no ``overrides=``,
-    which stays a mount's. A name that is no output field is refused when the
-    output is read: a hidden marking that silently applies to nothing is a field
-    shown to an agent.
+        ``field_audiences`` is the spec's own output declaration, a field name to a
+        ``FieldMarking``, layered over the serializer's markings **at the top level
+        only**, as drfs' ``overrides=`` always has been. The layered marking is the
+        compiled ``OutputField.marking``, which is the seat
+        [`audience_projection_for_spec`][django_service_specs.dispatch.audience_projection_for_spec.audience_projection_for_spec]
+        reads, so every engine projects the one declaration with no ``overrides=``,
+        which stays a mount's. A name that is no output field is refused when the
+        output is read: a hidden marking that silently applies to nothing is a field
+        shown to an agent.
 
-    ``present(value)`` is the serializer's ``.data`` for one value, under the
-    serializer context drfs describes a serializer with (``request``, ``view``
-    and ``format`` present, each ``None``), so a ``get_fields`` reading
-    ``self.context["request"]`` neither raises here nor sees a principal. A list
-    result is presented row by row by the kernel's ``present``, which is what a
-    ``many=True`` render is.
+        ``presented(value, context)`` is what the kernel's ``present`` asks for:
+        the serializer's ``.data`` for one value, under the serializer context
+        derived from the call's ``PresentationContext``. The ``request`` and
+        ``view`` the call registered as pool seeds, read from ``ambient``, are the
+        serializer's own; a call that registered neither gets an offline request
+        whose ``user`` is the principal, so a ``SerializerMethodField`` reading
+        ``self.context["request"].user`` renders for the principal the call ran
+        for. A list result is presented row by row by the kernel's ``present``,
+        each row with the same context, which is what a ``many=True`` render is.
 
-    A dataclass type is read and rendered through the ``DataclassSerializer``
-    drfs renders it with, and a ``BaseSerializer`` that is not a ``Serializer``
-    declares no fields, so its output is empty while it still presents.
+        ``present(value)`` is the context-free form, and delegates to
+        ``presented(value, None)``: a ``None`` context is the serializer context
+        drfs describes a serializer with (``request``, ``view`` and ``format``
+        present, each ``None``), so a ``get_fields`` reading
+        ``self.context["request"]`` neither raises there nor sees a principal. It
+        is what a ``DispatchResult`` a transport built by hand is presented with.
+
+        A dataclass type is read and rendered through the ``DataclassSerializer``
+        drfs renders it with, and a ``BaseSerializer`` that is not a ``Serializer``
+        declares no fields, so its output is empty while it still presents.
     """
 
     def __init__(
@@ -168,14 +172,18 @@ class SerializerPresenter(Presenter):
         )
 
     def present(self, value: Any) -> Any:
-        """One value as the serializer's ``.data``.
+        """One value as the serializer's ``.data``, with no call to render for."""
+        return self.presented(value, None)
+
+    def presented(self, value: Any, context: PresentationContext | None) -> Any:
+        """One value as the serializer's ``.data``, under the context of the call it belongs to.
 
         ``None`` is presented as ``None``: it is JSON's null, and a serializer
         handed none renders a row of blank fields indistinguishable from a real one.
         """
         if value is None:
             return None
-        return self.serializer_class(value, context=_context()).data
+        return self.serializer_class(value, context=_context(context)).data
 
 
 _REFUSED: Final = (
@@ -183,9 +191,11 @@ _REFUSED: Final = (
 )
 
 
-def _context() -> dict[str, Any]:
-    """The serializer context drfs describes a serializer with: no view, no request."""
-    return base_serializer_context(view=None, request=None)
+def _context(call: PresentationContext | None = None) -> dict[str, Any]:
+    """The serializer context for ``call``: drfs' description context (no view, no request) with none."""
+    if call is None:
+        return base_serializer_context(view=None, request=None)
+    return serializer_context(call.principal, call.ambient, None)
 
 
 def _output(serializer: serializers.Serializer, *, path: tuple[type, ...]) -> Output:
@@ -209,7 +219,7 @@ def _output_field(
     shape = _shape(field, path=path)
     return OutputField(
         name,
-        shape.type or _UNTYPED,
+        shape.type or "any",
         format=shape.format,
         nullable=field.allow_null,
         label=_declared_label(name, field),
@@ -248,10 +258,15 @@ def _shape(field: serializers.Field, *, path: tuple[type, ...]) -> _Shape:
         # list's choices are its element's, as the kernel's other adapters
         # declare them.
         choices = _choices(field)
-        return _Shape("array", items=_choices_type(choices) or _UNTYPED, choices=choices)
+        return _Shape("array", items=_choices_type(choices), choices=choices)
     if isinstance(field, serializers.ChoiceField):
         choices = _choices(field)
-        return _Shape(_choices_type(choices), choices=choices)
+        json_type = _choices_type(choices)
+        # The kernel lists no choices on an untyped value: a list of values
+        # says what type they are, and a mixed set says none. Held by the
+        # ``mixed`` and ``amount`` fields of
+        # test_choices_are_value_display_pairs_typed_by_their_values.
+        return _Shape(json_type, choices=choices if json_type else None)
     for cls, json_type, fmt in _SCALARS:
         if isinstance(field, cls):
             return _Shape(json_type, format=fmt)

@@ -3,25 +3,34 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any
+from types import MappingProxyType
+from typing import Any, ClassVar
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured
 from django_service_specs.authorization.unrestricted import Unrestricted
 from django_service_specs.dispatch.dispatch import dispatch
-from django_service_specs.parameters.invalid_arguments import InvalidArguments
+from django_service_specs.parameters.invalid_arguments import (
+    InvalidArguments as KernelInvalidArguments,
+)
 from django_service_specs.parameters.parameters import Parameter, Parameters
+from django_service_specs.pool.pool_seeds import DEFAULT_POOL_SEEDS
 from django_service_specs.specs.service_spec import ServiceSpec
 from django_service_specs.validation.validation_context import ValidationContext
 from django_service_specs.validation.validator import Validator
 from rest_framework import serializers
-from rest_framework.exceptions import ErrorDetail
+from rest_framework.exceptions import ErrorDetail, ValidationError
 from rest_framework.request import Request
 from rest_framework.validators import UniqueValidator
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
+from rest_framework_services.dispatch.build_offline_context import build_offline_context
+from rest_framework_services.service_specs.invalid_arguments import InvalidArguments
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
+from rest_framework_services.service_specs.translate_dispatch_errors import (
+    translate_dispatch_errors,
+)
 from tests.testapp.models import Post
 
 
@@ -319,18 +328,37 @@ def test_a_declared_dataclass_serializer_s_own_validate_refuses() -> None:
     }
 
 
-@pytest.mark.django_db
-def test_a_partial_spec_over_a_dataclass_is_built_and_refused_on_its_first_call() -> None:
-    # supports_partial is a ClassVar on the kernel's Validator, so it cannot
-    # answer for one declaration; the refusal comes at the call instead.
-    spec = ServiceSpec(
+def test_supports_partial_is_answered_per_declaration() -> None:
+    # The kernel reads it from the instance, so one adapter class answers for
+    # each declaration it was built over: held by the three declarations
+    # (a Serializer, a dataclass, a declared DataclassSerializer) failing
+    # one conjunct each.
+    assert SerializerValidator(_Note).supports_partial is True
+    assert SerializerValidator(_Order).supports_partial is False
+    assert SerializerValidator(_MoveInSerializer).supports_partial is False
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [pytest.param(_Order, id="a-dataclass"), pytest.param(_MoveInSerializer, id="its-serializer")],
+)
+def test_a_partial_spec_over_a_dataclass_is_refused_when_it_is_built(declaration: Any) -> None:
+    with pytest.raises(ImproperlyConfigured, match="partial"):
+        ServiceSpec(
+            service=lambda data: data,
+            permissions=[Unrestricted()],
+            validator=SerializerValidator(declaration),
+            partial=True,
+        )
+
+
+def test_a_partial_spec_over_a_serializer_is_built() -> None:
+    ServiceSpec(
         service=lambda data: data,
         permissions=[Unrestricted()],
-        validator=SerializerValidator(_MoveInSerializer),
+        validator=SerializerValidator(_Note),
         partial=True,
     )
-    with pytest.raises(ImproperlyConfigured, match="partial"):
-        dispatch(spec, principal=None, arguments={"event_id": 1})
 
 
 # --- under the kernel's dispatch --------------------------------------------------
@@ -376,15 +404,276 @@ def test_a_current_user_default_reads_the_principal_under_dispatch() -> None:
 
 
 @pytest.mark.django_db
-def test_a_many_spec_refuses_the_bound_serializer() -> None:
-    # The kernel validates a many spec row by row and calls its service once,
-    # so a value bound for one row has nowhere to go. Pinned here so the
-    # compilation sees the conflict rather than finding it on a first call.
+def test_a_many_spec_validates_once_and_binds_one_list_serializer() -> None:
+    received: dict[str, Any] = {}
+
+    def service(*, data: Any, serializer: Any) -> str:
+        received.update(data=data, serializer=serializer)
+        return "ok"
+
+    spec = ServiceSpec(
+        service=service,
+        permissions=[Unrestricted()],
+        validator=SerializerValidator(_Note),
+        many=True,
+    )
+    dispatch(spec, principal=None, arguments={"items": [{"title": "a"}, {"title": "b"}]})
+    assert received["data"] == [{"title": "a"}, {"title": "b"}]
+    # One bound serializer for the call, and it is DRF's list serializer, so a
+    # service reading ``serializer.validated_data`` sees every row.
+    assert isinstance(received["serializer"], serializers.ListSerializer)
+    assert received["serializer"].validated_data == received["data"]
+
+
+# --- validated_many ---------------------------------------------------------------
+
+
+def test_validated_many_hands_the_rows_values_under_the_argument_and_binds_once() -> None:
+    validated = SerializerValidator(_Note).validated_many(
+        {0: {"title": "a"}, 3: {"title": "b", "count": 2}}, _context(), many_argument="items"
+    )
+    assert validated.values == {"items": [{"title": "a"}, {"title": "b", "count": 2}]}
+    assert validated.data == [{"title": "a"}, {"title": "b", "count": 2}]
+    assert set(validated.pool) == {"serializer"}
+    assert isinstance(validated.pool["serializer"], serializers.ListSerializer)
+
+
+def test_validated_many_keys_a_row_s_refusal_by_the_caller_s_index_not_the_position() -> None:
+    # The shape check refused row 1, so the Validator is handed rows 0 and 2;
+    # DRF counts the second as position 1. The caller's list is what the
+    # error must name.
+    with pytest.raises(InvalidArguments) as raised:
+        SerializerValidator(_Note).validated_many(
+            {0: {"title": "ok"}, 2: {"title": "too long"}}, _context(), many_argument="items"
+        )
+    assert raised.value.detail == {
+        2: {"title": ["Ensure this field has no more than 5 characters."]}
+    }
+    assert isinstance(raised.value.detail[2]["title"][0], ErrorDetail)
+
+
+def test_validated_many_reports_every_failing_row_at_once() -> None:
+    with pytest.raises(InvalidArguments) as raised:
+        SerializerValidator(_Note).validated_many(
+            {0: {"title": "too long"}, 1: {"title": "ok"}, 2: {"title": "also too long"}},
+            _context(),
+            many_argument="items",
+        )
+    assert set(raised.value.detail) == {0, 2}
+
+
+class _RefusesTheList(serializers.ListSerializer):
+    def validate(self, attrs: list[Any]) -> list[Any]:
+        if len(attrs) > 1:
+            raise serializers.ValidationError("One row at most.")
+        return attrs
+
+
+class _Listed(serializers.Serializer):
+    title = serializers.CharField()
+
+    class Meta:
+        list_serializer_class = _RefusesTheList
+
+
+def test_a_list_level_refusal_sits_under_non_field_errors() -> None:
+    # Only a call validated as a list can reach the list serializer's own
+    # validate(): a per-row loop never builds one.
+    with pytest.raises(InvalidArguments) as raised:
+        SerializerValidator(_Listed).validated_many(
+            {0: {"title": "a"}, 1: {"title": "b"}}, _context(), many_argument="items"
+        )
+    assert raised.value.detail == {"non_field_errors": ["One row at most."]}
+
+
+class _OldShapedErrors(serializers.ListSerializer):
+    """A list serializer reporting item errors as DRF below 3.18 does: a list, a blank per valid row."""
+
+    @property
+    def errors(self) -> Any:  # ty: ignore[invalid-method-override]
+        return [{}, {"title": ["Bad."]}, {}, {"title": ["Worse."]}]
+
+
+class _OldShaped(serializers.Serializer):
+    title = serializers.CharField(max_length=1)
+
+    class Meta:
+        list_serializer_class = _OldShapedErrors
+
+
+def test_item_errors_reported_as_a_list_are_keyed_by_the_callers_index_too() -> None:
+    with pytest.raises(InvalidArguments) as raised:
+        SerializerValidator(_OldShaped).validated_many(
+            {0: {"title": "a"}, 4: {"title": "bb"}, 5: {"title": "c"}, 9: {"title": "dd"}},
+            _context(),
+            many_argument="items",
+        )
+    assert raised.value.detail == {4: {"title": ["Bad."]}, 9: {"title": ["Worse."]}}
+
+
+def test_validated_many_over_a_dataclass_hands_each_row_s_instance() -> None:
+    validated = SerializerValidator(_Row).validated_many(
+        {0: {"title": "a"}, 1: {"title": "b", "qty": 3}}, _context(), many_argument="items"
+    )
+    assert validated.data == [_Row("a", 1), _Row("b", 3)]
+    assert validated.values == {"items": [{"title": "a", "qty": 1}, {"title": "b", "qty": 3}]}
+
+
+def test_a_partial_many_call_returns_only_what_each_row_sent() -> None:
+    validated = SerializerValidator(_Note).validated_many(
+        {0: {"count": 1}, 1: {"title": "b"}}, _context(partial=True), many_argument="items"
+    )
+    assert validated.data == [{"count": 1}, {"title": "b"}]
+
+
+def test_a_partial_many_call_over_a_dataclass_is_refused() -> None:
+    with pytest.raises(ImproperlyConfigured, match="partial"):
+        SerializerValidator(_Row).validated_many(
+            {0: {"title": "a"}}, _context(partial=True), many_argument="items"
+        )
+
+
+def test_validated_many_binds_no_instance_and_reads_the_principal() -> None:
+    seen: dict[str, Any] = {}
+
+    class S(serializers.Serializer):
+        title = serializers.CharField()
+        owner = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+        def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+            seen["instance"] = self.instance
+            return attrs
+
+    principal = object()
+    validated = SerializerValidator(S).validated_many(
+        {0: {"title": "a"}},
+        ValidationContext(principal, target=Post(), partial=False),
+        many_argument="items",
+    )
+    assert validated.values["items"][0]["owner"] is principal
+    assert seen["instance"] is None
+
+
+@pytest.mark.django_db
+def test_dispatch_reports_a_many_call_s_rows_under_the_argument_beside_the_shape_check() -> None:
     spec = ServiceSpec(
         service=lambda data: data,
         permissions=[Unrestricted()],
         validator=SerializerValidator(_Note),
         many=True,
     )
-    with pytest.raises(ImproperlyConfigured, match="serializer"):
-        dispatch(spec, principal=None, arguments={"items": [{"title": "hi"}]})
+    with pytest.raises(KernelInvalidArguments) as raised:
+        dispatch(
+            spec,
+            principal=None,
+            arguments={"items": [{"title": "ok"}, {"title": "too long"}, {"count": "x"}]},
+        )
+    # The kernel's own class raises out of dispatch; the edge translates it.
+    rows = raised.value.detail["items"]
+    assert set(rows) == {1, 2}
+    assert rows[1] == {"title": ["Ensure this field has no more than 5 characters."]}
+    # DRF's code survives the kernel re-raising the list's tree and the edge's
+    # translation, so the wire a many call answers with keeps its codes.
+    with pytest.raises(InvalidArguments) as translated, translate_dispatch_errors():
+        raise raised.value
+    assert translated.value.get_codes()["items"][1] == {"title": ["max_length"]}
+
+
+# --- the refusal is DRF's too ------------------------------------------------------
+
+
+def test_a_refusal_is_a_drf_validation_error_as_well() -> None:
+    with pytest.raises(ValidationError) as single:
+        SerializerValidator(_Note).validate({"title": "too long"}, _context())
+    with pytest.raises(ValidationError) as many:
+        SerializerValidator(_Note).validated_many(
+            {0: {"title": "too long"}}, _context(), many_argument="items"
+        )
+    for raised in (single.value, many.value):
+        assert isinstance(raised, InvalidArguments)
+        assert raised.status_code == 400
+
+
+# --- ambient: the registered request and view --------------------------------------
+
+
+class _Spy(serializers.Serializer):
+    title = serializers.CharField()
+    seen: ClassVar[dict[str, Any]] = {}
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        type(self).seen.clear()
+        type(self).seen.update(self.context)
+        return attrs
+
+
+def _ambient(**seeds: Any) -> ValidationContext:
+    return ValidationContext(object(), ambient=MappingProxyType(seeds))
+
+
+def test_the_registered_request_and_view_reach_the_serializer_context() -> None:
+    principal = object()
+    offline = build_offline_context(principal, {})
+    context = ValidationContext(
+        principal, ambient=MappingProxyType({"request": offline.request, "view": offline.view})
+    )
+    SerializerValidator(_Spy).validate({"title": "hi"}, context)
+    assert _Spy.seen["request"] is offline.request
+    assert _Spy.seen["view"] is offline.view
+    assert _Spy.seen["format"] is None
+
+
+def test_a_registered_request_alone_is_kept_beside_no_view() -> None:
+    offline = build_offline_context(object(), {})
+    SerializerValidator(_Spy).validate({"title": "hi"}, _ambient(request=offline.request))
+    assert _Spy.seen["request"] is offline.request
+    assert _Spy.seen["view"] is None
+
+
+def test_a_registered_view_alone_answers_for_the_serializer_context() -> None:
+    class View:
+        def get_serializer_context(self) -> dict[str, Any]:
+            return {"request": None, "format": None, "view": self, "extra": 1}
+
+    view = View()
+    SerializerValidator(_Spy).validate({"title": "hi"}, _ambient(view=view))
+    assert _Spy.seen["view"] is view
+    assert _Spy.seen["extra"] == 1
+
+
+def test_a_registered_request_s_user_is_what_a_current_user_default_reads() -> None:
+    class S(serializers.Serializer):
+        owner = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    principal = object()
+    offline = build_offline_context(principal, {})
+    context = ValidationContext(principal, ambient=MappingProxyType({"request": offline.request}))
+    assert SerializerValidator(S).validate({}, context) == {"owner": principal}
+
+
+@pytest.mark.django_db
+def test_dispatch_carries_a_registered_request_and_view_into_the_serializer_context() -> None:
+    user = get_user_model().objects.create(username="grace")
+    offline = build_offline_context(user, {"title": "hi"})
+    seeds = DEFAULT_POOL_SEEDS.extend(request=lambda: offline.request, view=lambda: offline.view)
+    spec = ServiceSpec(
+        service=lambda title: title,
+        permissions=[Unrestricted()],
+        validator=SerializerValidator(_Spy),
+    )
+    dispatch(spec, principal=user, arguments={"title": "hi"}, pool_seeds=seeds)
+    assert _Spy.seen["request"] is offline.request
+    assert _Spy.seen["view"] is offline.view
+
+
+def test_validating_leaves_the_registered_request_as_it_found_it() -> None:
+    principal = object()
+    offline = build_offline_context(principal, {"untouched": 1})
+    context = ValidationContext(
+        principal, ambient=MappingProxyType({"request": offline.request, "view": offline.view})
+    )
+
+    SerializerValidator(_Spy).validate({"title": "hi"}, context)
+
+    assert offline.request.user is principal
+    assert offline.request.data == {"untouched": 1}
