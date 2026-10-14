@@ -14,7 +14,7 @@ import builtins
 import inspect
 import re
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from types import SimpleNamespace
 from typing import Annotated, Any, Final, ForwardRef, get_args
 
@@ -22,10 +22,14 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model
 from typing_extensions import Format, get_annotations, get_type_hints
 
+from rest_framework_services.types.field_marking import FieldMarking
 from rest_framework_services.types.input_required import InputRequired
 from rest_framework_services.types.not_client_input import NotClientInput
+from rest_framework_services.types.offline_contract import OfflineContract
+from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.relation_mode import RelationMode
 from rest_framework_services.types.relation_orphan import RelationOrphan
+from rest_framework_services.types.url_kwarg import UrlKwarg
 
 
 def validate_metadata(metadata: Any, *, label: str) -> None:
@@ -42,6 +46,60 @@ def validate_metadata(metadata: Any, *, label: str) -> None:
         f"{label}.metadata must be a mapping (or None); got "
         f"{type(metadata).__name__}. The framework never reads its contents, "
         f"but the shape is fixed so consumers can rely on it."
+    )
+
+
+def validate_reads(reads: Any, *, label: str) -> tuple[UrlKwarg | QueryParam, ...]:
+    """``reads`` as a tuple of ``UrlKwarg`` and ``QueryParam``, refusing anything else.
+
+    Checked when the spec is built, like ``affordances``: a spec reaches
+    transports that never mount it on a view. A tuple, so the frozen spec holds
+    what was declared rather than a list a caller could still change. A name
+    declared twice is refused, since the two would be one argument: a route
+    capture and a query string key of one name reach a caller as one key.
+    """
+    # A string is a sequence of names nobody meant; a lone declaration is no
+    # sequence at all. One arc to coverage: ``test_a_lone_entry_or_a_string_is_refused``
+    # holds each side, through its string case and its declaration and mapping cases.
+    if isinstance(reads, str) or not isinstance(reads, Sequence):
+        raise ImproperlyConfigured(
+            f"{label}.reads takes a sequence of UrlKwarg and QueryParam declarations; got "
+            f"{type(reads).__name__}. Wrap a single one in a list: reads=[...]."
+        )
+    names: set[str] = set()
+    for index, entry in enumerate(reads):
+        if not isinstance(entry, (UrlKwarg, QueryParam)):
+            raise ImproperlyConfigured(
+                f"{label}.reads[{index}] must be a UrlKwarg or a QueryParam; got "
+                f"{type(entry).__name__}."
+            )
+        if entry.name in names:
+            raise ImproperlyConfigured(
+                f"{label}.reads declares {entry.name!r} twice. Each is one argument a caller "
+                "sends, so each name is declared once."
+            )
+        names.add(entry.name)
+    return tuple(reads)
+
+
+def agent_contract_for(
+    reads: Sequence[UrlKwarg | QueryParam], field_audiences: Mapping[str, FieldMarking] | None
+) -> OfflineContract | None:
+    """The ``OfflineContract`` a spec's ``reads`` and ``field_audiences`` declare, or ``None``.
+
+    Both spec classes answer ``agent_contract()`` with this, so a registry entry
+    answers the transports published against a release that took the contract
+    at registration the contract the same declarations made there. ``None`` when
+    both are empty, as an entry registered without a contract answered.
+    """
+    # One arc to coverage: ``test_audiences_alone_are_a_contract`` fails without
+    # the second conjunct, ``test_reads_alone_carry_no_audiences`` without the first.
+    if not reads and not field_audiences:
+        return None
+    return OfflineContract(
+        url_kwargs=tuple(entry for entry in reads if isinstance(entry, UrlKwarg)),
+        query_params=tuple(entry for entry in reads if isinstance(entry, QueryParam)),
+        field_audiences=dict(field_audiences) if field_audiences else None,
     )
 
 

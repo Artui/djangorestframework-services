@@ -5,16 +5,27 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 from django.core.exceptions import ImproperlyConfigured
+from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
 from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 
+from rest_framework_services.service_specs.as_kernel_spec import as_kernel_spec
 from rest_framework_services.types.affordance import Affordance
 from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
+from rest_framework_services.types.field_marking import FieldMarking
+from rest_framework_services.types.offline_contract import OfflineContract
+from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.selector_spec import SelectorSpec
-from rest_framework_services.types.utils import is_row_condition, validate_metadata
+from rest_framework_services.types.url_kwarg import UrlKwarg
+from rest_framework_services.types.utils import (
+    agent_contract_for,
+    is_row_condition,
+    validate_metadata,
+    validate_reads,
+)
 
 InputT = TypeVar("InputT")
 ResultT = TypeVar("ResultT")
@@ -261,6 +272,24 @@ class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
             operation rather than to a name-keyed side table that drifts the day
             a spec is renamed. It never merges with a nested spec's metadata and
             is stored exactly as given. See [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec].
+        reads: The arguments a caller with no HTTP request sends in place of
+            one: each [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg]
+            a route would have captured and each
+            [`QueryParam`][rest_framework_services.types.query_param.QueryParam]
+            a query string would have carried. HTTP never reads it, since its
+            URLconf and query string are the real thing. Compiled into the
+            kernel spec's ``reads``, one ``Parameter`` each, and routed back onto
+            ``view.kwargs`` and ``request.query_params`` for the permission
+            classes; see
+            [`as_kernel_spec`][rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec].
+            Kept as a tuple; anything but those two declarations, or a name
+            declared twice, is refused when the spec is built.
+        field_audiences: Per-field markings layered over the output
+            serializer's own, at its top level: what an agent audience sees of
+            this operation's output, declared once on the operation rather than
+            per mount. Compiled onto the output's presenter. Declared with no
+            output serializer (``output_selector_spec.output_serializer``), it
+            has nothing to mark, and the compile refuses it.
     """
 
     # The service callable and per-call dispatch flags.
@@ -347,12 +376,39 @@ class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
     affordances: Sequence[Affordance] | None = None
     response_finalizer: Callable[..., Response | None] | None = None
     metadata: Mapping[str, Any] | None = None
+    # Naming: the kernel's word for the arguments a spec takes with no Validator
+    # in front of them, which is what these compile to, so the one declaration
+    # has one name on both sides. Last, with ``field_audiences``, so a spec
+    # built positionally keeps every earlier field where it was.
+    reads: Sequence[UrlKwarg | QueryParam] = ()
+    field_audiences: Mapping[str, FieldMarking] | None = None
 
     def __post_init__(self) -> None:
         validate_metadata(self.metadata, label="ServiceSpec")
+        object.__setattr__(self, "reads", validate_reads(self.reads, label="ServiceSpec"))
         _validate_many_argument(self)
         _validate_target_lookups(self)
         _validate_affordances(self)
+
+    def as_kernel_spec(self) -> KernelServiceSpec:
+        """This spec compiled to django-service-specs' ``ServiceSpec``.
+
+        What makes it a kernel ``SpecSource``: ``dispatch``, ``authorize``, the
+        registry and the schemas take it as it is and compile it once. See
+        [`as_kernel_spec`][rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec].
+        """
+        # ``as_kernel_spec`` tells the two kinds apart at runtime and is typed for
+        # both; a ``ServiceSpec`` always compiles to the kernel's ``ServiceSpec``.
+        return cast(KernelServiceSpec, as_kernel_spec(self))
+
+    def agent_contract(self) -> OfflineContract | None:
+        """The ``OfflineContract`` this spec's ``reads`` and ``field_audiences`` declare.
+
+        What a registry entry's ``agent_contract`` answers, for the transports
+        published against a release that took the contract at registration.
+        ``None`` when both are empty, as an entry registered without one was.
+        """
+        return agent_contract_for(self.reads, self.field_audiences)
 
 
 def _validate_many_argument(spec: ServiceSpec[Any, Any, Any]) -> None:

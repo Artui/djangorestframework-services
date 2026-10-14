@@ -1,0 +1,101 @@
+"""``kernel_spec_variant`` - a drfs spec's compiled form, as the DRF edge needs it per request."""
+
+from __future__ import annotations
+
+import dataclasses
+import threading
+import weakref
+from typing import Any
+
+from django.core.exceptions import ImproperlyConfigured
+from django_service_specs.specs.kernel_spec import kernel_spec
+from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
+from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
+from django_service_specs.types.selector_kind import SelectorKind
+
+from rest_framework_services.service_specs.as_kernel_spec import as_kernel_spec
+
+_Variant = tuple[bool | None, bool, bool]
+
+# id(source) -> (a weak reference to it, its variants by key). Keyed by identity
+# for the reason ``kernel_spec`` gives: a frozen dataclass compares by its fields,
+# so two equal declarations would share one variant, and a ``Grant`` binds the
+# compiled spec by identity. The callback drops a source's variants with it.
+_VARIANTS: dict[int, tuple[weakref.ref[Any], dict[_Variant, Any]]] = {}
+_LOCK = threading.Lock()
+
+
+def kernel_spec_variant(
+    spec: Any,
+    *,
+    partial: bool | None = None,
+    unguarded: bool = False,
+    target: bool = False,
+) -> KernelServiceSpec | KernelSelectorSpec:
+    """``spec`` compiled as one request of the DRF edge dispatches it, once per variant.
+
+    With every keyword at its default this is ``kernel_spec(spec)``, the one
+    compiled spec every kernel entry point reads. Each other combination is
+    compiled once per source object and kept while it lives, so a request
+    never recompiles and a ``Grant`` minted for a variant covers it on the
+    next call too.
+
+    - ``partial``: the per-request flag a ``PATCH`` sets, compiled by
+      [`as_kernel_spec`][rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec];
+      ``None`` reads the spec's own.
+    - ``unguarded``: no ``permissions``. An HTTP view has already run DRF's
+      ``check_permissions``, so the edge hands ``dispatch`` a ``Grant`` and the
+      compiled checks would only be asked again against a synthesized request.
+    - ``target``: a service spec that declares no target lookup gets a
+      stand-in instance lookup, so the edge can hand ``dispatch(target=...)``
+      the row the view's ``get_object()`` resolved; the kernel refuses
+      ``target=`` on a spec with no target selector. The stand-in reads no
+      arguments and is never called: a dispatch reaching it raises
+      ``ImproperlyConfigured``. A spec with a target lookup keeps its own.
+    """
+    key: _Variant = (partial, unguarded, target)
+    if key == (None, False, False):
+        return kernel_spec(spec)
+    with _LOCK:
+        held = _VARIANTS.get(id(spec))
+        if held is None:
+            source_id = id(spec)
+            source = weakref.ref(spec, lambda _dead: _VARIANTS.pop(source_id, None))
+            held = _VARIANTS[source_id] = (source, {})
+        variants = held[1]
+        compiled = variants.get(key)
+        if compiled is None:
+            compiled = variants[key] = _compile(spec, partial, unguarded, target)
+    return compiled
+
+
+def _compile(
+    spec: Any, partial: bool | None, unguarded: bool, target: bool
+) -> KernelServiceSpec | KernelSelectorSpec:
+    compiled = kernel_spec(spec) if partial is None else as_kernel_spec(spec, partial=partial)
+    changes: dict[str, Any] = {}
+    if unguarded:
+        changes["permissions"] = None
+    # One arc to coverage, so each conjunct is named:
+    # test_a_selector_spec_takes_no_stand_in fails without the first, and
+    # test_a_declared_lookup_is_kept without the second.
+    if (
+        target
+        and isinstance(compiled, KernelServiceSpec)
+        and compiled.target_selector_spec() is None
+    ):
+        changes["instance_selector_spec"] = _STAND_IN
+    return dataclasses.replace(compiled, **changes) if changes else compiled
+
+
+def _handed_by_the_edge() -> Any:
+    raise ImproperlyConfigured(
+        "The stand-in instance lookup was asked for its row. It exists so the DRF edge "
+        "can hand dispatch the row the view resolved; dispatch it with target=."
+    )
+
+
+_STAND_IN = KernelSelectorSpec(kind=SelectorKind.RETRIEVE, selector=_handed_by_the_edge)
+
+
+__all__ = ["kernel_spec_variant"]
