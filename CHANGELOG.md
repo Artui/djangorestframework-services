@@ -189,9 +189,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - in-process Python `date`, `datetime`, `time`, `timedelta`, `Decimal`
     and `UUID` values.
 
-  A partial call over a dataclass input, or a `DataclassSerializer`
-  subclass, is refused with `ImproperlyConfigured`; a `PATCH` over one is
-  validated whole. A `many` spec needs an input serializer, and takes its
+  `dispatch_spec(partial=True)` over a dataclass input, or a
+  `DataclassSerializer` subclass, is refused with `ImproperlyConfigured`, as
+  is a spec declaring `partial=True` over one, on its first call. A `PATCH`
+  through the update views over one is validated as a whole call, so a
+  field it leaves out is refused as required. A `many` spec needs an input serializer, and takes its
   list bounds from the `ListSerializer`. A `many` call's refusals are keyed
   by row (in DRF's list shape when the rows arrive bare); a non-list, null or
   out-of-bounds list is refused under `many_argument`, and other keys beside
@@ -237,11 +239,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so a service reading `data` saw the client's: a hook supplying
   `{"tenant": request.user.tenant}` could be overridden by a body carrying
   `tenant`.
-- **The query string on a selector view feeds its `filter_set` and is never
-  an argument to the selector**, unless the spec declares the name with
-  `reads=[QueryParam(...)]`. This held before and is kept across the move to
-  one argument pool, where it would otherwise have widened: a `?tenant=`
-  cannot reach a selector's `tenant` keyword.
+- **The one argument pool does not let the query string on a selector view
+  reach the selector.** The query string feeds the view's `filter_set` and
+  is never an argument to the selector, unless the spec declares the name
+  with `reads=[QueryParam(...)]`. Released versions kept it out by binding
+  the selector's arguments separately; with one pool it would have become
+  arguments, so a `?tenant=` could have reached a selector's `tenant`
+  keyword. No released version was affected.
 
 ## [0.57.0] — 2026-10-13
 
