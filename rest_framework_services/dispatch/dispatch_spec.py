@@ -97,7 +97,11 @@ def dispatch_spec(
             is passed. ``SPREAD_CALLER_WINS`` is refused with ``ValueError``.
         unknown_arguments: ``IGNORE`` (the default here; the kernel's is
             ``REJECT``) or ``REJECT``. ``PASSTHROUGH`` is refused with
-            ``ValueError``.
+            ``ValueError``. ``REJECT`` names every undeclared key in one
+            ``"Unexpected argument(s): ..."`` message under
+            ``non_field_errors``, a row's inside that row; a seed's name is
+            never one, ``view`` aside; and a selector or target lookup taking
+            a bare ``**kwargs`` drops an undeclared key rather than refuse it.
         on_target_resolved: The guard, called ``guard(spec, context,
             instance=target)`` with an ``OfflineContext`` of the ``user``,
             ``request`` and ``view`` passed here. A service spec's target is
