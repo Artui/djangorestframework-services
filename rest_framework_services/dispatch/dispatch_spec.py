@@ -96,9 +96,15 @@ def dispatch_spec(
             handed this call's.
         success_status: Accepted for the transports that pass it. The result
             carries no status: a transport answers its own.
-        argument_binding: Accepted for the transports that pass it; a call has
-            one pool, whichever of ``AUTO``, ``BUNDLE`` or ``SPREAD_AUTHOR_WINS``
-            is passed. ``SPREAD_CALLER_WINS`` is refused with ``ValueError``.
+        argument_binding: Whether a service spec with no ``input_serializer``
+            takes the caller's values for its own parameters: only under
+            ``SPREAD_AUTHOR_WINS``. ``AUTO`` is ``BUNDLE`` for a service, as it
+            always was, so a caller's value reaches it only through what reads
+            it - the Validator, the target lookup and the declared ``reads`` -
+            and a request body never fills ``def destroy(*, instance,
+            hard=False)``'s ``hard``. A selector spec's parameters are its
+            caller's under every binding. ``SPREAD_CALLER_WINS`` is refused
+            with ``ValueError``.
         unknown_arguments: ``IGNORE`` (the default here; the kernel's is
             ``REJECT``) or ``REJECT``. ``PASSTHROUGH`` is refused with
             ``ValueError``. ``REJECT`` names every undeclared key in one
@@ -124,7 +130,11 @@ def dispatch_spec(
             target lookup, or a field of a single call's input serializer, by
             its name or its ``source``) is put into the arguments over the
             client's value and checked as it would be; a value naming a seed is
-            dropped; the rest goes to ``dispatch(extra_kwargs=)``. The spec's
+            dropped; the rest of a single service call's outranks every key
+            the input serializer hands back, a ``source="*"`` field or one its
+            ``validate()`` adds, while the client's value for it stays in
+            ``data`` and the bound ``serializer`` stays bound; on every other
+            call the rest goes to ``dispatch(extra_kwargs=)``. The spec's
             ``kwargs`` provider is called here, from ``view`` and ``request``,
             and its answer is split the same way over the hooks', a key it
             names a seed refused; a key its ``TypedDict`` fills is never the

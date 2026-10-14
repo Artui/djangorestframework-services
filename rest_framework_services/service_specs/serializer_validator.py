@@ -9,6 +9,7 @@ from typing import Any
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from django_service_specs.parameters.parameters import Parameters
+from django_service_specs.pool.reserved_pool_seeds import RESERVED_POOL_SEEDS
 from django_service_specs.validation.validated import Validated
 from django_service_specs.validation.validation_context import ValidationContext
 from django_service_specs.validation.validator import Validator
@@ -89,7 +90,11 @@ class SerializerValidator(Validator):
     instance's ``__init__`` fields, whether a dataclass was declared or a
     ``DataclassSerializer`` subclass was; and nothing for any other object a
     serializer's ``validate()`` returns, which reaches the service only as
-    ``data``.
+    ``data``. **A key named like a seed of the call is a value only in**
+    ``data``: DRF's ``HiddenField(default=CurrentUserDefault())`` named
+    ``user``, or a key a ``validate()`` adds named ``result``, stays in
+    ``validated_data`` as the serializer built it, and the service's ``user``
+    is the call's principal, as drfs always handed them (see ``_unseeded``).
 
     **A partial call over a dataclass is refused**, a ``DataclassSerializer``
     subclass included: one builds its instance from every field, and a field
@@ -192,7 +197,9 @@ class SerializerValidator(Validator):
         if not serializer.is_valid():
             raise InvalidArguments(serializer.errors)
         data: Any = serializer.validated_data
-        return Validated(values=_values(data), data=data, pool={"serializer": serializer})
+        return Validated(
+            values=_unseeded(_values(data), context), data=data, pool={"serializer": serializer}
+        )
 
     def _refuse_partial(self, context: ValidationContext) -> None:
         # One branch to coverage: test_a_partial_call_over_a_dataclass_is_refused
@@ -251,6 +258,25 @@ def _by_row(errors: Any, indices: list[int]) -> dict[Any, Any]:
     if isinstance(errors, list):
         errors = {position: row for position, row in enumerate(errors) if row}
     return {indices[key] if isinstance(key, int) else key: detail for key, detail in errors.items()}
+
+
+def _unseeded(values: Mapping[str, Any], context: ValidationContext) -> dict[str, Any]:
+    """``values`` less every key a seed of the call, or the bound serializer, holds.
+
+    The kernel seeds those names itself and refuses a validated value named
+    like one, where a serializer has always been free to validate one into
+    ``validated_data``: the service read it in ``data`` and the seed under its
+    name. So such a key is handed on in ``data`` alone, and the seed is never
+    replaced. Each part of the set is held by the test that fails without it:
+    ``RESERVED_POOL_SEEDS`` by
+    test_a_key_a_validate_adds_named_like_a_seed_stays_in_data (``result`` is
+    no seed of the call's base pool), the call's own seeds by
+    test_a_key_named_like_a_registered_seed_stays_in_data, and ``serializer``,
+    which this Validator binds for the call, by
+    test_a_key_a_validate_adds_named_like_the_bound_serializer_stays_in_data.
+    """
+    seeded = RESERVED_POOL_SEEDS | context.ambient.keys() | {"serializer"}
+    return {name: value for name, value in values.items() if name not in seeded}
 
 
 def _values(data: Any) -> dict[str, Any]:
