@@ -19,7 +19,7 @@ from rest_framework_services import (
     dispatch_spec,
     render_spec_output,
 )
-from rest_framework_services.dispatch.build_offline_context import build_offline_context
+from rest_framework_services.service_specs.build_offline_context import build_offline_context
 from rest_framework_services.types.offline_context import OfflineContext
 from rest_framework_services.types.offline_service_view import OfflineServiceView
 from tests.testapp.models import Post
