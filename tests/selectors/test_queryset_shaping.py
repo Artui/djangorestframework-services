@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import django_filters
 import pytest
 from django.contrib.auth.models import User
 from django.core.exceptions import ImproperlyConfigured
@@ -64,73 +65,46 @@ def _post_qs_by_pk(*, pk: int) -> QuerySet[Post]:
     return Post.objects.filter(pk=pk)
 
 
-class _PublishedFilterSet:
-    """Duck-typed ``django-filter`` FilterSet stand-in: ``(data, queryset) -> .qs``.
+class _PublishedFilterSet(django_filters.FilterSet):
+    """Narrows by ``?published=``; absent, it narrows nothing."""
 
-    Exercises the only contract services relies on — narrow by ``?published=`` —
-    without pulling in the optional ``django-filter`` dependency.
+    published = django_filters.BooleanFilter()
+
+    class Meta:
+        model = Post
+        fields = ["published"]
+
+
+class _ValidatingFilterSet(django_filters.FilterSet):
+    """Narrows by ``?status=`` against a closed set of choices, matched on the
+    title; an out-of-set value is invalid, an absent one is a no-op."""
+
+    status = django_filters.ChoiceFilter(
+        field_name="title", choices=[("draft", "draft"), ("shipped", "shipped")]
+    )
+
+    class Meta:
+        model = Post
+        fields: list[str] = []
+
+
+class _OwnerScopedFilterSet(django_filters.FilterSet):
+    """Request-scoped: narrows by ``self.request.user`` the way a FilterSet migrated
+    off ``DjangoFilterBackend`` would.
+
+    ``FilterSet`` takes ``request`` on its constructor, so the live request is
+    handed in; read as ``None`` it would raise ``AttributeError`` (a 500).
     """
 
-    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
-        self._data = data
-        self._queryset = queryset
+    title = django_filters.CharFilter()
+
+    class Meta:
+        model = Post
+        fields = ["title"]
 
     @property
     def qs(self) -> QuerySet[Post]:
-        raw = self._data.get("published")
-        if raw is None:
-            return self._queryset
-        wanted = str(raw).lower() in ("1", "true", "yes")
-        return self._queryset.filter(published=wanted)
-
-
-class _ValidatingFilterSet:
-    """Duck-typed FilterSet that also models django-filter's ``is_valid()`` /
-    ``errors`` surface, so the ``400-on-invalid-filter`` contract can be
-    exercised without pulling in the optional ``django-filter`` dependency.
-
-    Narrows by ``?status=`` against a closed set of choices; an out-of-set value
-    is invalid (as a ``ChoiceFilter`` would be), an absent one is a no-op.
-    """
-
-    _CHOICES = ("draft", "shipped")
-
-    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
-        self._queryset = queryset
-        self._raw = data.get("status")
-
-    def is_valid(self) -> bool:
-        return self._raw is None or self._raw in self._CHOICES
-
-    @property
-    def errors(self) -> dict[str, list[str]]:
-        return {
-            "status": [f"Select a valid choice. {self._raw} is not one of the available choices."]
-        }
-
-    @property
-    def qs(self) -> QuerySet[Post]:
-        if self._raw is None:
-            return self._queryset
-        return self._queryset.filter(title=self._raw)
-
-
-class _OwnerScopedFilterSet:
-    """Request-scoped FilterSet stand-in: narrows by ``self.request.user`` the way a
-    FilterSet migrated off ``DjangoFilterBackend`` would.
-
-    It declares ``request`` on its constructor, so the dispatcher forwards the live
-    request into it. Under the old ``filter_set(data, queryset)`` call it would read
-    ``self.request`` as ``None`` and raise ``AttributeError`` (a 500).
-    """
-
-    def __init__(self, *, data: Any, queryset: QuerySet[Post], request: Any = None) -> None:
-        self._queryset = queryset
-        self.request = request
-
-    @property
-    def qs(self) -> QuerySet[Post]:
-        return self._queryset.filter(author__name=self.request.user.username)
+        return super().qs.filter(author__name=self.request.user.username)
 
 
 @pytest.mark.django_db
