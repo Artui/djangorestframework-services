@@ -34,6 +34,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model, QuerySet
 from django.http import QueryDict
+from django_service_specs.dispatch.present import present
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
@@ -195,11 +196,10 @@ def test_an_async_twin_takes_the_same_arguments_as_its_sync_twin(
 # --- reserved pool seeds in target resolution -----------------------------
 #
 # ``RESERVED_POOL_SEEDS`` exists because a client-routable value named after a
-# dispatcher seed would override the dispatcher's authoritative one. Both cores
-# hand-build the pool for the nested target selectors instead of going through
-# ``merge_arguments``, so both have to strip the seeds themselves — and the two
-# tests that pinned this were sync-only, so the async core's copy was unguarded
-# by anything.
+# dispatcher seed would override the dispatcher's authoritative one. The target
+# lookup runs inside the shared preparation, which the async core reaches through
+# its one thread hop, so these hold that hop to handing the lookup the same seeds
+# and the same stripped arguments the sync core hands it.
 
 
 @pytest.mark.django_db(transaction=True)
@@ -248,8 +248,8 @@ async def test_params_cannot_shadow_the_user_in_collection_resolution_on_either_
 
 @pytest.mark.django_db(transaction=True)
 async def test_params_cannot_fill_a_hidden_key_in_target_resolution_on_either_core() -> None:
-    """The same hand-built pool, stripped of a ``NotClientInput`` key as well as of
-    the seeds: each core strips it itself, so each needs the check."""
+    """The lookup's arguments are stripped of a ``NotClientInput`` key as well as
+    of the seeds, on both sides of the hop."""
     seen: list[Any] = []
     post = await Post.objects.acreate(title="p")
 
@@ -324,12 +324,12 @@ async def test_a_key_the_lookup_hides_never_reaches_open_changes_on_either_core(
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_registered_pool_seed_reaches_target_resolution_on_either_core() -> None:
-    """A project's own seed, in the hand-built pool that picks the row.
+    """A project's own seed, in the lookup that picks the row.
 
-    This module's subject exactly: each core assembles that pool itself, so a
-    channel threaded into one and not the other is drift no behavioural test of a
+    The async core hands its ``pool_seeds`` across the hop to the shared
+    preparation, so a seed dropped on the way is drift no behavioural test of a
     single core can see. The client-supplied ``tenant`` is here because a
-    registered name has to be stripped from the spread on both sides too.
+    registered name is never the client's to fill, on either side.
     """
     seen: list[Any] = []
     real = await User.objects.acreate(username="real")
@@ -551,8 +551,8 @@ async def test_a_services_own_list_agrees_across_the_cores() -> None:
 
 
 async def test_a_refused_list_return_reads_the_same_on_either_core() -> None:
-    # Each core keeps its own copy of the check, so this is what holds them to one
-    # message. Nothing is written, so no database is needed.
+    # The kernel's ``dispatch`` and ``adispatch`` each check the return, so this is
+    # what holds them to one message. Nothing is written, so no database is needed.
     spec = ServiceSpec(
         service=lambda: {"id": 1}, output_selector_spec=_LIST_WITHOUT_A_SELECTOR, atomic=False
     )
@@ -746,6 +746,95 @@ async def test_a_progress_reporter_that_queries_runs_on_either_core() -> None:
     assert sync_summary == async_summary
     # One report per core, each into the sink its own provider built after querying.
     assert reports == [(1, 1), (1, 1)]
+
+
+# --- the serializer-context seed -------------------------------------------
+#
+# The edge registers the view's serializer-context layers as a seed, in the
+# shared preparation. The async core reaches that preparation across a thread
+# hop, so a view or hook dropped on the way leaves its serializers with a
+# context the sync core's never see.
+
+_CONTEXT_KEYS = ("base", "shared", "hook_in", "hook_out", "spec_in", "spec_out")
+
+
+class _ContextView:
+    """A DRF-like view: its ``get_serializer_context`` is the first layer."""
+
+    def __init__(self) -> None:
+        self.request = build_offline_context(None).request
+        self.kwargs: dict[str, Any] = {}
+
+    def get_serializer_context(self) -> dict[str, Any]:
+        return {"request": self.request, "view": self, "base": "view", "shared": "view"}
+
+
+class _ContextOut(serializers.Serializer):
+    title = serializers.CharField()
+    seen_context = serializers.SerializerMethodField()
+
+    def get_seen_context(self, obj: Any) -> dict[str, Any]:
+        return {key: self.context[key] for key in _CONTEXT_KEYS if key in self.context}
+
+
+def _titled(*, data: Any) -> dict[str, Any]:
+    return {"title": data["title"]}
+
+
+async def test_the_serializer_context_seed_reaches_both_serializers_on_either_core() -> None:
+    """The view's context, the hooks over it and the spec's callables over both,
+    seen alike by the input serializer and the presented output on either core.
+    Nothing is read, so no database is needed."""
+    seen: list[dict[str, Any]] = []
+
+    class _ContextIn(serializers.Serializer):
+        title = serializers.CharField()
+
+        def validate(self, attrs: Any) -> Any:
+            seen.append({key: self.context[key] for key in _CONTEXT_KEYS if key in self.context})
+            return attrs
+
+    spec = ServiceSpec(
+        service=_titled,
+        input_serializer=_ContextIn,
+        input_serializer_context=lambda: {"spec_in": 1},
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            output_serializer=_ContextOut,
+            output_serializer_context=lambda: {"spec_out": 1},
+        ),
+        atomic=False,
+    )
+
+    def kwargs() -> dict[str, Any]:
+        view = _ContextView()
+        return {
+            "user": None,
+            "params": {"title": "hi"},
+            "request": view.request,
+            "view": view,
+            "view_hooks": ViewHooks(
+                input_serializer_context={"shared": "hook", "hook_in": "in"},
+                output_serializer_context=lambda result: {
+                    "shared": "hook",
+                    "hook_out": result["title"],
+                },
+            ),
+        }
+
+    sync_result = await sync_to_async(dispatch_spec, thread_sensitive=True)(spec, **kwargs())
+    async_result = await adispatch_spec(spec, **kwargs())
+    sync_payload = await sync_to_async(present, thread_sensitive=True)(spec, sync_result)
+    async_payload = await sync_to_async(present, thread_sensitive=True)(spec, async_result)
+
+    assert seen[0] == seen[1] == {"base": "view", "shared": "hook", "hook_in": "in", "spec_in": 1}
+    assert sync_payload == async_payload
+    assert async_payload["seen_context"] == {
+        "base": "view",
+        "shared": "hook",
+        "hook_out": "hi",
+        "spec_out": 1,
+    }
 
 
 # --- the render twins -----------------------------------------------------

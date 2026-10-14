@@ -108,9 +108,11 @@ def dispatch_spec(
             and before the spec's own preconditions, and never a missing row.
         progress: The transport's progress reporter, combined with
             ``view_hooks.progress``.
-        view_hooks: The calling view's resolved hook chains: ``extra_kwargs``
-            goes to ``dispatch(extra_kwargs=)``, beneath the spec's own provider;
-            ``input_data`` is merged over the arguments, beneath the spec's
+        view_hooks: The calling view's resolved hook chains: an ``extra_kwargs``
+            value for a read the spec declares (its callable's or its target
+            lookup's) is put into the arguments over the client's value, and
+            the rest goes to ``dispatch(extra_kwargs=)``, all beneath the spec's
+            own provider; ``input_data`` is merged over the arguments, beneath the spec's
             ``input_data``; ``progress`` joins ``progress``.
         instance: The row the caller resolved itself (a view's
             ``get_object()``), handed to ``dispatch`` as its target; no lookup

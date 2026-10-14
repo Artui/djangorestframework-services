@@ -193,7 +193,8 @@ class TestADispatchService:
 class TestADispatchTypeError:
     async def test_rejects_non_spec(self) -> None:
         with pytest.raises(TypeError, match="ServiceSpec or SelectorSpec"):
-            await adispatch_spec("nope", user=None, params={})  # type: ignore[arg-type]
+            not_a_spec: Any = "nope"
+            await adispatch_spec(not_a_spec, user=None, params={})
 
 
 @pytest.mark.django_db(transaction=True)

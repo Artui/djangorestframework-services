@@ -150,7 +150,7 @@ def prepare_edge_call(
             {
                 **shared,
                 "arguments": arguments,
-                "extra_kwargs": route_hook_extras(variant, arguments, hooks.extra_kwargs),
+                "extra_kwargs": _route_hook_extras(variant, arguments, hooks.extra_kwargs),
                 "grant": Grant(variant, principal),
                 "pool_seeds": seeds,
             },
@@ -168,7 +168,7 @@ def prepare_edge_call(
                 {**row, **hooks.input_data} if isinstance(row, Mapping) else row
                 for row in arguments[spec.many_argument]
             ]
-        extra_kwargs = route_hook_extras(variant, arguments, hooks.extra_kwargs)
+        extra_kwargs = _route_hook_extras(variant, arguments, hooks.extra_kwargs)
         # A bulk call acts on no target, as on main: the guard is asked about ``None``.
         if on_target_resolved is not None:
             on_target_resolved(spec, guard_context, instance=None)
@@ -200,7 +200,7 @@ def prepare_edge_call(
         # Beneath ``spec.input_data``, which the kernel merges over the arguments.
         arguments.update(hooks.input_data)
     # Before the lookup, which a hook value for one of its reads scopes.
-    extra_kwargs = route_hook_extras(service, arguments, hooks.extra_kwargs)
+    extra_kwargs = _route_hook_extras(service, arguments, hooks.extra_kwargs)
     if handed:
         target = instance
     elif instance is None:
@@ -391,7 +391,7 @@ def _flat(
     return flat
 
 
-def route_hook_extras(
+def _route_hook_extras(
     variant: KernelServiceSpec | KernelSelectorSpec,
     arguments: Any,
     extras: Mapping[str, Any] | None,
