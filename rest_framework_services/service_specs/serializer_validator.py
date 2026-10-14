@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
@@ -20,6 +20,7 @@ from rest_framework_services.service_specs.utils import (
     bind_serializer,
     describe_serializer,
     input_parameters,
+    input_view_layers,
     serializer_context,
 )
 
@@ -63,7 +64,14 @@ class SerializerValidator(Validator):
       ``validate()`` reading ``self.context["request"]`` finds a request
       rather than a ``KeyError``. What a registered request's ``user`` is, is
       the transport's to make the principal; the Validator never writes to a
-      call's own objects.
+      call's own objects. Over that, the input half of the view hooks a DRF
+      edge registered for the call, then ``serializer_context``, the spec's own
+      ``input_serializer_context``, each winning on a key it shares with what
+      it layers over (see
+      ``serializer_context`` in ``service_specs/utils.py``).
+      The callable is asked once per call, a ``many`` call's included, and
+      declares what it reads from the call's pool: ``request``, ``view``,
+      ``user``, a registered seed, or an argument.
 
     A refusal is one
     [`InvalidArguments`][rest_framework_services.service_specs.invalid_arguments.InvalidArguments],
@@ -104,7 +112,12 @@ class SerializerValidator(Validator):
     list-level message sits under ``non_field_errors``.
     """
 
-    def __init__(self, serializer: type[Any]) -> None:
+    def __init__(
+        self,
+        serializer: type[Any],
+        *,
+        serializer_context: Callable[..., Mapping[str, Any]] | None = None,
+    ) -> None:
         # One branch to coverage, so each condition is held by its own test:
         # the ``type`` by test_anything_but_a_serializer_class_or_a_dataclass_is_refused_when_declared[an-instance],
         # which ``issubclass`` would raise on; the serializer class by
@@ -123,6 +136,7 @@ class SerializerValidator(Validator):
                 f"SerializerValidator takes a Serializer subclass or a dataclass; got {serializer!r}."
             )
         self.serializer = serializer
+        self.serializer_context = serializer_context
         # The kernel reads this per instance: the answer belongs to the
         # declaration. A dataclass read through a DataclassSerializer, and a
         # DataclassSerializer subclass declared outright (as the gallery
@@ -159,7 +173,7 @@ class SerializerValidator(Validator):
             data=arguments,
             many=True,
             partial=context.partial,
-            context=serializer_context(context.principal, context.ambient, arguments),
+            context=self._context(context, arguments),
         )
         if not serializer.is_valid():
             raise InvalidArguments(_by_row(serializer.errors, list(rows)))
@@ -205,7 +219,19 @@ class SerializerValidator(Validator):
             # The collection a collection selector resolves is no row to update.
             instance=None if isinstance(target, QuerySet) else target,
             partial=context.partial,
-            context=serializer_context(context.principal, context.ambient, arguments),
+            context=self._context(context, arguments),
+        )
+
+    def _context(
+        self, context: ValidationContext, arguments: Mapping[str, Any] | list[Any]
+    ) -> dict[str, Any]:
+        """The serializer context for this call: DRF's, the view's input hooks, then the spec's."""
+        return serializer_context(
+            context.principal,
+            context.ambient,
+            arguments,
+            view_layers=input_view_layers(context.ambient),
+            provider=self.serializer_context,
         )
 
 

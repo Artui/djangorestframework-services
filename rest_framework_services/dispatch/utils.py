@@ -41,7 +41,7 @@ from rest_framework_services.service_specs.kernel_spec_variant import kernel_spe
 from rest_framework_services.service_specs.translate_dispatch_errors import (
     translate_dispatch_errors,
 )
-from rest_framework_services.service_specs.utils import describe_serializer
+from rest_framework_services.service_specs.utils import SERIALIZER_CONTEXT_SEED, describe_serializer
 from rest_framework_services.services.arun_service import arun_service
 from rest_framework_services.services.run_service import run_service
 from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
@@ -96,8 +96,9 @@ OUTPUT_SOURCE = "ServiceSpec.output_selector_spec.selector"
 TARGET_GUARD_SEED = "_target_guard"
 # The names the edge registers as seeds on every call. ``serializer`` is not one:
 # the Validator's own pool delivers it, and the kernel refuses a Validator that
-# binds a name a seed occupies.
-EDGE_SEEDS: tuple[str, ...] = ("request", "view")
+# binds a name a seed occupies. The view's serializer context layers ride in the
+# third, read by the adapters beneath the spec's own context callables.
+EDGE_SEEDS: tuple[str, ...] = ("request", "view", SERIALIZER_CONTEXT_SEED)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -145,7 +146,7 @@ def prepare_edge_call(
     hooks = view_hooks if view_hooks is not None else ViewHooks()
     # One object for the whole call: a ``Grant`` binds its principal by identity.
     principal = user if user is not None else unauthenticated_user()
-    seeds = edge_seeds(pool_seeds, request=request, view=view)
+    seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)
     shared: dict[str, Any] = {
         "principal": principal,
         "unknown_arguments": unknown_arguments,
@@ -284,27 +285,47 @@ def unauthenticated_user() -> Any:
     return factory() if factory is not None else None
 
 
-def edge_seeds(pool_seeds: PoolSeeds, *, request: Any, view: Any) -> PoolSeeds:
-    """The caller's seeds, behind this call's ``request`` and ``view``.
+def edge_seeds(
+    pool_seeds: PoolSeeds, *, request: Any, view: Any, view_hooks: ViewHooks
+) -> PoolSeeds:
+    """The caller's seeds, behind this call's ``request``, ``view`` and view hooks.
 
     The kernel resolves each seed against the base pool alone, so a resolver of
     the caller's that declares ``request`` or ``view`` - as this package's seeds
     always could - is handed them by a wrapper, which stays sync.
 
+    ``view_hooks`` is registered under ``SERIALIZER_CONTEXT_SEED``, where the
+    adapters read the view's serializer context layers from, **only when it
+    carries one**: a seed is in every ``**kwargs`` callable's pool, so a call
+    with no context hooks, as every transport but the HTTP views makes, adds
+    nothing there (test_a_call_with_no_context_hooks_registers_no_seed). One
+    branch to coverage, so each condition is named by the test that fails
+    without it: test_an_input_half_alone_reaches_the_input_serializer and
+    test_an_output_half_alone_reaches_the_output_serializer.
+
     Raises:
-        ImproperlyConfigured: ``pool_seeds`` registers ``request`` or ``view``,
-            which this edge seeds itself from what it was handed.
+        ImproperlyConfigured: ``pool_seeds`` registers ``request``, ``view`` or
+            ``SERIALIZER_CONTEXT_SEED``, which this edge seeds itself from what
+            it was handed.
     """
     clash = sorted(pool_seeds.names & set(EDGE_SEEDS))
     if clash:
         raise ImproperlyConfigured(
             f"pool_seeds registers {', '.join(repr(name) for name in clash)}, which "
-            "dispatch_spec seeds itself from the request and view it is handed. Pass them "
-            "as request= and view=, and remove the registration."
+            "dispatch_spec seeds itself from the request, view and view_hooks it is handed. "
+            "Pass them as request=, view= and view_hooks=, and remove the registration."
         )
     ambient = {"request": request, "view": view}
     wrapped = tuple((name, _with_ambient(resolver, ambient)) for name, resolver in pool_seeds.seeds)
-    return PoolSeeds(seeds=(("request", lambda: request), ("view", lambda: view), *wrapped))
+    layers: tuple[tuple[str, Callable[..., Any]], ...] = ()
+    if (
+        view_hooks.input_serializer_context is not None
+        or view_hooks.output_serializer_context is not None
+    ):
+        layers = ((SERIALIZER_CONTEXT_SEED, lambda: view_hooks),)
+    return PoolSeeds(
+        seeds=(("request", lambda: request), ("view", lambda: view), *layers, *wrapped)
+    )
 
 
 def _with_ambient(resolver: Callable[..., Any], ambient: Mapping[str, Any]) -> Callable[..., Any]:
