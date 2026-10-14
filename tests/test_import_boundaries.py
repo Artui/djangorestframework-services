@@ -40,6 +40,13 @@ PACKAGE_ROOT = Path(rest_framework_services.__file__).parent
 # ``openapi`` is the drf-spectacular integration, which exists only over HTTP.
 TRANSPORT_PACKAGES = frozenset({"views", "viewsets", "openapi"})
 
+# The adapter over django-service-specs: it compiles the specs here to the kernel's
+# and translates the kernel's answers back into DRF's. Importing DRF is what it is
+# for (the serializer is its Validator and its Presenter, DRF's permission classes
+# are its guard), so it is walled by a ratchet of its own below rather than held to
+# the neutral core's. It must never reach the HTTP views.
+EDGE_PACKAGES = frozenset({"service_specs"})
+
 # The package root re-exports the whole public surface, the HTTP views included,
 # so its imports say nothing about which layer depends on which.
 EXEMPT_MODULES = frozenset({"__init__.py"})
@@ -52,21 +59,7 @@ DRF_PREFIXES = ("rest_framework",)
 # keyword-pool resolver, the most transport-neutral code in the package, filed in
 # ``views/utils.py`` beside the view helpers that share its module.
 ALLOWED_VIEWS_IMPORTS: dict[str, frozenset[str]] = {
-    "dispatch/adispatch_spec.py": frozenset(
-        {
-            "rest_framework_services.views.mutation.resolve_success_status",
-            "rest_framework_services.views.mutation.utils",
-        }
-    ),
-    "dispatch/base_pool.py": frozenset({"rest_framework_services.views.utils"}),
-    "dispatch/dispatch_spec.py": frozenset(
-        {
-            "rest_framework_services.views.mutation.resolve_success_status",
-            "rest_framework_services.views.mutation.utils",
-        }
-    ),
     "dispatch/utils.py": frozenset({"rest_framework_services.views.utils"}),
-    "mutations/utils.py": frozenset({"rest_framework_services.views.utils"}),
     "selectors/acall_selector.py": frozenset({"rest_framework_services.views.utils"}),
     "selectors/call_selector.py": frozenset({"rest_framework_services.views.utils"}),
     "selectors/utils.py": frozenset({"rest_framework_services.views.utils"}),
@@ -87,13 +80,10 @@ ALLOWED_VIEWS_IMPORTS: dict[str, frozenset[str]] = {
 # Modules outside the transport that import DRF, and which of its modules.
 ALLOWED_DRF_IMPORTS: dict[str, frozenset[str]] = {
     "audience/build_audience_projection.py": frozenset({"rest_framework.serializers"}),
-    "dispatch/build_offline_context.py": frozenset({"rest_framework.request"}),
     "dispatch/enforce_permissions.py": frozenset({"rest_framework.exceptions"}),
-    "dispatch/renderable_serializer_class.py": frozenset({"rest_framework.serializers"}),
     "dispatch/utils.py": frozenset(
         {
             "rest_framework.exceptions",
-            "rest_framework.serializers",
             "rest_framework.settings",
         }
     ),
@@ -103,18 +93,6 @@ ALLOWED_DRF_IMPORTS: dict[str, frozenset[str]] = {
         {
             "rest_framework.fields",
             "rest_framework.serializers",
-        }
-    ),
-    # ``rest_framework`` and ``rest_framework.settings`` are read for one answer:
-    # which shape DRF's ``ListSerializer`` gives a failing row in this project, so
-    # a relation write's row error agrees with a nested serializer's in the same
-    # API. That is DRF's decision by definition -- its setting where it has one,
-    # its release where it does not -- so there is nothing neutral to read instead.
-    "mutations/utils.py": frozenset(
-        {
-            "rest_framework",
-            "rest_framework.exceptions",
-            "rest_framework.settings",
         }
     ),
     "selectors/acall_selector.py": frozenset({"rest_framework.request"}),
@@ -169,14 +147,20 @@ def _imported_modules(tree: ast.AST) -> Iterator[str]:
 def _is_outside_transport(relative: Path) -> bool:
     if relative.as_posix() in EXEMPT_MODULES:
         return False
-    return relative.parts[0] not in TRANSPORT_PACKAGES
+    return relative.parts[0] not in TRANSPORT_PACKAGES | EDGE_PACKAGES
 
 
-def _imports_matching(prefixes: tuple[str, ...]) -> dict[str, frozenset[str]]:
+def _is_edge(relative: Path) -> bool:
+    return relative.parts[0] in EDGE_PACKAGES
+
+
+def _imports_matching(
+    prefixes: tuple[str, ...], *, edge: bool = False
+) -> dict[str, frozenset[str]]:
     found: dict[str, frozenset[str]] = {}
     for path in sorted(PACKAGE_ROOT.rglob("*.py")):
         relative = path.relative_to(PACKAGE_ROOT)
-        if not _is_outside_transport(relative):
+        if not (_is_edge(relative) if edge else _is_outside_transport(relative)):
             continue
         targets = frozenset(
             module
@@ -231,4 +215,66 @@ def test_every_allowed_drf_import_still_exists() -> None:
     assert not gone, (
         f"These allowed imports of DRF no longer exist: {gone}. Remove them from "
         "ALLOWED_DRF_IMPORTS, so the list keeps recording what is left."
+    )
+
+
+# Modules of the adapter and the DRF modules each imports. Listed so that growth is a
+# decision: the adapter is the one place the neutral core's DRF dependencies are
+# supposed to concentrate.
+ALLOWED_EDGE_DRF_IMPORTS: dict[str, frozenset[str]] = {
+    # The compiler reads a serializer class to build the kernel's Validator.
+    "service_specs/as_kernel_spec.py": frozenset({"rest_framework.serializers"}),
+    "service_specs/build_offline_context.py": frozenset({"rest_framework.request"}),
+    # A DRF permission class is the guard the kernel's PermissionCheck wraps.
+    "service_specs/drf_permission_check.py": frozenset({"rest_framework.permissions"}),
+    # The dual-base exceptions: each is the kernel's refusal and DRF's, so a view
+    # that catches DRF's still catches it.
+    "service_specs/invalid_arguments.py": frozenset({"rest_framework.exceptions"}),
+    "service_specs/not_permitted.py": frozenset({"rest_framework.exceptions"}),
+    "service_specs/principal_unavailable.py": frozenset({"rest_framework.exceptions"}),
+    "service_specs/register_drf_row_errors.py": frozenset({"rest_framework.exceptions"}),
+    "service_specs/renderable_serializer_class.py": frozenset({"rest_framework.serializers"}),
+    # The serializer is the spec's Presenter and Validator.
+    "service_specs/serializer_presenter.py": frozenset(
+        {"rest_framework.fields", "rest_framework.serializers"}
+    ),
+    "service_specs/serializer_validator.py": frozenset({"rest_framework.serializers"}),
+    "service_specs/translate_dispatch_errors.py": frozenset({"rest_framework.exceptions"}),
+    # ``rest_framework`` and ``rest_framework.settings`` are read for one answer:
+    # which shape DRF's ``ListSerializer`` gives a failing row in this project, so a
+    # relation write's row error agrees with a nested serializer's in the same API.
+    # That is DRF's decision by definition -- its setting where it has one, its
+    # release where it does not -- so there is nothing neutral to read instead.
+    "service_specs/utils.py": frozenset(
+        {
+            "rest_framework",
+            "rest_framework.relations",
+            "rest_framework.serializers",
+            "rest_framework.settings",
+        }
+    ),
+}
+
+
+def test_the_adapter_never_imports_the_http_views() -> None:
+    found = _imports_matching(VIEWS_PREFIXES, edge=True)
+    assert not found, (
+        f"The adapter over the kernel imports the HTTP views: {found}. The views call "
+        "the adapter, never the reverse."
+    )
+
+
+def test_no_new_import_of_drf_in_the_adapter() -> None:
+    added = _difference(_imports_matching(DRF_PREFIXES, edge=True), ALLOWED_EDGE_DRF_IMPORTS)
+    assert not added, (
+        f"New imports of DRF in the adapter: {added}. Add them to "
+        "ALLOWED_EDGE_DRF_IMPORTS with the reason beside each."
+    )
+
+
+def test_every_allowed_adapter_drf_import_still_exists() -> None:
+    gone = _difference(ALLOWED_EDGE_DRF_IMPORTS, _imports_matching(DRF_PREFIXES, edge=True))
+    assert not gone, (
+        f"These allowed imports of DRF in the adapter no longer exist: {gone}. Remove "
+        "them from ALLOWED_EDGE_DRF_IMPORTS."
     )
