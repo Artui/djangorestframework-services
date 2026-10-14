@@ -15,8 +15,10 @@ from django_service_specs.output.presenter import Presenter
 from rest_framework import serializers
 from rest_framework.fields import empty as _drf_empty
 
-from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
-from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
+from rest_framework_services.service_specs.base_serializer_context import base_serializer_context
+from rest_framework_services.service_specs.renderable_serializer_class import (
+    renderable_serializer_class,
+)
 from rest_framework_services.service_specs.utils import serializer_context
 from rest_framework_services.types.field_marking import MARKING
 

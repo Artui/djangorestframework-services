@@ -28,7 +28,7 @@ from django_service_specs.types.selector_kind import SelectorKind
 from rest_framework import serializers
 
 from rest_framework_services.audience.build_audience_projection import build_audience_projection
-from rest_framework_services.dispatch.build_offline_context import build_offline_context
+from rest_framework_services.service_specs.build_offline_context import build_offline_context
 from rest_framework_services.service_specs.serializer_presenter import SerializerPresenter
 from rest_framework_services.types.field_marking import MARKING
 

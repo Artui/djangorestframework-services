@@ -27,7 +27,7 @@ def base_serializer_context(*, view: Any, request: Any) -> dict[str, Any]:
       extension point and may already be overridden, so it wins.
     - Otherwise DRF's shape, synthesized from the ``view`` / ``request`` the caller
       passed: the synthetic pair from
-      [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context]
+      [`build_offline_context`][rest_framework_services.service_specs.build_offline_context.build_offline_context]
       off HTTP, or ``None`` when the caller supplied neither. ``format`` is always
       ``None`` — content negotiation is an HTTP-only concern.
 

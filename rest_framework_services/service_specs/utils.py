@@ -35,8 +35,8 @@ from rest_framework import ISO_8601, relations, serializers
 from rest_framework.settings import api_settings
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
-from rest_framework_services.dispatch.base_serializer_context import base_serializer_context
-from rest_framework_services.dispatch.build_offline_context import build_offline_context
+from rest_framework_services.service_specs.base_serializer_context import base_serializer_context
+from rest_framework_services.service_specs.build_offline_context import build_offline_context
 from rest_framework_services.types.unset import UNSET
 
 MAX_SERIALIZER_APPEARANCES = 4

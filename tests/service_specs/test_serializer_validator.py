@@ -25,7 +25,7 @@ from rest_framework.request import Request
 from rest_framework.validators import UniqueValidator
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
-from rest_framework_services.dispatch.build_offline_context import build_offline_context
+from rest_framework_services.service_specs.build_offline_context import build_offline_context
 from rest_framework_services.service_specs.invalid_arguments import InvalidArguments
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
 from rest_framework_services.service_specs.translate_dispatch_errors import (

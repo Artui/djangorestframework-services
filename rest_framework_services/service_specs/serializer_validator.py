@@ -58,7 +58,7 @@ class SerializerValidator(Validator):
       ``ValidationContext.ambient`` as the kernel resolved them. A call that
       registered neither gets an offline request whose ``user`` is the
       principal and whose ``data`` is the arguments, built by
-      [`build_offline_context`][rest_framework_services.dispatch.build_offline_context.build_offline_context],
+      [`build_offline_context`][rest_framework_services.service_specs.build_offline_context.build_offline_context],
       so a ``CurrentUserDefault`` reads the principal and a field or a
       ``validate()`` reading ``self.context["request"]`` finds a request
       rather than a ``KeyError``. What a registered request's ``user`` is, is
