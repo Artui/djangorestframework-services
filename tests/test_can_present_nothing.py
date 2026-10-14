@@ -30,6 +30,12 @@ class _Out(serializers.Serializer):
     id = serializers.IntegerField()
 
 
+class _Row(serializers.Serializer):
+    """What a ``many`` spec's row is: the kernel refuses ``many`` with no validator."""
+
+    id = serializers.IntegerField(required=False)
+
+
 def _nothing(**_kwargs: Any) -> None:
     return None
 
@@ -60,8 +66,14 @@ def _service(
         output_selector_spec=output,
         allow_none=allow_none,
         many=many,
+        input_serializer=_Row if many else None,
         atomic=False,
     )
+
+
+def _no_rows(spec: Any) -> Any:
+    # A ``many`` spec's arguments are its rows, which must be a list.
+    return [] if getattr(spec, "many", False) else {}
 
 
 # ------------------------------------------------------------------ the table
@@ -171,7 +183,7 @@ def test_every_true_row_really_presents_none(spec: Any) -> None:
     ids=["selector-list", "service-list-re-read", "service-many"],
 )
 def test_a_list_result_is_presented_as_a_list(spec: Any) -> None:
-    value = dispatch_spec(spec, user=None, params={}).value
+    value = dispatch_spec(spec, user=None, params=_no_rows(spec)).value
     assert value is not None
     assert list(value) == []
 
@@ -182,7 +194,7 @@ def test_a_list_result_is_presented_as_a_list(spec: Any) -> None:
     [
         SelectorSpec(kind=LIST, selector=_nothing, output_serializer=_Out),
         _service(SelectorSpec(kind=LIST, selector=_nothing, output_serializer=_Out)),
-        ServiceSpec(service=_nothing, many=True, atomic=False),
+        ServiceSpec(service=_nothing, many=True, input_serializer=_Row, atomic=False),
     ],
     ids=["selector-list", "service-list-re-read", "service-many"],
 )
@@ -192,7 +204,7 @@ def test_a_list_callable_returning_none_is_presented_unrefused(spec: Any) -> Non
     anyway is the author's error that dispatch presents rather than refuses. The
     fourth, a ``LIST`` declaration with nothing to re-read, refuses it."""
     assert can_present_nothing(spec) is False
-    assert dispatch_spec(spec, user=None, params={}).value is None
+    assert dispatch_spec(spec, user=None, params=_no_rows(spec)).value is None
 
 
 @pytest.mark.django_db
