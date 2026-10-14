@@ -15,7 +15,7 @@ from django_service_specs.types.selector_kind import SelectorKind
 
 from rest_framework_services.service_specs.as_kernel_spec import as_kernel_spec
 
-_Variant = tuple[bool | None, bool, bool, bool]
+_Variant = tuple[bool | None, bool, bool, bool, bool]
 
 # id(source) -> (a weak reference to it, its variants by key). Keyed by identity
 # for the reason ``kernel_spec`` gives: a frozen dataclass compares by its fields,
@@ -32,6 +32,7 @@ def kernel_spec_variant(
     unguarded: bool = False,
     target: bool = False,
     server_input: bool = True,
+    spread: bool = False,
 ) -> KernelServiceSpec | KernelSelectorSpec:
     """``spec`` compiled as one request of the DRF edge dispatches it, once per variant.
 
@@ -61,9 +62,14 @@ def kernel_spec_variant(
       before it ran; and a typed one declining a key it is annotated to fill
       would reach the kernel's run as a ``KeyError``. Leaving either on would
       also call the provider twice.
+    - ``spread``: a service spec with no ``input_serializer`` takes the
+      caller's values for its own parameters, as an explicit
+      ``ArgumentBinding.SPREAD_AUTHOR_WINS`` dispatches it. Off by default, as
+      ``AUTO`` and ``BUNDLE`` dispatch a service, so ``kernel_spec(spec)``
+      declares none of them.
     """
-    key: _Variant = (partial, unguarded, target, server_input)
-    if key == (None, False, False, True):
+    key: _Variant = (partial, unguarded, target, server_input, spread)
+    if key == (None, False, False, True, False):
         return kernel_spec(spec)
     with _LOCK:
         held = _VARIANTS.get(id(spec))
@@ -74,14 +80,28 @@ def kernel_spec_variant(
         variants = held[1]
         compiled = variants.get(key)
         if compiled is None:
-            compiled = variants[key] = _compile(spec, partial, unguarded, target, server_input)
+            compiled = variants[key] = _compile(
+                spec, partial, unguarded, target, server_input, spread
+            )
     return compiled
 
 
 def _compile(
-    spec: Any, partial: bool | None, unguarded: bool, target: bool, server_input: bool
+    spec: Any,
+    partial: bool | None,
+    unguarded: bool,
+    target: bool,
+    server_input: bool,
+    spread: bool,
 ) -> KernelServiceSpec | KernelSelectorSpec:
-    compiled = kernel_spec(spec) if partial is None else as_kernel_spec(spec, partial=partial)
+    # One arc to coverage, so each operand is named: test_partial_compiles_the_request_s_flag
+    # fails without the first and test_one_spec_answers_each_binding_as_its_own
+    # without the second.
+    compiled = (
+        as_kernel_spec(spec, partial=partial, spread=spread)
+        if partial is not None or spread
+        else kernel_spec(spec)
+    )
     changes: dict[str, Any] = {}
     if unguarded:
         changes["permissions"] = None

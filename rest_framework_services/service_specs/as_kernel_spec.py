@@ -63,7 +63,7 @@ _ARRAYS: frozenset[Any] = frozenset({list, set, frozenset, tuple})
 
 
 def as_kernel_spec(
-    spec: Any, *, partial: bool | None = None
+    spec: Any, *, partial: bool | None = None, spread: bool = False
 ) -> KernelServiceSpec | KernelSelectorSpec:
     """Compile ``spec``, a drfs ``ServiceSpec`` or ``SelectorSpec``, to the kernel's.
 
@@ -86,8 +86,9 @@ def as_kernel_spec(
       becomes ``[Unrestricted()]``, the kernel's spelling of the same; ``None``
       compiles to no permissions, which the kernel's registry and dispatch
       refuse, so a drfs spec reaches a transport without a view only guarded.
-    - ``reads`` is what the selector, the target lookup and a service with no
-      ``input_serializer`` take, read off their signatures as
+    - ``reads`` is what the selector and the target lookup take, and under
+      ``spread`` what a service with no ``input_serializer`` takes, read off
+      their signatures as
       [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
       reads them: named parameters and the keys of an ``Unpack``-ed
       ``TypedDict``, with ``InputRequired`` read as required and a
@@ -117,6 +118,13 @@ def as_kernel_spec(
     partial. A spec with no ``input_serializer`` has nothing to relax, so it
     compiles unpartial.
 
+    ``spread`` is ``ArgumentBinding.SPREAD_AUTHOR_WINS``: a service with no
+    ``input_serializer`` then takes the caller's values for its own
+    parameters. Without it, as ``AUTO`` and ``BUNDLE`` dispatch a service, a
+    caller fills only what the Validator, the target lookup and the declared
+    ``reads`` read, so ``def destroy(*, instance, hard=False)`` is never handed
+    a ``hard`` the request sent (see ``_takes_its_signature``).
+
     **What the kernel refuses at construction is stripped or refused here**,
     naming the drfs field. Stripped, because drfs never read them: an output
     selector's ``kwargs``, an instance lookup's ``allow_none`` (the kernel would
@@ -135,11 +143,11 @@ def as_kernel_spec(
     for a service's output and as ``instance`` for a retrieve.
     """
     if isinstance(spec, AffordanceDeclarer):
-        return _service(spec, partial=partial)
+        return _service(spec, partial=partial, spread=spread)
     return _selector(spec, role=None, hidden=frozenset(), declared=())
 
 
-def _service(spec: Any, *, partial: bool | None) -> KernelServiceSpec:
+def _service(spec: Any, *, partial: bool | None, spread: bool) -> KernelServiceSpec:
     hidden = _owned_keys(
         [spec.service, *(spec.preconditions or ()), *_lookup_selectors(spec)],
     )
@@ -150,7 +158,7 @@ def _service(spec: Any, *, partial: bool | None) -> KernelServiceSpec:
     # In the lookup's order: the route a permission class reads is filled in it.
     taken = tuple(parameter.name for parameter in target.reads) if target is not None else ()
     reads = _merge(
-        _reflected(spec.service, hidden=hidden) if _takes_its_signature(spec) else [],
+        _reflected(spec.service, hidden=hidden) if _takes_its_signature(spec, spread) else [],
         [parameter for parameter in declared if parameter.name not in taken],
         skip=frozenset(taken),
     )
@@ -429,14 +437,21 @@ def _lookup_selectors(spec: Any) -> Iterator[Callable[..., Any]]:
             yield nested.selector
 
 
-def _takes_its_signature(spec: Any) -> bool:
+def _takes_its_signature(spec: Any, spread: bool) -> bool:
     """Whether a service's own parameters are its caller's arguments.
 
-    Only with no ``input_serializer``, which otherwise declares the input, as
-    ``spec_to_json_schema`` lists them. A ``many`` spec always has one: the
-    kernel refuses ``many`` with no validator.
+    Only under a spreading binding, and only with no ``input_serializer``,
+    which otherwise declares the input, as ``spec_to_json_schema`` lists them.
+    Without the binding a service's parameters are the author's to fill, as
+    ``BUNDLE`` always left them: a view hook, the spec's ``kwargs`` provider or
+    a default, never a request's body. One arc to coverage, so each conjunct is
+    held by the test that fails without it:
+    test_a_client_value_never_fills_a_service_parameter_off_http (the binding)
+    and test_a_serializer_keeps_its_input_under_a_spreading_binding (no
+    serializer). A ``many`` spec always has one: the kernel refuses ``many``
+    with no validator.
     """
-    return spec.input_serializer is None
+    return spread and spec.input_serializer is None
 
 
 def _owned_keys(callables: Sequence[Callable[..., Any]]) -> frozenset[str]:

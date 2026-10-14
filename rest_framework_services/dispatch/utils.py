@@ -216,11 +216,20 @@ def prepare_edge_call(
     # no row) and test_instance_none_on_a_spec_with_no_lookup_is_a_create (a
     # ``None`` one is no row either, and takes no stand-in lookup).
     handed = instance is not UNSET and instance is not None
-    # A drfs ``ServiceSpec`` compiles to the kernel's.
+    # A drfs ``ServiceSpec`` compiles to the kernel's. Its own parameters are the
+    # caller's only under an explicit spreading binding: ``AUTO`` is ``BUNDLE``
+    # for a service, which hands the caller's values to what reads them and to
+    # nothing else (test_a_client_value_never_fills_a_service_parameter_off_http).
+    spread = resolve_argument_binding(spec, argument_binding) is ArgumentBinding.SPREAD_AUTHOR_WINS
     service = cast(
         KernelServiceSpec,
         kernel_spec_variant(
-            spec, partial=partial, unguarded=True, target=handed, server_input=False
+            spec,
+            partial=partial,
+            unguarded=True,
+            target=handed,
+            server_input=False,
+            spread=spread,
         ),
     )
     seeds = edge_seeds(pool_seeds, request=request, view=view, view_hooks=hooks)

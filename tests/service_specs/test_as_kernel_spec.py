@@ -330,12 +330,26 @@ class TestReflectedReads:
         with pytest.raises(ImproperlyConfigured):
             as_kernel_spec(SelectorSpec(kind=SelectorKind.LIST, selector=read))
 
-    def test_a_service_without_a_serializer_reads_its_signature(self) -> None:
+    def test_a_service_without_a_serializer_reads_its_signature_when_spread(self) -> None:
         def archive(*, user: Any, serializer: Any = None, reason: str = "") -> None: ...
 
-        assert tuple(_kernel_service(ServiceSpec(service=archive)).reads) == (
-            Parameter("reason", "string", default=""),
-        )
+        compiled = as_kernel_spec(ServiceSpec(service=archive), spread=True)
+
+        assert tuple(compiled.reads) == (Parameter("reason", "string", default=""),)
+
+    def test_a_service_without_a_serializer_reads_no_signature_by_default(self) -> None:
+        # ``AUTO`` and ``BUNDLE`` leave a service's own parameters to its author.
+        def archive(*, reason: str = "") -> None: ...
+
+        assert tuple(_kernel_service(ServiceSpec(service=archive)).reads) == ()
+
+    def test_a_serializer_keeps_its_input_under_a_spreading_binding(self) -> None:
+        def create(*, data: Any, reason: str = "") -> Any:
+            return data
+
+        compiled = as_kernel_spec(ServiceSpec(service=create, input_serializer=_Note), spread=True)
+
+        assert tuple(compiled.reads) == ()
 
     def test_a_serializer_s_service_reads_no_signature(self) -> None:
         def create(*, data: Any, reason: str = "") -> Any:

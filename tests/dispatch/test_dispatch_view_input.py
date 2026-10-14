@@ -174,6 +174,7 @@ def test_a_callers_view_reaches_neither_a_lookup_nor_a_spread_service(
     result = dispatch(
         spec,
         params={"pk": post.pk, "reason": "dup", "view": "spoofed"},
+        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
         unknown_arguments=UnknownArguments.IGNORE,
     )
 

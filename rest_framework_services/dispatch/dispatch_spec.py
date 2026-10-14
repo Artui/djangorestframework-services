@@ -96,9 +96,15 @@ def dispatch_spec(
             handed this call's.
         success_status: Accepted for the transports that pass it. The result
             carries no status: a transport answers its own.
-        argument_binding: Accepted for the transports that pass it; a call has
-            one pool, whichever of ``AUTO``, ``BUNDLE`` or ``SPREAD_AUTHOR_WINS``
-            is passed. ``SPREAD_CALLER_WINS`` is refused with ``ValueError``.
+        argument_binding: Whether a service spec with no ``input_serializer``
+            takes the caller's values for its own parameters: only under
+            ``SPREAD_AUTHOR_WINS``. ``AUTO`` is ``BUNDLE`` for a service, as it
+            always was, so a caller's value reaches it only through what reads
+            it - the Validator, the target lookup and the declared ``reads`` -
+            and a request body never fills ``def destroy(*, instance,
+            hard=False)``'s ``hard``. A selector spec's parameters are its
+            caller's under every binding. ``SPREAD_CALLER_WINS`` is refused
+            with ``ValueError``.
         unknown_arguments: ``IGNORE`` (the default here; the kernel's is
             ``REJECT``) or ``REJECT``. ``PASSTHROUGH`` is refused with
             ``ValueError``. ``REJECT`` names every undeclared key in one
