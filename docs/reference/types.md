@@ -5,7 +5,8 @@ shown, so each drfs name is the kernel's object and the documentation rendered
 for it is the kernel's: `SelectorKind`, `Affordance`, `ChangeResult`,
 `FieldChange`, the relation declarations (`ChildSpec`, `ForwardRelationSpec`,
 `ReverseOneToOneSpec`, `GenericRelationSpec`, `ManyToManySpec`, `RelationSpec`)
-and their outcomes, `UNSET`, `ProgressReporter`,
+and their outcomes, `UNSET`, `ProgressReporter`, the pool seed registry
+(`PoolSeeds`, `DEFAULT_POOL_SEEDS`, `RESERVED_POOL_SEEDS`),
 `FieldAudience`, `FieldMarking`, `ValueFormatter` and `AudienceProjection`. The
 declarations that carry serializers and permission classes (`ServiceSpec`,
 `SelectorSpec`), the offline request and its channels, the input markers and
@@ -19,6 +20,11 @@ Being the kernel's changes what a few of them refuse, each where it is built:
 - A relation declaration takes only its model, and its foreign key where it has
   one, by position; every other option is keyword-only. `relations=` is the one
   spelling for nested relations: the `children=` alias is gone.
+- `PoolSeeds` checks a registration against the kernel's reserved set, `user`,
+  `data`, `instance`, `collection`, `result`, `queryset` and `progress`: a seed
+  named `result` or `queryset` is refused, one named `request` or `serializer`
+  can be registered, and an `async def` resolver is refused with
+  `ImproperlyConfigured`.
 - `ValueFormatter.timestamp()` reports a string shaped like a date-time that
   names no real moment (`2026-02-30T12:00:00Z`) as it was stored, rather than
   raising.

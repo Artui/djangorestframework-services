@@ -167,6 +167,22 @@ REEXPORTS: list[tuple[str, str, str]] = [
         "django_service_specs.relations.relation_spec",
         "RelationSpec",
     ),
+    # The keyword pool's seed registry.
+    (
+        "rest_framework_services.types.pool_seeds",
+        "django_service_specs.pool.pool_seeds",
+        "PoolSeeds",
+    ),
+    (
+        "rest_framework_services.types.pool_seeds",
+        "django_service_specs.pool.pool_seeds",
+        "DEFAULT_POOL_SEEDS",
+    ),
+    (
+        "rest_framework_services.types.reserved_pool_seeds",
+        "django_service_specs.pool.reserved_pool_seeds",
+        "RESERVED_POOL_SEEDS",
+    ),
 ]
 
 
