@@ -11,7 +11,9 @@ from django.http import QueryDict
 def apply_input_data(params: Any, extra: Mapping[str, Any]) -> Any:
     """Merge ``extra`` onto the client ``params``, server-provided keys winning.
 
-    The canonical ``input_data`` merge for every transport. Three shapes:
+    The merge ``build_input_serializer`` applies to a request body; the DRF
+    edge evaluates ``input_data`` itself and merges it into the kernel's
+    arguments (``server_input``). Three shapes:
 
     - A **list** (``many=True``) merges **per item** — the only coherent reading
       of "the server supplies these keys" for a batch, and what makes the

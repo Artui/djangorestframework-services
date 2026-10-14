@@ -756,6 +756,12 @@ def edge_errors(
       ``{}`` for a valid one, and a refusal of the list itself under
       ``non_field_errors``. The kernel keys both under ``many_argument``, which
       such a caller never sent.
+    - The kernel's refusal of an undeclared key, ``"Unknown argument."`` under
+      the key, is answered as this package always answered
+      ``UnknownArguments.REJECT``: one ``"Unexpected argument(s): ..."`` message
+      under ``non_field_errors``, at each level of the tree (``_unexpected_as_drf``).
+      Here rather than in ``translate_dispatch_errors``, which every transport
+      shares: the wording is this edge's answer.
     - A validation error a service or a precondition raises is keyed by the
       names the request used, where the input serializer's ``source=`` makes
       them differ from the ones the service saw. Never the kernel's own
