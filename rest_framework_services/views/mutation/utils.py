@@ -25,6 +25,8 @@ from rest_framework.serializers import BaseSerializer, Serializer
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.dispatch.apply_input_data import apply_input_data
+from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
+from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.selectors.utils import (
@@ -318,12 +320,6 @@ def _dispatch_bulk_via_spec(
     the body validates, the query string filters — and the target guard is passed for
     the same reason it is there: whatever the collection selector resolved is what the
     service is about to mutate."""
-    # Local import: ``dispatch/utils.py`` imports the keyword-pool resolver from
-    # ``views/utils.py``, which initialises the ``views`` package and so this
-    # module; a module-level import of ``dispatch_spec`` here would meet
-    # ``dispatch/utils.py`` half-initialised.
-    from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
-    from rest_framework_services.dispatch.render_spec_output import render_spec_output
 
     if spec.many:
         # ``many`` is a list body straight through.
@@ -411,11 +407,6 @@ def dispatch_mutation_for_spec(
     request. A ``PATCH`` to an input that cannot take a partial call (a
     dataclass) is validated whole, as a ``PUT`` is.
     """
-    # Local import: ``dispatch/utils.py`` imports the keyword-pool resolver from
-    # ``views/utils.py``, which initialises the ``views`` package and so this
-    # module; a module-level import of ``dispatch_spec`` here would meet
-    # ``dispatch/utils.py`` half-initialised.
-    from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 
     if spec.partial is not None:
         partial = spec.partial

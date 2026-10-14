@@ -17,6 +17,7 @@ from tests.testapp.serializers import AuthorSerializer
 
 # The module, not the function the package's ``__init__`` re-exports under its name.
 dispatch_spec_module = importlib.import_module("rest_framework_services.dispatch.dispatch_spec")
+mutation_utils_module = importlib.import_module("rest_framework_services.views.mutation.utils")
 
 
 @dataclass
@@ -85,7 +86,7 @@ class TestServiceUpdateView:
             seen.append((spec, kwargs.get("partial")))
             return real(spec, **kwargs)
 
-        monkeypatch.setattr(dispatch_spec_module, "dispatch_spec", spy)
+        monkeypatch.setattr(mutation_utils_module, "dispatch_spec", spy)
 
         class _PartialIn(serializers.Serializer[Any]):
             name = serializers.CharField()

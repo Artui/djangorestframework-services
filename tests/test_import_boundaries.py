@@ -59,7 +59,6 @@ DRF_PREFIXES = ("rest_framework",)
 # keyword-pool resolver, the most transport-neutral code in the package, filed in
 # ``views/utils.py`` beside the view helpers that share its module.
 ALLOWED_VIEWS_IMPORTS: dict[str, frozenset[str]] = {
-    "dispatch/utils.py": frozenset({"rest_framework_services.views.utils"}),
     "selectors/acall_selector.py": frozenset({"rest_framework_services.views.utils"}),
     "selectors/call_selector.py": frozenset({"rest_framework_services.views.utils"}),
     "selectors/utils.py": frozenset({"rest_framework_services.views.utils"}),
@@ -240,11 +239,10 @@ ALLOWED_EDGE_DRF_IMPORTS: dict[str, frozenset[str]] = {
     ),
     "service_specs/serializer_validator.py": frozenset({"rest_framework.serializers"}),
     "service_specs/translate_dispatch_errors.py": frozenset({"rest_framework.exceptions"}),
-    # ``rest_framework`` and ``rest_framework.settings`` are read for one answer:
-    # which shape DRF's ``ListSerializer`` gives a failing row in this project, so a
-    # relation write's row error agrees with a nested serializer's in the same API.
-    # That is DRF's decision by definition -- its setting where it has one, its
-    # release where it does not -- so there is nothing neutral to read instead.
+    # ``rest_framework`` and ``rest_framework.settings`` are read for the formats
+    # DRF's own fields use (``ISO_8601`` and the date and time format settings), so
+    # a value the adapter renders agrees with the one a serializer field renders in
+    # the same API. Those are DRF's decision by definition.
     "service_specs/utils.py": frozenset(
         {
             "rest_framework",
@@ -277,4 +275,38 @@ def test_every_allowed_adapter_drf_import_still_exists() -> None:
     assert not gone, (
         f"These allowed imports of DRF in the adapter no longer exist: {gone}. Remove "
         "them from ALLOWED_EDGE_DRF_IMPORTS."
+    )
+
+
+# Who may import the adapter. The spec classes compile through it, and dispatch is the
+# DRF edge over the kernel's; nothing else in the neutral core has a reason to.
+ADAPTER_PREFIX = ("rest_framework_services.service_specs",)
+ALLOWED_ADAPTER_IMPORTERS = frozenset(
+    {
+        "dispatch/adispatch_spec.py",
+        "dispatch/base_serializer_context.py",
+        "dispatch/build_offline_context.py",
+        "dispatch/dispatch_spec.py",
+        "dispatch/renderable_serializer_class.py",
+        "dispatch/utils.py",
+        "types/selector_spec.py",
+        "types/service_spec.py",
+    }
+)
+
+
+def test_only_the_edge_and_the_spec_classes_import_the_adapter() -> None:
+    found = set(_imports_matching(ADAPTER_PREFIX))
+    assert found == ALLOWED_ADAPTER_IMPORTERS, (
+        f"New importers of the adapter: {sorted(found - ALLOWED_ADAPTER_IMPORTERS)}; "
+        f"gone: {sorted(ALLOWED_ADAPTER_IMPORTERS - found)}. Keep ALLOWED_ADAPTER_IMPORTERS "
+        "to what really imports it."
+    )
+
+
+def test_the_adapter_never_imports_dispatch() -> None:
+    found = _imports_matching(("rest_framework_services.dispatch",), edge=True)
+    assert not found, (
+        f"The adapter imports the dispatch edge: {found}. dispatch calls the adapter, "
+        "never the reverse."
     )

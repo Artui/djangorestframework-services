@@ -28,6 +28,7 @@ from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelec
 from rest_framework.exceptions import NotFound
 from rest_framework.request import Request
 
+from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
@@ -200,11 +201,6 @@ def dispatch_selector_for_spec(view: Any, spec: SelectorSpec[Any, Any]) -> Any:
     The caller must check ``spec.selector is not None`` first and fall back to
     vanilla DRF otherwise.
     """
-    # Local import: ``dispatch/utils.py`` imports the keyword-pool resolver from
-    # ``views/utils.py``, which initialises the ``views`` package and so the
-    # selector views importing this module; a module-level import of
-    # ``dispatch_spec`` here would meet ``dispatch/utils.py`` half-initialised.
-    from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 
     assert spec.selector is not None  # noqa: S101 — caller guarantees this
     request = view.request

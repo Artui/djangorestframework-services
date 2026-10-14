@@ -24,6 +24,7 @@ from django_service_specs.parameters.invalid_arguments import (
     InvalidArguments as KernelInvalidArguments,
 )
 from django_service_specs.parameters.parameters import Parameters
+from django_service_specs.pool.resolve_callable_kwargs import resolve_callable_kwargs
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
 from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
 from rest_framework.exceptions import ErrorDetail, ValidationError
@@ -71,7 +72,6 @@ from rest_framework_services.types.utils import (
     resolved_annotation,
 )
 from rest_framework_services.types.view_hooks import ViewHooks
-from rest_framework_services.views.utils import resolve_callable_kwargs
 
 # ---------------------------------------------------------------------------
 # The DRF edge over the kernel's ``dispatch``.
