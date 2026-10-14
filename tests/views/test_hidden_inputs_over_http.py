@@ -21,6 +21,7 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from rest_framework import serializers
+from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 from typing_extensions import TypedDict
 
@@ -31,10 +32,13 @@ from rest_framework_services import (
     SelectorSpec,
     ServiceSpec,
     ServiceUpdateView,
+    UrlKwarg,
     build_offline_context,
     dispatch_spec,
 )
+from rest_framework_services.types.offline_service_view import OfflineServiceView
 from rest_framework_services.types.pool_seeds import DEFAULT_POOL_SEEDS
+from rest_framework_services.types.unknown_arguments import UnknownArguments
 from tests.testapp.models import Post
 from tests.testapp.serializers import PostSerializer
 
@@ -346,20 +350,45 @@ class _FieldNamedLikeTheKeyView(ServiceUpdateView):
 
 
 @pytest.mark.django_db
-def test_a_serializer_field_named_like_a_hidden_lookup_key_stays_the_clients(
-    seen: list[Any],
-) -> None:
-    """The field is client input, so the capture is not seeded under its name: the
-    kernel refuses a seed occupying a declared parameter. The lookup keeps its
-    default, since a target lookup takes no call extra to carry the capture."""
+def test_a_route_capture_scopes_the_lookup_beside_a_field_of_its_name(seen: list[Any]) -> None:
+    """The route is the author's, so its capture scopes the lookup that hides the
+    name, as it always did; the serializer's field of that name is the client's,
+    validated from the body into ``data``."""
     post = Post.objects.create(title="p")
 
     response = _FieldNamedLikeTheKeyView.as_view()(
         factory.put("/", {"team": "body-team"}, format="json"), pk=post.pk, team="route-team"
     )
 
-    assert response.status_code == 200
-    assert seen == ["own-team", "body-team"]
+    assert response.status_code == 200, response.data
+    assert seen == ["route-team", "body-team"]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "unknown_arguments",
+    [UnknownArguments.IGNORE, UnknownArguments.REJECT],
+    ids=["ignore", "reject"],
+)
+def test_a_field_named_like_a_captured_hidden_key_is_no_unexpected_argument(
+    seen: list[Any], unknown_arguments: UnknownArguments
+) -> None:
+    """Off HTTP too, through a transport's offline view: the body's value is the
+    serializer's field, never an argument a strict caller is refused for."""
+    post = Post.objects.create(title="p")
+    view = OfflineServiceView(
+        request=Request(factory.put("/")), kwargs={"pk": post.pk, "team": "route-team"}
+    )
+
+    dispatch_spec(
+        _FieldNamedLikeTheKeyView.spec,
+        user=None,
+        params={"team": "body-team"},
+        view=view,
+        unknown_arguments=unknown_arguments,
+    )
+
+    assert seen == ["route-team", "body-team"]
 
 
 # --- ``view`` ---------------------------------------------------------------------
@@ -516,3 +545,38 @@ def test_a_view_hooks_value_outranks_the_route_capture(seen: list[Any]) -> None:
 
     assert response.status_code == 200
     assert seen == ["hook-team"]
+
+
+def _touch_with_team(*, instance: Post, team: str = "service-default") -> Post:
+    _SEEN.append(team)
+    return instance
+
+
+class _ReadNamedLikeTheKeyView(ServiceUpdateView):
+    queryset = Post.objects.all()
+    spec = ServiceSpec(
+        service=_touch_with_team,
+        reads=(UrlKwarg("team"),),
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_for_team),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=PostSerializer
+        ),
+        atomic=False,
+    )
+
+
+@pytest.mark.django_db
+def test_a_read_named_like_a_hidden_lookup_key_is_the_service_s_argument(
+    seen: list[Any],
+) -> None:
+    """A read the spec declares is an argument, which a seed may not occupy, so the
+    capture is not seeded beside it: the service reads it, and the lookup keeps its
+    default."""
+    post = Post.objects.create(title="p")
+
+    response = _ReadNamedLikeTheKeyView.as_view()(
+        factory.put("/", {}, format="json"), pk=post.pk, team="route-team"
+    )
+
+    assert response.status_code == 200, response.data
+    assert seen == ["own-team", "route-team"]

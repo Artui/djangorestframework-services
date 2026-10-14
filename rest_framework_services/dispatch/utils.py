@@ -287,6 +287,9 @@ def prepare_edge_call(
     # nothing else (test_a_client_value_never_fills_a_service_parameter_off_http).
     spread = resolve_argument_binding(spec, argument_binding) is ArgumentBinding.SPREAD_AUTHOR_WINS
     seeds = edge_seeds(pool_seeds, request=request, view=view)
+    # The input serializer's fields a seed of the call takes, its own or a route
+    # capture the target lookup hides (``_seeded_fields``).
+    excluded = _seeded_fields(spec, seeds.names | hidden_lookup_captures(spec, view, seeds=seeds))
     service = cast(
         KernelServiceSpec,
         kernel_spec_variant(
@@ -297,12 +300,20 @@ def prepare_edge_call(
             server_input=False,
             spread=spread,
             lenient=over_http(view),
-            excluded=_seeded_fields(spec, seeds),
+            excluded=excluded,
         ),
     )
     arguments = without_seed_names(
         edge_arguments(service, spec, params, request=request, view=view), pool_seeds
     )
+    # A field named like a seed of the call is the serializer's alone, read from
+    # the body: never an argument a strict caller is refused for
+    # (test_a_field_named_like_a_captured_hidden_key_is_no_unexpected_argument).
+    # Arguments that are no object are left for the shape check to refuse
+    # (test_arguments_that_are_no_object_beside_a_seed_named_field_are_refused).
+    if isinstance(arguments, dict):
+        for name in excluded:
+            arguments.pop(name, None)
     # What the caller's body became before the edge put anything over it, so
     # the body the Validator binds takes exactly what the edge put there.
     sent = dict(arguments) if isinstance(arguments, dict) else None
@@ -432,8 +443,13 @@ def _validator_body(
     return {**{name: value for name, value in params.items() if name not in taken}, **put}
 
 
-def _seeded_fields(spec: ServiceSpec[Any, Any, Any], seeds: PoolSeeds) -> frozenset[str]:
-    """The input serializer's fields a seed the call registers takes: ``request``, ``view``, a project's.
+def _seeded_fields(spec: ServiceSpec[Any, Any, Any], seeded: frozenset[str]) -> frozenset[str]:
+    """The input serializer's fields named in ``seeded``: what a seed the call registers takes.
+
+    A seed the edge registers - ``request``, ``view``, a project's, or a route
+    capture a target lookup hides (``hidden_lookup_captures``,
+    test_a_route_capture_scopes_the_lookup_beside_a_field_of_its_name) - takes
+    its name in the call's pool.
 
     Compiled as ``kernel_spec_variant(excluded=)``, so each is the serializer's
     field alone, validated from the body into ``data``, while the seed keeps
@@ -445,7 +461,7 @@ def _seeded_fields(spec: ServiceSpec[Any, Any, Any], seeds: PoolSeeds) -> frozen
     if spec.input_serializer is None:
         return frozenset()
     fields = input_parameters(describe_serializer(spec.input_serializer)).names()
-    return frozenset(fields & seeds.names)
+    return frozenset(fields & seeded)
 
 
 def server_input(
@@ -986,14 +1002,40 @@ def _hidden_lookup_seeds(
       test_a_lookup_provider_answering_a_hidden_key_wins);
     - a name the call already seeds is the seed's, as ``view`` always is
       (test_a_registered_seed_named_like_a_hidden_lookup_key_wins_over_the_capture);
-    - a name the spec declares as a parameter - an input serializer's field of
-      the same name - is the caller's
-      (test_a_serializer_field_named_like_a_hidden_lookup_key_stays_the_clients).
+    - a name the spec declares as a parameter - one of its reads - is the
+      caller's argument
+      (test_a_read_named_like_a_hidden_lookup_key_is_the_service_s_argument). An input serializer's field of the same name is not such a
+      parameter: the edge compiles the Validator without it
+      (``hidden_lookup_captures``), so the capture scopes the lookup and the
+      field is the client's, validated from the body into ``data``, as on main
+      (test_a_route_capture_scopes_the_lookup_beside_a_field_of_its_name).
 
     A capture the lookup does not hide is no argument, as before.
+    """
+    hidden = hidden_lookup_captures(spec, view, seeds=seeds) - service.parameters().names()
+    if not hidden:
+        return seeds
+    # A name is captured only off a route the view carries.
+    route = view.kwargs
+    return seeds.extend(
+        **{
+            name: _constant(extra_kwargs.pop(name) if name in extra_kwargs else route[name])
+            for name in sorted(hidden)
+        }
+    )
 
-    One arc to coverage, so each condition that seeds nothing is named by the
-    test that fails without it: no route to read
+
+def hidden_lookup_captures(
+    spec: ServiceSpec[Any, Any, Any], view: Any, *, seeds: PoolSeeds
+) -> frozenset[str]:
+    """The names a service spec's target lookup hides that the route captures and nothing else fills.
+
+    What ``_hidden_lookup_seeds`` seeds, before it sets aside a declared
+    parameter: not a name the call already seeds, nor one the lookup's own
+    provider may answer.
+
+    One arc to coverage, so each condition that captures nothing is named by
+    the test that fails without it: no route to read
     (test_with_no_view_a_hidden_lookup_key_keeps_its_default), no lookup
     (test_an_offline_requests_query_string_is_not_read_either), and a lookup
     with no selector
@@ -1002,23 +1044,12 @@ def _hidden_lookup_seeds(
     route = getattr(view, "kwargs", None)
     lookup = _target_lookup(spec)
     if not isinstance(route, dict) or lookup is None or lookup.selector is None:
-        return seeds
+        return frozenset()
     keys = provider_keys(lookup.kwargs)
     if keys is None:
-        return seeds
-    hidden = (
-        hidden_input_keys(lookup.selector)
-        - seeds.reserved
-        - service.parameters().names()
-        - keys.filled
-        - keys.declinable
-    )
-    captured = {
-        name: _constant(extra_kwargs.pop(name) if name in extra_kwargs else route[name])
-        for name in sorted(hidden)
-        if name in route
-    }
-    return seeds.extend(**captured) if captured else seeds
+        return frozenset()
+    hidden = hidden_input_keys(lookup.selector) - seeds.reserved - keys.filled - keys.declinable
+    return frozenset(name for name in hidden if name in route)
 
 
 def _seat_author_values(extra_kwargs: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:

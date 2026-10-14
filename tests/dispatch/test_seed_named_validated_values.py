@@ -309,3 +309,22 @@ def test_a_writable_field_named_user_validates_in_each_row(over_http: bool) -> N
 
     assert seen["rows"] == [{"title": "t", "user": bob}]
     assert seen["user"] == alice
+
+
+@pytest.mark.django_db
+@_CORES
+def test_arguments_that_are_no_object_beside_a_seed_named_field_are_refused(
+    dispatch: Dispatch,
+) -> None:
+    """The field is set aside from the arguments only where they are an object."""
+    spec = ServiceSpec(service=lambda *, data: None, input_serializer=_TenantFieldIn, atomic=False)
+
+    with pytest.raises(ValidationError) as excinfo:
+        dispatch(
+            spec,
+            user=None,
+            params=[{"title": "t"}],
+            pool_seeds=DEFAULT_POOL_SEEDS.extend(tenant=lambda: "seeded"),
+        )
+
+    assert excinfo.value.detail == {"non_field_errors": ["Expected an object."]}
