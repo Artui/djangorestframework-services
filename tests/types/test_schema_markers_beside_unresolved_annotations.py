@@ -42,7 +42,6 @@ from rest_framework_services import (
     dispatch_spec,
     spec_to_json_schema,
 )
-from rest_framework_services.exceptions.service_validation_error import ServiceValidationError
 from rest_framework_services.types.marked_input_keys import marked_input_keys
 
 if TYPE_CHECKING:
@@ -126,12 +125,9 @@ class TestNotClientInputBesideAnUnresolvedName:
         ("selector", "policy"),
         [
             pytest.param(_hidden, UnknownArguments.IGNORE, id="closed-ignore"),
-            pytest.param(_hidden, UnknownArguments.PASSTHROUGH, id="closed-passthrough"),
             pytest.param(_hidden_open, UnknownArguments.REJECT, id="open-reject"),
             pytest.param(_hidden_open, UnknownArguments.IGNORE, id="open-ignore"),
-            pytest.param(_hidden_open, UnknownArguments.PASSTHROUGH, id="open-passthrough"),
             pytest.param(_hidden_key, UnknownArguments.IGNORE, id="typed-dict-ignore"),
-            pytest.param(_hidden_key, UnknownArguments.PASSTHROUGH, id="typed-dict-passthrough"),
         ],
     )
     def test_the_callers_value_never_reaches_the_selector(
@@ -142,6 +138,22 @@ class TestNotClientInputBesideAnUnresolvedName:
         result = dispatch(spec, params={"team": "other-team"}, unknown_arguments=policy)
 
         assert result.value == "own-team"
+
+    @_CORES
+    @pytest.mark.parametrize(
+        "selector", [_hidden, _hidden_open, _hidden_key], ids=["closed", "open", "typed-dict"]
+    )
+    def test_passthrough_is_refused_rather_than_delivering_it(
+        self, dispatch: Dispatch, selector: Any
+    ) -> None:
+        # The mode that used to hand an undeclared key on is retired: no policy
+        # delivers an argument the spec does not declare.
+        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector)
+
+        with pytest.raises(ValueError, match="PASSTHROUGH is retired"):
+            dispatch(
+                spec, params={"team": "other-team"}, unknown_arguments=UnknownArguments.PASSTHROUGH
+            )
 
     @_CORES
     @pytest.mark.parametrize("selector", [_hidden, _hidden_key], ids=["parameter", "typed-dict"])
@@ -167,12 +179,10 @@ class TestInputRequiredBesideAnUnresolvedName:
     def test_a_call_without_it_is_refused(self, dispatch: Dispatch, selector: Any) -> None:
         spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector)
 
-        with pytest.raises(ServiceValidationError) as excinfo:
+        with pytest.raises(ValidationError) as excinfo:
             dispatch(spec, params={})
 
-        assert excinfo.value.detail == {
-            "non_field_errors": ["Missing required argument(s): 'limit'."]
-        }
+        assert excinfo.value.detail == {"limit": ["This field is required."]}
 
 
 class _Tags(TypedDict, total=False):
@@ -211,15 +221,29 @@ _UNKNOWABLE = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_unknowable)
 
 
 @_CORES
-@pytest.mark.parametrize("policy", [UnknownArguments.IGNORE, UnknownArguments.PASSTHROUGH])
-def test_an_unpacked_typed_dict_that_does_not_resolve_hides_nothing(
-    dispatch: Dispatch, policy: UnknownArguments
+def test_an_unpacked_typed_dict_that_does_not_resolve_declares_nothing(
+    dispatch: Dispatch,
 ) -> None:
     """The one thing that stays unknowable: nothing says which keys it has, so none
-    of them is read as hidden, and the permissive policies deliver what was sent."""
-    result = dispatch(_UNKNOWABLE, params={"team": "other-team"}, unknown_arguments=policy)
+    of them is an argument, and ``IGNORE`` drops what was sent rather than
+    delivering it."""
+    result = dispatch(
+        _UNKNOWABLE, params={"team": "other-team"}, unknown_arguments=UnknownArguments.IGNORE
+    )
 
-    assert result.value == "other-team"
+    assert result.value == "own-team"
+
+
+@_CORES
+def test_passthrough_is_refused_on_an_unpacked_typed_dict_that_does_not_resolve(
+    dispatch: Dispatch,
+) -> None:
+    with pytest.raises(ValueError, match="PASSTHROUGH is retired"):
+        dispatch(
+            _UNKNOWABLE,
+            params={"team": "other-team"},
+            unknown_arguments=UnknownArguments.PASSTHROUGH,
+        )
 
 
 @_CORES
@@ -288,11 +312,9 @@ class TestMarkersOnTheUnresolvedAnnotation:
         spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_marked_unresolved)
 
         assert dispatch(spec, params={"team": "other", "limit": 1}).value is None
-        with pytest.raises(ServiceValidationError) as excinfo:
+        with pytest.raises(ValidationError) as excinfo:
             dispatch(spec, params={})
-        assert excinfo.value.detail == {
-            "non_field_errors": ["Missing required argument(s): 'limit'."]
-        }
+        assert excinfo.value.detail == {"limit": ["This field is required."]}
 
 
 # ------------------------------------------------- read by name, as a last resort
