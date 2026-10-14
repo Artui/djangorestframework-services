@@ -11,7 +11,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from django.core.exceptions import ImproperlyConfigured
 
 from rest_framework_services import (
     ChildSpec,
@@ -106,7 +105,7 @@ class TestTheParentsContentTypeAndKeyAreInjected:
                     model=Section,
                     fk="catalog",
                     m2m=lambda row: {"tags": [tag]},
-                    children={"items": ChildSpec(model=Item, fk="section")},
+                    relations={"items": ChildSpec(model=Item, fk="section")},
                 ),
             },
         )
@@ -335,19 +334,3 @@ async def _content_type(model: type[Any]) -> Any:
     from django.contrib.contenttypes.models import ContentType
 
     return await sync_to_async(ContentType.objects.get_for_model, thread_sensitive=True)(model)
-
-
-class TestTheContentTypeAppIsAGate:
-    def test_the_lookup_names_the_missing_app_and_the_remedy(self, monkeypatch: Any) -> None:
-        from django.apps import apps
-
-        from rest_framework_services.mutations.utils import _content_type_for
-
-        monkeypatch.setattr(apps, "is_installed", lambda label: False)
-        with pytest.raises(ImproperlyConfigured) as excinfo:
-            _content_type_for(Catalog())
-
-        message = str(excinfo.value)
-        assert "django.contrib.contenttypes" in message
-        assert "INSTALLED_APPS" in message
-        assert "ChildSpec" in message

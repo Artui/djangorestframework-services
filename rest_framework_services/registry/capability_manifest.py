@@ -72,7 +72,7 @@ def capability_manifest(
             },
             ...
         ],
-        "unguarded": ["list_orders"],
+        "unguarded": [],
     }
     ```
 
@@ -105,8 +105,8 @@ def capability_manifest(
       says dispatch may present ``None``. ``dialect`` names that policy at the
       top level.
     - ``guards`` -- one ``{"source": <dotted class path>}`` per permission class,
-      in declaration order; ``None`` where the spec declares none (``[]`` is a
-      declared "no permissions" and stays distinguishable).
+      in declaration order. Always a list: a ``SpecRegistry`` refuses a spec that
+      declares none, so ``[]`` is a declared "no permissions".
     - ``affordances`` -- one ``{"code": ..., "reason": ..., "scope": ...}`` per
       [`Affordance`][rest_framework_services.types.affordance.Affordance] a
       mutation declares, in declaration order: the codes a call can be refused
@@ -202,16 +202,15 @@ def _affordances(declared: Sequence[Affordance] | None) -> list[dict[str, str]] 
     ]
 
 
-def _guards(permission_classes: Sequence[type] | None) -> list[dict[str, str]] | None:
+def _guards(permission_classes: Sequence[type] | None) -> list[dict[str, str]]:
     """One descriptor per permission class, named by its import path.
 
     The dotted path rather than the bare class name, because two apps routinely
     declare an ``IsOwner`` each and a reader diffing manifests must be able to tell
     which one moved.
     """
-    if permission_classes is None:
-        return None
-    return [{"source": f"{cls.__module__}.{cls.__qualname__}"} for cls in permission_classes]
+    # ``None`` never arrives: the registry refused it at registration.
+    return [{"source": f"{cls.__module__}.{cls.__qualname__}"} for cls in permission_classes or ()]
 
 
 __all__ = ["capability_manifest"]

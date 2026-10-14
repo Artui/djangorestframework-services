@@ -114,7 +114,9 @@ def dispatch_spec(
             ``input_data``; ``progress`` joins ``progress``.
         instance: The row the caller resolved itself (a view's
             ``get_object()``), handed to ``dispatch`` as its target; no lookup
-            runs. ``None`` is a supplied value: a create.
+            runs. ``None`` is a create on a spec that declares no target
+            lookup; on one that declares a lookup it is ``not_found``, since
+            that lookup admits no missing row.
         filter_data: The values the ``filter_set`` reads - the selector spec's
             own, or a service spec's target lookup's - restricted to its filter
             names, and the filter's only source for them when passed.

@@ -201,6 +201,10 @@ def prepare_edge_call(
                 "pool_seeds": seeds,
             },
         )
+    # One arc to coverage, so each conjunct is named by the test that fails
+    # without it: test_a_create_is_guarded_with_none (an unset ``instance`` is
+    # no row) and test_instance_none_on_a_spec_with_no_lookup_is_a_create (a
+    # ``None`` one is no row either, and takes no stand-in lookup).
     handed = instance is not UNSET and instance is not None
     # A drfs ``ServiceSpec`` compiles to the kernel's.
     service = cast(
@@ -216,8 +220,12 @@ def prepare_edge_call(
         arguments.update(hooks.input_data)
     if handed:
         target = instance
-    elif instance is None or target_spec is None:
-        # A create, or a target the caller says is none: the kernel takes ``None``.
+    elif instance is None:
+        # The caller says there is no row, so no lookup runs. On a spec with its
+        # own lookup the kernel answers that ``None`` as ``not_found``
+        # (test_instance_none_on_a_spec_with_a_lookup_is_not_found). A create
+        # with no ``instance`` falls through to ``resolve_target``, which finds
+        # it no target and asks nothing.
         target = None
     else:
         resolved = resolve_target(

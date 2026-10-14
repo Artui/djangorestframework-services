@@ -3,9 +3,8 @@
 A service in a relation slot raises about *its* row. These assert the error
 arrives under the relation that carried it — at the right position when the
 relation holds many rows — and that what the service actually said survives the
-trip. The position tests pin DRF's index-keyed shape through the
-``rows_keyed_by_index`` fixture; which shape the installed DRF picks is
-``test_relation_error_shape.py``'s business.
+trip. The position tests pin the index-keyed shape the relation layer writes
+whichever DRF is installed.
 
 The services here refuse the row marked ``"rude"`` and write the others, so a
 reported position is measured against rows that really did pass.
@@ -85,14 +84,13 @@ def _arefuses(detail: Any = None) -> Any:
 
 
 @pytest.mark.django_db
-@pytest.mark.usefixtures("rows_keyed_by_index")
 class TestACollectionSaysWhichRow:
     def test_a_create_lands_at_its_index(self) -> None:
         with pytest.raises(ServiceValidationError) as excinfo:
             create_from_input(
                 Catalog,
                 {"name": "c", "sections": [{"title": "ok"}, {"title": "rude"}, {"title": "fine"}]},
-                children={
+                relations={
                     "sections": ChildSpec(
                         model=Section,
                         fk="catalog",
@@ -112,7 +110,7 @@ class TestACollectionSaysWhichRow:
             update_from_input(
                 catalog,
                 {"sections": [{"title": "new"}, {"pk": section.pk, "title": "rude"}]},
-                children={
+                relations={
                     "sections": ChildSpec(model=Section, fk="catalog", update_service=_refuses())
                 },
             )
@@ -152,7 +150,6 @@ class TestACollectionSaysWhichRow:
 
 
 @pytest.mark.django_db
-@pytest.mark.usefixtures("rows_keyed_by_index")
 class TestASingularRelationSaysItsName:
     def test_a_reverse_one_to_one_reports_under_the_relation(self) -> None:
         with pytest.raises(ServiceValidationError) as excinfo:
@@ -208,7 +205,7 @@ class TestASingularRelationSaysItsName:
             create_from_input(
                 Catalog,
                 {"name": "c", "sections": [{"title": "rude"}]},
-                children={
+                relations={
                     "sections": ChildSpec(model=Section, fk="catalog", create_service=_refuses())
                 },
             )
@@ -216,7 +213,6 @@ class TestASingularRelationSaysItsName:
 
 
 @pytest.mark.django_db
-@pytest.mark.usefixtures("rows_keyed_by_index")
 class TestTheNamesNest:
     def test_a_grandchilds_error_carries_both_relations(self) -> None:
         with pytest.raises(ServiceValidationError) as excinfo:
@@ -226,11 +222,11 @@ class TestTheNamesNest:
                     "name": "c",
                     "sections": [{"title": "s", "items": [{"label": "ok"}, {"label": "rude"}]}],
                 },
-                children={
+                relations={
                     "sections": ChildSpec(
                         model=Section,
                         fk="catalog",
-                        children={
+                        relations={
                             "items": ChildSpec(
                                 model=Item,
                                 fk="section",
@@ -254,7 +250,7 @@ class TestTheNamesNest:
             update_from_input(
                 catalog,
                 {"sections": [{"pk": 4242, "title": "t"}]},
-                children={"sections": ChildSpec(model=Section, fk="catalog")},
+                relations={"sections": ChildSpec(model=Section, fk="catalog")},
             )
         detail = excinfo.value.detail
         assert isinstance(detail, dict)
@@ -274,11 +270,11 @@ class TestTheNamesNest:
                         {"title": "b", "items": [{"label": "ok"}, {"pk": 4242, "label": "x"}]},
                     ],
                 },
-                children={
+                relations={
                     "sections": ChildSpec(
                         model=Section,
                         fk="catalog",
-                        children={"items": ChildSpec(model=Item, fk="section")},
+                        relations={"items": ChildSpec(model=Item, fk="section")},
                     )
                 },
             )
@@ -309,7 +305,7 @@ class TestAnUnmatchedReferenceSaysWhichRow:
             update_from_input(
                 catalog,
                 {"sections": [{"title": "new"}, {"pk": stranger.pk, "title": "mine"}]},
-                children={"sections": ChildSpec(model=Section, fk="catalog")},
+                relations={"sections": ChildSpec(model=Section, fk="catalog")},
             )
         detail = excinfo.value.detail
         assert isinstance(detail, dict)
@@ -326,7 +322,7 @@ class TestAnUnmatchedReferenceSaysWhichRow:
             await aupdate_from_input(
                 catalog,
                 {"sections": [{"title": "new"}, {"pk": stranger.pk, "title": "mine"}]},
-                children={"sections": ChildSpec(model=Section, fk="catalog")},
+                relations={"sections": ChildSpec(model=Section, fk="catalog")},
             )
         detail = excinfo.value.detail
         assert isinstance(detail, dict)
@@ -368,14 +364,13 @@ class TestAnUnmatchedReferenceSaysWhichRow:
 
 
 @pytest.mark.django_db
-@pytest.mark.usefixtures("rows_keyed_by_index")
 class TestWhatTheServiceSaidSurvives:
     def test_a_string_detail_is_not_reshaped(self) -> None:
         with pytest.raises(ServiceValidationError) as excinfo:
             create_from_input(
                 Catalog,
                 {"name": "c", "sections": [{"title": "t"}]},
-                children={
+                relations={
                     "sections": ChildSpec(
                         model=Section, fk="catalog", create_service=_refuses("Too rude.")
                     )
@@ -409,7 +404,7 @@ class TestWhatTheServiceSaidSurvives:
             create_from_input(
                 Catalog,
                 {"name": "c", "sections": [{"title": "t"}]},
-                children={
+                relations={
                     "sections": ChildSpec(model=Section, fk="catalog", create_service=service)
                 },
             )
@@ -424,21 +419,20 @@ class TestWhatTheServiceSaidSurvives:
             create_from_input(
                 Catalog,
                 {"name": "c", "sections": [{"title": "t"}]},
-                children={
+                relations={
                     "sections": ChildSpec(model=Section, fk="catalog", create_service=service)
                 },
             )
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.usefixtures("rows_keyed_by_index")
 class TestTheAsyncPathReportsIdentically:
     async def test_an_async_create_lands_at_its_index(self) -> None:
         with pytest.raises(ServiceValidationError) as excinfo:
             await acreate_from_input(
                 Catalog,
                 {"name": "c", "sections": [{"title": "ok"}, {"title": "rude"}]},
-                children={
+                relations={
                     "sections": ChildSpec(
                         model=Section,
                         fk="catalog",
@@ -474,11 +468,11 @@ class TestTheAsyncPathReportsIdentically:
                     "name": "c",
                     "sections": [{"title": "s", "items": [{"label": "ok"}, {"label": "rude"}]}],
                 },
-                children={
+                relations={
                     "sections": ChildSpec(
                         model=Section,
                         fk="catalog",
-                        children={
+                        relations={
                             "items": ChildSpec(
                                 model=Item,
                                 fk="section",

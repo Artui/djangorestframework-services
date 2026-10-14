@@ -8,11 +8,13 @@ from typing import Any
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models import Q
 from rest_framework import serializers
 from rest_framework.permissions import BasePermission
 
 from rest_framework_services import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
+    Affordance,
     SelectorKind,
     SelectorSpec,
     ServiceSpec,
@@ -294,6 +296,19 @@ def test_a_declared_empty_list_stays_empty_and_nothing_registers_unguarded() -> 
     assert manifest["unguarded"] == []
     with pytest.raises(ImproperlyConfigured, match="declares no permissions"):
         _registry(("inherits", _refund_spec(permission_classes=None), ()))
+
+
+def test_a_mutations_affordances_are_listed_with_their_scope() -> None:
+    affordances = [
+        Affordance(code="already_refunded", reason="Refunded.", when=Q(refunded=False)),
+        Affordance(code="books_closed", reason="Closed.", when=lambda: True),
+    ]
+    registry = _registry(("refund", _refund_spec(affordances=affordances), ()))
+    [operation] = capability_manifest(registry)["operations"]
+    assert operation["affordances"] == [
+        {"code": "already_refunded", "reason": "Refunded.", "scope": "row"},
+        {"code": "books_closed", "reason": "Closed.", "scope": "operation"},
+    ]
 
 
 # --- refusals ---------------------------------------------------------------

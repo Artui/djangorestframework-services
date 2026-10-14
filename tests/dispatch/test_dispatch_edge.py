@@ -16,6 +16,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from django.http import QueryDict
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 
 from rest_framework_services import (
     SelectorKind,
@@ -139,6 +140,39 @@ class TestTheTargetGuard:
         assert seen == [None]
         assert result.value.title == "b"
 
+    def test_instance_none_on_a_spec_with_a_lookup_is_not_found(self) -> None:
+        """Behaviour change: ``None`` stands in for the lookup, which admits no missing row.
+
+        The row ``pk`` names exists, so a lookup run anyway would find it and
+        update it: ``None`` is the caller's answer, and the lookup does not run.
+        """
+        post = Post.objects.create(title="a")
+        ran: list[Any] = []
+        spec = ServiceSpec(
+            service=lambda *, instance, data: ran.append(instance),
+            input_serializer=_TitleIn,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=lambda *, pk: Post.objects.filter(pk=pk)
+            ),
+            permission_classes=[],
+        )
+        result = dispatch_spec(spec, user=None, params={"pk": post.pk, "title": "b"}, instance=None)
+        assert result.kind == "not_found"
+        assert ran == []
+
+    def test_instance_none_on_a_spec_with_no_lookup_is_a_create(self) -> None:
+        seen: list[Any] = []
+
+        def guard(spec: Any, context: Any, *, instance: Any = None) -> None:
+            seen.append(instance)
+
+        spec = ServiceSpec(service=_create, input_serializer=_TitleIn, permission_classes=[])
+        result = dispatch_spec(
+            spec, user=None, params={"title": "b"}, instance=None, on_target_resolved=guard
+        )
+        assert seen == [None]
+        assert result.value.title == "b"
+
     def test_a_row_the_caller_resolved_is_the_services_instance_and_the_guards(self) -> None:
         post = Post.objects.create(title="a")
         seen: list[Any] = []
@@ -224,6 +258,55 @@ class TestDeclaredChannels:
             spec, user=None, params={"fields": "a"}, request=context.request, view=context.view
         )
         assert seen == {"query": "a"}
+
+    def _query_spec(self, seen: dict[str, Any]) -> SelectorSpec[Any, Any]:
+        def scope(*, request: Any) -> dict[str, Any]:
+            seen["fields"] = request.query_params.get("fields")
+            seen["page"] = request.query_params.get("page")
+            return {}
+
+        return SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=_posts,
+            kwargs=scope,
+            reads=[QueryParam("fields"), QueryParam("page")],
+            permission_classes=[],
+        )
+
+    def test_a_query_string_value_is_never_rewritten_by_an_argument(self) -> None:
+        seen: dict[str, Any] = {}
+        context = build_offline_context(None, query_params={"fields": "q"})
+        dispatch_spec(
+            self._query_spec(seen),
+            user=None,
+            params={"fields": "a"},
+            request=context.request,
+            view=context.view,
+        )
+        assert seen == {"fields": "q", "page": None}
+
+    def test_only_the_names_the_query_string_lacks_are_added(self) -> None:
+        seen: dict[str, Any] = {}
+        context = build_offline_context(None, query_params={"fields": "q"})
+        dispatch_spec(
+            self._query_spec(seen),
+            user=None,
+            params={"fields": "a", "page": "2"},
+            request=context.request,
+            view=context.view,
+        )
+        assert seen == {"fields": "q", "page": "2"}
+
+    def test_a_url_kwarg_sent_nowhere_leaves_view_kwargs_alone(self) -> None:
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=_posts,
+            reads=[UrlKwarg("author_pk", type="integer")],
+            permission_classes=[],
+        )
+        context = build_offline_context(None)
+        dispatch_spec(spec, user=None, params={}, request=context.request, view=context.view)
+        assert context.view.kwargs == {}
 
 
 class _TitleFilter(django_filters.FilterSet):
@@ -311,3 +394,20 @@ class TestPoolSeeds:
         spec = SelectorSpec(kind=SelectorKind.LIST, selector=posts, permission_classes=[])
         dispatch_spec(spec, user=None, params={})
         assert isinstance(seen["user"], AnonymousUser)
+
+
+@pytest.mark.django_db
+class TestBareRowRefusals:
+    def test_a_refusal_beside_the_rows_keeps_its_key(self) -> None:
+        """Only a refusal of the rows alone is unwrapped into DRF's list shape."""
+        spec = ServiceSpec(
+            service=lambda *, data: [Post.objects.create(**row) for row in data],
+            input_serializer=_TitleIn,
+            many=True,
+            reads=[UrlKwarg("author_pk", type="integer", required=True)],
+            permission_classes=[],
+        )
+        with pytest.raises(ValidationError) as raised:
+            dispatch_spec(spec, user=None, params=[{"title": "a"}])
+        assert isinstance(raised.value.detail, dict)
+        assert "author_pk" in raised.value.detail

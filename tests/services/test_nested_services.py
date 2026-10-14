@@ -1,4 +1,4 @@
-"""``children=`` passthrough on the default model service factories."""
+"""``relations=`` passthrough on the default model service factories."""
 
 from __future__ import annotations
 
@@ -21,14 +21,14 @@ _SECTIONS = ChildSpec(model=Section, fk="catalog")
 @pytest.mark.django_db
 class TestSyncServices:
     def test_create_model_writes_children(self) -> None:
-        service = create_model(Catalog, children={"sections": _SECTIONS})
+        service = create_model(Catalog, relations={"sections": _SECTIONS})
         catalog = service(data={"name": "c", "sections": [{"title": "s"}]})
         assert catalog.sections.get().title == "s"
 
     def test_update_model_reconciles_children(self) -> None:
         catalog = Catalog.objects.create(name="c")
         orphan = Section.objects.create(catalog=catalog, title="orphan")
-        service = update_model(Catalog, children={"sections": _SECTIONS})
+        service = update_model(Catalog, relations={"sections": _SECTIONS})
         service(instance=catalog, data={"sections": [{"title": "new"}]})
         assert not Section.objects.filter(pk=orphan.pk).exists()  # replace removed orphan
         assert catalog.sections.get().title == "new"
@@ -40,11 +40,11 @@ class TestSyncServices:
         note = Note.objects.create(catalog=catalog, body="n")
         service = delete_model(
             Catalog,
-            children={
+            relations={
                 "sections": ChildSpec(
                     model=Section,
                     fk="catalog",
-                    children={"items": ChildSpec(model=Item, fk="section")},
+                    relations={"items": ChildSpec(model=Item, fk="section")},
                 ),
                 "notes": ChildSpec(model=Note, fk="catalog"),
             },
@@ -60,14 +60,14 @@ class TestSyncServices:
 @pytest.mark.django_db(transaction=True)
 class TestAsyncServices:
     async def test_acreate_model_writes_children(self) -> None:
-        service = acreate_model(Catalog, children={"sections": _SECTIONS})
+        service = acreate_model(Catalog, relations={"sections": _SECTIONS})
         catalog = await service(data={"name": "c", "sections": [{"title": "s"}]})
         assert await catalog.sections.acount() == 1
 
     async def test_aupdate_model_reconciles_children(self) -> None:
         catalog = await Catalog.objects.acreate(name="c")
         orphan = await Section.objects.acreate(catalog=catalog, title="orphan")
-        service = aupdate_model(Catalog, children={"sections": _SECTIONS})
+        service = aupdate_model(Catalog, relations={"sections": _SECTIONS})
         await service(instance=catalog, data={"sections": [{"title": "new"}]})
         assert not await Section.objects.filter(pk=orphan.pk).aexists()
 
@@ -77,11 +77,11 @@ class TestAsyncServices:
         await Item.objects.acreate(section=section, label="i")
         service = adelete_model(
             Catalog,
-            children={
+            relations={
                 "sections": ChildSpec(
                     model=Section,
                     fk="catalog",
-                    children={"items": ChildSpec(model=Item, fk="section")},
+                    relations={"items": ChildSpec(model=Item, fk="section")},
                 ),
             },
         )
