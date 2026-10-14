@@ -15,7 +15,7 @@ from django_service_specs.types.selector_kind import SelectorKind
 
 from rest_framework_services.service_specs.as_kernel_spec import as_kernel_spec
 
-_Variant = tuple[bool | None, bool, bool]
+_Variant = tuple[bool | None, bool, bool, bool]
 
 # id(source) -> (a weak reference to it, its variants by key). Keyed by identity
 # for the reason ``kernel_spec`` gives: a frozen dataclass compares by its fields,
@@ -31,6 +31,7 @@ def kernel_spec_variant(
     partial: bool | None = None,
     unguarded: bool = False,
     target: bool = False,
+    server_input: bool = True,
 ) -> KernelServiceSpec | KernelSelectorSpec:
     """``spec`` compiled as one request of the DRF edge dispatches it, once per variant.
 
@@ -52,9 +53,15 @@ def kernel_spec_variant(
       ``target=`` on a spec with no target selector. The stand-in reads no
       arguments and is never called: a dispatch reaching it raises
       ``ImproperlyConfigured``. A spec with a target lookup keeps its own.
+    - ``server_input``: ``False``, for a service spec only, compiles it with no
+      ``input_data``, which the DRF edge evaluates itself and merges into the
+      arguments: the kernel relaxes a Validator field only for a provider
+      annotated to fill it, so an untyped one, as drfs has always taken, would
+      be refused as missing before it ran. Leaving it on would also call the
+      provider twice.
     """
-    key: _Variant = (partial, unguarded, target)
-    if key == (None, False, False):
+    key: _Variant = (partial, unguarded, target, server_input)
+    if key == (None, False, False, True):
         return kernel_spec(spec)
     with _LOCK:
         held = _VARIANTS.get(id(spec))
@@ -65,17 +72,20 @@ def kernel_spec_variant(
         variants = held[1]
         compiled = variants.get(key)
         if compiled is None:
-            compiled = variants[key] = _compile(spec, partial, unguarded, target)
+            compiled = variants[key] = _compile(spec, partial, unguarded, target, server_input)
     return compiled
 
 
 def _compile(
-    spec: Any, partial: bool | None, unguarded: bool, target: bool
+    spec: Any, partial: bool | None, unguarded: bool, target: bool, server_input: bool
 ) -> KernelServiceSpec | KernelSelectorSpec:
     compiled = kernel_spec(spec) if partial is None else as_kernel_spec(spec, partial=partial)
     changes: dict[str, Any] = {}
     if unguarded:
         changes["permissions"] = None
+    if not server_input:
+        # A service spec's alone: a selector spec has no ``input_data``.
+        changes["input_data"] = None
     # One arc to coverage, so each conjunct is named:
     # test_a_selector_spec_takes_no_stand_in fails without the first, and
     # test_a_declared_lookup_is_kept without the second.

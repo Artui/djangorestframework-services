@@ -13,6 +13,7 @@ from typing import Any, cast
 from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured
 from django.http import QueryDict
+from django.utils.module_loading import import_string
 from django_service_specs.adapters.filters.filter_set_parameters import filter_set_parameters
 from django_service_specs.dispatch.grant import Grant
 from django_service_specs.dispatch.resolve_target import resolve_target
@@ -156,16 +157,18 @@ def prepare_edge_call(
             },
         )
     if spec.many:
-        variant = kernel_spec_variant(spec, partial=partial, unguarded=True)
+        variant = kernel_spec_variant(spec, partial=partial, unguarded=True, server_input=False)
         rows = params
         if many_as_argument:
             arguments = edge_arguments(variant, spec, params, request=request, view=view)
         else:
             arguments = edge_arguments(variant, spec, {}, request=request, view=view)
             arguments[spec.many_argument] = rows
-        if hooks.input_data and isinstance(arguments.get(spec.many_argument), list):
+        # A bulk call acts on no row, so the provider is handed none.
+        server = server_input(spec, hooks, view=view, request=request, instance=None)
+        if server and isinstance(arguments.get(spec.many_argument), list):
             arguments[spec.many_argument] = [
-                {**row, **hooks.input_data} if isinstance(row, Mapping) else row
+                {**row, **server} if isinstance(row, Mapping) else row
                 for row in arguments[spec.many_argument]
             ]
         extra_kwargs = _route_hook_extras(variant, arguments, hooks.extra_kwargs)
@@ -190,15 +193,14 @@ def prepare_edge_call(
     # A drfs ``ServiceSpec`` compiles to the kernel's.
     service = cast(
         KernelServiceSpec,
-        kernel_spec_variant(spec, partial=partial, unguarded=True, target=handed),
+        kernel_spec_variant(
+            spec, partial=partial, unguarded=True, target=handed, server_input=False
+        ),
     )
     arguments = edge_arguments(service, spec, params, request=request, view=view)
     target_spec = service.target_selector_spec()
     if target_spec is not None:
         _route_filter_data(arguments, target_spec.filter_set, filter_data)
-    if hooks.input_data and isinstance(arguments, dict):
-        # Beneath ``spec.input_data``, which the kernel merges over the arguments.
-        arguments.update(hooks.input_data)
     # Before the lookup, which a hook value for one of its reads scopes.
     extra_kwargs = _route_hook_extras(service, arguments, hooks.extra_kwargs)
     if handed:
@@ -223,6 +225,10 @@ def prepare_edge_call(
         target = resolved[0]
     if on_target_resolved is not None:
         on_target_resolved(spec, guard_context, instance=target)
+    # After the lookup, as on main: the provider is handed the row it found.
+    server = server_input(spec, hooks, view=view, request=request, instance=target)
+    if server and isinstance(arguments, dict):
+        arguments.update(server)
     return EdgeCall(
         service,
         {
@@ -234,6 +240,37 @@ def prepare_edge_call(
             "extra_kwargs": extra_kwargs,
         },
     )
+
+
+def server_input(
+    spec: ServiceSpec[Any, Any, Any],
+    hooks: ViewHooks,
+    *,
+    view: Any,
+    request: Any,
+    instance: Any,
+) -> dict[str, Any]:
+    """The server's keys for the Validator's input: the view's ``input_data``, then the spec's.
+
+    The spec's ``input_data`` provider is called here, from ``view``, ``request``
+    and ``instance`` (the row the call acts on, ``None`` for a create or a
+    ``many`` call), and wins over the view hook's value on a shared key, as it
+    did on main. The edge merges the answer over the caller's arguments, so a
+    server key always beats the client's. It is the edge's rather than the
+    kernel's because the kernel relaxes a Validator field only for a provider
+    annotated to fill it, so the untyped provider drfs has always taken would
+    meet a missing-field refusal before it ran
+    (test_input_data_applies_off_http); the dispatched variant carries none, so
+    the provider runs once (test_the_input_data_provider_runs_once_per_call). A
+    key the provider answers ``UNSET`` is declined, as main read it.
+    """
+    merged: dict[str, Any] = dict(hooks.input_data or {})
+    provider = spec.input_data
+    if provider is not None:
+        pool: dict[str, Any] = {"view": view, "request": request, "instance": instance}
+        answered = provider(**resolve_callable_kwargs(provider, pool))
+        merged.update({key: value for key, value in answered.items() if value is not UNSET})
+    return merged
 
 
 def refuse_retired_modes(
@@ -260,12 +297,18 @@ def unauthenticated_user() -> Any:
 
     Read from ``api_settings`` at call time, which imports the class lazily:
     ``django.contrib.auth.models`` cannot be imported while the app registry is
-    still loading, and this package is imported then. ``None`` where a project
-    sets ``UNAUTHENTICATED_USER`` to ``None``, as DRF's own ``Request`` does.
+    still loading, and this package is imported then. Where a project sets
+    ``UNAUTHENTICATED_USER`` to ``None``, DRF's own ``Request`` carries ``None``,
+    which the kernel takes as no principal at all (``adispatch`` refuses it with
+    ``TypeError``), so the edge acts as Django's ``AnonymousUser`` there, imported
+    by name at call time for the same reason
+    (test_a_project_with_no_unauthenticated_user_still_acts_as_anonymous).
     """
     # A class, or ``None``; DRF's settings object is untyped.
     factory: Any = api_settings.UNAUTHENTICATED_USER
-    return factory() if factory is not None else None
+    if factory is None:
+        factory = import_string("django.contrib.auth.models.AnonymousUser")
+    return factory()
 
 
 def edge_seeds(

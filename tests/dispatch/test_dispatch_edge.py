@@ -11,10 +11,12 @@ from typing import Annotated, Any
 
 import django_filters
 import pytest
+from asgiref.sync import async_to_sync
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from django.http import QueryDict
+from django.test import override_settings
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
@@ -22,6 +24,7 @@ from rest_framework_services import (
     SelectorKind,
     SelectorSpec,
     ServiceSpec,
+    adispatch_spec,
     build_offline_context,
     dispatch_spec,
 )
@@ -30,7 +33,9 @@ from rest_framework_services.types.not_client_input import NotClientInput
 from rest_framework_services.types.pool_seeds import DEFAULT_POOL_SEEDS
 from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.unknown_arguments import UnknownArguments
+from rest_framework_services.types.unset import UNSET
 from rest_framework_services.types.url_kwarg import UrlKwarg
+from rest_framework_services.types.view_hooks import ViewHooks
 from tests.testapp.models import Author, Post
 
 
@@ -395,6 +400,42 @@ class TestPoolSeeds:
         dispatch_spec(spec, user=None, params={})
         assert isinstance(seen["user"], AnonymousUser)
 
+    @pytest.mark.parametrize("core", ["sync", "async"])
+    def test_a_project_with_no_unauthenticated_user_still_acts_as_anonymous(
+        self, core: str
+    ) -> None:
+        """``UNAUTHENTICATED_USER = None`` leaves DRF's request user ``None``; the
+        kernel takes no ``None`` principal (``adispatch`` raises ``TypeError``), so the
+        edge acts as Django's ``AnonymousUser`` there, on both cores alike."""
+        seen: dict[str, Any] = {}
+
+        def posts(*, user: Any) -> QuerySet[Post]:
+            seen["user"] = user
+            return Post.objects.none()
+
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=posts, permission_classes=[])
+        with override_settings(REST_FRAMEWORK={"UNAUTHENTICATED_USER": None}):
+            if core == "sync":
+                dispatch_spec(spec, user=None, params={})
+            else:
+                async_to_sync(adispatch_spec)(spec, user=None, params={})
+        assert isinstance(seen["user"], AnonymousUser)
+
+    @pytest.mark.parametrize("core", ["sync", "async"])
+    def test_the_guard_still_sees_no_user(self, core: str) -> None:
+        seen: dict[str, Any] = {}
+
+        def guard(spec: Any, context: Any, *, instance: Any) -> None:
+            seen["user"] = context.user
+
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=_posts, permission_classes=[])
+        with override_settings(REST_FRAMEWORK={"UNAUTHENTICATED_USER": None}):
+            if core == "sync":
+                dispatch_spec(spec, user=None, params={}, on_target_resolved=guard)
+            else:
+                async_to_sync(adispatch_spec)(spec, user=None, params={}, on_target_resolved=guard)
+        assert seen == {"user": None}
+
 
 @pytest.mark.django_db
 class TestBareRowRefusals:
@@ -411,3 +452,90 @@ class TestBareRowRefusals:
             dispatch_spec(spec, user=None, params=[{"title": "a"}])
         assert isinstance(raised.value.detail, dict)
         assert "author_pk" in raised.value.detail
+
+
+class _TitleTenantIn(serializers.Serializer):
+    title = serializers.CharField()
+    tenant = serializers.CharField()
+
+
+def _echo(*, data: Any) -> dict[str, Any]:
+    return dict(data)
+
+
+@pytest.mark.django_db
+class TestServerInput:
+    """``ServiceSpec.input_data`` is evaluated by the edge and merged over the arguments."""
+
+    def test_the_input_data_provider_runs_once_per_call(self) -> None:
+        calls: list[None] = []
+
+        def provide() -> dict[str, Any]:
+            calls.append(None)
+            return {"tenant": "server"}
+
+        spec = ServiceSpec(
+            service=_echo,
+            input_serializer=_TitleTenantIn,
+            input_data=provide,
+            permission_classes=[],
+        )
+        result = dispatch_spec(spec, user=None, params={"title": "t"})
+        assert result.value == {"title": "t", "tenant": "server"}
+        assert len(calls) == 1
+
+    def test_an_unset_key_is_declined_and_the_callers_stands(self) -> None:
+        spec = ServiceSpec(
+            service=_echo,
+            input_serializer=_TitleTenantIn,
+            input_data=lambda: {"tenant": UNSET},
+            permission_classes=[],
+        )
+        result = dispatch_spec(spec, user=None, params={"title": "t", "tenant": "client"})
+        assert result.value == {"title": "t", "tenant": "client"}
+
+    def test_the_provider_is_handed_the_row_the_call_acts_on(self) -> None:
+        post = Post.objects.create(title="row")
+        seen: dict[str, Any] = {}
+
+        def provide(*, instance: Any, view: Any, request: Any) -> dict[str, Any]:
+            seen.update(instance=instance, view=view, request=request)
+            return {"tenant": instance.title}
+
+        def update(*, instance: Post, data: Any) -> dict[str, Any]:
+            return dict(data)
+
+        context = build_offline_context(None, {})
+        spec = ServiceSpec(
+            service=update,
+            input_serializer=_TitleTenantIn,
+            input_data=provide,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=lambda *, pk: Post.objects.filter(pk=pk)
+            ),
+            permission_classes=[],
+        )
+        result = dispatch_spec(
+            spec,
+            user=None,
+            params={"pk": post.pk, "title": "t"},
+            request=context.request,
+            view=context.view,
+        )
+        assert result.value == {"title": "t", "tenant": "row"}
+        assert seen == {"instance": post, "view": context.view, "request": context.request}
+
+    def test_the_specs_value_wins_over_the_view_hooks(self) -> None:
+        spec = ServiceSpec(
+            service=_echo,
+            input_serializer=_TitleTenantIn,
+            input_data=lambda: {"tenant": "spec"},
+            permission_classes=[],
+        )
+        result = dispatch_spec(
+            spec,
+            user=None,
+            params={"title": "t"},
+            view_hooks=ViewHooks(input_data={"tenant": "hook", "title": "hook"}),
+        )
+        assert result.value == {"title": "hook", "tenant": "spec"}
