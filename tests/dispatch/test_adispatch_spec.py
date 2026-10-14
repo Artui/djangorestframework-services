@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import django_filters
 import pytest
 from asgiref.sync import sync_to_async
 from django.core.exceptions import ImproperlyConfigured
@@ -29,19 +30,14 @@ def _post_qs_by_pk(*, pk: int) -> QuerySet[Post]:
     return Post.objects.filter(pk=pk)
 
 
-class _PublishedFilterSet:
-    """Duck-typed FilterSet: narrows by ``?published=``."""
+class _PublishedFilterSet(django_filters.FilterSet):
+    """Narrows by ``?published=``; a duck-typed set is refused when the spec compiles."""
 
-    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
-        self._data = data
-        self._queryset = queryset
+    published = django_filters.BooleanFilter()
 
-    @property
-    def qs(self) -> QuerySet[Post]:
-        raw = self._data.get("published")
-        if raw is None:
-            return self._queryset
-        return self._queryset.filter(published=str(raw).lower() in ("1", "true", "yes"))
+    class Meta:
+        model = Post
+        fields = ("published",)
 
 
 @pytest.mark.django_db(transaction=True)
@@ -63,7 +59,7 @@ class TestADispatchSelector:
 
     async def test_retrieve_with_sync_selector_runs_off_loop(self) -> None:
         post = await Post.objects.acreate(title="p")
-        # Sync selector → exercises the sync_to_async branch of arun_callable.
+        # A sync selector, which the kernel's adispatch runs in the executor.
         spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk)
         result = await adispatch_spec(spec, user=None, params={"pk": post.pk})
         assert result.kind == "instance"
@@ -72,12 +68,12 @@ class TestADispatchSelector:
     async def test_retrieve_missing_not_found(self) -> None:
         spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk)
         result = await adispatch_spec(spec, user=None, params={"pk": 9999})
-        assert result == DispatchResult(value=None, kind="not_found", status=404)
+        assert result == DispatchResult(kind="not_found")
 
     async def test_retrieve_allow_none(self) -> None:
         spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk, allow_none=True)
         result = await adispatch_spec(spec, user=None, params={"pk": 9999})
-        assert result == DispatchResult(value=None, kind="instance", status=200)
+        assert result == DispatchResult(kind="instance")
 
     async def test_object_does_not_exist_retrieve_not_found(self) -> None:
         async def strict_get(*, pk: int) -> Post:
@@ -97,7 +93,7 @@ class TestADispatchSelector:
 
     async def test_selector_required(self) -> None:
         spec = SelectorSpec(kind=SelectorKind.LIST)
-        with pytest.raises(ImproperlyConfigured, match="requires the SelectorSpec"):
+        with pytest.raises(ImproperlyConfigured, match="declares no selector"):
             await adispatch_spec(spec, user=None, params={})
 
 
@@ -107,11 +103,8 @@ class TestADispatchService:
         async def acreate(*, data: _PostIn) -> Post:
             return await Post.objects.acreate(title=data.title)
 
-        spec = ServiceSpec(
-            service=acreate, input_serializer=_PostIn, success_status=201, atomic=False
-        )
+        spec = ServiceSpec(service=acreate, input_serializer=_PostIn, atomic=False)
         result = await adispatch_spec(spec, user=None, params={"title": "new"})
-        assert result.status == 201
         assert result.value.title == "new"
 
     async def test_create_with_sync_service_runs_off_loop(self) -> None:
@@ -121,19 +114,6 @@ class TestADispatchService:
         spec = ServiceSpec(service=create, input_serializer=_PostIn, atomic=False)
         result = await adispatch_spec(spec, user=None, params={"title": "s"})
         assert result.value.title == "s"
-
-    async def test_callable_success_status_async(self) -> None:
-        async def acreate(*, data: _PostIn) -> Post:
-            return await Post.objects.acreate(title=data.title)
-
-        def status(*, result: Post) -> int:
-            return 201 if result.title == "new" else 200
-
-        spec = ServiceSpec(
-            service=acreate, input_serializer=_PostIn, success_status=status, atomic=False
-        )
-        assert (await adispatch_spec(spec, user=None, params={"title": "new"})).status == 201
-        assert (await adispatch_spec(spec, user=None, params={"title": "old"})).status == 200
 
     async def test_update_resolves_instance_async(self) -> None:
         post = await Post.objects.acreate(title="old")
@@ -152,7 +132,7 @@ class TestADispatchService:
             atomic=False,
         )
         result = await adispatch_spec(spec, user=None, params={"pk": post.pk, "title": "fresh"})
-        assert result.status == 200
+        assert result.kind == "instance"
         await post.arefresh_from_db()
         assert post.title == "fresh"
 
@@ -234,7 +214,7 @@ class TestAFilterDataOnTheReadPath:
         spec = SelectorSpec(
             kind=SelectorKind.LIST, selector=all_posts, filter_set=_PublishedFilterSet
         )
-        result = await adispatch_spec(spec, user=None, params={}, filter_data={"published": "true"})
+        result = await adispatch_spec(spec, user=None, params={}, filter_data={"published": True})
 
         titles = await sync_to_async(lambda: [p.title for p in result.value])()
         assert titles == ["shipped"]
@@ -249,7 +229,7 @@ class TestAFilterDataOnTheReadPath:
         spec = SelectorSpec(
             kind=SelectorKind.LIST, selector=all_posts, filter_set=_PublishedFilterSet
         )
-        result = await adispatch_spec(spec, user=None, params={"published": "false"})
+        result = await adispatch_spec(spec, user=None, params={"published": False})
 
         titles = await sync_to_async(lambda: [p.title for p in result.value])()
         assert titles == ["draft"]

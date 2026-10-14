@@ -7,19 +7,25 @@ shows up only under the async transport, and only for the specs that happen to
 query. Each test here queries inside the callable under test: on the event loop
 it raises, in the thread-sensitive executor it doesn't.
 
-The spec's own selector / service are covered by ``test_adispatch_spec.py`` —
-they may legitimately be async, so they go through ``arun_callable`` instead.
+The edge prepares the call in one executor hop and the kernel's ``adispatch``
+runs the rest, so these hold the composition: whatever runs where, nothing a spec
+declares reaches the loop. The spec's own selector / service are covered by
+``test_adispatch_spec.py``, since they may legitimately be async.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Annotated, Any
 
+import django_filters
 import pytest
 from django.db.models import QuerySet
+from rest_framework import serializers
 
 from rest_framework_services import (
+    DEFAULT_POOL_SEEDS,
+    NotClientInput,
     SelectorKind,
     SelectorSpec,
     ServiceSpec,
@@ -41,21 +47,17 @@ def _count_posts(view: Any = None, request: Any = None) -> int:
     return Post.objects.count()
 
 
-class _EvaluatingFilterSet:
-    """A ``filter_set`` whose ``.qs`` needs rows to decide — it evaluates.
+class _EvaluatingFilterSet(django_filters.FilterSet):
+    """A ``filter_set`` whose filter method needs rows to decide: it evaluates."""
 
-    Stands in for a django-filter ``FilterSet`` with a ``filter_<name>`` method
-    that queries, or a ``ModelChoiceFilter`` whose ``is_valid()`` resolves the
-    choice against the DB.
-    """
+    seen = django_filters.NumberFilter(method="filter_seen")
 
-    def __init__(self, *, data: Any, queryset: Any) -> None:
-        self._queryset = queryset
+    def filter_seen(self, queryset: Any, name: str, value: Any) -> Any:
+        return queryset.filter(pk__in=[post.pk for post in Post.objects.all()])
 
-    @property
-    def qs(self) -> Any:
-        allowed = [post.pk for post in Post.objects.all()]
-        return self._queryset.filter(pk__in=allowed)
+
+class _TitleIn(serializers.Serializer):
+    title = serializers.CharField()
 
 
 def _extend_by_query(qs: Any, view: Any, request: Any) -> Any:
@@ -106,7 +108,7 @@ class TestSelectorPathStaysOffTheLoop:
         spec = SelectorSpec(
             kind=SelectorKind.LIST, selector=_all_posts, filter_set=_EvaluatingFilterSet
         )
-        result = await adispatch_spec(spec, user=None, params={})
+        result = await adispatch_spec(spec, user=None, params={"seen": 1})
         assert await result.value.acount() == 1
 
     async def test_extend_queryset_that_queries(self) -> None:
@@ -240,20 +242,10 @@ class TestServicePathStaysOffTheLoop:
         result = await adispatch_spec(spec, user=None, params={})
         assert result.value is not None
 
-    async def test_callable_success_status_that_queries(self) -> None:
-        await Post.objects.acreate(title="a")
-        spec = ServiceSpec(
-            service=_service,
-            success_status=lambda *, result: 201 if _count_posts() else 200,
-            atomic=False,
-        )
-        result = await adispatch_spec(spec, user=None, params={})
-        assert result.status == 201
-
 
 @pytest.mark.django_db(transaction=True)
 class TestBulkPathStaysOffTheLoop:
-    async def test_provider_context_and_status_that_query(self) -> None:
+    async def test_provider_and_context_that_query(self) -> None:
         await Post.objects.acreate(title="a")
 
         def bulk_service(*, seen: int = -1, **kwargs: Any) -> list[int]:
@@ -262,14 +254,13 @@ class TestBulkPathStaysOffTheLoop:
         spec = ServiceSpec(
             service=bulk_service,
             many=True,
+            input_serializer=_TitleIn,
             kwargs=_scope_provider,
             input_serializer_context=_scope_provider,
-            success_status=lambda *, result: 201 if _count_posts() else 200,
             atomic=False,
         )
-        result = await adispatch_spec(spec, user=None, params=[])
+        result = await adispatch_spec(spec, user=None, params=[{"title": "x"}])
         assert result.value == [1]
-        assert result.status == 201
 
     async def test_progress_reporter_provider_that_queries(self) -> None:
         await Post.objects.acreate(title="a")
@@ -282,9 +273,59 @@ class TestBulkPathStaysOffTheLoop:
         spec = ServiceSpec(
             service=bulk_service,
             many=True,
+            input_serializer=_TitleIn,
             progress_reporter=_task_record_reporter(seen),
             atomic=False,
         )
-        result = await adispatch_spec(spec, user=None, params=[])
+        result = await adispatch_spec(spec, user=None, params=[{"title": "x"}])
         assert result.value == ["done"]
         assert seen == [(1, 1)]
+
+
+def _guard_that_queries(seen: list[Any]) -> Callable[..., None]:
+    """An ``on_target_resolved`` guard that reads the database, as a row check does."""
+
+    def guard(spec: Any, context: Any, *, instance: Any) -> None:
+        seen.append(_count_posts())
+
+    return guard
+
+
+@pytest.mark.django_db(transaction=True)
+class TestTheEdgeStaysOffTheLoop:
+    """What the edge itself runs: the target lookup and the guard, in its one hop,
+    and a project's seed resolver, which the kernel resolves through the edge's
+    wrapper."""
+
+    async def test_a_service_specs_guard_that_queries(self) -> None:
+        post = await Post.objects.acreate(title="a")
+        seen: list[Any] = []
+        spec = ServiceSpec(
+            service=_service,
+            instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_posts_by_pk),
+            atomic=False,
+        )
+        await adispatch_spec(
+            spec, user=None, params={"pk": post.pk}, on_target_resolved=_guard_that_queries(seen)
+        )
+        assert seen == [1]
+
+    async def test_a_selector_specs_guard_that_queries(self) -> None:
+        await Post.objects.acreate(title="a")
+        seen: list[Any] = []
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts)
+        await adispatch_spec(
+            spec, user=None, params={}, on_target_resolved=_guard_that_queries(seen)
+        )
+        assert seen == [1]
+
+    async def test_a_pool_seed_that_queries(self) -> None:
+        await Post.objects.acreate(title="a")
+
+        def selector(*, seen: Annotated[int, NotClientInput]) -> QuerySet[Post]:
+            return _all_posts() if seen == 1 else Post.objects.none()
+
+        seeds = DEFAULT_POOL_SEEDS.extend(seen=lambda *, request: _count_posts())
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=selector)
+        result = await adispatch_spec(spec, user=None, params={}, pool_seeds=seeds)
+        assert await result.value.acount() == 1

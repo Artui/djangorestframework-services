@@ -1,15 +1,14 @@
-"""``strip_hidden_inputs`` and ``server_owned_keys`` — the caller-mapping half of ``NotClientInput``."""
+"""``server_owned_keys`` - the names ``NotClientInput`` takes from every caller of a spec."""
 
 from __future__ import annotations
 
 from typing import Annotated, Any
 
-from django.http import QueryDict
 from typing_extensions import TypedDict, Unpack
 
 import rest_framework_services
 from rest_framework_services import NotClientInput, SelectorKind, SelectorSpec, ServiceSpec
-from rest_framework_services.dispatch.utils import server_owned_keys, strip_hidden_inputs
+from rest_framework_services.dispatch.utils import server_owned_keys
 
 
 def _unmarked(*, team: str = "own-team") -> str:
@@ -34,53 +33,16 @@ def _owned(fn: Any) -> frozenset[str]:
     return server_owned_keys(SelectorSpec(kind=SelectorKind.LIST, selector=fn))
 
 
-def test_an_unmarked_callable_gets_the_mapping_back_unchanged() -> None:
-    """Identity, not a copy: a form-encoded body stays a ``QueryDict``, whose
-    values a dict copy would turn into one-element lists."""
-    params = QueryDict("team=other-team&limit=3")
-
-    assert strip_hidden_inputs(params, _owned(_unmarked)) is params
+def test_an_unmarked_callable_owns_only_view() -> None:
+    assert _owned(_unmarked) == {"view"}
 
 
-def test_only_the_marked_key_is_dropped() -> None:
-    assert strip_hidden_inputs({"team": "other-team", "limit": 3}, _owned(_marked)) == {"limit": 3}
+def test_a_marked_key_is_owned() -> None:
+    assert _owned(_marked) == {"team", "view"}
 
 
-def test_a_key_marked_inside_an_unpacked_typed_dict_is_dropped() -> None:
-    assert strip_hidden_inputs({"team": "other-team", "limit": 3}, _owned(_marked_in_extras)) == {
-        "limit": 3
-    }
-
-
-def test_a_callers_view_is_dropped_for_any_callable() -> None:
-    """No callable marks ``view``, and no caller supplies it either."""
-    assert strip_hidden_inputs({"view": "spoofed", "team": "other-team"}, _owned(_unmarked)) == {
-        "team": "other-team"
-    }
-
-
-def test_a_mapping_carrying_no_hidden_key_comes_back_unchanged() -> None:
-    """Identity whenever there is nothing to drop, marked callable or not."""
-    params = QueryDict("limit=3")
-
-    assert strip_hidden_inputs(params, _owned(_marked)) is params
-
-
-def test_a_key_the_server_supplied_is_kept() -> None:
-    """``input_data`` wrote the value, so it is the server's, not the caller's."""
-    params = {"team": "server-team", "limit": 3}
-
-    assert strip_hidden_inputs(params, _owned(_marked), server_supplied={"team"}) is params
-
-
-def test_only_the_server_supplied_key_is_kept() -> None:
-    """The server supplying one hidden key does not let the caller's others through."""
-    params = {"team": "server-team", "view": "spoofed", "limit": 3}
-
-    assert strip_hidden_inputs(params, _owned(_marked), server_supplied={"team"}) == {
-        "team": "server-team",
-        "limit": 3,
-    }
+def test_a_key_marked_inside_an_unpacked_typed_dict_is_owned() -> None:
+    assert _owned(_marked_in_extras) == {"team", "view"}
 
 
 # --- the union over every callable in the call ---------------------------------------
