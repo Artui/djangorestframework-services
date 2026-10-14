@@ -36,7 +36,9 @@ class _SelectorViewSet(GenericViewSet):
     @selector_action(
         SelectorSpec(
             kind=SelectorKind.RETRIEVE,
-            selector=lambda **kwargs: Author.objects.filter(pk=kwargs["pk"]).first(),
+            # ``pk`` is declared: a route capture reaches only a parameter the
+            # selector names, never one it would only find through ``**kwargs``.
+            selector=lambda *, pk: Author.objects.filter(pk=pk).first(),
         ),
     )
     def card(self, request, pk=None):  # type: ignore[no-untyped-def]

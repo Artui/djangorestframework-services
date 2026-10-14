@@ -432,6 +432,11 @@ PUT returns `405`. On the standalone `ServiceUpdateView` both verbs share
 one spec, so a forced `partial` applies to PUT *and* PATCH; set
 `http_method_names = ["patch"]` for the PATCH-only standalone equivalent.
 
+An input declared as a bare `@dataclass` or a `DataclassSerializer` is built
+from every field, so it cannot take a partial call: a PATCH to it is
+validated as a PUT is, and a field it leaves out answers `400`. Declare the
+input as a `Serializer` subclass for a PATCH that may leave fields out.
+
 ### Standalone update without a queryset
 
 With `instance_selector_spec`, a standalone mutation view needs no

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
+import django_filters
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
@@ -148,19 +148,14 @@ class TestNestedOutputSpecIgnoresAllowNone:
         assert response.status_code == 204
 
 
-class _NameFilterSet:
-    """Duck-typed scoping FilterSet: keeps only rows whose ``name`` matches."""
+class _NameFilterSet(django_filters.FilterSet):
+    """Scoping filter set: keeps only rows whose ``name`` matches ``?scope=``."""
 
-    def __init__(self, *, data: Any, queryset: QuerySet[Author]) -> None:
-        self._data = data
-        self._queryset = queryset
+    scope = django_filters.CharFilter(field_name="name")
 
-    @property
-    def qs(self) -> QuerySet[Author]:
-        raw = self._data.get("name")
-        if raw is None:
-            return self._queryset
-        return self._queryset.filter(name=raw)
+    class Meta:
+        model = Author
+        fields = ["scope"]
 
 
 class _ScopedUpdateView(ServiceUpdateView):
@@ -178,16 +173,16 @@ class TestInstanceSelectorFilterChannel:
     """A ``filter_set`` on the nested lookup narrows the row a mutation reaches.
 
     That makes it a scoping rule, and a scoping rule has to read the channel
-    the client cannot also use to satisfy the serializer. Both tests use the
-    *same* key in both channels, which is the collision the split exists for:
-    bound to the body, the value being written decides which row is writable.
+    the client cannot also use: bound to the body, the value being written
+    would decide which row is writable. The query string is the filter's only
+    source, so a filter name the body also sends is dropped from it.
     """
 
     def test_the_query_string_is_the_scope(self) -> None:
         author = Author.objects.create(name="orig")
 
         response = _ScopedUpdateView.as_view()(
-            factory.patch("/?name=orig", {"name": "new"}, format="json"), pk=author.pk
+            factory.patch("/?scope=orig", {"name": "new"}, format="json"), pk=author.pk
         )
 
         assert response.status_code == 200
@@ -198,12 +193,42 @@ class TestInstanceSelectorFilterChannel:
         author = Author.objects.create(name="orig")
 
         response = _ScopedUpdateView.as_view()(
-            factory.patch("/?name=someone-else", {"name": "orig"}, format="json"), pk=author.pk
+            factory.patch("/?scope=someone-else", {"name": "new", "scope": "orig"}, format="json"),
+            pk=author.pk,
         )
 
         assert response.status_code == 404
         author.refresh_from_db()
         assert author.name == "orig"
+
+    def test_a_filter_named_like_an_input_field_is_refused(self) -> None:
+        """A filter name and an input field share one set of argument names, so a
+        filter set reading the key the serializer validates is a misconfigured
+        spec rather than two channels told apart at request time."""
+
+        class _CollidingFilterSet(django_filters.FilterSet):
+            name = django_filters.CharFilter()
+
+            class Meta:
+                model = Author
+                fields = ["name"]
+
+        class _View(ServiceUpdateView):
+            spec = ServiceSpec(
+                service=_update_author,
+                input_serializer=_AuthorIn,
+                instance_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE,
+                    selector=_author_by_pk,
+                    filter_set=_CollidingFilterSet,
+                ),
+            )
+
+        author = Author.objects.create(name="orig")
+        with pytest.raises(ImproperlyConfigured, match="declared by two sources"):
+            _View.as_view()(
+                factory.patch("/?name=orig", {"name": "new"}, format="json"), pk=author.pk
+            )
 
 
 @pytest.mark.django_db

@@ -7,10 +7,10 @@ different: the core resolves them with the request body as their argument
 channel. So the body's value for a key the lookup marks ``NotClientInput`` is
 dropped there too, while a route capture of that name still fills it.
 
-``view`` is treated the same way, as though every callable marked it: no pool
-carries it, so over HTTP a selector receives it only from a hook or provider, and
-a lookup only from those or a route capture. Those still deliver the real view;
-only a request body's ``view`` stops reaching a lookup.
+``view`` is a seed, as ``request`` is: every callable declaring it is handed the
+calling view, and no body, query string or route capture of that name stands in
+for it. A hook or provider returning it is refused, as a provider's key for any
+seed is.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from rest_framework.test import APIRequestFactory
 
@@ -186,19 +187,7 @@ class _ViewLookupView(ServiceUpdateView):
 
 
 @pytest.mark.django_db
-def test_the_bodys_view_is_dropped_before_a_lookup(seen: list[Any]) -> None:
-    post = Post.objects.create(title="p")
-
-    response = _ViewLookupView.as_view()(
-        factory.put("/", {"view": "spoofed"}, format="json"), pk=post.pk
-    )
-
-    assert response.status_code == 200
-    assert seen == [None]
-
-
-@pytest.mark.django_db
-def test_a_route_capture_named_view_still_fills_a_lookup(seen: list[Any]) -> None:
+def test_a_lookup_declaring_view_is_handed_the_calling_view(seen: list[Any]) -> None:
     post = Post.objects.create(title="p")
 
     response = _ViewLookupView.as_view()(
@@ -206,7 +195,25 @@ def test_a_route_capture_named_view_still_fills_a_lookup(seen: list[Any]) -> Non
     )
 
     assert response.status_code == 200
-    assert seen == ["route"]
+    assert len(seen) == 1
+    assert isinstance(seen[0], _ViewLookupView)
+
+
+class _SeedView(SelectorRetrieveView):
+    spec = SelectorSpec(
+        kind=SelectorKind.RETRIEVE, selector=_post_seeing_view, output_serializer=PostSerializer
+    )
+
+
+@pytest.mark.django_db
+def test_a_selector_declaring_view_is_handed_the_calling_view(seen: list[Any]) -> None:
+    post = Post.objects.create(title="p")
+
+    response = _SeedView.as_view()(factory.get("/", {"view": "spoofed"}), pk=post.pk)
+
+    assert response.status_code == 200
+    assert len(seen) == 1
+    assert isinstance(seen[0], _SeedView)
 
 
 class _HookView(SelectorRetrieveView):
@@ -237,15 +244,13 @@ class _ProviderView(SelectorRetrieveView):
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("view_cls", [_HookView, _ProviderView], ids=["hook", "provider"])
-def test_a_selector_view_still_hands_the_selector_the_real_view(
+def test_handing_the_selector_the_view_is_refused(
     seen: list[Any], view_cls: type[SelectorRetrieveView]
 ) -> None:
-    """A query string's ``view`` never reached it either: a selector view binds
-    ``BUNDLE`` and spreads nothing."""
+    """The view is already the selector's, as a seed, and a provider's key never
+    outranks a seed: so the hand-over is refused rather than silently ignored."""
     post = Post.objects.create(title="p")
 
-    response = view_cls.as_view()(factory.get("/", {"view": "spoofed"}), pk=post.pk)
-
-    assert response.status_code == 200
-    assert len(seen) == 1
-    assert isinstance(seen[0], view_cls)
+    with pytest.raises(ImproperlyConfigured, match="seeds itself"):
+        view_cls.as_view()(factory.get("/"), pk=post.pk)
+    assert seen == []

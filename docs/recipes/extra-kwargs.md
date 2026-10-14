@@ -16,9 +16,11 @@ applied in order of increasing specificity (later wins on overlapping keys):
 
 Use whichever level matches the granularity of your contract.
 
-> `view` is **not** in the pool. Services and selectors are plain business
-> logic; pipe view state through one of these hooks (the per-spec callable
-> receives a narrow `ServiceView` if it needs URL kwargs or `action`).
+> `view` is seeded beside `request`: a service or selector declaring it is
+> handed the calling view, and a hook or provider returning a `view` key is
+> refused. Services and selectors are still best kept plain business logic;
+> pipe the view state they need through one of these hooks (the per-spec
+> callable receives a narrow `ServiceView` if it needs URL kwargs or `action`).
 
 ## Why not just read it from `request`?
 

@@ -122,8 +122,9 @@ class TestServiceCreateView:
         assert response.status_code == 201
         assert captured["tenant_id"] == 99
 
-    def test_service_does_not_receive_view_in_pool(self) -> None:
-        """Regression: ``view`` was previously injected; it must not be anymore."""
+    def test_service_receives_the_view_from_the_pool(self) -> None:
+        """The edge seeds ``view`` beside ``request``, so a service taking
+        ``**kwargs`` receives the calling view, as it receives the request."""
         captured: dict[str, Any] = {}
 
         def fn(*, data: _CreateAuthorInput, **kwargs: Any) -> Author:
@@ -142,7 +143,7 @@ class TestServiceCreateView:
         request = factory.post("/", {"name": "Bob"}, format="json")
         response = _View.as_view()(request)
         assert response.status_code == 201
-        assert "view" not in captured
+        assert isinstance(captured["view"], _View)
         assert "request" in captured
         assert "user" in captured
 
