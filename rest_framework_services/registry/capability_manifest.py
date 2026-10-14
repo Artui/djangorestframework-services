@@ -14,6 +14,7 @@ from rest_framework_services.types.json_schema_registry import (
     JsonSchemaRegistry,
 )
 from rest_framework_services.types.registered_spec import RegisteredSpec
+from rest_framework_services.types.selector_spec import SelectorSpec
 from rest_framework_services.types.service_spec import ServiceSpec
 from rest_framework_services.types.utils import is_row_condition
 
@@ -121,7 +122,9 @@ def capability_manifest(
 
     ``unguarded`` is ``unguarded_specs`` over the same registry: the operations
     whose ``permission_classes`` is ``None``, which have nothing to inherit off
-    HTTP.
+    HTTP. A ``SpecRegistry`` refuses such a spec when it is registered, so on a
+    registry that holds only what it accepted the list is empty; it stays for
+    the readers that expect the key.
 
     Pure: it reads declarations and never the database, so building it at
     startup, in a management command, or in a test costs the schema walk and
@@ -150,12 +153,25 @@ def capability_manifest(
         "version": _MANIFEST_VERSION,
         "dialect": _SCHEMA_DIALECT,
         "operations": [_operation(entry, schema_registry) for entry in registry],
-        "unguarded": unguarded_specs(registry.specs()),
+        "unguarded": unguarded_specs(
+            {entry.name: _drfs_spec(entry) for entry in registry},
+        ),
     }
 
 
-def _operation(entry: RegisteredSpec, schema_registry: JsonSchemaRegistry) -> dict[str, Any]:
+def _drfs_spec(entry: RegisteredSpec) -> ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]:
+    """The entry's spec, which must be this package's: the schemas read its fields."""
     spec = entry.spec
+    if not isinstance(spec, ServiceSpec | SelectorSpec):
+        raise TypeError(
+            f"capability_manifest describes this package's ServiceSpec and SelectorSpec; "
+            f"{entry.name!r} is a {type(spec).__name__}, whose schema it cannot read."
+        )
+    return spec
+
+
+def _operation(entry: RegisteredSpec, schema_registry: JsonSchemaRegistry) -> dict[str, Any]:
+    spec = _drfs_spec(entry)
     kind, idempotent, affordances = (
         ("mutation", spec.idempotent, _affordances(spec.affordances))
         if isinstance(spec, ServiceSpec)
