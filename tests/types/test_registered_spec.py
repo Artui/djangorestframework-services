@@ -1,45 +1,32 @@
-"""Tests for the RegisteredSpec dataclass."""
+"""``RegisteredSpec``: what a drfs caller sees change now that it is the kernel's.
+
+The entry is django-service-specs' and tested there. Its ``agent_contract`` is
+no longer something passed in: it is read off the registered object, so the
+declaration lives on the spec and the entry only asks.
+"""
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
-from rest_framework_services import RegisteredSpec, SelectorKind, SelectorSpec, ServiceSpec
+from rest_framework_services.types.registered_spec import RegisteredSpec
 
 
-def _noop() -> None:
-    return None
+class _DeclaresAContract:
+    """Stands in for a spec that builds its own contract from its declarations."""
+
+    def agent_contract(self) -> Any:
+        return "the spec's own contract"
 
 
-class TestRegisteredSpec:
-    def test_defaults_to_no_tags(self) -> None:
-        spec = ServiceSpec(service=_noop)
-        entry = RegisteredSpec(name="refund_order", spec=spec)
-        assert entry.name == "refund_order"
-        assert entry.spec is spec
-        assert entry.tags == frozenset()
+def test_the_contract_is_not_passed_to_the_entry() -> None:
+    with pytest.raises(TypeError, match="agent_contract"):
+        RegisteredSpec(name="x", spec=_DeclaresAContract(), agent_contract=None)  # ty: ignore[unknown-argument]
 
-    def test_carries_tags(self) -> None:
-        entry = RegisteredSpec(
-            name="list_orders",
-            spec=SelectorSpec(kind=SelectorKind.LIST),
-            tags=frozenset({"read", "public"}),
-        )
-        assert entry.tags == {"read", "public"}
 
-    def test_accepts_positional_arguments(self) -> None:
-        spec = SelectorSpec(kind=SelectorKind.RETRIEVE)
-        entry = RegisteredSpec("get_order", spec)
-        assert entry.name == "get_order"
-        assert entry.spec is spec
+def test_the_entry_answers_the_contract_its_spec_declares() -> None:
+    entry = RegisteredSpec(name="x", spec=_DeclaresAContract())  # ty: ignore[invalid-argument-type]
 
-    def test_frozen(self) -> None:
-        entry = RegisteredSpec(name="refund_order", spec=ServiceSpec(service=_noop))
-        with pytest.raises(AttributeError):
-            entry.name = "other"  # type: ignore[misc]
-
-    def test_kind_is_not_stored(self) -> None:
-        # Derived by isinstance wherever it is needed, so it can never drift
-        # from the spec it describes.
-        entry = RegisteredSpec(name="list_orders", spec=SelectorSpec(kind=SelectorKind.LIST))
-        assert not hasattr(entry, "kind")
+    assert entry.agent_contract == "the spec's own contract"
