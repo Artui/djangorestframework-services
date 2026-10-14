@@ -144,9 +144,14 @@ class SerializerPresenter(Presenter):
     def output(self) -> Output:
         """The serializer's fields as an Output, with ``field_audiences`` layered on. Never queries."""
         serializer = self.serializer_class(context=_context())
-        if not isinstance(serializer, serializers.Serializer):
-            return Output()
-        output = _output(serializer, path=())
+        # A ``BaseSerializer`` declaring no fields outputs none, and still meets
+        # the check below: a marking it has no field to carry would otherwise be
+        # dropped, and the key it hides presented.
+        output = (
+            _output(serializer, path=())
+            if isinstance(serializer, serializers.Serializer)
+            else Output()
+        )
         unknown = sorted(set(self.field_audiences) - set(output.names()))
         if unknown:
             raise ImproperlyConfigured(

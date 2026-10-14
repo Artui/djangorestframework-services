@@ -293,15 +293,25 @@ def test_a_dataclass_is_read_through_the_serializer_it_renders_with() -> None:
     assert presenter.present(_Account(id=1, name="Ada")) == {"id": 1, "name": "Ada"}
 
 
-def test_a_base_serializer_declaring_no_fields_outputs_nothing_and_still_presents() -> None:
-    class _Raw(serializers.BaseSerializer):
-        def to_representation(self, instance: Any) -> dict[str, Any]:
-            return {"v": instance}
+class _Raw(serializers.BaseSerializer):
+    def to_representation(self, instance: Any) -> dict[str, Any]:
+        return {"v": instance}
 
+
+def test_a_base_serializer_declaring_no_fields_outputs_nothing_and_still_presents() -> None:
     presenter = SerializerPresenter(_Raw)
 
     assert presenter.output() == Output()
     assert presenter.present(3) == {"v": 3}
+
+
+def test_field_audiences_on_an_output_declaring_no_fields_are_refused() -> None:
+    # The output has no field to carry the marking, so honouring it is
+    # impossible, and dropping it would present ``v`` to an agent told to hide it.
+    presenter = SerializerPresenter(_Raw, field_audiences={"v": FieldMarking.hidden()})
+
+    with pytest.raises(ImproperlyConfigured, match=r"field_audiences names \['v'\]"):
+        presenter.output()
 
 
 @pytest.mark.parametrize("declared", [42, object, _Row()])
