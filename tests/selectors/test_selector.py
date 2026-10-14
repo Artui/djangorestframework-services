@@ -1,23 +1,20 @@
-"""Tests for the Selector + AsyncSelector protocols."""
+"""``Selector`` and ``AsyncSelector`` are django-service-specs' own Protocols."""
 
 from __future__ import annotations
 
-from rest_framework_services.selectors import AsyncSelector, Selector
+from django_service_specs.selectors.async_selector import AsyncSelector as KernelAsyncSelector
+from django_service_specs.selectors.selector import Selector as KernelSelector
+
+import rest_framework_services
+from rest_framework_services.selectors.async_selector import AsyncSelector
+from rest_framework_services.selectors.selector import Selector
 
 
-def test_selector_runtime_check_accepts_callable() -> None:
-    def fn(**kwargs: object) -> int:
-        return 1
-
-    assert isinstance(fn, Selector)
+def test_selector_is_the_kernel_s_protocol() -> None:
+    assert Selector is KernelSelector
+    assert rest_framework_services.Selector is KernelSelector
 
 
-def test_selector_runtime_check_rejects_non_callable() -> None:
-    assert not isinstance(123, Selector)
-
-
-def test_async_selector_runtime_check_accepts_callable() -> None:
-    async def fn(**kwargs: object) -> int:
-        return 1
-
-    assert isinstance(fn, AsyncSelector)
+def test_async_selector_is_the_kernel_s_protocol() -> None:
+    assert AsyncSelector is KernelAsyncSelector
+    assert rest_framework_services.AsyncSelector is KernelAsyncSelector

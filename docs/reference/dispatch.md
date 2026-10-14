@@ -16,6 +16,15 @@ a view, read its URL kwargs, and walk the `get_<action>_*_kwargs` hook
 chains). The transport-neutral spec dispatcher that composes the leaves
 below — `dispatch_spec` — is documented first.
 
+Several of these leaves are
+[django-service-specs](https://artui.github.io/django-service-specs/)' own,
+re-exported at the path this package has always exported them from:
+`null_progress`, `is_async`, `run_service`, `arun_service`, `run_selector`,
+`arun_selector`, `is_queryset`, `materialize_retrieve` and
+`amaterialize_retrieve`. Each is the
+same object under both names, so the import you have keeps working and the
+documentation rendered for it here is the kernel's.
+
 ## Transport-neutral dispatch
 
 The single execution path a non-HTTP transport drives: hand a spec, the
