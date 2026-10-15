@@ -1,9 +1,10 @@
-.PHONY: help init test lint lint-fix format format-check type-check type-check-strict-fixtures deps-bump docs-serve docs-build release-bump release-publish release-publish-prepare release-publish-finalize
+.PHONY: help init test examples lint lint-fix format format-check type-check type-check-strict-fixtures deps-bump docs-serve docs-build release-bump release-publish release-publish-prepare release-publish-finalize
 
 help:
 	@echo "Available targets:"
 	@echo "  init             Sync deps (all groups) and install pre-commit hooks"
 	@echo "  test             Run pytest with coverage (100% required)"
+	@echo "  examples         Run the example project's test suite (examples/invoices)"
 	@echo "  lint             Run ruff check + ty check"
 	@echo "  lint-fix         Auto-fix lint issues with ruff"
 	@echo "  format           Format with ruff"
@@ -24,6 +25,9 @@ init:
 
 test:
 	uv run pytest
+
+examples:
+	cd examples && uv run python manage.py test invoices
 
 lint:
 	uv run ruff check .

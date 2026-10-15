@@ -16,6 +16,7 @@ Use the Makefile targets for everything; CI and pre-commit both call them.
 ```bash
 make init           # uv sync --all-groups + pre-commit install (first-checkout setup)
 make test           # uv run pytest (with --cov=rest_framework_services --cov-fail-under=100)
+make examples       # the example project's suite: cd examples && uv run python manage.py test invoices
 make lint           # ruff check + ty check rest_framework_services
 make lint-fix       # ruff check --fix
 make format         # ruff format
@@ -169,6 +170,8 @@ Python 3.10 syntax / stdlib features are fair game (`match` statements, PEP 604 
   Python × Django version-support exclusions baked in. Each cell pins Django via
   `uv pip install --reinstall-package django "django~=X.Y.0"` then runs `pytest`
   (which enforces `--cov-fail-under=100`).
+- `examples` job — `make examples`, the example project's own `manage.py test`
+  suite, which pytest does not collect and the coverage gate does not measure.
 
 `.github/workflows/release.yml` runs on push of a `vX.Y.Z` tag (see *Releasing*
 below).

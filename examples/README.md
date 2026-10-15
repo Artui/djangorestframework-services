@@ -63,4 +63,7 @@ curl -X DELETE http://localhost:8000/invoices/1/
 python manage.py test invoices
 ```
 
+From the repository root, `make examples` runs the same suite, as CI does on
+every pull request.
+
 The suite walks the full create → list → retrieve → patch → custom-action → delete flow plus error-path assertions, and checks the declared read, the agent-only audience and a partial call made off HTTP with `dispatch_spec(partial=True)`.
