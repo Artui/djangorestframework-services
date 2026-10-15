@@ -28,6 +28,13 @@ project may have to change, each detailed below:
   handed its value on. Rename the key and the parameter that reads it; pass
   the principal as `dispatch_spec(user=)`, and compute a registered seed's
   value in its resolver.
+- **Return a view's progress reporter from `get_progress_reporter()`.** A key
+  a view hook (`get_service_kwargs()`, `get_selector_kwargs()` or a
+  per-action form) returns under a pool seed's name - `progress`, `user`,
+  `data`, `instance` and the rest - is dropped without a word and the seed
+  wins, where 0.57.0 handed the hook's value on. Supply a reporter through
+  `get_progress_reporter()` or `get_<action>_progress_reporter()`, and rename
+  any other such key and the parameter that reads it.
 - **Give a view hook's or `kwargs` provider's value for an input-serializer
   field in the form a client would send it, or keep that field off the
   input.** The field validates it now: return a primary key rather than a
@@ -57,6 +64,45 @@ project may have to change, each detailed below:
 - **Move a nested selector's `progress_reporter` and `preconditions` to its
   `ServiceSpec`, and give a registered `SelectorSpec` a `selector`.** Each is
   refused where 0.57.0 ignored it.
+- **Catch a missing argument as DRF's `ValidationError`.** It is raised as
+  `InvalidArguments`, keyed by each missing name, so an
+  `except ServiceValidationError` or `except ServiceError` around a dispatch
+  no longer catches it. Catch `rest_framework.exceptions.ValidationError`, or
+  drfs' `InvalidArguments`, as for every other refused argument.
+- **Declare what a `**kwargs` callable reads.** A service, selector or
+  precondition taking a bare `**kwargs` is handed the declared arguments and
+  the seeds, never an undeclared key the caller sent or a route capture no
+  callable declares. A selector that scoped its rows by such a capture now
+  runs without it, so a retrieve answers `404` with no error naming the
+  capture. Name the capture as a keyword parameter, or declare it in the
+  spec's `reads` as a `UrlKwarg`.
+- **Scope a target lookup by its route capture.** A lookup reading a name
+  that is also a writable input field, such as `slug`, no longer takes the
+  body's value for it: without a capture the lookup keeps its own default,
+  or the call is refused as missing that name. Route the lookup by a capture,
+  or supply the value from a view hook.
+- **Write an `Affordance`'s `when` callable with `def`, over the pool's
+  seeds.** One declared `async def`, or reading `data`, `instance`,
+  `collection`, `result` or `queryset`, raises `ImproperlyConfigured` where
+  the affordance is declared. A condition on the row is an ORM expression
+  (`Q`, `Exists`), evaluated in SQL.
+- **Pass relation options by keyword, and read row errors by row index.**
+  Every relation option after the model, and after the foreign key where
+  there is one, is keyword-only. Row errors are a mapping keyed by row index
+  whatever DRF's `LIST_SERIALIZER_ERRORS_AS_DICT` says, a string or list
+  detail under the row's `non_field_errors`.
+- **Declare permissions on every spec you register.** `SpecRegistry.register`
+  refuses a spec with no permissions; `permission_classes=[]` registers one
+  that anyone may run.
+- **Translate a refusal from `apply_queryset_shaping` yourself.** Invalid
+  filter data raises the kernel's `InvalidArguments`, keyed and worded as the
+  `FilterSet` reports it; `dispatch_spec` and the views answer it as a 400,
+  and a direct caller turns it into its own answer.
+- **Expect a 403 for a deactivated user.** A user whose `is_active` is false
+  is refused with `PrincipalUnavailable` on every view and off HTTP, whatever
+  `permission_classes` the view declares, none included; no setting serves
+  one. A client seeing that 403 is told the account is unavailable rather
+  than that a permission is missing.
 - **Re-point a few names.** `children=` is `relations=`; `DispatchResult` has no
   `status`; `SpecRegistry.register` takes no `agent_contract=`; `filter_set`
   must be a django-filter `FilterSet`; `request`, `view`, `result` and
@@ -161,7 +207,7 @@ project may have to change, each detailed below:
   before using a `ServiceSpec` attribute; passing a `ServiceSpec` in is
   unaffected.
 
-- **Breaking: 83 of the root's public names are now django-service-specs'
+- **Breaking: 81 of the root's public names are now django-service-specs'
   own objects, re-exported at the same import paths.** Nothing was added to
   or removed from `rest_framework_services.__all__`, and every import keeps
   working, but `ServiceError` and its subclasses, `UNSET`, `SpecRegistry`
@@ -171,9 +217,12 @@ project may have to change, each detailed below:
   `create_model`, `delete_collection` and their async siblings), the
   selector and service protocols, `base_pool`, `PoolSeeds`,
   `RESERVED_POOL_SEEDS`, `ValueFormatter`, `paginate_output`,
-  `operation_affordances` and the audience helpers are each the kernel's,
-  so `isinstance` and `is` answer the same for a drfs name and the
-  kernel's. `enforce_affordances`, `unmet_operation_affordance` and their
+  `operation_affordances` and the audience helpers other than
+  `audience_projection_for_spec` are each the kernel's, so `isinstance` and
+  `is` answer the same for a drfs name and the kernel's.
+  `audience_projection_for_spec` and `can_present_nothing` are drfs' own
+  over the kernel's, so that a `SelectorSpec` declaring no `selector` is
+  still described from its declaration. `enforce_affordances`, `unmet_operation_affordance` and their
   async siblings are drfs' own over the kernel's, reserving `request` and
   `view` beside the `reserved` set passed, since `dispatch_spec` seeds both
   on every call. Their behaviour is the kernel's too, and where it differed
@@ -294,9 +343,16 @@ project may have to change, each detailed below:
     takes the client's validated value. 0.57.0 handed the parameter the
     `UNSET` sentinel itself.
   - A missing required argument is refused as `{"name": ["This field is
-    required."]}`, code `required`, every missing name keyed, where it was
-    one `"Missing required argument(s): ..."` message under
-    `non_field_errors`. It is raised as `InvalidArguments`, DRF's
+    required."]}`, code `required`, where it was one `"Missing required
+    argument(s): ..."` message under `non_field_errors` naming every missing
+    argument. The names are now refused in the call's order, each refusal
+    keying every name missing at its point: a name the declaration requires
+    (marked `InputRequired`, a required read or serializer field) before the
+    permission checks, then a parameter with no default once the providers
+    and seeds that could fill it have run, then a spreading service's target
+    lookup key as the service is called. A call missing names of more than
+    one kind is answered by the first refusal, and the next one names the
+    rest after it is resent. It is raised as `InvalidArguments`, DRF's
     `ValidationError` and the kernel's `InvalidArguments` at once, where it
     was a `ServiceValidationError`: an `except ServiceValidationError` or
     `except ServiceError` around a dispatch no longer catches it, so catch
@@ -402,7 +458,9 @@ project may have to change, each detailed below:
     raises `ImproperlyConfigured`, where 0.57.0 handed the value to the
     callables. `call_service` drops a `view=` passed inside a view.
   - A view-hook extra naming a pool seed is dropped and the seed wins, where
-    the hook's value replaced it.
+    the hook's value replaced it. A reporter returned from
+    `get_service_kwargs()` as `{"progress": ...}` is therefore never called;
+    `get_progress_reporter()` supplies one.
   - Off HTTP under `UnknownArguments.REJECT`, a caller's `result` or
     `queryset` key is dropped as a seed's name is, where it was refused as
     `Unexpected argument(s)`.
@@ -426,7 +484,9 @@ project may have to change, each detailed below:
   - A top-level `SelectorSpec` with `selector=None` is refused at
     `SpecRegistry.register`, as `dispatch_spec` already refused it; a view
     still falls back to its `get_queryset()` or `get_object()`. Declare the
-    selector that reads the rows before registering the spec.
+    selector that reads the rows before registering the spec. Describing
+    such a spec's output, its agent projection and an agent's rendering of
+    it still need no selector.
 - **Breaking: relation writes are the kernel's.** The `children=` alias is
   gone (use `relations=`), and every relation option after the model, and
   after the foreign key where there is one, is keyword-only. A `None` row is
@@ -437,6 +497,11 @@ project may have to change, each detailed below:
   keeps the stored file, `False` clears it), and an `ImageField`'s dimension
   columns join `update_fields`. `update_from_input` called directly raises
   the kernel's `InvalidArguments` for a row's `ValueError`.
+  - A nested row Django cannot write - a key its model has no field for,
+    say - is refused as a 400 under the row's index carrying Django's own
+    message, `{"sections": {"0": {"non_field_errors": ["Section() got
+    unexpected keyword arguments: 'name'"]}}}`, where 0.57.0 raised the
+    `TypeError` as a 500. The same key on the top-level row is still raised.
 - **Breaking: `apply_queryset_shaping` and `filter_set` shape through the
   kernel's `shape_queryset`.**
   - `filter_set` must be a django-filter `FilterSet`; one duck-typed on
@@ -512,7 +577,12 @@ project may have to change, each detailed below:
   coerced to its parameter's type, and a capture no callable declares is no
   argument. `user=None` acts as `UNAUTHENTICATED_USER`, or `AnonymousUser`
   when that setting is `None`, while the permission check still sees `None`;
-  a deactivated principal answers `PrincipalUnavailable` (403).
+  a deactivated principal answers `PrincipalUnavailable` (403,
+  `"The acting principal is unavailable."`, code `permission_denied`). That
+  holds over HTTP too, before any permission class runs: a create, update,
+  delete or retrieve view, or a viewset action, that declares no
+  `permission_classes` refuses a user whose `is_active` is false, where
+  0.57.0 ran the service or selector for them.
   `instance=None` with a lookup answers `not_found`.
 - **Presenting output.** `SerializerPresenter` projects no marking onto a
   write-only field, and refuses a `field_audiences` name that matches no
@@ -550,6 +620,12 @@ project may have to change, each detailed below:
 - **The private `rest_framework_services.mutations.utils` and
   `rest_framework_services.services._resolve_m2m` modules.** The relation
   layer they carried is the kernel's.
+- **The private helpers `call_target_guard`, `resolve_progress`,
+  `service_extras` and `strip_hidden_inputs` from
+  `rest_framework_services.dispatch.utils`, `_aresolve_instance` from
+  `rest_framework_services.dispatch.adispatch_spec`, and
+  `_filter_set_accepts_request` from `rest_framework_services.selectors.utils`.**
+  None was exported.
 
 ### Fixed
 

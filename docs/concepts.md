@@ -640,20 +640,23 @@ def export_task(job_id, params):
     return dispatch_spec(export_spec, user=job.user, params=params, progress=report)
 ```
 
-**From an HTTP view**, through the `get_service_kwargs()` / `get_selector_kwargs()`
-hook the view already uses for tenants and clocks:
+**From an HTTP view**, through the view's `get_progress_reporter()` hook, or
+its per-action form `get_<action>_progress_reporter()`:
 
 ```python
 class ExportViewSet(ServiceViewSet):
     action_specs = {"create": ServiceSpec(service=export_invoices)}
 
-    def get_service_kwargs(self):
-        return {"progress": self.push_to_websocket}
+    def get_progress_reporter(self):
+        return self.push_to_websocket
 ```
 
-Extras merge over the seeds, so a server-authored `progress` replaces the no-op.
-Client *input* named `progress` cannot — it is a reserved pool seed and is
-stripped from the spread. That asymmetry is what makes the hook safe.
+The per-action hook wins over the catch-all, and the first that returns a
+reporter is the one used; returning `None` leaves the no-op. Not
+`get_service_kwargs()` or `get_selector_kwargs()`: `progress` is a pool seed,
+and a key those hooks return under a seed's name is dropped, so a reporter
+returned there never reaches the service. Client *input* named `progress` is
+not one either, for the same reason.
 
 !!! warning "The reporter is sync, even when your sink is not"
 

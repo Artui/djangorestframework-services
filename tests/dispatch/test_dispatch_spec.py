@@ -633,7 +633,7 @@ class TestNonMappingParams:
             atomic=False,
         )
 
-        with pytest.raises(ValidationError, match="Expected an object"):
+        with pytest.raises(ValidationError, match="Expected a dictionary"):
             dispatch_spec(spec, user=None, params=[1, 2])
 
     def test_a_caller_resolved_instance_does_not_excuse_it(self) -> None:
@@ -648,7 +648,7 @@ class TestNonMappingParams:
         post = Post.objects.create(title="p")
         spec = ServiceSpec(service=lambda *, instance: instance.title, atomic=False)
 
-        with pytest.raises(ValidationError, match="Expected an object"):
+        with pytest.raises(ValidationError, match="Expected a dictionary"):
             dispatch_spec(spec, user=None, params="not-an-object", instance=post)
 
     def test_a_many_spec_still_takes_its_list(self) -> None:
