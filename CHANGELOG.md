@@ -28,6 +28,13 @@ project may have to change, each detailed below:
   handed its value on. Rename the key and the parameter that reads it; pass
   the principal as `dispatch_spec(user=)`, and compute a registered seed's
   value in its resolver.
+- **Return a view's progress reporter from `get_progress_reporter()`.** A key
+  a view hook (`get_service_kwargs()`, `get_selector_kwargs()` or a
+  per-action form) returns under a pool seed's name - `progress`, `user`,
+  `data`, `instance` and the rest - is dropped without a word and the seed
+  wins, where 0.57.0 handed the hook's value on. Supply a reporter through
+  `get_progress_reporter()` or `get_<action>_progress_reporter()`, and rename
+  any other such key and the parameter that reads it.
 - **Give a view hook's or `kwargs` provider's value for an input-serializer
   field in the form a client would send it, or keep that field off the
   input.** The field validates it now: return a primary key rather than a
@@ -414,7 +421,9 @@ project may have to change, each detailed below:
     raises `ImproperlyConfigured`, where 0.57.0 handed the value to the
     callables. `call_service` drops a `view=` passed inside a view.
   - A view-hook extra naming a pool seed is dropped and the seed wins, where
-    the hook's value replaced it.
+    the hook's value replaced it. A reporter returned from
+    `get_service_kwargs()` as `{"progress": ...}` is therefore never called;
+    `get_progress_reporter()` supplies one.
   - Off HTTP under `UnknownArguments.REJECT`, a caller's `result` or
     `queryset` key is dropped as a seed's name is, where it was refused as
     `Unexpected argument(s)`.

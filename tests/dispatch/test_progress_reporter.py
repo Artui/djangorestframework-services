@@ -184,6 +184,39 @@ def test_an_http_view_supplies_a_reporter_through_its_progress_hook() -> None:
     assert shadowed == []
 
 
+@pytest.mark.django_db
+def test_a_reporter_returned_by_get_service_kwargs_never_reaches_the_service() -> None:
+    """``progress`` is a seed, so a view hook returning it is dropped silently.
+
+    docs/concepts.md sends a view's reporter through ``get_progress_reporter``
+    for this reason: with only ``get_service_kwargs`` naming ``progress`` the
+    service reports into the no-op, and the hook's reporter is never called.
+    """
+    from rest_framework.test import APIRequestFactory
+
+    from rest_framework_services import ServiceViewSet
+
+    handed: list[Any] = []
+    shadowed: list[Any] = []
+
+    def slow_export(*, progress: ProgressReporter) -> dict[str, Any]:
+        handed.append(progress)
+        progress(1, total=2, message="working")
+        return {"ok": True}
+
+    class _View(ServiceViewSet):
+        action_specs = {"create": ServiceSpec(service=slow_export)}
+
+        def get_service_kwargs(self) -> dict[str, Any]:
+            return {"progress": lambda *args, **kwargs: shadowed.append(args)}
+
+    response = _View.as_view({"post": "create"})(APIRequestFactory().post("/", {}, format="json"))
+
+    assert response.status_code == 201, response.data
+    assert shadowed == []
+    assert handed == [null_progress]
+
+
 def test_the_reporter_is_sync_even_when_the_sink_is_not() -> None:
     """The first wall a websocket consumer hits.
 
