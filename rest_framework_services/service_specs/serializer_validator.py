@@ -269,7 +269,7 @@ class SerializerValidator(Validator):
         # for another Validator, a kernel call inside the service, is none of
         # this one's (test_a_kernel_call_inside_a_bulk_service_binds_its_own_rows),
         # and rows sent off HTTP keep the kernel's refusal of what its shape
-        # check refused (test_off_http_a_refused_row_keeps_the_kernels_shape).
+        # check refused (test_off_http_a_refused_row_keeps_the_kernels_shape_in_drfs_words).
         whole = sent is not None and state.body_rows
         indices = list(range(len(sent))) if whole else list(rows)
         every_row = sent is not None and indices == list(range(len(sent)))

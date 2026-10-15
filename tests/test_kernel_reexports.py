@@ -15,8 +15,13 @@ caller sees change because the object did.
 from __future__ import annotations
 
 import importlib
+import inspect
+import pkgutil
 
+import django_service_specs
 import pytest
+
+import rest_framework_services
 
 # (drfs module, kernel module, name). The kernel paths are the leaf modules
 # the kernel pins for drfs, never its package root, so a move there fails here
@@ -232,3 +237,133 @@ def test_the_drfs_name_is_the_kernels_object(
     kernel_object = getattr(importlib.import_module(kernel_module), name)
 
     assert drfs_object is kernel_object
+
+
+# Every name of the package root's ``__all__`` that is the kernel's own object.
+# The rows above pin one per drfs module at the kernel's leaf path; this set pins
+# the whole root, so a drfs twin of any of them, or a new re-export, fails here.
+# The other names of ``__all__`` are drfs' own, among them the views, the specs,
+# the edge, and the wrappers over the kernel's (``enforce_affordances``,
+# ``aenforce_affordances``, ``unmet_operation_affordance``,
+# ``aunmet_operation_affordance``, ``audience_projection_for_spec`` and
+# ``can_present_nothing``).
+KERNEL_OWNED_ROOT_NAMES: frozenset[str] = frozenset(
+    {
+        "ActionUnavailable",
+        "AdditionalInputRequired",
+        "Affordance",
+        "AsyncSelector",
+        "AudienceProjection",
+        "ChangeResult",
+        "ChildCollectionChange",
+        "ChildSpec",
+        "CreateService",
+        "DEFAULT_PAGE_SIZE",
+        "DEFAULT_POOL_SEEDS",
+        "DeleteService",
+        "DispatchResult",
+        "FieldAudience",
+        "FieldChange",
+        "FieldMarking",
+        "ForwardRelationSpec",
+        "GenericRelationSpec",
+        "ListSelector",
+        "ManyToManySpec",
+        "NoInput",
+        "OutputPage",
+        "PoolSeeds",
+        "ProgressReporter",
+        "ProviderKeys",
+        "RESERVED_POOL_SEEDS",
+        "RegisteredSpec",
+        "RelatedObjectChange",
+        "RelationMode",
+        "RelationOrphan",
+        "RelationOutcome",
+        "RelationPhase",
+        "RelationSpec",
+        "RetrieveSelector",
+        "ReverseOneToOneSpec",
+        "Selector",
+        "SelectorKind",
+        "ServiceConflict",
+        "ServiceError",
+        "ServiceNotFound",
+        "ServiceValidationError",
+        "SpecRegistry",
+        "UNSET",
+        "UnknownArguments",
+        "UnsetType",
+        "UpdateService",
+        "ValueFormatter",
+        "acreate_from_input",
+        "acreate_model",
+        "adelete_collection",
+        "adelete_model",
+        "amaterialize_retrieve",
+        "annotate_output_schema",
+        "apply_input",
+        "arun_selector",
+        "arun_service",
+        "aupdate_from_input",
+        "aupdate_model",
+        "base_pool",
+        "combine_progress",
+        "create_from_input",
+        "create_model",
+        "delete_collection",
+        "delete_model",
+        "implements",
+        "is_async",
+        "is_queryset",
+        "materialize_retrieve",
+        "null_progress",
+        "operation_affordances",
+        "paginate_output",
+        "project_payload",
+        "provider_keys",
+        "run_selector",
+        "run_service",
+        "update_from_input",
+        "update_model",
+    }
+)
+
+
+def _kernel_objects_by_name() -> dict[str, list[object]]:
+    """Every value each importable kernel module holds, by the name it holds it under.
+
+    The pydantic adapter imports an optional dependency this suite does not
+    install, and defines nothing drfs re-exports, so a module that cannot be
+    imported is passed over.
+    """
+    found: dict[str, list[object]] = {}
+    for module_info in pkgutil.walk_packages(
+        django_service_specs.__path__, "django_service_specs."
+    ):
+        try:
+            module = importlib.import_module(module_info.name)
+        except ImportError:
+            continue
+        for name, value in vars(module).items():
+            found.setdefault(name, []).append(value)
+    return found
+
+
+def test_the_roots_kernel_objects_are_exactly_these() -> None:
+    """Identity, by name, against every kernel module. ``DEFAULT_PAGE_SIZE`` is a
+    small ``int``, which CPython interns, so its identity proves nothing: the
+    module that re-exports it is held to importing it from the kernel instead."""
+    kernel = _kernel_objects_by_name()
+    owned = {
+        name
+        for name in rest_framework_services.__all__
+        if any(value is getattr(rest_framework_services, name) for value in kernel.get(name, []))
+    }
+
+    assert owned == KERNEL_OWNED_ROOT_NAMES
+    assert len(KERNEL_OWNED_ROOT_NAMES) == 77
+    source = inspect.getsource(
+        importlib.import_module("rest_framework_services.dispatch.paginate_output")
+    )
+    assert "from django_service_specs.dispatch.paginate_output import DEFAULT_PAGE_SIZE" in source

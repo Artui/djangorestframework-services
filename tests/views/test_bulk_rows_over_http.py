@@ -217,16 +217,21 @@ def test_a_row_that_is_no_object_beside_an_input_data_provider_is_refused() -> N
 
 
 _NO_ROWS = {
-    "a-list-for-the-arguments": ([{"title": "a"}], {"non_field_errors": ["Expected an object."]}),
+    "a-list-for-the-arguments": (
+        [{"title": "a"}],
+        {"non_field_errors": ["Invalid data. Expected a dictionary, but got list."]},
+    ),
     "no-list-under-the-argument": ({"items": "x"}, {"items": ["Expected an array."]}),
 }
 
 
 @pytest.mark.parametrize(("params", "expected"), _NO_ROWS.values(), ids=_NO_ROWS.keys())
-def test_rows_under_an_argument_beside_an_input_data_provider_keep_the_kernels_refusal(
+def test_rows_under_an_argument_beside_an_input_data_provider_are_refused_as_without_one(
     params: Any, expected: Any
 ) -> None:
-    """With no list of rows sent, the provider's keys have nothing to go over."""
+    """With no list of rows sent, the provider's keys have nothing to go over: arguments
+    that are no object in DRF's words, as 0.57.0 answered them, and no list under the
+    argument in the kernel's."""
     with pytest.raises(ValidationError) as excinfo:
         dispatch_spec(_ServerInputView.spec, user=None, params=params, many_as_argument=True)
 
@@ -286,7 +291,7 @@ def test_off_http_a_list_level_refusal_sits_under_non_field_errors() -> None:
 
 
 @pytest.mark.django_db
-def test_off_http_a_refused_row_keeps_the_kernels_shape() -> None:
+def test_off_http_a_refused_row_keeps_the_kernels_shape_in_drfs_words() -> None:
     view = OfflineServiceView(request=Request(_factory.post("/")))
     with pytest.raises(ValidationError) as excinfo:
         dispatch_spec(
@@ -299,18 +304,21 @@ def test_off_http_a_refused_row_keeps_the_kernels_shape() -> None:
 
     detail = excinfo.value.detail
     assert isinstance(detail, list)
-    assert detail[:2] == [{}, {"non_field_errors": ["Expected an object."]}]
+    assert detail[:2] == [
+        {},
+        {"non_field_errors": ["Invalid data. Expected a dictionary, but got int."]},
+    ]
     assert list(detail[2]) == ["title"]
 
 
 _UNDER_AN_ARGUMENT = {
     "a-row-that-is-no-object": (
         {"items": [{"title": "ok"}, 5]},
-        {"items": {1: {"non_field_errors": ["Expected an object."]}}},
+        {"items": {1: {"non_field_errors": ["Invalid data. Expected a dictionary, but got int."]}}},
     ),
     "a-list-for-the-arguments": (
         [{"title": "ok"}],
-        {"non_field_errors": ["Expected an object."]},
+        {"non_field_errors": ["Invalid data. Expected a dictionary, but got list."]},
     ),
 }
 
@@ -319,10 +327,11 @@ _UNDER_AN_ARGUMENT = {
 @pytest.mark.parametrize(
     ("params", "expected"), _UNDER_AN_ARGUMENT.values(), ids=_UNDER_AN_ARGUMENT.keys()
 )
-def test_a_live_views_rows_under_an_argument_keep_the_kernels_refusal(
+def test_a_live_views_rows_under_an_argument_are_refused_in_drfs_words(
     params: Any, expected: Any
 ) -> None:
-    """Rows sent under an argument are no body DRF's list serializer was handed."""
+    """Rows sent under an argument are no body DRF's list serializer was handed, and
+    are refused as off HTTP, in the words 0.57.0 used on both."""
     view = _live_view(params)
     with pytest.raises(ValidationError) as excinfo:
         dispatch_spec(

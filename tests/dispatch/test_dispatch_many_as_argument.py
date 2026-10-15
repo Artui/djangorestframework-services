@@ -18,14 +18,19 @@ from typing import Any
 
 import pytest
 from asgiref.sync import sync_to_async
+from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
+from rest_framework.parsers import JSONParser
+from rest_framework.request import Request
+from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
     ArgumentBinding,
     SelectorKind,
     SelectorSpec,
+    ServiceCreateView,
     ServiceSpec,
     ServiceValidationError,
     UnknownArguments,
@@ -170,8 +175,21 @@ async def test_without_the_flag_the_same_spec_still_takes_a_bare_list(core: str)
 async def test_without_the_flag_an_argument_object_is_still_not_a_list(core: str) -> None:
     """The HTTP body is not widened: only a caller that says so gets the unwrap."""
     refusal = await _refusal(core, _spec(), params={"items": [_GOOD]})
-    assert refusal.detail == {"non_field_errors": ["Expected an array."]}
+    assert refusal.detail == {"non_field_errors": ['Expected a list of items but got type "dict".']}
     assert refusal.get_codes() == {"non_field_errors": ["not_a_list"]}
+
+
+@_CORES
+@pytest.mark.parametrize("params", ["a", 3], ids=["str", "int"])
+async def test_without_the_flag_arguments_that_are_no_list_are_refused_in_drfs_words(
+    core: str, params: Any
+) -> None:
+    """As a list serializer refuses them, naming what arrived, as 0.57.0 did."""
+    refusal = await _refusal(core, _spec(), params=params)
+    name = type(params).__name__
+    assert refusal.detail == {
+        "non_field_errors": [f'Expected a list of items but got type "{name}".']
+    }
 
 
 @_CORES
@@ -260,6 +278,50 @@ async def test_item_errors_reported_as_a_list_are_keyed_by_index_too(core: str) 
     )
     assert refusal.detail == {"items": {1: _BAD_DETAIL, 3: _BAD_DETAIL}}
     assert refusal.get_codes() == {"items": {1: {"sku": ["blank"]}, 3: {"sku": ["blank"]}}}
+
+
+def _live_view() -> ServiceCreateView:
+    view = ServiceCreateView()
+    view.request = Request(APIRequestFactory().post("/", {}, format="json"), parsers=[JSONParser()])
+    view.request.user = AnonymousUser()
+    view.kwargs = {}
+    view.format_kwarg = None
+    return view
+
+
+_OVER_A_LIVE_VIEW = {
+    "a-list-of-errors": (_LineReportedAsAList, [_GOOD, _BAD, _GOOD, _BAD], UnknownArguments.IGNORE),
+    "an-undeclared-key": (_Line, [_GOOD, {**_GOOD, "bogus": 1}], UnknownArguments.REJECT),
+}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("serializer", "rows", "policy"), _OVER_A_LIVE_VIEW.values(), ids=_OVER_A_LIVE_VIEW.keys()
+)
+def test_over_a_live_view_rows_under_an_argument_are_refused_as_off_http(
+    serializer: type, rows: list[Any], policy: UnknownArguments
+) -> None:
+    """Rows under an argument are no body the view's list serializer answers whole,
+    so a live view refuses them by index, each row once, as a call off HTTP does."""
+    view = _live_view()
+    with pytest.raises(ValidationError) as caught:
+        dispatch_spec(
+            _spec(serializer),
+            user=None,
+            params={"items": rows},
+            request=view.request,
+            view=view,
+            many_as_argument=True,
+            unknown_arguments=policy,
+        )
+    refusal = caught.value.detail
+    expected = (
+        {1: _BAD_DETAIL, 3: _BAD_DETAIL}
+        if serializer is _LineReportedAsAList
+        else {1: {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}}
+    )
+    assert refusal == {"items": expected}
 
 
 @_CORES
@@ -472,8 +534,29 @@ async def test_without_the_flag_an_undeclared_key_inside_an_item_is_refused_in_t
 @_CORES
 async def test_arguments_that_are_not_an_object_are_refused(core: str) -> None:
     refusal = await _refusal(core, _spec(), params=[_GOOD], many_as_argument=True)
-    assert refusal.detail == {"non_field_errors": ["Expected an object."]}
+    assert refusal.detail == {
+        "non_field_errors": ["Invalid data. Expected a dictionary, but got list."]
+    }
     assert refusal.get_codes() == {"non_field_errors": ["invalid"]}
+
+
+_NOT_AN_OBJECT = {
+    "int": (3, {"non_field_errors": ["Invalid data. Expected a dictionary, but got int."]}),
+    "list": ([1], {"non_field_errors": ["Invalid data. Expected a dictionary, but got list."]}),
+    "str": ("a", {"non_field_errors": ["Invalid data. Expected a dictionary, but got str."]}),
+    "null": (None, ["This field may not be null."]),
+}
+
+
+@_CORES
+@pytest.mark.parametrize(("row", "expected"), _NOT_AN_OBJECT.values(), ids=_NOT_AN_OBJECT.keys())
+async def test_a_row_that_is_no_object_is_refused_at_its_index_in_drfs_words(
+    core: str, row: Any, expected: Any
+) -> None:
+    """As the list serializer refuses such a row, as 0.57.0 did, beside the
+    other rows' own refusals."""
+    refusal = await _refusal(core, _spec(), params={"items": [_BAD, row]}, many_as_argument=True)
+    assert refusal.detail == {"items": {0: _BAD_DETAIL, 1: expected}}
 
 
 @_CORES
