@@ -64,8 +64,10 @@ ServiceSpec(
 Without the declaration the schema stays strict, and an undeclared `None` is
 not refused in this release: dispatch presents it, against a schema that does
 not admit it. `allow_none` on the nested `output_selector_spec` is still not
-read, and a result that is a list (`many=True`, or a `LIST` output declaration,
-re-read or not) is declared never `None` whatever either flag says. A callable
+read, and a result that is a list (a `LIST` output declaration, re-read or not)
+is declared never `None` whatever either flag says. A `many=True` service answers
+its own `allow_none`: its output selector only presents its rows and is never
+run, so a `RETRIEVE` one is no re-read that may find nothing. A callable
 returning `None` there anyway is the author's error. Dispatch refuses it only
 where a `LIST` declaration has nothing to re-read; a `many=True` service, a
 `LIST` re-read and a `LIST` `SelectorSpec`'s selector have their `None`

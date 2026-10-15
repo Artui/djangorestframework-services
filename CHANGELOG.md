@@ -187,8 +187,7 @@ project may have to change, each detailed below:
     in `schema=` now reads " - " where it read an em dash.
   - `annotate_output_schema` keeps a formatted property's `null`.
   - `can_present_nothing` reads the compiled spec rather than `many`, so a
-    `many=True` service with `allow_none=True`, and a `RETRIEVE` re-read
-    declared with `many`, now answer `True`.
+    `many=True` service with `allow_none=True` now answers `True`.
   - `UnknownArguments` is a `str` enum ordered `REJECT`, `IGNORE`,
     `PASSTHROUGH`.
 - **Breaking: how a call's arguments reach its callables.**

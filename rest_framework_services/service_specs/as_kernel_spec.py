@@ -233,12 +233,21 @@ def _service(
 
 
 def _lists_its_return(spec: Any) -> bool:
-    """Whether ``spec`` declares a ``LIST`` output it does not re-read."""
+    """Whether ``spec`` declares a ``LIST`` output it does not re-read.
+
+    A ``many`` spec re-reads nothing, whatever its output selector declares
+    (``_output``).
+    """
     output = spec.output_selector_spec
     # One arc to coverage: each conjunct is held by its own case of
     # test_only_a_list_output_with_no_re_read_turns_allow_none_off (no-output,
-    # retrieve-no-re-read and list-re-read, in order).
-    return output is not None and output.kind is SelectorKind.LIST and output.selector is None
+    # retrieve-no-re-read and list-re-read, in order), and ``many`` by
+    # test_many_is_not_read (its ``LIST`` re-read declared with ``many``).
+    return (
+        output is not None
+        and output.kind is SelectorKind.LIST
+        and (output.selector is None or spec.many)
+    )
 
 
 def _selector(
@@ -248,7 +257,6 @@ def _selector(
     hidden: frozenset[str],
     declared: Sequence[Parameter],
     audiences: Mapping[str, FieldMarking] | None = None,
-    many: bool = False,
     seeded: frozenset[str] = frozenset(),
 ) -> KernelSelectorSpec:
     """A top-level selector spec (``role`` ``None``), or a service's nested one by its role.
@@ -312,7 +320,7 @@ def _selector(
                 audiences,
                 label=label,
                 context=spec.output_serializer_context,
-                value_keyword=_value_keyword(spec, role, many=many),
+                value_keyword=_value_keyword(spec, role),
             )
             if role in (None, "output")
             else None
@@ -446,14 +454,17 @@ def _output(spec: Any) -> tuple[KernelSelectorSpec | None, SerializerPresenter |
         _presenter(None, spec.field_audiences, label="ServiceSpec")
         return None, None
     audiences = _audiences(output, spec.field_audiences)
-    if output.selector is not None:
+    # A ``many`` service's result is its list of rows, which a selector re-reading
+    # one result cannot take, so its output selector is never run: its
+    # serializer presents each row, as drfs always presented them
+    # (test_off_http_the_service_s_rows_are_the_value).
+    if output.selector is not None and not spec.many:
         return _selector(
             output,
             role="output",
             hidden=frozenset(),
             declared=(),
             audiences=audiences,
-            many=spec.many,
         ), None
     _refuse_nested_runs(output, "ServiceSpec.output_selector_spec")
     return None, _presenter(

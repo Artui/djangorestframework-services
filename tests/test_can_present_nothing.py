@@ -146,11 +146,11 @@ def test_a_re_read_spec_without_a_selector_is_no_re_read() -> None:
 def test_many_is_not_read() -> None:
     # The kernel answers a ``many`` service as any other: ``many`` decides whether
     # the result is a list of what the service wrote, not whether it may be
-    # ``None``. So the declaration answers without a re-read, and the re-read's
-    # kind answers with one.
+    # ``None``. So the declaration answers. A ``many`` service's output selector
+    # is never run, so a ``RETRIEVE`` one is no re-read that may find nothing.
     assert can_present_nothing(_service(allow_none=True, many=True)) is True
     assert can_present_nothing(_service(many=True)) is False
-    assert can_present_nothing(_service(_re_read(RETRIEVE), many=True)) is True
+    assert can_present_nothing(_service(_re_read(RETRIEVE), many=True)) is False
     assert can_present_nothing(_service(_re_read(LIST), allow_none=True, many=True)) is False
 
 
