@@ -536,6 +536,27 @@ def _refuse_hidden_reads(
             )
 
 
+def _compiled_input_names(spec: Any) -> frozenset[str]:
+    """The input serializer's writable names as far as they can be read with no call.
+
+    A spec compiles as it is declared, at import, where no request or view
+    exists, so a serializer reading ``self.context["request"]`` or ``["view"]``
+    unguarded, as it is built or as its fields are, cannot be described, and
+    is taken to declare no name rather than refused: dispatch, which describes
+    it with the call's own request and view, is where its fields exist
+    (test_a_spec_declaring_a_read_registers_and_mounts_at_import, which fails
+    without the catch). Only what reading a ``None`` request or view, or a key
+    the context lacks, raises is caught; anything else the serializer raises
+    is raised as it is (test_a_serializer_that_fails_for_another_reason_is_not_hidden_at_registration),
+    and so is a declaration that is no serializer at all
+    (test_an_input_serializer_that_is_none_of_the_two_is_still_refused).
+    """
+    try:
+        return writable_input_names(spec)
+    except (AttributeError, KeyError, TypeError):
+        return frozenset()
+
+
 def _refuse_reads_named_like_fields(spec: Any, *, lookup_reads: frozenset[str]) -> None:
     """Refuse a read, the spec's or its target lookup's, that a writable input field also takes.
 
@@ -563,7 +584,7 @@ def _refuse_reads_named_like_fields(spec: Any, *, lookup_reads: frozenset[str]) 
         # request still registers
         # (test_a_spec_declaring_no_read_registers_without_describing_its_serializer).
         return
-    writable = writable_input_names(spec)
+    writable = _compiled_input_names(spec)
     for label, entries in sources:
         for entry in entries:
             looked_up = entry.name in lookup_reads

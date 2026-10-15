@@ -190,7 +190,11 @@ def dispatch_spec(
         InvalidArguments: the kernel refused the arguments.
     """
     state = EdgeCallState()
+    # The call's state stays set while its refusal is reworded, so the input
+    # serializer is described there as the call described it
+    # (test_a_refusal_is_answered_in_the_wire_names).
     with (
+        edge_call(state),
         edge_errors(
             spec,
             params,
@@ -198,7 +202,6 @@ def dispatch_spec(
             http=over_http(view),
             state=state,
         ),
-        edge_call(state),
     ):
         prepared = prepare_edge_call(
             spec,

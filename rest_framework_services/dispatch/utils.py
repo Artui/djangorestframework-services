@@ -49,6 +49,7 @@ from rest_framework_services.service_specs.utils import (
     describe_serializer,
     edge_call_state,
     input_parameters,
+    serializer_context,
     writable_input_names,
     write_form_value,
 )
@@ -189,6 +190,14 @@ def prepare_edge_call(
     state.view_hooks = hooks
     # One object for the whole call: a ``Grant`` binds its principal by identity.
     principal = user if user is not None else unauthenticated_user()
+    ambient = {"request": request, "view": view}
+
+    def describe_context() -> dict[str, Any]:
+        return serializer_context(
+            principal, ambient, params, view_layers=hooks.input_serializer_context
+        )
+
+    state.describe_context = describe_context
     shared: dict[str, Any] = {
         "principal": principal,
         "unknown_arguments": enforceable_policy(spec, unknown_arguments, argument_binding),

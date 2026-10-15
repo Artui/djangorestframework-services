@@ -86,21 +86,35 @@ def describe_serializer(declaration: Any) -> serializers.Serializer:
     ``DataclassSerializer`` exactly as dispatch validates it. Anything else is
     refused with ``ImproperlyConfigured``.
 
-    It is built with the context DRF builds on HTTP, with no view and no
-    request, because a description is made before any call exists: a
-    ``get_fields`` reading ``self.context["request"]`` finds the key and reads
-    ``None``, rather than raising ``KeyError`` from a schema while dispatch
-    would have rendered it.
+    Inside an edge call it is built with the call's own request and view, as
+    the serializer that validates the call is, so one that reads
+    ``self.context["request"]`` or ``["view"]`` unguarded, as it is built or as
+    its fields are, describes the fields it validates with, on HTTP and off it
+    (test_a_live_view_scopes_the_field_to_the_caller,
+    test_an_offline_view_builds_the_fields_from_its_query_string_and_route,
+    test_with_no_view_and_no_request_the_caller_is_the_principal). Outside a
+    call, as a schema or a registration describes it, it is built with the
+    context DRF builds on HTTP with no view and no request: a ``get_fields``
+    reading ``self.context["request"]`` finds the key and reads ``None``,
+    rather than raising ``KeyError`` from a schema while dispatch would have
+    rendered it. What the serializer raises while it is described is raised as
+    it is (test_a_serializer_that_fails_is_not_hidden_at_dispatch).
     """
-    return bind_serializer(declaration, context=base_serializer_context(view=None, request=None))
+    describe = edge_call_state().describe_context
+    if describe is None:
+        return bind_serializer(
+            declaration, context=base_serializer_context(view=None, request=None)
+        )
+    return bind_serializer(declaration, context=describe())
 
 
 def writable_input_names(spec: Any) -> frozenset[str]:
     """The names a service spec's input serializer takes from the body at the top level.
 
-    Each writable field's name, as the client sends it. A ``many`` spec's fields
-    are each row's and a spec with no input serializer has none, so either
-    answers no name; a read-only field takes nothing from the body.
+    Each writable field's name, as the client sends it, read through
+    ``describe_serializer``. A ``many`` spec's fields are each row's and a spec
+    with no input serializer has none, so either answers no name; a read-only
+    field takes nothing from the body.
     """
     if spec.input_serializer is None or spec.many:
         return frozenset()
@@ -177,6 +191,15 @@ class EdgeCallState:
     - ``row_errors``: what the list serializer bound to that whole body
       refused, as the installed DRF reports it, which the edge answers with
       in place of the kernel's rows (``edge_errors``).
+    - ``describe_context``: builds the serializer context the call's input
+      serializer is described with, its request, its view and the view's
+      input layers, as the Validator binds it less the spec's own context
+      callable, which may declare an argument (``describe_serializer``). Built
+      when a description asks, so a call describing nothing builds none.
+    - ``base_context``: the request and view a serializer of the call was last
+      built for, and the baseline context the view answered for them, so the
+      view is asked once for every serializer of the call
+      (``call_base_context``).
 
     Mutable, so the edge can set it before the sync step it hops to a thread
     for and fill it there, and the Validator can fill it during the kernel's
@@ -192,6 +215,8 @@ class EdgeCallState:
     provider_owned: frozenset[str] = frozenset()
     body_rows: bool = False
     row_errors: Any = None
+    describe_context: Callable[[], dict[str, Any]] | None = None
+    base_context: tuple[Any, Any, dict[str, Any]] | None = None
 
 
 EDGE_CALL: ContextVar[EdgeCallState | None] = ContextVar(
@@ -208,6 +233,32 @@ context, and ``adispatch``'s thread hops run in a copy of it, which
 def edge_call_state() -> EdgeCallState:
     """The state of the edge call in progress, or an empty one outside any call."""
     return EDGE_CALL.get() or EdgeCallState()
+
+
+def call_base_context(*, view: Any, request: Any) -> dict[str, Any]:
+    """``base_serializer_context`` for ``view`` and ``request``, asked of the view once per call.
+
+    The call's input serializer is described, and bound by its Validator, each
+    with this baseline, and the view's ``get_serializer_context`` is asked for
+    it once in the call, as DRF's view asks it once for the one serializer it
+    builds (test_each_layer_is_asked_once_per_call). Each serializer is handed
+    its own copy, so one writing to its context leaves the next as the view
+    answered it (test_each_serializer_of_the_call_has_its_own_context).
+
+    Held for the request and view it was asked for, and reused only for both:
+    a kernel call made inside the service with another request, or another
+    view, is answered for its own (test_a_kernel_call_inside_the_service_has_its_own_context,
+    whose ``another-request`` case fails without the request check and whose
+    ``another-view`` case fails without the view check).
+    """
+    state = EDGE_CALL.get()
+    held = state.base_context if state is not None else None
+    if held is not None and held[0] is request and held[1] is view:
+        return dict(held[2])
+    context = base_serializer_context(view=view, request=request)
+    if state is not None:
+        state.base_context = (request, view, context)
+    return dict(context)
 
 
 def validator_input(validator: Any, arguments: Any) -> Any:
@@ -355,7 +406,7 @@ def serializer_context(
     if request is None and view is None:
         offline = build_offline_context(principal, arguments)
         request, view = offline.request, offline.view
-    context = base_serializer_context(view=view, request=request)
+    context = call_base_context(view=view, request=request)
     context.update(view_layers or {})
     if provider is not None:
         pool: dict[str, Any] = {

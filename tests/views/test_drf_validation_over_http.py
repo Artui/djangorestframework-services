@@ -268,12 +268,16 @@ def test_an_offline_view_keeps_the_kernels_typed_check(view: Any) -> None:
 
 def test_a_live_views_rows_under_an_argument_keep_the_kernels_refusal() -> None:
     """Rows sent under an argument are no body DRF's list serializer was handed."""
+    # A live view carries the request it serves and the format DRF's
+    # ``initial`` set, which its serializer context reads.
+    request = Request(_factory.post("/"))
     with pytest.raises(ValidationError) as excinfo:
         dispatch_spec(
             _BulkView.spec,
             user=None,
             params={"items": "x"},
-            view=_BulkView(),
+            request=request,
+            view=_BulkView(request=request, format_kwarg=None),
             many_as_argument=True,
         )
 
