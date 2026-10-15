@@ -489,7 +489,13 @@ def _validator_body(
     """
     # A key the edge added (test_the_specs_value_wins_over_the_view_hooks, an
     # ``input_data`` key the caller never sent) or replaced
-    # (test_a_hook_value_naming_a_serializer_field_is_the_fields_value).
+    # (test_a_hook_value_naming_a_serializer_field_is_the_fields_value). One
+    # arc to coverage, so each half is named: without ``name not in sent`` a
+    # hook's ``None`` for a field the client omitted is never put
+    # (test_a_hooks_none_fills_a_required_nullable_field_the_client_omitted),
+    # and without the identity check every argument is written back, so a
+    # form body's repeated key collapses to the flat copy's last value
+    # (test_a_form_bodys_repeated_keys_reach_the_serializer_whole).
     put = {
         name: arguments[name]
         for name in fields
