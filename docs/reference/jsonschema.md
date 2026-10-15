@@ -174,10 +174,11 @@ lookup, reflect its `instance_selector_spec` or `collection_selector_spec` (a
 ### A spreading service's own parameters: `argument_binding=`
 
 A `ServiceSpec`'s input schema is its `input_serializer`'s. A service with no
-serializer has nothing but its own signature to read the caller's input, so
-dispatch declares the service's parameters as that input, under every
-`argument_binding`, and `UnknownArguments.REJECT` admits them. The schema lists
-them when the transport passes `SPREAD_AUTHOR_WINS`:
+serializer has nothing but its own signature to read the caller's input, and
+whether that signature is caller input is the transport's call: dispatch
+declares the service's parameters, and `UnknownArguments.REJECT` admits them,
+only under `ArgumentBinding.SPREAD_AUTHOR_WINS`. The schema lists them when the
+transport passes the same binding:
 
 ```python
 def close_ticket(*, instance, reason: str, note: str = "", user) -> Ticket: ...
@@ -216,8 +217,8 @@ Three things are not in it:
   transport closes a tool's input, or not, from its own policy.
 - **Anything under `AUTO` or `BUNDLE`.** A caller that does not pass
   `SPREAD_AUTHOR_WINS` gets the schema it always had: `{"type": "object"}` with
-  no serializer, although dispatch admits the service's parameters under those
-  bindings too. A `many=True` spec, one with an `input_serializer`, a
+  no serializer, and dispatch agrees, since under those bindings the service's
+  own parameters are no caller input. A `many=True` spec, one with an `input_serializer`, a
   `SelectorSpec` and the output phase do not read it.
 
 ### What an annotation publishes

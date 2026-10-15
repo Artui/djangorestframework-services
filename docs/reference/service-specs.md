@@ -52,8 +52,13 @@ list_tasks = SelectorSpec(
 | `affordances` | each service's compiled spec |
 | everything else of the same name | carried by name |
 
-A service with no `input_serializer` takes its arguments from its own
-signature. A selector always does, except for the names its `filter_set` owns.
+A service with no `input_serializer` declares none of its own parameters, so
+`kernel_spec(spec).parameters()` lists only its target lookup's keys and its
+`reads`, and no body reaches the service's keywords. Its signature is declared
+only in the variant compiled for an explicit
+`ArgumentBinding.SPREAD_AUTHOR_WINS` (`kernel_spec_variant(spec, spread=True)`).
+A selector always takes its arguments from its signature, except for the names
+its `filter_set` owns.
 Parameters marked `NotClientInput` on any callable of the call are hidden.
 So are the names the pool fills: `user`, `request`, `view`, `queryset`,
 `result` and the rest. Declaring one of those in `reads` is refused.
@@ -82,7 +87,14 @@ the serializer is built for a call, over DRF's own context and the view hooks
 (a DRF serializer or a dataclass): its parameters are the serializer's fields,
 and it validates a call with the target as `instance`, the call's `partial`,
 and a serializer context built for the principal, so `CurrentUserDefault`
-reads it. A `HiddenField` or a read-only field is not a parameter.
+reads it. A `HiddenField` or a read-only field is not a parameter, and neither
+is a field named like a seed (`user`, `result`, a registered seed's name): the
+serializer reads it from the body, so its value lands in `data` and the seed
+keeps its own. For a request a live DRF view dispatches, the edge compiles a
+lenient variant (`kernel_spec_variant(spec, lenient=True)`) whose parameters
+carry their names alone, so DRF's serializer is the only validator and answers
+in its own words; off HTTP the parameters carry their types and the kernel
+checks them first.
 `SerializerPresenter` is the kernel's `Presenter` over an output serializer,
 with the spec's `field_audiences` layered over the serializer's own markings.
 

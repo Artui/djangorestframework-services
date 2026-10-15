@@ -291,7 +291,7 @@ through the second. Each builds the context in the same four layers:
 | Layer | Through `dispatch_spec` | The compiled spec, dispatched by the kernel |
 |---|---|---|
 | 1. DRF default | the `view`'s `get_serializer_context()` | the same for a registered `view` seed, else DRF's three keys, from the registered `request` or an offline pair built for the principal |
-| 2. and 3. View hooks | what the view resolved into `view_hooks=`, registered as a seed of the call | none |
+| 2. and 3. View hooks | what the view resolved into `view_hooks=`, carried beside the call rather than in its pool, so no callable's `**kwargs` receives them | none |
 | 4. Per-spec callable | `*_serializer_context` on the spec | the same, with the final say |
 
 The callable declares what it reads, as every spec callable does:

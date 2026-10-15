@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrade notes
+
+drfs now compiles every spec to
+[django-service-specs](https://github.com/Artui/django-service-specs)' and
+runs it through the kernel's `dispatch`. Over HTTP a view still answers its
+request the way it did: DRF's serializer alone validates the body. What a
+project may have to change, each detailed below:
+
+- **Stop passing `ArgumentBinding.SPREAD_CALLER_WINS` or
+  `UnknownArguments.PASSTHROUGH`.** Both raise `ValueError`. Declare an argument
+  a callable needs, as a `reads` entry, a serializer field or a parameter.
+- **Rename a service parameter or a `kwargs` provider key that only matched by
+  accident.** A service with an input serializer now receives each validated
+  value whose name its signature declares, beside `data`. A `kwargs` provider
+  returning `data`, `instance` or `view` raises `ImproperlyConfigured`.
+- **Off HTTP, send JSON types.** `dispatch_spec` called with no view, or with an
+  `OfflineServiceView`, checks each argument against its declared type before
+  the serializer runs: `true`, not `"true"`; a string, not a number; an ISO
+  string, not a Python `date` or `Decimal`.
+- **Bound a bulk body.** A `many` call takes at most 1000 rows, over HTTP too,
+  unless its `ListSerializer` sets `max_length` or the project sets
+  `SERVICE_SPECS_MAX_ARRAY_LENGTH`.
+- **Re-point a few names.** `children=` is `relations=`; `DispatchResult` has no
+  `status`; `SpecRegistry.register` takes no `agent_contract=`; `filter_set`
+  must be a django-filter `FilterSet`; `request`, `view`, `result` and
+  `queryset` cannot be registered in `pool_seeds`.
+
 ### Added
 
 - **drfs is now a DRF adapter over
@@ -21,9 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   leaf module:
   - `as_kernel_spec` compiles a spec to the kernel's, and
     `kernel_spec_variant` compiles it as one request of the DRF edge
-    dispatches it (partial, unguarded, as a target lookup). Both spec classes
-    gain an `as_kernel_spec()` method, so the kernel's `dispatch`, registry
-    and schemas take a drfs spec as it is.
+    dispatches it (partial, unguarded, as a target lookup, spreading, or
+    validated leniently for a live view). Both spec classes gain an
+    `as_kernel_spec()` method, so the kernel's `dispatch`, registry and
+    schemas take a drfs spec as it is. A service spec with no
+    `input_serializer` compiles with none of its service's own parameters
+    declared, so `kernel_spec(spec).parameters()` lists its target lookup's
+    keys and its `reads`; the service's signature is declared only in the
+    variant compiled for an explicit `SPREAD_AUTHOR_WINS`.
   - `SerializerValidator` and `SerializerPresenter` are an input and an
     output serializer as the kernel's `Validator` and `Presenter`, the
     `input_serializer_context` / `output_serializer_context` callables riding
@@ -44,10 +76,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `rest_framework_services.dispatch`.
 - **`reads` and `field_audiences` on `ServiceSpec` and `SelectorSpec`**, and
   an `agent_contract()` method answering the `OfflineContract` the two
-  declare. `reads=[UrlKwarg(...), QueryParam(...)]` declares the route
-  captures and query values a spec reads; a declared one is routed both
-  ways, onto the call's arguments and back onto `view.kwargs` /
-  `request.query_params` for a permission class reading it there.
+  declare, or `None` when both are empty. `reads=[UrlKwarg(...), QueryParam(...)]` declares the route
+  captures and query values a spec reads, each a parameter of the compiled
+  spec, so the schema lists it and `REJECT` admits it. On a live DRF view a
+  declared `UrlKwarg` is read from the route alone and a `QueryParam` from the
+  query string alone: a body value of that name is neither the argument nor
+  written onto `view.kwargs` or `request.query_params`, which the view's
+  permission classes have already read. Off HTTP the caller sends it as an
+  argument, and on an `OfflineServiceView` the value is also written onto
+  `view.kwargs`, or onto `request.query_params` where the query string lacks
+  it, for a provider, serializer or permission class reading it there.
   `field_audiences` maps an output field to its `FieldMarking`.
 - **`dispatch_spec(partial=...)`**, the request's partial flag (a `PATCH`).
   `None`, the default, reads the spec's own.
@@ -114,38 +152,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     declared with `many`, now answer `True`.
   - `UnknownArguments` is a `str` enum ordered `REJECT`, `IGNORE`,
     `PASSTHROUGH`.
-- **Breaking: a call has one argument pool, whatever its
-  `argument_binding`.** `BUNDLE` and `SPREAD_AUTHOR_WINS` both mean it, and
-  `ArgumentBinding.SPREAD_CALLER_WINS` and `UnknownArguments.PASSTHROUGH`,
-  which stay importable, raise `ValueError` when a call passes them. A
-  service with no input serializer receives its own parameters by name under
-  every binding.
-  - Under `REJECT`, undeclared keys are named in one message,
-    `"Unexpected argument(s): 'zzz'."`, under `non_field_errors` (a row's
-    inside that row), and are refused before a target lookup queries. A
-    seed's name (built-in or registered, `view` aside) is never an
-    unexpected argument. A Validator's own `code="unknown"` error is no
-    longer reworded as one.
+- **Breaking: how a call's arguments reach its callables.**
+  - `ArgumentBinding.SPREAD_CALLER_WINS` and `UnknownArguments.PASSTHROUGH`
+    stay importable and raise `ValueError` when a call passes them: an
+    author's value always outranks the caller's, and an argument the spec
+    does not declare never reaches a callable.
+  - A service with no `input_serializer` still takes no client value for its
+    own parameters under `AUTO` and `BUNDLE`; only an explicit
+    `SPREAD_AUTHOR_WINS` makes its signature the caller's input. It now
+    receives `data={}` under every binding, where it received no `data`
+    under `AUTO` and `BUNDLE` and the caller's params under
+    `SPREAD_AUTHOR_WINS`.
+  - A service with an input serializer receives each validated value by
+    name, beside `data`, where its signature declares a parameter of that
+    name (the field's `source`, not its wire name). Under `AUTO` and
+    `BUNDLE` it used to receive only `data`.
   - A callable taking a bare `**kwargs` receives the declared arguments and
-    the seeds, never an undeclared key. A selector or target lookup taking
-    one drops an undeclared key under `REJECT`, as does a service with no
-    input serializer dispatched under `SPREAD_AUTHOR_WINS`.
-  - `REJECT` over a `**kwargs: Unpack[...]` whose `TypedDict` cannot be
-    resolved at runtime raises `ImproperlyConfigured`.
-  - `InputRequired` holds a parameter required whatever its Python default,
-    and a missing one is refused as `{"name": ["This field is required."]}`.
+    the seeds, never an undeclared key or a route capture nothing declares,
+    which it used to receive. So a `**rest` service now also receives `view`,
+    `data` with no input serializer, the validated field names with one,
+    and `items` for a `many` spec.
+  - An author's `pk`, from a view hook or the spec's `kwargs` provider, picks
+    the row a target lookup reads, where the client's `pk` did.
+  - A key the spec's typed `kwargs` provider is annotated to fill is never
+    taken from the client or a hook, even where the provider declines it
+    with `UNSET`, which leaves the parameter's default.
+  - A missing required argument is refused as `{"name": ["This field is
+    required."]}`, code `required`, every missing name keyed, where it was
+    one `"Missing required argument(s): ..."` message under
+    `non_field_errors`.
+  - Under `REJECT`, a `many` call refuses each row's undeclared keys inside
+    that row, where it answered one message for the call. Over a live view
+    on DRF 3.18 or later, that refusal comes back as a list of rows when the
+    serializer accepted every row, while a row the serializer refuses comes
+    back in DRF's mapping of row indexes, so one endpoint can answer in
+    either shape. Off HTTP an unknown key inside a nested serializer is
+    refused as `{"inner": {"zzz": ["Unknown argument."]}}`, code `unknown`;
+    over a live view it is still dropped. A caller's `request` is refused as
+    an unexpected argument, as `view` already was.
 - **Breaking: pool seeds.** `RESERVED_POOL_SEEDS` is `user`, `data`,
-  `instance`, `collection`, `result`, `queryset` and `progress`. A
+  `instance`, `collection`, `result`, `queryset` and `progress`, where it
+  listed `request` and `serializer` rather than `result` and `queryset`. A
   registered seed named `result` or `queryset` is refused, as is a resolver
   that returns an awaitable. `dispatch_spec` seeds `request` and `view`
   itself, so registering either in `pool_seeds` raises
   `ImproperlyConfigured`.
   - `view` is seeded on every call: a callable declaring it gets the
-    transport's view or `None`, a provider returning a `view` key raises
-    `ImproperlyConfigured`, a caller's `view` is refused under `REJECT` and
-    dropped under `IGNORE`, and `call_service` drops a `view=` passed inside
-    a view.
-  - A view-hook extra naming a pool seed is dropped and the seed wins.
+    transport's view or `None`, and a provider or route capture named `view`
+    cannot outrank it. A spec's `kwargs` provider returning a `view`, `data`
+    or `instance` key raises `ImproperlyConfigured`, and `call_service`
+    drops a `view=` passed inside a view.
+  - A view-hook extra naming a pool seed is dropped and the seed wins, where
+    the hook's value replaced it.
 - **Breaking: `SpecRegistry.register` compiles the spec.** It takes no
   `agent_contract=`; `RegisteredSpec.agent_contract` is read-only and
   answered by the spec's own `agent_contract()`. A spec with no permissions
@@ -181,50 +239,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     refused where `True` passes.
   - `filter_data` reaches only the filter's own names, and neither it nor
     the query string narrows an output selector's `filter_set` any longer.
-- **Arguments are shape-checked against what the spec declares**, which
-  refuses some inputs drfs' dispatch accepted:
+- **Off HTTP, arguments are type-checked against what the spec declares
+  before the serializer runs.** This holds for `dispatch_spec` and
+  `adispatch_spec` called with no view or with an `OfflineServiceView`, as an
+  agent transport calls them. A live DRF view's request is still validated by
+  its serializer alone, in DRF's words, form bodies included. Off HTTP the
+  check refuses some inputs the serializer accepted:
   - text or a number for a boolean; a number for a string, a UUID, a
     duration or a text choice; text for a boolean choice;
-  - a list longer than 1000 items;
+  - a list longer than 1000 items, or the `SERVICE_SPECS_MAX_ARRAY_LENGTH`
+    setting;
   - in-process Python `date`, `datetime`, `time`, `timedelta`, `Decimal`
     and `UUID` values.
 
-  `dispatch_spec(partial=True)` over a dataclass input, or a
-  `DataclassSerializer` subclass, is refused with `ImproperlyConfigured`, as
-  is a spec declaring `partial=True` over one, on its first call. A `PATCH`
-  through the update views over one is validated as a whole call, so a
-  field it leaves out is refused as required. A `many` spec needs an input serializer, and takes its
-  list bounds from the `ListSerializer`. A `many` call's refusals are keyed
-  by row (in DRF's list shape when the rows arrive bare); a non-list, null or
-  out-of-bounds list is refused under `many_argument`, and other keys beside
-  the rows are dropped under `IGNORE`.
+  The serializer runs only once every argument passes the check, so its own
+  refusals of other fields (a `max_length`, a `validate()`) wait behind a
+  type refusal.
+- **`many` calls.** A `many` spec needs an input serializer, and takes its
+  list bounds from the `ListSerializer`, with 1000 rows the most where it
+  sets no `max_length`; a longer body is refused under `non_field_errors`,
+  over HTTP too. Over a live view a refused body is answered with its
+  `ListSerializer`'s own errors, as before. Off HTTP, rows sent as a bare
+  list are refused in the kernel's list with one entry per row, where DRF
+  3.18 gave a mapping of row indexes; rows sent under `many_argument` keep
+  the mapping. A non-list, null or out-of-bounds list under `many_argument`
+  is refused in the kernel's words (`{"items": ["Expected an array."]}`), and
+  a key beside the rows follows `unknown_arguments`, dropped under `IGNORE`,
+  where it was refused under every policy.
+- **Partial calls over a dataclass.** `dispatch_spec(partial=True)` over a
+  dataclass input, or a `DataclassSerializer` subclass, is refused with
+  `ImproperlyConfigured`, as is a spec declaring `partial=True` over one, on
+  its first call. A `PATCH` through the update views over one is validated as
+  a whole call, so a field it leaves out is refused as required.
 - **Route captures and the principal.** A route capture or query value is
   coerced to its parameter's type, and a capture no callable declares is no
-  argument. A declared `UrlKwarg` or `QueryParam` is routed both ways (see
-  `reads` above). `user=None` acts as `UNAUTHENTICATED_USER`, or `AnonymousUser`
+  argument. `user=None` acts as `UNAUTHENTICATED_USER`, or `AnonymousUser`
   when that setting is `None`, while the permission check still sees `None`;
   a deactivated principal answers `PrincipalUnavailable` (403).
   `instance=None` with a lookup answers `not_found`.
-- **Providers.** The spec's `kwargs` provider outranks the view's hooks, is
-  called once per call from `view` and `request`, and, like a view hook,
-  picks the row a target lookup reads; a key its `TypedDict` fills is never
-  taken from the client or a hook.
-- **Smaller changes in what a call answers.** A `LIST`
-  `output_selector_spec` with no selector answers `kind="list"`, and a
-  service return that is not a set of rows raises `ImproperlyConfigured`. An
-  `instance_selector_spec` with no selector compiles to no lookup.
-  `SerializerPresenter` no longer projects markings on write-only fields, and
-  refuses a `field_audiences` name that matches no output field.
-  `spec_to_json_schema` walks an output serializer before asking whether the
-  spec can present nothing, so an output it cannot walk is still refused
-  with `TypeError`.
+- **Presenting output.** `SerializerPresenter` projects no marking onto a
+  write-only field, and refuses a `field_audiences` name that matches no
+  output field.
 
 ### Removed
 
 - **`affordance_expression`** from `rest_framework_services.selectors.utils`,
-  and **`validate_relation_mode`, `validate_relation_services` and
-  `VALID_RELATION_MODES`** from `rest_framework_services.types.utils`. None
-  was exported; the relation checks are the kernel's.
+  and **`validate_relation_mode`, `validate_relation_services`,
+  `validate_relation_orphan`, `validate_pk_field_map`, `pk_input_targets`,
+  `VALID_RELATION_MODES` and `VALID_RELATION_ORPHANS`** from
+  `rest_framework_services.types.utils`. None was exported; the relation
+  checks are the kernel's.
 - **The private `rest_framework_services.mutations.utils` and
   `rest_framework_services.services._resolve_m2m` modules.** The relation
   layer they carried is the kernel's.
@@ -239,13 +303,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so a service reading `data` saw the client's: a hook supplying
   `{"tenant": request.user.tenant}` could be overridden by a body carrying
   `tenant`.
-- **The one argument pool does not let the query string on a selector view
-  reach the selector.** The query string feeds the view's `filter_set` and
-  is never an argument to the selector, unless the spec declares the name
-  with `reads=[QueryParam(...)]`. Released versions kept it out by binding
-  the selector's arguments separately; with one pool it would have become
-  arguments, so a `?tenant=` could have reached a selector's `tenant`
-  keyword. No released version was affected.
+- **A bulk body with a row that is not an object, on a spec with an
+  `input_data` provider, is a 400** in DRF's words, where it raised
+  `TypeError`.
 
 ## [0.57.0] — 2026-10-13
 

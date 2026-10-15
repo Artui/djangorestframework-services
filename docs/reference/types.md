@@ -122,8 +122,11 @@ Being the kernel's changes what a few of them refuse, each where it is built:
 ## `InputRequired`
 
 Dispatch refuses a missing marked key as the kernel's `InvalidArguments`,
-`{"code": ["This field is required."]}`, under every `argument_binding`: there is
-one argument pool, so the caller can always send it. See
+`{"code": ["This field is required."]}`, wherever the key is caller input: a
+selector's, a target lookup's, and a serializer-less
+service's own parameters under `SPREAD_AUTHOR_WINS`. Under `AUTO` or `BUNDLE`
+such a service's parameters are no caller input, so a marker on one is not
+enforced. See
 [what a caller could fill](../recipes/off-http-inputs.md#requiredness-inputrequired).
 
 ::: rest_framework_services.types.input_required

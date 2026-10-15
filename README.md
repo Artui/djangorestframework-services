@@ -22,7 +22,9 @@ Under the views it is a DRF adapter over
 [django-service-specs](https://github.com/Artui/django-service-specs): a spec
 declared here compiles to that kernel's spec, the kernel runs the call, and the
 serializer and DRF's permission classes are the validator, the presenter and the
-guard it calls back into. The kernel's names (`ServiceError`, `SpecRegistry`, the
+guard it calls back into. Over HTTP a view's request is still validated by its
+serializer alone, as DRF always validated it; off HTTP, as an agent transport
+calls a spec, the kernel also checks each argument's type. The kernel's names (`ServiceError`, `SpecRegistry`, the
 mutation helpers and the relation specs among them) are re-exported here as the
 same objects, so one import path serves both.
 
@@ -190,14 +192,17 @@ There are three building blocks:
 | **Selector** | A plain callable that returns data to read | Your code |
 | **View / Viewset** | DRF view that wires a service or selector to an HTTP method | Provided by this library |
 
-Views inspect the service / selector signature with `inspect.signature` and
-pass only the arguments they declare from a known pool: `request`, `user`,
-optionally `instance` (update / delete) and `data` (when an
-`input_serializer` is configured), plus extras from `get_service_kwargs()` /
-`get_selector_kwargs()`. If a callable declares `**kwargs`, the entire pool
-is forwarded. `view` is intentionally not in the pool — pipe view state
-through `ServiceSpec.kwargs` / `SelectorSpec.kwargs` (which receive a narrow
-`ServiceView`) or `get_<action>_*_kwargs` instead.
+Views inspect the service / selector signature and pass only the arguments
+it declares, by name, from one pool: the seeds (`request`, `user`, `view`,
+`progress`, `data`, and `instance` for update / delete), the arguments the
+spec declares (an input serializer's validated fields, a selector's
+parameters, its `reads`), and the author's extras from `ServiceSpec.kwargs` /
+`SelectorSpec.kwargs` and `get_<action>_*_kwargs` / `get_service_kwargs()` /
+`get_selector_kwargs()`, which outrank the client's value of the same name.
+A callable declaring `**kwargs` receives all of those, never a key the spec
+does not declare. A service with no `input_serializer` receives `data={}`, and
+the request body never fills its own parameters; an off-HTTP caller opts in
+with `ArgumentBinding.SPREAD_AUTHOR_WINS`.
 
 ```python
 def create_author(*, data, user):  # the view passes only data + user

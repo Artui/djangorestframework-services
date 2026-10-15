@@ -51,6 +51,17 @@ executor, which is what keeps `SynchronousOnlyOperation` out of an async
 transport. Await the pair together; don't mix an `a`-prefixed call with a sync
 one on the same result.
 
+**Who validates a call depends on its `view`.** A live DRF view, meaning any
+`view` that is not an
+[`OfflineServiceView`][rest_framework_services.types.offline_service_view.OfflineServiceView],
+has its request validated by the input serializer alone, from the body the
+request parsed, in DRF's words. With an `OfflineServiceView` or no `view`, the
+kernel first checks every declared argument against its type, so `"true"` for a
+boolean or `123` for a string is refused before the serializer runs. A declared
+`UrlKwarg` or `QueryParam` follows the same split: a live view reads it from its
+route or query string alone, and off HTTP it is the caller's argument. See
+[who validates what](../recipes/off-http-inputs.md#who-validates-what).
+
 ### `dispatch_spec`
 
 ::: rest_framework_services.dispatch.dispatch_spec.dispatch_spec
@@ -176,15 +187,26 @@ target.
 
 ### `ArgumentBinding`
 
-Kept for the transports that pass it. A call has **one argument pool**: the
-caller's argument for a declared parameter is what the callable receives, unless
-the spec's `kwargs` provider is annotated to fill that key, and then the
-provider's value is used and the caller's is dropped. `AUTO`, `BUNDLE` and
-`SPREAD_AUTHOR_WINS` all mean that pool, and a selector receives its reads under
-`BUNDLE` as well. `SPREAD_CALLER_WINS` is refused with `ValueError` naming
-`AUTO`: leave a key out of the `kwargs` provider where the caller's value should
-win. The member's own docstring below still describes the separate pools of
-earlier releases.
+A call has **one argument pool**: every callable takes its keyword arguments
+from it by name, and an author's value (a view hook's, or the spec's `kwargs`
+provider's) outranks the caller's for the same name. What the enum still
+decides is one question about a `ServiceSpec` with no `input_serializer`:
+whether the service's own parameters are caller input.
+
+- `AUTO`, the default, is `BUNDLE` for a service and `SPREAD_AUTHOR_WINS` for a
+  selector. A selector's reads are the caller's under every member.
+- Under `BUNDLE` a serializer-less service's own parameters are never the
+  caller's: it receives `data={}`, its declared `reads` and the target lookup's
+  row, and nothing else the client sends.
+- Under `SPREAD_AUTHOR_WINS` its signature is the caller's input, still below an
+  author's value on a conflict.
+- `SPREAD_CALLER_WINS` is refused with `ValueError` naming `AUTO`: leave a key
+  out of the `kwargs` provider where the caller's value should win.
+
+A service with an `input_serializer` reads the serializer under every member:
+the validated payload arrives as `data`, and each validated value also reaches a
+parameter of the same name (the field's `source`). See
+[a service with no input serializer](../recipes/off-http-inputs.md#a-service-with-no-input-serializer).
 
 ::: rest_framework_services.types.argument_binding.ArgumentBinding
 
@@ -199,13 +221,20 @@ entry, a serializer field or a parameter.
 
 The declared set is the compiled spec's parameters
 ([Service specs on the kernel](service-specs.md#where-each-field-lands)): the
-`input_serializer`'s fields, or a service's own signature when it has none; a
+`input_serializer`'s fields, or, for a service with none dispatched under
+`SPREAD_AUTHOR_WINS`, its own signature; a
 selector's signature, less the names its `filter_set` owns, which are the
 filter's; the target lookup's; and every `reads` entry. A key that any callable
 in the call marks `NotClientInput`, and every pool seed's name, is
 server-owned and never declared. `REJECT` names every undeclared key in one
 `"Unexpected argument(s): ..."` message under `non_field_errors`, a row's
-inside that row; a seed's name is never one, `view` aside. Where a target lookup
+inside that row; a pool seed's name is never one, while a caller's `view` or
+`request` is. Off HTTP an unknown key inside a nested serializer is refused in
+the kernel's words, `{"inner": {"zzz": ["Unknown argument."]}}`; over a live
+view the nested serializer drops it, as DRF does. On DRF 3.18 or later a live
+view's `many` call can answer in two shapes: rows the serializer accepted but
+which carry an undeclared key are refused as a list of rows, while a row the
+serializer refuses comes back in DRF's mapping of row indexes. Where a target lookup
 will query, an undeclared key is refused before it does. A selector or target
 lookup taking a bare `**kwargs`, and a service with no `input_serializer` taking
 one under `SPREAD_AUTHOR_WINS`, drop an undeclared key rather than refuse it.

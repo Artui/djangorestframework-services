@@ -8,8 +8,9 @@ other way, and a caller has to be *told* they exist.
 
 This recipe covers the four pieces: making a URL-derived input discoverable,
 declaring it **required**, hiding an input the caller has no business setting,
-and saying in prose what one is for. It also says which inputs a spread service
-with no input serializer declares.
+and saying in prose what one is for. It also says which inputs a service with no
+input serializer declares, and which validator answers a call
+([who validates what](#who-validates-what)).
 
 ## The channel: `build_offline_context(kwargs=…)`
 
@@ -111,8 +112,11 @@ itself along with the reserved pool seeds, which no caller can send. Without
 Dispatch enforces that one without a marker too. The compiled spec declares a
 parameter with no default as required, so a call that lacks it is refused the
 same way, every missing name keyed in the one refusal. That holds for the
-selector, a service with no `input_serializer` (an `input_serializer` declares
-its own required fields), and the target lookup. A name no caller can send is
+selector, the target lookup, and a service with no `input_serializer` dispatched
+under `SPREAD_AUTHOR_WINS` (an `input_serializer` declares its own required
+fields, and under `AUTO` such a service's own parameters are no caller input, so
+neither its signature nor a marker on it is enforced; see
+[a service with no input serializer](#a-service-with-no-input-serializer)). A name no caller can send is
 never required of one: a pool seed, a key any callable of the call marks
 `NotClientInput`, or a key a typed `kwargs` provider fills. One of those that
 nothing fills is the author's configuration error, raised as the callable's own,
@@ -121,11 +125,14 @@ not a refusal naming the key, since no resend could fix it.
 ## A service with no input serializer
 
 A `ServiceSpec` with no `input_serializer` has nothing but its service's
-signature to read the caller's input against, so the service's own parameters
-are declared input, beside the keys of the target lookup:
+signature to read the caller's input against. Whether that signature is caller
+input is the one question `argument_binding` still answers, and the default
+answer is no:
 
 ```python
-def close_ticket(*, instance: Ticket, reason: str, notify: bool = False) -> Ticket: ...
+def close_ticket(
+    *, instance: Ticket, data: dict, reason: str = "", notify: bool = False
+) -> Ticket: ...
 
 
 spec = ServiceSpec(
@@ -135,15 +142,36 @@ spec = ServiceSpec(
 dispatch_spec(spec, user=user, params={"pk": 7, "reason": "duplicate"})
 ```
 
-`pk` goes to the lookup and `reason` to the service, whichever
-`argument_binding` is passed: a call has one argument pool. Leaving `reason` out
-is `{"reason": ["This field is required."]}`, and `notify` keeps its default
-unless the caller sends it.
+Under `AUTO`, which is `BUNDLE` for a service, `pk` goes to the lookup and
+`reason` reaches nobody: the service's own parameters are never the caller's,
+so a body cannot set a `hard` or an `is_admin` the service merely declares. The
+service receives `data={}` and its declared `reads` by name. Under `REJECT`,
+`reason` is refused as `Unexpected argument(s): 'reason'.`
+
+Pass `ArgumentBinding.SPREAD_AUTHOR_WINS` to make the signature the caller's
+input:
+
+```python
+dispatch_spec(
+    spec,
+    user=user,
+    params={"pk": 7, "reason": "duplicate"},
+    argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+)
+```
+
+Now `reason` reaches the service, a parameter with no default that the caller
+leaves out is `{"reason": ["This field is required."]}`, and `notify` keeps its
+default unless the caller sends it. An author's value, from a view hook or the
+spec's `kwargs` provider, still outranks the caller's on a conflict. `data` is
+`{}` here too.
 
 | The caller sends... | `IGNORE` | `REJECT` |
 | --- | --- | --- |
-| a parameter of the service or the lookup | delivered | delivered |
-| a key neither declares | dropped | refused: `Unexpected argument(s): 'zzz'.` |
+| a key the lookup reads, or a `reads` entry | delivered | delivered |
+| a parameter of the service, under `SPREAD_AUTHOR_WINS` | delivered | delivered |
+| a parameter of the service, under `AUTO` or `BUNDLE` | dropped | refused: `Unexpected argument(s): 'reason'.` |
+| a key nothing declares | dropped | refused: `Unexpected argument(s): 'zzz'.` |
 
 A parameter counts when the caller could fill it by name: a keyword parameter,
 or a key of an `Unpack[TypedDict]` `**kwargs`. These do not count:
@@ -156,10 +184,10 @@ or a key of an `Unpack[TypedDict]` `**kwargs`. These do not count:
   lookup marks, even where the service names it plainly.
 
 A bare `**kwargs` declares no name. It receives the declared arguments and the
-seeds the call carries, never an undeclared key: under `REJECT` such a key is
-refused, except under `ArgumentBinding.SPREAD_AUTHOR_WINS`, where an open
-service drops it instead. An annotated `**kwargs` whose `TypedDict` cannot be
-resolved at runtime makes `REJECT` raise `ImproperlyConfigured`.
+seeds the call carries (`data` and `view` among them), never an undeclared key:
+under `REJECT` such a key is refused, except under `SPREAD_AUTHOR_WINS`, where
+an open service drops it instead. An annotated `**kwargs` whose `TypedDict`
+cannot be resolved at runtime makes `REJECT` raise `ImproperlyConfigured`.
 
 The input schema says the same when it is told the binding. Pass
 `SPREAD_AUTHOR_WINS` to `spec_to_json_schema`, and it lists the service's
@@ -172,10 +200,18 @@ spec_to_json_schema(spec, argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS)
 ```
 
 The lookup's `pk` is not in it: a transport merges a target lookup's keys
-itself, by reflecting the lookup's `SelectorSpec`. Without the argument, `AUTO`
-is `BUNDLE` for a service and the schema is the bare `{"type": "object"}` it
-always was. See
+itself, by reflecting the lookup's `SelectorSpec`. Without the argument the
+schema is the bare `{"type": "object"}` it always was, which is what dispatch
+admits under `AUTO`. See
 [a spreading service's own parameters](../reference/jsonschema.md#a-spreading-services-own-parameters-argument_binding).
+
+!!! note "A service with an input serializer"
+    The serializer is the input, under every binding. Its validated payload
+    reaches the service as `data`, and each validated value also reaches a
+    parameter the service declares under the same name (the field's `source`,
+    not its wire name), so a service can take `title` by name rather than
+    reading `data["title"]`. A seed keeps its own value: a field named `user`,
+    such as a `HiddenField(default=CurrentUserDefault())`, stays in `data`.
 
 ## Hiding provider-owned inputs: `NotClientInput`
 
@@ -264,7 +300,8 @@ be required to supply a value it is never told about.
 `dispatch_spec` seeds `view` on every call: a selector, service or provider
 declaring it receives the view the transport passed, or `None` off HTTP. A
 caller's `view` is never an argument (under `REJECT` it is refused as
-`Unexpected argument(s): 'view'.`, under `IGNORE` dropped), and a `kwargs`
+`Unexpected argument(s): 'view'.`, under `IGNORE` dropped, and a caller's
+`request` is answered the same way), and a `kwargs`
 provider or a route capture named `view` cannot outrank the seed. A spec's
 `kwargs` provider returning a `view` key raises `ImproperlyConfigured`, a view
 hook's `view` is dropped for the seed, and registering `view` (or `request`) in
@@ -336,10 +373,19 @@ list_widgets_spec = SelectorSpec(
 Each entry is a parameter of the compiled spec, so it is an argument a caller
 sends, the schema lists and `REJECT` admits (see
 [what a spec declares for a caller off HTTP](../reference/service-specs.md#what-a-spec-declares-for-a-caller-off-http)).
-`dispatch_spec` routes it both ways: a declared `UrlKwarg` sent as an argument is
-written onto `view.kwargs`, so a provider reading the route finds it, and one the
-caller did not send is read from `view.kwargs`. Route captures and query values
-are coerced to the type the entry declares. `required=True` is the declared
+Where the value comes from depends on the view the call carries:
+
+- **A live DRF view** reads a declared `UrlKwarg` from its route alone, or the
+  parameter's default where the route has none. A body value of that name is
+  neither the argument nor written onto `view.kwargs`: the view's permission
+  classes have already read the route, and a value they never saw must not
+  reach the service as though the URL had carried it.
+- **Off HTTP** the caller sends it as an argument. On an `OfflineServiceView`,
+  which carries no route of its own, the value is also written onto
+  `view.kwargs`, so a provider or a permission class reading the route finds
+  it, and one the caller did not send is read from `view.kwargs`.
+
+Route captures and query values are coerced to the type the entry declares. `required=True` is the declared
 counterpart of the `InputRequired` marker: both land the name in the schema's
 `required` list, and they differ only in where the key is declared. A transport
 adapter that keeps its own registration and routes the value to
@@ -350,8 +396,10 @@ the spec declares or reads the name.
 `QueryParam` is the sibling for read-shaping values that belong on
 `request.query_params` (django-restql field selection, a serializer that branches
 on the query string). It has **no** `required` flag on purpose — omitting a
-read-shaping param is legitimate by construction. A declared `QueryParam` sent as
-an argument joins `request.query_params` when the query string lacks it.
+read-shaping param is legitimate by construction. It follows the same split: a
+live view reads it from the request's query string alone and never writes a body
+value there, while off HTTP the caller sends it as an argument, which joins an
+offline request's `request.query_params` when the query string lacks it.
 
 Both types live here rather than in each adapter so the same declaration means the
 same thing on every transport. Adapters validate a registration set with
@@ -372,8 +420,25 @@ pagination names on top.
 
 A key can be *both* reflected and `UrlKwarg`-registered — a `project_pk` the
 selector reads *and* a scoping provider reads off `view.kwargs`. The
-`reads` entry replaces the reflected parameter of the same name, and
-`dispatch_spec` both delivers the argument to the selector and writes it onto
-`view.kwargs`, so both readers see it.
+`reads` entry replaces the reflected parameter of the same name. Over HTTP both
+readers see the route's value; off HTTP `dispatch_spec` delivers the caller's
+argument to the selector and writes it onto the `OfflineServiceView`'s
+`view.kwargs`, so both readers see it there too.
+
+## Who validates what
+
+One spec, two validators, chosen by the view the call carries:
+
+| The call carries... | Validated by | So |
+| --- | --- | --- |
+| a live DRF view (any view that is not an `OfflineServiceView`) | the input serializer alone, from the body the request parsed | DRF's coercion and wording: `"true"`, `1` and `"on"` for a boolean, a number for a string, form bodies, every field's refusal at once |
+| an `OfflineServiceView`, or no view | the kernel's typed check of every declared argument, then the serializer | JSON types only: `"true"` for a boolean or `123` for a string is refused, a Python `date` or `Decimal` is refused, a list past 1000 items is refused, and the serializer runs only once every argument passes, so its own refusals (a `max_length`, a `validate()`) wait behind a type refusal |
+
+An agent transport sends typed JSON and wants a refusal it can show a model, so
+it calls `dispatch_spec` with an `OfflineServiceView` (from
+`build_offline_context`) or none. A browser or a form sends what DRF has always
+accepted, so the views keep answering it as DRF does. A `many` call's list of
+rows is bounded on both sides: 1000 rows unless the `ListSerializer` sets
+`max_length` or the project sets `SERVICE_SPECS_MAX_ARRAY_LENGTH`.
 
 [pep692]: https://peps.python.org/pep-0692/

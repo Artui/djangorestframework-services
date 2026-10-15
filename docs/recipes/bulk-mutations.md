@@ -40,6 +40,14 @@ class BulkCreateBooksView(ServiceCreateView):
 `atomic=True` (the default) any item's `ServiceError` rolls the whole batch
 back.
 
+A refused body is answered with the list serializer's own errors, in the shape
+the installed DRF gives (a mapping of the failing rows' indexes from DRF 3.18, a
+list below it). The list takes its bounds from the `ListSerializer`
+(`allow_empty`, `min_length`, `max_length`); where it sets no `max_length`, at
+most 1000 rows are accepted, or what the `SERVICE_SPECS_MAX_ARRAY_LENGTH`
+setting says (`None` bounds nothing), and a longer body is a `400` under
+`non_field_errors`.
+
 ### Off HTTP: the list as one named argument
 
 A tool call's arguments are always a JSON object, so a caller that only sends
@@ -90,23 +98,22 @@ an empty entry for each valid item:
 {"books": {"1": {"title": ["This field may not be blank."]}}}
 ```
 
-The argument missing, `null`, not a list, empty when the list may not be, or
-outside its length bounds answers the way that field would:
-`{"books": ["This field is required."]}`, or
-`{"books": {"non_field_errors": ["This list may not be empty."]}}`. An argument
-sent beside the list is refused as `UnknownArguments.REJECT` refuses one,
-whatever `unknown_arguments` says, because the service receives only the list
-and the argument would have nowhere to go; the policy still decides what
-happens to an undeclared key inside an item. A refusal the service or a
+The argument missing answers `{"books": ["This field is required."]}`. `null`,
+a value that is not a list, or a list outside its length bounds is refused under
+the argument in the kernel's words, such as `{"books": ["Expected an array."]}`.
+An argument sent beside the list follows `unknown_arguments` like any other
+undeclared key: dropped under `IGNORE`, refused under `REJECT` as
+`{"non_field_errors": ["Unexpected argument(s): 'zzz'."]}`. The service receives
+only the list either way. The policy decides the same for an undeclared key
+inside an item, refused inside that item under `REJECT`. A refusal the service or a
 precondition raises is passed on as raised.
 
 A spec that took a list through that wrapper can declare `many=True` instead
 and keep its error wire, as long as the wrapper's field was named `items` or
 the spec names it with `many_argument`. Below DRF 3.18 the wrapper itself
-reported item errors as a list, so there the index mapping is new. Two calls the
-wrapper let through are refused: an argument beside the list under any policy
-but `REJECT`, and, under `REJECT`, an undeclared key inside an item, which the
-wrapper never looked at.
+reported item errors as a list, so there the index mapping is new. One call the
+wrapper let through is refused: under `REJECT`, an undeclared key inside an
+item, which the wrapper never looked at.
 
 ## `collection_selector_spec` — operate on a filtered set
 

@@ -376,7 +376,12 @@ Three things it deliberately does not do:
 mutually exclusive payload shapes — each with its own input serializer and
 service. A `discriminator` inspects the request and picks a variant key; the
 chosen variant then dispatches exactly like a plain `ServiceSpec`. Usable
-anywhere a `ServiceSpec` is (an `action_specs` entry or `@service_action`).
+anywhere a view takes a `ServiceSpec` (an `action_specs` entry or
+`@service_action`), but not at a registry or a kernel entry point:
+`SpecRegistry.register`, `kernel_spec` and the kernel's `dispatch` refuse it
+with a `TypeError` naming its variants, because a wrapper picks its variant per
+request and so has no one spec to compile. Register each variant under its own
+name instead.
 
 ```python
 def _pick(*, data):
