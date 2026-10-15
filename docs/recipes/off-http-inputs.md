@@ -211,7 +211,11 @@ admits under `AUTO`. See
     parameter the service declares under the same name (the field's `source`,
     not its wire name), so a service can take `title` by name rather than
     reading `data["title"]`. A seed keeps its own value: a field named `user`,
-    such as a `HiddenField(default=CurrentUserDefault())`, stays in `data`.
+    such as a `HiddenField(default=CurrentUserDefault())`, stays in `data`. A
+    parameter named like a key any callable of the call marks `NotClientInput`
+    is never handed the client's validated value either: the client's value for that field reaches the
+    service only in `data`, while a view hook's, the spec's `kwargs`
+    provider's or `input_data`'s value for it still reaches the parameter.
 
 ## Hiding provider-owned inputs: `NotClientInput`
 
@@ -233,11 +237,14 @@ the caller may send:
 | `REJECT` | refused: `Unexpected argument(s): 'team_role'.` |
 | `IGNORE` | the value is dropped |
 
-The provider still fills it in. So can a registered pool seed, a service's
-`input_data`, the parameter's own default, or, for a selector or a service's
-target lookup, a route capture of that name (`view.kwargs`, or
-`build_offline_context(kwargs=...)` off HTTP); those are channels the caller
-does not control. For a target lookup, a registered seed of that name and the
+The provider still fills it in. So can a view hook (`get_service_kwargs`,
+`get_selector_kwargs` and their per-action forms), a registered pool seed, the
+`input_data` of a service with an input serializer, the parameter's own
+default, or, for a selector or a service's target lookup, a route capture of
+that name (`view.kwargs`, or `build_offline_context(kwargs=...)` off HTTP);
+those are channels the caller does not control. A route capture a target
+lookup hides is seeded for the whole call, so a service parameter of the same
+name is handed it too. For a target lookup, a registered seed of that name and the
 lookup's own provider win over the capture, and an author's value for the name
 (a view hook's or the spec's `kwargs` provider's) takes the capture's place.
 
@@ -300,8 +307,8 @@ be required to supply a value it is never told about.
 `dispatch_spec` seeds `view` on every call: a selector, service or provider
 declaring it receives the view the transport passed, or `None` off HTTP. A
 caller's `view` is never an argument (under `REJECT` it is refused as
-`Unexpected argument(s): 'view'.`, under `IGNORE` dropped, and a caller's
-`request` is answered the same way), and a `kwargs`
+`Unexpected argument(s): 'view'.`, under `IGNORE` dropped; a caller's
+`request` is dropped under either, like any other seed's name), and a `kwargs`
 provider or a route capture named `view` cannot outrank the seed. A spec's
 `kwargs` provider returning a `view` key raises `ImproperlyConfigured`, a view
 hook's `view` is dropped for the seed, and registering `view` (or `request`) in
@@ -438,7 +445,9 @@ An agent transport sends typed JSON and wants a refusal it can show a model, so
 it calls `dispatch_spec` with an `OfflineServiceView` (from
 `build_offline_context`) or none. A browser or a form sends what DRF has always
 accepted, so the views keep answering it as DRF does. A `many` call's list of
-rows is bounded on both sides: 1000 rows unless the `ListSerializer` sets
-`max_length` or the project sets `SERVICE_SPECS_MAX_ARRAY_LENGTH`.
+rows is bounded off HTTP and on an `OfflineServiceView` only: 1000 rows unless
+the `ListSerializer` sets `max_length` or the project sets
+`SERVICE_SPECS_MAX_ARRAY_LENGTH`. Over a live view the `ListSerializer` alone
+bounds a bulk body.
 
 [pep692]: https://peps.python.org/pep-0692/

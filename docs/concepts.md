@@ -232,7 +232,10 @@ class ServiceSpec(Generic[InputT, ResultT, ExtraT]):
   on conflict. May additionally declare `instance` as a keyword
   parameter to receive the resolved mutation target (`None` on create)
   — passed only when declared — so pre-validation input mutation that
-  depends on the current row has a home.
+  depends on the current row has a home. A spec declaring it with no
+  `input_serializer` is refused with `ImproperlyConfigured` when it
+  compiles, since nothing would read the mapping; return such values from
+  the spec's `kwargs` provider instead.
 - **`instance_selector_spec`** — nested `SelectorSpec`
   (`kind=SelectorKind.RETRIEVE`) resolving the instance an update /
   destroy / detail action targets, embedding the lookup in the spec

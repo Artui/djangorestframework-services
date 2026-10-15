@@ -47,7 +47,7 @@ list_tasks = SelectorSpec(
 | `input_serializer_context` | the `SerializerValidator`'s `serializer_context` |
 | `output_selector_spec.output_serializer_context`, `output_serializer_context` | the `SerializerPresenter`'s `serializer_context` |
 | `partial` | `partial`, kept only with an `input_serializer` |
-| `many`, `many_argument` | the same; the list bounds come from the serializer's `ListSerializer` |
+| `many`, `many_argument` | the same; the list bounds come from the serializer's `ListSerializer` and apply off HTTP and on an `OfflineServiceView`, while a live view's bulk body is bounded by the `ListSerializer` alone |
 | `extend_queryset` | `extend_queryset`, called as `extend(queryset, view, request)` |
 | `affordances` | each service's compiled spec |
 | everything else of the same name | carried by name |

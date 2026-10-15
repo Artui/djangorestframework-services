@@ -521,6 +521,34 @@ class TestPermissions:
         with pytest.raises(ImproperlyConfigured, match="declares no permissions"):
             SpecRegistry().register("create", spec)
 
+    def test_input_data_with_no_input_serializer_is_refused(self) -> None:
+        """The kernel merges ``input_data`` over the Validator's arguments, so with
+        no serializer it would reach nothing; the compile, and so a registry,
+        refuses it."""
+        spec = ServiceSpec(
+            service=_create, input_data=lambda: {"title": "server"}, permission_classes=[]
+        )
+
+        with pytest.raises(ImproperlyConfigured, match="use kwargs for a value"):
+            as_kernel_spec(spec)
+        with pytest.raises(ImproperlyConfigured, match="has no validator"):
+            SpecRegistry().register("create", spec)
+
+    def test_a_kwargs_provider_hands_a_serializer_less_service_its_values(self) -> None:
+        """What a spec moves its ``input_data`` to: each key reaches the service
+        parameter of its name."""
+
+        def create(*, title: str = "default", data: Any = None) -> Any:
+            return {"title": title, "data": data}
+
+        spec = ServiceSpec(
+            service=create, kwargs=lambda: {"title": "server"}, permission_classes=[], atomic=False
+        )
+
+        result = dispatch(spec, principal=AnonymousUser(), arguments={})
+
+        assert result.value == {"title": "server", "data": {}}
+
     def test_a_nested_spec_s_classes_are_not_carried(self) -> None:
         spec = ServiceSpec(
             service=lambda *, instance: instance,

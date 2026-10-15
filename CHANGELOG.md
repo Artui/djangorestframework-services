@@ -20,15 +20,21 @@ project may have to change, each detailed below:
   a callable needs, as a `reads` entry, a serializer field or a parameter.
 - **Rename a service parameter or a `kwargs` provider key that only matched by
   accident.** A service with an input serializer now receives each validated
-  value whose name its signature declares, beside `data`. A `kwargs` provider
-  returning `data`, `instance` or `view` raises `ImproperlyConfigured`.
+  value whose name its signature declares, beside `data`, unless a callable of
+  the call marks that name `NotClientInput`. A `kwargs` provider returning
+  `data`, `instance` or `view` raises `ImproperlyConfigured`.
+- **Move `input_data` off a spec with no `input_serializer`.** Such a spec is
+  refused with `ImproperlyConfigured` when it compiles; return the values from
+  the spec's `kwargs` provider instead, and read them as service parameters.
 - **Off HTTP, send JSON types.** `dispatch_spec` called with no view, or with an
   `OfflineServiceView`, checks each argument against its declared type before
   the serializer runs: `true`, not `"true"`; a string, not a number; an ISO
   string, not a Python `date` or `Decimal`.
-- **Bound a bulk body.** A `many` call takes at most 1000 rows, over HTTP too,
-  unless its `ListSerializer` sets `max_length` or the project sets
-  `SERVICE_SPECS_MAX_ARRAY_LENGTH`.
+- **Bound a bulk body off HTTP.** A `many` call through `dispatch_spec` with
+  no view, or with an `OfflineServiceView`, takes at most 1000 rows unless its
+  `ListSerializer` sets `max_length` or the project sets
+  `SERVICE_SPECS_MAX_ARRAY_LENGTH`. A live view's bulk body is still bounded
+  by its `ListSerializer` alone.
 - **Re-point a few names.** `children=` is `relations=`; `DispatchResult` has no
   `status`; `SpecRegistry.register` takes no `agent_contract=`; `filter_set`
   must be a django-filter `FilterSet`; `request`, `view`, `result` and
@@ -172,7 +178,23 @@ project may have to change, each detailed below:
   - A service with an input serializer receives each validated value by
     name, beside `data`, where its signature declares a parameter of that
     name (the field's `source`, not its wire name). Under `AUTO` and
-    `BUNDLE` it used to receive only `data`.
+    `BUNDLE` it used to receive only `data`. A parameter named like a key any
+    callable of the call marks `NotClientInput` is never handed the client's
+    validated value: the client's value for that field reaches the service
+    only in `data`, while a view hook's, the spec's `kwargs` provider's or an
+    `input_data` value for it still reaches the parameter.
+  - Under `AUTO`, an `input_data` value for a field named like a
+    `NotClientInput` parameter now reaches that parameter, where the
+    parameter kept its default and the value reached only `data`.
+  - A route capture that a target lookup marks `NotClientInput` is seeded
+    for the call, so a service parameter of the same name is handed it too,
+    where the service kept its default and only the lookup read the capture.
+  - A spec with an `input_data` provider and no `input_serializer` is
+    refused with `ImproperlyConfigured` when it compiles, at registration or
+    on its first dispatch, where 0.57.0 accepted it and, under `AUTO`, handed
+    the service none of its values. Return those values from the spec's
+    `kwargs` provider instead, which hands each to the service parameter of
+    its name (a key named `data` is refused there as a seed's).
   - A callable taking a bare `**kwargs` receives the declared arguments and
     the seeds, never an undeclared key or a route capture nothing declares,
     which it used to receive. So a `**rest` service now also receives `view`,
@@ -194,8 +216,7 @@ project may have to change, each detailed below:
     back in DRF's mapping of row indexes, so one endpoint can answer in
     either shape. Off HTTP an unknown key inside a nested serializer is
     refused as `{"inner": {"zzz": ["Unknown argument."]}}`, code `unknown`;
-    over a live view it is still dropped. A caller's `request` is refused as
-    an unexpected argument, as `view` already was.
+    over a live view it is still dropped.
 - **Breaking: pool seeds.** `RESERVED_POOL_SEEDS` is `user`, `data`,
   `instance`, `collection`, `result`, `queryset` and `progress`, where it
   listed `request` and `serializer` rather than `result` and `queryset`. A
@@ -261,11 +282,12 @@ project may have to change, each detailed below:
   The serializer runs only once every argument passes the check, so its own
   refusals of other fields (a `max_length`, a `validate()`) wait behind a
   type refusal.
-- **`many` calls.** A `many` spec needs an input serializer, and takes its
-  list bounds from the `ListSerializer`, with 1000 rows the most where it
-  sets no `max_length`; a longer body is refused under `non_field_errors`,
-  over HTTP too. Over a live view a refused body is answered with its
-  `ListSerializer`'s own errors, as before. Off HTTP, rows sent as a bare
+- **`many` calls.** A `many` spec needs an input serializer. Off HTTP and
+  on an `OfflineServiceView` it takes its list bounds from the
+  `ListSerializer`, with 1000 rows the most where it sets no `max_length`,
+  and a longer list is refused under `non_field_errors`. Over a live view the
+  `ListSerializer` alone bounds the body, and a refused body is answered with
+  its own errors, as before. Off HTTP, rows sent as a bare
   list are refused in the kernel's list with one entry per row, where DRF
   3.18 gave a mapping of row indexes; rows sent under `many_argument` keep
   the mapping. A non-list, null or out-of-bounds list under `many_argument`
