@@ -49,6 +49,7 @@ from rest_framework_services.service_specs.utils import (
     describe_serializer,
     edge_call_state,
     input_parameters,
+    write_form_value,
 )
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.dispatch_result import DispatchResult
@@ -395,17 +396,29 @@ def prepare_edge_call(
     # and a body that is no object has no fields to bind
     # (test_a_single_call_body_that_is_no_object_is_refused_in_drfs_words).
     if service.validator is not None and sent is not None:
+        # Every field of the serializer: one named like a seed of the call is no
+        # argument, but it is the serializer's, so ``input_data`` naming one is
+        # written into its body as it always was, and the serializer's own pass,
+        # its ``validate()`` included, validates the server's value
+        # (test_input_data_for_a_field_named_user_outranks_the_clients_over_http,
+        # test_input_data_for_a_field_named_like_a_registered_seed_outranks_the_clients_off_http).
+        fields = input_parameters(describe_serializer(spec.input_serializer)).names()
         state.validator_input = (
             service.validator,
-            _validator_body(params, sent, arguments, service.validator.parameters().names()),
+            _validator_body(params, sent, arguments, fields),
         )
-        # The fields holding the server's value, an author's or ``input_data``'s,
-        # told by where each came from: a ``NotClientInput`` key is handed on by
-        # name only from these (``SerializerValidator._unowned``). Each source is
-        # held by its own test: test_a_hooks_value_for_a_hidden_field_reaches_the_parameter
+        # The server's value for each field it put one into, an author's or
+        # ``input_data``'s, as the edge put it: what the Validator validates for
+        # the field, never what the field reads back from the body, and where a
+        # ``NotClientInput`` key is handed on from (``SerializerValidator``).
+        # Each source is held by its own test:
+        # test_a_hooks_value_for_a_hidden_field_reaches_the_parameter
         # (``authored``) and test_input_data_for_a_hidden_field_reaches_the_parameter
-        # (``server``).
-        state.server_fields = authored | frozenset(server)
+        # (``server``). ``input_data`` is read after the author's values, so it
+        # wins for a field both name, as it does in the body
+        # (test_input_data_outranks_an_authors_value_for_the_same_field).
+        state.server_values = {name: arguments[name] for name in {*authored, *server}}
+        state.author_keys = authored
     return EdgeCall(
         service,
         {
@@ -472,10 +485,7 @@ def _validator_body(
         for name in taken:
             body.pop(name, None)
         for name, value in put.items():
-            if isinstance(value, list | tuple):
-                body.setlist(name, list(value))
-            else:
-                body[name] = value
+            write_form_value(body, name, value)
         return body
     return {**{name: value for name, value in params.items() if name not in taken}, **put}
 
@@ -890,7 +900,7 @@ def _route_author_values(
     seeds: PoolSeeds,
     view: Any,
     request: Any,
-) -> tuple[dict[str, Any], frozenset[str]]:
+) -> tuple[dict[str, Any], dict[str, str]]:
     """The author's values for the call: the view's hook extras, then the spec's ``kwargs`` provider.
 
     Both are the server's, so both outrank the caller, and the spec's provider
@@ -899,7 +909,8 @@ def _route_author_values(
     ``_split_author_values``: a value for a name the caller fills goes into
     ``arguments``, over the caller's, and is checked there as the caller's
     would be; the rest is returned for ``dispatch(extra_kwargs=)``, beside the
-    names of the arguments the author's values went into.
+    arguments the author's values went into, each with the key the author gave
+    it under.
 
     The spec's provider is called here, from ``view`` and ``request``, once per
     call (test_a_provider_runs_once_per_call), and the dispatched variant
@@ -946,7 +957,7 @@ def _route_author_values(
     wire = _source_to_wire(spec)
     hooked, hook_rest = _split_author_values(variant, arguments, hook_values, wire=wire)
     supplied, provided_rest = _split_author_values(variant, arguments, provided, wire=wire)
-    return {**hook_rest, **provided_rest}, hooked | supplied
+    return {**hook_rest, **provided_rest}, {**hooked, **supplied}
 
 
 def _source_to_wire(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]) -> dict[str, str]:
@@ -972,8 +983,11 @@ def _split_author_values(
     values: Mapping[str, Any],
     *,
     wire: Mapping[str, str],
-) -> tuple[frozenset[str], dict[str, Any]]:
-    """Put each of ``values`` naming a caller's argument into ``arguments``; return their names and the rest.
+) -> tuple[dict[str, str], dict[str, Any]]:
+    """Put each of ``values`` naming a caller's argument into ``arguments``; return them and the rest.
+
+    Each argument a value went into is returned with the key it was given
+    under: the field's wire name, or its ``source`` where the author named that.
 
     The names a caller fills at the top level of the call: the reads of the
     compiled spec (its service's or selector's, and a service spec's target
@@ -1010,7 +1024,7 @@ def _split_author_values(
     }
     if isinstance(arguments, dict):
         arguments.update(routed)
-    return frozenset(routed), {
+    return {argument: named[argument] for argument in routed}, {
         name: values[name]
         for argument, name in named.items()
         if argument not in routed and values[name] is not UNSET

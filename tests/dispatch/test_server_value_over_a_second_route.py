@@ -7,9 +7,9 @@ same ``source``, a ``source="*"`` nested serializer carrying a key of that name,
 or a ``validate()`` copying another field into it, would put the client's value
 back under the key, and a ``to_internal_value`` override can write the
 client's value over the field's in the body or build the key without the field.
-The server's value is read from the body before the serializer runs and
-validated by the field on its own; that is the parameter's and is laid back
-over its key, so the service's
+The value the edge put is validated by the field on its own, never what the
+field reads back from the body; that is the parameter's and is laid back over
+its key, so the service's
 parameter, its ``data`` and the bound serializer's ``validated_data`` all hold
 the server's value, as a plain field gives it. The field's validation run again
 on another value, a ``validate()`` dropping the key, a dataclass instance and a
@@ -265,12 +265,18 @@ _LIVE = {
 }
 
 
-# A form body carries no nested object, so the ``source="*"`` shape is sent as JSON alone.
+# A form body carries a nested object as prefixed keys, which the ``source="*"``
+# serializer reads as DRF reads a form.
+_FORM_BODIES = {"star": {"tenant": "c1", "nested.tenant": "evil"}}
 _LIVE_BODIES = [
-    pytest.param(serializer, body, fmt, id=f"{shape}-{fmt}")
+    pytest.param(
+        serializer,
+        _FORM_BODIES.get(shape, body) if fmt == "multipart" else body,
+        fmt,
+        id=f"{shape}-{fmt}",
+    )
     for shape, (serializer, body) in _SHAPES.items()
     for fmt in ("json", "multipart")
-    if not (shape == "star" and fmt == "multipart")
 ]
 
 
@@ -1299,10 +1305,11 @@ def test_every_server_value_its_field_refuses_is_answered_together(dispatch: Dis
         dispatch(
             spec,
             params={"other": "evil"},
-            view_hooks=ViewHooks(extra_kwargs={"tenant": "far-too-long", "region": "far-too-long"}),
+            view_hooks=ViewHooks(extra_kwargs={"region": "far-too-long", "tenant": "far-too-long"}),
         )
 
     assert caught.value.detail == {**_TOO_LONG, "region": _TOO_LONG["tenant"]}
+    assert list(caught.value.detail) == ["tenant", "region"]
     assert seen == {}
 
 

@@ -259,12 +259,18 @@ project may have to change, each detailed below:
   field's key wherever the service reads it: the parameter of that name,
   `data`, and the bound serializer's `validated_data`, even where a later field
   with the same `source`, a `source="*"` nested serializer or the serializer's
-  `validate()` writes that key from the client's input. The field's
-  validation of that value is run on its own once the serializer has accepted
-  the body, on the value read from the body before the serializer ran, so
-  nothing the serializer does replaces it: not its validation run again on
-  another value, by `validate()` or by another field's `validate_<field>`, and
-  not a `to_internal_value` override that writes the client's value over the
+  `validate()` writes that key from the client's input. A field whose
+  `source` differs from its name is handed to the parameter named like the
+  `source` and to the one named by the key the hook or provider gave. The
+  field's validation of that value is run on its own once the serializer has
+  accepted the body, on the value the hook or provider gave, never on what the
+  field reads back from the body, so nothing the serializer or the body does
+  replaces it: not a field that reads more of the body than its own key (a
+  nested serializer, a dict or a nested `many` reading a form body's
+  `v.tenant` or `v[0]tenant`, a list field given an empty list, a field whose
+  `get_value` reads another key), not its validation run again on another
+  value, by `validate()` or by another field's `validate_<field>`, and not a
+  `to_internal_value` override that writes the client's value over the
   field's in the body or builds the key without the field. A refusal there is
   a 400 keyed by the field, in the shape DRF's field loop gives one, a Django
   `ValidationError` raised by `validate_<field>` included, with every refused
@@ -273,8 +279,10 @@ project may have to change, each detailed below:
   `HiddenField`, holds no value. That run is separate
   from the serializer's own: for such a field, a related field's lookup runs
   once more, one more query for a `PrimaryKeyRelatedField`, and the field's
-  validators and its `validate_<field>` run twice, so a validator that queries,
-  a `UniqueValidator`, queries twice, and one with side effects has them twice.
+  validators and its `validate_<field>` run twice, as do a nested
+  serializer's `validate()` and its own fields' validators and
+  `validate_<field>`, so a validator that queries, a `UniqueValidator`,
+  queries twice, and one with side effects has them twice.
   Where `validate()` removes the key, the parameter still
   takes the value and `data` stays without the key. Where `validated_data` is a
   dataclass instance, the parameter takes the field's value and `data` is the
@@ -289,7 +297,14 @@ project may have to change, each detailed below:
     reached the service as given;
   - a primary key arrives as the row it names, in `data` and for the
     parameter, and `data` gains the key;
-  - a value the field's validators refuse is a 400 answered to the client.
+  - a value the field's validators refuse is a 400 answered to the client;
+  - on a form body, multipart or urlencoded, a value is read as DRF reads a
+    form: an empty string for an optional field leaves the field out, or is
+    `None` where the field allows null, and one value for a list field or a
+    `MultipleChoiceField` is a list of one. A
+    `JSONField`'s mapping is refused there, `Value must be valid JSON.`,
+    where a JSON body takes it, so for that field the answer depends on the
+    client's content type.
 
   An `input_data` value for a writable field of a single-item call is held
   the same way: a later field with the same `source`, a `source="*"` nested
