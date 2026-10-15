@@ -17,7 +17,7 @@ parameters the caller's, so there the parameter is the author's to fill.
 from __future__ import annotations
 
 import functools
-from typing import Any
+from typing import Annotated, Any, TypedDict
 
 import pytest
 from asgiref.sync import async_to_sync
@@ -28,9 +28,11 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import JSONParser
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
+from typing_extensions import Unpack
 
 from rest_framework_services import (
     ArgumentBinding,
+    NotClientInput,
     SelectorKind,
     SelectorSpec,
     ServiceSpec,
@@ -179,16 +181,32 @@ def _gate_naming_pk(*, pk: Any) -> None:
 
 
 @_CORES
-def test_a_precondition_naming_the_key_takes_the_caller_s_value(dispatch: Any) -> None:
+def test_a_precondition_naming_the_key_beside_the_service_takes_the_caller_s_value(
+    dispatch: Any,
+) -> None:
     post = Post.objects.create(title="p")
-    spec = _spec(lambda *, instance, title: "ran", preconditions=[_gate_naming_pk])
+    spec = _spec(retitle_default_pk, preconditions=[_gate_naming_pk])
     result = dispatch(
         spec, params={"title": "t", "pk": "999"}, argument_binding=SPREAD, **_routed(post.pk)
     )
-    assert result.value == "ran"
+    assert result.value == "999"
+    # The service's own default answers for it, and the precondition has none.
     with pytest.raises(ValidationError) as excinfo:
         dispatch(spec, params={"title": "t"}, argument_binding=SPREAD, **_routed(post.pk))
     assert excinfo.value.detail == _REQUIRED
+
+
+@_CORES
+def test_a_precondition_naming_a_key_the_service_does_not_is_the_author_s_error(
+    dispatch: Any,
+) -> None:
+    """The lookup's read reaches the call because the service asks for it by
+    name, so with a service that does not, nothing hands it to the precondition."""
+    post = Post.objects.create(title="p")
+    spec = _spec(lambda *, instance, title: "ran", preconditions=[_gate_naming_pk])
+    for params in ({"title": "t"}, {"title": "t", "pk": "999"}):
+        with pytest.raises(TypeError, match="_gate_naming_pk"):
+            dispatch(spec, params=params, argument_binding=SPREAD, **_routed(post.pk))
 
 
 def _refusing_gate(*, instance: Post) -> None:
@@ -346,3 +364,75 @@ def test_a_parameter_no_caller_can_fill_stays_the_author_s_error(dispatch: Any) 
     spec = _spec(retitle_scoped, input_serializer=_TitleAndPk)
     with pytest.raises(TypeError, match="tenant"):
         dispatch(spec, params={"pk": 1}, argument_binding=SPREAD, **_routed(post.pk))
+
+
+class _TitleOnly(serializers.Serializer):
+    title = serializers.CharField(required=False)
+
+
+@_CORES
+def test_a_serializer_with_no_field_for_the_key_leaves_it_to_the_author(dispatch: Any) -> None:
+    """No resend could fill it: nothing delivers it beside a serializer but a field."""
+    post = Post.objects.create(title="p")
+    spec = _spec(retitle_with_pk, input_serializer=_TitleOnly)
+    for params in ({"title": "t"}, {"title": "t", "pk": "999"}):
+        with pytest.raises(TypeError, match="pk"):
+            dispatch(spec, params=params, argument_binding=SPREAD, **_routed(post.pk))
+
+
+class _MaybePk(TypedDict, total=False):
+    pk: Any
+    title: str
+
+
+class _MustPk(TypedDict):
+    pk: Any
+
+
+def _unpacking(*, instance: Post, **changes: Unpack[_MaybePk]) -> Any:
+    return changes.get("pk", "absent")
+
+
+def _unpacking_required(*, instance: Post, **changes: Unpack[_MustPk]) -> Any:
+    return changes.get("pk", "absent")
+
+
+@_CORES
+def test_a_typed_dict_key_takes_the_caller_s_value_and_is_never_asked_for(dispatch: Any) -> None:
+    post = Post.objects.create(title="p")
+    sent = dispatch(
+        _spec(_unpacking),
+        params={"title": "t", "pk": "999"},
+        argument_binding=SPREAD,
+        **_routed(post.pk),
+    )
+    left = dispatch(
+        _spec(_unpacking_required), params={}, argument_binding=SPREAD, **_routed(post.pk)
+    )
+    assert (sent.value, left.value) == ("999", "absent")
+
+
+def _post_for_tenant(*, pk: int, tenant: Annotated[str, NotClientInput]) -> QuerySet[Post]:
+    return Post.objects.filter(pk=pk)
+
+
+def _names_tenant(*, instance: Post, tenant: Any) -> Any:
+    return tenant
+
+
+@_CORES
+def test_a_key_the_lookup_hides_never_takes_the_caller_s_value(dispatch: Any) -> None:
+    post = Post.objects.create(title="p")
+    spec = ServiceSpec(
+        service=_names_tenant,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_for_tenant),
+    )
+    context = build_offline_context(None, kwargs={"pk": post.pk, "tenant": "acme"})
+    result = dispatch(
+        spec,
+        params={"tenant": "evil"},
+        request=context.request,
+        view=context.view,
+        argument_binding=SPREAD,
+    )
+    assert result.value == "acme"

@@ -33,7 +33,10 @@ from rest_framework_services.dispatch.provider_keys import provider_keys
 from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
-from rest_framework_services.service_specs.as_kernel_spec import compiled_partial
+from rest_framework_services.service_specs.as_kernel_spec import (
+    compiled_partial,
+    lookup_keys_the_service_names,
+)
 from rest_framework_services.service_specs.invalid_arguments import InvalidArguments
 from rest_framework_services.service_specs.kernel_spec_variant import kernel_spec_variant
 from rest_framework_services.service_specs.translate_dispatch_errors import (
@@ -530,7 +533,9 @@ def prepare_edge_call(
     # (the caller's string over the field's integer) without the second.
     if spread and spec.input_serializer is None:
         state.author_values.update(
-            _lookup_keys_sent(spec, lookup_reads, params, arguments, authored)
+            _lookup_keys_sent(
+                lookup_keys_the_service_names(spec, lookup_reads), params, arguments, authored
+            )
         )
     if handed:
         target = instance
@@ -613,36 +618,24 @@ def prepare_edge_call(
 
 
 def _lookup_keys_sent(
-    spec: ServiceSpec[Any, Any, Any],
-    lookup_reads: frozenset[str],
-    params: Any,
-    arguments: Any,
-    authored: Iterable[str],
+    names: frozenset[str], params: Any, arguments: Any, authored: Iterable[str]
 ) -> dict[str, Any]:
-    """The value for each target lookup read a spread service or its preconditions name.
+    """The value for each of ``names``, the target lookup's reads a spread service names.
 
     The caller's own, as sent: not the route's capture the lookup used in its
     place (test_the_service_takes_the_caller_s_value_where_the_route_scopes_the_lookup).
     An author's value outranks it, as it does every caller's value
     (test_an_author_s_value_outranks_the_caller_s), and one the caller left out
     is no value at all, so a callable with no default for it asks the caller
-    for it (``asked_of_the_caller``). Named alone: an open ``**kwargs`` takes
-    none of the lookup's reads, which the row was found by and applying would
-    write onto it (test_an_open_service_naming_the_key_takes_it_by_name_alone).
+    for it (``asked_of_the_caller``). A precondition reads the same pool, so
+    one naming the key is handed it too
+    (test_a_precondition_naming_the_key_beside_the_service_takes_the_caller_s_value).
     Arguments that are no object send nothing
-    (test_arguments_that_are_no_object_send_no_lookup_key). The kernel binds
-    each value by its parameter's kind, so a positional-only parameter is never
-    passed one (test_a_positional_only_parameter_is_never_asked_for).
+    (test_arguments_that_are_no_object_send_no_lookup_key).
     """
-    named = set().union(
-        *(
-            inspect.signature(fn).parameters.keys()
-            for fn in (spec.service, *(spec.preconditions or ()))
-        )
-    )
     authored = set(authored)
     sent: dict[str, Any] = {}
-    for name in sorted(lookup_reads & named):
+    for name in sorted(names):
         if name in authored:
             sent[name] = arguments[name]
         elif isinstance(params, Mapping) and name in params:

@@ -8,7 +8,7 @@ import enum
 import inspect
 import types
 import typing
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from typing import Annotated, Any, Literal, cast, get_args, get_origin
 
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
@@ -216,7 +216,7 @@ def _service(
     # for one it left out (``_asking``). Under ``AUTO`` and ``BUNDLE`` the
     # parameter is the author's to fill
     # (test_without_a_spreading_binding_the_key_is_the_author_s_to_fill).
-    asked = frozenset(taken) if spread else frozenset()
+    asked = lookup_keys_the_service_names(spec, taken) if spread else frozenset()
     return KernelServiceSpec(
         # A spread service's parameters are its caller's arguments, which the
         # kernel refuses as missing where none arrived; a wrapper may fill them
@@ -418,6 +418,26 @@ def _as_it_runs(fn: Any) -> Any:
     test_a_spread_service_s_wrapper_fills_the_parameter).
     """
     return left_to_the_callable(fn) if fills_its_own(fn) else fn
+
+
+def lookup_keys_the_service_names(spec: Any, lookup_reads: Iterable[str]) -> frozenset[str]:
+    """The target lookup's reads a service spec's service asks a spreading caller for by name.
+
+    A keyword parameter or a key of its ``Unpack``-ed ``TypedDict``, as 0.57.0
+    read the service's surface
+    (test_a_typed_dict_key_takes_the_caller_s_value_and_is_never_asked_for);
+    never an open ``**kwargs``, which takes none of the lookup's reads
+    (test_an_open_service_naming_the_key_takes_it_by_name_alone). The service
+    alone: a precondition naming one is handed it only beside a service that
+    asks for it (test_a_precondition_naming_a_key_the_service_does_not_is_the_author_s_error).
+    Beside an input serializer only a writable field of the name delivers it,
+    so a name no field takes is no caller's to send
+    (test_a_serializer_with_no_field_for_the_key_leaves_it_to_the_author).
+    """
+    named = _names(_reflected(spec.service, hidden=frozenset()))
+    if spec.input_serializer is not None:
+        named &= writable_input_names(spec)
+    return frozenset(lookup_reads) & named
 
 
 def _asking(runs: Any, own: Any, names: frozenset[str]) -> Any:
