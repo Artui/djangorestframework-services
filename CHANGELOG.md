@@ -285,7 +285,12 @@ project may have to change, each detailed below:
   - A missing required argument is refused as `{"name": ["This field is
     required."]}`, code `required`, every missing name keyed, where it was
     one `"Missing required argument(s): ..."` message under
-    `non_field_errors`.
+    `non_field_errors`. It is raised as `InvalidArguments`, DRF's
+    `ValidationError` and the kernel's `InvalidArguments` at once, where it
+    was a `ServiceValidationError`: an `except ServiceValidationError` or
+    `except ServiceError` around a dispatch no longer catches it, so catch
+    `rest_framework.exceptions.ValidationError` for it as for every other
+    refused argument.
   - Under `REJECT`, a `many` call refuses each row's undeclared keys inside
     that row, where it answered one message for the call. Over a live view
     on DRF 3.18 or later, that refusal comes back as a list of rows when the
