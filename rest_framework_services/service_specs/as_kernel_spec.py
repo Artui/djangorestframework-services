@@ -552,12 +552,18 @@ def _refuse_reads_named_like_fields(spec: Any, *, lookup_reads: frozenset[str]) 
     so neither is a clash (the ``a-rows-field`` and ``read-only-field`` cases
     of test_a_read_no_field_takes_from_the_body_is_accepted).
     """
-    writable = writable_input_names(spec)
     target = spec.collection_selector_spec or spec.instance_selector_spec
     role = "collection" if spec.collection_selector_spec is not None else "instance"
     sources = [("ServiceSpec", spec.reads or ())]
     if target is not None:
         sources.append((f"ServiceSpec.{role}_selector_spec", target.reads or ()))
+    if not any(entries for _, entries in sources):
+        # Describing the serializer builds it with no request, so a spec
+        # declaring no read is not made to, and one whose fields read the
+        # request still registers
+        # (test_a_spec_declaring_no_read_registers_without_describing_its_serializer).
+        return
+    writable = writable_input_names(spec)
     for label, entries in sources:
         for entry in entries:
             looked_up = entry.name in lookup_reads

@@ -162,3 +162,16 @@ def test_a_read_no_field_takes_from_the_body_is_accepted(
     spec: ServiceSpec[Any, Any, Any],
 ) -> None:
     _register(spec)
+
+
+class _RequestReadingIn(serializers.Serializer):
+    """A serializer whose fields read the request, which a description has not got."""
+
+    def get_fields(self) -> dict[str, serializers.Field]:
+        fields = super().get_fields()
+        fields["title"] = serializers.CharField(required=self.context["request"].user.is_staff)
+        return fields
+
+
+def test_a_spec_declaring_no_read_registers_without_describing_its_serializer() -> None:
+    _register(_spec(serializer=_RequestReadingIn))

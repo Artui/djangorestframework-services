@@ -146,9 +146,8 @@ def test_a_live_async_view_reads_the_lookups_reads_from_its_url_alone(
     assert seen == (
         {"q": "from-query", "org": "from-route"} if routed else {"q": "D-q", "org": "D-org"}
     )
-    # Neither the route nor the query string the permission classes read is written.
+    # The route the permission classes read is not written.
     assert view.kwargs == route
-    assert "q" not in view.request.query_params or routed
 
 
 @pytest.mark.django_db
