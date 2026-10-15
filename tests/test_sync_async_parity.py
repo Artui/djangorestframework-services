@@ -709,6 +709,31 @@ async def test_a_form_encoded_body_validates_the_same_on_either_core() -> None:
     assert async_summary["value"] == {"title": "Alice"}
 
 
+class _AliasedTenant(serializers.Serializer):
+    tenant = serializers.CharField(required=False)
+    alias = serializers.CharField(source="tenant", required=False)
+
+
+def _tenant_seen(*, data: Any, tenant: str = "default") -> dict[str, Any]:
+    return {"tenant": tenant, "data": dict(data)}
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_the_servers_field_value_outranks_a_second_route_on_either_core() -> None:
+    """A later field writing the same key does not take the server's value back."""
+    spec = ServiceSpec(service=_tenant_seen, input_serializer=_AliasedTenant, atomic=False)
+    sync_summary, async_summary = await _dispatch_both(
+        spec,
+        lambda: {
+            "user": None,
+            "params": {"tenant": "c1", "alias": "evil"},
+            "view_hooks": ViewHooks(extra_kwargs={"tenant": "server"}),
+        },
+    )
+    assert sync_summary == async_summary
+    assert async_summary["service_result"] == {"tenant": "server", "data": {"tenant": "server"}}
+
+
 # --- a spec-level progress sink that queries ------------------------------
 #
 # ``progress_reporter`` is a provider, and the use its field documents -- a task
