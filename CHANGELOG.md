@@ -57,6 +57,11 @@ project may have to change, each detailed below:
 - **Move a nested selector's `progress_reporter` and `preconditions` to its
   `ServiceSpec`, and give a registered `SelectorSpec` a `selector`.** Each is
   refused where 0.57.0 ignored it.
+- **Expect a 403 for a deactivated user.** A user whose `is_active` is false
+  is refused with `PrincipalUnavailable` on every view and off HTTP, whatever
+  `permission_classes` the view declares, none included. A project that
+  served such a user on purpose authenticates them as another principal, or
+  calls the service itself rather than through dispatch.
 - **Re-point a few names.** `children=` is `relations=`; `DispatchResult` has no
   `status`; `SpecRegistry.register` takes no `agent_contract=`; `filter_set`
   must be a django-filter `FilterSet`; `request`, `view`, `result` and
@@ -519,7 +524,12 @@ project may have to change, each detailed below:
   coerced to its parameter's type, and a capture no callable declares is no
   argument. `user=None` acts as `UNAUTHENTICATED_USER`, or `AnonymousUser`
   when that setting is `None`, while the permission check still sees `None`;
-  a deactivated principal answers `PrincipalUnavailable` (403).
+  a deactivated principal answers `PrincipalUnavailable` (403,
+  `"The acting principal is unavailable."`, code `permission_denied`). That
+  holds over HTTP too, before any permission class runs: a create, update,
+  delete or retrieve view, or a viewset action, that declares no
+  `permission_classes` refuses a user whose `is_active` is false, where
+  0.57.0 ran the service or selector for them.
   `instance=None` with a lookup answers `not_found`.
 - **Presenting output.** `SerializerPresenter` projects no marking onto a
   write-only field, and refuses a `field_audiences` name that matches no
