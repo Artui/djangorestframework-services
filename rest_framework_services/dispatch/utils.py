@@ -16,6 +16,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.http import QueryDict
 from django.utils.module_loading import import_string
 from django_service_specs.adapters.filters.filter_set_parameters import filter_set_parameters
+from django_service_specs.adapters.filters.utils import import_django_filters
 from django_service_specs.dispatch.check_call import check_call
 from django_service_specs.dispatch.grant import Grant
 from django_service_specs.dispatch.resolve_target import resolve_target
@@ -242,6 +243,7 @@ def prepare_edge_call(
             edge_arguments(variant, spec, params, request=request, view=view), pool_seeds
         )
         _route_filter_data(arguments, variant.filter_set, filter_data)
+        _as_its_filter_set_reads(arguments, variant.filter_set)
         return EdgeCall(
             variant,
             {
@@ -403,6 +405,7 @@ def prepare_edge_call(
     target_spec = service.target_selector_spec()
     if target_spec is not None:
         _route_filter_data(arguments, target_spec.filter_set, filter_data)
+        _as_its_filter_set_reads(arguments, target_spec.filter_set)
     # Before the lookup, which an author's value for one of its reads scopes.
     extra_kwargs, authored = _route_author_values(
         spec, service, arguments, hooks, seeds=seeds, view=view, request=request
@@ -1397,6 +1400,80 @@ def _route_filter_data(
     arguments.update({name: filter_data[name] for name in names if name in filter_data})
 
 
+def _as_its_filter_set_reads(arguments: Any, filter_set: Any) -> None:
+    """Each filter's value in ``arguments`` as its FilterSet reads one, before the kernel checks it.
+
+    The kernel types a CSV filter (``OrderingFilter``, ``BaseInFilter``,
+    ``BaseRangeFilter``) as an array, where the filter's widget reads a string
+    it splits on commas, and the schema this package serves offers an
+    ``OrderingFilter`` as one of its strings. So a string is the list the
+    widget splits it into, an empty one none, and so is each string of a list,
+    which is how a query string's value arrives
+    (test_an_ordering_takes_what_its_filter_set_reads,
+    test_over_a_live_view_an_ordering_takes_its_widget_s_string). A multiple
+    choice filter never took a bare value, so it is left to be refused
+    (test_a_multiple_choice_filter_still_refuses_a_bare_value). ``None`` for
+    any filter is no value, as the FilterSet read it: the filter narrows
+    nothing (test_none_narrows_nothing).
+    """
+    # One arc to coverage, so each operand is named:
+    # test_arguments_that_are_no_object_take_no_filter_data fails without the
+    # first, and every selector spec without a ``filter_set`` (a ``None`` has no
+    # ``base_filters`` to read) without the second.
+    if not isinstance(arguments, dict) or filter_set is None:
+        return
+    for name in filter_set_parameters(filter_set).names() & arguments.keys():
+        if arguments[name] is None:
+            del arguments[name]
+    csv = import_django_filters().BaseCSVFilter
+    for name, filter_obj in filter_set.base_filters.items():
+        value = arguments.get(name)
+        if not isinstance(filter_obj, csv):
+            continue
+        if isinstance(value, str):
+            value = [value]
+        if isinstance(value, list):
+            arguments[name] = [part for item in value for part in _csv_parts(item)]
+
+
+def _csv_parts(item: Any) -> list[Any]:
+    """What a CSV widget reads from one value: a string's comma-separated parts, ``""`` none."""
+    if not isinstance(item, str):
+        return [item]
+    return item.split(",") if item else []
+
+
+def _filter_errors_flat(detail: Any, spec: Any) -> Any:
+    """``detail`` with each filter's refusal a flat list, as its FilterSet reports one.
+
+    The kernel checks a CSV or multiple choice filter's values one by one and
+    keys a refused value by its index, where the FilterSet's form refused the
+    filter as a whole: its messages, under its name
+    (test_an_unknown_ordering_is_refused_as_the_filter_set_refuses_it,
+    test_a_target_lookup_s_filter_is_refused_as_its_filter_set_refuses_it).
+    Only the filter's names: a parameter of the selector's own keeps the
+    kernel's index (test_a_selector_s_own_list_parameter_keeps_its_refusal_at_the_index),
+    as a ``many`` spec's rows do.
+    """
+    names = filter_set_parameters(_read_filter_set(spec)).names()
+    return {
+        key: (
+            [error for errors in value.values() for error in errors]
+            if key in names and isinstance(value, Mapping)
+            else value
+        )
+        for key, value in detail.items()
+    }
+
+
+def _read_filter_set(spec: Any) -> Any:
+    """The ``filter_set`` a call's arguments reach: a selector spec's own, or its target lookup's."""
+    if isinstance(spec, SelectorSpec):
+        return spec.filter_set
+    lookup = spec.instance_selector_spec or spec.collection_selector_spec
+    return None if lookup is None else lookup.filter_set
+
+
 # id(unguarded variant) -> (a weak reference to it, its guarded twin). By identity,
 # as ``kernel_spec_variant`` keys its own: a ``Grant`` binds the compiled object.
 _GUARDED: dict[int, tuple[weakref.ref[Any], KernelSelectorSpec]] = {}
@@ -1494,7 +1571,7 @@ def edge_errors(
         drf = _drf_body_refusal(spec, params, bare_rows=bare_rows) if http else None
         if drf is not None:
             raise drf from exc
-        detail = _unexpected_as_drf(exc.detail, spec)
+        detail = _filter_errors_flat(_unexpected_as_drf(exc.detail, spec), spec)
         unwrapped = (
             _bare_rows_error(detail, spec.many_argument, params, state.row_errors)
             if bare_rows
