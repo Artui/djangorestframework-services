@@ -93,7 +93,11 @@ def dispatch_spec(
             reads, is taken from them when there, over ``params``; a declared
             ``UrlKwarg`` sent in ``params`` that the view lacks is put onto
             them, and a declared ``QueryParam`` onto ``request.query_params``,
-            so a provider reading either finds it. A capture of a name the
+            so a provider reading either finds it. That is for a view with no
+            route of its own: on a live DRF view a declared ``UrlKwarg`` is
+            the route's alone and a declared ``QueryParam`` the query
+            string's alone, a ``params`` value of either name being dropped.
+            A capture of a name the
             selector, or a service spec's target lookup, marks
             ``NotClientInput`` fills it: the lookup's is seeded for the call,
             beneath a seed of that name and the lookup's own provider, and an

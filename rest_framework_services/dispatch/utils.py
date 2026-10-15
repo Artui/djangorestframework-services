@@ -778,7 +778,10 @@ def edge_arguments(
     ``params`` as a route capture always was, coerced from the string a URLconf
     may capture; a declared ``UrlKwarg`` the caller sent and an offline view
     does not carry goes onto ``view.kwargs``, so a provider reading it there
-    finds it. A live DRF view's route is its URLconf's alone (``over_http``).
+    finds it. A live DRF view's route is its URLconf's alone (``over_http``),
+    and a declared ``UrlKwarg`` there is read from it alone: the caller's value
+    of that name is dropped, so the service gets the route's capture or the
+    parameter's default, exactly as when the client sent nothing.
     Each declared ``QueryParam`` the same way with ``request.query_params``,
     except that a live view's is read from its query string alone: the
     caller's value of that name is dropped rather than outranking it, as a
@@ -798,6 +801,18 @@ def edge_arguments(
     reader = variant.target_selector_spec() if isinstance(variant, KernelServiceSpec) else variant
     routed = url_kwargs | (reader.reads.names() if reader is not None else frozenset())
     route = getattr(view, "kwargs", None)
+    if over_http(view):
+        # A live view's route is the client's URL, which its permission classes
+        # have already read through ``view.kwargs``, so a declared ``UrlKwarg``
+        # is the route's alone: a body or query value of that name is not the
+        # argument (test_a_body_value_never_reaches_a_live_views_kwargs, and
+        # test_a_body_value_never_reaches_a_live_views_argument_on_either_core
+        # for both cores). Each conjunct has its holder: without ``over_http``
+        # test_off_http_a_body_value_goes_onto_the_offline_views_kwargs fails, and
+        # popping the lookup's reads as well fails
+        # test_a_name_no_reads_declares_is_still_the_clients_to_the_lookup.
+        for name in url_kwargs:
+            arguments.pop(name, None)
     if isinstance(route, dict):
         captured = {name: route[name] for name in routed if name in route}
         arguments.update(coerce_flat(parameters, captured))
