@@ -80,3 +80,22 @@ def test_over_a_live_view_the_service_s_rows_are_presented() -> None:
     assert response.status_code == 201, response.data
     assert response.data == _ROWS
     assert calls == []
+
+
+@_KINDS
+@pytest.mark.parametrize("selector", [True, False], ids=["re-read", "no-re-read"])
+def test_a_many_service_s_none_is_presented_whatever_its_output_declares(
+    kind: SelectorKind, selector: bool
+) -> None:
+    spec = ServiceSpec(
+        service=lambda *, data: None,
+        atomic=False,
+        many=True,
+        input_serializer=_Order,
+        permission_classes=[],
+        output_selector_spec=SelectorSpec(
+            kind=kind, selector=(lambda: None) if selector else None, output_serializer=_Order
+        ),
+    )
+
+    assert dispatch_spec(spec, user=None, params=_ROWS).value is None

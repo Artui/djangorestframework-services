@@ -148,9 +148,22 @@ def test_a_declared_read_named_like_the_seed_is_still_refused(
         dispatch(spec, params={})
 
 
-def test_the_kernel_s_dispatch_knows_no_project_seed_and_refuses_the_parameter() -> None:
+@pytest.mark.parametrize("declared", [False, True], ids=["reflected", "declared"])
+def test_the_kernel_s_dispatch_knows_no_project_seed_and_refuses_the_parameter(
+    declared: bool,
+) -> None:
     """``kernel_spec`` is compiled once, with no project's seeds: only ``dispatch_spec`` reads them."""
-    compiled = kernel_spec(_selector_spec())
+    spec = (
+        SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            selector=_scope,
+            reads=[QueryParam("tenant")],
+            permission_classes=[],
+        )
+        if declared
+        else _selector_spec()
+    )
+    compiled = kernel_spec(spec)
     principal = AnonymousUser()
 
     with pytest.raises(ImproperlyConfigured, match="tenant"):

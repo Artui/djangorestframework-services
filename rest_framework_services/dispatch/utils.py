@@ -657,10 +657,13 @@ def listed_output(
     return and reports it as one value. The declaration says that return is the
     set of rows, so the edge reports ``kind="list"`` for it and the transport
     presents it per row, once ``service_return_as_list`` has found it is one.
-    A not-found result, and every other spec, comes back as it was. Both cores
-    call it after the kernel returns, and it runs no query.
+    A not-found result, and every other spec, comes back as it was. So does a
+    ``many`` spec's: its return is already its rows, and one that is not - a
+    ``None`` - is presented as drfs always presented it rather than refused
+    (test_a_many_service_s_none_is_presented_whatever_its_output_declares). Both
+    cores call it after the kernel returns, and it runs no query.
     """
-    if not isinstance(spec, ServiceSpec):
+    if not isinstance(spec, ServiceSpec) or spec.many:
         return result
     output = spec.output_selector_spec
     # One arc to coverage, so each condition is named by the test that fails
