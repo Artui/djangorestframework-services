@@ -17,7 +17,9 @@ from typing import Any
 import pytest
 from asgiref.sync import async_to_sync
 from django.contrib.auth.models import AnonymousUser
+from django.core.exceptions import ImproperlyConfigured
 from django.http import QueryDict
+from django_service_specs.specs.kernel_spec import kernel_spec
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import JSONParser, MultiPartParser
@@ -34,6 +36,8 @@ from rest_framework_services import (
     adispatch_spec,
     dispatch_spec,
 )
+from rest_framework_services.registry.spec_registry import SpecRegistry
+from rest_framework_services.service_specs.as_kernel_spec import as_kernel_spec
 from rest_framework_services.types.offline_service_view import OfflineServiceView
 from tests.testapp.models import Post
 from tests.testapp.serializers import PostSerializer
@@ -232,3 +236,25 @@ def test_with_no_route_capture_a_lookup_read_with_no_default_is_refused_as_missi
 
     assert excinfo.value.get_codes() == {"title": ["required"]}
     assert seen == {}
+
+
+@pytest.mark.parametrize("compile_spec", [kernel_spec, as_kernel_spec])
+def test_the_compiled_specs_parameters_refuse_the_name_declared_twice(
+    compile_spec: Callable[[Any], Any],
+) -> None:
+    """The kernel declares one source per name, and this one has two.
+
+    Dispatch reads the lookup's value from the route and the field's from the
+    body, so the spec dispatches, but asking the compiled spec for its
+    parameters is refused in the kernel's words.
+    """
+    with pytest.raises(ImproperlyConfigured, match=r"Parameters \['title'\] are declared by two"):
+        compile_spec(_spec({})).parameters()
+
+
+def test_the_spec_registers_though_its_parameters_are_refused() -> None:
+    registry = SpecRegistry()
+
+    registry.register("rename", dataclasses.replace(_spec({}), permission_classes=[]))
+
+    assert registry.get("rename") is not None

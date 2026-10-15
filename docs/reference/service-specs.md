@@ -59,6 +59,13 @@ only in the variant compiled for an explicit
 `ArgumentBinding.SPREAD_AUTHOR_WINS` (`kernel_spec_variant(spec, spread=True)`).
 A selector always takes its arguments from its signature, except for the names
 its `filter_set` owns.
+`parameters()` is not available on every compiled spec. Where a target lookup's
+selector reads a name that is also a writable input field, such as renaming a
+row by the `slug` that finds it, `kernel_spec(spec).parameters()` and
+`as_kernel_spec(spec).parameters()` raise `ImproperlyConfigured` ("Parameters
+['slug'] are declared by two sources"), because the kernel declares one source
+per name. Such a spec still registers and dispatches: the route's capture
+scopes the lookup, and the body's value is the field's.
 Parameters marked `NotClientInput` on any callable of the call are hidden.
 So are the names the pool fills: `user`, `request`, `view`, `queryset`,
 `result` and the rest. Two `reads` declarations are refused with

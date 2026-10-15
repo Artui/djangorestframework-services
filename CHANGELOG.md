@@ -240,7 +240,9 @@ project may have to change, each detailed below:
     default, and a read with none is refused as missing, `{"slug": ["This
     field is required."]}`, where 0.57.0 scoped the lookup by the client's
     value. An author's value for the name scopes the lookup and is the
-    field's value.
+    field's value. The compiled spec's `parameters()` refuses such a spec
+    with `ImproperlyConfigured`, since the kernel declares one source per
+    name, while registering and dispatching it work as described.
   - A key the spec's typed `kwargs` provider is annotated to fill is never
     taken from the client or a hook, even where the provider declines it
     with `UNSET`, which leaves the parameter's default. That holds under
