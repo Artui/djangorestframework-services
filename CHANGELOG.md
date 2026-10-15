@@ -103,7 +103,8 @@ project may have to change, each detailed below:
   declare, or `None` when both are empty. `reads=[UrlKwarg(...), QueryParam(...)]` declares the route
   captures and query values a spec reads, each a parameter of the compiled
   spec, so the schema lists it and `REJECT` admits it. A target lookup's
-  `reads` are read exactly as the spec's own are. On a live DRF view a
+  `reads` are read exactly as the spec's own are, each a parameter of the
+  lookup with the type it declares. On a live DRF view a
   declared `UrlKwarg` is read from the route alone and a `QueryParam` from the
   query string alone: a body value of that name is neither the argument nor
   written onto `view.kwargs` or `request.query_params`, which the view's

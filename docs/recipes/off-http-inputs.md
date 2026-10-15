@@ -419,7 +419,9 @@ Where the value comes from depends on the view the call carries:
 
 A target lookup's `reads` take the same channels the same way, so a
 `SelectorSpec(reads=[QueryParam("q")])` used as an `instance_selector_spec` reads
-`q` from a live view's query string alone. A read named like a writable field of
+`q` from a live view's query string alone, and each is coerced to the type it
+declares, as the spec's own are. A name the spec's `reads` declare too is read
+by the spec's declaration. A read named like a writable field of
 the input serializer is refused when the spec compiles, because the body's value
 of that name is the field's, except a `UrlKwarg` the target lookup reads, which
 renames a row by the key that finds it: the route's capture scopes the lookup,

@@ -253,7 +253,16 @@ def _selector(
     if role != "output":
         reflected = _reflected(spec.selector, hidden=hidden)
         if role is not None:
-            declared = [p for p in declared if p.name in _names(reflected)]
+            # A target lookup's own ``reads`` are declared as the spec's are, so
+            # each is its parameter with the type it declares, and a string
+            # the call carries is read against that type
+            # (test_a_live_view_reads_them_from_its_query_string_and_route,
+            # which fails without them). A name the spec declares too is the
+            # spec's declaration, as the spec's ``reads`` always reached the
+            # lookup (test_a_name_the_spec_and_its_lookup_both_read_is_the_spec_s).
+            taken = _names(declared)
+            own = [p for p in _declared(spec.reads or (), label=label) if p.name not in taken]
+            declared = [p for p in (*declared, *own) if p.name in _names(reflected)]
         # A name the ``filter_set`` reads is the filter's: the kernel adds the
         # filter's Parameter itself, and refuses the same name from two sources.
         filtered = (
