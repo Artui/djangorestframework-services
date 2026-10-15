@@ -226,6 +226,16 @@ admits under `AUTO`. See
     provider's or `input_data`'s value for it still reaches the parameter,
     as the field validates it.
 
+    On a DRF view such a parameter needs a default (`title=None`), or the
+    service reads `data["title"]`: `as_view()` checks a service's required
+    parameters before any call, against the keys every call provides, and a
+    field's value is not one of them, since a `PATCH` may leave it out. A
+    required parameter of a field's name is refused with
+    `ImproperlyConfigured` when the view is built; `dispatch_spec` hands it
+    the validated value. A spec with a `kwargs` provider, or a view
+    overriding a `get_*_kwargs` hook, is not checked there, since its keys
+    cannot be known before a call.
+
 ## Hiding provider-owned inputs: `NotClientInput`
 
 Reflection advertises *every* declared key — including ones a `spec.kwargs`
@@ -269,7 +279,11 @@ wherever else it is a plain parameter. A field the `input_serializer` declares
 under that name is the one exception, because it is not a parameter: it stays
 declared and listed, and the caller's value reaches the service only in `data`,
 since a same-named field can mean something else, such as a destination tenant
-beside the server's current one. The set is public as
+beside the server's current one. A filter of the selector's `filter_set` under
+that name is the other: the filter reads the caller's value, as every filter
+does, and the parameter is handed only the server's (the provider's, a view
+hook's or a route capture's) or its own default, so neither ever reads the
+other's. The set is public as
 [`server_owned_keys(spec)`](../reference/dispatch.md#server_owned_keys), for a
 transport that builds an input schema of its own and must leave out the same
 keys.
@@ -427,6 +441,19 @@ of that name is the field's, except a `UrlKwarg` the target lookup reads, which
 renames a row by the key that finds it: the route's capture scopes the lookup,
 and off HTTP the caller's value for the name is the field's alone, never written
 onto `view.kwargs`.
+
+A service parameter named like a read is handed its value by name. On a DRF
+view it needs a default, as one named like an input field does: `as_view()`
+checks a service's required parameters before any call, and a request may
+carry no query value, so a required parameter of a read's name is refused
+when the view is built. Off HTTP, `dispatch_spec` hands it the argument. A
+selector's parameter is not refused: a selector takes its arguments from its
+signature, so a required one makes the read a required argument, and a request
+without it is answered `400`.
+
+The [example project](https://github.com/Artui/djangorestframework-services/tree/main/examples) declares `reads=[QueryParam("status")]` on its list
+spec and asserts the selector is handed it both ways, beside an off-HTTP
+`dispatch_spec(partial=True)` call that validates only the fields it sends.
 
 Route captures and query values are coerced to the type the entry declares. `required=True` is the declared
 counterpart of the `InputRequired` marker: both land the name in the schema's

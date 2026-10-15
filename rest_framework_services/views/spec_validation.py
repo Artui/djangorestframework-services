@@ -343,12 +343,23 @@ def _reject_ignored_nested_fields(nested: Any, *, label: str) -> None:
     inner selector with its own ``permission_classes`` therefore guards nothing,
     which is worse than not declaring it — the reader sees a rule that is not
     there. Both fail at ``as_view()`` instead.
+
+    A ``progress_reporter`` is the same: only the spec being dispatched runs, so
+    only its reporter reports, and dispatch refuses a nested one on every
+    request. It fails here, before the first request does
+    (test_a_nested_progress_reporter_is_refused_at_as_view).
     """
     if nested.preconditions is not None:
         raise ImproperlyConfigured(
             f"{label}: `preconditions` on a nested spec is never invoked — the "
             "surrounding spec owns the dispatch. Move them to the spec being "
             "dispatched."
+        )
+    if nested.progress_reporter is not None:
+        raise ImproperlyConfigured(
+            f"{label}: `progress_reporter` on a nested spec never reports — only "
+            "the spec being dispatched runs. Move it to the surrounding "
+            "ServiceSpec, whose service is the run."
         )
     if nested.permission_classes is not None:
         raise ImproperlyConfigured(

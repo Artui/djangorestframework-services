@@ -94,6 +94,14 @@ each naming the read:
   how a route capture scopes a write, and off HTTP the caller's value for it
   is written onto `view.kwargs`, where the default reads it.
 
+  A serializer whose fields cannot be read when the spec compiles - they read
+  the request, or query a table `migrate` has not made yet, or a row not yet
+  there - is taken to declare no name, so registering it at import never
+  needs the database; the call that describes it is where such a read is
+  refused. A `many=True` spec whose serializer cannot be built then compiles
+  with no list bound of its own, and the list serializer that validates the
+  call still holds the list to the bound it declares.
+
 A name only a target lookup marks `NotClientInput` is accepted: the lookup is
 never handed a read it hides, so the read is the service's argument and the
 lookup keeps its own value.

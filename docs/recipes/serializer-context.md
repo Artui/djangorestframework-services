@@ -304,17 +304,27 @@ The callable declares what it reads, as every spec callable does:
   `instance` for a retrieve (but see below for a set).
 
 A key it answers with `UNSET` is declined and keeps the layer beneath. The
-input callable is asked once per call, a `many` call included, where the rows
-are validated together. Two calls ask it twice, because the input is described
-before it is validated:
+input serializer is built once per call, a `many` call included, for the body
+the call validates and the row it acts on, and the input callable is asked
+once for it. Two kinds of call build it twice, once to read its fields and
+once to validate, and ask the callable for each where what it is handed
+differs:
 
-- one whose callable reads an argument the spec's `kwargs` provider puts a
-  server's value over is asked with the value sent, to describe the input,
-  and with the server's, to validate it;
-- one whose callable takes `**kwargs` is left out of the description, which
-  holds none of the call's seeds, unless the input serializer cannot be built
-  without its keys; then it is asked over what the description holds, and
-  again over the whole pool to validate.
+- one whose body the server puts a value into - a view hook's, the spec's
+  `kwargs` provider's or `input_data` - is described with the body sent and
+  validated with the server's values in it. A callable reading an argument
+  the server's value replaced is asked with each, and so, off HTTP with no
+  view, is one reading `request`, since the request built for the call
+  carries the body;
+- one whose row a target lookup resolves is described before the lookup
+  runs, with no row, and validated with the row it found. A serializer
+  reading `self.instance` as its fields are built must allow for `None`
+  there, or be handed its row with `instance=`.
+
+A callable taking `**kwargs` is left out of the description, which holds
+none of the call's seeds, unless the input serializer cannot be built
+without its keys; then it is asked over what the description holds, and
+again over the whole pool to validate.
 
 **A set is presented row by row.** The kernel's `present` renders a list, and
 a `many` service's output, one row at a time, so the output callable is asked

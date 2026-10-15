@@ -53,6 +53,12 @@ project may have to change, each detailed below:
   `ListSerializer` sets `max_length` or the project sets
   `SERVICE_SPECS_MAX_ARRAY_LENGTH`. A live view's bulk body is still bounded
   by its `ListSerializer` alone.
+- **Guard an input serializer's read of `self.instance` where a target lookup
+  finds the row.** Its fields are read before the lookup runs, with no row;
+  off HTTP, hand the row with `instance=` to have it from the start.
+- **Move a nested selector's `progress_reporter` and `preconditions` to its
+  `ServiceSpec`, and give a registered `SelectorSpec` a `selector`.** Each is
+  refused where 0.57.0 ignored it.
 - **Re-point a few names.** `children=` is `relations=`; `DispatchResult` has no
   `status`; `SpecRegistry.register` takes no `agent_contract=`; `filter_set`
   must be a django-filter `FilterSet`; `request`, `view`, `result` and
@@ -187,8 +193,7 @@ project may have to change, each detailed below:
     in `schema=` now reads " - " where it read an em dash.
   - `annotate_output_schema` keeps a formatted property's `null`.
   - `can_present_nothing` reads the compiled spec rather than `many`, so a
-    `many=True` service with `allow_none=True`, and a `RETRIEVE` re-read
-    declared with `many`, now answer `True`.
+    `many=True` service with `allow_none=True` now answers `True`.
   - `UnknownArguments` is a `str` enum ordered `REJECT`, `IGNORE`,
     `PASSTHROUGH`.
 - **Breaking: how a call's arguments reach its callables.**
@@ -205,7 +210,9 @@ project may have to change, each detailed below:
   - A service with an input serializer receives each validated value by
     name, beside `data`, where its signature declares a parameter of that
     name (the field's `source`, not its wire name). Under `AUTO` and
-    `BUNDLE` it used to receive only `data`. A parameter named like a key any
+    `BUNDLE` it used to receive only `data`. On a DRF view the parameter
+    needs a default, as before: `as_view()` still refuses a required
+    parameter of a field's name, or of a declared read's. A parameter named like a key any
     callable of the call marks `NotClientInput` is never handed the client's
     validated value: the client's value for that field reaches the service
     only in `data`. A view hook's or the spec's `kwargs` provider's value for
@@ -286,7 +293,12 @@ project may have to change, each detailed below:
   - A missing required argument is refused as `{"name": ["This field is
     required."]}`, code `required`, every missing name keyed, where it was
     one `"Missing required argument(s): ..."` message under
-    `non_field_errors`.
+    `non_field_errors`. It is raised as `InvalidArguments`, DRF's
+    `ValidationError` and the kernel's `InvalidArguments` at once, where it
+    was a `ServiceValidationError`: an `except ServiceValidationError` or
+    `except ServiceError` around a dispatch no longer catches it, so catch
+    `rest_framework.exceptions.ValidationError` for it as for every other
+    refused argument.
   - Under `REJECT`, a `many` call refuses each row's undeclared keys inside
     that row, where it answered one message for the call. Over a live view
     on DRF 3.18 or later, that refusal comes back as a list of rows when the
@@ -324,7 +336,7 @@ project may have to change, each detailed below:
   as the serializer gave it. A field that skips, a partial call's
   `HiddenField`, holds no value. That run is separate
   from the serializer's own: for such a field, a related field's lookup runs
-  once more, one more query for a `PrimaryKeyRelatedField`, and the field's
+  once more, one query for each key it holds, and the field's
   validators and its `validate_<field>` run twice, as do a nested
   serializer's `validate()` and its own fields' validators and
   `validate_<field>`, so a validator that queries, a `UniqueValidator`,
@@ -390,6 +402,21 @@ project may have to change, each detailed below:
   is refused (`permission_classes=[]` still registers, with no guards), a
   value that is not a spec raises `TypeError`, and
   `capability_manifest()["unguarded"]` is always an empty list.
+- **Breaking: three declarations that never ran are refused where they were
+  ignored.**
+  - A nested selector spec's `progress_reporter` (on an
+    `instance_selector_spec`, `collection_selector_spec` or
+    `output_selector_spec`) raises `ImproperlyConfigured` at `as_view()`, at
+    `SpecRegistry.register` and off HTTP, where 0.57.0 never called it. Move
+    it to the surrounding `ServiceSpec`, whose service is the run.
+  - A nested selector spec's `preconditions`, already refused at `as_view()`,
+    are refused at `SpecRegistry.register` and off HTTP too, where 0.57.0
+    never called them. Move them to the surrounding `ServiceSpec`, whose
+    pool carries the target.
+  - A top-level `SelectorSpec` with `selector=None` is refused at
+    `SpecRegistry.register`, as `dispatch_spec` already refused it; a view
+    still falls back to its `get_queryset()` or `get_object()`. Declare the
+    selector that reads the rows before registering the spec.
 - **Breaking: relation writes are the kernel's.** The `children=` alias is
   gone (use `relations=`), and every relation option after the model, and
   after the foreign key where there is one, is keyword-only. A `None` row is
@@ -463,14 +490,32 @@ project may have to change, each detailed below:
 - **Presenting output.** `SerializerPresenter` projects no marking onto a
   write-only field, and refuses a `field_audiences` name that matches no
   output field.
-- **The input serializer's context callable can be asked twice in one call.**
-  The serializer is now described with the call's own request and view before
-  it is validated, so a callable taking `**kwargs` is asked once for the
-  description and once over the whole pool when the serializer cannot be
-  built without its keys, and a callable reading an argument that the
-  `kwargs` provider overwrites is asked with the sent value and again with
-  the server's. 0.57.0 asked it once. A callable with a side effect should
-  not rely on a call count.
+- **Two kinds of call build the input serializer twice.** The serializer is
+  built once per call for the body the call validates and the row it acts on,
+  with the call's request, view and context, as 0.57.0 built it, and its
+  fields are read off that one. A call whose body the server puts a value
+  into - a view hook's, the spec's `kwargs` provider's or `input_data` - is
+  built once for the body sent and once for the body it validates, and a
+  call whose row a target lookup resolves once before the lookup and once
+  with the row. 0.57.0 built each once, so a serializer that queries as it
+  is built queries twice in those calls. The context callable is asked for
+  each build where what it is handed differs: an argument the server's
+  value replaced, the request built off HTTP with no view, which carries
+  the body, or, for a callable taking `**kwargs` that the serializer cannot
+  be built without, the description's pool and then the whole pool. 0.57.0
+  asked it once. A callable with a side effect should not rely on a call
+  count.
+- **A row a target lookup resolves is not there when the input serializer's
+  fields are first read.** The call reads them before the lookup runs, with
+  no row, and validates with the row it found, where 0.57.0 built the
+  serializer once, after the lookup. So a `get_fields` or `__init__` reading
+  `self.instance` unguarded, `self.instance.pk` say, raises in such a call,
+  over HTTP and off it; guard the read with `self.instance is not None`, or,
+  off HTTP, hand the row with `instance=`. And off HTTP under
+  `UnknownArguments.REJECT`, a field the serializer adds only for a row is
+  refused as an unexpected argument; hand the row with `instance=`, or call
+  under `IGNORE`. A row handed with `instance=`, as an update view's
+  `get_object()` hands it, is the serializer's from the start.
 - **A Manager from a list selector is answered as a queryset.** A LIST
   selector returning `Model.objects` hands back its `.all()`, unpaginated
   too, where 0.57.0 handed back the Manager itself. So an unpaginated Manager

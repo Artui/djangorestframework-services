@@ -11,7 +11,8 @@ import typing
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import Annotated, Any, Literal, cast, get_args, get_origin
 
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
+from django.db import DatabaseError
 from django.db.models import QuerySet
 from django_service_specs.adapters.filters.filter_set_parameters import filter_set_parameters
 from django_service_specs.authorization.permission_check import PermissionCheck
@@ -20,12 +21,17 @@ from django_service_specs.parameters.parameters import Parameter, Parameters
 from django_service_specs.specs.kernel_spec import kernel_spec
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
 from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
+from django_service_specs.types.is_async import is_async
 from rest_framework import serializers
 
 from rest_framework_services.service_specs.drf_permission_check import DRFPermissionCheck
 from rest_framework_services.service_specs.serializer_presenter import SerializerPresenter
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
-from rest_framework_services.service_specs.utils import writable_input_names
+from rest_framework_services.service_specs.utils import (
+    SERVER_CHANNEL,
+    server_channel,
+    writable_input_names,
+)
 from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
 from rest_framework_services.types.field_marking import FieldMarking
 from rest_framework_services.types.marked_input_keys import marked_input_keys
@@ -48,6 +54,19 @@ _SEEDS: frozenset[str] = frozenset({"request", "view"})
 # seeds, and ``user`` and ``serializer``, which a callable receives from the
 # pool rather than from a caller.
 _NOT_ARGUMENTS: frozenset[str] = RESERVED_POOL_SEEDS | _SEEDS | {"user", "serializer"}
+# What building or reading an input serializer with no call may raise and
+# still be a serializer a call can describe: a request or view read unguarded
+# from a context that has none (``AttributeError``, ``KeyError``,
+# ``TypeError``), a table ``migrate`` has not made yet, and a row not loaded
+# yet. A spec compiles as it is declared, at import, so registering it never
+# needs either.
+_UNREADABLE_WITHOUT_A_CALL: tuple[type[Exception], ...] = (
+    AttributeError,
+    KeyError,
+    TypeError,
+    DatabaseError,
+    ObjectDoesNotExist,
+)
 
 _SCALARS: tuple[tuple[Any, str, str | None], ...] = (
     # ``bool`` before ``int`` is not needed here, since types are matched by
@@ -64,7 +83,11 @@ _ARRAYS: frozenset[Any] = frozenset({list, set, frozenset, tuple})
 
 
 def as_kernel_spec(
-    spec: Any, *, partial: bool | None = None, spread: bool = False
+    spec: Any,
+    *,
+    partial: bool | None = None,
+    spread: bool = False,
+    seeded: frozenset[str] = frozenset(),
 ) -> KernelServiceSpec | KernelSelectorSpec:
     """Compile ``spec``, a drfs ``ServiceSpec`` or ``SelectorSpec``, to the kernel's.
 
@@ -131,6 +154,12 @@ def as_kernel_spec(
     ``reads`` read, so ``def destroy(*, instance, hard=False)`` is never handed
     a ``hard`` the request sent (see ``_takes_its_signature``).
 
+    ``seeded`` names the seeds a dispatch registers beyond the pool's own, which
+    the DRF edge compiles per call: a signature's parameter of such a name -
+    the selector's, a target lookup's, a spread service's - is no argument, and
+    the seed fills it, as it always filled a service's. A declared read of the
+    name stays one, which the kernel refuses as an argument meeting a seed.
+
     **What the kernel refuses at construction is stripped or refused here**,
     naming the drfs field. Stripped, because drfs never read them: an output
     selector's ``kwargs``, an instance lookup's ``allow_none`` (the kernel would
@@ -149,11 +178,13 @@ def as_kernel_spec(
     for a service's output and as ``instance`` for a retrieve.
     """
     if isinstance(spec, AffordanceDeclarer):
-        return _service(spec, partial=partial, spread=spread)
-    return _selector(spec, role=None, hidden=frozenset(), declared=())
+        return _service(spec, partial=partial, spread=spread, seeded=seeded)
+    return _selector(spec, role=None, hidden=frozenset(), declared=(), seeded=seeded)
 
 
-def _service(spec: Any, *, partial: bool | None, spread: bool) -> KernelServiceSpec:
+def _service(
+    spec: Any, *, partial: bool | None, spread: bool, seeded: frozenset[str]
+) -> KernelServiceSpec:
     hidden = _owned_keys(
         [spec.service, *(spec.preconditions or ()), *_lookup_selectors(spec)],
     )
@@ -161,24 +192,26 @@ def _service(spec: Any, *, partial: bool | None, spread: bool) -> KernelServiceS
     _refuse_hidden_reads(
         spec.reads, [spec.service, *(spec.preconditions or ())], label="ServiceSpec"
     )
-    instance = _nested(spec, "instance", hidden, declared)
-    collection = _nested(spec, "collection", hidden, declared)
+    instance = _nested(spec, "instance", hidden, declared, seeded)
+    collection = _nested(spec, "collection", hidden, declared, seeded)
     target = instance or collection
     # In the lookup's order: the route a permission class reads is filled in it.
     taken = tuple(parameter.name for parameter in target.reads) if target is not None else ()
     _refuse_reads_named_like_fields(spec, lookup_reads=frozenset(taken))
     reads = _merge(
-        _reflected(spec.service, hidden=hidden) if _takes_its_signature(spec, spread) else [],
+        # A seed of the call fills its name (test_a_spread_service_reads_the_seed).
+        _reflected(spec.service, hidden=hidden | seeded)
+        if _takes_its_signature(spec, spread)
+        else [],
         [parameter for parameter in declared if parameter.name not in taken],
         skip=frozenset(taken),
     )
     output, presenter = _output(spec)
-    compiled_partial = (spec.partial is True) if partial is None else partial
     return KernelServiceSpec(
         service=spec.service,
         permissions=_permissions(spec, route_reads=taken),
         reads=reads,
-        partial=compiled_partial and spec.input_serializer is not None,
+        partial=compiled_partial(spec, partial),
         many=spec.many,
         many_argument=spec.many_argument,
         **_list_bounds(spec),
@@ -213,12 +246,21 @@ def _service(spec: Any, *, partial: bool | None, spread: bool) -> KernelServiceS
 
 
 def _lists_its_return(spec: Any) -> bool:
-    """Whether ``spec`` declares a ``LIST`` output it does not re-read."""
+    """Whether ``spec`` declares a ``LIST`` output it does not re-read.
+
+    A ``many`` spec re-reads nothing, whatever its output selector declares
+    (``_output``).
+    """
     output = spec.output_selector_spec
     # One arc to coverage: each conjunct is held by its own case of
     # test_only_a_list_output_with_no_re_read_turns_allow_none_off (no-output,
-    # retrieve-no-re-read and list-re-read, in order).
-    return output is not None and output.kind is SelectorKind.LIST and output.selector is None
+    # retrieve-no-re-read and list-re-read, in order), and ``many`` by
+    # test_many_is_not_read (its ``LIST`` re-read declared with ``many``).
+    return (
+        output is not None
+        and output.kind is SelectorKind.LIST
+        and (output.selector is None or spec.many)
+    )
 
 
 def _selector(
@@ -228,7 +270,7 @@ def _selector(
     hidden: frozenset[str],
     declared: Sequence[Parameter],
     audiences: Mapping[str, FieldMarking] | None = None,
-    many: bool = False,
+    seeded: frozenset[str] = frozenset(),
 ) -> KernelSelectorSpec:
     """A top-level selector spec (``role`` ``None``), or a service's nested one by its role.
 
@@ -251,7 +293,9 @@ def _selector(
         audiences = spec.field_audiences
     reads = Parameters()
     if role != "output":
-        reflected = _reflected(spec.selector, hidden=hidden)
+        # A seed of the call fills its name, so it is no argument
+        # (test_both_spec_kinds_read_the_seed, test_a_target_lookup_reads_the_seed).
+        reflected = _reflected(spec.selector, hidden=hidden | seeded)
         if role is not None:
             # A target lookup's own ``reads`` are declared as the spec's are, so
             # each is its parameter with the type it declares, and a string
@@ -271,9 +315,12 @@ def _selector(
             else frozenset()
         )
         reads = _merge(reflected, declared, skip=filtered)
+        shadowed = hidden & filtered
+    else:
+        shadowed = frozenset()
     return KernelSelectorSpec(
         kind=spec.kind,
-        selector=spec.selector,
+        selector=_on_the_server_s_channel(spec.selector, shadowed),
         # A nested selector's checks are never read: the dispatched spec's are.
         permissions=(
             _permissions(spec, route_reads=_route_reads(spec, reads)) if role is None else None
@@ -286,7 +333,7 @@ def _selector(
                 audiences,
                 label=label,
                 context=spec.output_serializer_context,
-                value_keyword=_value_keyword(spec, role, many=many),
+                value_keyword=_value_keyword(spec, role),
             )
             if role in (None, "output")
             else None
@@ -308,15 +355,99 @@ def _selector(
         ),
         # drfs never ran an output selector's ``kwargs`` (the mutation's chains
         # apply), and the kernel refuses them there.
-        kwargs=spec.kwargs if role != "output" else None,
-        preconditions=spec.preconditions,
+        kwargs=(
+            _answering_on_the_server_s_channel(spec.kwargs, shadowed) if role != "output" else None
+        ),
+        preconditions=(
+            [_on_the_server_s_channel(fn, shadowed) for fn in spec.preconditions]
+            if spec.preconditions
+            else spec.preconditions
+        ),
         progress_reporter=spec.progress_reporter,
         metadata=spec.metadata,
     )
 
 
+def _on_the_server_s_channel(fn: Any, shadowed: frozenset[str]) -> Any:
+    """``fn``, taking each ``shadowed`` parameter on its server channel instead.
+
+    A name a filter reads and a callable marks ``NotClientInput`` is two
+    things, as it was in 0.57.0: the filter's argument, the client's value,
+    and the callable's parameter, which only the server fills. The kernel
+    hands a callable every value of its pool under the parameter's name, the
+    filter's argument included, so the parameter is taken under its
+    ``server_channel`` name, which no read declares and so no client fills
+    (test_a_client_naming_the_server_s_channel_reaches_nothing), and handed
+    back under its own (test_the_client_s_value_filters_and_never_reaches_the_parameter).
+    An ``async def`` selector stays one, as the kernel awaits it by its kind
+    (test_an_async_selector_s_parameter_is_kept_from_the_client_too).
+    """
+    signature = inspect.signature(fn)
+    taken = shadowed & signature.parameters.keys()
+    if not taken:
+        return fn
+
+    def own_names(kwargs: Mapping[str, Any]) -> dict[str, Any]:
+        return {name.removeprefix(SERVER_CHANNEL): value for name, value in kwargs.items()}
+
+    if is_async(fn):
+
+        async def channelled(**kwargs: Any) -> Any:
+            return await fn(**own_names(kwargs))
+    else:
+
+        def channelled(**kwargs: Any) -> Any:
+            return fn(**own_names(kwargs))
+
+    channelled.__name__ = fn.__name__
+    channelled.__qualname__ = fn.__qualname__
+    channelled.__module__ = fn.__module__
+    cast(Any, channelled).__signature__ = signature.replace(
+        parameters=[
+            parameter.replace(name=server_channel(parameter.name))
+            if parameter.name in taken
+            else parameter
+            for parameter in signature.parameters.values()
+        ]
+    )
+    return channelled
+
+
+def _answering_on_the_server_s_channel(provider: Any, shadowed: frozenset[str]) -> Any:
+    """The spec's ``kwargs`` provider, answering each ``shadowed`` key on its server channel.
+
+    Its value is the parameter's and never the filter's, as in 0.57.0, where
+    the filter read only the client's
+    (test_the_provider_s_value_reaches_the_parameter_and_not_the_filter).
+    """
+    # One arc to coverage: with no name to carry, the provider is the spec's
+    # own, which the compiled spec is read for
+    # (test_the_client_s_value_filters_and_never_reaches_the_parameter fails
+    # without the first condition, test_the_shaping_fields_carry without the
+    # second).
+    if provider is None or not shadowed:
+        return provider
+
+    def channelled(**kwargs: Any) -> Any:
+        return {
+            server_channel(key) if key in shadowed else key: value
+            for key, value in provider(**kwargs).items()
+        }
+
+    cast(Any, channelled).__signature__ = inspect.signature(provider)
+    channelled.__annotations__ = dict(getattr(provider, "__annotations__", {}))
+    channelled.__name__ = getattr(provider, "__name__", "kwargs")
+    channelled.__qualname__ = getattr(provider, "__qualname__", channelled.__name__)
+    channelled.__module__ = provider.__module__
+    return channelled
+
+
 def _nested(
-    spec: Any, role: str, hidden: frozenset[str], declared: Sequence[Parameter]
+    spec: Any,
+    role: str,
+    hidden: frozenset[str],
+    declared: Sequence[Parameter],
+    seeded: frozenset[str],
 ) -> KernelSelectorSpec | None:
     nested = getattr(spec, f"{role}_selector_spec")
     # An instance lookup with no ``selector`` is no lookup, as drfs always read
@@ -326,7 +457,7 @@ def _nested(
     # lookup has no such fallback, so one with no selector is still refused.
     if nested is None or (role == "instance" and nested.selector is None):
         return None
-    return _selector(nested, role=role, hidden=hidden, declared=declared)
+    return _selector(nested, role=role, hidden=hidden, declared=declared, seeded=seeded)
 
 
 def _output(spec: Any) -> tuple[KernelSelectorSpec | None, SerializerPresenter | None]:
@@ -336,14 +467,17 @@ def _output(spec: Any) -> tuple[KernelSelectorSpec | None, SerializerPresenter |
         _presenter(None, spec.field_audiences, label="ServiceSpec")
         return None, None
     audiences = _audiences(output, spec.field_audiences)
-    if output.selector is not None:
+    # A ``many`` service's result is its list of rows, which a selector re-reading
+    # one result cannot take, so its output selector is never run: its
+    # serializer presents each row, as drfs always presented them
+    # (test_off_http_the_service_s_rows_are_the_value).
+    if output.selector is not None and not spec.many:
         return _selector(
             output,
             role="output",
             hidden=frozenset(),
             declared=(),
             audiences=audiences,
-            many=spec.many,
         ), None
     _refuse_nested_runs(output, "ServiceSpec.output_selector_spec")
     return None, _presenter(
@@ -402,6 +536,16 @@ def _audiences(
     # service spec is the operation a mount names.
     merged = {**(output.field_audiences or {}), **(outer or {})}
     return merged or None
+
+
+def compiled_partial(spec: Any, partial: bool | None) -> bool:
+    """The ``partial`` a service spec compiles with: the request's flag, else the spec's own.
+
+    A spec with no ``input_serializer`` has nothing to relax, so it compiles
+    unpartial.
+    """
+    flag = (spec.partial is True) if partial is None else partial
+    return flag and spec.input_serializer is not None
 
 
 def _refuse_nested_runs(spec: Any, label: str) -> None:
@@ -554,15 +698,22 @@ def _compiled_input_names(spec: Any) -> frozenset[str]:
     is taken to declare no name rather than refused: dispatch, which describes
     it with the call's own request and view, is where its fields exist
     (test_a_spec_declaring_a_read_registers_and_mounts_at_import, which fails
-    without the catch). Only what reading a ``None`` request or view, or a key
-    the context lacks, raises is caught; anything else the serializer raises
-    is raised as it is (test_a_serializer_that_fails_for_another_reason_is_not_hidden_at_registration),
+    without the catch). A spec registered at import may also compile before
+    ``migrate`` has made the table its fields query, or before the row they
+    look up exists, so registering never needs the database: a database error
+    or a missing row is taken the same way, and the call that describes the
+    serializer is where a read named like one of its fields is refused
+    (test_registration_needs_no_database). Only those are caught, each held
+    by its case of test_a_spec_whose_fields_cannot_be_read_without_a_call_registers
+    (``attribute``, ``key``, ``subscript``, ``missing-table``, ``missing-row``);
+    anything else the serializer raises is raised as it is
+    (test_a_serializer_that_fails_for_another_reason_is_not_hidden_at_registration),
     and so is a declaration that is no serializer at all
     (test_an_input_serializer_that_is_none_of_the_two_is_still_refused).
     """
     try:
         return writable_input_names(spec)
-    except (AttributeError, KeyError, TypeError):
+    except _UNREADABLE_WITHOUT_A_CALL:
         return frozenset()
 
 
@@ -710,7 +861,11 @@ def _shape(annotation: Any) -> tuple[str, bool, dict[str, Any]]:
         return "array", False, ({"items": element} if element != "any" else {})
     if origin is dict or annotation is dict:
         return "object", False, {}
-    return "any", False, {}
+    # ``Any``, which an unannotated parameter reads as, admits every value,
+    # ``None`` among them, as 0.57.0 handed it on
+    # (test_a_selector_takes_the_client_s_null). A class no Parameter type
+    # names is still no ``None`` (test_a_class_no_parameter_type_names_is_still_no_none).
+    return "any", annotation is Any, {}
 
 
 def _choices(values: tuple[Any, ...]) -> tuple[str, bool, dict[str, Any]]:
@@ -740,6 +895,16 @@ def _list_bounds(spec: Any) -> dict[str, int | None]:
     DRF decides them in ``many_init`` and ``Meta.list_serializer_class``, so they
     are read off the instance it builds, as drfs' schema reads them; a
     dataclass declares neither hook. ``allow_empty=False`` is a minimum of one.
+
+    Building the list builds the row serializer, so one that cannot be built
+    with no call (``_UNREADABLE_WITHOUT_A_CALL``) is compiled with no bound of
+    its own rather than refused, as ``_compiled_input_names`` takes it: the
+    list serializer that validates the call still holds the list to the
+    bound it declares, in DRF's words. Each case of
+    test_a_many_spec_whose_serializer_cannot_be_built_without_a_call_registers
+    fails without the catch, and
+    test_registered_before_the_table_exists_its_list_is_still_bounded holds
+    the bound.
     """
     serializer = spec.input_serializer
     # One arc to coverage: ``test_a_bounded_serializer_without_many_has_no_list_bounds``
@@ -752,7 +917,10 @@ def _list_bounds(spec: Any) -> dict[str, int | None]:
         and issubclass(serializer, serializers.Serializer)
     ):
         return {}
-    listed: Any = serializer(many=True, context={"request": None, "view": None, "format": None})
+    try:
+        listed: Any = serializer(many=True, context={"request": None, "view": None, "format": None})
+    except _UNREADABLE_WITHOUT_A_CALL:
+        return {}
     minimum = max(listed.min_length or 0, 0 if listed.allow_empty else 1)
     return {"many_min_length": minimum or None, "many_max_length": listed.max_length}
 

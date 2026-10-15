@@ -8,7 +8,6 @@ from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import QuerySet
 from django.http import QueryDict
 from django_service_specs.parameters.parameters import Parameter, Parameters
 from django_service_specs.pool.reserved_pool_seeds import RESERVED_POOL_SEEDS
@@ -23,6 +22,8 @@ from rest_framework_services.service_specs.invalid_arguments import InvalidArgum
 from rest_framework_services.service_specs.utils import (
     author_keys,
     bind_serializer,
+    bound_description,
+    bound_instance,
     describe_serializer,
     edge_call_state,
     input_parameters,
@@ -90,9 +91,12 @@ class SerializerValidator(Validator):
       ``input_serializer_context``, each winning on a key it shares with what
       it layers over (see
       ``serializer_context`` in ``service_specs/utils.py``).
-      The callable is asked once per call, a ``many`` call's included, and
-      declares what it reads from the call's pool: ``request``, ``view``,
-      ``user``, a registered seed, or an argument.
+      The callable declares what it reads from the call's pool:
+      ``request``, ``view``, ``user``, a registered seed, or an argument. It is
+      asked once per call, a ``many`` call's included, except where the call
+      builds the serializer twice, for a body the server puts a value into or
+      a row a target lookup resolves, and what the callable is handed differs
+      between the two.
 
     A refusal is one
     [`InvalidArguments`][rest_framework_services.service_specs.invalid_arguments.InvalidArguments],
@@ -196,7 +200,13 @@ class SerializerValidator(Validator):
         )
 
     def parameters(self) -> Parameters:
-        """The serializer's input fields, as Parameters. Never queries.
+        """The serializer's input fields, as Parameters.
+
+        Read off ``describe_serializer``: inside an edge call, the serializer
+        the call builds once and validates with, so a serializer that queries
+        as it is built queries once in the call
+        (test_its_queries_run_once_off_http); outside one, a serializer built
+        afresh for each read, as a schema or a registration reads it.
 
         A field named like a seed of the call is no parameter: one of the
         dispatcher's own names (``RESERVED_POOL_SEEDS``,
@@ -260,21 +270,17 @@ class SerializerValidator(Validator):
         # and rows sent off HTTP keep the kernel's refusal of what its shape
         # check refused (test_off_http_a_refused_row_keeps_the_kernels_shape).
         whole = sent is not None and state.body_rows
-        if whole:
-            arguments = list(sent)
-            indices = list(range(len(arguments)))
+        indices = list(range(len(sent))) if whole else list(rows)
+        if sent is not None and indices == list(range(len(sent))):
+            # Every row sent, in order: the body itself, which the call's
+            # description was built for (test_a_many_call of
+            # test_the_input_serializer_is_built_once_per_call, off HTTP and on).
+            arguments = sent
         else:
             # The rows sent, where the edge hands them, at the indices the
             # kernel passed: a row it refused is not bound twice.
             arguments = [sent[index] for index in rows] if sent is not None else list(rows.values())
-            indices = list(rows)
-        serializer = bind_serializer(
-            self.serializer,
-            data=arguments,
-            many=True,
-            partial=context.partial,
-            context=self._context(context, arguments),
-        )
+        serializer = self._serializer(context, data=arguments, many=True, partial=context.partial)
         if not serializer.is_valid():
             if whole:
                 state.row_errors = serializer.errors
@@ -376,16 +382,21 @@ class SerializerValidator(Validator):
         self, arguments: Mapping[str, Any], context: ValidationContext
     ) -> serializers.Serializer:
         """The serializer, bound to the call's input: the edge's body for it, else ``arguments``."""
-        target = context.target
-        data = validator_input(self, arguments)
-        return bind_serializer(
-            self.serializer,
-            data=data,
+        return self._serializer(
+            context,
+            data=validator_input(self, arguments),
             # The collection a collection selector resolves is no row to update.
-            instance=None if isinstance(target, QuerySet) else target,
+            instance=bound_instance(context.target),
             partial=context.partial,
-            context=self._context(context, data),
         )
+
+    def _serializer(self, context: ValidationContext, **kwargs: Any) -> serializers.Serializer:
+        """The serializer bound as ``kwargs`` binds it: the call's description, where it is that."""
+        built = self._context(context, kwargs["data"])
+        described = bound_description(self.serializer, built, **kwargs)
+        if described is not None:
+            return described
+        return bind_serializer(self.serializer, context=built, **kwargs)
 
     def _context(
         self, context: ValidationContext, arguments: Mapping[str, Any] | list[Any]

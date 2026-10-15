@@ -210,7 +210,8 @@ any callable of the call marks `NotClientInput` is never handed the client's
 validated value: the client's
 value reaches it only through `data`, while an author's value for it (a view
 hook's, the spec's `kwargs` provider's or `input_data`'s) still reaches the
-parameter. See
+parameter. On a DRF view such a parameter needs a default, since `as_view()`
+refuses a required parameter no call is sure to provide. See
 [a service with no input serializer](../recipes/off-http-inputs.md#a-service-with-no-input-serializer).
 
 ::: rest_framework_services.types.argument_binding.ArgumentBinding
@@ -278,7 +279,7 @@ reads it (the service's parameter, `data`, the bound serializer's
 `to_internal_value` override writes that key from the client's input, or runs
 the field's validation again on a value of its own; `input_data` is held the
 same way. That run is the field's second for the call, so a related field
-queries once more and the field's validators and its `validate_<field>` run
+queries once more for each key it holds and the field's validators and its `validate_<field>` run
 twice, as do a nested serializer's `validate()` and its fields' own. A field with a dotted `source` or
 `source="*"` hands it to the parameter named like the field. Where `data` is a
 dataclass instance it is left as the serializer built it, and so are a `many`
@@ -554,6 +555,14 @@ over either. `request` is not one of its parameters: `dispatch_spec` registers
 `request` and `view` as seeds of each call, so a project registering either in
 `pool_seeds` is refused with `ImproperlyConfigured`. A falsy progress reporter
 is kept rather than swapped for `null_progress`.
+
+A parameter named like a seed the call registers is the seed's, on a selector,
+a target lookup or a spread service as on a service: the seed fills it, and a
+caller's value of the name is dropped rather than reaching it. `dispatch_spec`
+compiles that per call, from the `pool_seeds` it is handed. `kernel_spec(spec)`
+knows no project's seeds, so the kernel's own `dispatch`, handed the same seeds
+for that compiled spec, refuses the parameter as an argument meeting a seed. A
+name declared in the spec's `reads` is refused by both.
 
 `base_pool` is a builder, not a gate, and nothing checks a pool assembled
 elsewhere. **If you are writing a transport adapter, build your pool by calling

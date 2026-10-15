@@ -16,6 +16,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.http import QueryDict
 from django.utils.module_loading import import_string
 from django_service_specs.adapters.filters.filter_set_parameters import filter_set_parameters
+from django_service_specs.adapters.filters.utils import import_django_filters
 from django_service_specs.dispatch.check_call import check_call
 from django_service_specs.dispatch.grant import Grant
 from django_service_specs.dispatch.resolve_target import resolve_target
@@ -36,6 +37,7 @@ from rest_framework_services.dispatch.provider_keys import provider_keys
 from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
+from rest_framework_services.service_specs.as_kernel_spec import compiled_partial
 from rest_framework_services.service_specs.invalid_arguments import InvalidArguments
 from rest_framework_services.service_specs.kernel_spec_variant import kernel_spec_variant
 from rest_framework_services.service_specs.translate_dispatch_errors import (
@@ -44,12 +46,16 @@ from rest_framework_services.service_specs.translate_dispatch_errors import (
 from rest_framework_services.service_specs.utils import (
     EDGE_CALL,
     SERIALIZER_CONTEXT_SEED,
+    DescribeBinding,
     EdgeCallState,
     bind_serializer,
+    bound_instance,
     describe_serializer,
+    describe_with,
     edge_call_state,
     input_parameters,
     serializer_context,
+    server_channel,
     takes_the_whole_pool,
     writable_input_names,
     write_form_value,
@@ -195,7 +201,9 @@ def prepare_edge_call(
 
     provider = spec.input_serializer_context if isinstance(spec, ServiceSpec) else None
 
-    def describe_context(*, whole_pool: bool = False) -> dict[str, Any] | None:
+    def describe_context(
+        arguments: Any = params, *, whole_pool: bool = False
+    ) -> dict[str, Any] | None:
         # Asked again only for a serializer its description could not build,
         # and answered only where a callable taking ``**kwargs`` was left out
         # of it. One arc to coverage, so each condition is named with the test
@@ -211,7 +219,7 @@ def prepare_edge_call(
         return serializer_context(
             principal,
             ambient,
-            params,
+            arguments,
             view_layers=hooks.input_serializer_context,
             provider=provider,
             describing=not whole_pool,
@@ -227,8 +235,8 @@ def prepare_edge_call(
     }
     guard_context = OfflineContext(user=user, request=request, view=view)
     if isinstance(spec, SelectorSpec):
-        variant: Any = kernel_spec_variant(spec, unguarded=True, server_input=False)
         seeds = edge_seeds(pool_seeds, request=request, view=view)
+        variant: Any = _seed_filled_variant(spec, seeds, unguarded=True, server_input=False)
         if on_target_resolved is not None:
             variant = guarded_selector(variant)
             guard = on_target_resolved
@@ -241,29 +249,50 @@ def prepare_edge_call(
             edge_arguments(variant, spec, params, request=request, view=view), pool_seeds
         )
         _route_filter_data(arguments, variant.filter_set, filter_data)
+        _as_its_filter_set_reads(arguments, variant.filter_set)
         return EdgeCall(
             variant,
             {
                 **shared,
                 "arguments": arguments,
-                "extra_kwargs": {
-                    **_hidden_captures(spec, view, seeds=seeds),
-                    **_route_author_values(
-                        spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
-                    )[0],
-                },
+                "extra_kwargs": _on_the_server_s_channel(
+                    spec,
+                    {
+                        **_hidden_captures(spec, view, seeds=seeds),
+                        **_route_author_values(
+                            spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
+                        )[0],
+                    },
+                ),
                 "grant": Grant(variant, principal),
                 "pool_seeds": seeds,
             },
         )
     if spec.many:
+        # The rows the call's input serializer is built for, before anything is
+        # compiled: each description of the call reads it (``describe_serializer``).
+        if spec.input_serializer is not None:
+            describe_with(
+                state,
+                DescribeBinding(
+                    spec.input_serializer,
+                    _rows_sent(spec, params, many_as_argument=many_as_argument),
+                    partial=compiled_partial(spec, partial),
+                    many=True,
+                ),
+            )
+        seeds = edge_seeds(pool_seeds, request=request, view=view)
         variant = cast(
             KernelServiceSpec,
-            kernel_spec_variant(
-                spec, partial=partial, unguarded=True, server_input=False, lenient=over_http(view)
+            _seed_filled_variant(
+                spec,
+                seeds,
+                partial=partial,
+                unguarded=True,
+                server_input=False,
+                lenient=over_http(view),
             ),
         )
-        seeds = edge_seeds(pool_seeds, request=request, view=view)
         rows = params
         if many_as_argument:
             arguments = edge_arguments(variant, spec, params, request=request, view=view)
@@ -304,10 +333,15 @@ def prepare_edge_call(
         # is no object is bound as it was sent, for the serializer to refuse
         # (test_a_list_body_is_refused_as_its_list_serializer_refuses_it).
         if sent_rows is not None:
-            state.validator_input = (
-                variant.validator,
-                [{**row, **server} if isinstance(row, Mapping) else row for row in sent_rows],
+            # The rows themselves where nothing went over them, so the call's
+            # description, built for them, is the serializer that validates.
+            body = (
+                [{**row, **server} if isinstance(row, Mapping) else row for row in sent_rows]
+                if server
+                else sent_rows
             )
+            state.validator_input = (variant.validator, body)
+            _describe_the_body(state, variant, body, None)
             # A live view's list body, which DRF's list serializer answers
             # whole. One arc to coverage, so each condition is named: off HTTP
             # the kernel's refusal of a row stays
@@ -337,6 +371,20 @@ def prepare_edge_call(
     # no row) and test_instance_none_on_a_spec_with_no_lookup_is_a_create (a
     # ``None`` one is no row either, and takes no stand-in lookup).
     handed = instance is not UNSET and instance is not None
+    # The body and the row the call's input serializer is built for, before
+    # anything is compiled: each description of the call reads it, so a
+    # serializer reading either as its fields are built describes the fields
+    # it validates with (test_the_input_serializer_is_built_once_per_call).
+    if spec.input_serializer is not None:
+        describe_with(
+            state,
+            DescribeBinding(
+                spec.input_serializer,
+                params,
+                instance if handed else None,
+                compiled_partial(spec, partial),
+            ),
+        )
     # A drfs ``ServiceSpec`` compiles to the kernel's. Its own parameters are the
     # caller's only under an explicit spreading binding: ``AUTO`` is ``BUNDLE``
     # for a service, which hands the caller's values to what reads them and to
@@ -354,8 +402,9 @@ def prepare_edge_call(
     )
     service = cast(
         KernelServiceSpec,
-        kernel_spec_variant(
+        _seed_filled_variant(
             spec,
+            seeds,
             partial=partial,
             unguarded=True,
             target=handed,
@@ -393,6 +442,7 @@ def prepare_edge_call(
     target_spec = service.target_selector_spec()
     if target_spec is not None:
         _route_filter_data(arguments, target_spec.filter_set, filter_data)
+        _as_its_filter_set_reads(arguments, target_spec.filter_set)
     # Before the lookup, which an author's value for one of its reads scopes.
     extra_kwargs, authored = _route_author_values(
         spec, service, arguments, hooks, seeds=seeds, view=view, request=request
@@ -450,10 +500,9 @@ def prepare_edge_call(
         # (test_input_data_for_a_field_named_user_outranks_the_clients_over_http,
         # test_input_data_for_a_field_named_like_a_registered_seed_outranks_the_clients_off_http).
         fields = input_parameters(describe_serializer(spec.input_serializer)).names()
-        state.validator_input = (
-            service.validator,
-            _validator_body(params, sent, arguments, fields),
-        )
+        body = _validator_body(params, sent, arguments, fields)
+        state.validator_input = (service.validator, body)
+        _describe_the_body(state, service, body, bound_instance(target))
         # The server's value for each field it put one into, an author's or
         # ``input_data``'s, as the edge put it: what the Validator validates for
         # the field, never what the field reads back from the body, and where a
@@ -494,6 +543,35 @@ def over_http(view: Any) -> bool:
     own, as a DRF view is.
     """
     return view is not None and not isinstance(view, OfflineServiceView)
+
+
+def _rows_sent(spec: ServiceSpec[Any, Any, Any], params: Any, *, many_as_argument: bool) -> Any:
+    """The rows a ``many`` call sends: its arguments, or its argument of the rows."""
+    if many_as_argument and isinstance(params, Mapping):
+        return params.get(spec.many_argument)
+    return params
+
+
+def _describe_the_body(
+    state: EdgeCallState, service: KernelServiceSpec, body: Any, row: Any
+) -> None:
+    """Describe the input serializer for the body it validates and the row it updates, from here on.
+
+    The call was described for the caller's body and the row it was handed. A
+    body the server put a value into, or a row a lookup resolved, is another,
+    and the rest of the call - the kernel's check of the arguments and the
+    Validator - reads the serializer built for it. One arc to coverage, so each
+    operand is named: test_a_field_the_server_s_value_adds_is_the_call_s holds
+    the body and test_a_row_a_lookup_resolves_is_the_one_described the row.
+    """
+    # Set by the edge for every call with an input serializer, which is every
+    # call with a body for it.
+    held = cast(DescribeBinding, state.describe_binding)
+    if body is not held.data or row is not held.instance:
+        describe_with(
+            state,
+            DescribeBinding(held.declaration, body, row, service.partial, many=held.many),
+        )
 
 
 def _validator_body(
@@ -558,6 +636,30 @@ def _lookup_reads(spec: ServiceSpec[Any, Any, Any]) -> frozenset[str]:
     return frozenset(target.reads.names() & (_callable_param_names(target.selector) or set()))
 
 
+def _seed_filled_variant(spec: Any, seeds: PoolSeeds, **options: Any) -> Any:
+    """``kernel_spec_variant(spec, **options)``, with no read off a signature a seed of the call fills.
+
+    A selector's, a target lookup's or a spread service's parameter named like a
+    seed the call registers is the seed's, as a service's always was: compiled
+    as ``kernel_spec_variant(seeded=)``, it is no argument, so the kernel fills
+    it from the seed rather than refusing an argument meeting one
+    (test_both_spec_kinds_read_the_seed, test_a_target_lookup_reads_the_seed,
+    test_a_spread_service_reads_the_seed). A call whose seeds no signature
+    names - every call that registers none of its own - keeps the variant it
+    always had. A declared read of the name is compiled as it was declared,
+    and the kernel refuses it.
+    """
+    variant = kernel_spec_variant(spec, **options)
+    names = variant.reads.names()
+    target = variant.target_selector_spec() if isinstance(variant, KernelServiceSpec) else None
+    if target is not None:
+        names = names | target.reads.names()
+    seeded = frozenset(names & seeds.reserved)
+    if not seeded:
+        return variant
+    return kernel_spec_variant(spec, **options, seeded=seeded)
+
+
 def _seeded_fields(spec: ServiceSpec[Any, Any, Any], seeded: frozenset[str]) -> frozenset[str]:
     """The input serializer's fields named in ``seeded``: what a seed the call registers takes.
 
@@ -620,11 +722,17 @@ def listed_output(
     return and reports it as one value. The declaration says that return is the
     set of rows, so the edge reports ``kind="list"`` for it and the transport
     presents it per row, once ``service_return_as_list`` has found it is one.
-    A not-found result, and every other spec, comes back as it was. Both cores
-    call it after the kernel returns, and it runs no query.
+    A not-found result, and every other spec, comes back as it was. A ``many``
+    spec's return is already its rows, so it is reported ``"list"`` whatever it
+    is, and one that is not - a ``None`` - is presented as drfs always
+    presented it rather than refused
+    (test_a_many_service_s_none_is_presented_whatever_its_output_declares). Both
+    cores call it after the kernel returns, and it runs no query.
     """
     if not isinstance(spec, ServiceSpec):
         return result
+    if spec.many:
+        return dataclasses.replace(result, kind="list")
     output = spec.output_selector_spec
     # One arc to coverage, so each condition is named by the test that fails
     # without it: test_a_retrieve_declaration_with_no_re_read_is_still_one_value
@@ -1053,9 +1161,20 @@ def _route_author_values(
                 "provider's value must never outrank a seeded one; rename the key."
             )
         provided = dict(answered)
+    # A key a filter reads and a callable hides is the parameter's alone, on its
+    # server channel, and never the filter's argument
+    # (test_the_provider_s_value_reaches_the_parameter_and_not_the_filter).
+    shadowed = _shadowed(spec)
+    channelled = {
+        server_channel(name): value
+        for name, value in {**hook_values, **provided}.items()
+        if name in shadowed
+    }
+    hook_values = {name: value for name, value in hook_values.items() if name not in shadowed}
+    provided = {name: value for name, value in provided.items() if name not in shadowed}
     hooked, hook_rest = _split_author_values(variant, arguments, hook_values, wire=wire)
     supplied, provided_rest = _split_author_values(variant, arguments, provided, wire=wire)
-    return {**hook_rest, **provided_rest}, {**hooked, **supplied}
+    return {**hook_rest, **provided_rest, **channelled}, {**hooked, **supplied}
 
 
 def _source_to_wire(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]) -> dict[str, str]:
@@ -1151,6 +1270,36 @@ def _split_author_values(
     return {argument: named[argument] for argument in routed}, {
         name: value for name, value in values.items() if name not in taken and value is not UNSET
     }
+
+
+def _on_the_server_s_channel(
+    spec: SelectorSpec[Any, Any], overlay: Mapping[str, Any]
+) -> dict[str, Any]:
+    """``overlay`` with each key a filter reads and a callable hides on its server channel.
+
+    The compiled selector takes such a parameter under ``server_channel``
+    (``as_kernel_spec``), so a route capture or a hook's value for it reaches
+    the parameter there, and the filter of the name reads the client's
+    (test_over_a_live_view_a_route_capture_reaches_the_parameter_and_not_the_filter).
+    """
+    shadowed = _shadowed(spec)
+    return {
+        server_channel(key) if key in shadowed else key: value for key, value in overlay.items()
+    }
+
+
+def _shadowed(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]) -> frozenset[str]:
+    """The names a selector spec's filter reads and one of its callables marks ``NotClientInput``.
+
+    A service spec answers none: its target lookup's server values travel as
+    the lookup's seeds rather than as the call's overlay
+    (test_a_mutation_renders_the_answers_of_its_output_selector_not_its_own
+    fails without the check). A spec with no ``filter_set`` has no filter to
+    read a name, and ``filter_set_parameters`` answers none for it.
+    """
+    if not isinstance(spec, SelectorSpec):
+        return frozenset()
+    return server_owned_keys(spec) & filter_set_parameters(spec.filter_set).names()
 
 
 def _hidden_captures(
@@ -1322,6 +1471,80 @@ def _route_filter_data(
     arguments.update({name: filter_data[name] for name in names if name in filter_data})
 
 
+def _as_its_filter_set_reads(arguments: Any, filter_set: Any) -> None:
+    """Each filter's value in ``arguments`` as its FilterSet reads one, before the kernel checks it.
+
+    The kernel types a CSV filter (``OrderingFilter``, ``BaseInFilter``,
+    ``BaseRangeFilter``) as an array, where the filter's widget reads a string
+    it splits on commas, and the schema this package serves offers an
+    ``OrderingFilter`` as one of its strings. So a string is the list the
+    widget splits it into, an empty one none, and so is each string of a list,
+    which is how a query string's value arrives
+    (test_an_ordering_takes_what_its_filter_set_reads,
+    test_over_a_live_view_an_ordering_takes_its_widget_s_string). A multiple
+    choice filter never took a bare value, so it is left to be refused
+    (test_a_multiple_choice_filter_still_refuses_a_bare_value). ``None`` for
+    any filter is no value, as the FilterSet read it: the filter narrows
+    nothing (test_none_narrows_nothing).
+    """
+    # One arc to coverage, so each operand is named:
+    # test_arguments_that_are_no_object_take_no_filter_data fails without the
+    # first, and every selector spec without a ``filter_set`` (a ``None`` has no
+    # ``base_filters`` to read) without the second.
+    if not isinstance(arguments, dict) or filter_set is None:
+        return
+    for name in filter_set_parameters(filter_set).names() & arguments.keys():
+        if arguments[name] is None:
+            del arguments[name]
+    csv = import_django_filters().BaseCSVFilter
+    for name, filter_obj in filter_set.base_filters.items():
+        value = arguments.get(name)
+        if not isinstance(filter_obj, csv):
+            continue
+        if isinstance(value, str):
+            value = [value]
+        if isinstance(value, list):
+            arguments[name] = [part for item in value for part in _csv_parts(item)]
+
+
+def _csv_parts(item: Any) -> list[Any]:
+    """What a CSV widget reads from one value: a string's comma-separated parts, ``""`` none."""
+    if not isinstance(item, str):
+        return [item]
+    return item.split(",") if item else []
+
+
+def _filter_errors_flat(detail: Any, spec: Any) -> Any:
+    """``detail`` with each filter's refusal a flat list, as its FilterSet reports one.
+
+    The kernel checks a CSV or multiple choice filter's values one by one and
+    keys a refused value by its index, where the FilterSet's form refused the
+    filter as a whole: its messages, under its name
+    (test_an_unknown_ordering_is_refused_as_the_filter_set_refuses_it,
+    test_a_target_lookup_s_filter_is_refused_as_its_filter_set_refuses_it).
+    Only the filter's names: a parameter of the selector's own keeps the
+    kernel's index (test_a_selector_s_own_list_parameter_keeps_its_refusal_at_the_index),
+    as a ``many`` spec's rows do.
+    """
+    names = filter_set_parameters(_read_filter_set(spec)).names()
+    return {
+        key: (
+            [error for errors in value.values() for error in errors]
+            if key in names and isinstance(value, Mapping)
+            else value
+        )
+        for key, value in detail.items()
+    }
+
+
+def _read_filter_set(spec: Any) -> Any:
+    """The ``filter_set`` a call's arguments reach: a selector spec's own, or its target lookup's."""
+    if isinstance(spec, SelectorSpec):
+        return spec.filter_set
+    lookup = spec.instance_selector_spec or spec.collection_selector_spec
+    return None if lookup is None else lookup.filter_set
+
+
 # id(unguarded variant) -> (a weak reference to it, its guarded twin). By identity,
 # as ``kernel_spec_variant`` keys its own: a ``Grant`` binds the compiled object.
 _GUARDED: dict[int, tuple[weakref.ref[Any], KernelSelectorSpec]] = {}
@@ -1419,7 +1642,7 @@ def edge_errors(
         drf = _drf_body_refusal(spec, params, bare_rows=bare_rows) if http else None
         if drf is not None:
             raise drf from exc
-        detail = _unexpected_as_drf(exc.detail, spec)
+        detail = _filter_errors_flat(_unexpected_as_drf(exc.detail, spec), spec)
         unwrapped = (
             _bare_rows_error(detail, spec.many_argument, params, state.row_errors)
             if bare_rows

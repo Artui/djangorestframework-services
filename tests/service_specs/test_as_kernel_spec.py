@@ -365,7 +365,8 @@ class TestReflectedReads:
             Parameter("either", "any", nullable=True, default=None),
             Parameter("mixed", "any", default=1),
             Parameter("note", "string", default="", help="A note."),
-            Parameter("untyped", "any", default=None),
+            # ``Any`` admits ``None``, as an unannotated parameter reads.
+            Parameter("untyped", "any", nullable=True, default=None),
         )
 
     def test_choices_take_their_values_json_type(self) -> None:

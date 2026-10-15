@@ -233,6 +233,14 @@ coerced to the type each filter declares before the FilterSet sees them, so
 string to coerce: a `BooleanFilter` takes `True`, and the string `"true"` is
 refused with `{"published": ["Expected a boolean."]}`.
 
+A filter taking several values comma-separated - `OrderingFilter`, `BaseInFilter`,
+`BaseRangeFilter` - takes the string its widget splits as well as a list, so
+`{"ordering": "-created,title"}` orders as `["-created", "title"]` does and `""`
+orders by nothing, off HTTP as over it. A `MultipleChoiceFilter` takes a list
+only. `None` for any filter narrows nothing. A refused value is answered as the
+`FilterSet` answers it, a flat list under the filter's name: `{"ordering":
+["Select a valid choice. bogus is not one of the available choices."]}`.
+
 ## The request inside a `filter_set`
 
 A `django-filter` `FilterSet` can reach into `self.request` — to scope by the

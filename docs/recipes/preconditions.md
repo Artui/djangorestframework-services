@@ -142,7 +142,9 @@ service's own loop, where you can report which item failed.
   deep in dispatch, which surfaces as a 500.
 - `preconditions` on a *nested* spec (`instance_selector_spec`,
   `collection_selector_spec`, `output_selector_spec`). Those never dispatch, so
-  the field would never run; it's refused rather than ignored.
+  the field would never run; it's refused rather than ignored, as is a nested
+  spec's `progress_reporter`. Registering the spec and dispatching it off HTTP
+  refuse both too.
 
 ## Telling an agent about them
 

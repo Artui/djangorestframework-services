@@ -249,6 +249,9 @@ An override can move the label and it can introduce the clash the serializer
 could not have — two fields marked `FieldMarking.label()` from two places — which
 raises `ImproperlyConfigured` naming the mount.
 
+The [example project](https://github.com/Artui/djangorestframework-services/tree/main/examples) hides `updated_at` from an agent on its retrieve
+spec with `field_audiences`, and asserts the REST response still carries it.
+
 **A project that wants two agent audiences with different visibility does not
 want this.** It wants two serializers, or a real second audience.
 `FieldAudience`'s axis is audience, not transport, and reaching for per-mount
