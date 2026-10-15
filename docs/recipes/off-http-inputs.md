@@ -255,7 +255,11 @@ those are channels the caller does not control. A route capture a target
 lookup hides is seeded for the whole call, so a service parameter of the same
 name is handed it too. For a target lookup, a registered seed of that name and the
 lookup's own provider win over the capture, and an author's value for the name
-(a view hook's or the spec's `kwargs` provider's) takes the capture's place.
+(a view hook's or an untyped `kwargs` provider's) takes the capture's place. A
+spec whose typed `kwargs` provider is annotated to fill a name the lookup reads
+is refused with `ImproperlyConfigured`, since that provider's values reach the
+service only after the target is resolved: make it untyped, or move the key to
+the lookup selector spec's own `kwargs`.
 
 **A key is server-owned for the whole call** once any callable in it marks it:
 the selector or service, any of `spec.preconditions`, or the target lookup.

@@ -36,6 +36,11 @@ project may have to change, each detailed below:
   Where the server owns the value, make the field read-only or drop it from
   the serializer, and the value reaches the service parameter of its name
   unvalidated, as before.
+- **Untype a `kwargs` provider that picks the target row.** A spec whose
+  typed `kwargs` provider is annotated to fill a name its target lookup's
+  selector reads, such as `pk`, is refused with `ImproperlyConfigured` when it
+  compiles, at registration or on every dispatch. Make the provider untyped,
+  or move the key to the lookup selector spec's own `kwargs`.
 - **Move `input_data` off a spec with no `input_serializer`.** Such a spec is
   refused with `ImproperlyConfigured` when it compiles; return the values from
   the spec's `kwargs` provider instead, and read them as service parameters.
@@ -230,8 +235,15 @@ project may have to change, each detailed below:
     which it used to receive. So a `**rest` service now also receives `view`,
     `data` with no input serializer, the validated field names with one,
     and `items` for a `many` spec.
-  - An author's `pk`, from a view hook or the spec's `kwargs` provider, picks
+  - An author's `pk`, from a view hook or an untyped `kwargs` provider, picks
     the row a target lookup reads, where the client's `pk` did.
+  - A spec whose typed `kwargs` provider is annotated to fill a name its
+    target lookup's selector reads, such as `pk`, is refused with
+    `ImproperlyConfigured` when it compiles, at registration or on every
+    dispatch, where 0.57.0 dispatched it: the provider's values reach the
+    service after the target is resolved, so the lookup would never see them.
+    Make the provider untyped, or move the key to the lookup selector spec's
+    own `kwargs`.
   - A target lookup whose selector reads a name that is also a writable
     input field, such as renaming a row by the `slug` that finds it, takes
     that name from the route's capture alone, which scopes the lookup while
@@ -239,8 +251,9 @@ project may have to change, each detailed below:
     client's value no longer scopes the lookup: the selector keeps its own
     default, and a read with none is refused as missing, `{"slug": ["This
     field is required."]}`, where 0.57.0 scoped the lookup by the client's
-    value. An author's value for the name scopes the lookup and is the
-    field's value. The compiled spec's `parameters()` refuses such a spec
+    value. A view hook's or an untyped `kwargs` provider's value for the name
+    scopes the lookup and is the field's value; a typed provider annotated to
+    fill it is refused, as for `pk`. The compiled spec's `parameters()` refuses such a spec
     with `ImproperlyConfigured`, since the kernel declares one source per
     name, while registering and dispatching it work as described.
   - A key the spec's typed `kwargs` provider is annotated to fill is never
