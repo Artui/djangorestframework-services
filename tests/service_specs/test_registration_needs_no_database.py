@@ -20,6 +20,7 @@ from typing import Any
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connection
+from django_service_specs.specs.kernel_spec import kernel_spec
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
@@ -157,6 +158,9 @@ def test_registered_before_the_table_exists_its_list_is_still_bounded() -> None:
     SpecRegistry().register("rows", spec)
 
     FAILING["how"] = None
+    # The compile registration kept has no bound, so the list serializer that
+    # validates the call is what refuses the third row.
+    assert kernel_spec(spec).many_max_length is None
     rows = [{"title": "a"}, {"title": "b"}, {"title": "c"}]
     with pytest.raises(ValidationError, match="no more than 2"):
         dispatch_spec(spec, user=None, params=rows)

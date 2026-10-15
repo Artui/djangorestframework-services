@@ -232,7 +232,9 @@ admits under `AUTO`. See
     field's value is not one of them, since a `PATCH` may leave it out. A
     required parameter of a field's name is refused with
     `ImproperlyConfigured` when the view is built; `dispatch_spec` hands it
-    the validated value.
+    the validated value. A spec with a `kwargs` provider, or a view
+    overriding a `get_*_kwargs` hook, is not checked there, since its keys
+    cannot be known before a call.
 
 ## Hiding provider-owned inputs: `NotClientInput`
 
@@ -444,7 +446,10 @@ A service parameter named like a read is handed its value by name. On a DRF
 view it needs a default, as one named like an input field does: `as_view()`
 checks a service's required parameters before any call, and a request may
 carry no query value, so a required parameter of a read's name is refused
-when the view is built. Off HTTP, `dispatch_spec` hands it the argument.
+when the view is built. Off HTTP, `dispatch_spec` hands it the argument. A
+selector's parameter is not refused: a selector takes its arguments from its
+signature, so a required one makes the read a required argument, and a request
+without it is answered `400`.
 
 The [example project](https://github.com/Artui/djangorestframework-services/tree/main/examples) declares `reads=[QueryParam("status")]` on its list
 spec and asserts the selector is handed it both ways, beside an off-HTTP

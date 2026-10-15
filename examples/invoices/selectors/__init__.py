@@ -12,8 +12,8 @@ def list_invoices(*, status: str | None = None) -> Any:
 
     ``status`` is the ``QueryParam`` the list spec declares in its ``reads``,
     handed over by name: from the query string on the live view, and as an
-    argument off HTTP. It keeps a default because a request may carry none,
-    and ``as_view()`` refuses a required parameter no call is sure to provide.
+    argument off HTTP. It keeps a default so a list with no ``?status=``
+    answers every invoice; a required one would answer it 400.
     """
     queryset = Invoice.objects.all()
     if status:

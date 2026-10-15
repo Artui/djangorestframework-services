@@ -91,9 +91,12 @@ class SerializerValidator(Validator):
       ``input_serializer_context``, each winning on a key it shares with what
       it layers over (see
       ``serializer_context`` in ``service_specs/utils.py``).
-      The callable is asked once per call, a ``many`` call's included, and
-      declares what it reads from the call's pool: ``request``, ``view``,
-      ``user``, a registered seed, or an argument.
+      The callable declares what it reads from the call's pool:
+      ``request``, ``view``, ``user``, a registered seed, or an argument. It is
+      asked once per call, a ``many`` call's included, except where the call
+      builds the serializer twice, for a body the server puts a value into or
+      a row a target lookup resolves, and what the callable is handed differs
+      between the two.
 
     A refusal is one
     [`InvalidArguments`][rest_framework_services.service_specs.invalid_arguments.InvalidArguments],

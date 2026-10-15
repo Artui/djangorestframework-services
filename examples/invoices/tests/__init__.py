@@ -13,8 +13,15 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient, APITestCase
 
 from invoices.models import Invoice
+from invoices.serializers import InvoiceSerializer
 from invoices.views import ANNOTATE_SPEC, InvoiceViewSet
-from rest_framework_services import FieldMarking, QueryParam, dispatch_spec
+from rest_framework_services import (
+    FieldAudience,
+    FieldMarking,
+    QueryParam,
+    build_audience_projection,
+    dispatch_spec,
+)
 
 
 class InvoiceFlowTests(APITestCase):
@@ -113,6 +120,13 @@ class DeclaredInputsTests(APITestCase):
         contract = InvoiceViewSet.action_specs["retrieve"].agent_contract()
         self.assertEqual(contract.field_audiences, {"updated_at": FieldMarking.hidden()})
 
+        # What an agent transport builds from it: the field is dropped there.
+        projection = build_audience_projection(
+            InvoiceSerializer, overrides=contract.field_audiences, name="get_invoice"
+        )
+        self.assertEqual(projection.audience("updated_at"), FieldAudience.HIDDEN)
+        self.assertEqual(projection.audience("customer"), FieldAudience.CONTENT)
+
         response = self.client.get(f"/invoices/{self.draft.pk}/")
         self.assertIn("updated_at", response.data)
 
@@ -120,10 +134,11 @@ class DeclaredInputsTests(APITestCase):
         spec = ANNOTATE_SPEC
 
         # A whole call needs both fields, as the POST route does.
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(ValidationError) as refused:
             dispatch_spec(
                 spec, user=AnonymousUser(), instance=self.draft, params={"notes": "Net 30"}
             )
+        self.assertIn("customer", refused.exception.detail)
 
         dispatch_spec(
             spec,
@@ -136,6 +151,12 @@ class DeclaredInputsTests(APITestCase):
         self.assertEqual((self.draft.customer, self.draft.notes), ("Acme", "Net 30"))
 
     def test_the_annotate_route_takes_a_whole_call(self) -> None:
+        response = self.client.post(
+            f"/invoices/{self.draft.pk}/annotate/", {"notes": "Net 30"}, format="json"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("customer", response.data)
+
         response = self.client.post(
             f"/invoices/{self.draft.pk}/annotate/",
             {"customer": "Acme Ltd", "notes": ""},

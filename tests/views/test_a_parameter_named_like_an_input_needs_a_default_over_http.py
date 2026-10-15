@@ -5,7 +5,10 @@ name. ``as_view()`` checks a callable's required parameters before any call,
 against the keys every call provides, and neither is one of them: a ``PATCH``
 may leave the field out, and a request may carry no query value. So a
 required parameter of either name is refused when the view is built, and one
-with a default is handed the value the call sends.
+with a default is handed the value the call sends. A spec with a ``kwargs``
+provider is not checked there, its keys being unknown before a call. A
+selector takes its arguments from its signature, so its required parameter of
+a read's name is a required argument instead.
 """
 
 from __future__ import annotations
@@ -19,6 +22,9 @@ from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
     QueryParam,
+    SelectorKind,
+    SelectorListView,
+    SelectorSpec,
     ServiceCreateView,
     ServiceSpec,
     dispatch_spec,
@@ -50,18 +56,21 @@ _REQUIRED = {"field": (_titled, (), "title"), "read": (_scoped, _READ, "scope")}
 _DEFAULTED = {"field": (_titled_or_none, ()), "read": (_scoped_or_none, _READ)}
 
 
-def _spec(service: Any, reads: tuple[QueryParam, ...]) -> ServiceSpec[Any, Any, Any]:
+def _spec(
+    service: Any, reads: tuple[QueryParam, ...], **declared: Any
+) -> ServiceSpec[Any, Any, Any]:
     return ServiceSpec(
         service=service,
         input_serializer=_In,
         reads=reads,
         permission_classes=[],
         atomic=False,
+        **declared,
     )
 
 
-def _view(spec: ServiceSpec[Any, Any, Any]) -> Any:
-    return type("_View", (ServiceCreateView,), {"spec": spec, "permission_classes": []})
+def _view(spec: Any, base: type = ServiceCreateView) -> Any:
+    return type("_View", (base,), {"spec": spec, "permission_classes": []})
 
 
 @pytest.mark.parametrize("named", list(_REQUIRED))
@@ -96,3 +105,31 @@ def test_with_a_default_it_is_handed_the_value_over_http(
 
     assert response.status_code == 201
     assert response.data == expected
+
+
+@pytest.mark.parametrize("named", list(_REQUIRED))
+def test_with_a_kwargs_provider_it_is_not_checked_when_the_view_is_built(named: str) -> None:
+    service, reads, _name = _REQUIRED[named]
+
+    _view(_spec(service, reads, kwargs=lambda: {})).as_view()
+
+
+def _listed(*, scope: str) -> list[Any]:
+    return [{"title": scope}]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(("query", "status"), [("?scope=s", 200), ("", 400)])
+def test_a_selectors_required_read_is_a_required_argument(query: str, status: int) -> None:
+    spec = SelectorSpec(
+        kind=SelectorKind.LIST,
+        selector=_listed,
+        output_serializer=_In,
+        reads=_READ,
+        permission_classes=[],
+    )
+
+    response = _view(spec, SelectorListView).as_view()(APIRequestFactory().get(f"/{query}"))
+
+    assert response.status_code == status
+    assert (response.data == [{"title": "s"}]) if status == 200 else ("scope" in response.data)
