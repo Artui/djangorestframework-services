@@ -123,10 +123,12 @@ Being the kernel's changes what a few of them refuse, each where it is built:
 
 Dispatch refuses a missing marked key as the kernel's `InvalidArguments`,
 `{"code": ["This field is required."]}`, wherever the key is caller input: a
-selector's, a target lookup's, and a serializer-less
-service's own parameters under `SPREAD_AUTHOR_WINS`. Under `AUTO` or `BUNDLE`
-such a service's parameters are no caller input, so a marker on one is not
-enforced. See
+target lookup's, a selector's under `AUTO` or `SPREAD_AUTHOR_WINS`, and a
+serializer-less service's own parameters under `SPREAD_AUTHOR_WINS`. Under
+`BUNDLE`, which a selector view dispatches, a selector's parameters are no
+caller input, and under `AUTO` or `BUNDLE` neither are such a service's, so a
+marker on one is not enforced: a parameter nothing fills is the callable's own
+`TypeError`. A declared `reads=` entry is caller input under every binding. See
 [what a caller could fill](../recipes/off-http-inputs.md#requiredness-inputrequired).
 
 ::: rest_framework_services.types.input_required
