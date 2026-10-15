@@ -204,7 +204,7 @@ def _service(
     _refuse_reads_named_like_fields(spec, lookup_reads=frozenset(taken))
     reads = _merge(
         # A seed of the call fills its name (test_a_spread_service_reads_the_seed).
-        _reflected(spec.service, hidden=hidden | seeded)
+        _spread_signature(spec, hidden=hidden | seeded)
         if _takes_its_signature(spec, spread)
         else [],
         [parameter for parameter in declared if parameter.name not in taken],
@@ -418,6 +418,53 @@ def _as_it_runs(fn: Any) -> Any:
     test_a_spread_service_s_wrapper_fills_the_parameter).
     """
     return left_to_the_callable(fn) if fills_its_own(fn) else fn
+
+
+def _spread_signature(spec: Any, *, hidden: frozenset[str]) -> list[Parameter]:
+    """A spread service's parameters, and its preconditions' beside a bare ``**kwargs``.
+
+    A bare ``**kwargs`` declares every name, so a precondition's parameter is
+    one the caller sends, as on 0.57.0
+    (test_the_caller_s_value_reaches_the_precondition), each name once, in the
+    service's declaration where it names it too
+    (test_two_preconditions_naming_one_parameter_share_the_caller_s_value,
+    test_a_parameter_the_service_names_too_is_the_service_s_declaration). A
+    service closing its signature, by named parameters alone or an
+    ``Unpack``-ed ``TypedDict``, declares none
+    (test_a_closed_service_declares_no_precondition_parameter, its ``named``
+    and ``typed-dict`` cases). A name the server owns is never one
+    (test_a_name_the_server_owns_never_takes_the_caller_s_value), and the
+    caller skips the target lookup's reads
+    (test_a_read_of_the_target_lookup_stays_the_lookup_s).
+    """
+    reflected = _reflected(spec.service, hidden=hidden)
+    if not _takes_any_name(spec.service):
+        return reflected
+    names = set(_names(reflected))
+    for precondition in spec.preconditions or ():
+        for parameter in _reflected(precondition, hidden=hidden):
+            if parameter.name not in names:
+                names.add(parameter.name)
+                reflected.append(parameter)
+    return reflected
+
+
+def _takes_any_name(fn: Callable[..., Any]) -> bool:
+    """Whether ``fn`` takes a bare ``**kwargs``, which declares every name.
+
+    An annotated one that is no ``Unpack``-ed ``TypedDict`` reads as bare, as
+    ``_reflected`` reads it, one whose annotation cannot be resolved included
+    (test_an_annotation_that_cannot_be_resolved_reads_as_open). One arc to
+    coverage, so each conjunct is named: the ``named`` case of
+    test_a_closed_service_declares_no_precondition_parameter fails without the
+    first, and its ``typed-dict`` case without the second.
+    """
+    hints = callable_type_hints(fn)
+    return any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        and unpack_typed_dict(hints.get(name)) is None
+        for name, parameter in inspect.signature(fn).parameters.items()
+    )
 
 
 def lookup_keys_the_service_names(spec: Any, lookup_reads: Iterable[str]) -> frozenset[str]:
