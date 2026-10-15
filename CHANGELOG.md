@@ -115,6 +115,17 @@ project may have to change, each detailed below:
   it as `kwargs["pk"]` raises `KeyError`, a `500` where 0.57.0 answered `200`.
   Name the capture as a keyword parameter, or declare it in the spec's
   `reads` as a `UrlKwarg`.
+- **Import a spreading service's `**kwargs` `TypedDict` at runtime when its
+  target lookup filters.** Dispatched with `SPREAD_AUTHOR_WINS` and
+  `UnknownArguments.REJECT`, a serializer-less service whose `**kwargs` is
+  annotated `Unpack[...]` of a `TypedDict` imported only under
+  `if TYPE_CHECKING:` raises `ImproperlyConfigured`
+  (`UnknownArguments.REJECT cannot be enforced: ...`) when its target lookup
+  declares a `filter_set`, off HTTP and over a live view, where 0.57.0
+  dispatched it and handed the service the caller's keys. Import the
+  `TypedDict` normally, or name each key the service accepts as a keyword
+  parameter; either way the service receives them. Dispatching with `UnknownArguments.IGNORE`, which the message
+  also offers, runs the call but hands the service none of those keys.
 - **Scope a target lookup by its route capture.** A lookup reading a name
   that is also a writable input field, such as `slug`, no longer takes the
   body's value for it: without a capture the lookup keeps its own default,
@@ -441,6 +452,12 @@ project may have to change, each detailed below:
   - Off HTTP under `REJECT`, an argument sent beside a `many_argument` list is
     refused before the rows are read, where 0.57.0 answered the rows' errors
     first.
+  - Under `REJECT` and `SPREAD_AUTHOR_WINS`, a serializer-less service whose
+    `**kwargs: Unpack[...]` names a `TypedDict` the runtime cannot resolve
+    raises `ImproperlyConfigured` at dispatch when its target lookup
+    (`instance_selector_spec` or `collection_selector_spec`) declares a
+    `filter_set`, off HTTP and over a live view, where 0.57.0 dispatched it
+    and handed the service the caller's keys.
 - **Breaking: a value a view hook or the spec's `kwargs` provider gives for an
   input-serializer field decides that field, and is validated by it.** A key
   naming a field of `input_serializer`, by its name or by its `source`, is

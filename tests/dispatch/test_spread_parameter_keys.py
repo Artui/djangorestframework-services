@@ -164,7 +164,12 @@ class _TitleFilter(django_filters.FilterSet):
 
 def test_an_open_lookup_leaves_the_set_open_before_the_service_is_read() -> None:
     """The lookup is read first, so an unresolvable service surface beside an
-    open lookup raises nothing: the set is open whatever the service declares."""
+    open lookup raises nothing here: the set is open whatever the service declares.
+
+    This is ``declared_input_keys`` alone. Dispatching the same spec under
+    ``REJECT`` and ``SPREAD_AUTHOR_WINS`` raises ``ImproperlyConfigured``
+    (test_reject_beside_a_filtered_lookup_cannot_be_held_to_unresolvable_extras).
+    """
     open_lookup = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_by_pk, filter_set=_TitleFilter)
     spec = ServiceSpec(service=_close_for_tenant, instance_selector_spec=open_lookup, atomic=False)
 
