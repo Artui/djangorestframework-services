@@ -49,6 +49,8 @@ from rest_framework_services.service_specs.utils import (
     describe_serializer,
     edge_call_state,
     input_parameters,
+    serializer_context,
+    takes_the_whole_pool,
     writable_input_names,
     write_form_value,
 )
@@ -189,6 +191,33 @@ def prepare_edge_call(
     state.view_hooks = hooks
     # One object for the whole call: a ``Grant`` binds its principal by identity.
     principal = user if user is not None else unauthenticated_user()
+    ambient = {"request": request, "view": view}
+
+    provider = spec.input_serializer_context if isinstance(spec, ServiceSpec) else None
+
+    def describe_context(*, whole_pool: bool = False) -> dict[str, Any] | None:
+        # Asked again only for a serializer its description could not build,
+        # and answered only where a callable taking ``**kwargs`` was left out
+        # of it. One arc to coverage, so each condition is named with the test
+        # that fails without it: without ``whole_pool`` every description is
+        # answered ``None`` (test_a_live_view_scopes_the_field_to_the_caller),
+        # without the ``None`` check a spec with no callable has its own
+        # failure replaced (test_a_serializer_that_fails_is_not_hidden_at_dispatch),
+        # and without the ``**kwargs`` check a callable naming a seed the
+        # description lacks is asked for it
+        # (test_a_callable_needing_a_seed_is_never_asked_by_a_description).
+        if whole_pool and (provider is None or not takes_the_whole_pool(provider)):
+            return None
+        return serializer_context(
+            principal,
+            ambient,
+            params,
+            view_layers=hooks.input_serializer_context,
+            provider=provider,
+            describing=not whole_pool,
+        )
+
+    state.describe_context = describe_context
     shared: dict[str, Any] = {
         "principal": principal,
         "unknown_arguments": enforceable_policy(spec, unknown_arguments, argument_binding),

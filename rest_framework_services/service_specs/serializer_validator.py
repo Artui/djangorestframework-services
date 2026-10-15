@@ -349,6 +349,10 @@ class SerializerValidator(Validator):
         (test_input_data_for_a_read_only_field_holds_no_server_value_off_http),
         and a flattened field keeps its own name alone, never a key it spreads
         (test_a_server_value_for_a_flattened_field_keeps_none_of_the_keys_it_spreads).
+        What is kept is taken off after an owned name's ``source`` is added, so a
+        provider owning a wire name and filling its ``source`` keeps that
+        (test_a_source_the_provider_fills_is_kept_when_it_owns_the_wire_name_off_http,
+        which fails with the two steps the other way round).
         """
         owned = self.server_owned | provider_owned(self)
         owned = owned.union(*(_sources(serializer, name) for name in owned)).difference(kept)
@@ -569,7 +573,10 @@ def _sources(serializer: serializers.Serializer, name: str) -> tuple[str, ...]:
     test_a_client_value_for_a_hidden_wire_name_reaches_neither_parameter). A
     dotted ``source`` owns the key its value is nested under, as 0.57.0 left
     that parameter its default
-    (test_an_owned_wire_name_over_a_dotted_source_owns_the_key_it_nests_under).
+    (test_an_owned_wire_name_over_a_dotted_source_owns_the_key_it_nests_under),
+    and no deeper one, which another field may take from the client
+    (test_a_dotted_source_owns_the_key_it_nests_under_and_no_deeper_one, which
+    fails without the slice).
     A name no field has adds none
     (test_the_specs_provider_outranks_the_validators_over_http).
     """

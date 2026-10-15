@@ -103,7 +103,8 @@ project may have to change, each detailed below:
   declare, or `None` when both are empty. `reads=[UrlKwarg(...), QueryParam(...)]` declares the route
   captures and query values a spec reads, each a parameter of the compiled
   spec, so the schema lists it and `REJECT` admits it. A target lookup's
-  `reads` are read exactly as the spec's own are. On a live DRF view a
+  `reads` are read exactly as the spec's own are, each a parameter of the
+  lookup with the type it declares. On a live DRF view a
   declared `UrlKwarg` is read from the route alone and a `QueryParam` from the
   query string alone: a body value of that name is neither the argument nor
   written onto `view.kwargs` or `request.query_params`, which the view's
@@ -117,7 +118,8 @@ project may have to change, each detailed below:
   would hand that callable the client's value under a name it keeps the
   server's. A name only a target lookup marks `NotClientInput` is accepted
   and is the service's argument. A read named like a writable field of the
-  input serializer, on the spec or its target lookup, is refused too, since
+  input serializer, on the spec or its target lookup, is refused too (a
+  read-only field and a `HiddenField` take nothing from the body), since
   the body's value of that name is the field's and the read would reach
   nothing, except a `UrlKwarg` the target lookup reads: that renames a row by
   the key that finds it, the route's capture scoping the lookup, and off HTTP
@@ -461,6 +463,10 @@ project may have to change, each detailed below:
 - **Presenting output.** `SerializerPresenter` projects no marking onto a
   write-only field, and refuses a `field_audiences` name that matches no
   output field.
+- **A Manager from a list selector is answered as a queryset.** A LIST
+  selector returning `Model.objects` hands back its `.all()`, unpaginated
+  too, where 0.57.0 handed back the Manager itself. So an unpaginated Manager
+  now meets a transport's row ceiling, as a queryset does.
 
 ### Removed
 

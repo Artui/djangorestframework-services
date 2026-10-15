@@ -305,7 +305,16 @@ The callable declares what it reads, as every spec callable does:
 
 A key it answers with `UNSET` is declined and keeps the layer beneath. The
 input callable is asked once per call, a `many` call included, where the rows
-are validated together.
+are validated together. Two calls ask it twice, because the input is described
+before it is validated:
+
+- one whose callable reads an argument the spec's `kwargs` provider puts a
+  server's value over is asked with the value sent, to describe the input,
+  and with the server's, to validate it;
+- one whose callable takes `**kwargs` is left out of the description, which
+  holds none of the call's seeds, unless the input serializer cannot be built
+  without its keys; then it is asked over what the description holds, and
+  again over the whole pool to validate.
 
 **A set is presented row by row.** The kernel's `present` renders a list, and
 a `many` service's output, one row at a time, so the output callable is asked

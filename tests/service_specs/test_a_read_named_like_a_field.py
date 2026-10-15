@@ -10,18 +10,27 @@ dispatch as declared by two sources.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import pytest
+from asgiref.sync import async_to_sync
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework import serializers
+from rest_framework.request import Request
+from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
+    DispatchResult,
+    OfflineServiceView,
     QueryParam,
     SelectorKind,
     SelectorSpec,
+    ServiceCreateView,
     ServiceSpec,
     UrlKwarg,
+    adispatch_spec,
+    dispatch_spec,
 )
 from rest_framework_services.registry.spec_registry import SpecRegistry
 from tests.testapp.models import Post
@@ -33,6 +42,20 @@ class _TitleIn(serializers.Serializer):
 
 class _ReadOnlyTitleIn(serializers.Serializer):
     title = serializers.CharField(read_only=True)
+    body = serializers.CharField()
+
+
+class _FromTheRoute:
+    """A field default read from the view's route, as a hidden scope is."""
+
+    requires_context = True
+
+    def __call__(self, field: serializers.Field) -> Any:
+        return field.context["view"].kwargs.get("title", "D-route")
+
+
+class _HiddenTitleIn(serializers.Serializer):
+    title = serializers.HiddenField(default=_FromTheRoute())
     body = serializers.CharField()
 
 
@@ -99,32 +122,34 @@ def _register(spec: ServiceSpec[Any, Any, Any]) -> None:
     [
         pytest.param(
             _spec(reads=(QueryParam("title"),), lookup=_reading),
-            r"ServiceSpec\.reads declares QueryParam\('title'\), which _TitleIn also takes "
-            r"as a writable field and the target lookup reads\.",
+            r"ServiceSpec\.reads declares QueryParam\('title'\), which the input serializer "
+            r"_TitleIn also takes as a writable field and the target lookup reads\.",
             id="query-param-the-lookup-reads",
         ),
         pytest.param(
             _spec(reads=(QueryParam("title"),)),
-            r"ServiceSpec\.reads declares QueryParam\('title'\), which _TitleIn also takes "
-            r"as a writable field\.",
+            r"ServiceSpec\.reads declares QueryParam\('title'\), which the input serializer "
+            r"_TitleIn also takes as a writable field\.",
             id="query-param",
         ),
         pytest.param(
             _spec(reads=(UrlKwarg("title"),), lookup=_not_reading),
-            r"ServiceSpec\.reads declares UrlKwarg\('title'\), which _TitleIn also takes "
-            r"as a writable field\.",
+            r"ServiceSpec\.reads declares UrlKwarg\('title'\), which the input serializer "
+            r"_TitleIn also takes as a writable field\.",
             id="url-kwarg-no-lookup-reads",
         ),
         pytest.param(
             _spec(lookup=_reading, lookup_reads=(QueryParam("title"),)),
             r"ServiceSpec\.instance_selector_spec\.reads declares QueryParam\('title'\), "
-            r"which _TitleIn also takes as a writable field and the target lookup reads\.",
+            r"which the input serializer _TitleIn also takes as a writable field and the "
+            r"target lookup reads\.",
             id="the-lookups-query-param",
         ),
         pytest.param(
             _over_a_collection((QueryParam("title"),)),
             r"ServiceSpec\.collection_selector_spec\.reads declares QueryParam\('title'\), "
-            r"which _TitleIn also takes as a writable field and the target lookup reads\.",
+            r"which the input serializer _TitleIn also takes as a writable field and the "
+            r"target lookup reads\.",
             id="the-collection-lookups-query-param",
         ),
     ],
@@ -152,6 +177,9 @@ def test_a_read_named_like_a_writable_field_is_refused(
         pytest.param(
             _spec(reads=(QueryParam("title"),), serializer=_ReadOnlyTitleIn), id="read-only-field"
         ),
+        pytest.param(
+            _spec(reads=(UrlKwarg("title"),), serializer=_HiddenTitleIn), id="hidden-field"
+        ),
         pytest.param(_spec(reads=(QueryParam("title"),), many=True), id="a-rows-field"),
         pytest.param(
             _over_a_collection((UrlKwarg("title"),)), id="the-collection-lookups-url-kwarg"
@@ -175,3 +203,51 @@ class _RequestReadingIn(serializers.Serializer):
 
 def test_a_spec_declaring_no_read_registers_without_describing_its_serializer() -> None:
     _register(_spec(serializer=_RequestReadingIn))
+
+
+def _hidden(seen: dict[str, Any]) -> ServiceSpec[Any, Any, Any]:
+    def service(*, data: Any) -> None:
+        seen["data"] = dict(data)
+
+    return ServiceSpec(
+        service=service,
+        input_serializer=_HiddenTitleIn,
+        reads=(UrlKwarg("title"),),
+        permission_classes=[],
+        atomic=False,
+    )
+
+
+def test_a_hidden_field_reads_the_url_kwarg_of_its_name_from_a_live_route() -> None:
+    seen: dict[str, Any] = {}
+    view = type("_View", (ServiceCreateView,), {"permission_classes": [], "spec": _hidden(seen)})
+    request = APIRequestFactory().post("/", {"body": "b", "title": "from-body"}, format="json")
+
+    response = view.as_view()(request, title="from-route")
+
+    assert response.status_code == 204, response.data
+    assert seen == {"data": {"body": "b", "title": "from-route"}}
+
+
+@pytest.mark.parametrize(
+    "dispatch",
+    [dispatch_spec, lambda *a, **k: async_to_sync(adispatch_spec)(*a, **k)],
+    ids=["sync", "async"],
+)
+def test_off_http_the_url_kwarg_a_hidden_field_reads_is_written_to_the_route(
+    dispatch: Callable[..., DispatchResult],
+) -> None:
+    """The argument is the route capture a transport was handed, as for any ``UrlKwarg``."""
+    seen: dict[str, Any] = {}
+    view = OfflineServiceView(request=Request(APIRequestFactory().post("/")), kwargs={})
+
+    dispatch(
+        _hidden(seen),
+        user=None,
+        params={"body": "b", "title": "sent"},
+        request=view.request,
+        view=view,
+    )
+
+    assert view.kwargs == {"title": "sent"}
+    assert seen == {"data": {"body": "b", "title": "sent"}}

@@ -11,7 +11,7 @@ name keeps the client's value out of the ``source``'s parameter the same way.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any, TypedDict, cast
 
 import pytest
 from asgiref.sync import async_to_sync
@@ -260,6 +260,34 @@ def test_a_client_value_for_a_hidden_wire_name_reaches_neither_parameter_off_htt
     assert seen == _DECLINED
 
 
+class _BesideItsInnerKey(serializers.Serializer):
+    addr = serializers.CharField(source="loc.city", required=False)
+    city = serializers.CharField(required=False)
+
+
+@pytest.mark.parametrize("fmt", ["json", "multipart"])
+def test_a_dotted_source_owns_the_key_it_nests_under_and_no_deeper_one(fmt: str) -> None:
+    """``loc.city`` is nested under ``loc``: a field of its own named ``city`` stays the client's."""
+    seen: dict[str, Any] = {}
+
+    def service(
+        *,
+        data: Any,
+        addr: Annotated[Any, NotClientInput] = "D-addr",
+        loc: Any = "D-loc",
+        city: Any = "D-city",
+    ) -> None:
+        seen.update(addr=addr, loc=loc, city=city)
+
+    spec = ServiceSpec(service=service, input_serializer=_BesideItsInnerKey, atomic=False)
+    view = type("_View", (ServiceCreateView,), {"permission_classes": [], "spec": spec})
+
+    response = view.as_view()(_factory.post("/", {"addr": "x", "city": "client"}, format=fmt))
+
+    assert response.status_code == 204, response.data
+    assert seen == {"addr": "D-addr", "loc": "D-loc", "city": "client"}
+
+
 class _NestedIn(serializers.Serializer):
     tenant = serializers.CharField(source="org.name", required=False)
 
@@ -295,3 +323,50 @@ def test_an_owned_wire_name_over_a_dotted_source_owns_the_key_it_nests_under(
 
     assert response.status_code == 204, response.data
     assert seen == {"org": "D-org", "tenant": "D-tenant", "data": {"org": {"name": "evil"}}}
+
+
+def _declines_the_wire_name_and_fills_the_source() -> _OwnsTheWireName:
+    return cast(_OwnsTheWireName, {"tenant": UNSET, "org": "srv-org"})
+
+
+def _keeping_the_source(seen: dict[str, Any]) -> ServiceSpec[Any, Any, Any]:
+    def service(*, data: Any, org: Any = "D-org", tenant: Any = "D-tenant") -> None:
+        seen.update(org=org, tenant=tenant, data=dict(data))
+
+    return ServiceSpec(
+        service=service,
+        input_serializer=_SourcedIn,
+        kwargs=_declines_the_wire_name_and_fills_the_source,
+        atomic=False,
+    )
+
+
+# Owning the wire name owns its source, unless the provider gave the source a
+# value of its own: that one it keeps, as a value named by the source is.
+_KEPT = {"org": "srv-org", "tenant": "D-tenant", "data": {"org": "srv-org"}}
+
+
+@pytest.mark.parametrize("fmt", ["json", "multipart"])
+def test_a_source_the_provider_fills_is_kept_when_it_owns_the_wire_name_over_http(
+    fmt: str,
+) -> None:
+    seen: dict[str, Any] = {}
+    spec = _keeping_the_source(seen)
+    view = type("_View", (ServiceCreateView,), {"permission_classes": [], "spec": spec})
+
+    response = view.as_view()(_factory.post("/", {"tenant": "evil"}, format=fmt))
+
+    assert response.status_code == 204, response.data
+    assert seen == _KEPT
+
+
+@_CORES
+@_BODY
+def test_a_source_the_provider_fills_is_kept_when_it_owns_the_wire_name_off_http(
+    dispatch: Dispatch, body: Callable[[dict[str, Any]], Any]
+) -> None:
+    seen: dict[str, Any] = {}
+
+    dispatch(_keeping_the_source(seen), params=body({"tenant": "evil"}))
+
+    assert seen == _KEPT
