@@ -757,7 +757,10 @@ def edge_arguments(
     may capture; a declared ``UrlKwarg`` the caller sent and an offline view
     does not carry goes onto ``view.kwargs``, so a provider reading it there
     finds it. A live DRF view's route is its URLconf's alone (``over_http``).
-    Each declared ``QueryParam`` the same way with ``request.query_params``.
+    Each declared ``QueryParam`` the same way with ``request.query_params``,
+    except that a live view's is read from its query string alone: the
+    caller's value of that name is dropped rather than outranking it, as a
+    route capture is never outranked either.
     Arguments that are no mapping are handed on as they are, for the kernel's
     shape check to refuse.
     """
@@ -785,6 +788,13 @@ def edge_arguments(
                     route[name] = arguments[name]
     queried = [entry.name for entry in declared if isinstance(entry, QueryParam)]
     query = getattr(request, "query_params", None)
+    if over_http(view):
+        # A live view's query string is the client's URL, which its permission
+        # classes have already read, so a declared ``QueryParam`` is read from
+        # it alone: a body value of that name is neither the argument nor
+        # written there (test_a_body_value_never_reaches_a_live_requests_query_string).
+        for name in queried:
+            arguments.pop(name, None)
     if queried and isinstance(query, QueryDict):
         sent = {name: arguments[name] for name in queried if name in arguments}
         absent = [name for name in queried if name not in arguments and name in query]
