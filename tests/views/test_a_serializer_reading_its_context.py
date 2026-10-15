@@ -503,8 +503,10 @@ def test_a_context_callable_reading_an_argument_validates_with_the_server_s_valu
 ) -> None:
     """The description reads the body as sent; the serializer that validates, the value put over it."""
     seen: dict[str, Any] = {}
+    asked: list[str] = []
 
     def provider(title: str = "none") -> dict[str, Any]:
+        asked.append(title)
         return {"tenant": title}
 
     spec = _spec(
@@ -517,6 +519,8 @@ def test_a_context_callable_reading_an_argument_validates_with_the_server_s_valu
     dispatch(spec, user=owner, params={"title": "client"}, request=view.request, view=view)
 
     assert seen == {"data": {"title": "server", "tenant": "server"}}
+    # Asked for each value it was handed: the one sent, and the one put over it.
+    assert asked == ["client", "server"]
 
 
 def test_a_kernel_call_inside_the_service_asks_its_own_context_callable(owner: User) -> None:
@@ -608,6 +612,108 @@ def test_a_context_callable_taking_the_whole_pool_is_asked_once(
 
     assert seen == {"data": {"title": "t", "tenant": "seeded"}}
     assert asked == [None]
+
+
+def _whole_pool(asked: list[None], **answer: str) -> Any:
+    def provider(**pool: Any) -> dict[str, Any]:
+        asked.append(None)
+        return answer
+
+    return provider
+
+
+@_LIVE
+def test_a_live_view_describes_a_serializer_needing_a_whole_pool_callable(
+    live: Callable[..., Any], owner: User
+) -> None:
+    """A serializer that cannot be built without the callable's keys has it asked to describe.
+
+    The description holds no seed, so it is asked over what the description
+    has, and asked again over the whole pool by the serializer that validates.
+    """
+    seen: dict[str, Any] = {}
+    asked: list[None] = []
+
+    spec = _from_the_spec(_ScopedByTheSpec, seen, _whole_pool(asked, tenant="acme"))
+    assert live(spec, {"title": "t"}, owner).status_code == 204
+    assert seen == {"data": {"title": "t", "tenant": "acme"}}
+    assert asked == [None, None]
+
+    spec = _from_the_spec(_FieldsFromTheSpec, seen, _whole_pool(asked, field="name"))
+    assert live(spec, {"name": "n"}, owner).status_code == 204
+    assert seen == {"data": {"name": "n"}}
+
+
+@_CORES
+@pytest.mark.parametrize("over", ["an-offline-view", "no-view"])
+def test_off_http_a_serializer_needing_a_whole_pool_callable_is_described(
+    dispatch: Callable[..., DispatchResult], over: str, owner: User
+) -> None:
+    seen: dict[str, Any] = {}
+    asked: list[None] = []
+    view = _offline(owner) if over == "an-offline-view" else None
+    ambient = {"request": view.request, "view": view} if view is not None else {}
+
+    spec = _from_the_spec(_ScopedByTheSpec, seen, _whole_pool(asked, tenant="acme"))
+    dispatch(spec, user=owner, params={"title": "t"}, **ambient)
+    assert seen == {"data": {"title": "t", "tenant": "acme"}}
+    assert asked == [None, None]
+
+    spec = _from_the_spec(_FieldsFromTheSpec, seen, _whole_pool(asked, field="name"))
+    dispatch(spec, user=owner, params={"name": "n"}, **ambient)
+    assert seen == {"data": {"name": "n"}}
+
+
+_READS = {
+    "a-missing-key": lambda context: context["tenant"],
+    "an-attribute-of-none": lambda context: context.get("tenant").upper(),
+    "an-operand-of-none": lambda context: "@" + context.get("tenant"),
+}
+
+
+@pytest.mark.parametrize("read", list(_READS))
+def test_a_serializer_failing_any_way_without_a_whole_pool_callable_is_described(
+    read: str, owner: User
+) -> None:
+    """``KeyError``, ``AttributeError`` and ``TypeError`` are each how a read of an absent key fails."""
+    seen: dict[str, Any] = {}
+
+    class _ReadsTheTenant(serializers.Serializer):
+        title = serializers.CharField()
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            self.fields["title"].help_text = _READS[read](self.context)
+
+    view = _offline(owner)
+    spec = _from_the_spec(_ReadsTheTenant, seen, _whole_pool([], tenant="acme"))
+    _sync(spec, user=owner, params={"title": "t"}, request=view.request, view=view)
+
+    assert seen == {"data": {"title": "t"}}
+
+
+@_CORES
+def test_a_callable_needing_a_seed_is_never_asked_by_a_description(
+    dispatch: Callable[..., DispatchResult], owner: User
+) -> None:
+    """Only a callable taking ``**kwargs`` is asked again: one naming a seed cannot be."""
+    asked: list[str] = []
+
+    def provider(*, tenant: str) -> dict[str, Any]:
+        asked.append(tenant)
+        return {"tenant": tenant}
+
+    view = _offline(owner)
+    with pytest.raises(KeyError, match="tenant"):
+        dispatch(
+            _from_the_spec(_ScopedByTheSpec, {}, provider),
+            user=owner,
+            params={"title": "t"},
+            request=view.request,
+            view=view,
+            pool_seeds=PoolSeeds(seeds=(("tenant", lambda: "seeded"),)),
+        )
+    assert asked == []
 
 
 @_CORES

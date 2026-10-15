@@ -100,14 +100,38 @@ def describe_serializer(declaration: Any) -> serializers.Serializer:
     reading ``self.context["request"]`` finds the key and reads ``None``,
     rather than raising ``KeyError`` from a schema while dispatch would have
     rendered it. What the serializer raises while it is described is raised as
-    it is (test_a_serializer_that_fails_is_not_hidden_at_dispatch).
+    it is (test_a_serializer_that_fails_is_not_hidden_at_dispatch, which fails
+    if a serializer is rebuilt where the call has no callable taking
+    ``**kwargs`` to ask).
+
+    A spec's context callable taking ``**kwargs`` is left out of a description,
+    which holds none of the call's seeds, unless the serializer cannot be built
+    without it: then it is asked over what the description holds, and the
+    serializer built once more with its answer. So it is asked twice in such a
+    call, once to describe and once over the whole pool to validate, where the
+    serializer that validates alone asked it before
+    (test_a_live_view_describes_a_serializer_needing_a_whole_pool_callable,
+    test_off_http_a_serializer_needing_a_whole_pool_callable_is_described).
     """
     describe = edge_call_state().describe_context
     if describe is None:
         return bind_serializer(
             declaration, context=base_serializer_context(view=None, request=None)
         )
-    return bind_serializer(declaration, context=describe())
+    try:
+        described = bind_serializer(declaration, context=describe())
+        # DRF builds the fields when they are first read; they are read here, so
+        # a ``get_fields`` the description cannot answer fails where it can
+        # still be asked again (the ``_FieldsFromTheSpec`` half of each test).
+        _fields = described.fields
+        return described
+    except (AttributeError, KeyError, TypeError):
+        # How a read of a key the description lacks fails, each held by its case
+        # of test_a_serializer_failing_any_way_without_a_whole_pool_callable_is_described.
+        asked = describe(whole_pool=True)
+        if asked is None:
+            raise
+        return bind_serializer(declaration, context=asked)
 
 
 def writable_input_names(spec: Any) -> frozenset[str]:
@@ -196,10 +220,12 @@ class EdgeCallState:
       refused, as the installed DRF reports it, which the edge answers with
       in place of the kernel's rows (``edge_errors``).
     - ``describe_context``: builds the serializer context the call's input
-      serializer is described with, its request, its view and the view's
-      input layers, as the Validator binds it less the spec's own context
-      callable, which may declare an argument (``describe_serializer``). Built
-      when a description asks, so a call describing nothing builds none.
+      serializer is described with, its request, its view, the view's input
+      layers and the spec's own context callable where the description can ask
+      it, as the Validator binds it (``describe_serializer``). Asked with
+      ``whole_pool=True``, it asks a callable taking ``**kwargs`` over what the
+      description holds, or answers ``None`` where there is none. Built when a
+      description asks, so a call describing nothing builds none.
     - ``base_context``: the request and view a serializer of the call was last
       built for, and the baseline context the view answered for them, so the
       view is asked once for every serializer of the call
@@ -226,7 +252,7 @@ class EdgeCallState:
     provider_owned: frozenset[str] = frozenset()
     body_rows: bool = False
     row_errors: Any = None
-    describe_context: Callable[[], dict[str, Any]] | None = None
+    describe_context: Callable[..., dict[str, Any] | None] | None = None
     base_context: tuple[Any, Any, dict[str, Any]] | None = None
     context_answers: dict[tuple[Any, ...], tuple[Any, Mapping[str, Any]]] = dataclasses.field(
         default_factory=dict
@@ -479,21 +505,30 @@ def _answerable(fn: Callable[..., Any], pool: Mapping[str, Any]) -> bool:
     description's pool lacks the call's seeds, so it is asked by the
     serializer that validates alone, once, as it was handed the whole pool
     once (test_a_context_callable_taking_the_whole_pool_is_asked_once, which
-    fails without the check). A parameter named with no default must be in
+    fails without the check), unless the serializer cannot be described
+    without it (``describe_serializer``). A parameter named with no default must be in
     ``pool``: without the default check the ``a-default`` case of
     test_a_context_callable_the_description_can_answer_describes fails, and
     without the kind check, which a ``*args`` with no default fails, its
     ``positional-rest`` case.
     """
-    parameters = inspect.signature(fn).parameters.values()
-    if any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters):
+    if takes_the_whole_pool(fn):
         return False
+    parameters = inspect.signature(fn).parameters.values()
     return all(
         parameter.name in pool
         for parameter in parameters
         if parameter.default is inspect.Parameter.empty
         and parameter.kind
         in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    )
+
+
+def takes_the_whole_pool(fn: Callable[..., Any]) -> bool:
+    """Whether ``fn`` takes ``**kwargs``, and so is handed every name of its pool."""
+    return any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in inspect.signature(fn).parameters.values()
     )
 
 
