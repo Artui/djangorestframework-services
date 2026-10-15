@@ -14,7 +14,7 @@ Every case runs through both cores, because the flag is threaded through each.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from asgiref.sync import sync_to_async
@@ -322,6 +322,42 @@ def test_over_a_live_view_rows_under_an_argument_are_refused_as_off_http(
         else {1: {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}}
     )
     assert refusal == {"items": expected}
+
+
+class _CountedLine(_Line):
+    """Records each row it is handed to read."""
+
+    read: ClassVar[list[Any]] = []
+
+    def to_internal_value(self, data: Any) -> Any:
+        _CountedLine.read.append(data)
+        return super().to_internal_value(data)
+
+
+def test_over_a_live_view_a_row_the_kernel_refused_is_not_read_again() -> None:
+    """Rows under an argument are bound as off HTTP: the serializer reads the rows
+    the kernel passed, and the one it refused for being no object is answered
+    without the serializer reading it a second time."""
+    _CountedLine.read.clear()
+    view = _live_view()
+
+    with pytest.raises(ValidationError) as caught:
+        dispatch_spec(
+            _spec(_CountedLine),
+            user=None,
+            params={"items": [1, _BAD]},
+            request=view.request,
+            view=view,
+            many_as_argument=True,
+        )
+
+    assert caught.value.detail == {
+        "items": {
+            0: {"non_field_errors": ["Invalid data. Expected a dictionary, but got int."]},
+            1: _BAD_DETAIL,
+        }
+    }
+    assert _CountedLine.read == [_BAD]
 
 
 @_CORES

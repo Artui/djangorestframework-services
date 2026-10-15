@@ -224,11 +224,11 @@ class TestInstanceSelectorFilterChannel:
                 ),
             )
 
-        author = Author.objects.create(name="orig")
-        with pytest.raises(ImproperlyConfigured, match="declared by two sources"):
-            _View.as_view()(
-                factory.patch("/?name=orig", {"name": "new"}, format="json"), pk=author.pk
-            )
+        # Refused where the view is wired, since the serializer can be read
+        # there; one that cannot is refused by the request
+        # (test_a_serializer_unreadable_without_a_request_is_refused_by_the_request).
+        with pytest.raises(ImproperlyConfigured, match="also takes as a writable field"):
+            _View.as_view()
 
 
 @pytest.mark.django_db

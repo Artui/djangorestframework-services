@@ -2,7 +2,7 @@
 
 Each test pins one stated difference, so the sentence describing it cannot
 outlive the behaviour: a nullability read off the annotation rather than the
-default, the row bound of a list serializer that cannot be built without a
+default, a nested value of the wrong shape in the kernel's words, the row bound of a list serializer that cannot be built without a
 request, the kernel's typed reading of filter values (over a live view too,
 for a provider's value), and ``REJECT``'s answer beside the serializer's.
 The last section holds each example the upgrade notes give.
@@ -80,6 +80,57 @@ def test_an_optional_annotation_admits_null() -> None:
 
 
 # --- a list serializer that cannot be built without a request -----------------------
+
+
+class _OrderLine(serializers.Serializer):
+    sku = serializers.CharField()
+
+
+class _Order(serializers.Serializer):
+    lines = _OrderLine(many=True)
+    address = _OrderLine()
+
+
+def _take_order(*, data: Any) -> Any:
+    return data
+
+
+@pytest.mark.parametrize(
+    ("sent", "refusal"),
+    [
+        (
+            {"lines": [1], "address": {"sku": "a"}},
+            {"lines": {0: {"non_field_errors": [("Expected an object.", "invalid")]}}},
+        ),
+        (
+            {"lines": {"sku": "a"}, "address": {"sku": "a"}},
+            {"lines": [("Expected an array.", "not_a_list")]},
+        ),
+        (
+            {"lines": [{"sku": "a"}], "address": 5},
+            {"address": [("Expected an object.", "invalid")]},
+        ),
+    ],
+    ids=["nested-row-no-object", "nested-list-no-list", "nested-object-a-number"],
+)
+def test_a_nested_value_of_the_wrong_shape_is_refused_in_the_kernels_words(
+    sent: dict[str, Any], refusal: dict[str, Any]
+) -> None:
+    with pytest.raises(ValidationError) as caught:
+        dispatch_spec(
+            ServiceSpec(service=_take_order, input_serializer=_Order), user=None, params=sent
+        )
+
+    assert _worded(caught.value.detail) == refusal
+
+
+def _worded(detail: Any) -> Any:
+    """Each message with its code, so the pin holds both."""
+    if isinstance(detail, dict):
+        return {key: _worded(value) for key, value in detail.items()}
+    if isinstance(detail, list):
+        return [_worded(item) for item in detail]
+    return (str(detail), detail.code)
 
 
 class _Rows(serializers.ListSerializer):

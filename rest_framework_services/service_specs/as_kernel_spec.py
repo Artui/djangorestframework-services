@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import decimal
 import enum
@@ -17,11 +18,13 @@ from django_service_specs.adapters.filters.filter_set_parameters import filter_s
 from django_service_specs.authorization.permission_check import PermissionCheck
 from django_service_specs.authorization.unrestricted import Unrestricted
 from django_service_specs.parameters.parameters import Parameter, Parameters
+from django_service_specs.pool.resolve_callable_kwargs import resolve_callable_kwargs
 from django_service_specs.specs.kernel_spec import kernel_spec
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
 from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
 from django_service_specs.types.is_async import is_async
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 
 from rest_framework_services.service_specs.drf_permission_check import DRFPermissionCheck
 from rest_framework_services.service_specs.serializer_presenter import SerializerPresenter
@@ -30,6 +33,7 @@ from rest_framework_services.service_specs.utils import (
     SERVER_CHANNEL,
     UNREADABLE_WITHOUT_A_CALL,
     asked_of_the_caller,
+    edge_call_state,
     fills_its_own,
     left_to_the_callable,
     server_channel,
@@ -283,7 +287,8 @@ def _selector(
 
     A nested lookup takes the declared Parameters naming what its selector
     reads; the rest are the service's. An output selector takes none: it
-    re-reads the service's result, with no caller's arguments to read.
+    re-reads the service's result, with no caller's arguments to read; the
+    call's ``filter_data`` reaches its ``filter_set`` alone (``_output``).
     """
     label = "SelectorSpec" if role is None else f"ServiceSpec.{role}_selector_spec"
     if role is not None:
@@ -707,13 +712,30 @@ def _output(spec: Any) -> tuple[KernelSelectorSpec | None, SerializerPresenter |
     # serializer presents each row, as drfs always presented them
     # (test_off_http_the_service_s_rows_are_the_value).
     if output.selector is not None and not spec.many:
-        return _selector(
+        compiled = _selector(
             output,
             role="output",
             hidden=frozenset(),
             declared=(),
             audiences=audiences,
-        ), None
+        )
+        # The kernel binds an output ``filter_set`` to the re-read's pool, which
+        # carries the service's return and nothing of the call. So where the
+        # call narrows the re-read, the filter runs in drfs' ``extend_queryset``
+        # seat instead, the step the kernel's filter would follow, and the
+        # kernel's own is dropped so the FilterSet is bound once. Compiled with
+        # it first, so a ``filter_set`` that is no FilterSet is refused as before.
+        # One arc to coverage, a condition each:
+        # test_a_spec_can_keep_the_call_out_of_the_re_read fails without the
+        # flag, and test_output_selector_refetches_and_renders
+        # without the ``filter_set`` check.
+        if spec.output_filter_from_call and output.filter_set is not None:
+            compiled = dataclasses.replace(
+                compiled,
+                filter_set=None,
+                extend_queryset=_filtering_from_the_call(output.extend_queryset, output.filter_set),
+            )
+        return compiled, None
     _refuse_nested_runs(output, "ServiceSpec.output_selector_spec")
     return None, _presenter(
         output.output_serializer,
@@ -1158,6 +1180,45 @@ def _list_bounds(spec: Any) -> dict[str, int | None]:
         return {}
     minimum = max(listed.min_length or 0, 0 if listed.allow_empty else 1)
     return {"many_min_length": minimum or None, "many_max_length": listed.max_length}
+
+
+def _filtering_from_the_call(
+    extend: Callable[..., QuerySet[Any]] | None, filter_set: Any
+) -> Callable[..., QuerySet[Any]]:
+    """An output selector's ``extend_queryset``, then its ``filter_set`` bound to the call's data.
+
+    The data is the call's ``filter_data`` as it was passed - a live view's
+    ``QueryDict`` kept one, every key, as ``DjangoFilterBackend`` binds a query
+    string - or an empty mapping when the call passed none, never
+    ``request.query_params``, since off HTTP there is often no request at all
+    (test_explicit_filter_data_still_filters_the_re_read,
+    test_filter_data_is_bound_as_it_was_passed,
+    test_without_filter_data_the_re_read_binds_an_empty_mapping). The
+    ``FilterSet`` is handed ``request`` when its constructor takes one, by the
+    kernel's declare-to-receive rule
+    (test_a_request_scoped_filter_set_sees_the_call_s_request).
+
+    After ``extend_queryset``, so a filter reads what the callable added
+    (test_the_filter_reads_what_extend_queryset_added). Data the ``FilterSet``
+    refuses is DRF's ``ValidationError`` built from its errors, a 400 over
+    HTTP; the service has run by then, and its write stands
+    (test_a_refused_filter_value_leaves_the_write_standing).
+    """
+
+    def extend_queryset(queryset: QuerySet[Any], view: Any, request: Any) -> QuerySet[Any]:
+        if extend is not None:
+            queryset = extend(queryset, view, request)
+        data = edge_call_state().filter_data
+        bound = filter_set(
+            **resolve_callable_kwargs(filter_set, {"request": request}),
+            data=data if data is not None else {},
+            queryset=queryset,
+        )
+        if not bound.is_valid():
+            raise ValidationError(bound.errors)
+        return bound.qs
+
+    return extend_queryset
 
 
 def _positional(extend: Callable[..., QuerySet[Any]]) -> Callable[..., QuerySet[Any]]:

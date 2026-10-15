@@ -222,7 +222,12 @@ def test_every_allowed_drf_import_still_exists() -> None:
 # supposed to concentrate.
 ALLOWED_EDGE_DRF_IMPORTS: dict[str, frozenset[str]] = {
     # The compiler reads a serializer class to build the kernel's Validator.
-    "service_specs/as_kernel_spec.py": frozenset({"rest_framework.serializers"}),
+    # ``rest_framework.exceptions`` for an output ``filter_set`` the call narrows,
+    # whose refusal is DRF's ``ValidationError`` built from the FilterSet's errors,
+    # as the HTTP path has always answered it.
+    "service_specs/as_kernel_spec.py": frozenset(
+        {"rest_framework.exceptions", "rest_framework.serializers"}
+    ),
     "service_specs/build_offline_context.py": frozenset({"rest_framework.request"}),
     # A DRF permission class is the guard the kernel's PermissionCheck wraps.
     "service_specs/drf_permission_check.py": frozenset({"rest_framework.permissions"}),

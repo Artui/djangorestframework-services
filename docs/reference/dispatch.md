@@ -348,8 +348,10 @@ own names from either. `filter_data`, and the query string a live view's filter
 reads, feed the filter alone: the selector, its preconditions and a target
 lookup's selector never receive them, unless a declared `QueryParam` names the
 filter. Under a filter's name those callables take the caller's `params` value as
-sent, a route capture, or an author's value. A service's `output_selector_spec.filter_set` is handed
-no arguments, so neither narrows the re-read. To filter from the synthetic query
+sent, a route capture, or an author's value. A service's `output_selector_spec.filter_set`
+is bound to `filter_data` as it was passed, else to an empty mapping, unless the
+spec sets `output_filter_from_call=False`, which binds it to an empty mapping on
+every call. To filter from the synthetic query
 string, pass `filter_data=context.request.query_params`. It does **not** make DRF
 `filter_backends` (`SearchFilter` / `OrderingFilter`) run — the offline path never
 calls `filter_queryset`; `filter_set` is the drf-services-native equivalent.

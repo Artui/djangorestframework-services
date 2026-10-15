@@ -453,6 +453,32 @@ async def test_filter_data_narrows_the_collection_target_on_either_core() -> Non
     assert async_summary["value"] == ["shipped"]
 
 
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(("from_call", "title"), [(True, "draft"), (False, "shipped")])
+async def test_filter_data_narrows_the_output_re_read_on_either_core(
+    from_call: bool, title: str
+) -> None:
+    """The re-read runs after the service, on the async core inside a thread
+    hop, and reads the call's ``filter_data`` there too, unless the spec says not to."""
+    rows = {
+        "shipped": await Post.objects.acreate(title="shipped", published=True),
+        "draft": await Post.objects.acreate(title="draft", published=False),
+    }
+    spec = ServiceSpec(
+        service=lambda: None,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_all_posts, filter_set=_PublishedOnly
+        ),
+        output_filter_from_call=from_call,
+        atomic=False,
+    )
+    sync_summary, async_summary = await _dispatch_both(
+        spec, lambda: {"user": None, "params": {}, "filter_data": {"published": False}}
+    )
+    assert sync_summary == async_summary
+    assert async_summary["value"] == ("Post", rows[title].pk)
+
+
 # --- a payload that is not an object --------------------------------------
 #
 # Only a ``many=True`` spec takes a list. Everywhere else ``params`` is spread

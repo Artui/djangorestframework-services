@@ -40,8 +40,10 @@ exists for the two cases `filter_backends` can't serve:
 `filter_set` must be a real django-filter `FilterSet`: its `base_filters` are what
 the selector's arguments are read from. An object duck-typed on
 `(data, queryset) -> .qs` is refused with `ImproperlyConfigured` when the spec is
-compiled. A filter sharing its name with a field of the input serializer is refused
-the same way, since one name would then come from two sources. The library imports
+compiled. A target lookup's filter sharing its name with a writable field of the
+input serializer is refused too, since one name would then come from two sources:
+by `as_view()` where the serializer can be built with no request, and by each
+call otherwise, off HTTP included. The library imports
 nothing from `django-filter` itself, so install it to write the FilterSet:
 
 ```bash
@@ -203,7 +205,14 @@ nothing else, and refusing a filter named like an input field is what keeps one
 key from being both.
 
 The `filter_set` on an `output_selector_spec` is different: it shapes the
-response's re-read, and neither the query string nor `filter_data` narrows it.
+response's re-read, after the service has run. It is bound to the call's query
+string, or `filter_data` off HTTP, whole and as passed, or to an empty mapping
+when there is none, after the re-read's `extend_queryset`; a value it refuses is
+a 400 while the write stands. So `PATCH /posts/1/?published=false` answers `204`
+with no body once the service has published the row. Set
+`ServiceSpec(output_filter_from_call=False)` when the call's filters are meant for
+the target lookup alone: the re-read's `filter_set` is then bound to an empty
+mapping on every call.
 
 Note what a body-bound filter would have done, since it is quiet: a `FilterSet`'s
 fields are all optional, so a mapping containing none of them validates cleanly
