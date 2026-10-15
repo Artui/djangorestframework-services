@@ -10,6 +10,7 @@ default, and a read with none is refused as missing.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 from typing import Any
 
@@ -178,22 +179,26 @@ def test_with_no_route_capture_the_clients_value_never_scopes_the_lookup(
 
 @pytest.mark.django_db
 @_CORES
-def test_a_hook_naming_the_read_scopes_the_lookup_and_fills_the_field(dispatch: Dispatch) -> None:
+@pytest.mark.parametrize("author", ["hook", "provider"])
+def test_an_authors_value_for_the_read_scopes_the_lookup_and_fills_the_field(
+    dispatch: Dispatch, author: str
+) -> None:
     """An author's value is the server's: the lookup reads it, and the field validates it."""
     seen: dict[str, Any] = {}
-    post = Post.objects.create(title="hook")
+    post = Post.objects.create(title="server")
     view = OfflineServiceView(
         request=Request(_factory.put("/")), kwargs={"pk": post.pk, "title": "old"}
     )
+    spec = _spec(seen)
+    hooks = ViewHooks()
+    if author == "hook":
+        hooks = ViewHooks(extra_kwargs={"title": "server"})
+    else:
+        spec = dataclasses.replace(spec, kwargs=lambda: {"title": "server"})
 
-    dispatch(
-        _spec(seen),
-        params={"title": "new"},
-        view=view,
-        view_hooks=ViewHooks(extra_kwargs={"title": "hook"}),
-    )
+    dispatch(spec, params={"title": "new"}, view=view, view_hooks=hooks)
 
-    assert seen == {"lookup_title": "hook", "title": "hook", "data": {"title": "hook"}}
+    assert seen == {"lookup_title": "server", "title": "server", "data": {"title": "server"}}
 
 
 @pytest.mark.django_db
