@@ -169,11 +169,14 @@ project may have to change, each detailed below:
   mutation and model helpers (`create_from_input`, `apply_input`,
   `create_model`, `delete_collection` and their async siblings), the
   selector and service protocols, `base_pool`, `PoolSeeds`,
-  `RESERVED_POOL_SEEDS`, `ValueFormatter`, `paginate_output` and the
-  affordance and audience helpers are each the kernel's, so `isinstance`
-  and `is` answer the same for a drfs name and the kernel's. Their
-  behaviour is the kernel's too, and where it differed from drfs' the
-  differences are:
+  `RESERVED_POOL_SEEDS`, `ValueFormatter`, `paginate_output`,
+  `operation_affordances` and the audience helpers are each the kernel's,
+  so `isinstance` and `is` answer the same for a drfs name and the
+  kernel's. `enforce_affordances`, `unmet_operation_affordance` and their
+  async siblings are drfs' own over the kernel's, reserving `request` and
+  `view` beside the `reserved` set passed, since `dispatch_spec` seeds both
+  on every call. Their behaviour is the kernel's too, and where it differed
+  from drfs' the differences are:
   - `DispatchResult` has no `status`; its fields are `kind`, `value`,
     `service_result`, `instance`, `data` and `context`. `dispatch_spec`
     still accepts `success_status` and ignores it; the HTTP views still
