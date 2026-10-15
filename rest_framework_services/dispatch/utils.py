@@ -244,21 +244,22 @@ def prepare_edge_call(
         arguments = without_seed_names(
             edge_arguments(variant, spec, params, request=request, view=view), pool_seeds
         )
+        # What the selector is handed under its filter's names, before the
+        # filter's own values replace the caller's (``values_beside_filter``).
+        beside = _beside_filter(spec, arguments, hidden=_shadowed(spec), view=view)
         _route_filter_data(arguments, variant.filter_set, filter_data)
         _as_its_filter_set_reads(arguments, variant.filter_set)
+        author_rest, _authored, authors_beside = _route_author_values(
+            spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
+        )
+        state.beside_filter = (spec, {**beside, **authors_beside})
         return EdgeCall(
             variant,
             {
                 **shared,
                 "arguments": arguments,
                 "extra_kwargs": _on_the_server_s_channel(
-                    spec,
-                    {
-                        **_hidden_captures(spec, view, seeds=seeds),
-                        **_route_author_values(
-                            spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
-                        )[0],
-                    },
+                    spec, {**_hidden_captures(spec, view, seeds=seeds), **author_rest}
                 ),
                 "grant": Grant(variant, principal),
                 "pool_seeds": seeds,
@@ -460,13 +461,28 @@ def prepare_edge_call(
     # the body the Validator binds takes exactly what the edge put there.
     sent = dict(arguments) if isinstance(arguments, dict) else None
     target_spec = service.target_selector_spec()
+    lookup = _target_lookup(spec)
+    if lookup is not None:
+        # What the lookup's selector is handed under its filter's names, as for
+        # a selector spec's own (``values_beside_filter``), before the filter's
+        # values replace the caller's.
+        state.beside_filter = (
+            lookup,
+            _beside_filter(lookup, arguments, hidden=server_owned_keys(spec), view=view),
+        )
     if target_spec is not None:
         _route_filter_data(arguments, target_spec.filter_set, filter_data)
         _as_its_filter_set_reads(arguments, target_spec.filter_set)
     # Before the lookup, which an author's value for one of its reads scopes.
-    extra_kwargs, authored = _route_author_values(
+    extra_kwargs, authored, _beside = _route_author_values(
         spec, service, arguments, hooks, seeds=seeds, view=view, request=request
     )
+    if state.beside_filter is not None:
+        # An author's value scopes the lookup (the stated ``pk`` rule), so its
+        # selector is handed it too
+        # (test_an_author_s_value_for_a_lookup_filter_reaches_the_lookup).
+        names = _filter_names(lookup, hidden=server_owned_keys(spec))
+        state.beside_filter[1].update({name: arguments[name] for name in authored if name in names})
     seeds = _hidden_lookup_seeds(spec, service, view, seeds=seeds, extra_kwargs=extra_kwargs)
     state.author_values, extra_kwargs = _seat_author_values(extra_kwargs)
     if handed:
@@ -1072,7 +1088,7 @@ def _route_author_values(
     seeds: PoolSeeds,
     view: Any,
     request: Any,
-) -> tuple[dict[str, Any], dict[str, str]]:
+) -> tuple[dict[str, Any], dict[str, str], dict[str, Any]]:
     """The author's values for the call: the view's hook extras, then the spec's ``kwargs`` provider.
 
     Both are the server's, so both outrank the caller, and the spec's provider
@@ -1156,11 +1172,24 @@ def _route_author_values(
         for name, value in {**hook_values, **provided}.items()
         if name in shadowed
     }
-    hook_values = {name: value for name, value in hook_values.items() if name not in shadowed}
+    # A selector spec's other filter names: each author's value is what the
+    # selector is handed (``values_beside_filter``). A view hook's feeds no
+    # filter, as in 0.57.0, where the filter read the caller's
+    # (test_over_a_live_view_a_hook_s_value_reaches_the_selector_and_not_the_filter);
+    # the spec's provider's still does, as the changelog states.
+    filtered = _filter_names(spec, hidden=shadowed) if isinstance(spec, SelectorSpec) else set()
+    beside = {
+        name: value for name, value in {**hook_values, **provided}.items() if name in filtered
+    }
+    hook_values = {
+        name: value
+        for name, value in hook_values.items()
+        if name not in shadowed and name not in filtered
+    }
     provided = {name: value for name, value in provided.items() if name not in shadowed}
     hooked, hook_rest = _split_author_values(variant, arguments, hook_values, wire=wire)
     supplied, provided_rest = _split_author_values(variant, arguments, provided, wire=wire)
-    return {**hook_rest, **provided_rest, **channelled}, {**hooked, **supplied}
+    return {**hook_rest, **provided_rest, **channelled}, {**hooked, **supplied}, beside
 
 
 def _source_to_wire(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]) -> dict[str, str]:
@@ -1272,6 +1301,39 @@ def _on_the_server_s_channel(
     return {
         server_channel(key) if key in shadowed else key: value for key, value in overlay.items()
     }
+
+
+def _filter_names(spec: Any, *, hidden: frozenset[str]) -> frozenset[str]:
+    """The names ``spec``'s filter reads, less ``hidden``: those its callables take from the edge."""
+    return filter_set_parameters(spec.filter_set).names() - hidden
+
+
+def _beside_filter(
+    spec: Any, arguments: Any, *, hidden: frozenset[str], view: Any
+) -> dict[str, Any]:
+    """The caller's argument, or a route capture, for each name ``spec``'s filter reads.
+
+    Read before ``filter_data`` and the filter's own reading replace them, so
+    a selector parameter named like a filter is handed the value as it was
+    sent (test_the_selector_takes_the_caller_s_argument_as_sent), and one
+    sent only as ``filter_data`` reaches no selector
+    (test_filter_data_never_reaches_the_selector). A name a callable marks
+    ``NotClientInput`` is left out: it is the server's alone
+    (``_on_the_server_s_channel``;
+    test_a_hidden_parameter_beside_a_bare_kwargs_takes_no_client_value and
+    test_a_lookup_s_hidden_parameter_beside_a_bare_kwargs_takes_no_client_value
+    hold ``hidden`` at its two callers). Arguments that are no object are
+    left for the shape check to refuse
+    (test_arguments_that_are_no_object_are_refused_beside_a_filter). A route capture is handed as the URLconf
+    captured it, never read as the filter's type
+    (test_over_a_live_view_a_route_capture_reaches_the_selector_as_captured).
+    """
+    if not isinstance(arguments, dict):
+        return {}
+    names = _filter_names(spec, hidden=hidden)
+    route = getattr(view, "kwargs", None)
+    captured = {name: route[name] for name in names if name in route} if route else {}
+    return {**{name: arguments[name] for name in names if name in arguments}, **captured}
 
 
 def _shadowed(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]) -> frozenset[str]:

@@ -339,7 +339,11 @@ custom serializers), and a request-scoped `FilterSet` that reads
 `self.request.query_params` itself. It is not what a `filter_set` is bound to:
 `dispatch_spec` binds a `SelectorSpec`'s own `filter_set`, and a target lookup's,
 to `filter_data` when it is passed, else to `params`, reading only the filter's
-own names from either. A service's `output_selector_spec.filter_set` is handed
+own names from either. `filter_data`, and the query string a live view's filter
+reads, feed the filter alone: the selector, its preconditions and a target
+lookup's selector never receive them, unless a declared `QueryParam` names the
+filter. Under a filter's name those callables take the caller's `params` value as
+sent, a route capture, or an author's value. A service's `output_selector_spec.filter_set` is handed
 no arguments, so neither narrows the re-read. To filter from the synthetic query
 string, pass `filter_data=context.request.query_params`. It does **not** make DRF
 `filter_backends` (`SearchFilter` / `OrderingFilter`) run — the offline path never

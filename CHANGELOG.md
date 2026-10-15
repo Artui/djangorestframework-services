@@ -248,7 +248,9 @@ project may have to change, each detailed below:
     `kwargs` provider instead, which hands each to the service parameter of
     its name (a key named `data` is refused there as a seed's).
   - A callable taking a bare `**kwargs` receives the declared arguments and
-    the seeds, never an undeclared key or a route capture nothing declares,
+    the seeds (never `filter_data`, nor the query string a live view's
+    `filter_set` reads, unless a declared `QueryParam` names it),
+    never an undeclared key or a route capture nothing declares,
     which it used to receive. So a `**rest` service now also receives `view`,
     `data` with no input serializer, the validated field names with one,
     and `items` for a `many` spec.
