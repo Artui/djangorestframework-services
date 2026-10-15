@@ -305,12 +305,17 @@ class _ByPk(django_filters.FilterSet):
 
 
 _FILTERED_LOOKUP = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_all_posts, filter_set=_ByPk)
+_FILTERED_SET = SelectorSpec(kind=SelectorKind.LIST, selector=_all_posts, filter_set=_ByPk)
 
 
 # ``_TenantForTypeCheckers`` is bound nowhere at runtime, which is what a
 # ``TypedDict`` imported under ``if TYPE_CHECKING:`` is when the call is
 # dispatched: the annotation names something the runtime cannot resolve.
 def _hidden_tenant(*, instance: Post, **extras: Unpack[_TenantForTypeCheckers]) -> Any:  # noqa: F821
+    return extras.get("tenant")
+
+
+def _hidden_tenant_of_set(*, collection: Any, **extras: Unpack[_TenantForTypeCheckers]) -> Any:  # noqa: F821
     return extras.get("tenant")
 
 
@@ -324,11 +329,18 @@ def _live_update_view() -> ServiceUpdateView:
     return view
 
 
-def _dispatch_for_tenant(service: Any, *, live: bool, policy: UnknownArguments) -> Any:
+def _dispatch_for_tenant(
+    service: Any, *, live: bool, policy: UnknownArguments, lookup: str = "instance"
+) -> Any:
     post = Post.objects.create(title="p")
     view = _live_update_view() if live else None
+    spec = (
+        ServiceSpec(service=service, instance_selector_spec=_FILTERED_LOOKUP, atomic=False)
+        if lookup == "instance"
+        else ServiceSpec(service=service, collection_selector_spec=_FILTERED_SET, atomic=False)
+    )
     return dispatch_spec(
-        ServiceSpec(service=service, instance_selector_spec=_FILTERED_LOOKUP, atomic=False),
+        spec,
         user=None,
         params={"pk": post.pk, "tenant": "acme"},
         argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
@@ -340,15 +352,20 @@ def _dispatch_for_tenant(service: Any, *, live: bool, policy: UnknownArguments) 
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("live", [False, True], ids=["off-http", "live-view"])
+@pytest.mark.parametrize(
+    ("lookup", "service"),
+    [("instance", _hidden_tenant), ("collection", _hidden_tenant_of_set)],
+    ids=["instance-lookup", "collection-lookup"],
+)
 def test_reject_beside_a_filtered_lookup_cannot_be_held_to_unresolvable_extras(
-    live: bool,
+    lookup: str, service: Any, live: bool
 ) -> None:
     with pytest.raises(ImproperlyConfigured) as excinfo:
-        _dispatch_for_tenant(_hidden_tenant, live=live, policy=UnknownArguments.REJECT)
+        _dispatch_for_tenant(service, live=live, policy=UnknownArguments.REJECT, lookup=lookup)
 
     message = str(excinfo.value)
     assert message.startswith(
-        "UnknownArguments.REJECT cannot be enforced: _hidden_tenant(**extras)"
+        f"UnknownArguments.REJECT cannot be enforced: {service.__name__}(**extras)"
     )
     assert "import the TypedDict normally rather than under 'if TYPE_CHECKING:'" in message
 

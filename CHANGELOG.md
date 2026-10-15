@@ -454,9 +454,10 @@ project may have to change, each detailed below:
     first.
   - Under `REJECT` and `SPREAD_AUTHOR_WINS`, a serializer-less service whose
     `**kwargs: Unpack[...]` names a `TypedDict` the runtime cannot resolve
-    raises `ImproperlyConfigured` at dispatch when its target lookup declares
-    a `filter_set`, where 0.57.0 took the `filter_set` to leave the call's
-    arguments open and dispatched it.
+    raises `ImproperlyConfigured` at dispatch when its target lookup
+    (`instance_selector_spec` or `collection_selector_spec`) declares a
+    `filter_set`, off HTTP and over a live view, where 0.57.0 dispatched it
+    and handed the service the caller's keys.
 - **Breaking: a value a view hook or the spec's `kwargs` provider gives for an
   input-serializer field decides that field, and is validated by it.** A key
   naming a field of `input_serializer`, by its name or by its `source`, is
