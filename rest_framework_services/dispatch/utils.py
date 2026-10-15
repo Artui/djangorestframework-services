@@ -349,6 +349,9 @@ def prepare_edge_call(
     # and nothing else: the client's value is the field's alone, so with no
     # capture the lookup keeps its own default
     # (test_with_no_route_capture_the_clients_value_never_scopes_the_lookup).
+    # Only a lookup's read: a field named like a hidden capture or a seed is
+    # the serializer's alone, captured or not
+    # (test_a_field_named_like_a_captured_hidden_key_is_no_unexpected_argument).
     route = getattr(view, "kwargs", None)
     captured = route.keys() & lookup_reads if isinstance(route, dict) else frozenset()
     if isinstance(arguments, dict):

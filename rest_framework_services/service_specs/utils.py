@@ -244,7 +244,13 @@ def author_keys(validator: Any) -> Mapping[str, str]:
 
 
 def provider_owned(validator: Any) -> frozenset[str]:
-    """The keys the spec's typed ``kwargs`` provider fills, read as ``server_values`` is."""
+    """The keys the spec's typed ``kwargs`` provider fills, read as ``server_values`` is.
+
+    Only for the Validator the edge call names, so a spec the service dispatches
+    through the kernel hands its own parameter of an owned name its value
+    (test_a_kernel_call_inside_the_service_keeps_its_own_values, which fails
+    without the identity check).
+    """
     state = edge_call_state()
     return state.provider_owned if _names(state, validator) else frozenset()
 

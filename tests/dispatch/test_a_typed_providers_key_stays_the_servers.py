@@ -17,7 +17,11 @@ from typing import Any, TypedDict
 
 import pytest
 from asgiref.sync import async_to_sync
+from django.contrib.auth.models import AnonymousUser
 from django.http import QueryDict
+from django_service_specs.dispatch.dispatch import dispatch as kernel_dispatch
+from django_service_specs.dispatch.grant import Grant
+from django_service_specs.specs.kernel_spec import kernel_spec
 from rest_framework import serializers
 from rest_framework.test import APIRequestFactory
 
@@ -245,3 +249,32 @@ def test_a_declined_key_is_never_the_clients_under_a_spreading_binding(
     )
 
     assert seen == {"param": "DEFAULT", "data": data}
+
+
+@_CORES
+def test_a_kernel_call_inside_the_service_keeps_its_own_values(dispatch: Dispatch) -> None:
+    """The keys the outer call's provider owns are that call's: a spec the service
+    dispatches through the kernel hands its own parameter of that name its value."""
+    seen: dict[str, Any] = {}
+
+    def inner(*, data: Any, title: Any = "DEFAULT") -> None:
+        seen["inner"] = title
+
+    inner_spec = kernel_spec(ServiceSpec(service=inner, input_serializer=_RequiredIn, atomic=False))
+
+    def outer(*, data: Any) -> None:
+        principal = AnonymousUser()
+        kernel_dispatch(
+            inner_spec,
+            principal=principal,
+            arguments={"title": "inner"},
+            grant=Grant(inner_spec, principal),
+        )
+
+    spec = ServiceSpec(
+        service=outer, input_serializer=_RequiredIn, kwargs=_declining("title"), atomic=False
+    )
+
+    dispatch(spec, params={"title": "outer"})
+
+    assert seen == {"inner": "inner"}
