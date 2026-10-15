@@ -98,4 +98,11 @@ def test_a_many_service_s_none_is_presented_whatever_its_output_declares(
         ),
     )
 
-    assert dispatch_spec(spec, user=None, params=_ROWS).value is None
+    result = dispatch_spec(spec, user=None, params=_ROWS)
+
+    assert (result.kind, result.value) == ("list", None)
+    if kind is SelectorKind.RETRIEVE:
+        # A LIST output beside no collection lookup is refused at as_view().
+        view = type("_View", (ServiceCreateView,), {"spec": spec}).as_view()
+        response = view(APIRequestFactory().post("/", _ROWS, format="json"))
+        assert (response.status_code, response.data) == (201, None)
