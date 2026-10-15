@@ -1,8 +1,8 @@
 """An open spread service takes the caller's value for its preconditions' parameters, as on 0.57.0.
 
 Under ``SPREAD_AUTHOR_WINS`` a service with no input serializer declares its
-own signature as the caller's input, and a bare ``**kwargs`` declares every
-name. So a precondition's parameter beside one is the caller's to send: the
+own signature as the caller's input, and a bare ``**kwargs`` leaves that
+surface open. So a precondition's parameter beside one is the caller's to send: the
 value sent reaches the precondition, and one left out with no default is the
 caller's ``400``. A service that closes its signature (named parameters alone,
 or an ``Unpack``-ed ``TypedDict``) declares no such name, so there the

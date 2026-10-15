@@ -423,7 +423,8 @@ def _as_it_runs(fn: Any) -> Any:
 def _spread_signature(spec: Any, *, hidden: frozenset[str]) -> list[Parameter]:
     """A spread service's parameters, and its preconditions' beside a bare ``**kwargs``.
 
-    A bare ``**kwargs`` declares every name, so a precondition's parameter is
+    A bare ``**kwargs`` leaves a spread service's surface open, so a
+    precondition's parameter is
     one the caller sends, as on 0.57.0
     (test_the_caller_s_value_reaches_the_precondition), each name once, in the
     service's declaration where it names it too
@@ -450,7 +451,7 @@ def _spread_signature(spec: Any, *, hidden: frozenset[str]) -> list[Parameter]:
 
 
 def _takes_any_name(fn: Callable[..., Any]) -> bool:
-    """Whether ``fn`` takes a bare ``**kwargs``, which declares every name.
+    """Whether ``fn`` takes a bare ``**kwargs``, which leaves its surface open.
 
     An annotated one that is no ``Unpack``-ed ``TypedDict`` reads as bare, as
     ``_reflected`` reads it, one whose annotation cannot be resolved included
