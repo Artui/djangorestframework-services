@@ -23,7 +23,9 @@ class ArgumentBinding(Enum):
     own value, so a client cannot poison transport-controlled state by naming
     an argument after one. A name any callable of the call marks
     ``NotClientInput`` is the server's: the client's value for an input
-    serializer's field of that name reaches the service only inside ``data``.
+    serializer's field of that name reaches the service only inside ``data``,
+    while an author's value for it (a view hook's, the spec's ``kwargs``
+    provider's or ``input_data``'s) still reaches the parameter.
 
     What is left for this enum is one question about a service spec with no
     ``input_serializer``: whether the service's own parameters are caller

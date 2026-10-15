@@ -42,11 +42,15 @@ back.
 
 A refused body is answered with the list serializer's own errors, in the shape
 the installed DRF gives (a mapping of the failing rows' indexes from DRF 3.18, a
-list below it). The list takes its bounds from the `ListSerializer`
-(`allow_empty`, `min_length`, `max_length`); where it sets no `max_length`, at
-most 1000 rows are accepted, or what the `SERVICE_SPECS_MAX_ARRAY_LENGTH`
-setting says (`None` bounds nothing), and a longer body is a `400` under
-`non_field_errors`.
+list below it). Over a live view the `ListSerializer` alone bounds the body,
+through its own `allow_empty`, `min_length` and `max_length`, and a body it
+sets no `max_length` for takes any number of rows.
+
+Off HTTP, and on an `OfflineServiceView`, the kernel checks the list first and
+takes its bounds from the same `ListSerializer`; where it sets no
+`max_length`, at most 1000 rows are accepted, or what the
+`SERVICE_SPECS_MAX_ARRAY_LENGTH` setting says (`None` bounds nothing), and a
+longer list is refused under `non_field_errors`.
 
 ### Off HTTP: the list as one named argument
 

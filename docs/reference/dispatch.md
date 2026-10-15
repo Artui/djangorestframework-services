@@ -205,7 +205,12 @@ whether the service's own parameters are caller input.
 
 A service with an `input_serializer` reads the serializer under every member:
 the validated payload arrives as `data`, and each validated value also reaches a
-parameter of the same name (the field's `source`). See
+parameter of the same name (the field's `source`). A parameter named like a key
+any callable of the call marks `NotClientInput` is never handed the client's
+validated value: the client's
+value reaches it only through `data`, while an author's value for it (a view
+hook's, the spec's `kwargs` provider's or `input_data`'s) still reaches the
+parameter. See
 [a service with no input serializer](../recipes/off-http-inputs.md#a-service-with-no-input-serializer).
 
 ::: rest_framework_services.types.argument_binding.ArgumentBinding
@@ -228,8 +233,8 @@ filter's; the target lookup's; and every `reads` entry. A key that any callable
 in the call marks `NotClientInput`, and every pool seed's name, is
 server-owned and never declared. `REJECT` names every undeclared key in one
 `"Unexpected argument(s): ..."` message under `non_field_errors`, a row's
-inside that row; a pool seed's name is never one, while a caller's `view` or
-`request` is. Off HTTP an unknown key inside a nested serializer is refused in
+inside that row; a pool seed's name is never one, so a caller's `request` is
+dropped like any seed's, while a caller's `view` is refused. Off HTTP an unknown key inside a nested serializer is refused in
 the kernel's words, `{"inner": {"zzz": ["Unknown argument."]}}`; over a live
 view the nested serializer drops it, as DRF does. On DRF 3.18 or later a live
 view's `many` call can answer in two shapes: rows the serializer accepted but

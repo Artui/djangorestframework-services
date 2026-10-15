@@ -234,7 +234,9 @@ class SelectorSpec(Generic[ResultT, ExtraT]):
             kernel spec's ``reads`` beside the parameters the selector's
             signature declares, and winning over a reflected one of the same
             name. Refused when the spec is built if it holds anything else or
-            a name twice.
+            a name twice, and when it compiles if it names a value the pool
+            fills, or a parameter the selector or a precondition marks
+            ``NotClientInput``.
         field_audiences: Per-field markings layered over ``output_serializer``'s
             own, at its top level, compiled onto the presenter. Refused by the
             compile without an ``output_serializer``. On a service spec's

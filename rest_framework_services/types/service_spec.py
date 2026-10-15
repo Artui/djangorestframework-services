@@ -138,7 +138,10 @@ class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
             such as a nested route's parent id into fields the serializer can
             cross-validate. Server-provided keys win on conflict. The
             ``get_input_data`` / ``get_<action>_input_data`` view hooks follow
-            the same declare-to-receive rule.
+            the same declare-to-receive rule. Declared with no
+            ``input_serializer``, it is refused with ``ImproperlyConfigured``
+            when the spec compiles, since nothing would read the mapping;
+            ``kwargs`` is the home for a value such a service reads.
         input_serializer_context: Provider for the input serializer's
             ``context=``, at the most specific layer of the chain
             (``get_serializer_context`` → ``get_input_serializer_context`` →
@@ -278,12 +281,14 @@ class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
             [`QueryParam`][rest_framework_services.types.query_param.QueryParam]
             a query string would have carried. HTTP never reads it, since its
             URLconf and query string are the real thing. Compiled into the
-            kernel spec's ``reads``, one ``Parameter`` each, and routed back onto
-            ``view.kwargs`` and ``request.query_params`` for the permission
-            classes; see
+            kernel spec's ``reads``, one ``Parameter`` each, and on an
+            ``OfflineServiceView`` routed back onto ``view.kwargs`` and
+            ``request.query_params`` for the permission classes; see
             [`as_kernel_spec`][rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec].
             Kept as a tuple; anything but those two declarations, or a name
-            declared twice, is refused when the spec is built.
+            declared twice, is refused when the spec is built. A name the pool
+            fills, or one the service or a precondition marks
+            ``NotClientInput``, is refused when the spec compiles.
         field_audiences: Per-field markings layered over the output
             serializer's own, at its top level: what an agent audience sees of
             this operation's output, declared once on the operation rather than

@@ -99,7 +99,12 @@ def as_kernel_spec(
       joins the lookup's reads. A name the ``filter_set`` reads is the filter's,
       as the filter field always won the schema. The pool's own names
       (``user``, ``request``, ``view``, ``serializer`` and the kernel's
-      reserved seeds) are never arguments, and a declared one is refused. A
+      reserved seeds) are never arguments, and a declared one is refused. So
+      is a declared read the service or selector, or one of its
+      ``preconditions``, marks ``NotClientInput``: dispatch would hand that
+      callable the client's value under the name it keeps the server's. A
+      name only a target lookup hides is not refused; the lookup is never
+      handed it, and the read is the service's argument. A
       route capture no signature names and no ``UrlKwarg`` declares is no
       argument at all, so it no longer reaches a spec.
     - The rest carries by name: ``atomic``, ``idempotent``, ``many``,
@@ -152,6 +157,9 @@ def _service(spec: Any, *, partial: bool | None, spread: bool) -> KernelServiceS
         [spec.service, *(spec.preconditions or ()), *_lookup_selectors(spec)],
     )
     declared = _declared(spec.reads, label="ServiceSpec")
+    _refuse_hidden_reads(
+        spec.reads, [spec.service, *(spec.preconditions or ())], label="ServiceSpec"
+    )
     instance = _nested(spec, "instance", hidden, declared)
     collection = _nested(spec, "collection", hidden, declared)
     target = instance or collection
@@ -237,6 +245,7 @@ def _selector(
     if role is None:
         hidden = _owned_keys([spec.selector, *(spec.preconditions or ())])
         declared = _declared(spec.reads, label=label)
+        _refuse_hidden_reads(spec.reads, [spec.selector, *(spec.preconditions or ())], label=label)
         audiences = spec.field_audiences
     reads = Parameters()
     if role != "output":
@@ -486,6 +495,43 @@ def _declared(entries: Sequence[UrlKwarg | QueryParam], *, label: str) -> list[P
             )
         )
     return declared
+
+
+def _refuse_hidden_reads(
+    entries: Sequence[UrlKwarg | QueryParam],
+    receivers: Sequence[Callable[..., Any]],
+    *,
+    label: str,
+) -> None:
+    """Refuse a read that a callable it is handed to marks ``NotClientInput``.
+
+    A declared read is the client's argument, and dispatch hands it by name to
+    the spec's service or selector and to each of its preconditions, so one of
+    them marking the same name ``NotClientInput`` contradicts itself: the mark
+    keeps the name the server's, and the read would fill it from the request.
+    A target lookup is not a receiver: it takes a declared read only where its
+    own signature reads the name unmarked, so a read named like a key only the
+    lookup hides is the service's argument
+    (test_a_read_only_a_target_lookup_hides_is_the_service_s,
+    test_a_read_named_like_a_hidden_lookup_key_is_the_service_s_argument).
+
+    Each receiver is held by the test that fails without it:
+    test_a_service_hiding_a_read_is_refused and
+    test_a_service_s_precondition_hiding_a_read_is_refused for a ``ServiceSpec``,
+    test_a_selector_hiding_a_read_is_refused and
+    test_a_selector_s_precondition_hiding_a_read_is_refused for a ``SelectorSpec``.
+    """
+    names = {entry.name: entry for entry in entries}
+    for fn in receivers:
+        for name in sorted(marked_input_keys(fn)[1] & names.keys()):
+            entry = names[name]
+            owner = getattr(fn, "__qualname__", repr(fn))
+            raise ImproperlyConfigured(
+                f"{label}.reads declares {type(entry).__name__}({name!r}), which "
+                f"{owner} marks NotClientInput. A read is the client's argument and is "
+                f"handed to {owner} by that name, while the mark keeps the name the "
+                "server's. Remove the read, or the NotClientInput mark."
+            )
 
 
 def _merge(
