@@ -196,13 +196,26 @@ project may have to change, each detailed below:
     validated value: the client's value for that field reaches the service
     only in `data`. A view hook's or the spec's `kwargs` provider's value for
     it still reaches the parameter, and an `input_data` value now does too.
+  - A field with a dotted `source` or `source="*"` has no key of its own in
+    `data`, so a view hook's, the spec's `kwargs` provider's or
+    `input_data`'s value for it reaches the parameter named like the field,
+    as the field validates it. A hook's and the provider's value reached that
+    parameter on 0.57.0 too; an `input_data` value now does, where the
+    parameter kept its default. The client's value for such a field reaches
+    no parameter of the field's name.
   - Under `AUTO` and `BUNDLE`, an `input_data` value for a field named like a
     `NotClientInput` parameter now reaches that parameter, where the
     parameter kept its default and the value reached only `data`.
-  - When a view hook and `input_data` both give a value for the same input
-    field, the `input_data` value wins for `data` and for the parameter. On
-    0.57.0 the hook's value reached the parameter and `input_data`'s reached
-    only `data`.
+  - When a view hook or the spec's `kwargs` provider and `input_data` both
+    give a value for the same input field, the `input_data` value wins for
+    `data` and for the parameter. On 0.57.0 the hook's or the provider's
+    value reached the parameter and `input_data`'s reached only `data`.
+  - Under `AUTO` and `BUNDLE`, `input_data` naming a `HiddenField` hands the
+    parameter of that name the field's own value, its default, where the
+    parameter kept its own default. The field takes no input, so
+    `input_data`'s value for it reaches neither `data` nor the parameter, as
+    before. Under `SPREAD_AUTHOR_WINS` the parameter already took the field's
+    value.
   - A route capture that a target lookup marks `NotClientInput` is seeded
     for the call, so a service parameter of the same name is handed it too,
     where the service kept its default and only the lookup read the capture.
@@ -222,6 +235,10 @@ project may have to change, each detailed below:
   - A key the spec's typed `kwargs` provider is annotated to fill is never
     taken from the client or a hook, even where the provider declines it
     with `UNSET`, which leaves the parameter's default.
+  - A view hook returning `UNSET` for an input field declines it: the
+    parameter keeps its default, or, where nothing marks it `NotClientInput`,
+    takes the client's validated value. 0.57.0 handed the parameter the
+    `UNSET` sentinel itself.
   - A missing required argument is refused as `{"name": ["This field is
     required."]}`, code `required`, every missing name keyed, where it was
     one `"Missing required argument(s): ..."` message under
@@ -242,7 +259,27 @@ project may have to change, each detailed below:
   field's key wherever the service reads it: the parameter of that name,
   `data`, and the bound serializer's `validated_data`, even where a later field
   with the same `source`, a `source="*"` nested serializer or the serializer's
-  `validate()` writes that key from the client's input. It used to be handed
+  `validate()` writes that key from the client's input. The field's
+  validation of that value is run on its own once the serializer has accepted
+  the body, on the value read from the body before the serializer ran, so
+  nothing the serializer does replaces it: not its validation run again on
+  another value, by `validate()` or by another field's `validate_<field>`, and
+  not a `to_internal_value` override that writes the client's value over the
+  field's in the body or builds the key without the field. A refusal there is
+  a 400 keyed by the field, in the shape DRF's field loop gives one, a Django
+  `ValidationError` raised by `validate_<field>` included, with every refused
+  field in the one answer; a refusal of the client's input is answered first,
+  as the serializer gave it. A field that skips, a partial call's
+  `HiddenField`, holds no value. That run is separate
+  from the serializer's own: for such a field, a related field's lookup runs
+  once more, one more query for a `PrimaryKeyRelatedField`, and the field's
+  validators and its `validate_<field>` run twice, so a validator that queries,
+  a `UniqueValidator`, queries twice, and one with side effects has them twice.
+  Where `validate()` removes the key, the parameter still
+  takes the value and `data` stays without the key. Where `validated_data` is a
+  dataclass instance, the parameter takes the field's value and `data` is the
+  instance as the serializer built it, a `validate()` that rewrote the
+  instance's attribute included. It used to be handed
   to the service beside the client's validated value, so a service reading
   `data`, or calling `serializer.save()`, saw the client's: a hook supplying
   `{"tenant": request.user.tenant}` could be overridden by a body carrying
@@ -254,13 +291,19 @@ project may have to change, each detailed below:
     parameter, and `data` gains the key;
   - a value the field's validators refuse is a 400 answered to the client.
 
-  An `input_data` value for a field is held the same way: a later field with
-  the same `source`, a `source="*"` nested serializer or a `validate()`
-  writing the key no longer replaces it in `data`, where 0.57.0 let them.
-  That holds against the serializer's own normalising too: a `validate()`
-  that rewrites the value a hook, the `kwargs` provider or `input_data` gave
-  for a field, by lowercasing or stripping it, no longer takes effect for that
-  field, which keeps the value as the field validated it.
+  An `input_data` value for a writable field of a single-item call is held
+  the same way: a later field with the same `source`, a `source="*"` nested
+  serializer, a `validate()` writing the key or a `to_internal_value` override
+  no longer replaces it in `data` or for the parameter, where 0.57.0 let
+  them. That holds against the serializer's own normalising too: a
+  `validate()` that rewrites the value a
+  hook, the `kwargs` provider or `input_data` gave for a field, by lowercasing
+  or stripping it, no longer takes effect for that field, which keeps the
+  value as the field validated it, in a mapping `data` and for the parameter.
+  A `many` spec's rows are handed on as its list serializer built them, as on
+  0.57.0: in a row, a later field with the same `source` or a `validate()`
+  writing the key still replaces the `input_data` value. A read-only field
+  takes no value, so `input_data` naming one decides nothing, as before.
 - **Breaking: pool seeds.** `RESERVED_POOL_SEEDS` is `user`, `data`,
   `instance`, `collection`, `result`, `queryset` and `progress`, where it
   listed `request` and `serializer` rather than `result` and `queryset`. A
@@ -372,6 +415,10 @@ project may have to change, each detailed below:
 
 ### Fixed
 
+- **Under `SPREAD_AUTHOR_WINS`, a parameter takes `input_data`'s value for its
+  field, `NotClientInput` or not**, where a later field with the same
+  `source`, a `source="*"` nested serializer or a `validate()` writing that
+  key from the client's input handed it the client's value.
 - **A bulk body with a row that is not an object, on a spec with an
   `input_data` provider, is a 400** in DRF's words, where it raised
   `TypeError`.

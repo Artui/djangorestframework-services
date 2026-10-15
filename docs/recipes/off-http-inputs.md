@@ -215,7 +215,8 @@ admits under `AUTO`. See
     parameter named like a key any callable of the call marks `NotClientInput`
     is never handed the client's validated value either: the client's value for that field reaches the
     service only in `data`, while a view hook's, the spec's `kwargs`
-    provider's or `input_data`'s value for it still reaches the parameter.
+    provider's or `input_data`'s value for it still reaches the parameter,
+    as the field validates it.
 
 ## Hiding provider-owned inputs: `NotClientInput`
 

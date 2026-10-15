@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Callable, Mapping, MutableMapping
+from collections.abc import Callable, Iterable, Mapping, MutableMapping
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import QuerySet
 from django_service_specs.parameters.parameters import Parameter, Parameters
 from django_service_specs.pool.reserved_pool_seeds import RESERVED_POOL_SEEDS
@@ -14,6 +15,7 @@ from django_service_specs.validation.validated import Validated
 from django_service_specs.validation.validation_context import ValidationContext
 from django_service_specs.validation.validator import Validator
 from rest_framework import serializers
+from rest_framework.fields import get_error_detail
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.service_specs.invalid_arguments import InvalidArguments
@@ -113,9 +115,15 @@ class SerializerValidator(Validator):
     marks ``NotClientInput``, which the compiled spec hands it: the client's
     value is the service's in ``data`` alone, unless the edge put the server's
     value into the field it comes from (see ``_unowned``). **Where the edge did,
-    that field's validated value is the key's**, laid back over whatever a
-    later field of the same ``source``, a ``source="*"`` nested serializer or a
-    ``validate()`` put there (see ``_lay_back``).
+    that field's validation of the server's value is the key's value**, read
+    from the body before the serializer validates and validated on its own
+    after (see ``_server_primitives`` and ``_server_values``), whatever a later
+    field of the same ``source``, a ``source="*"`` nested serializer, a
+    ``validate()`` or a ``to_internal_value`` override did to the key: it is
+    the parameter's, by the field's ``source`` or, where that is no single key,
+    by the field's name (see ``_handed``), and it is laid back over the key in a
+    mapping ``data`` (see ``_lay_back``). A dataclass instance is ``data`` as
+    built, and a ``many`` call's rows are neither validated apart nor laid back.
 
     **A partial call over a dataclass is refused**, a ``DataclassSerializer``
     subclass included: one builds its instance from every field, and a field
@@ -277,19 +285,28 @@ class SerializerValidator(Validator):
         # either through the other without the two calling each other forever.
         self._refuse_partial(context)
         serializer = self._bind(arguments, context)
-        held = _recording_fields(serializer, server_fields(self))
+        sent = _server_primitives(serializer, server_fields(self))
         if not serializer.is_valid():
             raise InvalidArguments(serializer.errors)
         data: Any = serializer.validated_data
+        held = _server_values(serializer, sent)
         _lay_back(data, serializer, held)
-        values = _unseeded(_values(data), context)
+        values = _values(data)
+        # Each server value is its parameter's, whatever ``data`` became: a
+        # ``validate()`` that dropped the key
+        # (test_a_key_validate_drops_still_reaches_the_parameter_off_http), a
+        # dataclass instance it rewrote
+        # (test_a_dataclass_validate_copy_never_reaches_the_parameter_off_http),
+        # or a dotted ``source``, which has no key of the field's own
+        # (test_a_dotted_fields_server_value_reaches_the_parameter_named_like_the_field_off_http).
+        handed = _handed(serializer, held)
+        values.update(handed)
+        values = _unseeded(values, context)
         return Validated(
-            values=self._unowned(values, serializer), data=data, pool={"serializer": serializer}
+            values=self._unowned(values, handed.keys()), data=data, pool={"serializer": serializer}
         )
 
-    def _unowned(
-        self, values: dict[str, Any], serializer: serializers.Serializer
-    ) -> dict[str, Any]:
+    def _unowned(self, values: dict[str, Any], kept: Iterable[str]) -> dict[str, Any]:
         """``values`` less each ``server_owned`` key the client's input became.
 
         A name a callable of the call marks ``NotClientInput`` is the server's
@@ -301,30 +318,22 @@ class SerializerValidator(Validator):
         flattened ``source="*"`` field or a key ``validate()`` adds
         (test_a_validated_key_named_like_a_hidden_parameter_stays_in_data).
 
-        The key stays a value where the edge put the server's value into the
-        field it is the source of (``server_fields``): a view hook's, the
-        spec's ``kwargs`` provider's or ``input_data``'s value is the server's,
-        and reaches the parameter validated
+        The key stays a value where it is ``kept``: the name a field holding the
+        server's value is handed under (``_handed``), whose value the edge put
+        there - a view hook's, the spec's ``kwargs`` provider's or
+        ``input_data``'s - and the field validated on its own (``_server_values``)
         (test_a_hooks_value_for_a_hidden_field_reaches_the_parameter,
         test_a_hooks_value_naming_a_hidden_fields_source_reaches_the_parameter,
         test_input_data_for_a_hidden_field_reaches_the_parameter). Which field
         that is, is read off where the value came from, never off whether it
         equals the client's (test_a_hooks_value_equal_to_the_clients_is_still_the_servers).
-        A flattened field has no top-level key of its own, so a server value
-        for it keeps none.
-
-        One arc to coverage, so each condition is named by the test that fails
-        without it: a server value naming no field
-        (test_input_data_naming_no_field_keeps_nothing) and one for a flattened
-        field (test_a_server_value_for_a_flattened_field_keeps_no_key).
+        A field the server named that never took the value, a read-only one,
+        keeps nothing
+        (test_input_data_for_a_read_only_field_holds_no_server_value_off_http),
+        and a flattened field keeps its own name alone, never a key it spreads
+        (test_a_server_value_for_a_flattened_field_keeps_none_of_the_keys_it_spreads).
         """
-        fields = serializer.fields
-        kept = {
-            fields[name].source_attrs[0]
-            for name in server_fields(self)
-            if name in fields and fields[name].source_attrs
-        }
-        owned = self.server_owned - kept
+        owned = self.server_owned.difference(kept)
         return {name: value for name, value in values.items() if name not in owned}
 
     def _refuse_partial(self, context: ValidationContext) -> None:
@@ -369,54 +378,112 @@ class SerializerValidator(Validator):
         )
 
 
-def _recording_fields(serializer: serializers.Serializer, names: frozenset[str]) -> dict[str, Any]:
-    """What each of the fields ``names`` validates to, filled in as ``serializer`` validates.
+def _server_primitives(serializer: serializers.Serializer, names: frozenset[str]) -> dict[str, Any]:
+    """The server's value for each writable field of ``names``, as DRF's field loop reads it.
 
-    The fields holding the server's value (``server_fields``). DRF builds
-    ``validated_data`` field by field, so a later field with the same
-    ``source``, a ``source="*"`` nested serializer carrying a key of that name,
-    or a ``validate()`` copying another field into it, can put the client's
-    value back under the server field's key; what the field itself validated
-    to is kept here, for ``_lay_back``. It is the value DRF would have set:
-    the field's ``run_validation``, then the serializer's ``validate_<field>``
-    where it has one (test_the_value_laid_back_is_the_fields_validate_method_s),
-    so a primary key arrives as its row
-    (test_the_value_laid_back_is_the_fields_validated_value). Recorded in the
-    one validation pass rather than by validating the value again, so a
-    related field queries once. The bound serializer's fields are its own
-    copies, so the recording ends with the call.
+    The fields holding the server's value (``server_fields``), read from the
+    body the edge built, with the server's value over the client's, by the
+    field's own ``get_value``, so a form body's ``QueryDict`` is read as the
+    field reads it. Read before the serializer validates, so its own code -
+    a ``to_internal_value`` override writing another key over the field's in
+    the body - cannot change what is read
+    (test_a_to_internal_value_override_never_hands_the_parameter_the_clients_value_off_http).
 
-    A name that is no field of the serializer - an ``input_data`` key naming
-    none, or a read of the spec's - records nothing
+    A read-only field takes no value in DRF's loop, so it holds none
+    (test_input_data_for_a_read_only_field_with_a_default_holds_no_server_value,
+    which fails without the ``read_only`` check: such a field validates to its
+    default). A name that is no field of the serializer - an ``input_data``
+    key naming none, or a read of the spec's - holds nothing
     (test_input_data_naming_no_field_keeps_nothing).
     """
-    held: dict[str, Any] = {}
     fields = serializer.fields
-    for name in names & fields.keys():
-        # Wrapped on this serializer's own copy of the field, an integration
-        # boundary: the stubs type ``run_validation`` as a method, not a slot.
-        field: Any = fields[name]
-        field.run_validation = _recorded(field.run_validation, held, name)
+    body = serializer.initial_data
+    return {
+        name: fields[name].get_value(body)
+        for name in names & fields.keys()
+        if not fields[name].read_only
+    }
+
+
+def _server_values(serializer: serializers.Serializer, sent: Mapping[str, Any]) -> dict[str, Any]:
+    """Each of ``sent`` validated as DRF's field loop validates a field's value, on its own.
+
+    The field's ``run_validation``, then the serializer's ``validate_<field>``
+    where it has one (test_the_value_laid_back_is_the_fields_validate_method_s),
+    so a primary key arrives as its row
+    (test_the_value_laid_back_is_the_fields_validated_value). This is the
+    server's value for the field wherever the call reads it (``_handed``,
+    ``_lay_back``), whatever the serializer's own pass did with the key: a
+    later field of the same ``source``, a ``source="*"`` nested serializer, a
+    ``validate()`` copying or dropping it, the field's validation run again on
+    another value
+    (test_a_reuse_of_the_fields_validation_is_not_the_servers_value_off_http),
+    or a ``to_internal_value`` override. It runs after the serializer has
+    accepted the body, so a refusal of the client's input is the answer, as
+    the serializer gave it
+    (test_a_refusal_of_the_clients_input_is_answered_before_the_servers_value_is_validated),
+    and it is separate from the serializer's pass: the field's validation runs
+    once more for the server's value, so a related field queries once more, a
+    validator that queries (``UniqueValidator``) queries once more, and a
+    ``validate_<field>`` runs once more.
+
+    Answered as the loop answers its fields: each refusal, DRF's
+    ``ValidationError``
+    (test_a_server_value_its_field_refuses_is_refused_in_drfs_words_off_http)
+    or Django's from ``validate_<field>``
+    (test_a_django_refusal_of_the_server_value_is_answered_as_drfs_loop_answers_it),
+    is keyed by its field in DRF's shape, every refused field in one
+    ``InvalidArguments``
+    (test_every_server_value_its_field_refuses_is_answered_together), and a
+    field that skips - a partial call's ``HiddenField`` - holds nothing
+    (test_a_server_value_for_a_field_that_skips_is_left_out).
+    """
+    held: dict[str, Any] = {}
+    errors: dict[str, Any] = {}
+    for name, primitive in sent.items():
         method = getattr(serializer, f"validate_{name}", None)
-        if method is not None:
-            setattr(serializer, f"validate_{name}", _recorded(method, held, name))
+        try:
+            value = serializer.fields[name].run_validation(primitive)
+            if method is not None:
+                value = method(value)
+        except serializers.ValidationError as exc:
+            errors[name] = exc.detail
+        except DjangoValidationError as exc:
+            errors[name] = get_error_detail(exc)
+        except serializers.SkipField:
+            pass
+        else:
+            held[name] = value
+    if errors:
+        raise InvalidArguments(errors)
     return held
 
 
-def _recorded(fn: Callable[..., Any], held: dict[str, Any], name: str) -> Callable[..., Any]:
-    def record(*args: Any, **kwargs: Any) -> Any:
-        held[name] = fn(*args, **kwargs)
-        return held[name]
+def _handed(serializer: serializers.Serializer, held: Mapping[str, Any]) -> dict[str, Any]:
+    """Each value of ``held``, by the name its field's value is handed to a parameter under.
 
-    return record
+    A field's ``source`` where it is one key, as ``validated_data`` keys it
+    (test_a_hooks_value_naming_a_hidden_fields_source_reaches_the_parameter).
+    Any other field's value has no key of its own in ``data``, so it is
+    handed under the field's name, which is the name the author gave it, as
+    0.57.0 handed a hook's: a dotted ``source``, nested in ``data``
+    (test_a_dotted_fields_server_value_reaches_the_parameter_named_like_the_field_off_http),
+    and a ``source="*"`` field, spread into the serializer's own keys
+    (test_a_flattened_fields_server_value_reaches_the_parameter_named_like_the_field_off_http).
+    """
+    handed: dict[str, Any] = {}
+    for name, value in held.items():
+        source = serializer.fields[name].source_attrs
+        handed[source[0] if len(source) == 1 else name] = value
+    return handed
 
 
 def _lay_back(data: Any, serializer: serializers.Serializer, held: Mapping[str, Any]) -> None:
     """Each of ``held`` written back over its field's ``source`` key in ``data``, where it still is.
 
-    So the server's value for a field is that field's value wherever the
-    call reads it: the service's parameter of its name, its ``data``, and the
-    bound serializer's ``validated_data``, which ``data`` is
+    So the server's value for a field is that field's value in the call's
+    ``data`` and the bound serializer's ``validated_data``, which ``data`` is,
+    as it is for the service's parameter (``_handed``)
     (test_the_servers_value_outranks_a_second_route_off_http and its HTTP and
     form-body twins). A dotted ``source`` is written where it nests
     (test_a_dotted_source_is_laid_back_where_it_nests), and not at all where a
@@ -425,11 +492,16 @@ def _lay_back(data: Any, serializer: serializers.Serializer, held: Mapping[str, 
 
     One arc to coverage, so each condition that writes nothing is named by the
     test that fails without it: ``data`` a ``validate()`` or a dataclass made
-    something other than a mapping is the call's as built
-    (test_a_dataclass_input_holds_the_servers_value_its_field_validated), a
+    something other than a mapping is the call's as built, a ``validate()``
+    rewriting the instance included, while the parameter still takes the
+    field's value
+    (test_a_dataclass_input_holds_the_servers_value_its_field_validated,
+    test_a_dataclass_validate_copy_never_reaches_the_parameter_off_http), a
     key the serializer no longer holds - a ``validate()`` moved it - is not put
-    back (test_a_key_validate_removed_is_not_put_back), and a ``source="*"``
-    field has no key of its own (test_a_server_value_for_a_flattened_field_keeps_no_key).
+    back, though the parameter still takes it
+    (test_a_key_validate_removed_is_not_put_back), and a ``source="*"``
+    field has no key of its own
+    (test_a_server_value_for_a_flattened_field_keeps_none_of_the_keys_it_spreads).
     """
     for name, value in held.items():
         # A ``source="*"`` field's ``source_attrs`` are empty; ``None`` is no

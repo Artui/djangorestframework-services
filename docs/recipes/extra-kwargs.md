@@ -32,10 +32,30 @@ by its name or by its `source`, the value is written into the field, over
 whatever the client sent, and validated as the field validates. A hook returning
 `{"tenant": request.user.tenant}` therefore decides the `tenant` the service
 receives in `data`; a client cannot spoof it by putting `tenant` in the body.
-Nor by a second route to the same key: what the field validates the value to is
-laid back under its key after the serializer has run, so a later field with the
-same `source`, a `source="*"` nested serializer or a `validate()` writing
-`tenant` from the client's input does not replace it.
+Nor by a second route to the same key. The value is read from the body before
+the serializer runs, and once the serializer has accepted the body it is
+validated on its own, by the field and its `validate_<field>`. What that gives is
+handed to the service's parameter named by the field's `source`, and is laid back
+under that key in `data`. So a later field with the same `source`, a
+`source="*"` nested serializer, a `validate()` writing `tenant` from the client's
+input, a `validate()` or another field's `validate_<field>` running `tenant`'s
+validation on a value of its own, and a `to_internal_value` override that writes
+the client's value over `tenant` in the body or builds `tenant` without the
+field, do not replace it. A refusal of the value is a 400 keyed by the field, as
+DRF's field loop answers one. A field with a dotted `source` or `source="*"`
+has no key of its own in `data`, so its value reaches the parameter named like
+the field.
+
+Two shapes keep the parameter and `data` apart. A dataclass input's `data` is
+the instance as the serializer built it, so a `validate()` that rewrites the
+instance's attribute is seen there and not by the parameter. A `many` spec's
+rows are handed on as its list serializer built them.
+
+That validation is separate from the serializer's own pass, which costs where a
+field does work. A related field looks its value up once more, one more query
+for a `PrimaryKeyRelatedField`, and the field's validators and its
+`validate_<field>` run twice, so a validator that queries, a `UniqueValidator`,
+queries twice, and one with side effects has them twice.
 
 Validated as the field validates means the value is given in the form a client
 would send it. A related field takes a primary key, and the service receives
