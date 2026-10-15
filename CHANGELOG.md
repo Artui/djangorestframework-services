@@ -253,6 +253,10 @@ project may have to change, each detailed below:
   An `input_data` value for a field is held the same way: a later field with
   the same `source`, a `source="*"` nested serializer or a `validate()`
   writing the key no longer replaces it in `data`, where 0.57.0 let them.
+  That holds against the serializer's own normalising too: a `validate()`
+  that rewrites the value a hook, the `kwargs` provider or `input_data` gave
+  for a field, by lowercasing or stripping it, no longer takes effect for that
+  field, which keeps the value as the field validated it.
 - **Breaking: pool seeds.** `RESERVED_POOL_SEEDS` is `user`, `data`,
   `instance`, `collection`, `result`, `queryset` and `progress`, where it
   listed `request` and `serializer` rather than `result` and `queryset`. A
@@ -266,8 +270,7 @@ project may have to change, each detailed below:
     call seeds - `request`, `view`, `user`, `data`, `instance`, `collection`,
     `result`, `queryset`, `progress`, or a name registered in `pool_seeds` -
     raises `ImproperlyConfigured`, where 0.57.0 handed the value to the
-    callables; `serializer` is still taken, and the bound serializer
-    outranks it. `call_service` drops a `view=` passed inside a view.
+    callables. `call_service` drops a `view=` passed inside a view.
   - A view-hook extra naming a pool seed is dropped and the seed wins, where
     the hook's value replaced it.
   - Off HTTP under `UnknownArguments.REJECT`, a caller's `result` or

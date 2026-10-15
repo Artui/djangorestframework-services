@@ -296,6 +296,10 @@ def test_the_value_laid_back_is_the_fields_validate_method_s(dispatch: Dispatch)
     assert seen == {"tenant": "SERVER", "data": "SERVER", "validated": "SERVER"}
 
 
+def _shouted() -> dict[str, Any]:
+    return {"tenant": "SERVER"}
+
+
 class _Lowers(serializers.Serializer):
     tenant = serializers.CharField(required=False)
 
@@ -308,15 +312,17 @@ class _Lowers(serializers.Serializer):
 @pytest.mark.django_db
 @_CORES
 @pytest.mark.parametrize(
-    "hooks",
+    ("spec_kwargs", "hooks"),
     [
-        ViewHooks(extra_kwargs={"tenant": "SERVER"}),
-        ViewHooks(input_data={"tenant": "SERVER"}),
+        ({}, ViewHooks(extra_kwargs={"tenant": "SERVER"})),
+        ({}, ViewHooks(input_data={"tenant": "SERVER"})),
+        ({"kwargs": _shouted}, None),
+        ({"input_data": _shouted}, None),
     ],
-    ids=["extra", "input-data"],
+    ids=["hook-extra", "hook-input-data", "spec-kwargs", "spec-input-data"],
 )
 def test_a_validate_rewrite_of_the_servers_own_value_is_laid_over(
-    dispatch: Dispatch, hooks: ViewHooks
+    dispatch: Dispatch, spec_kwargs: dict[str, Any], hooks: ViewHooks | None
 ) -> None:
     """``validate()`` cannot tell the server's value from a client's, and neither can the lay-back.
 
@@ -326,7 +332,7 @@ def test_a_validate_rewrite_of_the_servers_own_value_is_laid_over(
     ``validate()`` left it.
     """
     seen: dict[str, Any] = {}
-    spec = ServiceSpec(service=_hidden(seen), input_serializer=_Lowers, atomic=False)
+    spec = ServiceSpec(service=_hidden(seen), input_serializer=_Lowers, atomic=False, **spec_kwargs)
 
     dispatch(spec, params={"tenant": "client"}, view_hooks=hooks)
 
