@@ -30,6 +30,7 @@ from contextvars import ContextVar
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
+from django.http import QueryDict
 from django_service_specs.parameters.parameters import Parameter, Parameters
 from django_service_specs.pool.resolve_callable_kwargs import resolve_callable_kwargs
 from django_service_specs.types.unset import UNSET as KERNEL_UNSET
@@ -141,11 +142,18 @@ class EdgeCallState:
       binds rather than the kernel's checked arguments (``validator_input``):
       the caller's own, a ``QueryDict`` kept one, with what the edge put over
       it, as DRF's serializer has always been handed the request's data.
-    - ``server_fields``: the fields of that Validator's body the edge put the
-      server's value into - a view hook's or the spec's ``kwargs`` provider's
-      value naming the field, and ``input_data`` - by the name the body
-      carries. A key a callable of the call marks ``NotClientInput`` is handed
-      on by name only from one of these (``server_fields``).
+    - ``server_values``: the server's value for each field of that
+      Validator's body the edge put one into - a view hook's or the spec's
+      ``kwargs`` provider's value naming the field, and ``input_data``, a field
+      named like a seed of the call included - by the name the body carries,
+      as the edge put it. The Validator validates these, never what a field
+      reads back from the body, and a key a callable of the call marks
+      ``NotClientInput`` is handed on by name only from one of them
+      (``server_values``).
+    - ``author_keys``: for each of those a view hook or the spec's ``kwargs``
+      provider gave, the key the author gave it under, the field's wire name or
+      its ``source``: the parameter the author named, which the Validator also
+      hands the value to (``author_keys``).
     - ``body_rows``: whether that body is a live view's list body, which the
       Validator binds whole, every row as sent, as DRF's view bound it
       (``SerializerValidator.validated_many``).
@@ -162,7 +170,8 @@ class EdgeCallState:
     author_values: Mapping[str, Any] = dataclasses.field(default_factory=dict)
     view_hooks: ViewHooks = dataclasses.field(default_factory=ViewHooks)
     validator_input: tuple[Any, Any] | None = None
-    server_fields: frozenset[str] = frozenset()
+    server_values: Mapping[str, Any] = dataclasses.field(default_factory=dict)
+    author_keys: Mapping[str, str] = dataclasses.field(default_factory=dict)
     body_rows: bool = False
     row_errors: Any = None
 
@@ -194,8 +203,8 @@ def validator_input(validator: Any, arguments: Any) -> Any:
     return held[1] if held is not None and held[0] is validator else arguments
 
 
-def server_fields(validator: Any) -> frozenset[str]:
-    """The fields of the body ``validator`` binds that hold the server's value, for this call.
+def server_values(validator: Any) -> Mapping[str, Any]:
+    """The server's value for each field of the body ``validator`` binds the edge put one into.
 
     Read as ``validator_input`` reads the body: only the Validator the edge call
     names, so a kernel call made inside the service, whose client may send the
@@ -206,8 +215,32 @@ def server_fields(validator: Any) -> frozenset[str]:
     which fails without the ``None`` check).
     """
     state = edge_call_state()
+    return state.server_values if _names(state, validator) else {}
+
+
+def write_form_value(body: QueryDict, name: str, value: Any) -> None:
+    """Write ``value`` under ``name`` in a form body, as ``input_data`` always reached one.
+
+    A list or tuple as the key's values (``setlist``), anything else as its one
+    value (test_input_data_reaches_a_form_body_as_a_list). The edge writes the
+    server's values into the body this way, and the Validator reads one back
+    through its field the same way (``SerializerValidator``).
+    """
+    if isinstance(value, list | tuple):
+        body.setlist(name, list(value))
+    else:
+        body[name] = value
+
+
+def author_keys(validator: Any) -> Mapping[str, str]:
+    """The key an author gave each of ``server_values`` under, read as ``server_values`` is."""
+    state = edge_call_state()
+    return state.author_keys if _names(state, validator) else {}
+
+
+def _names(state: EdgeCallState, validator: Any) -> bool:
     held = state.validator_input
-    return state.server_fields if held is not None and held[0] is validator else frozenset()
+    return held is not None and held[0] is validator
 
 
 def author_values() -> dict[str, Any]:

@@ -268,9 +268,10 @@ The spec's `kwargs` provider outranks the view's hooks. A hook value for a name
 the call reads (a parameter of the spec's callable or target lookup, or a field
 of the input serializer, by its name or its `source`) is that argument's value,
 over the client's, and is validated as the client's would be. For a field, the
-value is read from the body before the serializer runs and validated on its own,
-by the field and its `validate_<field>`, once the serializer has accepted the
-body; what that gives is the value under its `source` key wherever the call
+value given is validated on its own, by the field and its `validate_<field>`,
+once the serializer has accepted the body, never what the field reads back from
+the body; what that gives is the value under its `source` key, and under the key
+the hook used where that differs, wherever the call
 reads it (the service's parameter, `data`, the bound serializer's
 `validated_data`), even where a later field with the same `source`, a
 `source="*"` nested serializer, the serializer's `validate()` or a
@@ -278,7 +279,7 @@ reads it (the service's parameter, `data`, the bound serializer's
 the field's validation again on a value of its own; `input_data` is held the
 same way. That run is the field's second for the call, so a related field
 queries once more and the field's validators and its `validate_<field>` run
-twice. A field with a dotted `source` or
+twice, as do a nested serializer's `validate()` and its fields' own. A field with a dotted `source` or
 `source="*"` hands it to the parameter named like the field. Where `data` is a
 dataclass instance it is left as the serializer built it, and so are a `many`
 spec's rows (see [extra kwargs](../recipes/extra-kwargs.md)). A value naming a

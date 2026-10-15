@@ -368,6 +368,38 @@ def test_a_route_capture_scopes_the_lookup_beside_a_field_of_its_name(seen: list
     assert seen == ["route-team", "body-team"]
 
 
+class _ServerTeamView(ServiceUpdateView):
+    queryset = Post.objects.all()
+    spec = ServiceSpec(
+        service=_echo_team,
+        input_serializer=_TeamIn,
+        input_data=lambda: {"team": "server-team"},
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_for_team),
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, output_serializer=PostSerializer
+        ),
+        atomic=False,
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("fmt", ["json", "multipart"])
+def test_input_data_for_a_field_named_like_a_captured_hidden_key_outranks_the_body(
+    seen: list[Any], fmt: str
+) -> None:
+    """The field is the serializer's, and ``input_data`` is written into its body as
+    it always was, so the server's value is the one validated; the capture still
+    scopes the lookup."""
+    post = Post.objects.create(title="p")
+
+    response = _ServerTeamView.as_view()(
+        factory.put("/", {"team": "body-team"}, format=fmt), pk=post.pk, team="route-team"
+    )
+
+    assert response.status_code == 200, response.data
+    assert seen == ["route-team", "server-team"]
+
+
 @pytest.mark.django_db
 @pytest.mark.parametrize(
     "unknown_arguments",

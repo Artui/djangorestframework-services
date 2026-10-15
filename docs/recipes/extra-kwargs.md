@@ -32,11 +32,14 @@ by its name or by its `source`, the value is written into the field, over
 whatever the client sent, and validated as the field validates. A hook returning
 `{"tenant": request.user.tenant}` therefore decides the `tenant` the service
 receives in `data`; a client cannot spoof it by putting `tenant` in the body.
-Nor by a second route to the same key. The value is read from the body before
-the serializer runs, and once the serializer has accepted the body it is
-validated on its own, by the field and its `validate_<field>`. What that gives is
-handed to the service's parameter named by the field's `source`, and is laid back
-under that key in `data`. So a later field with the same `source`, a
+Nor by a second route to the same key. Once the serializer has accepted the body,
+the value the hook gave is validated on its own, by the field and its
+`validate_<field>`, never what the field reads back from the body. What that gives
+is handed to the service's parameter named by the field's `source`, and by the key
+the hook used where that differs, and is laid back under that key in `data`. So a
+field that reads more of the body than its own key (a nested serializer or a dict
+reading a form body's `tenant.id`, a field whose `get_value` reads another key),
+a later field with the same `source`, a
 `source="*"` nested serializer, a `validate()` writing `tenant` from the client's
 input, a `validate()` or another field's `validate_<field>` running `tenant`'s
 validation on a value of its own, and a `to_internal_value` override that writes
@@ -54,8 +57,15 @@ rows are handed on as its list serializer built them.
 That validation is separate from the serializer's own pass, which costs where a
 field does work. A related field looks its value up once more, one more query
 for a `PrimaryKeyRelatedField`, and the field's validators and its
-`validate_<field>` run twice, so a validator that queries, a `UniqueValidator`,
-queries twice, and one with side effects has them twice.
+`validate_<field>` run twice, as do a nested serializer's `validate()` and its own
+fields' validators and `validate_<field>`, so a validator that queries, a
+`UniqueValidator`, queries twice, and one with side effects has them twice.
+
+On a form body, multipart or urlencoded, the value is read as DRF reads a form: an
+empty string for an optional field leaves the field out, or is `None` where the
+field allows null, and one value for a list field or a `MultipleChoiceField` is a
+list of one. A `JSONField`'s mapping is refused on a form body, where a JSON body
+takes it, so for that field the answer depends on the client's content type.
 
 Validated as the field validates means the value is given in the form a client
 would send it. A related field takes a primary key, and the service receives
