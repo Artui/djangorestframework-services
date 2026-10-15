@@ -117,9 +117,15 @@ itself along with the reserved pool seeds, which no caller can send. Without
 `supplied`, only the marker makes a parameter required. See
 [what a transport supplies](../reference/jsonschema.md#what-a-transport-supplies-supplied).
 
-Dispatch enforces that one without a marker too. The compiled spec declares a
-parameter with no default as required, so a call that lacks it is refused the
-same way, every missing name keyed in the one refusal. That holds for the
+Dispatch enforces that one without a marker too, once the call's providers,
+view hooks and pool seeds have run, since any of them may still fill it. A call
+that lacks it then is refused the same way, `{"pk": ["This field is
+required."]}`, with every such name keyed in the one refusal. A name the
+declaration itself requires (one marked `InputRequired`, a required declared
+read, a required input serializer field) is refused earlier, before the
+permission checks run, so a call missing names of both kinds is answered in two
+refusals, the declared names first. A spreading service's target lookup key is
+asked for as the service is called, after both. That holds for the
 target lookup, the selector under `AUTO` or `SPREAD_AUTHOR_WINS` (under
 `BUNDLE`, which a selector view dispatches, only its declared `reads` are caller
 input, and a parameter nothing fills is the selector's own `TypeError`), and a
