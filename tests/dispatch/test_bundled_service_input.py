@@ -230,11 +230,12 @@ def test_the_compiled_spec_declares_no_service_parameter() -> None:
 
 @pytest.mark.django_db
 @_CORES
-@pytest.mark.parametrize("binding", [ArgumentBinding.BUNDLE, ArgumentBinding.SPREAD_AUTHOR_WINS])
-def test_a_selectors_reads_are_the_callers_under_every_binding(
+@pytest.mark.parametrize("binding", [ArgumentBinding.AUTO, ArgumentBinding.SPREAD_AUTHOR_WINS])
+def test_a_selectors_reads_are_the_callers_under_a_spreading_binding(
     dispatch: Dispatch, binding: ArgumentBinding
 ) -> None:
-    """The binding decides only whether a service's own parameters are caller input."""
+    """``AUTO`` spreads a selector's arguments; ``BUNDLE`` spreads none, as on 0.57.0
+    (``tests/dispatch/test_bundle_spreads_nothing_into_a_selector.py``)."""
     post = Post.objects.create(title="p")
     spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_by_pk)
 

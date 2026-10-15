@@ -564,9 +564,10 @@ async def test_a_refused_list_return_reads_the_same_on_either_core() -> None:
     assert "returned dict" in str(async_refusal.value)
 
 
-async def test_a_missing_selector_parameter_is_refused_alike_on_either_core() -> None:
-    """A required parameter nobody sent is the caller's 400, the same on both cores,
-    whatever the binding. Nothing is read, so no database is needed."""
+async def test_a_bundled_selector_parameter_is_the_author_s_error_on_either_core() -> None:
+    """Each core prepares the selector call through the same edge, and each must pass
+    the binding: under ``BUNDLE`` no resend fills ``tenant``, so neither names it.
+    Nothing is read, so no database is needed."""
 
     def rows(*, tenant: str) -> list[str]:
         return [tenant]
@@ -577,12 +578,12 @@ async def test_a_missing_selector_parameter_is_refused_alike_on_either_core() ->
         "params": {},
         "argument_binding": ArgumentBinding.BUNDLE,
     }
-    with pytest.raises(ValidationError) as sync_error:
+    with pytest.raises(TypeError) as sync_error:
         await sync_to_async(dispatch_spec, thread_sensitive=True)(spec, **kwargs)
-    with pytest.raises(ValidationError) as async_error:
+    with pytest.raises(TypeError) as async_error:
         await adispatch_spec(spec, **kwargs)
-    assert sync_error.value.detail == async_error.value.detail
-    assert set(async_error.value.detail) == {"tenant"}
+    assert str(sync_error.value) == str(async_error.value)
+    assert "tenant" in str(async_error.value)
 
 
 # --- the mutated target's stale prefetch ----------------------------------

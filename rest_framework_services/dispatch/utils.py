@@ -50,6 +50,7 @@ from rest_framework_services.service_specs.utils import (
     describe_with,
     edge_call_state,
     input_parameters,
+    left_to_the_callable,
     serializer_context,
     server_channel,
     takes_the_whole_pool,
@@ -233,6 +234,13 @@ def prepare_edge_call(
     if isinstance(spec, SelectorSpec):
         seeds = edge_seeds(pool_seeds, request=request, view=view)
         variant: Any = _seed_filled_variant(spec, seeds, unguarded=True, server_input=False)
+        # ``BUNDLE`` spreads none of the caller's input into the selector's
+        # parameters, as on 0.57.0, and every selector view dispatches it
+        # (``bundled_selector``).
+        bundled = resolve_argument_binding(spec, argument_binding) is ArgumentBinding.BUNDLE
+        caller_names: frozenset[str] = frozenset()
+        if bundled:
+            variant, caller_names = bundled_selector(variant, spec)
         if on_target_resolved is not None:
             variant = guarded_selector(variant)
             guard = on_target_resolved
@@ -244,9 +252,33 @@ def prepare_edge_call(
         arguments = without_seed_names(
             edge_arguments(variant, spec, params, request=request, view=view), pool_seeds
         )
+        route = getattr(view, "kwargs", None)
+        if isinstance(arguments, dict):
+            # The caller's value for a parameter ``BUNDLE`` spreads nothing
+            # into is no argument, so it is neither handed on nor refused, and
+            # a route capture of the name still is
+            # (test_bundle_on_selector_does_not_spread_params,
+            # test_a_route_capture_still_reaches_a_bundled_selector). Arguments
+            # that are no object are left for the shape check to refuse
+            # (test_arguments_that_are_no_object_are_still_refused_under_bundle),
+            # which holds the same check below.
+            for name in caller_names - (route.keys() if isinstance(route, dict) else set()):
+                arguments.pop(name, None)
         # What the selector is handed under its filter's names, before the
-        # filter's own values replace the caller's (``values_beside_filter``).
-        beside = _beside_filter(spec, arguments, hidden=_shadowed(spec), view=view)
+        # filter's own values replace the caller's (``values_beside_filter``):
+        # under ``BUNDLE`` a declared read's and a route capture, while the
+        # filter still reads the caller's value
+        # (test_the_filter_reads_the_caller_s_value_and_the_selector_parameter_does_not,
+        # test_a_query_param_named_like_a_filter_reaches_the_selector).
+        declared = {entry.name for entry in spec.reads or ()}
+        beside = _beside_filter(
+            spec,
+            {name: arguments[name] for name in declared & arguments.keys()}
+            if bundled and isinstance(arguments, dict)
+            else arguments,
+            hidden=_shadowed(spec),
+            view=view,
+        )
         _route_filter_data(arguments, variant.filter_set, filter_data)
         _as_its_filter_set_reads(arguments, variant.filter_set)
         author_rest, _authored, authors_beside = _route_author_values(
@@ -1597,6 +1629,66 @@ def _read_filter_set(spec: Any) -> Any:
 # as ``kernel_spec_variant`` keys its own: a ``Grant`` binds the compiled object.
 _GUARDED: dict[int, tuple[weakref.ref[Any], KernelSelectorSpec]] = {}
 _GUARDED_LOCK = threading.Lock()
+
+
+def bundled_selector(
+    variant: KernelSelectorSpec, spec: SelectorSpec[Any, Any]
+) -> tuple[KernelSelectorSpec, frozenset[str]]:
+    """``variant`` as ``BUNDLE`` dispatches it, and the names it takes none of the caller's values for.
+
+    Those are its reads read off the selector's signature: a declared read
+    (``reads=``) stays the caller's to send. The caller's value for one is
+    dropped by the edge, so nothing a caller sends fills it, and the kernel,
+    which refuses a read the pool lacks as missing, refuses none of them: an
+    ``InputRequired`` one is no longer required, and the selector and each
+    precondition report a default for each (``left_to_the_callable``). What
+    the server gives - a route capture, a view hook's or the provider's value,
+    a seed - still fills it, and one nothing fills fails as the callable's own
+    ``TypeError``, as on 0.57.0, where a resend could never fill it
+    (test_a_bundled_selector_parameter_is_the_author_s_error, its
+    ``selector``, ``selector-precondition`` and ``input-required`` cases;
+    test_over_http_a_selector_parameter_nothing_fills_is_the_author_s_error).
+    A declared read left out is still refused for the caller to send
+    (test_over_http_a_declared_read_left_out_is_still_the_client_s_400).
+    Compiled once per variant.
+    """
+    # The filter's names too: the kernel adds the filter's Parameters to the
+    # reads, and the filter reads the caller's value under ``BUNDLE`` as it
+    # always did
+    # (test_the_filter_reads_the_caller_s_value_and_the_selector_parameter_does_not).
+    names = (
+        variant.reads.names()
+        - {entry.name for entry in spec.reads or ()}
+        - filter_set_parameters(variant.filter_set).names()
+    )
+    with _BUNDLED_LOCK:
+        held = _BUNDLED.get(id(variant))
+        if held is None:
+            source_id = id(variant)
+            twin = dataclasses.replace(
+                variant,
+                reads=Parameters(
+                    tuple(
+                        dataclasses.replace(parameter, required=False)
+                        if parameter.name in names
+                        else parameter
+                        for parameter in variant.reads
+                    )
+                ),
+                selector=left_to_the_callable(variant.selector, names),
+                preconditions=(
+                    [left_to_the_callable(fn, names) for fn in variant.preconditions]
+                    if variant.preconditions
+                    else variant.preconditions
+                ),
+            )
+            source = weakref.ref(variant, lambda _dead: _BUNDLED.pop(source_id, None))
+            held = _BUNDLED[source_id] = (source, twin)
+    return held[1], names
+
+
+_BUNDLED: dict[int, tuple[weakref.ref[Any], KernelSelectorSpec]] = {}
+_BUNDLED_LOCK = threading.Lock()
 
 
 def guarded_selector(variant: KernelSelectorSpec) -> KernelSelectorSpec:

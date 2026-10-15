@@ -27,9 +27,10 @@ class ArgumentBinding(Enum):
     while an author's value for it (a view hook's, the spec's ``kwargs``
     provider's or ``input_data``'s) still reaches the parameter.
 
-    What is left for this enum is one question about a service spec with no
-    ``input_serializer``: whether the service's own parameters are caller
-    input. A selector spec's reads are the caller's under every member. It
+    What is left for this enum is one question, about a service spec with no
+    ``input_serializer`` and about a selector spec: whether the callable's own
+    parameters are caller input. A selector spec's declared ``reads`` are the
+    caller's under every member. It
     is a trust-boundary decision, which is why it belongs to the caller
     rather than the spec. Pass the member directly; the value never appears
     on a wire.
@@ -37,14 +38,20 @@ class ArgumentBinding(Enum):
     Attributes:
         AUTO: The default, resolved per spec type: [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] →
             ``BUNDLE``, [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] →
-            ``SPREAD_AUTHOR_WINS``, which changes nothing for a selector.
+            ``SPREAD_AUTHOR_WINS``, so a selector takes the caller's value for
+            each parameter its signature names.
         BUNDLE: A service's own parameters are never the caller's: the
             validated payload reaches it as ``data=``, and each validated
             value by its key as well (one a callable of the call marks
             ``NotClientInput`` only inside ``data``), beside its declared
             reads by name; nothing else the client sends reaches it. A
             service with no ``input_serializer`` takes ``data={}``. The safe
-            choice for a mutation whose ``kwargs`` scopes the write.
+            choice for a mutation whose ``kwargs`` scopes the write. A
+            selector takes none of the caller's values for its parameters
+            either: only a route capture, an author's value, a seed and its
+            declared reads fill them, the filter still reads the caller's
+            values, and a parameter nothing fills is the callable's own
+            ``TypeError``. A selector view dispatches this member.
         SPREAD_AUTHOR_WINS: A service with no ``input_serializer`` declares
             its own parameters as the caller's input, and the author's values
             still replace the caller's on a conflict, so an author-scoped

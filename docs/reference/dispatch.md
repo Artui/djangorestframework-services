@@ -190,11 +190,16 @@ target.
 A call has **one argument pool**: every callable takes its keyword arguments
 from it by name, and an author's value (a view hook's, or the spec's `kwargs`
 provider's) outranks the caller's for the same name. What the enum still
-decides is one question about a `ServiceSpec` with no `input_serializer`:
-whether the service's own parameters are caller input.
+decides is one question, about a `ServiceSpec` with no `input_serializer` and
+about a `SelectorSpec`: whether the callable's own parameters are caller input.
 
 - `AUTO`, the default, is `BUNDLE` for a service and `SPREAD_AUTHOR_WINS` for a
-  selector. A selector's reads are the caller's under every member.
+  selector. A selector's declared `reads` are the caller's under every member.
+- Under `BUNDLE` a selector's own parameters are not the caller's either: a
+  route capture, an author's value, a seed and its declared `reads` fill them,
+  its `filter_set` still reads the caller's values, and a parameter nothing
+  fills is the callable's own `TypeError` rather than a `400` no client could
+  answer. A selector view dispatches `BUNDLE`.
 - Under `BUNDLE` a serializer-less service's own parameters are never the
   caller's: it receives `data={}`, its declared `reads` and the target lookup's
   row, and nothing else the client sends.
