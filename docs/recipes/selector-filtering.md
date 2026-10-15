@@ -40,8 +40,10 @@ exists for the two cases `filter_backends` can't serve:
 `filter_set` must be a real django-filter `FilterSet`: its `base_filters` are what
 the selector's arguments are read from. An object duck-typed on
 `(data, queryset) -> .qs` is refused with `ImproperlyConfigured` when the spec is
-compiled. A filter sharing its name with a field of the input serializer is refused
-the same way, since one name would then come from two sources. The library imports
+compiled. A target lookup's filter sharing its name with a writable field of the
+input serializer is refused too, since one name would then come from two sources:
+by `as_view()` where the serializer can be built with no request, and by each
+call otherwise, off HTTP included. The library imports
 nothing from `django-filter` itself, so install it to write the FilterSet:
 
 ```bash

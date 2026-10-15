@@ -135,10 +135,11 @@ project may have to change, each detailed below:
   and a direct caller turns it into its own answer.
 - **Rename a filter that shares an input field's name.** A target lookup's
   (`instance_selector_spec` or `collection_selector_spec`) `filter_set`
-  naming a filter like an input-serializer field raises
-  `ImproperlyConfigured`, `Parameters ['title'] are declared by two
-  sources.`, on every request, where 0.57.0 answered it; `as_view()` does
-  not refuse it.
+  naming a filter like a writable input-serializer field, as the client
+  sends it, raises `ImproperlyConfigured` where 0.57.0 answered it: at
+  `as_view()` (and where `@service_action` decorates), where the serializer
+  can be read with no request, and otherwise on every request, as
+  `Parameters ['title'] are declared by two sources.`
 - **Expect a 403 for a deactivated user.** A user whose `is_active` is false
   is refused with `PrincipalUnavailable` on every view and off HTTP, whatever
   `permission_classes` the view declares, none included; no setting serves
