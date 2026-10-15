@@ -208,6 +208,118 @@ class TestDeclaredReads:
         assert reads.get("title") == Parameter("title", "string")
 
 
+def _hiding_selector(*, tenant: Annotated[str, NotClientInput] = "own") -> Any:
+    return Post.objects.all()
+
+
+def _hiding_service(*, tenant: Annotated[str, NotClientInput] = "own") -> None: ...
+
+
+def _hiding_precondition(*, tenant: Annotated[str, NotClientInput] = "own") -> None: ...
+
+
+def _plain_service() -> None: ...
+
+
+class _HiddenTenant(TypedDict, total=False):
+    tenant: Annotated[str, NotClientInput]
+
+
+def _hiding_unpacked_service(**kwargs: Unpack[_HiddenTenant]) -> None: ...
+
+
+def _hiding_lookup(*, pk: int, tenant: Annotated[str, NotClientInput] = "own") -> Any:
+    return Post.objects.filter(pk=pk)
+
+
+def _touch_with_tenant(*, instance: Post, tenant: str = "default") -> Post:
+    return instance
+
+
+class TestAReadItsReceiverHides:
+    """A declared read is handed by name to the service or selector and to each
+    precondition, so one of those marking the same name ``NotClientInput``
+    contradicts itself, and the spec is refused at compile."""
+
+    @pytest.mark.parametrize("read", [QueryParam("tenant"), UrlKwarg("tenant")])
+    def test_a_selector_hiding_a_read_is_refused(self, read: QueryParam | UrlKwarg) -> None:
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=_hiding_selector, reads=[read])
+
+        with pytest.raises(ImproperlyConfigured) as raised:
+            as_kernel_spec(spec)
+
+        message = str(raised.value)
+        assert f"SelectorSpec.reads declares {read.__class__.__name__}('tenant')" in message
+        assert "_hiding_selector" in message
+        assert "NotClientInput" in message
+
+    def test_a_selector_s_precondition_hiding_a_read_is_refused(self) -> None:
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=_every,
+            preconditions=[_hiding_precondition],
+            reads=[QueryParam("tenant")],
+        )
+
+        with pytest.raises(ImproperlyConfigured, match="_hiding_precondition"):
+            as_kernel_spec(spec)
+
+    @pytest.mark.parametrize("read", [QueryParam("tenant"), UrlKwarg("tenant")])
+    def test_a_service_hiding_a_read_is_refused(self, read: QueryParam | UrlKwarg) -> None:
+        spec = ServiceSpec(service=_hiding_service, reads=[read])
+
+        with pytest.raises(ImproperlyConfigured) as raised:
+            as_kernel_spec(spec)
+
+        message = str(raised.value)
+        assert f"ServiceSpec.reads declares {read.__class__.__name__}('tenant')" in message
+        assert "_hiding_service" in message
+        assert "NotClientInput" in message
+
+    def test_a_service_hiding_an_unpacked_key_it_reads_is_refused(self) -> None:
+        spec = ServiceSpec(service=_hiding_unpacked_service, reads=[QueryParam("tenant")])
+
+        with pytest.raises(ImproperlyConfigured, match="_hiding_unpacked_service"):
+            as_kernel_spec(spec)
+
+    def test_a_service_s_precondition_hiding_a_read_is_refused(self) -> None:
+        spec = ServiceSpec(
+            service=_plain_service,
+            preconditions=[_hiding_precondition],
+            reads=[QueryParam("tenant")],
+        )
+
+        with pytest.raises(ImproperlyConfigured, match="_hiding_precondition"):
+            as_kernel_spec(spec)
+
+    def test_a_read_only_a_target_lookup_hides_is_the_service_s(self) -> None:
+        """The lookup is never handed a read it hides, so nothing contradicts itself:
+        the read is the service's argument, and the lookup keeps its own key."""
+        spec = ServiceSpec(
+            service=_touch_with_tenant,
+            instance_selector_spec=SelectorSpec(
+                kind=SelectorKind.RETRIEVE, selector=_hiding_lookup
+            ),
+            reads=[UrlKwarg("tenant")],
+        )
+
+        compiled = _kernel_service(spec)
+
+        assert compiled.reads.get("tenant") is not None
+        assert compiled.instance_selector_spec is not None
+        assert compiled.instance_selector_spec.reads.get("tenant") is None
+
+    def test_a_read_no_receiver_hides_compiles(self) -> None:
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=_hiding_selector,
+            preconditions=[_hiding_precondition],
+            reads=[QueryParam("other")],
+        )
+
+        assert _kernel_selector(spec).reads.get("other") is not None
+
+
 class TestReflectedReads:
     def test_a_selector_s_named_parameters_are_its_reads(self) -> None:
         def read(

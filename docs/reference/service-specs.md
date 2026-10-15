@@ -61,7 +61,20 @@ A selector always takes its arguments from its signature, except for the names
 its `filter_set` owns.
 Parameters marked `NotClientInput` on any callable of the call are hidden.
 So are the names the pool fills: `user`, `request`, `view`, `queryset`,
-`result` and the rest. Declaring one of those in `reads` is refused.
+`result` and the rest. Two `reads` declarations are refused with
+`ImproperlyConfigured` when the spec compiles (at registration, or on its first
+dispatch), each naming the read:
+
+- a name the pool fills, which would never be the caller's;
+- a name the spec's service or selector, or one of its `preconditions`, marks
+  `NotClientInput`. Dispatch hands a declared read to each of those callables
+  by name, so the same callable would be given the client's value for a
+  parameter it keeps the server's. The message names the callable and the
+  mark; remove one of the two.
+
+A name only a target lookup marks `NotClientInput` is accepted: the lookup is
+never handed a read it hides, so the read is the service's argument and the
+lookup keeps its own value.
 
 A nested spec compiles to what the kernel runs:
 

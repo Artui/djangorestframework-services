@@ -86,6 +86,12 @@ project may have to change, each detailed below:
   argument, and on an `OfflineServiceView` the value is also written onto
   `view.kwargs`, or onto `request.query_params` where the query string lacks
   it, for a provider, serializer or permission class reading it there.
+  A read is refused with `ImproperlyConfigured` when the spec compiles if it
+  names a value the pool fills, or a parameter that the spec's service or
+  selector, or one of its `preconditions`, marks `NotClientInput`: the read
+  would hand that callable the client's value under a name it keeps the
+  server's. A name only a target lookup marks `NotClientInput` is accepted
+  and is the service's argument.
   `field_audiences` maps an output field to its `FieldMarking`.
 - **`dispatch_spec(partial=...)`**, the request's partial flag (a `PATCH`).
   `None`, the default, reads the spec's own.

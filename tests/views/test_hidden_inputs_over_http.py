@@ -29,9 +29,11 @@ from typing_extensions import TypedDict
 
 from rest_framework_services import (
     NotClientInput,
+    QueryParam,
     SelectorKind,
     SelectorRetrieveView,
     SelectorSpec,
+    ServiceCreateView,
     ServiceSpec,
     ServiceUpdateView,
     UrlKwarg,
@@ -582,3 +584,44 @@ def test_a_read_named_like_a_hidden_lookup_key_is_the_service_s_argument(
 
     assert response.status_code == 200, response.data
     assert seen == ["own-team", "route-team"]
+
+
+def _create_for_tenant(*, tenant: Annotated[str, NotClientInput] = "server-tenant") -> Post:
+    _SEEN.append(tenant)
+    return Post.objects.create(title=tenant)
+
+
+_TENANT_READ_HIDDEN_BY_ITS_SERVICE = ServiceSpec(
+    service=_create_for_tenant,
+    reads=(QueryParam("tenant"),),
+    output_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=PostSerializer),
+    atomic=False,
+)
+
+
+class _ReadHiddenByItsServiceView(ServiceCreateView):
+    spec = _TENANT_READ_HIDDEN_BY_ITS_SERVICE
+
+
+@pytest.mark.django_db
+def test_a_read_its_own_service_hides_is_refused_over_http(seen: list[Any]) -> None:
+    """The service marks the name the server's and the spec declares it the
+    client's: refused, rather than handing the query string's value to the
+    parameter the service keeps for itself."""
+    with pytest.raises(ImproperlyConfigured, match="NotClientInput"):
+        _ReadHiddenByItsServiceView.as_view()(factory.post("/?tenant=client", {}, format="json"))
+
+    assert seen == []
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("read", [QueryParam("tenant"), UrlKwarg("tenant")])
+def test_a_read_its_own_service_hides_is_refused_off_http(
+    seen: list[Any], read: QueryParam | UrlKwarg
+) -> None:
+    spec = ServiceSpec(service=_create_for_tenant, reads=(read,), atomic=False)
+
+    with pytest.raises(ImproperlyConfigured, match="NotClientInput"):
+        dispatch_spec(spec, user=None, params={"tenant": "client"})
+
+    assert seen == []
