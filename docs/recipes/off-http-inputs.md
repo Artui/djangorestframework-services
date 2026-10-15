@@ -446,6 +446,10 @@ checks a service's required parameters before any call, and a request may
 carry no query value, so a required parameter of a read's name is refused
 when the view is built. Off HTTP, `dispatch_spec` hands it the argument.
 
+The [example project](https://github.com/Artui/djangorestframework-services/tree/main/examples) declares `reads=[QueryParam("status")]` on its list
+spec and asserts the selector is handed it both ways, beside an off-HTTP
+`dispatch_spec(partial=True)` call that validates only the fields it sends.
+
 Route captures and query values are coerced to the type the entry declares. `required=True` is the declared
 counterpart of the `InputRequired` marker: both land the name in the schema's
 `required` list, and they differ only in where the key is declared. A transport

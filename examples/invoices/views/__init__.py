@@ -4,17 +4,20 @@ from __future__ import annotations
 
 from invoices.models import Invoice
 from invoices.selectors import get_invoice, list_invoices
-from invoices.serializers import InvoiceSerializer
+from invoices.serializers import AnnotateInvoiceInput, InvoiceSerializer
 from invoices.services import (
     ApproveInput,
     CreateInvoiceInput,
     UpdateInvoiceInput,
+    annotate_invoice,
     create_invoice,
     delete_invoice,
     mark_invoice_sent,
     update_invoice,
 )
 from rest_framework_services import (
+    FieldMarking,
+    QueryParam,
     SelectorKind,
     SelectorSpec,
     ServiceSpec,
@@ -32,6 +35,14 @@ def _invoice_response_spec() -> SelectorSpec[Invoice, None]:
     )
 
 
+# Named so a caller off HTTP dispatches the spec the route serves.
+ANNOTATE_SPEC = ServiceSpec(
+    service=annotate_invoice,
+    input_serializer=AnnotateInvoiceInput,
+    output_selector_spec=_invoice_response_spec(),
+)
+
+
 class InvoiceViewSet(ServiceViewSet):
     queryset = Invoice.objects.all()
 
@@ -40,11 +51,17 @@ class InvoiceViewSet(ServiceViewSet):
             kind=SelectorKind.LIST,
             selector=list_invoices,
             output_serializer=InvoiceSerializer,
+            # The query value the selector reads, declared: the schema lists
+            # it, and an off-HTTP caller sends it as an argument.
+            reads=[QueryParam("status")],
         ),
         "retrieve": SelectorSpec(
             kind=SelectorKind.RETRIEVE,
             selector=get_invoice,
             output_serializer=InvoiceSerializer,
+            # An agent reading one invoice is not handed the bookkeeping
+            # timestamp; the REST response is unchanged.
+            field_audiences={"updated_at": FieldMarking.hidden()},
         ),
         "create": ServiceSpec(
             service=create_invoice,
@@ -70,3 +87,11 @@ class InvoiceViewSet(ServiceViewSet):
     )
     def send(self, request, pk=None):  # type: ignore[no-untyped-def]
         """Mark a draft invoice as sent."""
+
+    @service_action(
+        ANNOTATE_SPEC,
+        detail=True,
+        methods=["post"],
+    )
+    def annotate(self, request, pk=None):  # type: ignore[no-untyped-def]
+        """Set an invoice's customer and notes; off HTTP, ``partial=True`` sets either."""

@@ -1,4 +1,4 @@
-"""Output serializers for the invoices app."""
+"""Serializers for the invoices app."""
 
 from __future__ import annotations
 
@@ -19,3 +19,10 @@ class InvoiceSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
+
+
+class AnnotateInvoiceInput(serializers.Serializer):
+    """Input for ``annotate``: a whole call sends both fields, a partial one either."""
+
+    customer = serializers.CharField(max_length=200)
+    notes = serializers.CharField(allow_blank=True)

@@ -860,8 +860,10 @@ builds on:
 
 A minimal but runnable example project lives in
 [`examples/`](examples/). It demonstrates the create / list / retrieve /
-update / destroy flows on a single resource and one custom action via
-`@service_action`.
+update / destroy flows on a single resource and two custom actions via
+`@service_action`, a query value the list selector declares in `reads`, a
+field `field_audiences` hides from an agent, and a `dispatch_spec(partial=True)`
+call off HTTP.
 
 ```bash
 cd examples
