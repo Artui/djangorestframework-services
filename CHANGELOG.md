@@ -51,7 +51,8 @@ project may have to change, each detailed below:
 - **Bound a bulk body off HTTP.** A `many` call through `dispatch_spec` with
   no view, or with an `OfflineServiceView`, takes at most 1000 rows unless its
   `ListSerializer` sets `max_length` or the project sets
-  `SERVICE_SPECS_MAX_ARRAY_LENGTH`. A live view's bulk body is still bounded
+  `SERVICE_SPECS_MAX_ARRAY_LENGTH`. A serializer that cannot be built
+  without a request is held to that bound whatever `max_length` it sets. A live view's bulk body is still bounded
   by its `ListSerializer` alone.
 - **Move a nested selector's `progress_reporter` and `preconditions` to its
   `ServiceSpec`, and give a registered `SelectorSpec` a `selector`.** Each is
@@ -307,6 +308,13 @@ project may have to change, each detailed below:
     either shape. Off HTTP an unknown key inside a nested serializer is
     refused as `{"inner": {"zzz": ["Unknown argument."]}}`, code `unknown`;
     over a live view it is still dropped.
+  - Off HTTP under `REJECT`, an undeclared key is refused beside the
+    serializer's own refusals of the same call, where 0.57.0 answered those
+    alone: `{"bogus": 1}` with a required `title` missing answers both
+    `title` and `non_field_errors`.
+  - Off HTTP under `REJECT`, an argument sent beside a `many_argument` list is
+    refused before the rows are read, where 0.57.0 answered the rows' errors
+    first.
 - **Breaking: a value a view hook or the spec's `kwargs` provider gives for an
   input-serializer field decides that field, and is validated by it.** A key
   naming a field of `input_serializer`, by its name or by its `source`, is
@@ -446,6 +454,19 @@ project may have to change, each detailed below:
     refused where `True` passes.
   - `filter_data` reaches only the filter's own names, and neither it nor
     the query string narrows an output selector's `filter_set` any longer.
+  - Off HTTP, a filter value of the wrong JSON type is refused in the
+    kernel's words before the `FilterSet` reads it: a single value for a
+    `ModelMultipleChoiceFilter` is `Expected an array.` (code `not_a_list`)
+    where 0.57.0 answered `Enter a list of values.`, and a number in the list
+    a `BaseInFilter` or a `ModelMultipleChoiceFilter` reads is
+    `Expected a string.`, where 0.57.0 filtered by the first and raised
+    `TypeError` on the second. A primary key no row has is refused in the
+    `FilterSet`'s words with code `invalid_choice`, where 0.57.0 gave
+    `invalid`.
+  - A name both a filter and the spec's untyped `kwargs` provider fill is
+    filtered by the provider's value, over a live view and off HTTP, where
+    0.57.0 filtered by the caller's and handed the provider's to the
+    selector alone.
 - **Off HTTP, arguments are type-checked against what the spec declares
   before the serializer runs.** This holds for `dispatch_spec` and
   `adispatch_spec` called with no view or with an `OfflineServiceView`, as an
@@ -457,14 +478,19 @@ project may have to change, each detailed below:
   - a list longer than 1000 items, or the `SERVICE_SPECS_MAX_ARRAY_LENGTH`
     setting;
   - in-process Python `date`, `datetime`, `time`, `timedelta`, `Decimal`
-    and `UUID` values.
+    and `UUID` values;
+  - `null` for a parameter whose annotation does not admit it, whatever its
+    default: `x: int = None` refuses `null` where 0.57.0 passed it on, and
+    `x: int | None = None` takes it.
 
   The serializer runs only once every argument passes the check, so its own
   refusals of other fields (a `max_length`, a `validate()`) wait behind a
   type refusal.
 - **`many` calls.** A `many` spec needs an input serializer. Off HTTP and
   on an `OfflineServiceView` it takes its list bounds from the
-  `ListSerializer`, with 1000 rows the most where it sets no `max_length`,
+  `ListSerializer`, with 1000 rows the most where it sets no `max_length`
+  or cannot be built without a request (one whose `__init__` reads
+  `context["request"]`, say, which 0.57.0 could not build off HTTP at all),
   and a longer list is refused under `non_field_errors`. Over a live view the
   `ListSerializer` alone bounds the body, and a refused body is answered with
   its own errors, as before. Off HTTP, rows sent as a bare

@@ -50,7 +50,10 @@ Off HTTP, and on an `OfflineServiceView`, the kernel checks the list first and
 takes its bounds from the same `ListSerializer`; where it sets no
 `max_length`, at most 1000 rows are accepted, or what the
 `SERVICE_SPECS_MAX_ARRAY_LENGTH` setting says (`None` bounds nothing), and a
-longer list is refused under `non_field_errors`.
+longer list is refused under `non_field_errors`. A `ListSerializer` that cannot
+be built without a request, such as one whose item serializer reads
+`context["request"]` in `__init__`, is held to that default whatever
+`max_length` it sets, because its bounds cannot be read.
 
 ### Off HTTP: the list as one named argument
 
