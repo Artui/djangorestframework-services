@@ -114,15 +114,22 @@ def dispatch_spec(
             always was, so a caller's value reaches it only through what reads
             it - the Validator, the target lookup and the declared ``reads`` -
             and a request body never fills ``def destroy(*, instance,
-            hard=False)``'s ``hard``. A selector spec's parameters are its
-            caller's under every binding. ``SPREAD_CALLER_WINS`` is refused
+            hard=False)``'s ``hard``. Under every binding the Validator's
+            values reach a service by name beside ``data``, save one named
+            like a key a callable of the call marks ``NotClientInput``: the
+            client's value for that is in ``data`` alone, and the parameter
+            gets a view hook's, the spec's ``kwargs`` provider's or
+            ``input_data``'s value for it, or its default. A selector spec's
+            parameters are its caller's under every binding. ``SPREAD_CALLER_WINS`` is refused
             with ``ValueError``.
         unknown_arguments: ``IGNORE`` (the default here; the kernel's is
             ``REJECT``) or ``REJECT``. ``PASSTHROUGH`` is refused with
             ``ValueError``. ``REJECT`` names every undeclared key in one
             ``"Unexpected argument(s): ..."`` message under
-            ``non_field_errors``, a row's inside that row; a seed's name is
-            never one, ``view`` aside. Where a target lookup will query, an
+            ``non_field_errors``, a row's inside that row. A seed's name - a
+            built-in one, ``request`` or one ``pool_seeds`` registers - is
+            never one, and the caller's value for it is dropped; a caller's
+            ``view`` is refused. Where a target lookup will query, an
             undeclared key is refused before it does, alone. A selector or
             target lookup taking a bare ``**kwargs``, and a service with no
             ``input_serializer`` taking one under ``SPREAD_AUTHOR_WINS``, drop

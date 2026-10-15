@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import sys
 import threading
 import weakref
 from typing import Any
@@ -79,7 +80,12 @@ def kernel_spec_variant(
       this for a request a live DRF view dispatches, which DRF's serializer
       has always answered alone: a form's ``"on"`` for a boolean, ``123`` for
       a string, every field's refusal at once, in DRF's words. A caller off
-      HTTP keeps the kernel's typed check.
+      HTTP keeps the kernel's typed check. A ``many`` spec's list is
+      unbounded there too, so its ``ListSerializer`` alone bounds a live
+      view's body, as DRF's view always did: a body past the kernel's
+      ``SERVICE_SPECS_MAX_ARRAY_LENGTH`` is taken where the list serializer
+      declares no ``max_length``, and one past a declared bound is refused in
+      DRF's words.
     - ``excluded``: names a service spec's Validator declares no parameter
       for (``SerializerValidator(excluded=...)``): the edge compiles the
       names a seed of the call takes, so a serializer field of that name is
@@ -145,7 +151,23 @@ def _compile(
             serializer_context=validator.serializer_context,
             lenient=lenient,
             excluded=excluded,
+            # Carried over, or a live view's call hands a hidden parameter the
+            # client's value (test_a_client_value_for_a_hidden_parameter_stays_in_data_over_http).
+            server_owned=validator.server_owned,
         )
+    # The kernel reads an absent maximum as its own cap, so the largest list
+    # Python can hold stands for none
+    # (test_a_live_view_takes_a_body_past_the_kernels_cap), and the minimum goes
+    # too, or the kernel's wording answers an empty body before DRF's
+    # (test_a_list_serializers_own_bound_still_refuses_in_drfs_words, its
+    # ``empty-where-it-allows-none`` cases). One arc to coverage, so each
+    # conjunct is named: test_off_http_the_kernels_cap_stays fails without
+    # ``lenient``, and test_json_drf_accepts_is_accepted (a spec that is not
+    # ``many``, whose kernel spec refuses a list bound) without ``many``. A
+    # selector spec has no ``many``.
+    if lenient and getattr(compiled, "many", False):
+        changes["many_min_length"] = None
+        changes["many_max_length"] = sys.maxsize
     # One arc to coverage, so each conjunct is named:
     # test_a_selector_spec_takes_no_stand_in fails without the first, and
     # test_a_declared_lookup_is_kept without the second.

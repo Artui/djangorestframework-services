@@ -174,7 +174,9 @@ def _service(spec: Any, *, partial: bool | None, spread: bool) -> KernelServiceS
         **_list_bounds(spec),
         validator=(
             SerializerValidator(
-                spec.input_serializer, serializer_context=spec.input_serializer_context
+                spec.input_serializer,
+                serializer_context=spec.input_serializer_context,
+                server_owned=hidden,
             )
             if spec.input_serializer is not None
             else None

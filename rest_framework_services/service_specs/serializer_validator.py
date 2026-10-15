@@ -24,6 +24,7 @@ from rest_framework_services.service_specs.utils import (
     input_parameters,
     input_view_layers,
     serializer_context,
+    server_fields,
     validator_input,
 )
 
@@ -103,6 +104,10 @@ class SerializerValidator(Validator):
     ``user``, or a key a ``validate()`` adds named ``result``, stays in
     ``validated_data`` as the serializer built it, and the service's ``user``
     is the call's principal, as drfs always handed them (see ``_unseeded``).
+    **So is a key named in** ``server_owned``, the names a callable of the call
+    marks ``NotClientInput``, which the compiled spec hands it: the client's
+    value is the service's in ``data`` alone, unless the edge put the server's
+    value into the field it comes from (see ``_unowned``).
 
     **A partial call over a dataclass is refused**, a ``DataclassSerializer``
     subclass included: one builds its instance from every field, and a field
@@ -135,6 +140,7 @@ class SerializerValidator(Validator):
         serializer_context: Callable[..., Mapping[str, Any]] | None = None,
         lenient: bool = False,
         excluded: frozenset[str] = frozenset(),
+        server_owned: frozenset[str] = frozenset(),
     ) -> None:
         # One branch to coverage, so each condition is held by its own test:
         # the ``type`` by test_anything_but_a_serializer_class_or_a_dataclass_is_refused_when_declared[an-instance],
@@ -157,6 +163,7 @@ class SerializerValidator(Validator):
         self.serializer_context = serializer_context
         self.lenient = lenient
         self.excluded = excluded
+        self.server_owned = server_owned
         # The kernel reads this per instance: the answer belongs to the
         # declaration. A dataclass read through a DataclassSerializer, and a
         # DataclassSerializer subclass declared outright (as the gallery
@@ -263,9 +270,50 @@ class SerializerValidator(Validator):
         if not serializer.is_valid():
             raise InvalidArguments(serializer.errors)
         data: Any = serializer.validated_data
+        values = _unseeded(_values(data), context)
         return Validated(
-            values=_unseeded(_values(data), context), data=data, pool={"serializer": serializer}
+            values=self._unowned(values, serializer), data=data, pool={"serializer": serializer}
         )
+
+    def _unowned(
+        self, values: dict[str, Any], serializer: serializers.Serializer
+    ) -> dict[str, Any]:
+        """``values`` less each ``server_owned`` key the client's input became.
+
+        A name a callable of the call marks ``NotClientInput`` is the server's
+        for the whole call, so the client's value for a field of that name is
+        handed on in ``data`` alone and the parameter gets the server's value
+        or its default, as drfs always handed it
+        (test_a_client_value_for_a_hidden_parameter_stays_in_data). That holds
+        whatever made the key: a field's ``source``, a dataclass field, a
+        flattened ``source="*"`` field or a key ``validate()`` adds
+        (test_a_validated_key_named_like_a_hidden_parameter_stays_in_data).
+
+        The key stays a value where the edge put the server's value into the
+        field it is the source of (``server_fields``): a view hook's, the
+        spec's ``kwargs`` provider's or ``input_data``'s value is the server's,
+        and reaches the parameter validated
+        (test_a_hooks_value_for_a_hidden_field_reaches_the_parameter,
+        test_a_hooks_value_naming_a_hidden_fields_source_reaches_the_parameter,
+        test_input_data_for_a_hidden_field_reaches_the_parameter). Which field
+        that is, is read off where the value came from, never off whether it
+        equals the client's (test_a_hooks_value_equal_to_the_clients_is_still_the_servers).
+        A flattened field has no top-level key of its own, so a server value
+        for it keeps none.
+
+        One arc to coverage, so each condition is named by the test that fails
+        without it: a server value naming no field
+        (test_input_data_naming_no_field_keeps_nothing) and one for a flattened
+        field (test_a_server_value_for_a_flattened_field_keeps_no_key).
+        """
+        fields = serializer.fields
+        kept = {
+            fields[name].source_attrs[0]
+            for name in server_fields(self)
+            if name in fields and fields[name].source_attrs
+        }
+        owned = self.server_owned - kept
+        return {name: value for name, value in values.items() if name not in owned}
 
     def _refuse_partial(self, context: ValidationContext) -> None:
         # One branch to coverage: test_a_partial_call_over_a_dataclass_is_refused

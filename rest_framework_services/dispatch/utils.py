@@ -90,6 +90,11 @@ from rest_framework_services.types.view_hooks import ViewHooks
 # layers - is no seed: it rides in ``EdgeCallState``, so a callable taking a bare
 # ``**kwargs`` is never handed it.
 EDGE_SEEDS: tuple[str, ...] = ("request", "view")
+# The edge seeds a caller's key of these names is dropped for, as a reserved
+# seed's is: ``request``, which a caller never sent as an argument the call read.
+# ``view`` is not one: a caller sending it is refused under ``REJECT``, as it
+# always was (``TRANSPORT_ONLY_NAMES``).
+DROPPED_EDGE_SEEDS: frozenset[str] = frozenset({"request"})
 # What the Validator binds for the call. An author's value of that name stays in
 # ``extra_kwargs``, the tier beneath it, so the bound serializer is what a
 # service declaring ``serializer`` receives, as it always was
@@ -211,7 +216,7 @@ def prepare_edge_call(
                     **_hidden_captures(spec, view, seeds=seeds),
                     **_route_author_values(
                         spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
-                    ),
+                    )[0],
                 },
                 "grant": Grant(variant, principal),
                 "pool_seeds": seeds,
@@ -279,7 +284,7 @@ def prepare_edge_call(
             state.body_rows = over_http(view) and not many_as_argument
         extra_kwargs = _route_author_values(
             spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
-        )
+        )[0]
         # A bulk call acts on no target, as on main: the guard is asked about ``None``.
         if on_target_resolved is not None:
             on_target_resolved(spec, guard_context, instance=None)
@@ -338,7 +343,7 @@ def prepare_edge_call(
     if target_spec is not None:
         _route_filter_data(arguments, target_spec.filter_set, filter_data)
     # Before the lookup, which an author's value for one of its reads scopes.
-    extra_kwargs = _route_author_values(
+    extra_kwargs, authored = _route_author_values(
         spec, service, arguments, hooks, seeds=seeds, view=view, request=request
     )
     seeds = _hidden_lookup_seeds(spec, service, view, seeds=seeds, extra_kwargs=extra_kwargs)
@@ -391,6 +396,13 @@ def prepare_edge_call(
             service.validator,
             _validator_body(params, sent, arguments, service.validator.parameters().names()),
         )
+        # The fields holding the server's value, an author's or ``input_data``'s,
+        # told by where each came from: a ``NotClientInput`` key is handed on by
+        # name only from these (``SerializerValidator._unowned``). Each source is
+        # held by its own test: test_a_hooks_value_for_a_hidden_field_reaches_the_parameter
+        # (``authored``) and test_input_data_for_a_hidden_field_reaches_the_parameter
+        # (``server``).
+        state.server_fields = authored | frozenset(server)
     return EdgeCall(
         service,
         {
@@ -642,22 +654,24 @@ def _with_ambient(resolver: Callable[..., Any], ambient: Mapping[str, Any]) -> C
 
 
 def without_seed_names(arguments: Any, pool_seeds: PoolSeeds) -> Any:
-    """``arguments`` less every key naming a seed: a reserved one or one the caller registered.
+    """``arguments`` less every key naming a seed: a reserved one, ``request``, or one the caller registered.
 
     A seed's name is never the caller's to send, and this package never counted
     one as unknown: ``UnknownArguments.REJECT`` exempted them, so a strict caller
     is not refused for a ``user`` key the call would have ignored. The kernel
     refuses every key it does not declare, a seed's name among them, so the edge
     drops them first (test_a_built_in_seed_name_is_not_unexpected,
-    test_a_registered_seed_name_is_not_an_unexpected_argument). ``view``, which
-    only the edge seeds, is not dropped: a caller sending it was refused under
-    ``REJECT`` before the edge seeded it, and still is
+    test_a_registered_seed_name_is_not_an_unexpected_argument). ``request``,
+    which the edge seeds from what it is handed, is dropped too
+    (test_a_selector_callers_request_key_is_dropped). ``view``, which only the
+    edge seeds, is not: a caller sending it was refused under ``REJECT`` before
+    the edge seeded it, and still is
     (test_the_view_is_unexpected_though_the_edge_seeds_it). Arguments that are no
     mapping are handed on as they are, for the kernel's shape check to refuse.
     """
     if not isinstance(arguments, dict):
         return arguments
-    reserved = pool_seeds.reserved
+    reserved = pool_seeds.reserved | DROPPED_EDGE_SEEDS
     return {name: value for name, value in arguments.items() if name not in reserved}
 
 
@@ -873,7 +887,7 @@ def _route_author_values(
     seeds: PoolSeeds,
     view: Any,
     request: Any,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], frozenset[str]]:
     """The author's values for the call: the view's hook extras, then the spec's ``kwargs`` provider.
 
     Both are the server's, so both outrank the caller, and the spec's provider
@@ -881,7 +895,8 @@ def _route_author_values(
     ``get_<action>_*_kwargs``, then ``spec.kwargs``. Each is split by
     ``_split_author_values``: a value for a name the caller fills goes into
     ``arguments``, over the caller's, and is checked there as the caller's
-    would be; the rest is returned for ``dispatch(extra_kwargs=)``.
+    would be; the rest is returned for ``dispatch(extra_kwargs=)``, beside the
+    names of the arguments the author's values went into.
 
     The spec's provider is called here, from ``view`` and ``request``, once per
     call (test_a_provider_runs_once_per_call), and the dispatched variant
@@ -926,10 +941,9 @@ def _route_author_values(
             )
         provided = dict(answered)
     wire = _source_to_wire(spec)
-    return {
-        **_split_author_values(variant, arguments, hook_values, wire=wire),
-        **_split_author_values(variant, arguments, provided, wire=wire),
-    }
+    hooked, hook_rest = _split_author_values(variant, arguments, hook_values, wire=wire)
+    supplied, provided_rest = _split_author_values(variant, arguments, provided, wire=wire)
+    return {**hook_rest, **provided_rest}, hooked | supplied
 
 
 def _source_to_wire(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]) -> dict[str, str]:
@@ -955,8 +969,8 @@ def _split_author_values(
     values: Mapping[str, Any],
     *,
     wire: Mapping[str, str],
-) -> dict[str, Any]:
-    """Put each of ``values`` naming a caller's argument into ``arguments``; return the rest.
+) -> tuple[frozenset[str], dict[str, Any]]:
+    """Put each of ``values`` naming a caller's argument into ``arguments``; return their names and the rest.
 
     The names a caller fills at the top level of the call: the reads of the
     compiled spec (its service's or selector's, and a service spec's target
@@ -993,7 +1007,7 @@ def _split_author_values(
     }
     if isinstance(arguments, dict):
         arguments.update(routed)
-    return {
+    return frozenset(routed), {
         name: values[name]
         for argument, name in named.items()
         if argument not in routed and values[name] is not UNSET
@@ -1496,7 +1510,9 @@ def server_owned_keys(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any])
     **The set governs the keyword pool, not an input serializer's fields.** A
     field the ``input_serializer`` declares under an owned name stays client input:
     the schema lists it, ``REJECT`` admits it, and the caller's value is validated
-    into ``data``, the one place it reaches the service. The two may mean
+    into ``data``, the one place it reaches the service: the Validator hands the
+    key on by name only where the server put the field's value
+    (``SerializerValidator``'s ``server_owned``). The two may mean
     different things, such as a destination tenant in ``data`` beside the server's
     current tenant at the gate, so the declaration is not refused.
 

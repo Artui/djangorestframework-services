@@ -17,8 +17,13 @@ class ArgumentBinding(Enum):
     provider. An author's value for a declared argument replaces the
     caller's, so the author wins a conflict, and a key a typed provider is
     annotated to fill is never the caller's at all. A seed's name is never an
-    argument: a caller's value named like one is dropped, so a client cannot
-    poison transport-controlled state by naming an argument after one.
+    argument: a caller's value named like one is dropped (``view`` aside,
+    which ``UnknownArguments.REJECT`` refuses), and an input serializer's
+    field of that name is validated into ``data`` while the seed keeps its
+    own value, so a client cannot poison transport-controlled state by naming
+    an argument after one. A name any callable of the call marks
+    ``NotClientInput`` is the server's: the client's value for an input
+    serializer's field of that name reaches the service only inside ``data``.
 
     What is left for this enum is one question about a service spec with no
     ``input_serializer``: whether the service's own parameters are caller
@@ -32,9 +37,12 @@ class ArgumentBinding(Enum):
             ``BUNDLE``, [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec] →
             ``SPREAD_AUTHOR_WINS``, which changes nothing for a selector.
         BUNDLE: A service's own parameters are never the caller's: the
-            validated payload reaches it as ``data=`` and its declared reads
-            by name, and nothing else the client sends. The safe choice for a
-            mutation whose ``kwargs`` scopes the write.
+            validated payload reaches it as ``data=``, and each validated
+            value by its key as well (one a callable of the call marks
+            ``NotClientInput`` only inside ``data``), beside its declared
+            reads by name; nothing else the client sends reaches it. A
+            service with no ``input_serializer`` takes ``data={}``. The safe
+            choice for a mutation whose ``kwargs`` scopes the write.
         SPREAD_AUTHOR_WINS: A service with no ``input_serializer`` declares
             its own parameters as the caller's input, and the author's values
             still replace the caller's on a conflict, so an author-scoped

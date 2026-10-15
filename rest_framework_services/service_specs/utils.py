@@ -141,6 +141,11 @@ class EdgeCallState:
       binds rather than the kernel's checked arguments (``validator_input``):
       the caller's own, a ``QueryDict`` kept one, with what the edge put over
       it, as DRF's serializer has always been handed the request's data.
+    - ``server_fields``: the fields of that Validator's body the edge put the
+      server's value into - a view hook's or the spec's ``kwargs`` provider's
+      value naming the field, and ``input_data`` - by the name the body
+      carries. A key a callable of the call marks ``NotClientInput`` is handed
+      on by name only from one of these (``server_fields``).
     - ``body_rows``: whether that body is a live view's list body, which the
       Validator binds whole, every row as sent, as DRF's view bound it
       (``SerializerValidator.validated_many``).
@@ -157,6 +162,7 @@ class EdgeCallState:
     author_values: Mapping[str, Any] = dataclasses.field(default_factory=dict)
     view_hooks: ViewHooks = dataclasses.field(default_factory=ViewHooks)
     validator_input: tuple[Any, Any] | None = None
+    server_fields: frozenset[str] = frozenset()
     body_rows: bool = False
     row_errors: Any = None
 
@@ -186,6 +192,22 @@ def validator_input(validator: Any, arguments: Any) -> Any:
     """
     held = edge_call_state().validator_input
     return held[1] if held is not None and held[0] is validator else arguments
+
+
+def server_fields(validator: Any) -> frozenset[str]:
+    """The fields of the body ``validator`` binds that hold the server's value, for this call.
+
+    Read as ``validator_input`` reads the body: only the Validator the edge call
+    names, so a kernel call made inside the service, whose client may send the
+    same field, takes none of the outer call's
+    (test_a_kernel_call_inside_the_service_takes_none_of_the_outer_calls_server_values,
+    which fails without the identity check). Outside an edge call nothing is
+    held (test_a_kernel_dispatch_of_the_spec_keeps_the_client_value_in_data,
+    which fails without the ``None`` check).
+    """
+    state = edge_call_state()
+    held = state.validator_input
+    return state.server_fields if held is not None and held[0] is validator else frozenset()
 
 
 def author_values() -> dict[str, Any]:
