@@ -463,6 +463,14 @@ project may have to change, each detailed below:
 - **Presenting output.** `SerializerPresenter` projects no marking onto a
   write-only field, and refuses a `field_audiences` name that matches no
   output field.
+- **The input serializer's context callable can be asked twice in one call.**
+  The serializer is now described with the call's own request and view before
+  it is validated, so a callable taking `**kwargs` is asked once for the
+  description and once over the whole pool when the serializer cannot be
+  built without its keys, and a callable reading an argument that the
+  `kwargs` provider overwrites is asked with the sent value and again with
+  the server's. 0.57.0 asked it once. A callable with a side effect should
+  not rely on a call count.
 - **A Manager from a list selector is answered as a queryset.** A LIST
   selector returning `Model.objects` hands back its `.all()`, unpaginated
   too, where 0.57.0 handed back the Manager itself. So an unpaginated Manager
