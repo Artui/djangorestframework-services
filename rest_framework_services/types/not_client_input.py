@@ -29,8 +29,9 @@ provider supplies from request state, which the caller has no business setting.
 
 So a marked key is filled only by a channel the caller does not control: a view
 hook's or the ``spec.kwargs`` provider's value, a registered pool seed,
-``input_data`` through an ``input_serializer`` field of that name, the
-parameter's own default, or, for a selector or a target lookup, a route capture
+``input_data`` through an ``input_serializer`` field of that name (a
+``HiddenField``'s own value where ``input_data`` names one), the parameter's own
+default, or, for a selector or a target lookup, a route capture
 (``view.kwargs``, or ``build_offline_context(kwargs=...)`` off HTTP). A target
 lookup's capture is seeded for the call, so a service parameter of the same
 name is handed it as well; a selector's is handed to the selector. A provider

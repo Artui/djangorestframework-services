@@ -32,10 +32,23 @@ by its name or by its `source`, the value is written into the field, over
 whatever the client sent, and validated as the field validates. A hook returning
 `{"tenant": request.user.tenant}` therefore decides the `tenant` the service
 receives in `data`; a client cannot spoof it by putting `tenant` in the body.
-Nor by a second route to the same key: what the field validates the value to is
-laid back under its key after the serializer has run, so a later field with the
-same `source`, a `source="*"` nested serializer or a `validate()` writing
-`tenant` from the client's input does not replace it.
+Nor by a second route to the same key. What the field validates the value to,
+in its own turn of DRF's field loop, is handed to the service's parameter named
+by the field's `source`, and is laid back under that key in `data` after the
+serializer has run. So a
+later field with the same `source`, a `source="*"` nested serializer, a
+`validate()` writing `tenant` from the client's input, or a `validate()` or
+another field's `validate_<field>` running `tenant`'s validation on a value of
+its own, does not replace it. A field with a dotted `source` or `source="*"`
+has no key of its own in `data`, so its value reaches the parameter named like
+the field.
+
+Two shapes keep the parameter and `data` apart. A dataclass input's `data` is
+the instance as the serializer built it, so a `validate()` that rewrites the
+instance's attribute is seen there and not by the parameter. A `many` spec's
+rows are handed on as its list serializer built them. And what a serializer
+does outside DRF's field loop is its own: a `to_internal_value` override that
+rewrites the body before the fields read it decides what the field validates.
 
 Validated as the field validates means the value is given in the form a client
 would send it. A related field takes a primary key, and the service receives

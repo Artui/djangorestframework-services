@@ -499,9 +499,12 @@ def test_input_data_naming_no_field_keeps_nothing(dispatch_with: Dispatch) -> No
 
 
 @_CORES
-def test_a_server_value_for_a_flattened_field_keeps_no_key(dispatch_with: Dispatch) -> None:
-    # The flattened field has no top-level key of its own to keep, so the
-    # parameter keeps its default, as 0.57.0 handed it.
+def test_a_server_value_for_a_flattened_field_keeps_none_of_the_keys_it_spreads(
+    dispatch_with: Dispatch,
+) -> None:
+    # The flattened field's own value is spread into keys of the serializer's
+    # own, none of which the server named, so the parameter keeps its default,
+    # as 0.57.0 handed it.
     dispatch_with(
         _spec(_FlattenedIn),
         user=None,

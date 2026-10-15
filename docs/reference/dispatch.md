@@ -268,11 +268,15 @@ The spec's `kwargs` provider outranks the view's hooks. A hook value for a name
 the call reads (a parameter of the spec's callable or target lookup, or a field
 of the input serializer, by its name or its `source`) is that argument's value,
 over the client's, and is validated as the client's would be. For a field, what
-the field validates it to is the value under its `source` key wherever the call
-reads it (the service's parameter, `data`, the bound serializer's
-`validated_data`), even where a later field with the same `source`, a
-`source="*"` nested serializer or the serializer's `validate()` writes that key
-from the client's input; `input_data` is held the same way. A value naming a
+the field validates it to in its own turn of DRF's field loop is the value under
+its `source` key wherever the call reads it (the service's parameter, `data`, the
+bound serializer's `validated_data`), even where a later field with the same
+`source`, a `source="*"` nested serializer or the serializer's `validate()` writes
+that key from the client's input, or runs the field's validation again on a value
+of its own; `input_data` is held the same way. A field with a dotted `source` or
+`source="*"` hands it to the parameter named like the field. Where `data` is a
+dataclass instance it is left as the serializer built it, and so are a `many`
+spec's rows (see [extra kwargs](../recipes/extra-kwargs.md)). A value naming a
 seed (`request`, `view`, `progress`) is dropped, the seed winning; anything else
 reaches the callables beside the arguments. `input_data` from the hooks is
 merged beneath the spec's own `input_data`.
