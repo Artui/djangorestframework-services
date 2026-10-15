@@ -18,6 +18,12 @@ project may have to change, each detailed below:
 - **Stop passing `ArgumentBinding.SPREAD_CALLER_WINS` or
   `UnknownArguments.PASSTHROUGH`.** Both raise `ValueError`. Declare an argument
   a callable needs, as a `reads` entry, a serializer field or a parameter.
+- **Read a serializer-less service's arguments from its parameters, not
+  `data`.** A service with no `input_serializer` is handed `data={}` under
+  every binding. Under `SPREAD_AUTHOR_WINS` 0.57.0 handed it the caller's
+  params as `data` as well, and under `AUTO` and `BUNDLE` no `data` at all,
+  so its own default applied. Its parameters still take the caller's values
+  under `SPREAD_AUTHOR_WINS` alone.
 - **Rename a service parameter or a `kwargs` provider key that only matched by
   accident.** A service with an input serializer now receives each validated
   value whose name its signature declares, beside `data`, unless a callable of
@@ -43,6 +49,17 @@ project may have to change, each detailed below:
   Where the server owns the value, make the field read-only or drop it from
   the serializer, and the value reaches the service parameter of its name
   unvalidated, as before.
+- **Give a field's server value in one place.** Where a view hook or the
+  spec's `kwargs` provider and `input_data` both give a value for one input
+  field, the service parameter of that name takes `input_data`'s, as `data`
+  already did, where 0.57.0 handed the parameter the hook's or provider's.
+  Drop the key from one of them.
+- **Return no `UNSET` from a hook to hand the parameter the sentinel.** A
+  value of `UNSET` in `dispatch_spec(view_hooks=ViewHooks(extra_kwargs=...))`
+  declines the name: the parameter keeps its default, or takes the client's
+  validated value where nothing marks the name `NotClientInput`, where 0.57.0
+  handed the parameter `UNSET` itself. A live view's hook returning `UNSET`
+  was already dropped.
 - **Untype a `kwargs` provider that picks the target row.** A spec whose
   typed `kwargs` provider is annotated to fill a name its target lookup's
   selector reads, such as `pk`, is refused with `ImproperlyConfigured` when it
@@ -61,14 +78,25 @@ project may have to change, each detailed below:
   `SERVICE_SPECS_MAX_ARRAY_LENGTH`. A serializer that cannot be built
   without a request is held to that bound whatever `max_length` it sets. A live view's bulk body is still bounded
   by its `ListSerializer` alone.
+- **Read an undeclared key in a bare list's row at that row, under
+  `REJECT`.** Off HTTP, rows sent as a bare list answer an entry per row,
+  `[{}, {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}]`, where
+  0.57.0 answered `{"non_field_errors": ["Unexpected argument(s):
+  'bogus'."]}` for the call. Rows sent under `many_argument` were already
+  refused at their index.
 - **Move a nested selector's `progress_reporter` and `preconditions` to its
   `ServiceSpec`, and give a registered `SelectorSpec` a `selector`.** Each is
   refused where 0.57.0 ignored it.
 - **Catch a missing argument as DRF's `ValidationError`.** It is raised as
-  `InvalidArguments`, keyed by each missing name, so an
+  drfs' `InvalidArguments`, keyed by each missing name, so an
   `except ServiceValidationError` or `except ServiceError` around a dispatch
-  no longer catches it. Catch `rest_framework.exceptions.ValidationError`, or
-  drfs' `InvalidArguments`, as for every other refused argument.
+  no longer catches it. Catch `rest_framework.exceptions.ValidationError`,
+  which every refused argument is. `InvalidArguments`
+  (`rest_framework_services.service_specs.invalid_arguments`, not exported
+  from the package root) subclasses it and is the narrower class: a `many`
+  spec's rows sent as a bare list are refused with a plain `ValidationError`,
+  as DRF's list serializer refuses them, whether the body is no list, a row
+  is refused, a row carries an undeclared key or the rows pass the bound.
 - **Declare what a `**kwargs` callable reads.** A service, selector or
   precondition taking a bare `**kwargs` is handed the declared arguments and
   the seeds, never an undeclared key the caller sent or a route capture no
@@ -88,9 +116,16 @@ project may have to change, each detailed below:
   (`Q`, `Exists`), evaluated in SQL.
 - **Pass relation options by keyword, and read row errors by row index.**
   Every relation option after the model, and after the foreign key where
-  there is one, is keyword-only. Row errors are a mapping keyed by row index
-  whatever DRF's `LIST_SERIALIZER_ERRORS_AS_DICT` says, a string or list
-  detail under the row's `non_field_errors`.
+  there is one, is keyword-only. A relation write's row errors are a mapping
+  keyed by row index whatever DRF's `LIST_SERIALIZER_ERRORS_AS_DICT` says, a
+  string or list detail under the row's `non_field_errors`; a nested
+  serializer's own row errors keep the shape that setting gives them.
+- **Leave `None` rows out of a relation write, and send `False` to clear a
+  file.** A `None` row is refused at its index, `{"sections": {0:
+  {"non_field_errors": ["This field cannot be null."]}}}`, where 0.57.0
+  accepted it. A file field written through `apply_input` keeps its stored
+  file for `None` and clears it for `False`, where 0.57.0 set either value
+  on the field as given, so `None` cleared it.
 - **Declare permissions on every spec you register.** `SpecRegistry.register`
   refuses a spec with no permissions; `permission_classes=[]` registers one
   that anyone may run.
@@ -98,6 +133,19 @@ project may have to change, each detailed below:
   filter data raises the kernel's `InvalidArguments`, keyed and worded as the
   `FilterSet` reports it; `dispatch_spec` and the views answer it as a 400,
   and a direct caller turns it into its own answer.
+- **Expect an output selector's rows unfiltered by the query string.** A
+  live view's `output_selector_spec` declaring a `filter_set` is no longer
+  narrowed by the query string, so a response may carry rows the query
+  string used to filter out: a bulk update view answers `PATCH /?title=a`
+  with every row its output selector returns, where 0.57.0 answered those
+  titled `a`. Nothing refuses the declaration; narrow the rows in the output
+  selector itself.
+- **Rename a filter that shares an input field's name.** A target lookup's
+  (`instance_selector_spec` or `collection_selector_spec`) `filter_set`
+  naming a filter like an input-serializer field raises
+  `ImproperlyConfigured`, `Parameters ['title'] are declared by two
+  sources.`, on every request, where 0.57.0 answered it; `as_view()` does
+  not refuse it.
 - **Expect a 403 for a deactivated user.** A user whose `is_active` is false
   is refused with `PrincipalUnavailable` on every view and off HTTP, whatever
   `permission_classes` the view declares, none included; no setting serves
@@ -207,7 +255,7 @@ project may have to change, each detailed below:
   before using a `ServiceSpec` attribute; passing a `ServiceSpec` in is
   unaffected.
 
-- **Breaking: 81 of the root's public names are now django-service-specs'
+- **Breaking: 77 of the root's public names are now django-service-specs'
   own objects, re-exported at the same import paths.** Nothing was added to
   or removed from `rest_framework_services.__all__`, and every import keeps
   working, but `ServiceError` and its subclasses, `UNSET`, `SpecRegistry`
@@ -237,7 +285,10 @@ project may have to change, each detailed below:
   - `ServiceValidationError` takes a lazy translation (`gettext_lazy`) as
     its message.
   - An `Affordance` whose callable `when` is `async def`, or reads `result`
-    or `queryset`, is refused with `ImproperlyConfigured` when declared.
+    or `queryset`, is refused with `ImproperlyConfigured` when declared. Its
+    refusal of a `when` reading `instance` or another per-call name says the
+    rule belongs in the service, where it said `preconditions`, and reads
+    " - " where it read "--".
   - `ValueFormatter.timestamp()` reports a date-time-shaped string that names
     no real moment as stored, instead of raising, and its refusal of `type`
     in `schema=` now reads " - " where it read an em dash.
@@ -338,10 +389,11 @@ project may have to change, each detailed below:
     service in `data` alone, as a `NotClientInput` key's does. An
     `input_data` value for that field is the server's, and reaches the
     parameter, where 0.57.0 left it the default.
-  - A view hook returning `UNSET` for an input field declines it: the
-    parameter keeps its default, or, where nothing marks it `NotClientInput`,
-    takes the client's validated value. 0.57.0 handed the parameter the
-    `UNSET` sentinel itself.
+  - A view hook's `UNSET` for an input field declines it: the parameter
+    keeps its default, or, where nothing marks it `NotClientInput`, takes the
+    client's validated value. Through `dispatch_spec(view_hooks=)`, 0.57.0
+    handed the parameter the `UNSET` sentinel itself; a live view's hook
+    value of `UNSET` was already dropped.
   - A missing required argument is refused as `{"name": ["This field is
     required."]}`, code `required`, where it was one `"Missing required
     argument(s): ..."` message under `non_field_errors` naming every missing
@@ -564,7 +616,9 @@ project may have to change, each detailed below:
   list are refused in the kernel's list with one entry per row, where DRF
   3.18 gave a mapping of row indexes; rows sent under `many_argument` keep
   the mapping. A non-list, null or out-of-bounds list under `many_argument`
-  is refused in the kernel's words (`{"items": ["Expected an array."]}`).
+  is refused in the kernel's words: `{"items": ["Expected an array."]}` for
+  a non-list, and `{"items": ["This field cannot be null."]}` for a null,
+  where 0.57.0 said `This field may not be null.`
   `SPREAD_AUTHOR_WINS`
   on a `many` dispatch is accepted and hands the service what `AUTO` does,
   where 0.57.0 raised `ValueError`.
@@ -636,6 +690,10 @@ project may have to change, each detailed below:
 - **A bulk body with a row that is not an object, on a spec with an
   `input_data` provider, is a 400** in DRF's words, where it raised
   `TypeError`.
+- **A selector spec dispatched with arguments that are not an object is a
+  400**, `{"non_field_errors": ["Expected an object."]}`, where
+  `dispatch_spec` raised `AttributeError` for a list and `TypeError` for a
+  number.
 
 ## [0.57.0] — 2026-10-13
 

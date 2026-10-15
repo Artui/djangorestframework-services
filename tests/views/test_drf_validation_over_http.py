@@ -169,6 +169,45 @@ def test_a_bulk_body_that_is_no_list_is_refused_in_drfs_words(body: Any) -> None
     assert "Expected a list of items" in str(response.data)
 
 
+class _ReadsTheRequest(serializers.Serializer):
+    """Built only with a request, as a serializer scoping a field by the caller is."""
+
+    title = serializers.CharField()
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.method = self.context["request"].method
+
+
+class _BulkReadsTheRequestView(ServiceCreateView):
+    spec = ServiceSpec(service=_echo, input_serializer=_ReadsTheRequest, many=True, atomic=False)
+
+
+_NO_LIST = ['Expected a list of items but got type "dict".']
+
+
+def test_a_bulk_body_that_is_no_list_is_refused_in_drfs_words_by_a_serializer_needing_a_request() -> (
+    None
+):
+    """The shape is refused before any field is read, so a row serializer that
+    cannot be built without the call's request still answers DRF's words, as
+    0.57.0 answered them over a live view and with an ``OfflineServiceView``."""
+    response = _BulkReadsTheRequestView.as_view()(_request({"title": "a"}, "json"))
+    assert response.status_code == 400
+    assert response.data == {"non_field_errors": _NO_LIST}
+
+    view = OfflineServiceView(request=Request(_factory.post("/")))
+    with pytest.raises(ValidationError) as excinfo:
+        dispatch_spec(
+            _BulkReadsTheRequestView.spec,
+            user=None,
+            params={"title": "a"},
+            request=view.request,
+            view=view,
+        )
+    assert excinfo.value.detail == {"non_field_errors": _NO_LIST}
+
+
 def test_a_bulk_row_is_read_as_drf_reads_it() -> None:
     body = [{"published": "true", "title": 123}]
 

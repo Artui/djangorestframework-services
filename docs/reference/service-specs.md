@@ -171,10 +171,14 @@ The kernel raises its own `InvalidArguments`, `NotPermitted` and
 `PrincipalUnavailable`, which neither DRF's exception handler nor a transport
 catching DRF's `ValidationError` or `PermissionDenied` knows. The edge runs the
 kernel inside `translate_dispatch_errors()`, so what `dispatch_spec` and
-`adispatch_spec` raise is one of the three classes below, each both the
-kernel's refusal and DRF's: an `except` written against either package catches
-it, `detail` carries `ErrorDetail`s with their codes, and DRF answers it 400 or
-403.
+`adispatch_spec` raise for a kernel refusal is one of the three classes below,
+each both the kernel's refusal and DRF's: an `except` written against either
+package catches it, `detail` carries `ErrorDetail`s with their codes, and DRF
+answers it 400 or 403. The one refusal that is DRF's alone is a `many` spec's
+rows sent as a bare list, answered as DRF's list serializer answers them, with
+a plain `rest_framework.exceptions.ValidationError`: a body that is no list, a
+refused row, a row's undeclared key, or more rows than the bound. So catch
+DRF's `ValidationError` for every refused argument.
 
 A caller running the kernel's `dispatch`, `resolve_target` or
 `shape_queryset` itself, or calling

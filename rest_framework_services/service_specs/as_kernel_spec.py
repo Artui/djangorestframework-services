@@ -11,8 +11,7 @@ import typing
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from typing import Annotated, Any, Literal, cast, get_args, get_origin
 
-from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
-from django.db import DatabaseError
+from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from django_service_specs.adapters.filters.filter_set_parameters import filter_set_parameters
 from django_service_specs.authorization.permission_check import PermissionCheck
@@ -29,6 +28,7 @@ from rest_framework_services.service_specs.serializer_presenter import Serialize
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
 from rest_framework_services.service_specs.utils import (
     SERVER_CHANNEL,
+    UNREADABLE_WITHOUT_A_CALL,
     asked_of_the_caller,
     fills_its_own,
     left_to_the_callable,
@@ -58,20 +58,6 @@ _SEEDS: frozenset[str] = frozenset({"request", "view"})
 # seeds, and ``user`` and ``serializer``, which a callable receives from the
 # pool rather than from a caller.
 _NOT_ARGUMENTS: frozenset[str] = RESERVED_POOL_SEEDS | _SEEDS | {"user", "serializer"}
-# What building or reading an input serializer with no call may raise and
-# still be a serializer a call can describe: a request or view read unguarded
-# from a context that has none (``AttributeError``, ``KeyError``,
-# ``TypeError``), a table ``migrate`` has not made yet, and a row not loaded
-# yet. A spec compiles as it is declared, at import, so registering it never
-# needs either.
-_UNREADABLE_WITHOUT_A_CALL: tuple[type[Exception], ...] = (
-    AttributeError,
-    KeyError,
-    TypeError,
-    DatabaseError,
-    ObjectDoesNotExist,
-)
-
 _SCALARS: tuple[tuple[Any, str, str | None], ...] = (
     # ``bool`` before ``int`` is not needed here, since types are matched by
     # identity, but the order still reads as the JSON types do.
@@ -962,7 +948,7 @@ def _compiled_input_names(spec: Any) -> frozenset[str]:
     """
     try:
         return writable_input_names(spec)
-    except _UNREADABLE_WITHOUT_A_CALL:
+    except UNREADABLE_WITHOUT_A_CALL:
         return frozenset()
 
 
@@ -1146,7 +1132,7 @@ def _list_bounds(spec: Any) -> dict[str, int | None]:
     dataclass declares neither hook. ``allow_empty=False`` is a minimum of one.
 
     Building the list builds the row serializer, so one that cannot be built
-    with no call (``_UNREADABLE_WITHOUT_A_CALL``) is compiled with no bound of
+    with no call (``UNREADABLE_WITHOUT_A_CALL``) is compiled with no bound of
     its own rather than refused, as ``_compiled_input_names`` takes it: the
     list serializer that validates the call still holds the list to the
     bound it declares, in DRF's words. Each case of
@@ -1168,7 +1154,7 @@ def _list_bounds(spec: Any) -> dict[str, int | None]:
         return {}
     try:
         listed: Any = serializer(many=True, context={"request": None, "view": None, "format": None})
-    except _UNREADABLE_WITHOUT_A_CALL:
+    except UNREADABLE_WITHOUT_A_CALL:
         return {}
     minimum = max(listed.min_length or 0, 0 if listed.allow_empty else 1)
     return {"many_min_length": minimum or None, "many_max_length": listed.max_length}

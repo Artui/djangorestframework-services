@@ -5,7 +5,7 @@ Conventions for writing code in this repo. For *what* the library does, see [`RE
 - Package on PyPI: `djangorestframework-services`
 - Importable name: `rest_framework_services`
 - Build backend: hatchling
-- A DRF adapter over [`django-service-specs`](https://github.com/Artui/django-service-specs) (the kernel): a spec declared here compiles to the kernel's and the kernel's `dispatch` runs it. 83 of the root `__all__` names are the kernel's own objects re-exported at drfs' paths (`tests/test_kernel_reexports.py` pins 39 of them by identity), so a behaviour of one of those belongs to the kernel and is changed there, not here.
+- A DRF adapter over [`django-service-specs`](https://github.com/Artui/django-service-specs) (the kernel): a spec declared here compiles to the kernel's and the kernel's `dispatch` runs it. 77 of the root `__all__` names are the kernel's own objects re-exported at drfs' paths (`tests/test_kernel_reexports.py` pins all 77 by identity in `KERNEL_OWNED_ROOT_NAMES`, and 39 of them at the kernel's leaf module), so a behaviour of one of those belongs to the kernel and is changed there, not here.
 
 ---
 

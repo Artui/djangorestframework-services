@@ -373,6 +373,10 @@ class TestFilterData:
         assert excinfo.value.detail == {"non_field_errors": ["Expected an object."]}
 
 
+class Guest(AnonymousUser):
+    """A project's own ``UNAUTHENTICATED_USER``, named by its import path."""
+
+
 @pytest.mark.django_db
 class TestPoolSeeds:
     def test_a_registered_view_clashes_with_the_edges_own(self) -> None:
@@ -435,6 +439,25 @@ class TestPoolSeeds:
             else:
                 async_to_sync(adispatch_spec)(spec, user=None, params={})
         assert isinstance(seen["user"], AnonymousUser)
+
+    @pytest.mark.parametrize("core", ["sync", "async"])
+    def test_no_user_acts_as_the_projects_unauthenticated_user(self, core: str) -> None:
+        """The class is the project's ``UNAUTHENTICATED_USER``, read at call time,
+        not Django's ``AnonymousUser`` whatever the setting names."""
+        seen: dict[str, Any] = {}
+
+        def posts(*, user: Any) -> QuerySet[Post]:
+            seen["user"] = user
+            return Post.objects.none()
+
+        spec = SelectorSpec(kind=SelectorKind.LIST, selector=posts, permission_classes=[])
+        guest = f"{__name__}.Guest"
+        with override_settings(REST_FRAMEWORK={"UNAUTHENTICATED_USER": guest}):
+            if core == "sync":
+                dispatch_spec(spec, user=None, params={})
+            else:
+                async_to_sync(adispatch_spec)(spec, user=None, params={})
+        assert type(seen["user"]) is Guest
 
     @pytest.mark.parametrize("core", ["sync", "async"])
     def test_the_guard_still_sees_no_user(self, core: str) -> None:

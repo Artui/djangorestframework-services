@@ -30,7 +30,8 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextvars import ContextVar
 from typing import Any, cast
 
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
+from django.db import DatabaseError
 from django.db.models import QuerySet
 from django.http import QueryDict
 from django.utils.translation import gettext
@@ -50,6 +51,21 @@ from rest_framework_services.service_specs.base_serializer_context import base_s
 from rest_framework_services.service_specs.build_offline_context import build_offline_context
 from rest_framework_services.types.unset import UNSET
 from rest_framework_services.types.view_hooks import ViewHooks
+
+# What building or reading an input serializer with no call may raise and
+# still be a serializer a call can describe: a request or view read unguarded
+# from a context that has none (``AttributeError``, ``KeyError``,
+# ``TypeError``), a table ``migrate`` has not made yet, and a row not loaded
+# yet. A spec compiles as it is declared, at import, so registering it never
+# needs either. A call's own refusal of a body that is no list binds the
+# list serializer with no context too (``_drf_body_refusal`` in dispatch).
+UNREADABLE_WITHOUT_A_CALL: tuple[type[Exception], ...] = (
+    AttributeError,
+    KeyError,
+    TypeError,
+    DatabaseError,
+    ObjectDoesNotExist,
+)
 
 MAX_SERIALIZER_APPEARANCES = 4
 """How many times one serializer class may appear on the walk's current path

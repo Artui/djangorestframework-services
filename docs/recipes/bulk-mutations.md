@@ -108,6 +108,10 @@ an empty entry for each valid item:
 The argument missing answers `{"books": ["This field is required."]}`. `null`,
 a value that is not a list, or a list outside its length bounds is refused under
 the argument in the kernel's words, such as `{"books": ["Expected an array."]}`.
+A row that is not an object is refused at its index in DRF's words,
+`{"books": {"1": {"non_field_errors": ["Invalid data. Expected a dictionary, but got int."]}}}`,
+and arguments that are not an object as
+`{"non_field_errors": ["Invalid data. Expected a dictionary, but got list."]}`.
 An argument sent beside the list that the spec declares no `reads` entry for is
 refused under every `unknown_arguments` policy, as
 `{"non_field_errors": ["Unexpected argument(s): 'zzz'."]}`, because the service
