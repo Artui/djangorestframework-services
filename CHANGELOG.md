@@ -53,6 +53,9 @@ project may have to change, each detailed below:
   `ListSerializer` sets `max_length` or the project sets
   `SERVICE_SPECS_MAX_ARRAY_LENGTH`. A live view's bulk body is still bounded
   by its `ListSerializer` alone.
+- **Move a nested selector's `progress_reporter` and `preconditions` to its
+  `ServiceSpec`, and give a registered `SelectorSpec` a `selector`.** Each is
+  refused where 0.57.0 ignored it.
 - **Re-point a few names.** `children=` is `relations=`; `DispatchResult` has no
   `status`; `SpecRegistry.register` takes no `agent_contract=`; `filter_set`
   must be a django-filter `FilterSet`; `request`, `view`, `result` and
@@ -394,6 +397,21 @@ project may have to change, each detailed below:
   is refused (`permission_classes=[]` still registers, with no guards), a
   value that is not a spec raises `TypeError`, and
   `capability_manifest()["unguarded"]` is always an empty list.
+- **Breaking: three declarations that never ran are refused where they were
+  ignored.**
+  - A nested selector spec's `progress_reporter` (on an
+    `instance_selector_spec`, `collection_selector_spec` or
+    `output_selector_spec`) raises `ImproperlyConfigured` at `as_view()`, at
+    `SpecRegistry.register` and off HTTP, where 0.57.0 never called it. Move
+    it to the surrounding `ServiceSpec`, whose service is the run.
+  - A nested selector spec's `preconditions`, already refused at `as_view()`,
+    are refused at `SpecRegistry.register` and off HTTP too, where 0.57.0
+    never called them. Move them to the surrounding `ServiceSpec`, whose
+    pool carries the target.
+  - A top-level `SelectorSpec` with `selector=None` is refused at
+    `SpecRegistry.register`, as `dispatch_spec` already refused it; a view
+    still falls back to its `get_queryset()` or `get_object()`. Declare the
+    selector that reads the rows before registering the spec.
 - **Breaking: relation writes are the kernel's.** The `children=` alias is
   gone (use `relations=`), and every relation option after the model, and
   after the foreign key where there is one, is keyword-only. A `None` row is
