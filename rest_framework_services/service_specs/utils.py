@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextvars import ContextVar
 from typing import Any, cast
 
@@ -129,7 +129,20 @@ def describe_serializer(declaration: Any) -> serializers.Serializer:
         )
     described = state.described.get(declaration)
     if described is None:
-        described = _described(declaration, state.describe_binding, describe)
+        try:
+            described = _described(declaration, state.describe_binding, describe)
+        except (AttributeError, KeyError, TypeError):
+            # Read before the target lookup has found the row the serializer
+            # is built with, for the names the lookup's own arguments need, a
+            # serializer that cannot be built without its row is taken to
+            # declare no name, as a registration takes it
+            # (test_a_serializer_reading_its_row_validates_off_http). Once the
+            # row is found it is built with it, and what it raises then is
+            # raised as it is
+            # (test_a_serializer_failing_with_its_row_too_is_not_hidden).
+            if not state.row_pending:
+                raise
+            described = serializers.Serializer()
         state.described[declaration] = described
     return _row_serializer(described)
 
@@ -263,6 +276,18 @@ def _same_objects(held: Mapping[str, Any], context: Mapping[str, Any]) -> bool:
     return held.keys() == context.keys() and all(held[key] is context[key] for key in context)
 
 
+def unexpected_arguments(names: Iterable[str]) -> serializers.ValidationError:
+    """DRF's refusal of ``names`` as arguments the call has nowhere to put, in this package's words."""
+    listed = ", ".join(repr(name) for name in sorted(names))
+    return serializers.ValidationError(
+        {
+            api_settings.NON_FIELD_ERRORS_KEY: [
+                serializers.ErrorDetail(f"Unexpected argument(s): {listed}.", code="invalid")
+            ]
+        }
+    )
+
+
 def writable_input_names(spec: Any) -> frozenset[str]:
     """The names a service spec's input serializer takes from the body at the top level.
 
@@ -359,6 +384,10 @@ class EdgeCallState:
     - ``body_rows``: whether that body is a live view's list body, which the
       Validator binds whole, every row as sent, as DRF's view bound it
       (``SerializerValidator.validated_many``).
+    - ``beside_rows``: the keys a ``many`` call sent beside its rows under
+      ``many_argument`` that it declares no argument for, which the Validator
+      refuses once the rows are valid, whatever the ``UnknownArguments``
+      policy (``SerializerValidator.validated_many``).
     - ``row_errors``: what the list serializer bound to that whole body
       refused, as the installed DRF reports it, which the edge answers with
       in place of the kernel's rows (``edge_errors``).
@@ -384,6 +413,10 @@ class EdgeCallState:
       input serializer to (``describe_with``).
     - ``described``: the serializer each declaration is described with in
       the call, built once (``describe_serializer``).
+    - ``row_pending``: whether the row the call's input serializer is built
+      with is one the target lookup has still to find, so a description that
+      cannot be built without it declares no name until it is found
+      (``describe_serializer``).
 
     Mutable, so the edge can set it before the sync step it hops to a thread
     for and fill it there, and the Validator can fill it during the kernel's
@@ -398,6 +431,7 @@ class EdgeCallState:
     author_keys: Mapping[str, str] = dataclasses.field(default_factory=dict)
     provider_owned: frozenset[str] = frozenset()
     body_rows: bool = False
+    beside_rows: tuple[str, ...] = ()
     row_errors: Any = None
     describe_context: Callable[..., dict[str, Any] | None] | None = None
     base_context: tuple[Any, Any, dict[str, Any]] | None = None
@@ -409,6 +443,7 @@ class EdgeCallState:
     )
     describe_binding: DescribeBinding | None = None
     described: dict[Any, serializers.Serializer] = dataclasses.field(default_factory=dict)
+    row_pending: bool = False
 
 
 EDGE_CALL: ContextVar[EdgeCallState | None] = ContextVar(

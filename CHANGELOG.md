@@ -51,11 +51,9 @@ project may have to change, each detailed below:
 - **Bound a bulk body off HTTP.** A `many` call through `dispatch_spec` with
   no view, or with an `OfflineServiceView`, takes at most 1000 rows unless its
   `ListSerializer` sets `max_length` or the project sets
-  `SERVICE_SPECS_MAX_ARRAY_LENGTH`. A live view's bulk body is still bounded
+  `SERVICE_SPECS_MAX_ARRAY_LENGTH`. A serializer that cannot be built
+  without a request is held to that bound whatever `max_length` it sets. A live view's bulk body is still bounded
   by its `ListSerializer` alone.
-- **Guard an input serializer's read of `self.instance` where a target lookup
-  finds the row.** Its fields are read before the lookup runs, with no row;
-  off HTTP, hand the row with `instance=` to have it from the start.
 - **Move a nested selector's `progress_reporter` and `preconditions` to its
   `ServiceSpec`, and give a registered `SelectorSpec` a `selector`.** Each is
   refused where 0.57.0 ignored it.
@@ -172,11 +170,14 @@ project may have to change, each detailed below:
   mutation and model helpers (`create_from_input`, `apply_input`,
   `create_model`, `delete_collection` and their async siblings), the
   selector and service protocols, `base_pool`, `PoolSeeds`,
-  `RESERVED_POOL_SEEDS`, `ValueFormatter`, `paginate_output` and the
-  affordance and audience helpers are each the kernel's, so `isinstance`
-  and `is` answer the same for a drfs name and the kernel's. Their
-  behaviour is the kernel's too, and where it differed from drfs' the
-  differences are:
+  `RESERVED_POOL_SEEDS`, `ValueFormatter`, `paginate_output`,
+  `operation_affordances` and the audience helpers are each the kernel's,
+  so `isinstance` and `is` answer the same for a drfs name and the
+  kernel's. `enforce_affordances`, `unmet_operation_affordance` and their
+  async siblings are drfs' own over the kernel's, reserving `request` and
+  `view` beside the `reserved` set passed, since `dispatch_spec` seeds both
+  on every call. Their behaviour is the kernel's too, and where it differed
+  from drfs' the differences are:
   - `DispatchResult` has no `status`; its fields are `kind`, `value`,
     `service_result`, `instance`, `data` and `context`. `dispatch_spec`
     still accepts `success_status` and ignores it; the HTTP views still
@@ -307,6 +308,13 @@ project may have to change, each detailed below:
     either shape. Off HTTP an unknown key inside a nested serializer is
     refused as `{"inner": {"zzz": ["Unknown argument."]}}`, code `unknown`;
     over a live view it is still dropped.
+  - Off HTTP under `REJECT`, an undeclared key is refused beside the
+    serializer's own refusals of the same call, where 0.57.0 answered those
+    alone: `{"bogus": 1}` with a required `title` missing answers both
+    `title` and `non_field_errors`.
+  - Off HTTP under `REJECT`, an argument sent beside a `many_argument` list is
+    refused before the rows are read, where 0.57.0 answered the rows' errors
+    first.
 - **Breaking: a value a view hook or the spec's `kwargs` provider gives for an
   input-serializer field decides that field, and is validated by it.** A key
   naming a field of `input_serializer`, by its name or by its `source`, is
@@ -446,6 +454,19 @@ project may have to change, each detailed below:
     refused where `True` passes.
   - `filter_data` reaches only the filter's own names, and neither it nor
     the query string narrows an output selector's `filter_set` any longer.
+  - Off HTTP, a filter value of the wrong JSON type is refused in the
+    kernel's words before the `FilterSet` reads it: a single value for a
+    `ModelMultipleChoiceFilter` is `Expected an array.` (code `not_a_list`)
+    where 0.57.0 answered `Enter a list of values.`, and a number in the list
+    a `BaseInFilter` or a `ModelMultipleChoiceFilter` reads is
+    `Expected a string.`, where 0.57.0 filtered by the first and raised
+    `TypeError` on the second. A primary key no row has is refused in the
+    `FilterSet`'s words with code `invalid_choice`, where 0.57.0 gave
+    `invalid`.
+  - A name both a filter and the spec's untyped `kwargs` provider fill is
+    filtered by the provider's value, over a live view and off HTTP, where
+    0.57.0 filtered by the caller's and handed the provider's to the
+    selector alone.
 - **Off HTTP, arguments are type-checked against what the spec declares
   before the serializer runs.** This holds for `dispatch_spec` and
   `adispatch_spec` called with no view or with an `OfflineServiceView`, as an
@@ -457,23 +478,27 @@ project may have to change, each detailed below:
   - a list longer than 1000 items, or the `SERVICE_SPECS_MAX_ARRAY_LENGTH`
     setting;
   - in-process Python `date`, `datetime`, `time`, `timedelta`, `Decimal`
-    and `UUID` values.
+    and `UUID` values;
+  - `null` for a parameter whose annotation does not admit it, whatever its
+    default: `x: int = None` refuses `null` where 0.57.0 passed it on, and
+    `x: int | None = None` takes it.
 
   The serializer runs only once every argument passes the check, so its own
   refusals of other fields (a `max_length`, a `validate()`) wait behind a
   type refusal.
 - **`many` calls.** A `many` spec needs an input serializer. Off HTTP and
   on an `OfflineServiceView` it takes its list bounds from the
-  `ListSerializer`, with 1000 rows the most where it sets no `max_length`,
+  `ListSerializer`, with 1000 rows the most where it sets no `max_length`
+  or cannot be built without a request (one whose `__init__` reads
+  `context["request"]`, say, which 0.57.0 could not build off HTTP at all),
   and a longer list is refused under `non_field_errors`. Over a live view the
   `ListSerializer` alone bounds the body, and a refused body is answered with
   its own errors, as before. Off HTTP, rows sent as a bare
   list are refused in the kernel's list with one entry per row, where DRF
   3.18 gave a mapping of row indexes; rows sent under `many_argument` keep
   the mapping. A non-list, null or out-of-bounds list under `many_argument`
-  is refused in the kernel's words (`{"items": ["Expected an array."]}`), and
-  a key beside the rows follows `unknown_arguments`, dropped under `IGNORE`,
-  where it was refused under every policy. `SPREAD_AUTHOR_WINS`
+  is refused in the kernel's words (`{"items": ["Expected an array."]}`).
+  `SPREAD_AUTHOR_WINS`
   on a `many` dispatch is accepted and hands the service what `AUTO` does,
   where 0.57.0 raised `ValueError`.
 - **Partial calls over a dataclass.** `dispatch_spec(partial=True)` over a
@@ -496,8 +521,10 @@ project may have to change, each detailed below:
   fields are read off that one. A call whose body the server puts a value
   into - a view hook's, the spec's `kwargs` provider's or `input_data` - is
   built once for the body sent and once for the body it validates, and a
-  call whose row a target lookup resolves once before the lookup and once
-  with the row. 0.57.0 built each once, so a serializer that queries as it
+  call whose row a target lookup resolves once before the lookup, for the
+  names the lookup's arguments need, and once with the row; one that cannot
+  be built without its row is taken to declare no name until the row is
+  found, and is then built with it. 0.57.0 built each once, so a serializer that queries as it
   is built queries twice in those calls. The context callable is asked for
   each build where what it is handed differs: an argument the server's
   value replaced, the request built off HTTP with no view, which carries
@@ -505,17 +532,6 @@ project may have to change, each detailed below:
   be built without, the description's pool and then the whole pool. 0.57.0
   asked it once. A callable with a side effect should not rely on a call
   count.
-- **A row a target lookup resolves is not there when the input serializer's
-  fields are first read.** The call reads them before the lookup runs, with
-  no row, and validates with the row it found, where 0.57.0 built the
-  serializer once, after the lookup. So a `get_fields` or `__init__` reading
-  `self.instance` unguarded, `self.instance.pk` say, raises in such a call,
-  over HTTP and off it; guard the read with `self.instance is not None`, or,
-  off HTTP, hand the row with `instance=`. And off HTTP under
-  `UnknownArguments.REJECT`, a field the serializer adds only for a row is
-  refused as an unexpected argument; hand the row with `instance=`, or call
-  under `IGNORE`. A row handed with `instance=`, as an update view's
-  `get_object()` hands it, is the serializer's from the start.
 - **A Manager from a list selector is answered as a queryset.** A LIST
   selector returning `Model.objects` hands back its `.all()`, unpaginated
   too, where 0.57.0 handed back the Manager itself. So an unpaginated Manager

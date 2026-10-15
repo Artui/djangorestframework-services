@@ -349,18 +349,35 @@ async def test_a_length_bound_is_refused_under_the_argument(
 
 
 @_CORES
-async def test_an_argument_beside_the_list_is_dropped_under_ignore(core: str) -> None:
-    """The top level is the list and the spec's ``reads``, a closed set: ``IGNORE``
-    drops what else was sent, as it drops an undeclared key anywhere."""
-    result = await _dispatch(
+@pytest.mark.parametrize(
+    "policy", [UnknownArguments.IGNORE, UnknownArguments.REJECT], ids=["ignore", "reject"]
+)
+@pytest.mark.parametrize(
+    ("beside", "named"),
+    [({"note": 1, "extra": 2}, "'extra', 'note'"), ({"view": 1}, "'view'")],
+    ids=["undeclared", "transport-name"],
+)
+async def test_an_argument_beside_the_list_is_refused_under_every_policy(
+    core: str, policy: UnknownArguments, beside: dict[str, Any], named: str
+) -> None:
+    """Nothing beside the list has anywhere to go: the service is handed the list
+    alone, so ``IGNORE`` would drop the argument without a trace. Refused, as
+    0.57.0 refused it, once the rows are valid, and the service never runs."""
+    ran: list[Any] = []
+
+    def _record(*, data: Any) -> Any:
+        ran.append(data)
+        return data
+
+    refusal = await _refusal(
         core,
-        _spec(),
-        user=None,
-        params={"items": [_GOOD], "note": 1, "extra": 2},
+        ServiceSpec(service=_record, input_serializer=_Line, many=True, atomic=False),
+        params={"items": [_GOOD], **beside},
         many_as_argument=True,
-        unknown_arguments=UnknownArguments.IGNORE,
+        unknown_arguments=policy,
     )
-    assert _plain(result.value) == [_GOOD]
+    assert refusal.detail == {"non_field_errors": [f"Unexpected argument(s): {named}."]}
+    assert ran == []
 
 
 @_CORES
@@ -389,13 +406,40 @@ async def test_a_reserved_seed_beside_the_list_is_not_an_unexpected_argument(cor
 
 
 @_CORES
-async def test_item_errors_answer_beside_a_dropped_argument(core: str) -> None:
-    """Under the default ``IGNORE`` the key beside the list is dropped, so the rows'
-    refusal is the whole answer."""
+async def test_item_errors_answer_before_an_argument_beside_the_list(core: str) -> None:
+    """Under the default ``IGNORE`` the rows are validated first, as on 0.57.0, so
+    the rows' refusal is the whole answer."""
     refusal = await _refusal(
         core, _spec(), params={"items": [_BAD], "note": 1}, many_as_argument=True
     )
     assert refusal.detail == {"items": {0: _BAD_DETAIL}}
+
+
+@_CORES
+async def test_a_row_the_kernel_refuses_answers_before_an_argument_beside_the_list(
+    core: str,
+) -> None:
+    """A row missing a field is refused by the kernel's own check, before the
+    serializer sees the rows, and that refusal is the answer, as on 0.57.0."""
+    refusal = await _refusal(
+        core, _spec(), params={"items": [_GOOD, {}], "note": 1}, many_as_argument=True
+    )
+    assert "items" in refusal.detail
+    assert "non_field_errors" not in refusal.detail
+
+
+@_CORES
+async def test_under_reject_an_argument_beside_the_list_is_refused_before_the_items(
+    core: str,
+) -> None:
+    refusal = await _refusal(
+        core,
+        _spec(),
+        params={"items": [_BAD], "note": 1},
+        many_as_argument=True,
+        unknown_arguments=UnknownArguments.REJECT,
+    )
+    assert refusal.detail == {"non_field_errors": ["Unexpected argument(s): 'note'."]}
 
 
 @_CORES

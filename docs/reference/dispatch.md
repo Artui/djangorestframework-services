@@ -365,7 +365,10 @@ service **without** the core -- a chain step handed a pool it built, say -- call
 one of these the way it calls `enforce_permissions`: after permissions and target
 resolution, before the spec's `preconditions`, which is the order the core uses.
 Skip it and a call the direct path refuses with `ActionUnavailable` succeeds on
-that path instead.
+that path instead. Like the two below, they are the kernel's functions with
+`request` and `view` reserved beside the `reserved` set passed, the names
+`dispatch_spec` seeds itself, so a condition reading either is handed it from
+the pool.
 
 ::: rest_framework_services.dispatch.enforce_affordances.enforce_affordances
 
@@ -378,10 +381,13 @@ its tool list or an agent assembling its toolset for a step, asks one of these
 before any call is attempted. They answer the conditions the capability manifest
 calls `"operation"` scope, the callables that need no row, and return the first
 one not met, or `None`. A condition on the row is skipped without a query. Build
-the pool with `base_pool` and the same `seeds=` the call would use, and pass
-`reserved=seeds.reserved`. The call answers a condition from those same names, so
-the two agree. The answer is advisory: `dispatch_spec` still enforces every
-affordance when the operation is called.
+the pool with `base_pool` and the same `seeds=` the call would use, passing the
+`request` (and `view`, where there is one) the call would be handed, and pass
+`reserved=seeds.reserved`. `dispatch_spec` seeds `request` and `view` itself on
+every call, beside the seeds it is handed, so these functions reserve both beside
+the set you pass: a condition declaring either is answered from the pool here as
+it is at the call, and the two agree. The answer is advisory: `dispatch_spec`
+still enforces every affordance when the operation is called.
 
 ::: rest_framework_services.dispatch.unmet_operation_affordance.unmet_operation_affordance
 

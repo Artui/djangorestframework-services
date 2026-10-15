@@ -152,9 +152,10 @@ def test_a_condition_sees_a_registered_seed_and_never_a_spread_entry() -> None:
     assert seen["clock"] == "the 29th"
     assert seen["user"] == "alice"
     assert "month_end" not in seen
-    # ``request`` is no seed of the kernel's: the DRF edge registers it with the
-    # call's own seeds, so a pool handed over here reads it as a spread entry.
-    assert set(seen) == {"user", "progress", "clock"}
+    # ``request`` is no seed of the kernel's, but the DRF edge seeds it on every
+    # call, so this package's function reserves it beside the caller's set and a
+    # condition sees it here as it does at the call.
+    assert set(seen) == {"user", "progress", "clock", "request"}
 
 
 def test_a_registered_seed_is_withheld_unless_its_reservation_is_passed() -> None:
@@ -191,7 +192,7 @@ def test_the_calls_own_names_never_reach_a_condition() -> None:
 
     unmet_operation_affordance(spec, pool)
 
-    assert set(seen) == {"user", "progress"}
+    assert set(seen) == {"user", "progress", "request"}
 
 
 # --- a selector ------------------------------------------------------------------

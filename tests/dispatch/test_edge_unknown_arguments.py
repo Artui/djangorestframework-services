@@ -1,7 +1,7 @@
 """``UnknownArguments.REJECT`` at the DRF edge, on both cores.
 
 The kernel refuses an undeclared key itself; the edge decides when that refusal
-is asked for (before any lookup queries), where the kernel can hold a caller to
+is asked for (after the target lookup, as 0.57.0 asked it), where the kernel can hold a caller to
 it at all (not against an open callable), and which refusals it rewords into
 this package's ``"Unexpected argument(s): ..."`` message (only the kernel's own).
 """
@@ -68,18 +68,15 @@ _TOUCH = ServiceSpec(
 
 @_CORES
 @pytest.mark.django_db
-def test_an_unknown_key_is_refused_before_the_lookup_asks_the_database(
-    dispatch: Dispatch, django_assert_num_queries: Any
-) -> None:
-    """A missing row beside an undeclared key is the caller's 400, as it always
-    was, and the database is not asked for the row."""
+def test_a_missing_row_beside_an_unknown_key_is_not_found(dispatch: Dispatch) -> None:
+    """The lookup runs first, as on 0.57.0, so a missing row is ``not_found``
+    whatever else the caller sent."""
     _LOOKED_UP.clear()
 
-    with django_assert_num_queries(0), pytest.raises(ValidationError) as excinfo:
-        dispatch(_TOUCH, params={"pk": 404, "bogus": 1})
+    result = dispatch(_TOUCH, params={"pk": 404, "bogus": 1})
 
-    assert excinfo.value.detail == {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}
-    assert _LOOKED_UP == []
+    assert result.kind == "not_found"
+    assert _LOOKED_UP == [404]
 
 
 @_CORES
@@ -118,13 +115,24 @@ def test_a_missing_row_and_a_missing_field_is_still_not_found(dispatch: Dispatch
 
 @_CORES
 @pytest.mark.django_db
-def test_an_unknown_key_ahead_of_the_lookup_is_refused_alone(dispatch: Dispatch) -> None:
-    """The refusal names the unknown key only, as it did when it ran first: a
-    field left out or sent wrong is not reported beside it."""
+def test_an_unknown_key_beside_a_found_row_is_refused(dispatch: Dispatch) -> None:
+    """Once the row is found, an undeclared key is refused in this package's words."""
+    post = Post.objects.create(title="t")
+
     with pytest.raises(ValidationError) as excinfo:
-        dispatch(_RETITLE, params={"pk": 404, "bogus": 1})
+        dispatch(_RETITLE, params={"pk": post.pk, "title": "n", "bogus": 1})
 
     assert excinfo.value.detail == {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}
+
+
+@_CORES
+@pytest.mark.django_db
+def test_a_missing_row_beside_an_unknown_key_and_a_missing_field_is_not_found(
+    dispatch: Dispatch,
+) -> None:
+    result = dispatch(_RETITLE, params={"pk": 404, "bogus": 1})
+
+    assert result.kind == "not_found"
 
 
 # --- an open service --------------------------------------------------------------

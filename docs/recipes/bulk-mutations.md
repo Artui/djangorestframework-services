@@ -50,7 +50,10 @@ Off HTTP, and on an `OfflineServiceView`, the kernel checks the list first and
 takes its bounds from the same `ListSerializer`; where it sets no
 `max_length`, at most 1000 rows are accepted, or what the
 `SERVICE_SPECS_MAX_ARRAY_LENGTH` setting says (`None` bounds nothing), and a
-longer list is refused under `non_field_errors`.
+longer list is refused under `non_field_errors`. A `ListSerializer` that cannot
+be built without a request, such as one whose item serializer reads
+`context["request"]` in `__init__`, is held to that default whatever
+`max_length` it sets, because its bounds cannot be read.
 
 ### Off HTTP: the list as one named argument
 
@@ -105,11 +108,14 @@ an empty entry for each valid item:
 The argument missing answers `{"books": ["This field is required."]}`. `null`,
 a value that is not a list, or a list outside its length bounds is refused under
 the argument in the kernel's words, such as `{"books": ["Expected an array."]}`.
-An argument sent beside the list follows `unknown_arguments` like any other
-undeclared key: dropped under `IGNORE`, refused under `REJECT` as
-`{"non_field_errors": ["Unexpected argument(s): 'zzz'."]}`. The service receives
-only the list either way. The policy decides the same for an undeclared key
-inside an item, refused inside that item under `REJECT`. A refusal the service or a
+An argument sent beside the list that the spec declares no `reads` entry for is
+refused under every `unknown_arguments` policy, as
+`{"non_field_errors": ["Unexpected argument(s): 'zzz'."]}`, because the service
+receives only the list and the argument would have nowhere to go. Under `REJECT`
+it is refused before the items are read; under `IGNORE`, once every item is
+valid, so an item's refusal comes first. A reserved pool seed sent there, such as
+`user`, is not refused. The policy decides an undeclared key inside an item:
+dropped under `IGNORE`, refused inside that item under `REJECT`. A refusal the service or a
 precondition raises is passed on as raised.
 
 A spec that took a list through that wrapper can declare `many=True` instead
