@@ -570,8 +570,7 @@ def _sources(serializer: serializers.Serializer, name: str) -> tuple[str, ...]:
     dotted ``source`` owns the key its value is nested under, as 0.57.0 left
     that parameter its default
     (test_an_owned_wire_name_over_a_dotted_source_owns_the_key_it_nests_under).
-    A flattened field has no key of its own, so it adds none, and a name no
-    field has adds none either
+    A name no field has adds none
     (test_the_specs_provider_outranks_the_validators_over_http).
     """
     field = serializer.fields.get(name)

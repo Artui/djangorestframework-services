@@ -136,21 +136,46 @@ def test_a_declined_owned_name_hands_neither_parameter_the_clients_value_off_htt
     assert seen == _DECLINED
 
 
+# A value named by the field's wire name is handed under both names, and one
+# named by its ``source`` under that alone, as a hook's value is.
+_FILLED = {
+    "tenant": {"org": "srv", "tenant": "srv", "data": {"org": "srv"}},
+    "org": {"org": "srv", "tenant": "D-tenant", "data": {"org": "srv"}},
+}
+
+
 @_CORES
 @_BINDINGS
 @_BODY
-def test_a_filled_wire_name_is_the_value_under_both_names(
-    dispatch: Dispatch, binding: ArgumentBinding, body: Callable[[dict[str, Any]], Any]
+@_OWNS
+def test_a_filled_owned_name_is_the_providers_value(
+    dispatch: Dispatch,
+    binding: ArgumentBinding,
+    body: Callable[[dict[str, Any]], Any],
+    owns: str,
 ) -> None:
     seen: dict[str, Any] = {}
 
     dispatch(
-        _spec(seen, owns="tenant", value="srv"),
+        _spec(seen, owns=owns, value="srv"),
         params=body({"tenant": "evil"}),
         argument_binding=binding,
     )
 
-    assert seen == {"org": "srv", "tenant": "srv", "data": {"org": "srv"}}
+    assert seen == _FILLED[owns]
+
+
+@pytest.mark.parametrize("fmt", ["json", "multipart"])
+@_OWNS
+def test_a_filled_owned_name_is_the_providers_value_over_http(fmt: str, owns: str) -> None:
+    seen: dict[str, Any] = {}
+    spec = _spec(seen, owns=owns, value="srv")
+    view = type("_View", (ServiceCreateView,), {"permission_classes": [], "spec": spec})
+
+    response = view.as_view()(_factory.post("/", {"tenant": "evil"}, format=fmt))
+
+    assert response.status_code == 204, response.data
+    assert seen == _FILLED[owns]
 
 
 @pytest.mark.parametrize("fmt", ["json", "multipart"])
@@ -178,10 +203,14 @@ def test_a_hook_naming_the_other_name_of_an_owned_value_is_dropped_over_http(
 
 
 @_CORES
+@_BINDINGS
 @_BODY
 @_OWNS
 def test_a_hook_naming_the_other_name_of_an_owned_value_is_dropped_off_http(
-    dispatch: Dispatch, body: Callable[[dict[str, Any]], Any], owns: str
+    dispatch: Dispatch,
+    binding: ArgumentBinding,
+    body: Callable[[dict[str, Any]], Any],
+    owns: str,
 ) -> None:
     seen: dict[str, Any] = {}
     other = "org" if owns == "tenant" else "tenant"
@@ -189,6 +218,7 @@ def test_a_hook_naming_the_other_name_of_an_owned_value_is_dropped_off_http(
     dispatch(
         _spec(seen, owns=owns, value=UNSET),
         params=body({"tenant": "evil"}),
+        argument_binding=binding,
         view_hooks=ViewHooks(extra_kwargs={other: "hook"}),
     )
 

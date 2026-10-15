@@ -71,6 +71,25 @@ def _spec(
     )
 
 
+def _collection(*, title: str = "D-lookup") -> Any:
+    return Post.objects.filter(title=title)
+
+
+def _over_a_collection(reads: Any) -> ServiceSpec[Any, Any, Any]:
+    def service(*, data: Any, collection: Any, title: str = "D-svc") -> Any:
+        return collection
+
+    return ServiceSpec(
+        service=service,
+        input_serializer=_TitleIn,
+        collection_selector_spec=SelectorSpec(
+            kind=SelectorKind.LIST, selector=_collection, reads=reads
+        ),
+        permission_classes=[],
+        atomic=False,
+    )
+
+
 def _register(spec: ServiceSpec[Any, Any, Any]) -> None:
     SpecRegistry().register("edit", spec)
 
@@ -102,6 +121,12 @@ def _register(spec: ServiceSpec[Any, Any, Any]) -> None:
             r"which _TitleIn also takes as a writable field and the target lookup reads\.",
             id="the-lookups-query-param",
         ),
+        pytest.param(
+            _over_a_collection((QueryParam("title"),)),
+            r"ServiceSpec\.collection_selector_spec\.reads declares QueryParam\('title'\), "
+            r"which _TitleIn also takes as a writable field and the target lookup reads\.",
+            id="the-collection-lookups-query-param",
+        ),
     ],
 )
 def test_a_read_named_like_a_writable_field_is_refused(
@@ -128,6 +153,9 @@ def test_a_read_named_like_a_writable_field_is_refused(
             _spec(reads=(QueryParam("title"),), serializer=_ReadOnlyTitleIn), id="read-only-field"
         ),
         pytest.param(_spec(reads=(QueryParam("title"),), many=True), id="a-rows-field"),
+        pytest.param(
+            _over_a_collection((UrlKwarg("title"),)), id="the-collection-lookups-url-kwarg"
+        ),
     ],
 )
 def test_a_read_no_field_takes_from_the_body_is_accepted(
