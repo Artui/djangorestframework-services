@@ -694,8 +694,10 @@ def context_answer(
     callable reading an argument the edge put a server's value over is asked
     again for it (test_a_context_callable_reading_an_argument_validates_with_the_server_s_value),
     and another spec's callable handed the same objects is asked itself
-    (test_a_kernel_call_inside_the_service_asks_its_own_context_callable). The objects
-    are held with the answer, so none is freed and its identity reused while
+    (test_a_kernel_call_inside_the_service_asks_its_own_context_callable), and
+    so is one handed the same object under another name
+    (test_a_context_answer_is_held_for_the_names_its_objects_came_under). The
+    objects are held with the answer, so none is freed and its identity reused while
     the call lasts.
     """
     state = EDGE_CALL.get()

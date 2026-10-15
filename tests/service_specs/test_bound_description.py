@@ -21,6 +21,7 @@ from rest_framework_services.service_specs.utils import (
     DescribeBinding,
     EdgeCallState,
     bound_description,
+    context_answer,
     describe_serializer,
     describe_with,
 )
@@ -101,3 +102,23 @@ def test_another_declaration_is_described_for_no_body(state: EdgeCallState) -> N
     assert not hasattr(described, "initial_data")
     assert described.instance is None
     assert describe_serializer(_In).initial_data is _BODY
+
+
+def test_a_context_answer_is_held_for_the_names_its_objects_came_under(
+    state: EdgeCallState,
+) -> None:
+    """The same object under another name is another question, asked afresh."""
+    shared = object()
+    asked: list[str] = []
+
+    def provider(**handed: Any) -> dict[str, Any]:
+        asked.extend(handed)
+        return dict(handed)
+
+    first = context_answer(provider, {"scope": shared})
+    again = context_answer(provider, {"scope": shared})
+    other = context_answer(provider, {"owner": shared})
+
+    assert again is first
+    assert other == {"owner": shared}
+    assert asked == ["scope", "owner"]

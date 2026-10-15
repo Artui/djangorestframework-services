@@ -11,7 +11,8 @@ import typing
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import Annotated, Any, Literal, cast, get_args, get_origin
 
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
+from django.db import DatabaseError
 from django.db.models import QuerySet
 from django_service_specs.adapters.filters.filter_set_parameters import filter_set_parameters
 from django_service_specs.authorization.permission_check import PermissionCheck
@@ -684,15 +685,22 @@ def _compiled_input_names(spec: Any) -> frozenset[str]:
     is taken to declare no name rather than refused: dispatch, which describes
     it with the call's own request and view, is where its fields exist
     (test_a_spec_declaring_a_read_registers_and_mounts_at_import, which fails
-    without the catch). Only what reading a ``None`` request or view, or a key
-    the context lacks, raises is caught; anything else the serializer raises
-    is raised as it is (test_a_serializer_that_fails_for_another_reason_is_not_hidden_at_registration),
+    without the catch). A spec registered at import may also compile before
+    ``migrate`` has made the table its fields query, or before the row they
+    look up exists, so registering never needs the database: a database error
+    or a missing row is taken the same way, and the call that describes the
+    serializer is where a read named like one of its fields is refused
+    (test_registration_needs_no_database). Only those are caught, each held
+    by its case of test_a_spec_whose_fields_cannot_be_read_without_a_call_registers
+    (``attribute``, ``key``, ``subscript``, ``missing-table``, ``missing-row``);
+    anything else the serializer raises is raised as it is
+    (test_a_serializer_that_fails_for_another_reason_is_not_hidden_at_registration),
     and so is a declaration that is no serializer at all
     (test_an_input_serializer_that_is_none_of_the_two_is_still_refused).
     """
     try:
         return writable_input_names(spec)
-    except (AttributeError, KeyError, TypeError):
+    except (AttributeError, KeyError, TypeError, DatabaseError, ObjectDoesNotExist):
         return frozenset()
 
 
