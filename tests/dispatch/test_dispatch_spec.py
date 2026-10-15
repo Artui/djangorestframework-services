@@ -82,6 +82,22 @@ class TestDispatchSelector:
         rendered = render_spec_output(spec, result.value, many=True)
         assert [row["title"] for row in rendered] == ["shipped"]
 
+    def test_a_manager_from_a_list_selector_is_answered_as_a_queryset(self) -> None:
+        """``Model.objects`` is answered as its ``.all()``, unpaginated too,
+        so a transport counting the rows it serves counts these as well."""
+        Post.objects.create(title="a")
+        Post.objects.create(title="b")
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=lambda: Post.objects,
+            output_serializer=_PostSerializer,
+        )
+
+        result = dispatch_spec(spec, user=None, params={})
+
+        assert isinstance(result.value, QuerySet)
+        assert sorted(post.title for post in result.value) == ["a", "b"]
+
     def test_forwards_request_to_request_scoped_filter_set(self) -> None:
         """An off-HTTP caller that builds an offline context (as the MCP /
         Pydantic-AI bridges do) has its synthetic request forwarded into the

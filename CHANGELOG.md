@@ -463,6 +463,10 @@ project may have to change, each detailed below:
 - **Presenting output.** `SerializerPresenter` projects no marking onto a
   write-only field, and refuses a `field_audiences` name that matches no
   output field.
+- **A Manager from a list selector is answered as a queryset.** A LIST
+  selector returning `Model.objects` hands back its `.all()`, unpaginated
+  too, where 0.57.0 handed back the Manager itself. So an unpaginated Manager
+  now meets a transport's row ceiling, as a queryset does.
 
 ### Removed
 
