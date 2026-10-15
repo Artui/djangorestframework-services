@@ -117,7 +117,8 @@ project may have to change, each detailed below:
   would hand that callable the client's value under a name it keeps the
   server's. A name only a target lookup marks `NotClientInput` is accepted
   and is the service's argument. A read named like a writable field of the
-  input serializer, on the spec or its target lookup, is refused too, since
+  input serializer, on the spec or its target lookup, is refused too (a
+  read-only field and a `HiddenField` take nothing from the body), since
   the body's value of that name is the field's and the read would reach
   nothing, except a `UrlKwarg` the target lookup reads: that renames a row by
   the key that finds it, the route's capture scoping the lookup, and off HTTP

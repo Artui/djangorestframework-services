@@ -569,8 +569,9 @@ def _refuse_reads_named_like_fields(spec: Any, *, lookup_reads: frozenset[str]) 
     any other ``UrlKwarg`` of the name the kernel would refuse at dispatch as
     declared by two sources, so it is refused here, beside the declaration
     (test_a_read_named_like_a_writable_field_is_refused). A ``many`` spec's
-    fields are each row's and a read-only field takes nothing from the body,
-    so neither is a clash (the ``a-rows-field`` and ``read-only-field`` cases
+    fields are each row's, and a read-only field and a ``HiddenField`` take
+    nothing from the body, so none is a clash (the ``a-rows-field``,
+    ``read-only-field`` and ``hidden-field`` cases
     of test_a_read_no_field_takes_from_the_body_is_accepted).
     """
     target = spec.collection_selector_spec or spec.instance_selector_spec
@@ -596,8 +597,9 @@ def _refuse_reads_named_like_fields(spec: Any, *, lookup_reads: frozenset[str]) 
                 continue
             lookup = " and the target lookup reads" if looked_up else ""
             raise ImproperlyConfigured(
-                f"{label}.reads declares {type(entry).__name__}({entry.name!r}), which "
-                f"{spec.input_serializer.__qualname__} also takes as a writable field{lookup}. "
+                f"{label}.reads declares {type(entry).__name__}({entry.name!r}), which the "
+                f"input serializer {spec.input_serializer.__qualname__} also takes as a "
+                f"writable field{lookup}. "
                 "The body's value of that name is the field's, so the read would reach "
                 "neither the service nor the lookup. Rename the read or the field; to "
                 "scope the target lookup by a key the body also writes, declare it a "

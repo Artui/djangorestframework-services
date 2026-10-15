@@ -114,12 +114,14 @@ def writable_input_names(spec: Any) -> frozenset[str]:
     Each writable field's name, as the client sends it, read through
     ``describe_serializer``. A ``many`` spec's fields are each row's and a spec
     with no input serializer has none, so either answers no name; a read-only
-    field takes nothing from the body.
+    field and a ``HiddenField`` take nothing from the body (``is_input``), so
+    neither is a name the body writes (the ``read-only-field`` and
+    ``hidden-field`` cases of test_a_read_no_field_takes_from_the_body_is_accepted).
     """
     if spec.input_serializer is None or spec.many:
         return frozenset()
     fields = describe_serializer(spec.input_serializer).fields
-    return frozenset(name for name, field in fields.items() if not field.read_only)
+    return frozenset(name for name, field in fields.items() if is_input(field))
 
 
 def bind_serializer(declaration: Any, **kwargs: Any) -> serializers.Serializer:

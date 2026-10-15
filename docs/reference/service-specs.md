@@ -88,8 +88,11 @@ each naming the read:
   names the read, the serializer and, where it reads the name too, the target
   lookup. A `UrlKwarg` the target lookup reads is accepted: that is the
   rename-by-key shape above, where the route's capture scopes the lookup. A
-  `many` spec's fields are each row's, and a read-only field takes nothing
-  from the body, so neither is a clash.
+  `many` spec's fields are each row's, and a read-only field and a
+  `HiddenField` take nothing from the body, so none is a clash: a
+  `UrlKwarg` named like a `HiddenField` whose default reads `view.kwargs` is
+  how a route capture scopes a write, and off HTTP the caller's value for it
+  is written onto `view.kwargs`, where the default reads it.
 
 A name only a target lookup marks `NotClientInput` is accepted: the lookup is
 never handed a read it hides, so the read is the service's argument and the
