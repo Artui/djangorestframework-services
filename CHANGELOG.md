@@ -497,6 +497,11 @@ project may have to change, each detailed below:
   keeps the stored file, `False` clears it), and an `ImageField`'s dimension
   columns join `update_fields`. `update_from_input` called directly raises
   the kernel's `InvalidArguments` for a row's `ValueError`.
+  - A nested row Django cannot write - a key its model has no field for,
+    say - is refused as a 400 under the row's index carrying Django's own
+    message, `{"sections": {"0": {"non_field_errors": ["Section() got
+    unexpected keyword arguments: 'name'"]}}}`, where 0.57.0 raised the
+    `TypeError` as a 500. The same key on the top-level row is still raised.
 - **Breaking: `apply_queryset_shaping` and `filter_set` shape through the
   kernel's `shape_queryset`.**
   - `filter_set` must be a django-filter `FilterSet`; one duck-typed on
