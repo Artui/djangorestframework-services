@@ -327,4 +327,9 @@ def test_arguments_that_are_no_object_beside_a_seed_named_field_are_refused(
             pool_seeds=DEFAULT_POOL_SEEDS.extend(tenant=lambda: "seeded"),
         )
 
-    assert excinfo.value.detail == {"non_field_errors": ["Expected an object."]}
+    assert excinfo.value.detail == {
+        "non_field_errors": [
+            "Invalid data. Expected a dictionary, but got list. "
+            "Only a spec declaring many=True accepts a list payload."
+        ]
+    }

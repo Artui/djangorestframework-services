@@ -1818,14 +1818,25 @@ def edge_errors(
     - On ``http``, a request a live DRF view dispatches (``over_http``), a
       body that is not what the input serializer takes - no object for a
       single call, no list for a ``many`` one - is refused as the serializer
-      refuses it, in DRF's words (``_drf_body_refusal``).
+      refuses it, in DRF's words (``_drf_body_refusal``). Off HTTP a single
+      call's arguments that are no object are refused in the same words,
+      while a ``many`` spec's keep the kernel's.
     """
     bare_rows = isinstance(spec, ServiceSpec) and spec.many and not many_as_argument
     try:
         with translate_dispatch_errors():
             yield
     except InvalidArguments as exc:
-        drf = _drf_body_refusal(spec, params, bare_rows=bare_rows) if http else None
+        # Off HTTP a single call's arguments that are no object are refused in
+        # the words a live view uses, as 0.57.0 refused them on both, while a
+        # ``many`` spec's bare rows keep the kernel's refusal there. One arc to
+        # coverage: without ``http`` a live view's bulk body that is no list
+        # loses DRF's refusal (test_a_bulk_body_that_is_no_list_is_refused_in_drfs_words),
+        # and without ``not bare_rows`` the off-HTTP single call keeps the
+        # kernel's (test_it_names_what_arrived).
+        drf = (
+            _drf_body_refusal(spec, params, bare_rows=bare_rows) if http or not bare_rows else None
+        )
         if drf is not None:
             raise drf from exc
         detail = _filter_errors_flat(_unexpected_as_drf(exc.detail, spec), spec)
@@ -1892,7 +1903,7 @@ def _drf_body_refusal(
         f"Invalid data. Expected a dictionary, but got {type(params).__name__}. "
         "Only a spec declaring many=True accepts a list payload."
     )
-    return ValidationError(
+    return InvalidArguments(
         {api_settings.NON_FIELD_ERRORS_KEY: [ErrorDetail(message, code="invalid")]}
     )
 
