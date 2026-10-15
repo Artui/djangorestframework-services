@@ -30,6 +30,7 @@ from rest_framework_services.service_specs.serializer_validator import Serialize
 from rest_framework_services.service_specs.utils import (
     SERVER_CHANNEL,
     server_channel,
+    values_beside_filter,
     writable_input_names,
 )
 from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
@@ -317,10 +318,12 @@ def _selector(
         reads = _merge(reflected, declared, skip=filtered)
         shadowed = hidden & filtered
     else:
-        shadowed = frozenset()
+        filtered = shadowed = frozenset()
     return KernelSelectorSpec(
         kind=spec.kind,
-        selector=_on_the_server_s_channel(spec.selector, shadowed),
+        selector=_beside_its_filter(
+            _on_the_server_s_channel(spec.selector, shadowed), spec, filtered
+        ),
         # A nested selector's checks are never read: the dispatched spec's are.
         permissions=(
             _permissions(spec, route_reads=_route_reads(spec, reads)) if role is None else None
@@ -356,10 +359,22 @@ def _selector(
         # drfs never ran an output selector's ``kwargs`` (the mutation's chains
         # apply), and the kernel refuses them there.
         kwargs=(
-            _answering_on_the_server_s_channel(spec.kwargs, shadowed) if role != "output" else None
+            # Only a target lookup's provider runs in an edge call: the
+            # dispatched form of a selector spec carries none, as the edge
+            # calls its provider itself (test_the_shaping_fields_carry).
+            _recording_beside_its_filter(
+                _answering_on_the_server_s_channel(spec.kwargs, shadowed),
+                spec,
+                filtered - hidden if role is not None else frozenset(),
+            )
+            if role != "output"
+            else None
         ),
         preconditions=(
-            [_on_the_server_s_channel(fn, shadowed) for fn in spec.preconditions]
+            [
+                _beside_its_filter(_on_the_server_s_channel(fn, shadowed), spec, filtered)
+                for fn in spec.preconditions
+            ]
             if spec.preconditions
             else spec.preconditions
         ),
@@ -402,6 +417,10 @@ def _on_the_server_s_channel(fn: Any, shadowed: frozenset[str]) -> Any:
     channelled.__name__ = fn.__name__
     channelled.__qualname__ = fn.__qualname__
     channelled.__module__ = fn.__module__
+    # Read for an annotated ``**rest`` in ``fn``'s module, as ``_beside_its_filter``
+    # (test_a_lookup_s_hidden_parameter_beside_a_bare_kwargs_takes_no_client_value).
+    channelled.__annotations__ = dict(getattr(fn, "__annotations__", {}))
+    cast(Any, channelled).__wrapped__ = fn
     cast(Any, channelled).__signature__ = signature.replace(
         parameters=[
             parameter.replace(name=server_channel(parameter.name))
@@ -411,6 +430,94 @@ def _on_the_server_s_channel(fn: Any, shadowed: frozenset[str]) -> Any:
         ]
     )
     return channelled
+
+
+def _beside_its_filter(fn: Any, spec: Any, filtered: frozenset[str]) -> Any:
+    """``fn``, handed under each name ``spec``'s filter reads what 0.57.0 handed it there.
+
+    The kernel's pool holds a filter's argument under the filter's name, and
+    hands it to every callable taking that name or a bare ``**kwargs``. The
+    filter's value was never a callable's in 0.57.0: ``filter_data`` fed the
+    ``FilterSet`` alone, and a selector parameter named like a filter took the
+    caller's argument as sent, or its default
+    (test_filter_data_never_reaches_the_selector,
+    test_the_selector_takes_the_caller_s_argument_as_sent). So within the
+    edge call that prepared them (``values_beside_filter``) each such name
+    the pool holds is dropped, and the edge's value for it handed instead,
+    where ``fn`` takes the name. Outside one ``fn`` is handed the pool, as
+    the kernel hands it. A name ``fn`` takes on its server channel
+    (``_on_the_server_s_channel``) is no filter's name here, and passes.
+    """
+    signature = inspect.signature(fn)
+    open_ended = any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in signature.parameters.values()
+    )
+    taken = filtered if open_ended else filtered & signature.parameters.keys()
+    # A callable taking none of the filter's names is handed nothing of it,
+    # and is the spec's own (test_the_shaping_fields_carry).
+    if not taken:
+        return fn
+
+    def as_handed(kwargs: dict[str, Any]) -> dict[str, Any]:
+        values = values_beside_filter(spec)
+        if values is None:
+            return kwargs
+        kept = {name: value for name, value in kwargs.items() if name not in filtered}
+        kept.update({name: values[name] for name in taken if name in values})
+        return kept
+
+    if is_async(fn):
+
+        async def beside(**kwargs: Any) -> Any:
+            return await fn(**as_handed(kwargs))
+    else:
+
+        def beside(**kwargs: Any) -> Any:
+            return fn(**as_handed(kwargs))
+
+    beside.__name__ = getattr(fn, "__name__", "selector")
+    beside.__qualname__ = getattr(fn, "__qualname__", beside.__name__)
+    beside.__module__ = fn.__module__
+    # ``fn``'s signature and annotations, resolved in ``fn``'s module: an
+    # annotated ``**rest`` is read from them (``resolved_annotation`` unwraps
+    # for the globals), which this module cannot resolve
+    # (test_a_lookup_s_selector_takes_the_caller_s_argument_and_never_filter_data).
+    # ``inspect.signature`` stops at ``__signature__`` before ``__wrapped__``.
+    beside.__annotations__ = dict(getattr(fn, "__annotations__", {}))
+    cast(Any, beside).__wrapped__ = fn
+    cast(Any, beside).__signature__ = signature
+    return beside
+
+
+def _recording_beside_its_filter(provider: Any, spec: Any, names: frozenset[str]) -> Any:
+    """``provider``, its value for each of ``names`` also handed to ``spec``'s callables.
+
+    A target lookup's own ``kwargs`` provider runs inside the kernel's call,
+    after the edge prepared what the lookup's selector is handed under its
+    filter's names (``values_beside_filter``), and its value outranked the
+    caller's there in 0.57.0 (test_a_lookup_s_provider_value_reaches_its_selector).
+    """
+    # One arc to coverage: without the ``None`` check a lookup with no provider
+    # fails (test_a_target_lookup_s_filter_takes_what_its_filter_set_reads),
+    # without ``names`` a selector spec's own provider is replaced
+    # (test_the_shaping_fields_carry).
+    if provider is None or not names:
+        return provider
+
+    def recording(**kwargs: Any) -> Any:
+        answered = provider(**kwargs)
+        values = values_beside_filter(spec)
+        if values is not None:
+            values.update({name: answered[name] for name in names if name in answered})
+        return answered
+
+    cast(Any, recording).__signature__ = inspect.signature(provider)
+    recording.__annotations__ = dict(getattr(provider, "__annotations__", {}))
+    recording.__name__ = getattr(provider, "__name__", "kwargs")
+    recording.__qualname__ = getattr(provider, "__qualname__", recording.__name__)
+    recording.__module__ = provider.__module__
+    return recording
 
 
 def _answering_on_the_server_s_channel(provider: Any, shadowed: frozenset[str]) -> Any:

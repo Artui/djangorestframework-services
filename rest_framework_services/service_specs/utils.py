@@ -417,6 +417,12 @@ class EdgeCallState:
       with is one the target lookup has still to find, so a description that
       cannot be built without it declares no name until it is found
       (``describe_serializer``).
+    - ``beside_filter``: the drfs selector spec - the call's own, or the
+      service's target lookup - whose ``filter_set`` reads names its callables
+      also take, and the value each callable is handed under each such name:
+      what the caller sent as an argument, a route capture, an author's value,
+      never ``filter_data`` and never what the filter reads
+      (``values_beside_filter``).
 
     Mutable, so the edge can set it before the sync step it hops to a thread
     for and fill it there, and the Validator can fill it during the kernel's
@@ -444,6 +450,7 @@ class EdgeCallState:
     describe_binding: DescribeBinding | None = None
     described: dict[Any, serializers.Serializer] = dataclasses.field(default_factory=dict)
     row_pending: bool = False
+    beside_filter: tuple[Any, dict[str, Any]] | None = None
 
 
 EDGE_CALL: ContextVar[EdgeCallState | None] = ContextVar(
@@ -549,6 +556,20 @@ def provider_owned(validator: Any) -> frozenset[str]:
 def _names(state: EdgeCallState, validator: Any) -> bool:
     held = state.validator_input
     return held is not None and held[0] is validator
+
+
+def values_beside_filter(spec: Any) -> dict[str, Any] | None:
+    """What the edge call in progress hands ``spec``'s callables under its filter's names.
+
+    ``None`` outside an edge call that prepared them for ``spec`` - a
+    dispatch of the compiled spec through the kernel's own ``dispatch``, or
+    another spec's call - where a callable is handed what the kernel's pool
+    holds (test_through_the_kernel_a_selector_still_reads_the_filter_s_value,
+    whose ``held`` check it is; the spec check is held by
+    test_a_kernel_call_inside_the_selector_is_handed_its_own_pool).
+    """
+    held = edge_call_state().beside_filter
+    return held[1] if held is not None and held[0] is spec else None
 
 
 def author_values() -> dict[str, Any]:
