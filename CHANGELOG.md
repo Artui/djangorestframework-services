@@ -302,9 +302,9 @@ project may have to change, each detailed below:
     form: an empty string for an optional field leaves the field out, or is
     `None` where the field allows null, and one value for a list field or a
     `MultipleChoiceField` is a list of one. A
-    `JSONField`'s mapping is refused there, `{"v": ["Value must be valid
-    JSON."]}`, where a JSON body takes it, so for that field the answer
-    depends on the client's content type.
+    `JSONField`'s mapping is refused there, `Value must be valid JSON.`,
+    where a JSON body takes it, so for that field the answer depends on the
+    client's content type.
 
   An `input_data` value for a writable field of a single-item call is held
   the same way: a later field with the same `source`, a `source="*"` nested

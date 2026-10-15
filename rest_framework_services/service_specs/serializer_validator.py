@@ -399,9 +399,12 @@ def _server_values(serializer: serializers.Serializer, put: Mapping[str, Any]) -
     A field named like a seed of the call is no argument, but its value is the
     server's all the same
     (test_input_data_for_a_field_named_like_a_registered_seed_outranks_the_clients_off_http).
-    A name that is no field of the serializer holds nothing
-    (test_input_data_naming_no_field_keeps_nothing), nor does a read-only field,
-    which takes no value in DRF's loop
+    The walk is over the serializer's fields, so a name that is no field of the
+    serializer is never visited and holds nothing
+    (test_input_data_naming_no_field_keeps_nothing); a field the edge put no
+    value for is passed over by the ``name not in put`` check, without which
+    the walk reads a key that is not there. Nor does a read-only field hold
+    one, which takes no value in DRF's loop
     (test_input_data_for_a_read_only_field_with_a_default_holds_no_server_value,
     which fails without the ``read_only`` check: such a field validates to its
     default).
@@ -433,7 +436,7 @@ def _server_values(serializer: serializers.Serializer, put: Mapping[str, Any]) -
     or Django's from ``validate_<field>``
     (test_a_django_refusal_of_the_server_value_is_answered_as_drfs_loop_answers_it),
     is keyed by its field in DRF's shape, every refused field in one
-    ``InvalidArguments``
+    ``InvalidArguments``, in the serializer's field order
     (test_every_server_value_its_field_refuses_is_answered_together), and a
     field that skips - a partial call's ``HiddenField`` - holds nothing
     (test_a_server_value_for_a_field_that_skips_is_left_out).
@@ -441,14 +444,16 @@ def _server_values(serializer: serializers.Serializer, put: Mapping[str, Any]) -
     fields = serializer.fields
     held: dict[str, Any] = {}
     errors: dict[str, Any] = {}
-    for name, put_value in put.items():
-        field = fields.get(name)
-        if field is None or field.read_only:
+    # In the serializer's field order, as DRF's loop answers its refusals
+    # (test_every_server_value_its_field_refuses_is_answered_together asserts
+    # the order the keys come back in).
+    for name, field in fields.items():
+        if name not in put or field.read_only:
             continue
         method = getattr(serializer, f"validate_{name}", None)
         try:
             value = field.run_validation(
-                _server_primitive(field, name, put_value, serializer.initial_data)
+                _server_primitive(field, name, put[name], serializer.initial_data)
             )
             if method is not None:
                 value = method(value)

@@ -25,6 +25,7 @@ from asgiref.sync import async_to_sync
 from django.contrib.auth.models import AnonymousUser, User
 from django.http import QueryDict
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 from rest_framework.fields import empty
 from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.request import Request
@@ -62,6 +63,9 @@ def _form(values: dict[str, Any]) -> QueryDict:
     for name, value in values.items():
         body[name] = value
     return body
+
+
+_BODY = pytest.mark.parametrize("body", [dict, _form], ids=["mapping", "form"])
 
 
 # A field named like a seed of the call: ``user``, the reserved one.
@@ -113,6 +117,29 @@ def test_input_data_for_a_field_named_user_outranks_the_clients_over_http(fmt: s
 
     assert response.status_code == 204, response.data
     assert seen == {"data": alice, "validated": alice, "user": alice}
+    assert [alice] == _VALIDATED
+
+
+@pytest.mark.django_db
+@_CORES
+@_BODY
+def test_input_data_for_a_field_named_user_outranks_the_clients_off_http(
+    dispatch: Dispatch, body: Callable[[dict[str, Any]], Any]
+) -> None:
+    alice = User.objects.create(username="alice")
+    bob = User.objects.create(username="bob")
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(service=_owned(seen), input_serializer=_OwnedIn, atomic=False)
+
+    dispatch(
+        spec,
+        params=body({"title": "t", "user": bob.pk}),
+        view_hooks=ViewHooks(input_data={"user": alice.pk}),
+    )
+
+    # The seed stays the call's own principal: input_data names the field, not the seed.
+    assert seen.pop("user").is_anonymous
+    assert seen == {"data": alice, "validated": alice}
     assert [alice] == _VALIDATED
 
 
@@ -170,7 +197,6 @@ _SEED_ROUTE = pytest.mark.parametrize(
     ],
     ids=["spec-input-data", "hook-input-data"],
 )
-_BODY = pytest.mark.parametrize("body", [dict, _form], ids=["mapping", "form"])
 
 
 @pytest.mark.django_db
@@ -448,6 +474,23 @@ def test_a_json_fields_mapping_is_refused_on_a_form_body_and_taken_on_a_json_one
     assert seen == {"v": {"k": "server"}, "data": {"k": "server"}, "validated": {"k": "server"}}
 
 
+@pytest.mark.django_db
+@_CORES
+def test_a_json_fields_mapping_is_refused_on_a_form_body_and_taken_on_a_mapping_off_http(
+    dispatch: Dispatch,
+) -> None:
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(service=_reads(seen), input_serializer=_Json, atomic=False)
+    hooks = ViewHooks(extra_kwargs={"v": {"k": "server"}})
+
+    with pytest.raises(ValidationError) as caught:
+        dispatch(spec, params=_form({"other": "x"}), view_hooks=hooks)
+    dispatch(spec, params={"other": "x"}, view_hooks=hooks)
+
+    assert caught.value.detail == {"v": ["Value must be valid JSON."]}
+    assert seen == {"v": {"k": "server"}, "data": {"k": "server"}, "validated": {"k": "server"}}
+
+
 class _ReadsNothingOptional(_Optional):
     """Validates nothing of the body itself, so the server's value is validated by its run alone."""
 
@@ -548,9 +591,10 @@ def test_an_author_value_by_wire_name_reaches_the_parameter_of_that_name_off_htt
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("route", ["get-service-kwargs", "spec-kwargs"])
+@pytest.mark.parametrize("fmt", ["json", "multipart"])
 @_DEFAULTED
 def test_an_author_value_by_wire_name_reaches_the_parameter_of_that_name_over_http(
-    route: str, service_for: Callable[..., Callable[..., None]]
+    route: str, fmt: str, service_for: Callable[..., Callable[..., None]]
 ) -> None:
     seen: dict[str, Any] = {}
     spec_kwargs: dict[str, Any] = (
@@ -564,7 +608,7 @@ def test_an_author_value_by_wire_name_reaches_the_parameter_of_that_name_over_ht
         attrs["get_service_kwargs"] = lambda self: {"tenant": "srv"}
     view = type("_View", (ServiceCreateView,), attrs)
 
-    response = view.as_view()(_factory.post("/", {"tenant": "evil"}, format="json"))
+    response = view.as_view()(_factory.post("/", {"tenant": "evil"}, format=fmt))
 
     assert response.status_code == 204, response.data
     assert seen == {"tenant": "srv", "data": "srv"}
@@ -618,31 +662,49 @@ def test_input_data_by_wire_name_leaves_the_parameter_of_that_name_its_default(
 # The cost of validating the server's value on its own, for a nested serializer.
 
 
+_CALLS: list[str] = []
+
+
+class _Counted(serializers.Serializer):
+    tenant = serializers.CharField()
+
+    def validate_tenant(self, value: str) -> str:
+        _CALLS.append("validate_tenant")
+        return value
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        _CALLS.append("validate")
+        return attrs
+
+
+class _Outer(serializers.Serializer):
+    v = _Counted(required=False)
+
+
 @pytest.mark.django_db
-def test_a_server_value_for_a_nested_serializer_runs_its_validation_twice() -> None:
+@_CORES
+def test_a_server_value_for_a_nested_serializer_runs_its_validation_twice(
+    dispatch: Dispatch,
+) -> None:
     """Once in the serializer's own pass, once on its own: ``validate()`` and the children's."""
-    calls: list[str] = []
-
-    class _Counted(serializers.Serializer):
-        tenant = serializers.CharField()
-
-        def validate_tenant(self, value: str) -> str:
-            calls.append("validate_tenant")
-            return value
-
-        def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
-            calls.append("validate")
-            return attrs
-
-    class _Outer(serializers.Serializer):
-        v = _Counted(required=False)
-
+    _CALLS.clear()
     seen: dict[str, Any] = {}
     spec = ServiceSpec(service=_reads(seen), input_serializer=_Outer, atomic=False)
 
-    dispatch_spec(
-        spec, user=None, params={}, view_hooks=ViewHooks(extra_kwargs={"v": {"tenant": "server"}})
-    )
+    dispatch(spec, params={}, view_hooks=ViewHooks(extra_kwargs={"v": {"tenant": "server"}}))
 
-    assert calls == ["validate_tenant", "validate", "validate_tenant", "validate"]
+    assert _CALLS == ["validate_tenant", "validate", "validate_tenant", "validate"]
+    assert seen["v"] == {"tenant": "server"}
+
+
+@pytest.mark.django_db
+def test_a_server_value_for_a_nested_serializer_runs_its_validation_twice_over_http() -> None:
+    _CALLS.clear()
+    seen: dict[str, Any] = {}
+    view = _http_spec(seen, _Outer, {"tenant": "server"}, "get-service-kwargs")
+
+    response = view.as_view()(_factory.post("/", {}, format="json"))
+
+    assert response.status_code == 204, response.data
+    assert _CALLS == ["validate_tenant", "validate", "validate_tenant", "validate"]
     assert seen["v"] == {"tenant": "server"}

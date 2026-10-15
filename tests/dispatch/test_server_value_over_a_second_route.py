@@ -1305,10 +1305,11 @@ def test_every_server_value_its_field_refuses_is_answered_together(dispatch: Dis
         dispatch(
             spec,
             params={"other": "evil"},
-            view_hooks=ViewHooks(extra_kwargs={"tenant": "far-too-long", "region": "far-too-long"}),
+            view_hooks=ViewHooks(extra_kwargs={"region": "far-too-long", "tenant": "far-too-long"}),
         )
 
     assert caught.value.detail == {**_TOO_LONG, "region": _TOO_LONG["tenant"]}
+    assert list(caught.value.detail) == ["tenant", "region"]
     assert seen == {}
 
 
