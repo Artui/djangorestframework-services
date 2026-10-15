@@ -35,6 +35,7 @@ from django.db.models import QuerySet
 from django.http import QueryDict
 from django_service_specs.parameters.parameters import Parameter, Parameters
 from django_service_specs.pool.resolve_callable_kwargs import resolve_callable_kwargs
+from django_service_specs.types.is_async import is_async
 from django_service_specs.types.unset import UNSET as KERNEL_UNSET
 from rest_framework import ISO_8601, relations, serializers
 from rest_framework.settings import api_settings
@@ -329,6 +330,112 @@ def server_channel(name: str) -> str:
     No read declares it, so the kernel takes no client's value for it.
     """
     return SERVER_CHANNEL + name
+
+
+def fills_its_own(fn: Callable[..., Any]) -> bool:
+    """Whether ``fn`` is a wrapper taking ``**kwargs`` that may fill its own parameters.
+
+    ``inspect.signature`` follows ``__wrapped__``, so a ``functools.wraps``
+    decorator reports the wrapped function's parameters, while the wrapper is
+    what runs and may fill any of them itself, as a decorator injecting a scope
+    does. Which ones cannot be read, so none of them is one the call may refuse
+    as missing (``left_to_the_callable``), as 0.57.0 asked none. Read off the
+    author's own callable, never a compiled one: the compiler's own forwarding
+    callables carry ``__wrapped__`` and a ``__signature__`` too. The two
+    conjuncts, one branch arc, each held in
+    ``tests/dispatch/test_a_wrapper_fills_its_own_parameter.py``:
+
+    - the signature that runs differs from the one read, so ``fn`` is a wrapper:
+      a plain ``**kwargs`` beside a required parameter fills nothing, and the
+      parameter is still missing (test_a_parameter_beside_var_keyword_is_still_missing).
+    - that signature takes ``**kwargs``: a wrapper naming its own parameters
+      receives only what dispatch passes, so it cannot fill one either
+      (test_a_wrapper_naming_its_own_parameters_is_still_refused).
+    """
+    read = inspect.signature(fn)
+    try:
+        runs = inspect.signature(fn, follow_wrapped=False)
+    except (TypeError, ValueError):
+        # A ``staticmethod`` or ``classmethod`` object: it has ``__wrapped__`` but
+        # no signature of its own, and calling it calls what it wraps, so the
+        # signature read is the one that runs
+        # (test_a_staticmethod_is_read_through_not_skipped).
+        runs = read
+    return runs != read and any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in runs.parameters.values()
+    )
+
+
+class _LeftToTheCallable:
+    """The default ``left_to_the_callable`` reports: the callable fills the parameter or fails."""
+
+    def __repr__(self) -> str:
+        return "<left to the callable>"
+
+
+LEFT_TO_THE_CALLABLE = _LeftToTheCallable()
+
+
+def left_to_the_callable(fn: Callable[..., Any], names: frozenset[str] | None = None) -> Any:
+    """``fn``, reporting a default for each of ``names`` it requires (every one, for ``None``).
+
+    The kernel refuses a parameter the call left out as missing, by
+    ``fn``'s signature, where a caller could have filled it. A parameter
+    reported with a default is never refused: the call hands ``fn`` what the
+    pool holds of it, and nothing where the pool holds nothing, so the callable
+    fills it itself or fails as its own ``TypeError``, as on 0.57.0. Only the
+    signature changes: ``fn`` is called as it was, and an ``async def`` stays
+    one, since the kernel awaits it by its kind. ``fn`` itself is never
+    stamped, as it may be the author's own function.
+    """
+    signature = inspect.signature(fn)
+    # One arc to coverage, so each conjunct and the reordering are held by
+    # test_only_a_named_required_parameter_is_left_to_the_callable: a default
+    # stays the parameter's own, a positional-only parameter is never passed by
+    # name, and a name not asked for keeps its requirement.
+    relaxed = [
+        parameter.replace(default=LEFT_TO_THE_CALLABLE)
+        if parameter.default is inspect.Parameter.empty
+        and parameter.kind
+        in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+        and (names is None or parameter.name in names)
+        else parameter
+        for parameter in signature.parameters.values()
+    ]
+    if is_async(fn):
+
+        async def left(*args: Any, **kwargs: Any) -> Any:
+            return await fn(*args, **kwargs)
+    else:
+
+        def left(*args: Any, **kwargs: Any) -> Any:
+            return fn(*args, **kwargs)
+
+    left.__name__ = getattr(fn, "__name__", "callable")
+    left.__qualname__ = getattr(fn, "__qualname__", left.__name__)
+    left.__module__ = getattr(fn, "__module__", None) or __name__
+    # Read for an annotated ``**rest`` in ``fn``'s module, as the compiler's other
+    # forwarding callables are; ``inspect.signature`` stops at ``__signature__``.
+    left.__annotations__ = dict(getattr(fn, "__annotations__", {}))
+    cast(Any, left).__wrapped__ = fn
+    cast(Any, left).__signature__ = signature.replace(parameters=_by_name(relaxed))
+    return left
+
+
+def _by_name(parameters: list[inspect.Parameter]) -> list[inspect.Parameter]:
+    """``parameters`` with every one dispatch passes by name reported keyword-only.
+
+    Dispatch passes every argument by name, so the call is reported as it is
+    made, and a parameter reported with a default before one reported with
+    none is still a valid signature.
+    """
+    kinds = (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    return [
+        *(p for p in parameters if p.kind is inspect.Parameter.POSITIONAL_ONLY),
+        *(p for p in parameters if p.kind is inspect.Parameter.VAR_POSITIONAL),
+        *(p.replace(kind=inspect.Parameter.KEYWORD_ONLY) for p in parameters if p.kind in kinds),
+        *(p for p in parameters if p.kind is inspect.Parameter.VAR_KEYWORD),
+    ]
 
 
 """The key a DRF edge adds to a result's presentation context for the view's output layers.

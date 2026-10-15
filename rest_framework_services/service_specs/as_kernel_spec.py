@@ -29,6 +29,8 @@ from rest_framework_services.service_specs.serializer_presenter import Serialize
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
 from rest_framework_services.service_specs.utils import (
     SERVER_CHANNEL,
+    fills_its_own,
+    left_to_the_callable,
     server_channel,
     values_beside_filter,
     writable_input_names,
@@ -209,7 +211,10 @@ def _service(
     )
     output, presenter = _output(spec)
     return KernelServiceSpec(
-        service=spec.service,
+        # A spread service's parameters are its caller's arguments, which the
+        # kernel refuses as missing where none arrived; a wrapper may fill them
+        # itself (test_a_spread_service_s_wrapper_fills_the_parameter).
+        service=_as_it_runs(spec.service) if _takes_its_signature(spec, spread) else spec.service,
         permissions=_permissions(spec, route_reads=taken),
         reads=reads,
         partial=compiled_partial(spec, partial),
@@ -238,7 +243,11 @@ def _service(
         affordances=spec.affordances,
         atomic=spec.atomic,
         idempotent=spec.idempotent,
-        preconditions=spec.preconditions,
+        preconditions=(
+            [_as_it_runs(fn) for fn in spec.preconditions]
+            if spec.preconditions
+            else spec.preconditions
+        ),
         kwargs=spec.kwargs,
         input_data=spec.input_data,
         progress_reporter=spec.progress_reporter,
@@ -322,7 +331,7 @@ def _selector(
     return KernelSelectorSpec(
         kind=spec.kind,
         selector=_beside_its_filter(
-            _on_the_server_s_channel(spec.selector, shadowed), spec, filtered
+            _on_the_server_s_channel(_as_it_runs(spec.selector), shadowed), spec, filtered
         ),
         # A nested selector's checks are never read: the dispatched spec's are.
         permissions=(
@@ -372,7 +381,9 @@ def _selector(
         ),
         preconditions=(
             [
-                _beside_its_filter(_on_the_server_s_channel(fn, shadowed), spec, filtered)
+                _beside_its_filter(
+                    _on_the_server_s_channel(_as_it_runs(fn), shadowed), spec, filtered
+                )
                 for fn in spec.preconditions
             ]
             if spec.preconditions
@@ -381,6 +392,21 @@ def _selector(
         progress_reporter=spec.progress_reporter,
         metadata=spec.metadata,
     )
+
+
+def _as_it_runs(fn: Any) -> Any:
+    """``fn``, left to fill its own parameters where it is a wrapper that may (``fills_its_own``).
+
+    Read off the author's callable, before the compiler's own forwarding
+    callables wrap it: those carry ``__wrapped__`` and a ``__signature__`` too,
+    and every one of them would read as such a wrapper. Without it a selector,
+    a target lookup's selector, a precondition or a spread service whose
+    decorator fills a parameter is refused for it
+    (test_a_wrapper_that_fills_the_parameter_itself_is_not_refused,
+    test_a_target_lookup_s_wrapper_fills_the_parameter,
+    test_a_spread_service_s_wrapper_fills_the_parameter).
+    """
+    return left_to_the_callable(fn) if fills_its_own(fn) else fn
 
 
 def _on_the_server_s_channel(fn: Any, shadowed: frozenset[str]) -> Any:
