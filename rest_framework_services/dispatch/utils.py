@@ -392,11 +392,12 @@ def prepare_edge_call(
             # the kernel's refusal of a row stays, in its shape
             # (test_off_http_a_refused_row_keeps_the_kernels_shape_in_drfs_words).
             # Rows sent under an argument are bound as off HTTP, each row the
-            # kernel passed once. No test tells the two apart since a row that
-            # is no object is refused in DRF's words on both paths
+            # kernel passed once. The answer is the same either way, since a
+            # row that is no object is refused in DRF's words on both paths
             # (test_over_a_live_view_rows_under_an_argument_are_refused_as_off_http
-            # passes either way): ``not many_as_argument`` keeps a live view
-            # from binding a row the kernel already refused a second time.
+            # passes either way); ``not many_as_argument`` keeps a live view
+            # from handing the serializer a row the kernel already refused
+            # (test_over_a_live_view_a_row_the_kernel_refused_is_not_read_again).
             state.body_rows = over_http(view) and not many_as_argument
         extra_kwargs = _route_author_values(
             spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
