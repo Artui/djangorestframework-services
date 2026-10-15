@@ -50,6 +50,7 @@ from rest_framework_services.service_specs.utils import (
     edge_call_state,
     input_parameters,
     serializer_context,
+    server_channel,
     takes_the_whole_pool,
     writable_input_names,
     write_form_value,
@@ -246,12 +247,15 @@ def prepare_edge_call(
             {
                 **shared,
                 "arguments": arguments,
-                "extra_kwargs": {
-                    **_hidden_captures(spec, view, seeds=seeds),
-                    **_route_author_values(
-                        spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
-                    )[0],
-                },
+                "extra_kwargs": _on_the_server_s_channel(
+                    spec,
+                    {
+                        **_hidden_captures(spec, view, seeds=seeds),
+                        **_route_author_values(
+                            spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
+                        )[0],
+                    },
+                ),
                 "grant": Grant(variant, principal),
                 "pool_seeds": seeds,
             },
@@ -1053,9 +1057,20 @@ def _route_author_values(
                 "provider's value must never outrank a seeded one; rename the key."
             )
         provided = dict(answered)
+    # A key a filter reads and a callable hides is the parameter's alone, on its
+    # server channel, and never the filter's argument
+    # (test_the_provider_s_value_reaches_the_parameter_and_not_the_filter).
+    shadowed = _shadowed(spec)
+    channelled = {
+        server_channel(name): value
+        for name, value in {**hook_values, **provided}.items()
+        if name in shadowed
+    }
+    hook_values = {name: value for name, value in hook_values.items() if name not in shadowed}
+    provided = {name: value for name, value in provided.items() if name not in shadowed}
     hooked, hook_rest = _split_author_values(variant, arguments, hook_values, wire=wire)
     supplied, provided_rest = _split_author_values(variant, arguments, provided, wire=wire)
-    return {**hook_rest, **provided_rest}, {**hooked, **supplied}
+    return {**hook_rest, **provided_rest, **channelled}, {**hooked, **supplied}
 
 
 def _source_to_wire(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]) -> dict[str, str]:
@@ -1151,6 +1166,36 @@ def _split_author_values(
     return {argument: named[argument] for argument in routed}, {
         name: value for name, value in values.items() if name not in taken and value is not UNSET
     }
+
+
+def _on_the_server_s_channel(
+    spec: SelectorSpec[Any, Any], overlay: Mapping[str, Any]
+) -> dict[str, Any]:
+    """``overlay`` with each key a filter reads and a callable hides on its server channel.
+
+    The compiled selector takes such a parameter under ``server_channel``
+    (``as_kernel_spec``), so a route capture or a hook's value for it reaches
+    the parameter there, and the filter of the name reads the client's
+    (test_over_a_live_view_a_route_capture_reaches_the_parameter_and_not_the_filter).
+    """
+    shadowed = _shadowed(spec)
+    return {
+        server_channel(key) if key in shadowed else key: value for key, value in overlay.items()
+    }
+
+
+def _shadowed(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]) -> frozenset[str]:
+    """The names a selector spec's filter reads and one of its callables marks ``NotClientInput``.
+
+    A service spec answers none: its target lookup's server values travel as
+    the lookup's seeds rather than as the call's overlay
+    (test_a_mutation_renders_the_answers_of_its_output_selector_not_its_own
+    fails without the check). A spec with no ``filter_set`` has no filter to
+    read a name, and ``filter_set_parameters`` answers none for it.
+    """
+    if not isinstance(spec, SelectorSpec):
+        return frozenset()
+    return server_owned_keys(spec) & filter_set_parameters(spec.filter_set).names()
 
 
 def _hidden_captures(

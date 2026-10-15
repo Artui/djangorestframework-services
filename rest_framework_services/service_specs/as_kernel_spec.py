@@ -20,12 +20,17 @@ from django_service_specs.parameters.parameters import Parameter, Parameters
 from django_service_specs.specs.kernel_spec import kernel_spec
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
 from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
+from django_service_specs.types.is_async import is_async
 from rest_framework import serializers
 
 from rest_framework_services.service_specs.drf_permission_check import DRFPermissionCheck
 from rest_framework_services.service_specs.serializer_presenter import SerializerPresenter
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
-from rest_framework_services.service_specs.utils import writable_input_names
+from rest_framework_services.service_specs.utils import (
+    SERVER_CHANNEL,
+    server_channel,
+    writable_input_names,
+)
 from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
 from rest_framework_services.types.field_marking import FieldMarking
 from rest_framework_services.types.marked_input_keys import marked_input_keys
@@ -271,9 +276,12 @@ def _selector(
             else frozenset()
         )
         reads = _merge(reflected, declared, skip=filtered)
+        shadowed = hidden & filtered
+    else:
+        shadowed = frozenset()
     return KernelSelectorSpec(
         kind=spec.kind,
-        selector=spec.selector,
+        selector=_on_the_server_s_channel(spec.selector, shadowed),
         # A nested selector's checks are never read: the dispatched spec's are.
         permissions=(
             _permissions(spec, route_reads=_route_reads(spec, reads)) if role is None else None
@@ -308,11 +316,91 @@ def _selector(
         ),
         # drfs never ran an output selector's ``kwargs`` (the mutation's chains
         # apply), and the kernel refuses them there.
-        kwargs=spec.kwargs if role != "output" else None,
-        preconditions=spec.preconditions,
+        kwargs=(
+            _answering_on_the_server_s_channel(spec.kwargs, shadowed) if role != "output" else None
+        ),
+        preconditions=(
+            [_on_the_server_s_channel(fn, shadowed) for fn in spec.preconditions]
+            if spec.preconditions
+            else spec.preconditions
+        ),
         progress_reporter=spec.progress_reporter,
         metadata=spec.metadata,
     )
+
+
+def _on_the_server_s_channel(fn: Any, shadowed: frozenset[str]) -> Any:
+    """``fn``, taking each ``shadowed`` parameter on its server channel instead.
+
+    A name a filter reads and a callable marks ``NotClientInput`` is two
+    things, as it was in 0.57.0: the filter's argument, the client's value,
+    and the callable's parameter, which only the server fills. The kernel
+    hands a callable every value of its pool under the parameter's name, the
+    filter's argument included, so the parameter is taken under its
+    ``server_channel`` name, which no read declares and so no client fills
+    (test_a_client_naming_the_server_s_channel_reaches_nothing), and handed
+    back under its own (test_the_client_s_value_filters_and_never_reaches_the_parameter).
+    An ``async def`` selector stays one, as the kernel awaits it by its kind
+    (test_an_async_selector_s_parameter_is_kept_from_the_client_too).
+    """
+    signature = inspect.signature(fn)
+    taken = shadowed & signature.parameters.keys()
+    if not taken:
+        return fn
+
+    def own_names(kwargs: Mapping[str, Any]) -> dict[str, Any]:
+        return {name.removeprefix(SERVER_CHANNEL): value for name, value in kwargs.items()}
+
+    if is_async(fn):
+
+        async def channelled(**kwargs: Any) -> Any:
+            return await fn(**own_names(kwargs))
+    else:
+
+        def channelled(**kwargs: Any) -> Any:
+            return fn(**own_names(kwargs))
+
+    channelled.__name__ = fn.__name__
+    channelled.__qualname__ = fn.__qualname__
+    channelled.__module__ = fn.__module__
+    cast(Any, channelled).__signature__ = signature.replace(
+        parameters=[
+            parameter.replace(name=server_channel(parameter.name))
+            if parameter.name in taken
+            else parameter
+            for parameter in signature.parameters.values()
+        ]
+    )
+    return channelled
+
+
+def _answering_on_the_server_s_channel(provider: Any, shadowed: frozenset[str]) -> Any:
+    """The spec's ``kwargs`` provider, answering each ``shadowed`` key on its server channel.
+
+    Its value is the parameter's and never the filter's, as in 0.57.0, where
+    the filter read only the client's
+    (test_the_provider_s_value_reaches_the_parameter_and_not_the_filter).
+    """
+    # One arc to coverage: with no name to carry, the provider is the spec's
+    # own, which the compiled spec is read for
+    # (test_the_client_s_value_filters_and_never_reaches_the_parameter fails
+    # without the first condition, test_the_shaping_fields_carry without the
+    # second).
+    if provider is None or not shadowed:
+        return provider
+
+    def channelled(**kwargs: Any) -> Any:
+        return {
+            server_channel(key) if key in shadowed else key: value
+            for key, value in provider(**kwargs).items()
+        }
+
+    cast(Any, channelled).__signature__ = inspect.signature(provider)
+    channelled.__annotations__ = dict(getattr(provider, "__annotations__", {}))
+    channelled.__name__ = getattr(provider, "__name__", "kwargs")
+    channelled.__qualname__ = getattr(provider, "__qualname__", channelled.__name__)
+    channelled.__module__ = provider.__module__
+    return channelled
 
 
 def _nested(

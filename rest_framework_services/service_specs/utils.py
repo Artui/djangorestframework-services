@@ -165,6 +165,20 @@ def bind_serializer(declaration: Any, **kwargs: Any) -> serializers.Serializer:
 
 
 SERIALIZER_CONTEXT_SEED = "_serializer_context_layers"
+
+# The prefix of the name a server's value for a parameter is carried under
+# where a filter of the same name takes the client's (``server_channel``).
+SERVER_CHANNEL = "_server_owned_"
+
+
+def server_channel(name: str) -> str:
+    """The name the server's value for ``name`` travels under beside a filter's ``name``.
+
+    No read declares it, so the kernel takes no client's value for it.
+    """
+    return SERVER_CHANNEL + name
+
+
 """The key a DRF edge adds to a result's presentation context for the view's output layers.
 
 Only ever a key of the ``ambient`` of a ``DispatchResult``'s

@@ -269,7 +269,11 @@ wherever else it is a plain parameter. A field the `input_serializer` declares
 under that name is the one exception, because it is not a parameter: it stays
 declared and listed, and the caller's value reaches the service only in `data`,
 since a same-named field can mean something else, such as a destination tenant
-beside the server's current one. The set is public as
+beside the server's current one. A filter of the selector's `filter_set` under
+that name is the other: the filter reads the caller's value, as every filter
+does, and the parameter is handed only the server's (the provider's, a view
+hook's or a route capture's) or its own default, so neither ever reads the
+other's. The set is public as
 [`server_owned_keys(spec)`](../reference/dispatch.md#server_owned_keys), for a
 transport that builds an input schema of its own and must leave out the same
 keys.
