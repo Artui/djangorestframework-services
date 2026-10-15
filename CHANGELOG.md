@@ -234,7 +234,13 @@ project may have to change, each detailed below:
     the row a target lookup reads, where the client's `pk` did.
   - A key the spec's typed `kwargs` provider is annotated to fill is never
     taken from the client or a hook, even where the provider declines it
-    with `UNSET`, which leaves the parameter's default.
+    with `UNSET`, which leaves the parameter's default. That holds under
+    `SPREAD_AUTHOR_WINS` too, where the client's value used to reach the
+    parameter, and whichever field the value came in through: one whose
+    `source` is the key, or a hook naming that field by its wire name. An
+    input field the key names stays the serializer's, so the client's value
+    for it is validated as before, a required one included, and reaches the
+    service in `data` alone, as a `NotClientInput` key's does.
   - A view hook returning `UNSET` for an input field declines it: the
     parameter keeps its default, or, where nothing marks it `NotClientInput`,
     takes the client's validated value. 0.57.0 handed the parameter the

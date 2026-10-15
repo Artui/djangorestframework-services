@@ -299,12 +299,14 @@ class _DeclinedTitleView(ServiceCreateView):
 
 
 @pytest.mark.parametrize("fmt", ["json", "multipart"])
-def test_a_declined_owned_field_is_taken_from_the_body(fmt: str) -> None:
-    """A field a typed provider is annotated to fill is never the caller's, declined or not."""
+def test_a_declined_owned_field_stays_the_serializers(fmt: str) -> None:
+    """A field a typed provider is annotated to fill is never a parameter of the
+    caller's, declined or not, but the serializer still validates the client's
+    value for it, required or not, and hands it on in ``data``, as on 0.57.0."""
     response = _DeclinedTitleView.as_view()(_request({"title": "client"}, fmt))
 
-    assert response.status_code == 400
-    assert response.data == {"title": ["This field is required."]}
+    assert response.status_code == 204, response.data
+    assert SEEN["data"] == {"title": "client"}
 
 
 class _ServerTagsView(ServiceCreateView):

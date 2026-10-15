@@ -154,6 +154,10 @@ class EdgeCallState:
       provider gave, the key the author gave it under, the field's wire name or
       its ``source``: the parameter the author named, which the Validator also
       hands the value to (``author_keys``).
+    - ``provider_owned``: the keys the spec's typed ``kwargs`` provider is
+      annotated to fill, which no client's value becomes, declined or not:
+      the Validator hands the client's value for one on in ``data`` alone
+      (``provider_owned``).
     - ``body_rows``: whether that body is a live view's list body, which the
       Validator binds whole, every row as sent, as DRF's view bound it
       (``SerializerValidator.validated_many``).
@@ -172,6 +176,7 @@ class EdgeCallState:
     validator_input: tuple[Any, Any] | None = None
     server_values: Mapping[str, Any] = dataclasses.field(default_factory=dict)
     author_keys: Mapping[str, str] = dataclasses.field(default_factory=dict)
+    provider_owned: frozenset[str] = frozenset()
     body_rows: bool = False
     row_errors: Any = None
 
@@ -236,6 +241,12 @@ def author_keys(validator: Any) -> Mapping[str, str]:
     """The key an author gave each of ``server_values`` under, read as ``server_values`` is."""
     state = edge_call_state()
     return state.author_keys if _names(state, validator) else {}
+
+
+def provider_owned(validator: Any) -> frozenset[str]:
+    """The keys the spec's typed ``kwargs`` provider fills, read as ``server_values`` is."""
+    state = edge_call_state()
+    return state.provider_owned if _names(state, validator) else frozenset()
 
 
 def _names(state: EdgeCallState, validator: Any) -> bool:

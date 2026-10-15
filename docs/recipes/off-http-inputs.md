@@ -281,7 +281,10 @@ hook's, so its value for a hidden key is the server's and is never dropped.
     "everything", that is still a cross-scope read, so a provider owning a
     scoping key must always resolve it. A key the callable does *not* mark is
     the caller's unless the spec's `kwargs` provider is annotated to fill it:
-    a key its `TypedDict` fills is never taken from the caller or a hook.
+    a key its `TypedDict` fills is never taken from the caller or a hook,
+    declined or not, nor through a field whose `source` it is. An input field
+    it names stays the serializer's: the caller's value is validated and
+    reaches the service in `data` alone, as a `NotClientInput` key's does.
 
 Marking a key both `InputRequired` and `NotClientInput` raises — the caller cannot
 be required to supply a value it is never told about.
