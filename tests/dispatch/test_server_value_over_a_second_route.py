@@ -296,6 +296,43 @@ def test_the_value_laid_back_is_the_fields_validate_method_s(dispatch: Dispatch)
     assert seen == {"tenant": "SERVER", "data": "SERVER", "validated": "SERVER"}
 
 
+class _Lowers(serializers.Serializer):
+    tenant = serializers.CharField(required=False)
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        if "tenant" in attrs:
+            attrs["tenant"] = attrs["tenant"].lower()
+        return attrs
+
+
+@pytest.mark.django_db
+@_CORES
+@pytest.mark.parametrize(
+    "hooks",
+    [
+        ViewHooks(extra_kwargs={"tenant": "SERVER"}),
+        ViewHooks(input_data={"tenant": "SERVER"}),
+    ],
+    ids=["extra", "input-data"],
+)
+def test_a_validate_rewrite_of_the_servers_own_value_is_laid_over(
+    dispatch: Dispatch, hooks: ViewHooks
+) -> None:
+    """``validate()`` cannot tell the server's value from a client's, and neither can the lay-back.
+
+    What holds the server's value against a ``validate()`` copying a client's
+    over it also holds it against a ``validate()`` rewriting the server's own,
+    so the service sees the value as its field validated it, not as
+    ``validate()`` left it.
+    """
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(service=_hidden(seen), input_serializer=_Lowers, atomic=False)
+
+    dispatch(spec, params={"tenant": "client"}, view_hooks=hooks)
+
+    assert seen == {"tenant": "SERVER", "data": "SERVER", "validated": "SERVER"}
+
+
 class _AuthorIn(serializers.Serializer):
     author = serializers.PrimaryKeyRelatedField(queryset=Author.objects.all(), required=False)
     writer = serializers.PrimaryKeyRelatedField(
