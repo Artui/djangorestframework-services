@@ -664,6 +664,29 @@ def test_off_http_a_serializer_needing_a_whole_pool_callable_is_described(
     assert seen == {"data": {"name": "n"}}
 
 
+@_CORES
+def test_a_serializer_failing_with_a_whole_pool_callable_too_is_not_hidden(
+    dispatch: Callable[..., DispatchResult], owner: User
+) -> None:
+    """Asked to describe it, the callable gives no key the serializer reads, so it fails as it is."""
+
+    class _MissingKey(serializers.Serializer):
+        def get_fields(self) -> dict[str, serializers.Field]:
+            return {"title": serializers.CharField(), **self.context["absent"]}
+
+    asked: list[None] = []
+    view = _offline(owner)
+    with pytest.raises(KeyError, match="absent"):
+        dispatch(
+            _from_the_spec(_MissingKey, {}, _whole_pool(asked, tenant="acme")),
+            user=owner,
+            params={},
+            request=view.request,
+            view=view,
+        )
+    assert asked == [None]
+
+
 _READS = {
     "a-missing-key": lambda context: context["tenant"],
     "an-attribute-of-none": lambda context: context.get("tenant").upper(),

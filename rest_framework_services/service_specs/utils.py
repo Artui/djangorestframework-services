@@ -112,6 +112,8 @@ def describe_serializer(declaration: Any) -> serializers.Serializer:
     serializer that validates alone asked it before
     (test_a_live_view_describes_a_serializer_needing_a_whole_pool_callable,
     test_off_http_a_serializer_needing_a_whole_pool_callable_is_described).
+    What the serializer raises built with that answer is raised as it is
+    (test_a_serializer_failing_with_a_whole_pool_callable_too_is_not_hidden).
     """
     describe = edge_call_state().describe_context
     if describe is None:
