@@ -4,8 +4,10 @@ Each test pins one stated difference, so the sentence describing it cannot
 outlive the behaviour: a nullability read off the annotation rather than the
 default, a nested value of the wrong shape in the kernel's words, the row bound of a list serializer that cannot be built without a
 request, the kernel's typed reading of filter values (over a live view too,
-for a provider's value), and ``REJECT``'s answer beside the serializer's.
-The last section holds each example the upgrade notes give.
+for a provider's value), ``REJECT``'s answer beside the serializer's, and
+``REJECT`` beside a filtered lookup and a spreading service whose ``**kwargs``
+annotation does not resolve. The last section holds each example the upgrade
+notes give.
 """
 
 from __future__ import annotations
@@ -14,6 +16,8 @@ from typing import Annotated, Any
 
 import django_filters
 import pytest
+from django.contrib.auth.models import AnonymousUser
+from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 from django.db.models import QuerySet
 from django_service_specs.parameters.invalid_arguments import (
@@ -21,7 +25,10 @@ from django_service_specs.parameters.invalid_arguments import (
 )
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
+from rest_framework.parsers import JSONParser
+from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
+from typing_extensions import TypedDict, Unpack
 
 import rest_framework_services
 from rest_framework_services import (
@@ -32,6 +39,7 @@ from rest_framework_services import (
     SelectorListView,
     SelectorSpec,
     ServiceSpec,
+    ServiceUpdateView,
     UnknownArguments,
     apply_input,
     create_model,
@@ -289,6 +297,62 @@ def test_under_reject_an_undeclared_key_is_refused_beside_a_missing_field() -> N
     assert excinfo.value.get_codes() == {"title": ["required"], "non_field_errors": ["invalid"]}
 
 
+# --- REJECT beside a filtered lookup reads the spreading service's extras ----------
+
+
+class _ByPk(django_filters.FilterSet):
+    pk = django_filters.NumberFilter(field_name="pk")
+
+
+_FILTERED_LOOKUP = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_all_posts, filter_set=_ByPk)
+
+
+# ``_TenantForTypeCheckers`` is bound nowhere at runtime, which is what a
+# ``TypedDict`` imported under ``if TYPE_CHECKING:`` is when the call is
+# dispatched: the annotation names something the runtime cannot resolve.
+def _hidden_tenant(*, instance: Post, **extras: Unpack[_TenantForTypeCheckers]) -> Any:  # noqa: F821
+    return extras.get("tenant")
+
+
+def _live_update_view() -> ServiceUpdateView:
+    """A live view as DRF builds one per request, for a transport to dispatch."""
+    view = ServiceUpdateView()
+    view.request = Request(APIRequestFactory().put("/", {}, format="json"), parsers=[JSONParser()])
+    view.request.user = AnonymousUser()
+    view.kwargs = {}
+    view.format_kwarg = None
+    return view
+
+
+def _dispatch_for_tenant(service: Any, *, live: bool, policy: UnknownArguments) -> Any:
+    post = Post.objects.create(title="p")
+    view = _live_update_view() if live else None
+    return dispatch_spec(
+        ServiceSpec(service=service, instance_selector_spec=_FILTERED_LOOKUP, atomic=False),
+        user=None,
+        params={"pk": post.pk, "tenant": "acme"},
+        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+        unknown_arguments=policy,
+        request=view.request if view is not None else None,
+        view=view,
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("live", [False, True], ids=["off-http", "live-view"])
+def test_reject_beside_a_filtered_lookup_cannot_be_held_to_unresolvable_extras(
+    live: bool,
+) -> None:
+    with pytest.raises(ImproperlyConfigured) as excinfo:
+        _dispatch_for_tenant(_hidden_tenant, live=live, policy=UnknownArguments.REJECT)
+
+    message = str(excinfo.value)
+    assert message.startswith(
+        "UnknownArguments.REJECT cannot be enforced: _hidden_tenant(**extras)"
+    )
+    assert "import the TypedDict normally rather than under 'if TYPE_CHECKING:'" in message
+
+
 # --- the upgrade notes' examples ---------------------------------------------------
 
 
@@ -456,3 +520,34 @@ def test_a_file_field_keeps_its_file_for_none_and_clears_it_for_false(
     apply_input(row, {"upload": value})
 
     assert row.upload.name == stored
+
+
+class _Tenant(TypedDict, total=False):
+    tenant: str
+
+
+def _runtime_tenant(*, instance: Post, **extras: Unpack[_Tenant]) -> Any:
+    return extras.get("tenant")
+
+
+def _keyword_tenant(*, instance: Post, tenant: str | None = None) -> Any:
+    return tenant
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("live", [False, True], ids=["off-http", "live-view"])
+@pytest.mark.parametrize(
+    ("service", "policy", "tenant"),
+    [
+        (_runtime_tenant, UnknownArguments.REJECT, "acme"),
+        (_keyword_tenant, UnknownArguments.REJECT, "acme"),
+        (_hidden_tenant, UnknownArguments.IGNORE, None),
+    ],
+    ids=["typed-dict-at-runtime", "keyword-parameter", "ignore-drops-the-key"],
+)
+def test_a_filtered_lookups_spreading_service_declares_its_extras_at_runtime(
+    service: Any, policy: UnknownArguments, tenant: str | None, live: bool
+) -> None:
+    result = _dispatch_for_tenant(service, live=live, policy=policy)
+
+    assert result.value == tenant
