@@ -315,7 +315,13 @@ def prepare_edge_call(
     seeds = edge_seeds(pool_seeds, request=request, view=view)
     # The input serializer's fields a seed of the call takes, its own or a route
     # capture the target lookup hides (``_seeded_fields``).
-    excluded = _seeded_fields(spec, seeds.names | hidden_lookup_captures(spec, view, seeds=seeds))
+    # And a field named like a read of the target lookup, which is the lookup's
+    # to scope and the serializer's to validate
+    # (test_the_route_scopes_the_lookup_and_the_body_fills_the_field_off_http).
+    lookup_reads = _lookup_reads(spec)
+    excluded = _seeded_fields(
+        spec, seeds.names | hidden_lookup_captures(spec, view, seeds=seeds) | lookup_reads
+    )
     service = cast(
         KernelServiceSpec,
         kernel_spec_variant(
@@ -337,8 +343,16 @@ def prepare_edge_call(
     # (test_a_field_named_like_a_captured_hidden_key_is_no_unexpected_argument).
     # Arguments that are no object are left for the shape check to refuse
     # (test_arguments_that_are_no_object_beside_a_seed_named_field_are_refused).
+    # A lookup's read keeps the route's capture of it, which ``edge_arguments``
+    # put over the client's value
+    # (test_the_route_scopes_the_lookup_and_the_body_fills_the_field_over_http),
+    # and nothing else: the client's value is the field's alone, so with no
+    # capture the lookup keeps its own default
+    # (test_with_no_route_capture_the_clients_value_never_scopes_the_lookup).
+    route = getattr(view, "kwargs", None)
+    captured = route.keys() & lookup_reads if isinstance(route, dict) else frozenset()
     if isinstance(arguments, dict):
-        for name in excluded:
+        for name in excluded - captured:
             arguments.pop(name, None)
     # What the caller's body became before the edge put anything over it, so
     # the body the Validator binds takes exactly what the edge put there.
@@ -489,6 +503,20 @@ def _validator_body(
             write_form_value(body, name, value)
         return body
     return {**params, **put}
+
+
+def _lookup_reads(spec: ServiceSpec[Any, Any, Any]) -> frozenset[str]:
+    """The names a service spec's target lookup's selector reads from the call, as compiled.
+
+    The selector's own parameters alone: a filter set's field named like an
+    input field stays a misconfigured spec the kernel refuses, since the filter
+    reads its own channel rather than one the edge could tell apart
+    (test_a_filter_named_like_an_input_field_is_refused).
+    """
+    target = cast(KernelServiceSpec, kernel_spec_variant(spec)).target_selector_spec()
+    if target is None or target.selector is None:
+        return frozenset()
+    return frozenset(target.reads.names() & (_callable_param_names(target.selector) or set()))
 
 
 def _seeded_fields(spec: ServiceSpec[Any, Any, Any], seeded: frozenset[str]) -> frozenset[str]:
@@ -1414,8 +1442,17 @@ def _unexpected_as_drf(
     (test_a_validators_unknown_code_is_left_as_it_raised_it,
     test_a_validators_unknown_code_inside_a_row_is_left_as_it_raised_it).
     """
+    # Compiled as the call was: a field named like a read of the target lookup
+    # is the lookup's parameter, never declared twice
+    # (test_with_no_route_capture_a_lookup_read_with_no_default_is_refused_as_missing).
+    excluded = (
+        _seeded_fields(spec, _lookup_reads(spec)) if isinstance(spec, ServiceSpec) else frozenset()
+    )
     return _reword_unknown(
-        detail, kernel_spec_variant(spec, unguarded=True, server_input=False).parameters()
+        detail,
+        kernel_spec_variant(
+            spec, unguarded=True, server_input=False, excluded=excluded
+        ).parameters(),
     )
 
 

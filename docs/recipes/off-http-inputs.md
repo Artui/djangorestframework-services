@@ -20,6 +20,14 @@ over the spec params, below a `spec.kwargs` provider, when the spec declares it:
 a `UrlKwarg` in its `reads`, or a parameter the selector or target lookup reads.
 A capture nothing declares, reads or hides is no argument.
 
+A name the target lookup's selector reads that is also a writable input field,
+such as a lookup by `slug` on a spec that renames the `slug`, is the lookup's
+from the capture alone and the field's from the params: the capture finds the
+row and the params' value is validated and written. With no capture the params'
+value never scopes the lookup, which keeps its own default, or is refused as
+missing where it has none. A view hook's or `kwargs` provider's value for the
+name does both.
+
 ```python
 from rest_framework_services import build_offline_context, dispatch_spec
 

@@ -232,6 +232,15 @@ project may have to change, each detailed below:
     and `items` for a `many` spec.
   - An author's `pk`, from a view hook or the spec's `kwargs` provider, picks
     the row a target lookup reads, where the client's `pk` did.
+  - A target lookup whose selector reads a name that is also a writable
+    input field, such as renaming a row by the `slug` that finds it, takes
+    that name from the route's capture alone, which scopes the lookup while
+    the body's value is the field's, as before. With no capture, the
+    client's value no longer scopes the lookup: the selector keeps its own
+    default, and a read with none is refused as missing, `{"slug": ["This
+    field is required."]}`, where 0.57.0 scoped the lookup by the client's
+    value. An author's value for the name scopes the lookup and is the
+    field's value.
   - A key the spec's typed `kwargs` provider is annotated to fill is never
     taken from the client or a hook, even where the provider declines it
     with `UNSET`, which leaves the parameter's default. That holds under
