@@ -57,8 +57,9 @@ instance's attribute is seen there and not by the parameter. A `many` spec's
 rows are handed on as its list serializer built them.
 
 That validation is separate from the serializer's own pass, which costs where a
-field does work. A related field looks its value up once more, one more query
-for a `PrimaryKeyRelatedField`, and the field's validators and its
+field does work. A related field looks its value up once more, one query for
+each key it holds (one for a `PrimaryKeyRelatedField`, one per key with
+`many=True`), and the field's validators and its
 `validate_<field>` run twice, as do a nested serializer's `validate()` and its own
 fields' validators and `validate_<field>`, so a validator that queries, a
 `UniqueValidator`, queries twice, and one with side effects has them twice.

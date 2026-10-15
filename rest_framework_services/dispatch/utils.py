@@ -37,6 +37,7 @@ from rest_framework_services.dispatch.provider_keys import provider_keys
 from rest_framework_services.exceptions.service_validation_error import (
     ServiceValidationError,
 )
+from rest_framework_services.service_specs.as_kernel_spec import compiled_partial
 from rest_framework_services.service_specs.invalid_arguments import InvalidArguments
 from rest_framework_services.service_specs.kernel_spec_variant import kernel_spec_variant
 from rest_framework_services.service_specs.translate_dispatch_errors import (
@@ -45,9 +46,12 @@ from rest_framework_services.service_specs.translate_dispatch_errors import (
 from rest_framework_services.service_specs.utils import (
     EDGE_CALL,
     SERIALIZER_CONTEXT_SEED,
+    DescribeBinding,
     EdgeCallState,
     bind_serializer,
+    bound_instance,
     describe_serializer,
+    describe_with,
     edge_call_state,
     input_parameters,
     serializer_context,
@@ -197,7 +201,9 @@ def prepare_edge_call(
 
     provider = spec.input_serializer_context if isinstance(spec, ServiceSpec) else None
 
-    def describe_context(*, whole_pool: bool = False) -> dict[str, Any] | None:
+    def describe_context(
+        arguments: Any = params, *, whole_pool: bool = False
+    ) -> dict[str, Any] | None:
         # Asked again only for a serializer its description could not build,
         # and answered only where a callable taking ``**kwargs`` was left out
         # of it. One arc to coverage, so each condition is named with the test
@@ -213,7 +219,7 @@ def prepare_edge_call(
         return serializer_context(
             principal,
             ambient,
-            params,
+            arguments,
             view_layers=hooks.input_serializer_context,
             provider=provider,
             describing=not whole_pool,
@@ -263,6 +269,18 @@ def prepare_edge_call(
             },
         )
     if spec.many:
+        # The rows the call's input serializer is built for, before anything is
+        # compiled: each description of the call reads it (``describe_serializer``).
+        if spec.input_serializer is not None:
+            describe_with(
+                state,
+                DescribeBinding(
+                    spec.input_serializer,
+                    _rows_sent(spec, params, many_as_argument=many_as_argument),
+                    partial=compiled_partial(spec, partial),
+                    many=True,
+                ),
+            )
         seeds = edge_seeds(pool_seeds, request=request, view=view)
         variant = cast(
             KernelServiceSpec,
@@ -315,10 +333,15 @@ def prepare_edge_call(
         # is no object is bound as it was sent, for the serializer to refuse
         # (test_a_list_body_is_refused_as_its_list_serializer_refuses_it).
         if sent_rows is not None:
-            state.validator_input = (
-                variant.validator,
-                [{**row, **server} if isinstance(row, Mapping) else row for row in sent_rows],
+            # The rows themselves where nothing went over them, so the call's
+            # description, built for them, is the serializer that validates.
+            body = (
+                [{**row, **server} if isinstance(row, Mapping) else row for row in sent_rows]
+                if server
+                else sent_rows
             )
+            state.validator_input = (variant.validator, body)
+            _describe_the_body(state, variant, body, None)
             # A live view's list body, which DRF's list serializer answers
             # whole. One arc to coverage, so each condition is named: off HTTP
             # the kernel's refusal of a row stays
@@ -348,6 +371,20 @@ def prepare_edge_call(
     # no row) and test_instance_none_on_a_spec_with_no_lookup_is_a_create (a
     # ``None`` one is no row either, and takes no stand-in lookup).
     handed = instance is not UNSET and instance is not None
+    # The body and the row the call's input serializer is built for, before
+    # anything is compiled: each description of the call reads it, so a
+    # serializer reading either as its fields are built describes the fields
+    # it validates with (test_the_input_serializer_is_built_once_per_call).
+    if spec.input_serializer is not None:
+        describe_with(
+            state,
+            DescribeBinding(
+                spec.input_serializer,
+                params,
+                instance if handed else None,
+                compiled_partial(spec, partial),
+            ),
+        )
     # A drfs ``ServiceSpec`` compiles to the kernel's. Its own parameters are the
     # caller's only under an explicit spreading binding: ``AUTO`` is ``BUNDLE``
     # for a service, which hands the caller's values to what reads them and to
@@ -463,10 +500,9 @@ def prepare_edge_call(
         # (test_input_data_for_a_field_named_user_outranks_the_clients_over_http,
         # test_input_data_for_a_field_named_like_a_registered_seed_outranks_the_clients_off_http).
         fields = input_parameters(describe_serializer(spec.input_serializer)).names()
-        state.validator_input = (
-            service.validator,
-            _validator_body(params, sent, arguments, fields),
-        )
+        body = _validator_body(params, sent, arguments, fields)
+        state.validator_input = (service.validator, body)
+        _describe_the_body(state, service, body, bound_instance(target))
         # The server's value for each field it put one into, an author's or
         # ``input_data``'s, as the edge put it: what the Validator validates for
         # the field, never what the field reads back from the body, and where a
@@ -507,6 +543,35 @@ def over_http(view: Any) -> bool:
     own, as a DRF view is.
     """
     return view is not None and not isinstance(view, OfflineServiceView)
+
+
+def _rows_sent(spec: ServiceSpec[Any, Any, Any], params: Any, *, many_as_argument: bool) -> Any:
+    """The rows a ``many`` call sends: its arguments, or its argument of the rows."""
+    if many_as_argument and isinstance(params, Mapping):
+        return params.get(spec.many_argument)
+    return params
+
+
+def _describe_the_body(
+    state: EdgeCallState, service: KernelServiceSpec, body: Any, row: Any
+) -> None:
+    """Describe the input serializer for the body it validates and the row it updates, from here on.
+
+    The call was described for the caller's body and the row it was handed. A
+    body the server put a value into, or a row a lookup resolved, is another,
+    and the rest of the call - the kernel's check of the arguments and the
+    Validator - reads the serializer built for it. One arc to coverage, so each
+    operand is named: test_a_field_the_server_s_value_adds_is_the_call_s holds
+    the body and test_a_row_a_lookup_resolves_is_the_one_described the row.
+    """
+    # Set by the edge for every call with an input serializer, which is every
+    # call with a body for it.
+    held = cast(DescribeBinding, state.describe_binding)
+    if body is not held.data or row is not held.instance:
+        describe_with(
+            state,
+            DescribeBinding(held.declaration, body, row, service.partial, many=held.many),
+        )
 
 
 def _validator_body(

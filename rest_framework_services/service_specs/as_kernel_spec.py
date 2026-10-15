@@ -193,12 +193,11 @@ def _service(
         skip=frozenset(taken),
     )
     output, presenter = _output(spec)
-    compiled_partial = (spec.partial is True) if partial is None else partial
     return KernelServiceSpec(
         service=spec.service,
         permissions=_permissions(spec, route_reads=taken),
         reads=reads,
-        partial=compiled_partial and spec.input_serializer is not None,
+        partial=compiled_partial(spec, partial),
         many=spec.many,
         many_argument=spec.many_argument,
         **_list_bounds(spec),
@@ -523,6 +522,16 @@ def _audiences(
     # service spec is the operation a mount names.
     merged = {**(output.field_audiences or {}), **(outer or {})}
     return merged or None
+
+
+def compiled_partial(spec: Any, partial: bool | None) -> bool:
+    """The ``partial`` a service spec compiles with: the request's flag, else the spec's own.
+
+    A spec with no ``input_serializer`` has nothing to relax, so it compiles
+    unpartial.
+    """
+    flag = (spec.partial is True) if partial is None else partial
+    return flag and spec.input_serializer is not None
 
 
 def _refuse_nested_runs(spec: Any, label: str) -> None:

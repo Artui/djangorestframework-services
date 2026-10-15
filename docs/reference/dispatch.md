@@ -278,7 +278,7 @@ reads it (the service's parameter, `data`, the bound serializer's
 `to_internal_value` override writes that key from the client's input, or runs
 the field's validation again on a value of its own; `input_data` is held the
 same way. That run is the field's second for the call, so a related field
-queries once more and the field's validators and its `validate_<field>` run
+queries once more for each key it holds and the field's validators and its `validate_<field>` run
 twice, as do a nested serializer's `validate()` and its fields' own. A field with a dotted `source` or
 `source="*"` hands it to the parameter named like the field. Where `data` is a
 dataclass instance it is left as the serializer built it, and so are a `many`

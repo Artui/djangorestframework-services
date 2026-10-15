@@ -53,7 +53,7 @@ from rest_framework_services import (
     dispatch_spec,
 )
 from rest_framework_services.types.argument_binding import ArgumentBinding
-from tests.testapp.models import Author
+from tests.testapp.models import Author, Tag
 
 _factory = APIRequestFactory()
 
@@ -434,6 +434,29 @@ def test_a_server_value_for_a_related_field_costs_one_more_lookup() -> None:
 
     assert len([q for q in queries.captured_queries if table in q["sql"]]) == 2
     assert calls == [("checked", mine), mine, ("checked", mine), mine, ("service", mine)]
+
+
+@pytest.mark.django_db
+def test_a_server_value_for_a_related_field_with_many_costs_a_lookup_per_key() -> None:
+    """Each key a ``many=True`` related field holds is looked up once in each run."""
+    tags = [Tag.objects.create(name=name).pk for name in ("a", "b", "c")]
+
+    class _Tagged(serializers.Serializer):
+        tags = serializers.PrimaryKeyRelatedField(queryset=Tag.objects.all(), many=True)
+
+    def service(*, tags: Annotated[Any, NotClientInput] = None) -> list[int]:
+        return [tag.pk for tag in tags]
+
+    spec = ServiceSpec(service=service, input_serializer=_Tagged, atomic=False)
+    table = Tag._meta.db_table
+
+    with CaptureQueriesContext(connection) as queries:
+        result = dispatch_spec(
+            spec, user=None, params={}, view_hooks=ViewHooks(extra_kwargs={"tags": tags})
+        )
+
+    assert result.value == tags
+    assert len([q for q in queries.captured_queries if table in q["sql"]]) == 6
 
 
 class _Dotted(serializers.Serializer):

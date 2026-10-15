@@ -331,7 +331,7 @@ project may have to change, each detailed below:
   as the serializer gave it. A field that skips, a partial call's
   `HiddenField`, holds no value. That run is separate
   from the serializer's own: for such a field, a related field's lookup runs
-  once more, one more query for a `PrimaryKeyRelatedField`, and the field's
+  once more, one query for each key it holds, and the field's
   validators and its `validate_<field>` run twice, as do a nested
   serializer's `validate()` and its own fields' validators and
   `validate_<field>`, so a validator that queries, a `UniqueValidator`,
@@ -485,14 +485,21 @@ project may have to change, each detailed below:
 - **Presenting output.** `SerializerPresenter` projects no marking onto a
   write-only field, and refuses a `field_audiences` name that matches no
   output field.
-- **The input serializer's context callable can be asked twice in one call.**
-  The serializer is now described with the call's own request and view before
-  it is validated, so a callable taking `**kwargs` is asked once for the
-  description and once over the whole pool when the serializer cannot be
-  built without its keys, and a callable reading an argument that the
-  `kwargs` provider overwrites is asked with the sent value and again with
-  the server's. 0.57.0 asked it once. A callable with a side effect should
-  not rely on a call count.
+- **Two kinds of call build the input serializer twice.** The serializer is
+  built once per call for the body the call validates and the row it acts on,
+  with the call's request, view and context, as 0.57.0 built it, and its
+  fields are read off that one. A call whose body the server puts a value
+  into - a view hook's, the spec's `kwargs` provider's or `input_data` - is
+  built once for the body sent and once for the body it validates, and a
+  call whose row a target lookup resolves once before the lookup and once
+  with the row. 0.57.0 built each once, so a serializer that queries as it
+  is built queries twice in those calls. The context callable is asked for
+  each build where what it is handed differs: an argument the server's
+  value replaced, the request built off HTTP with no view, which carries
+  the body, or, for a callable taking `**kwargs` that the serializer cannot
+  be built without, the description's pool and then the whole pool. 0.57.0
+  asked it once. A callable with a side effect should not rely on a call
+  count.
 - **A Manager from a list selector is answered as a queryset.** A LIST
   selector returning `Model.objects` hands back its `.all()`, unpaginated
   too, where 0.57.0 handed back the Manager itself. So an unpaginated Manager

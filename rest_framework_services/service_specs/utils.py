@@ -28,9 +28,10 @@ import dataclasses
 import inspect
 from collections.abc import Callable, Mapping, Sequence
 from contextvars import ContextVar
-from typing import Any
+from typing import Any, cast
 
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models import QuerySet
 from django.http import QueryDict
 from django_service_specs.parameters.parameters import Parameter, Parameters
 from django_service_specs.pool.resolve_callable_kwargs import resolve_callable_kwargs
@@ -80,60 +81,186 @@ within the CharField family, which ends the string rows."""
 
 
 def describe_serializer(declaration: Any) -> serializers.Serializer:
-    """An unbound serializer for ``declaration``, built to be described.
+    """The serializer ``declaration`` describes its fields with: the call's own, inside one.
 
     ``declaration`` is what a drfs spec's ``input_serializer`` takes: a
     ``Serializer`` subclass, or a dataclass, which is read through a
     ``DataclassSerializer`` exactly as dispatch validates it. Anything else is
     refused with ``ImproperlyConfigured``.
 
-    Inside an edge call it is built with the call's own request and view, its
-    view's input layers and the spec's ``input_serializer_context``, as the
-    serializer that validates the call is, so one that reads
-    ``self.context["request"]`` or ``["view"]`` unguarded, as it is built or as
-    its fields are, describes the fields it validates with, on HTTP and off it
-    (test_a_live_view_scopes_the_field_to_the_caller,
+    Inside an edge call it is built once for the call (``EdgeCallState.described``)
+    and every description of the call reads that one. The call's own input
+    serializer is built as DRF's view built the one serializer of a request:
+    with the call's body as its ``data``, the row it acts on as its
+    ``instance``, its ``partial`` flag (``describe_with``), and its context -
+    the call's request and view, its view's input layers and the spec's
+    ``input_serializer_context`` - so a ``get_fields`` or an ``__init__``
+    reading ``initial_data``, ``instance``, ``partial`` or
+    ``self.context["request"]`` describes the fields the call validates with
+    (test_the_input_serializer_is_built_once_per_call,
+    test_a_live_view_scopes_the_field_to_the_caller,
     test_an_offline_view_builds_the_fields_from_its_query_string_and_route,
-    test_with_no_view_and_no_request_the_caller_is_the_principal). Outside a
-    call, as a schema or a registration describes it, it is built with the
-    context DRF builds on HTTP with no view and no request: a ``get_fields``
-    reading ``self.context["request"]`` finds the key and reads ``None``,
-    rather than raising ``KeyError`` from a schema while dispatch would have
-    rendered it. What the serializer raises while it is described is raised as
-    it is (test_a_serializer_that_fails_is_not_hidden_at_dispatch, which fails
-    if a serializer is rebuilt where the call has no callable taking
-    ``**kwargs`` to ask).
+    test_with_no_view_and_no_request_the_caller_is_the_principal). The
+    Validator validates with that same serializer where it binds it exactly so
+    (``bound_description``). Outside a call, as a schema or a registration
+    describes it, it is built unbound, with the context DRF builds on HTTP with
+    no view and no request: a ``get_fields`` reading
+    ``self.context["request"]`` finds the key and reads ``None``, rather than
+    raising ``KeyError`` from a schema while dispatch would have rendered it.
+    What the serializer raises while it is described is raised as it is
+    (test_a_serializer_that_fails_is_not_hidden_at_dispatch, which fails if a
+    serializer is rebuilt where the call has no callable taking ``**kwargs``
+    to ask).
 
     A spec's context callable taking ``**kwargs`` is left out of a description,
     which holds none of the call's seeds, unless the serializer cannot be built
     without it: then it is asked over what the description holds, and the
-    serializer built once more with its answer. So it is asked twice in such a
-    call, once to describe and once over the whole pool to validate, where the
-    serializer that validates alone asked it before
+    serializer built once more with its answer
     (test_a_live_view_describes_a_serializer_needing_a_whole_pool_callable,
     test_off_http_a_serializer_needing_a_whole_pool_callable_is_described).
     What the serializer raises built with that answer is raised as it is
     (test_a_serializer_failing_with_a_whole_pool_callable_too_is_not_hidden).
     """
-    describe = edge_call_state().describe_context
-    if describe is None:
+    state = EDGE_CALL.get()
+    describe = state.describe_context if state is not None else None
+    if state is None or describe is None:
         return bind_serializer(
             declaration, context=base_serializer_context(view=None, request=None)
         )
+    described = state.described.get(declaration)
+    if described is None:
+        described = _described(declaration, state.describe_binding, describe)
+        state.described[declaration] = described
+    return _row_serializer(described)
+
+
+def _row_serializer(serializer: serializers.Serializer) -> serializers.Serializer:
+    """``serializer``, or the child a ``many`` call's list serializer validates each row with."""
+    if isinstance(serializer, serializers.ListSerializer):
+        return cast(serializers.Serializer, serializer.child)
+    return serializer
+
+
+def _described(
+    declaration: Any,
+    binding: DescribeBinding | None,
+    describe: Callable[..., dict[str, Any] | None],
+) -> serializers.Serializer:
+    """``declaration`` built for the call: as the call binds it, where it is the call's own."""
+    # Another declaration a description reads in the call - a kernel call's
+    # inside the service - is no body's, and is described unbound
+    # (test_another_declaration_is_described_for_no_body).
+    bound: dict[str, Any] = {}
+    asked: tuple[Any, ...] = ()
+    if binding is not None and binding.declaration is declaration:
+        bound, asked = binding.serializer_kwargs(), (binding.data,)
     try:
-        described = bind_serializer(declaration, context=describe())
+        described = bind_serializer(declaration, context=describe(*asked), **bound)
         # DRF builds the fields when they are first read; they are read here, so
         # a ``get_fields`` the description cannot answer fails where it can
         # still be asked again (the ``_FieldsFromTheSpec`` half of each test).
-        _fields = described.fields
+        _fields = _row_serializer(described).fields
         return described
     except (AttributeError, KeyError, TypeError):
         # How a read of a key the description lacks fails, each held by its case
         # of test_a_serializer_failing_any_way_without_a_whole_pool_callable_is_described.
-        asked = describe(whole_pool=True)
-        if asked is None:
+        whole = describe(*asked, whole_pool=True)
+        if whole is None:
             raise
-        return bind_serializer(declaration, context=asked)
+        return bind_serializer(declaration, context=whole, **bound)
+
+
+@dataclasses.dataclass(frozen=True, eq=False)
+class DescribeBinding:
+    """What an edge call binds its own input serializer to: its body, its row and its flags.
+
+    ``data`` is the body the serializer validates, ``instance`` the row the
+    call acts on (``None`` for a create, and for a collection, which is no
+    row), ``partial`` the compiled spec's flag, and ``many`` whether the body
+    is a list of rows.
+    """
+
+    declaration: Any
+    data: Any
+    instance: Any = None
+    partial: bool = False
+    many: bool = False
+
+    def serializer_kwargs(self) -> dict[str, Any]:
+        """The keywords the serializer is built with, as the Validator binds it."""
+        if self.many:
+            return {"data": self.data, "many": True, "partial": self.partial}
+        return {"data": self.data, "instance": self.instance, "partial": self.partial}
+
+
+def describe_with(state: EdgeCallState, binding: DescribeBinding) -> None:
+    """Describe ``binding.declaration`` as ``binding`` binds it from here on in the call.
+
+    The edge binds its input serializer to the caller's body as soon as the
+    call starts, and again once it knows the body the serializer validates and
+    the row it acts on, where either is another (``prepare_edge_call``): the
+    description built for the first is dropped, and the next description of the
+    call is built for the second.
+    """
+    state.describe_binding = binding
+    state.described.pop(binding.declaration, None)
+
+
+def bound_description(
+    declaration: Any, context: Mapping[str, Any], **kwargs: Any
+) -> serializers.Serializer | None:
+    """The call's description of ``declaration``, where it is bound exactly as ``kwargs`` binds.
+
+    The Validator binds the serializer that validates, and where the call's
+    description was built with the same ``data`` object, the same row, the
+    same ``partial`` and ``many`` and a context holding the same objects under
+    the same keys, the description is that serializer, so the call builds its
+    input serializer once, as DRF's view did
+    (test_the_input_serializer_is_built_once_per_call). Anything else is built
+    afresh: a body the server put a value into, a row a lookup resolved after
+    the description, or a context callable the description could not ask
+    (``TestAContextCallableTheDescriptionCannotAsk``). A description that has
+    validated once is never validated again
+    (test_a_kernel_call_inside_the_service_binds_its_own_arguments).
+    """
+    state = EDGE_CALL.get()
+    described = state.described.get(declaration) if state is not None else None
+    # One arc to coverage: test_never_described_it_is_none holds the first
+    # condition and test_once_it_has_validated_it_is_none the second.
+    if described is None or hasattr(described, "_errors"):
+        return None
+    if not _bound_as(described, kwargs) or not _same_objects(described._context, context):
+        return None
+    return described
+
+
+def bound_instance(target: Any) -> Any:
+    """The row a serializer binds for ``target``: none for a collection, which is no row to update."""
+    return None if isinstance(target, QuerySet) else target
+
+
+def _bound_as(serializer: serializers.Serializer, kwargs: Mapping[str, Any]) -> bool:
+    """Whether ``serializer`` was built with ``kwargs``' body, row and flags.
+
+    One arc to coverage, so each condition is named by its case of
+    test_bound_another_way_it_is_none: ``many``, ``another-data``,
+    ``another-row`` and ``partial``, in order.
+    """
+    return (
+        isinstance(serializer, serializers.ListSerializer) is kwargs.get("many", False)
+        and getattr(serializer, "initial_data", UNSET) is kwargs["data"]
+        and serializer.instance is kwargs.get("instance")
+        and serializer.partial == kwargs["partial"]
+    )
+
+
+def _same_objects(held: Mapping[str, Any], context: Mapping[str, Any]) -> bool:
+    """Whether ``held`` holds the very objects ``context`` does, under the same keys.
+
+    Each half is named by its case of test_bound_another_way_it_is_none:
+    ``another-key`` and ``another-object``.
+    """
+    return held.keys() == context.keys() and all(held[key] is context[key] for key in context)
 
 
 def writable_input_names(spec: Any) -> frozenset[str]:
@@ -253,6 +380,10 @@ class EdgeCallState:
     - ``offline_pairs``: each offline request and view built in the call for
       a principal and the arguments they carry, so the descriptions of one
       call with neither share one pair (``offline_pair``).
+    - ``describe_binding``: the body, row and flags the call binds its own
+      input serializer to (``describe_with``).
+    - ``described``: the serializer each declaration is described with in
+      the call, built once (``describe_serializer``).
 
     Mutable, so the edge can set it before the sync step it hops to a thread
     for and fill it there, and the Validator can fill it during the kernel's
@@ -276,6 +407,8 @@ class EdgeCallState:
     offline_pairs: dict[tuple[int, int], tuple[Any, Any, Any]] = dataclasses.field(
         default_factory=dict
     )
+    describe_binding: DescribeBinding | None = None
+    described: dict[Any, serializers.Serializer] = dataclasses.field(default_factory=dict)
 
 
 EDGE_CALL: ContextVar[EdgeCallState | None] = ContextVar(
