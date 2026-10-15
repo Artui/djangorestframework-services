@@ -23,8 +23,11 @@ from collections.abc import Callable
 from typing import Annotated, Any
 
 import pytest
-from asgiref.sync import async_to_sync
+from asgiref.sync import async_to_sync, sync_to_async
+from django.contrib.auth.models import AnonymousUser
 from rest_framework import serializers
+from rest_framework.parsers import JSONParser, MultiPartParser
+from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
@@ -215,6 +218,60 @@ def test_the_servers_value_outranks_a_second_route_in_a_form_body(
     )
 
     assert response.status_code == 204, response.data
+    assert seen == _SERVER
+
+
+def _live_view(body: dict[str, Any], fmt: str) -> ServiceCreateView:
+    """A live view over a parsed request, as the async views hand ``adispatch_spec`` one."""
+    view = ServiceCreateView()
+    view.request = Request(
+        _factory.post("/", body, format=fmt), parsers=[JSONParser(), MultiPartParser()]
+    )
+    view.request.user = AnonymousUser()
+    view.kwargs = {}
+    view.format_kwarg = None
+    return view
+
+
+# The same three routes as a live view resolves them: a ``get_service_kwargs``
+# value reaches the core as a view hook's extra.
+_LIVE = {
+    "get-service-kwargs": ({}, ViewHooks(extra_kwargs={"tenant": "server"})),
+    "spec-kwargs": ({"kwargs": _server}, None),
+    "spec-input-data": ({"input_data": _server}, None),
+}
+
+
+# A form body carries no nested object, so the ``source="*"`` shape is sent as JSON alone.
+_LIVE_BODIES = [
+    pytest.param(serializer, body, fmt, id=f"{shape}-{fmt}")
+    for shape, (serializer, body) in _SHAPES.items()
+    for fmt in ("json", "multipart")
+    if not (shape == "star" and fmt == "multipart")
+]
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(("serializer", "body", "fmt"), _LIVE_BODIES)
+@pytest.mark.parametrize(("spec_kwargs", "hooks"), _LIVE.values(), ids=_LIVE.keys())
+async def test_the_servers_value_outranks_a_second_route_over_http_on_the_async_core(
+    serializer: Any,
+    body: dict[str, Any],
+    spec_kwargs: dict[str, Any],
+    hooks: ViewHooks | None,
+    fmt: str,
+) -> None:
+    """A live view's body is bound as the request parsed it, on the async core too."""
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(
+        service=_hidden(seen), input_serializer=serializer, atomic=False, **spec_kwargs
+    )
+    view = await sync_to_async(_live_view, thread_sensitive=True)(body, fmt)
+
+    await adispatch_spec(
+        spec, user=None, params=view.request.data, request=view.request, view=view, view_hooks=hooks
+    )
+
     assert seen == _SERVER
 
 
