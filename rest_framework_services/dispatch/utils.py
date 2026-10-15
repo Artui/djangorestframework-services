@@ -228,8 +228,8 @@ def prepare_edge_call(
     }
     guard_context = OfflineContext(user=user, request=request, view=view)
     if isinstance(spec, SelectorSpec):
-        variant: Any = kernel_spec_variant(spec, unguarded=True, server_input=False)
         seeds = edge_seeds(pool_seeds, request=request, view=view)
+        variant: Any = _seed_filled_variant(spec, seeds, unguarded=True, server_input=False)
         if on_target_resolved is not None:
             variant = guarded_selector(variant)
             guard = on_target_resolved
@@ -261,13 +261,18 @@ def prepare_edge_call(
             },
         )
     if spec.many:
+        seeds = edge_seeds(pool_seeds, request=request, view=view)
         variant = cast(
             KernelServiceSpec,
-            kernel_spec_variant(
-                spec, partial=partial, unguarded=True, server_input=False, lenient=over_http(view)
+            _seed_filled_variant(
+                spec,
+                seeds,
+                partial=partial,
+                unguarded=True,
+                server_input=False,
+                lenient=over_http(view),
             ),
         )
-        seeds = edge_seeds(pool_seeds, request=request, view=view)
         rows = params
         if many_as_argument:
             arguments = edge_arguments(variant, spec, params, request=request, view=view)
@@ -358,8 +363,9 @@ def prepare_edge_call(
     )
     service = cast(
         KernelServiceSpec,
-        kernel_spec_variant(
+        _seed_filled_variant(
             spec,
+            seeds,
             partial=partial,
             unguarded=True,
             target=handed,
@@ -560,6 +566,30 @@ def _lookup_reads(spec: ServiceSpec[Any, Any, Any]) -> frozenset[str]:
     if target is None or target.selector is None:
         return frozenset()
     return frozenset(target.reads.names() & (_callable_param_names(target.selector) or set()))
+
+
+def _seed_filled_variant(spec: Any, seeds: PoolSeeds, **options: Any) -> Any:
+    """``kernel_spec_variant(spec, **options)``, with no read off a signature a seed of the call fills.
+
+    A selector's, a target lookup's or a spread service's parameter named like a
+    seed the call registers is the seed's, as a service's always was: compiled
+    as ``kernel_spec_variant(seeded=)``, it is no argument, so the kernel fills
+    it from the seed rather than refusing an argument meeting one
+    (test_both_spec_kinds_read_the_seed, test_a_target_lookup_reads_the_seed,
+    test_a_spread_service_reads_the_seed). A call whose seeds no signature
+    names - every call that registers none of its own - keeps the variant it
+    always had. A declared read of the name is compiled as it was declared,
+    and the kernel refuses it.
+    """
+    variant = kernel_spec_variant(spec, **options)
+    names = variant.reads.names()
+    target = variant.target_selector_spec() if isinstance(variant, KernelServiceSpec) else None
+    if target is not None:
+        names = names | target.reads.names()
+    seeded = frozenset(names & seeds.reserved)
+    if not seeded:
+        return variant
+    return kernel_spec_variant(spec, **options, seeded=seeded)
 
 
 def _seeded_fields(spec: ServiceSpec[Any, Any, Any], seeded: frozenset[str]) -> frozenset[str]:

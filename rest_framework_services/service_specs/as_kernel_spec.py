@@ -69,7 +69,11 @@ _ARRAYS: frozenset[Any] = frozenset({list, set, frozenset, tuple})
 
 
 def as_kernel_spec(
-    spec: Any, *, partial: bool | None = None, spread: bool = False
+    spec: Any,
+    *,
+    partial: bool | None = None,
+    spread: bool = False,
+    seeded: frozenset[str] = frozenset(),
 ) -> KernelServiceSpec | KernelSelectorSpec:
     """Compile ``spec``, a drfs ``ServiceSpec`` or ``SelectorSpec``, to the kernel's.
 
@@ -136,6 +140,12 @@ def as_kernel_spec(
     ``reads`` read, so ``def destroy(*, instance, hard=False)`` is never handed
     a ``hard`` the request sent (see ``_takes_its_signature``).
 
+    ``seeded`` names the seeds a dispatch registers beyond the pool's own, which
+    the DRF edge compiles per call: a signature's parameter of such a name -
+    the selector's, a target lookup's, a spread service's - is no argument, and
+    the seed fills it, as it always filled a service's. A declared read of the
+    name stays one, which the kernel refuses as an argument meeting a seed.
+
     **What the kernel refuses at construction is stripped or refused here**,
     naming the drfs field. Stripped, because drfs never read them: an output
     selector's ``kwargs``, an instance lookup's ``allow_none`` (the kernel would
@@ -154,11 +164,13 @@ def as_kernel_spec(
     for a service's output and as ``instance`` for a retrieve.
     """
     if isinstance(spec, AffordanceDeclarer):
-        return _service(spec, partial=partial, spread=spread)
-    return _selector(spec, role=None, hidden=frozenset(), declared=())
+        return _service(spec, partial=partial, spread=spread, seeded=seeded)
+    return _selector(spec, role=None, hidden=frozenset(), declared=(), seeded=seeded)
 
 
-def _service(spec: Any, *, partial: bool | None, spread: bool) -> KernelServiceSpec:
+def _service(
+    spec: Any, *, partial: bool | None, spread: bool, seeded: frozenset[str]
+) -> KernelServiceSpec:
     hidden = _owned_keys(
         [spec.service, *(spec.preconditions or ()), *_lookup_selectors(spec)],
     )
@@ -166,14 +178,17 @@ def _service(spec: Any, *, partial: bool | None, spread: bool) -> KernelServiceS
     _refuse_hidden_reads(
         spec.reads, [spec.service, *(spec.preconditions or ())], label="ServiceSpec"
     )
-    instance = _nested(spec, "instance", hidden, declared)
-    collection = _nested(spec, "collection", hidden, declared)
+    instance = _nested(spec, "instance", hidden, declared, seeded)
+    collection = _nested(spec, "collection", hidden, declared, seeded)
     target = instance or collection
     # In the lookup's order: the route a permission class reads is filled in it.
     taken = tuple(parameter.name for parameter in target.reads) if target is not None else ()
     _refuse_reads_named_like_fields(spec, lookup_reads=frozenset(taken))
     reads = _merge(
-        _reflected(spec.service, hidden=hidden) if _takes_its_signature(spec, spread) else [],
+        # A seed of the call fills its name (test_a_spread_service_reads_the_seed).
+        _reflected(spec.service, hidden=hidden | seeded)
+        if _takes_its_signature(spec, spread)
+        else [],
         [parameter for parameter in declared if parameter.name not in taken],
         skip=frozenset(taken),
     )
@@ -234,6 +249,7 @@ def _selector(
     declared: Sequence[Parameter],
     audiences: Mapping[str, FieldMarking] | None = None,
     many: bool = False,
+    seeded: frozenset[str] = frozenset(),
 ) -> KernelSelectorSpec:
     """A top-level selector spec (``role`` ``None``), or a service's nested one by its role.
 
@@ -256,7 +272,9 @@ def _selector(
         audiences = spec.field_audiences
     reads = Parameters()
     if role != "output":
-        reflected = _reflected(spec.selector, hidden=hidden)
+        # A seed of the call fills its name, so it is no argument
+        # (test_both_spec_kinds_read_the_seed, test_a_target_lookup_reads_the_seed).
+        reflected = _reflected(spec.selector, hidden=hidden | seeded)
         if role is not None:
             # A target lookup's own ``reads`` are declared as the spec's are, so
             # each is its parameter with the type it declares, and a string
@@ -404,7 +422,11 @@ def _answering_on_the_server_s_channel(provider: Any, shadowed: frozenset[str]) 
 
 
 def _nested(
-    spec: Any, role: str, hidden: frozenset[str], declared: Sequence[Parameter]
+    spec: Any,
+    role: str,
+    hidden: frozenset[str],
+    declared: Sequence[Parameter],
+    seeded: frozenset[str],
 ) -> KernelSelectorSpec | None:
     nested = getattr(spec, f"{role}_selector_spec")
     # An instance lookup with no ``selector`` is no lookup, as drfs always read
@@ -414,7 +436,7 @@ def _nested(
     # lookup has no such fallback, so one with no selector is still refused.
     if nested is None or (role == "instance" and nested.selector is None):
         return None
-    return _selector(nested, role=role, hidden=hidden, declared=declared)
+    return _selector(nested, role=role, hidden=hidden, declared=declared, seeded=seeded)
 
 
 def _output(spec: Any) -> tuple[KernelSelectorSpec | None, SerializerPresenter | None]:

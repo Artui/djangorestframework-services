@@ -555,6 +555,14 @@ over either. `request` is not one of its parameters: `dispatch_spec` registers
 `pool_seeds` is refused with `ImproperlyConfigured`. A falsy progress reporter
 is kept rather than swapped for `null_progress`.
 
+A parameter named like a seed the call registers is the seed's, on a selector,
+a target lookup or a spread service as on a service: the seed fills it, and a
+caller's value of the name is dropped rather than reaching it. `dispatch_spec`
+compiles that per call, from the `pool_seeds` it is handed. `kernel_spec(spec)`
+knows no project's seeds, so the kernel's own `dispatch`, handed the same seeds
+for that compiled spec, refuses the parameter as an argument meeting a seed. A
+name declared in the spec's `reads` is refused by both.
+
 `base_pool` is a builder, not a gate, and nothing checks a pool assembled
 elsewhere. **If you are writing a transport adapter, build your pool by calling
 it** — `base_pool(user=…, **your_own_entries)` — rather than writing a
