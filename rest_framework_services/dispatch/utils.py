@@ -244,9 +244,16 @@ def prepare_edge_call(
             arguments[spec.many_argument] = [
                 without_seed_names(row, pool_seeds) for row in sent_rows
             ]
-        # A bulk call acts on no row, so the provider is handed none.
+        # A bulk call acts on no row, so the provider is handed none. Its keys go
+        # over each row that is an object, where rows were sent at all: an
+        # object of arguments carrying no list keeps the kernel's refusal
+        # (test_rows_under_an_argument_beside_an_input_data_provider_keep_the_kernels_refusal),
+        # and a row that is no object is left for its refusal
+        # (test_a_row_that_is_no_object_beside_an_input_data_provider_is_refused).
+        # ``server`` is ``{}`` with no provider, so its own operand changes
+        # nothing a caller sees and no test can hold it: it skips the copy.
         server = server_input(spec, hooks, view=view, request=request, instance=None)
-        if server and isinstance(arguments.get(spec.many_argument), list):
+        if server and sent_rows is not None:
             arguments[spec.many_argument] = [
                 {**row, **server} if isinstance(row, Mapping) else row
                 for row in arguments[spec.many_argument]
@@ -254,12 +261,21 @@ def prepare_edge_call(
         # The rows the serializer binds are the ones sent, the server's keys over
         # each, as ``input_data`` always merged per row: a seed's name in a row
         # is the serializer's own field
-        # (test_a_writable_field_named_user_validates_in_each_row).
+        # (test_a_writable_field_named_user_validates_in_each_row). A row that
+        # is no object is bound as it was sent, for the serializer to refuse
+        # (test_a_list_body_is_refused_as_its_list_serializer_refuses_it).
         if sent_rows is not None:
             state.validator_input = (
                 variant.validator,
                 [{**row, **server} if isinstance(row, Mapping) else row for row in sent_rows],
             )
+            # A live view's list body, which DRF's list serializer answers
+            # whole. One arc to coverage, so each condition is named: off HTTP
+            # the kernel's refusal of a row stays
+            # (test_off_http_a_refused_row_keeps_the_kernels_shape), and so it
+            # does for rows sent under an argument
+            # (test_a_live_views_rows_under_an_argument_keep_the_kernels_refusal).
+            state.body_rows = over_http(view) and not many_as_argument
         extra_kwargs = _route_author_values(
             spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
         )
@@ -357,6 +373,11 @@ def prepare_edge_call(
     if on_target_resolved is not None:
         on_target_resolved(spec, guard_context, instance=target)
     # After the lookup, as on main: the provider is handed the row it found.
+    # Arguments that are no object have no keys for the provider's to go over,
+    # and are left for their refusal
+    # (test_a_single_call_body_that_is_no_object_is_refused_in_drfs_words, its
+    # ``with-an-input-data-provider`` cases). ``server`` is ``{}`` with no
+    # provider, so its own operand changes nothing a caller sees.
     server = server_input(spec, hooks, view=view, request=request, instance=target)
     if server and isinstance(arguments, dict):
         arguments.update(server)
@@ -1192,16 +1213,19 @@ def edge_errors(
     *,
     many_as_argument: bool,
     http: bool,
+    state: EdgeCallState,
 ) -> Iterator[None]:
     """The kernel's refusals as DRF's, around a whole edge call.
 
     - Every kernel ``DispatchError`` leaves as its dual-base twin, through
       ``translate_dispatch_errors``.
     - A ``many`` spec whose rows arrived as ``params`` itself - an HTTP list
-      body - is refused as DRF's list serializer refuses one: an entry per row,
-      ``{}`` for a valid one, and a refusal of the list itself under
-      ``non_field_errors``. The kernel keys both under ``many_argument``, which
-      such a caller never sent.
+      body - is refused as DRF's list serializer refuses one, never keyed
+      under ``many_argument``, which such a caller never sent. On a live view
+      it is that serializer's own refusal, in the shape the installed DRF
+      gives (``state.row_errors``); otherwise an entry per row, ``{}`` for a
+      valid one, and a refusal of the list itself under ``non_field_errors``
+      (``_bare_rows_error``).
     - The kernel's refusal of an undeclared key, ``"Unknown argument."`` under
       the key, is answered as this package always answered
       ``UnknownArguments.REJECT``: one ``"Unexpected argument(s): ..."`` message
@@ -1227,7 +1251,11 @@ def edge_errors(
         if drf is not None:
             raise drf from exc
         detail = _unexpected_as_drf(exc.detail, spec)
-        unwrapped = _bare_rows_error(detail, spec.many_argument, params) if bare_rows else None
+        unwrapped = (
+            _bare_rows_error(detail, spec.many_argument, params, state.row_errors)
+            if bare_rows
+            else None
+        )
         if unwrapped is not None:
             raise unwrapped from exc
         # Nothing reshaped leaves as translated, raised from the kernel's own
@@ -1248,15 +1276,18 @@ def _drf_body_refusal(
     """DRF's own refusal of a body its input serializer cannot take, or ``None``.
 
     The kernel refuses a body of the wrong shape before any Validator runs, as
-    ``"Expected an object."`` or ``"Expected an array."``; a DRF view's
-    serializer refused it as ``'Invalid data. Expected a dictionary, but got
-    list.'`` (test_a_single_call_body_that_is_no_object_is_refused_in_drfs_words)
-    or ``'Expected a list of items but got type "dict".'``
-    (test_a_bulk_body_that_is_no_list_is_refused_in_drfs_words), so the
-    serializer is asked. It refuses the shape before it reads a field, so it
-    is bound with no context. A spec with no input serializer has no DRF
-    answer to give, and a ``many`` spec whose rows sit under an argument is
-    no body, so both keep the kernel's.
+    ``"Expected an object."`` or ``"Expected an array."``; a DRF view refused
+    a single call's body that is no object as ``'Invalid data. Expected a
+    dictionary, but got list. Only a spec declaring many=True accepts a list
+    payload.'`` (test_a_single_call_body_that_is_no_object_is_refused_in_drfs_words),
+    and a ``many`` spec's that is no list as its list serializer does,
+    ``'Expected a list of items but got type "dict".'``
+    (test_a_bulk_body_that_is_no_list_is_refused_in_drfs_words), which is
+    asked: it refuses the shape before it reads a field, so it is bound with
+    no context. A list body's rows are the Validator's to refuse, which binds
+    them whole (``SerializerValidator.validated_many``). A spec with no input
+    serializer has no DRF answer to give, and a ``many`` spec whose rows sit
+    under an argument is no body, so both keep the kernel's.
     """
     # A selector spec declares no input serializer, so the second operand alone
     # answers it the same; the first narrows ``spec`` for ``.many`` below. The
@@ -1267,11 +1298,24 @@ def _drf_body_refusal(
     if bare_rows:
         if isinstance(params, list):
             return None
-    elif spec.many or isinstance(params, Mapping):
+        bound = bind_serializer(spec.input_serializer, data=params, many=True)
+        bound.is_valid()
+        return ValidationError(bound.errors)
+    # One arc to coverage, so each condition is named: rows a ``many`` spec
+    # takes under an argument are no body, whatever was sent for them
+    # (test_a_live_views_rows_under_an_argument_keep_the_kernels_refusal, its
+    # ``a-list-for-the-arguments`` case), and an object is the body a single
+    # call takes, refused for something else
+    # (test_json_drf_refuses_is_refused_in_drfs_words).
+    if spec.many or isinstance(params, Mapping):
         return None
-    bound = bind_serializer(spec.input_serializer, data=params, many=bare_rows)
-    bound.is_valid()
-    return ValidationError(bound.errors)
+    message = (
+        f"Invalid data. Expected a dictionary, but got {type(params).__name__}. "
+        "Only a spec declaring many=True accepts a list payload."
+    )
+    return ValidationError(
+        {api_settings.NON_FIELD_ERRORS_KEY: [ErrorDetail(message, code="invalid")]}
+    )
 
 
 def _unexpected_as_drf(
@@ -1334,7 +1378,13 @@ def _reword_unknown(detail: Mapping[Any, Any], parameters: Parameters) -> dict[A
         # a list refused whole, which is no mapping of rows
         # (test_a_non_list_is_refused_under_the_argument).
         if isinstance(rows, Parameters) and isinstance(errors, dict):
-            errors = {index: _reword_unknown(row, rows) for index, row in errors.items()}
+            # A row by its index; the list's own refusal, under
+            # ``non_field_errors``, is no row's
+            # (test_off_http_a_list_level_refusal_sits_under_non_field_errors).
+            errors = {
+                index: _reword_unknown(row, rows) if isinstance(index, int) else row
+                for index, row in errors.items()
+            }
         reworded[name] = errors
     if unknown:
         names = ", ".join(repr(name) for name in sorted(str(name) for name in unknown))
@@ -1351,19 +1401,35 @@ def _only_unknown(errors: Any) -> bool:
     return all(getattr(error, "code", None) == "unknown" for error in errors)
 
 
-def _bare_rows_error(detail: Any, many_argument: str, params: Any) -> ValidationError | None:
+def _bare_rows_error(
+    detail: Any, many_argument: str, params: Any, row_errors: Any
+) -> ValidationError | None:
     """``detail`` in the shape a list body is refused in, or ``None`` to leave it keyed.
 
     A refusal of anything beside the rows - a declared read the route left out -
     names something the caller did send, so it keeps its key.
+
+    Where the list serializer bound to a live view's whole body refused it
+    (``row_errors``), its errors are the answer, as the installed DRF gives
+    them - a list with an entry per row below 3.18, a mapping of the failing
+    rows' indexes from it, the list's own refusal under ``non_field_errors`` -
+    and as a view always answered, before an undeclared key in a row
+    (test_a_list_body_is_refused_as_its_list_serializer_refuses_it). Otherwise
+    the kernel's rows are laid out as a list with an entry per row, and a
+    refusal of the list itself is left under ``non_field_errors``
+    (test_off_http_a_list_level_refusal_sits_under_non_field_errors).
     """
     if set(detail) != {many_argument}:
         return None
+    if row_errors is not None:
+        return ValidationError(row_errors)
     rows = detail[many_argument]
-    if isinstance(rows, dict):
+    if not isinstance(rows, dict):
+        return ValidationError({api_settings.NON_FIELD_ERRORS_KEY: rows})
+    if all(isinstance(index, int) for index in rows):
         # Rows are refused by index only once the body is a list of them.
         return ValidationError([rows.get(index, {}) for index in range(len(params))])
-    return ValidationError({api_settings.NON_FIELD_ERRORS_KEY: rows})
+    return ValidationError(rows)
 
 
 # The calling view. The edge seeds it on every call (``edge_seeds``), so a

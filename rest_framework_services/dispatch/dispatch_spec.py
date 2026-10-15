@@ -180,7 +180,13 @@ def dispatch_spec(
     """
     state = EdgeCallState()
     with (
-        edge_errors(spec, params, many_as_argument=many_as_argument, http=over_http(view)),
+        edge_errors(
+            spec,
+            params,
+            many_as_argument=many_as_argument,
+            http=over_http(view),
+            state=state,
+        ),
         edge_call(state),
     ):
         prepared = prepare_edge_call(

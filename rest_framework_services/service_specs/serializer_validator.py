@@ -20,6 +20,7 @@ from rest_framework_services.service_specs.invalid_arguments import InvalidArgum
 from rest_framework_services.service_specs.utils import (
     bind_serializer,
     describe_serializer,
+    edge_call_state,
     input_parameters,
     input_view_layers,
     serializer_context,
@@ -121,7 +122,10 @@ class SerializerValidator(Validator):
     under ``many_argument``. A refusal is an ``InvalidArguments`` whose detail
     keys each failing row by the index the caller's list gave it, whichever of
     DRF's two shapes the installed version reports item errors in, and whose
-    list-level message sits under ``non_field_errors``.
+    list-level message sits under ``non_field_errors``. A live view's list
+    body (``EdgeCallState.body_rows``) is bound whole, every row as sent, and
+    what the list serializer refused is also left on the edge's state as DRF
+    reported it, for the edge to answer with as a view always did.
     """
 
     def __init__(
@@ -213,10 +217,26 @@ class SerializerValidator(Validator):
     ) -> Validated:
         """The rows validated once as DRF's list serializer, the one serializer bound for the call."""
         self._refuse_partial(context)
-        # The rows sent, where the edge hands them, at the indices the kernel
-        # passed: a row it refused is not bound twice.
+        state = edge_call_state()
         sent = validator_input(self, None)
-        arguments = [sent[index] for index in rows] if sent is not None else list(rows.values())
+        # A live view's list body is bound whole, every row as it was sent, a
+        # row that is no object included, so DRF's list serializer answers it
+        # as a view's always did: in its own words, at its own positions
+        # (test_a_list_body_is_refused_as_its_list_serializer_refuses_it). One
+        # arc to coverage, so each condition is named: a body the edge holds
+        # for another Validator, a kernel call inside the service, is none of
+        # this one's (test_a_kernel_call_inside_a_bulk_service_binds_its_own_rows),
+        # and rows sent off HTTP keep the kernel's refusal of what its shape
+        # check refused (test_off_http_a_refused_row_keeps_the_kernels_shape).
+        whole = sent is not None and state.body_rows
+        if whole:
+            arguments = list(sent)
+            indices = list(range(len(arguments)))
+        else:
+            # The rows sent, where the edge hands them, at the indices the
+            # kernel passed: a row it refused is not bound twice.
+            arguments = [sent[index] for index in rows] if sent is not None else list(rows.values())
+            indices = list(rows)
         serializer = bind_serializer(
             self.serializer,
             data=arguments,
@@ -225,7 +245,9 @@ class SerializerValidator(Validator):
             context=self._context(context, arguments),
         )
         if not serializer.is_valid():
-            raise InvalidArguments(_by_row(serializer.errors, list(rows)))
+            if whole:
+                state.row_errors = serializer.errors
+            raise InvalidArguments(_by_row(serializer.errors, indices))
         data: list[Any] = list(serializer.validated_data)
         return Validated(
             values={many_argument: [_values(row) for row in data]},

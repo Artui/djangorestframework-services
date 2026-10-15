@@ -141,16 +141,24 @@ class EdgeCallState:
       binds rather than the kernel's checked arguments (``validator_input``):
       the caller's own, a ``QueryDict`` kept one, with what the edge put over
       it, as DRF's serializer has always been handed the request's data.
+    - ``body_rows``: whether that body is a live view's list body, which the
+      Validator binds whole, every row as sent, as DRF's view bound it
+      (``SerializerValidator.validated_many``).
+    - ``row_errors``: what the list serializer bound to that whole body
+      refused, as the installed DRF reports it, which the edge answers with
+      in place of the kernel's rows (``edge_errors``).
 
     Mutable, so the edge can set it before the sync step it hops to a thread
-    for and fill it there: the thread runs in a copy of the context that holds
-    this same object.
+    for and fill it there, and the Validator can fill it during the kernel's
+    call: the thread runs in a copy of the context that holds this same object.
     """
 
     target_guard: Callable[[Any], None] | None = None
     author_values: Mapping[str, Any] = dataclasses.field(default_factory=dict)
     view_hooks: ViewHooks = dataclasses.field(default_factory=ViewHooks)
     validator_input: tuple[Any, Any] | None = None
+    body_rows: bool = False
+    row_errors: Any = None
 
 
 EDGE_CALL: ContextVar[EdgeCallState | None] = ContextVar(

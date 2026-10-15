@@ -178,14 +178,40 @@ def test_a_bulk_row_is_read_as_drf_reads_it() -> None:
     assert [dict(row) for row in SEEN["data"]] == _drf_answer(_Lenient, body, "json", many=True)
 
 
-def test_a_single_call_body_that_is_no_object_is_refused_in_drfs_words() -> None:
-    body = [{"title": "ok"}]
+def _server_tenant() -> dict[str, Any]:
+    return {"title": "srv"}
 
-    response = _LenientView.as_view()(_request(body, "json"))
+
+class _ServerInputView(ServiceCreateView):
+    spec = ServiceSpec(
+        service=_echo, input_serializer=_Lenient, input_data=_server_tenant, atomic=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "got"), [([{"title": "ok"}], "list"), ("x", "str")], ids=["list", "string"]
+)
+@pytest.mark.parametrize(
+    "view", [_LenientView, _ServerInputView], ids=["plain", "with-an-input-data-provider"]
+)
+def test_a_single_call_body_that_is_no_object_is_refused_in_drfs_words(
+    view: Any, body: Any, got: str
+) -> None:
+    """As a view refused it: DRF's words, and which spec takes a list.
+
+    An ``input_data`` provider's keys have no object to go over, and the body
+    is still refused rather than raising.
+    """
+    response = view.as_view()(_request(body, "json"))
 
     assert response.status_code == 400
-    assert response.data == _drf_answer(_Lenient, body, "json")
-    assert "Expected a dictionary" in str(response.data)
+    assert response.data == {
+        "non_field_errors": [
+            f"Invalid data. Expected a dictionary, but got {got}. "
+            "Only a spec declaring many=True accepts a list payload."
+        ]
+    }
+    assert "data" not in SEEN
 
 
 def _no_input() -> None:
