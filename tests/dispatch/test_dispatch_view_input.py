@@ -20,9 +20,11 @@ import pytest
 from asgiref.sync import async_to_sync
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
+from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from rest_framework_services import (
+    DEFAULT_POOL_SEEDS,
     ArgumentBinding,
     DispatchResult,
     OfflineServiceView,
@@ -95,6 +97,56 @@ def test_a_provider_handing_over_the_view_is_refused(dispatch: Dispatch) -> None
 
     with pytest.raises(ImproperlyConfigured, match=r"\['view'\], which dispatch seeds itself"):
         dispatch(spec, params={"pk": 1}, view=view)
+
+
+class _TitleIn(serializers.Serializer):
+    title = serializers.CharField()
+
+
+_SEEDED = [
+    "request",
+    "view",
+    "user",
+    "data",
+    "instance",
+    "collection",
+    "result",
+    "queryset",
+    "progress",
+]
+
+
+def _keeps_what_it_is_handed(*, data: Any = None, **rest: Any) -> None: ...
+
+
+@pytest.mark.django_db
+@_CORES
+@pytest.mark.parametrize("name", _SEEDED)
+@pytest.mark.parametrize("serializer", [_TitleIn, None], ids=["validated", "no-serializer"])
+def test_a_provider_returning_any_seeded_name_is_refused(
+    dispatch: Dispatch, name: str, serializer: Any
+) -> None:
+    """Every name the call seeds, where 0.57.0 handed the provider's value on."""
+    spec = ServiceSpec(
+        service=_keeps_what_it_is_handed,
+        input_serializer=serializer,
+        kwargs=lambda: {name: "provided"},
+        atomic=False,
+    )
+
+    with pytest.raises(ImproperlyConfigured, match=rf"\['{name}'\], which dispatch seeds itself"):
+        dispatch(spec, params={"title": "t"} if serializer is not None else {})
+
+
+@pytest.mark.django_db
+@_CORES
+def test_a_provider_returning_a_registered_seeds_name_is_refused(dispatch: Dispatch) -> None:
+    spec = ServiceSpec(
+        service=_keeps_what_it_is_handed, kwargs=lambda: {"tenant": "provided"}, atomic=False
+    )
+
+    with pytest.raises(ImproperlyConfigured, match=r"\['tenant'\], which dispatch seeds itself"):
+        dispatch(spec, params={}, pool_seeds=DEFAULT_POOL_SEEDS.extend(tenant=lambda: "seeded"))
 
 
 @_CORES

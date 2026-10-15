@@ -643,7 +643,8 @@ class TestRejectAtTheEdge:
 
         assert excinfo.value.detail == {"non_field_errors": ["Unexpected argument(s): 'colour'."]}
 
-    @pytest.mark.parametrize("name", ["user", "progress", "data"])
+    # ``result`` and ``queryset`` are the kernel's seeds: 0.57.0 refused them here.
+    @pytest.mark.parametrize("name", ["user", "progress", "data", "result", "queryset"])
     def test_a_built_in_seed_name_is_not_unexpected(self, name: str) -> None:
         spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=lambda *, pk: pk)
 

@@ -21,8 +21,21 @@ project may have to change, each detailed below:
 - **Rename a service parameter or a `kwargs` provider key that only matched by
   accident.** A service with an input serializer now receives each validated
   value whose name its signature declares, beside `data`, unless a callable of
-  the call marks that name `NotClientInput`. A `kwargs` provider returning
-  `data`, `instance` or `view` raises `ImproperlyConfigured`.
+  the call marks that name `NotClientInput`. A spec's `kwargs` provider
+  returning a key the call seeds - `request`, `view`, `user`, `data`,
+  `instance`, `collection`, `result`, `queryset`, `progress`, or a name
+  registered in `pool_seeds` - raises `ImproperlyConfigured`, where 0.57.0
+  handed its value on. Rename the key and the parameter that reads it; pass
+  the principal as `dispatch_spec(user=)`, and compute a registered seed's
+  value in its resolver.
+- **Give a view hook's or `kwargs` provider's value for an input-serializer
+  field in the form a client would send it, or keep that field off the
+  input.** The field validates it now: return a primary key rather than a
+  model instance for a related field (the service receives the instance),
+  and expect a value the field's validators refuse to be answered as a 400.
+  Where the server owns the value, make the field read-only or drop it from
+  the serializer, and the value reaches the service parameter of its name
+  unvalidated, as before.
 - **Move `input_data` off a spec with no `input_serializer`.** Such a spec is
   refused with `ImproperlyConfigured` when it compiles; return the values from
   the spec's `kwargs` provider instead, and read them as service parameters.
@@ -183,7 +196,7 @@ project may have to change, each detailed below:
     validated value: the client's value for that field reaches the service
     only in `data`. A view hook's or the spec's `kwargs` provider's value for
     it still reaches the parameter, and an `input_data` value now does too.
-  - Under `AUTO`, an `input_data` value for a field named like a
+  - Under `AUTO` and `BUNDLE`, an `input_data` value for a field named like a
     `NotClientInput` parameter now reaches that parameter, where the
     parameter kept its default and the value reached only `data`.
   - A route capture that a target lookup marks `NotClientInput` is seeded
@@ -217,6 +230,33 @@ project may have to change, each detailed below:
     either shape. Off HTTP an unknown key inside a nested serializer is
     refused as `{"inner": {"zzz": ["Unknown argument."]}}`, code `unknown`;
     over a live view it is still dropped.
+- **Breaking: a value a view hook or the spec's `kwargs` provider gives for an
+  input-serializer field decides that field, and is validated by it.** A key
+  naming a field of `input_serializer`, by its name or by its `source`, is
+  written into the field over whatever the client sent and validated as the
+  field validates. What the field validates it to is then the value under the
+  field's key wherever the service reads it: the parameter of that name,
+  `data`, and the bound serializer's `validated_data`, even where a later field
+  with the same `source`, a `source="*"` nested serializer or the serializer's
+  `validate()` writes that key from the client's input. It used to be handed
+  to the service beside the client's validated value, so a service reading
+  `data`, or calling `serializer.save()`, saw the client's: a hook supplying
+  `{"tenant": request.user.tenant}` could be overridden by a body carrying
+  `tenant`. Being validated by the field changes what some values do:
+  - a model instance given for a `PrimaryKeyRelatedField` is refused with a
+    400, `Incorrect type. Expected pk value, received Author.`, where it
+    reached the service as given;
+  - a primary key arrives as the row it names, in `data` and for the
+    parameter, and `data` gains the key;
+  - a value the field's validators refuse is a 400 answered to the client.
+
+  An `input_data` value for a field is held the same way: a later field with
+  the same `source`, a `source="*"` nested serializer or a `validate()`
+  writing the key no longer replaces it in `data`, where 0.57.0 let them.
+  That holds against the serializer's own normalising too: a `validate()`
+  that rewrites the value a hook, the `kwargs` provider or `input_data` gave
+  for a field, by lowercasing or stripping it, no longer takes effect for that
+  field, which keeps the value as the field validated it.
 - **Breaking: pool seeds.** `RESERVED_POOL_SEEDS` is `user`, `data`,
   `instance`, `collection`, `result`, `queryset` and `progress`, where it
   listed `request` and `serializer` rather than `result` and `queryset`. A
@@ -226,11 +266,16 @@ project may have to change, each detailed below:
   `ImproperlyConfigured`.
   - `view` is seeded on every call: a callable declaring it gets the
     transport's view or `None`, and a provider or route capture named `view`
-    cannot outrank it. A spec's `kwargs` provider returning a `view`, `data`
-    or `instance` key raises `ImproperlyConfigured`, and `call_service`
-    drops a `view=` passed inside a view.
+    cannot outrank it. A spec's `kwargs` provider returning any name the
+    call seeds - `request`, `view`, `user`, `data`, `instance`, `collection`,
+    `result`, `queryset`, `progress`, or a name registered in `pool_seeds` -
+    raises `ImproperlyConfigured`, where 0.57.0 handed the value to the
+    callables. `call_service` drops a `view=` passed inside a view.
   - A view-hook extra naming a pool seed is dropped and the seed wins, where
     the hook's value replaced it.
+  - Off HTTP under `UnknownArguments.REJECT`, a caller's `result` or
+    `queryset` key is dropped as a seed's name is, where it was refused as
+    `Unexpected argument(s)`.
 - **Breaking: `SpecRegistry.register` compiles the spec.** It takes no
   `agent_contract=`; `RegisteredSpec.agent_contract` is read-only and
   answered by the spec's own `agent_contract()`. A spec with no permissions
@@ -323,14 +368,6 @@ project may have to change, each detailed below:
 
 ### Fixed
 
-- **A value a view hook or the spec's `kwargs` provider gives for an
-  input-serializer field now decides that field.** A key naming a field of
-  `input_serializer`, by its name or by its `source`, is written into the
-  field over whatever the client sent and validated as the field validates.
-  It used to be handed to the service beside the client's validated value,
-  so a service reading `data` saw the client's: a hook supplying
-  `{"tenant": request.user.tenant}` could be overridden by a body carrying
-  `tenant`.
 - **A bulk body with a row that is not an object, on a spec with an
   `input_data` provider, is a 400** in DRF's words, where it raised
   `TypeError`.

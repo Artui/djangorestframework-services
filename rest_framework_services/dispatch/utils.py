@@ -90,11 +90,14 @@ from rest_framework_services.types.view_hooks import ViewHooks
 # layers - is no seed: it rides in ``EdgeCallState``, so a callable taking a bare
 # ``**kwargs`` is never handed it.
 EDGE_SEEDS: tuple[str, ...] = ("request", "view")
-# The edge seeds a caller's key of these names is dropped for, as a reserved
-# seed's is: ``request``, which a caller never sent as an argument the call read.
-# ``view`` is not one: a caller sending it is refused under ``REJECT``, as it
-# always was (``TRANSPORT_ONLY_NAMES``).
-DROPPED_EDGE_SEEDS: frozenset[str] = frozenset({"request"})
+# The names the call fills itself that a caller's key is dropped for, as a
+# reserved seed's is: ``request``, which the edge seeds, and ``serializer``, which
+# the Validator binds; a caller never sent either as an argument the call read
+# (test_a_service_callers_request_key_is_dropped,
+# test_a_service_callers_serializer_key_is_dropped). ``view`` is not one: a
+# caller sending it is refused under ``REJECT``, as it always was
+# (``TRANSPORT_ONLY_NAMES``).
+DROPPED_EDGE_SEEDS: frozenset[str] = frozenset({"request", "serializer"})
 # What the Validator binds for the call. An author's value of that name stays in
 # ``extra_kwargs``, the tier beneath it, so the bound serializer is what a
 # service declaring ``serializer`` receives, as it always was
@@ -1387,8 +1390,10 @@ def _reword_unknown(detail: Mapping[Any, Any], parameters: Parameters) -> dict[A
     case), ``non_field_errors`` is never a key the kernel refuses as unknown
     here (its ``object`` case), and an undeclared key refused otherwise keeps
     its key (test_a_validators_refusal_under_an_undeclared_key_keeps_its_key).
-    The kernel writes every level as a mapping: a refusal of a row that is no
-    object goes under ``non_field_errors`` inside it.
+    The kernel writes every level as a mapping, a refusal of a row that is no
+    object under ``non_field_errors`` inside it; DRF's list serializer does not:
+    it refuses a null row with a bare list of messages, which has no keys to
+    reword and is left as raised.
     """
     declared = parameters.names()
     unknown = [
@@ -1409,11 +1414,14 @@ def _reword_unknown(detail: Mapping[Any, Any], parameters: Parameters) -> dict[A
         # a list refused whole, which is no mapping of rows
         # (test_a_non_list_is_refused_under_the_argument).
         if isinstance(rows, Parameters) and isinstance(errors, dict):
-            # A row by its index; the list's own refusal, under
-            # ``non_field_errors``, is no row's
-            # (test_off_http_a_list_level_refusal_sits_under_non_field_errors).
+            # A row's refusal by its index, where it is a mapping. Two refusals
+            # here are lists of messages, each held by its own test: the list's
+            # own, under ``non_field_errors``, which is no row's
+            # (test_off_http_a_list_level_refusal_sits_under_non_field_errors),
+            # and DRF's refusal of a null row
+            # (test_a_null_row_is_refused_at_its_index).
             errors = {
-                index: _reword_unknown(row, rows) if isinstance(index, int) else row
+                index: _reword_unknown(row, rows) if isinstance(row, Mapping) else row
                 for index, row in errors.items()
             }
         reworded[name] = errors
