@@ -317,7 +317,9 @@ differs:
   view, is one reading `request`, since the request built for the call
   carries the body;
 - one whose row a target lookup resolves is described before the lookup
-  runs, with no row, and validated with the row it found.
+  runs, with no row, and validated with the row it found. A serializer
+  reading `self.instance` as its fields are built must allow for `None`
+  there, or be handed its row with `instance=`.
 
 A callable taking `**kwargs` is left out of the description, which holds
 none of the call's seeds, unless the input serializer cannot be built

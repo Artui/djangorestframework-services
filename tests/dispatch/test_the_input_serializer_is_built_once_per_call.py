@@ -490,3 +490,79 @@ class TestBuiltTwice:
         dispatch(spec, params={"pk": post.pk, "kind": "k"})
 
         assert BUILT == {"InitialDataKind": 2}
+
+
+def _by_lookup(serializer: type[serializers.Serializer]) -> ServiceSpec[Any, Any, Any]:
+    return _spec(
+        serializer,
+        update=True,
+        instance_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=lambda pk: Post.objects.filter(pk=pk)
+        ),
+    )
+
+
+def _lookup_view(spec: ServiceSpec[Any, Any, Any]) -> Any:
+    return type(
+        "_View",
+        (ServiceUpdateView,),
+        {"spec": spec, "permission_classes": [], "authentication_classes": []},
+    ).as_view()
+
+
+class TestARowALookupResolvesIsDescribedAfterTheCallStarts:
+    """A row the target lookup resolves is not there when the call is first described.
+
+    The fields are read before the lookup runs, so a serializer reading its
+    row unguarded as its fields are built raises, and off HTTP under
+    ``REJECT`` a field it adds for a row is refused as unexpected. Handing
+    the row with ``instance=`` describes it with the row from the start.
+    """
+
+    @_CORES
+    def test_an_unguarded_read_of_the_row_raises_off_http(
+        self, dispatch: Callable[..., DispatchResult], post: Post
+    ) -> None:
+        with pytest.raises(AttributeError, match="pk"):
+            dispatch(_by_lookup(InstancePk), params={"pk": post.pk, "title": "n"})
+
+    def test_an_unguarded_read_of_the_row_raises_over_a_live_view(self, post: Post) -> None:
+        request = _factory.patch("/", {"title": "n"}, format="json")
+
+        with pytest.raises(AttributeError, match="pk"):
+            _lookup_view(_by_lookup(InstancePk))(request, pk=post.pk)
+
+    @_CORES
+    def test_a_row_handed_is_described_from_the_start(
+        self, dispatch: Callable[..., DispatchResult], post: Post
+    ) -> None:
+        result = dispatch(_by_lookup(InstancePk), params={"title": "n"}, instance=post)
+
+        assert result.value == {"got": {"title": "n"}, "pk": post.pk}
+
+    @_CORES
+    def test_a_field_added_for_a_row_is_unexpected_under_reject_off_http(
+        self, dispatch: Callable[..., DispatchResult], post: Post
+    ) -> None:
+        with pytest.raises(ValidationError, match="Unexpected argument"):
+            dispatch(
+                _by_lookup(InstanceAddsField),
+                params={"pk": post.pk, "reason": "why"},
+                unknown_arguments=UnknownArguments.REJECT,
+            )
+
+        result = dispatch(
+            _by_lookup(InstanceAddsField),
+            params={"reason": "why"},
+            instance=post,
+            unknown_arguments=UnknownArguments.REJECT,
+        )
+        assert result.value["got"] == {"reason": "why"}
+
+    def test_a_field_added_for_a_row_validates_over_a_live_view(self, post: Post) -> None:
+        request = _factory.patch("/", {"reason": "why"}, format="json")
+
+        response = _lookup_view(_by_lookup(InstanceAddsField))(request, pk=post.pk)
+
+        assert response.status_code == 200, response.data
+        assert response.data["got"] == {"reason": "why"}

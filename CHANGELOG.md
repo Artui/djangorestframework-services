@@ -53,6 +53,9 @@ project may have to change, each detailed below:
   `ListSerializer` sets `max_length` or the project sets
   `SERVICE_SPECS_MAX_ARRAY_LENGTH`. A live view's bulk body is still bounded
   by its `ListSerializer` alone.
+- **Guard an input serializer's read of `self.instance` where a target lookup
+  finds the row.** Its fields are read before the lookup runs, with no row;
+  off HTTP, hand the row with `instance=` to have it from the start.
 - **Move a nested selector's `progress_reporter` and `preconditions` to its
   `ServiceSpec`, and give a registered `SelectorSpec` a `selector`.** Each is
   refused where 0.57.0 ignored it.
@@ -500,6 +503,17 @@ project may have to change, each detailed below:
   be built without, the description's pool and then the whole pool. 0.57.0
   asked it once. A callable with a side effect should not rely on a call
   count.
+- **A row a target lookup resolves is not there when the input serializer's
+  fields are first read.** The call reads them before the lookup runs, with
+  no row, and validates with the row it found, where 0.57.0 built the
+  serializer once, after the lookup. So a `get_fields` or `__init__` reading
+  `self.instance` unguarded, `self.instance.pk` say, raises in such a call,
+  over HTTP and off it; guard the read with `self.instance is not None`, or,
+  off HTTP, hand the row with `instance=`. And off HTTP under
+  `UnknownArguments.REJECT`, a field the serializer adds only for a row is
+  refused as an unexpected argument; hand the row with `instance=`, or call
+  under `IGNORE`. A row handed with `instance=`, as an update view's
+  `get_object()` hands it, is the serializer's from the start.
 - **A Manager from a list selector is answered as a queryset.** A LIST
   selector returning `Model.objects` hands back its `.all()`, unpaginated
   too, where 0.57.0 handed back the Manager itself. So an unpaginated Manager
