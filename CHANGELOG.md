@@ -64,11 +64,45 @@ project may have to change, each detailed below:
 - **Move a nested selector's `progress_reporter` and `preconditions` to its
   `ServiceSpec`, and give a registered `SelectorSpec` a `selector`.** Each is
   refused where 0.57.0 ignored it.
+- **Catch a missing argument as DRF's `ValidationError`.** It is raised as
+  `InvalidArguments`, keyed by each missing name, so an
+  `except ServiceValidationError` or `except ServiceError` around a dispatch
+  no longer catches it. Catch `rest_framework.exceptions.ValidationError`, or
+  drfs' `InvalidArguments`, as for every other refused argument.
+- **Declare what a `**kwargs` callable reads.** A service, selector or
+  precondition taking a bare `**kwargs` is handed the declared arguments and
+  the seeds, never an undeclared key the caller sent or a route capture no
+  callable declares. A selector that scoped its rows by such a capture now
+  runs without it, so a retrieve answers `404` with no error naming the
+  capture. Name the capture as a keyword parameter, or declare it in the
+  spec's `reads` as a `UrlKwarg`.
+- **Scope a target lookup by its route capture.** A lookup reading a name
+  that is also a writable input field, such as `slug`, no longer takes the
+  body's value for it: without a capture the lookup keeps its own default,
+  or the call is refused as missing that name. Route the lookup by a capture,
+  or supply the value from a view hook.
+- **Write an `Affordance`'s `when` callable with `def`, over the pool's
+  seeds.** One declared `async def`, or reading `data`, `instance`,
+  `collection`, `result` or `queryset`, raises `ImproperlyConfigured` where
+  the affordance is declared. A condition on the row is an ORM expression
+  (`Q`, `Exists`), evaluated in SQL.
+- **Pass relation options by keyword, and read row errors by row index.**
+  Every relation option after the model, and after the foreign key where
+  there is one, is keyword-only. Row errors are a mapping keyed by row index
+  whatever DRF's `LIST_SERIALIZER_ERRORS_AS_DICT` says, a string or list
+  detail under the row's `non_field_errors`.
+- **Declare permissions on every spec you register.** `SpecRegistry.register`
+  refuses a spec with no permissions; `permission_classes=[]` registers one
+  that anyone may run.
+- **Translate a refusal from `apply_queryset_shaping` yourself.** Invalid
+  filter data raises the kernel's `InvalidArguments`, keyed and worded as the
+  `FilterSet` reports it; `dispatch_spec` and the views answer it as a 400,
+  and a direct caller turns it into its own answer.
 - **Expect a 403 for a deactivated user.** A user whose `is_active` is false
   is refused with `PrincipalUnavailable` on every view and off HTTP, whatever
-  `permission_classes` the view declares, none included. A project that
-  served such a user on purpose authenticates them as another principal, or
-  calls the service itself rather than through dispatch.
+  `permission_classes` the view declares, none included; no setting serves
+  one. A client seeing that 403 is told the account is unavailable rather
+  than that a permission is missing.
 - **Re-point a few names.** `children=` is `relations=`; `DispatchResult` has no
   `status`; `SpecRegistry.register` takes no `agent_contract=`; `filter_set`
   must be a django-filter `FilterSet`; `request`, `view`, `result` and
@@ -173,7 +207,7 @@ project may have to change, each detailed below:
   before using a `ServiceSpec` attribute; passing a `ServiceSpec` in is
   unaffected.
 
-- **Breaking: 83 of the root's public names are now django-service-specs'
+- **Breaking: 81 of the root's public names are now django-service-specs'
   own objects, re-exported at the same import paths.** Nothing was added to
   or removed from `rest_framework_services.__all__`, and every import keeps
   working, but `ServiceError` and its subclasses, `UNSET`, `SpecRegistry`
@@ -183,9 +217,12 @@ project may have to change, each detailed below:
   `create_model`, `delete_collection` and their async siblings), the
   selector and service protocols, `base_pool`, `PoolSeeds`,
   `RESERVED_POOL_SEEDS`, `ValueFormatter`, `paginate_output`,
-  `operation_affordances` and the audience helpers are each the kernel's,
-  so `isinstance` and `is` answer the same for a drfs name and the
-  kernel's. `enforce_affordances`, `unmet_operation_affordance` and their
+  `operation_affordances` and the audience helpers other than
+  `audience_projection_for_spec` are each the kernel's, so `isinstance` and
+  `is` answer the same for a drfs name and the kernel's.
+  `audience_projection_for_spec` and `can_present_nothing` are drfs' own
+  over the kernel's, so that a `SelectorSpec` declaring no `selector` is
+  still described from its declaration. `enforce_affordances`, `unmet_operation_affordance` and their
   async siblings are drfs' own over the kernel's, reserving `request` and
   `view` beside the `reserved` set passed, since `dispatch_spec` seeds both
   on every call. Their behaviour is the kernel's too, and where it differed
@@ -447,7 +484,9 @@ project may have to change, each detailed below:
   - A top-level `SelectorSpec` with `selector=None` is refused at
     `SpecRegistry.register`, as `dispatch_spec` already refused it; a view
     still falls back to its `get_queryset()` or `get_object()`. Declare the
-    selector that reads the rows before registering the spec.
+    selector that reads the rows before registering the spec. Describing
+    such a spec's output, its agent projection and an agent's rendering of
+    it still need no selector.
 - **Breaking: relation writes are the kernel's.** The `children=` alias is
   gone (use `relations=`), and every relation option after the model, and
   after the foreign key where there is one, is keyword-only. A `None` row is
@@ -576,6 +615,12 @@ project may have to change, each detailed below:
 - **The private `rest_framework_services.mutations.utils` and
   `rest_framework_services.services._resolve_m2m` modules.** The relation
   layer they carried is the kernel's.
+- **The private helpers `call_target_guard`, `resolve_progress`,
+  `service_extras` and `strip_hidden_inputs` from
+  `rest_framework_services.dispatch.utils`, `_aresolve_instance` from
+  `rest_framework_services.dispatch.adispatch_spec`, and
+  `_filter_set_accepts_request` from `rest_framework_services.selectors.utils`.**
+  None was exported.
 
 ### Fixed
 
