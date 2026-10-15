@@ -235,6 +235,10 @@ project may have to change, each detailed below:
   - A key the spec's typed `kwargs` provider is annotated to fill is never
     taken from the client or a hook, even where the provider declines it
     with `UNSET`, which leaves the parameter's default.
+  - A view hook returning `UNSET` for an input field declines it: the
+    parameter keeps its default, or, where nothing marks it `NotClientInput`,
+    takes the client's validated value. 0.57.0 handed the parameter the
+    `UNSET` sentinel itself.
   - A missing required argument is refused as `{"name": ["This field is
     required."]}`, code `required`, every missing name keyed, where it was
     one `"Missing required argument(s): ..."` message under
@@ -255,10 +259,23 @@ project may have to change, each detailed below:
   field's key wherever the service reads it: the parameter of that name,
   `data`, and the bound serializer's `validated_data`, even where a later field
   with the same `source`, a `source="*"` nested serializer or the serializer's
-  `validate()` writes that key from the client's input. That value is what the
-  field validates in its own turn of DRF's field loop; its validation run again
-  on another value, by `validate()` or by another field's `validate_<field>`,
-  does not replace it. Where `validate()` removes the key, the parameter still
+  `validate()` writes that key from the client's input. The field's
+  validation of that value is run on its own once the serializer has accepted
+  the body, on the value read from the body before the serializer ran, so
+  nothing the serializer does replaces it: not its validation run again on
+  another value, by `validate()` or by another field's `validate_<field>`, and
+  not a `to_internal_value` override that writes the client's value over the
+  field's in the body or builds the key without the field. A refusal there is
+  a 400 keyed by the field, in the shape DRF's field loop gives one, a Django
+  `ValidationError` raised by `validate_<field>` included, with every refused
+  field in the one answer; a refusal of the client's input is answered first,
+  as the serializer gave it. A field that skips, a partial call's
+  `HiddenField`, holds no value. That run is separate
+  from the serializer's own: for such a field, a related field's lookup runs
+  once more, one more query for a `PrimaryKeyRelatedField`, and the field's
+  validators and its `validate_<field>` run twice, so a validator that queries,
+  a `UniqueValidator`, queries twice, and one with side effects has them twice.
+  Where `validate()` removes the key, the parameter still
   takes the value and `data` stays without the key. Where `validated_data` is a
   dataclass instance, the parameter takes the field's value and `data` is the
   instance as the serializer built it, a `validate()` that rewrote the
@@ -276,9 +293,10 @@ project may have to change, each detailed below:
 
   An `input_data` value for a writable field of a single-item call is held
   the same way: a later field with the same `source`, a `source="*"` nested
-  serializer or a `validate()` writing the key no longer replaces it in `data`
-  or for the parameter, where 0.57.0 let them. That holds against the
-  serializer's own normalising too: a `validate()` that rewrites the value a
+  serializer, a `validate()` writing the key or a `to_internal_value` override
+  no longer replaces it in `data` or for the parameter, where 0.57.0 let
+  them. That holds against the serializer's own normalising too: a
+  `validate()` that rewrites the value a
   hook, the `kwargs` provider or `input_data` gave for a field, by lowercasing
   or stripping it, no longer takes effect for that field, which keeps the
   value as the field validated it, in a mapping `data` and for the parameter.

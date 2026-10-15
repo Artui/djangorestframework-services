@@ -237,7 +237,12 @@ ALLOWED_EDGE_DRF_IMPORTS: dict[str, frozenset[str]] = {
     "service_specs/serializer_presenter.py": frozenset(
         {"rest_framework.fields", "rest_framework.serializers"}
     ),
-    "service_specs/serializer_validator.py": frozenset({"rest_framework.serializers"}),
+    # ``rest_framework.fields`` for ``get_error_detail``: a server value's field
+    # is validated apart from the serializer's pass, and a Django refusal of it is
+    # answered in the shape DRF's own field loop gives one.
+    "service_specs/serializer_validator.py": frozenset(
+        {"rest_framework.fields", "rest_framework.serializers"}
+    ),
     "service_specs/translate_dispatch_errors.py": frozenset({"rest_framework.exceptions"}),
     # ``rest_framework`` and ``rest_framework.settings`` are read for the formats
     # DRF's own fields use (``ISO_8601`` and the date and time format settings), so

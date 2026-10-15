@@ -5,8 +5,11 @@ field of the input serializer is written into that field and validated by it.
 DRF then builds ``validated_data`` field by field, so a later field with the
 same ``source``, a ``source="*"`` nested serializer carrying a key of that name,
 or a ``validate()`` copying another field into it, would put the client's value
-back under the key. What the field validates in its own turn of DRF's field
-loop is the parameter's and is laid back over its key, so the service's
+back under the key, and a ``to_internal_value`` override can write the
+client's value over the field's in the body or build the key without the field.
+The server's value is read from the body before the serializer runs and
+validated by the field on its own; that is the parameter's and is laid back
+over its key, so the service's
 parameter, its ``data`` and the bound serializer's ``validated_data`` all hold
 the server's value, as a plain field gives it. The field's validation run again
 on another value, a ``validate()`` dropping the key, a dataclass instance and a
@@ -29,13 +32,18 @@ from typing import Annotated, Any
 import pytest
 from asgiref.sync import async_to_sync, sync_to_async
 from django.contrib.auth.models import AnonymousUser
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services import (
+    UNSET,
     DispatchResult,
     NotClientInput,
     ServiceCreateView,
@@ -383,6 +391,45 @@ def test_the_value_laid_back_is_the_fields_validated_value(dispatch: Dispatch) -
     assert seen == {"author": mine, "data": mine}
 
 
+@pytest.mark.django_db
+def test_a_server_value_for_a_related_field_costs_one_more_lookup() -> None:
+    """The server's value is validated apart from the serializer's pass, so its row is read twice.
+
+    The cost the docs state: once in the serializer's own field loop, once on
+    its own, and the field's validators and a ``validate_<field>`` run once in
+    each.
+    """
+    mine = Author.objects.create(name="mine")
+    calls: list[Any] = []
+
+    class _Counted(serializers.Serializer):
+        author = serializers.PrimaryKeyRelatedField(
+            queryset=Author.objects.all(),
+            validators=[lambda value: calls.append(("checked", value))],
+        )
+
+        def validate_author(self, value: Any) -> Any:
+            calls.append(value)
+            return value
+
+    def service(*, author: Annotated[Any, NotClientInput] = None) -> None:
+        calls.append(("service", author))
+
+    spec = ServiceSpec(service=service, input_serializer=_Counted, atomic=False)
+    table = Author._meta.db_table
+
+    with CaptureQueriesContext(connection) as queries:
+        dispatch_spec(
+            spec,
+            user=None,
+            params={},
+            view_hooks=ViewHooks(extra_kwargs={"author": mine.pk}),
+        )
+
+    assert len([q for q in queries.captured_queries if table in q["sql"]]) == 2
+    assert calls == [("checked", mine), mine, ("checked", mine), mine, ("service", mine)]
+
+
 class _Dotted(serializers.Serializer):
     """Two fields writing one nested ``source``."""
 
@@ -480,8 +527,8 @@ def test_a_dataclass_input_holds_the_servers_value_its_field_validated(dispatch:
 
 
 # A ``validate()`` or an earlier field's ``validate_<field>`` reusing the server
-# field's own validation on a client's value: what the field validated in its
-# own turn is the server's, whatever else ran its validation.
+# field's own validation on a client's value: the field's own validation of
+# the server's value is the server's, whatever else ran its validation.
 
 
 class _AfterByMethod(serializers.Serializer):
@@ -1057,3 +1104,326 @@ def test_a_bulk_row_is_handed_on_as_its_serializer_built_it_over_http() -> None:
 
     assert response.status_code == 201, response.data
     assert seen == {"data": ["evil"]}
+
+
+# A ``to_internal_value`` override: the serializer's own code, outside DRF's
+# field loop, putting the client's value where the server's field reads, or
+# building the key without the field. The server's value is validated on its
+# own, so the parameter and ``data`` hold it whatever the override did.
+
+
+class _RewritesTheBody(serializers.Serializer):
+    """Writes ``other`` over ``tenant`` in the body before the fields read it."""
+
+    tenant = serializers.CharField(required=False)
+
+    def to_internal_value(self, data: Any) -> Any:
+        if "other" in data:
+            data = {**data, "tenant": data["other"]}
+        return super().to_internal_value(data)
+
+
+class _BuildsTheKey(serializers.Serializer):
+    """Builds ``tenant`` from ``other`` without running the field at all."""
+
+    tenant = serializers.CharField(required=False, max_length=6)
+
+    def to_internal_value(self, data: Any) -> Any:
+        return {"tenant": data.get("other", data.get("tenant"))}
+
+
+class _RewritesTheBodyInPlace(serializers.Serializer):
+    """Writes ``other`` over ``tenant`` in the body it was given, before the fields read it.
+
+    So the body the serializer holds is the client's afterwards: the server's
+    value is the one read before the serializer validates.
+    """
+
+    tenant = serializers.CharField(required=False)
+
+    def to_internal_value(self, data: Any) -> Any:
+        if "other" in data:
+            data["tenant"] = data["other"]
+        return super().to_internal_value(data)
+
+
+_OVERRIDES = pytest.mark.parametrize(
+    "serializer",
+    [_RewritesTheBody, _RewritesTheBodyInPlace, _BuildsTheKey],
+    ids=["rewrites-the-body", "rewrites-the-body-in-place", "builds-the-key"],
+)
+
+
+@pytest.mark.django_db
+@_CORES
+@_OVERRIDES
+@_ROUTE
+@_PARAMETER
+def test_a_to_internal_value_override_never_hands_the_parameter_the_clients_value_off_http(
+    dispatch: Dispatch,
+    serializer: Any,
+    spec_kwargs: dict[str, Any],
+    hooks: ViewHooks | None,
+    parameter: Callable[..., Callable[..., None]],
+) -> None:
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(
+        service=parameter(seen), input_serializer=serializer, atomic=False, **spec_kwargs
+    )
+
+    dispatch(spec, params={"other": "evil"}, view_hooks=hooks)
+
+    assert seen == _SERVER
+
+
+@pytest.mark.django_db
+@_OVERRIDES
+@_HTTP_ROUTE
+@_PARAMETER
+def test_a_to_internal_value_override_never_hands_the_parameter_the_clients_value_over_http(
+    serializer: Any,
+    spec_kwargs: dict[str, Any],
+    view_for: Callable[..., Any],
+    parameter: Callable[..., Callable[..., None]],
+) -> None:
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(
+        service=parameter(seen), input_serializer=serializer, atomic=False, **spec_kwargs
+    )
+
+    response = view_for(spec).as_view()(_factory.post("/", {"other": "evil"}, format="json"))
+
+    assert response.status_code == 204, response.data
+    assert seen == _SERVER
+
+
+@pytest.mark.django_db(transaction=True)
+@_OVERRIDES
+@pytest.mark.parametrize(("spec_kwargs", "hooks"), _LIVE.values(), ids=_LIVE.keys())
+async def test_a_to_internal_value_override_never_hands_the_parameter_the_clients_value_live(
+    serializer: Any, spec_kwargs: dict[str, Any], hooks: ViewHooks | None
+) -> None:
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(
+        service=_hidden(seen), input_serializer=serializer, atomic=False, **spec_kwargs
+    )
+    view = await sync_to_async(_live_view, thread_sensitive=True)({"other": "evil"}, "json")
+
+    await adispatch_spec(
+        spec, user=None, params=view.request.data, request=view.request, view=view, view_hooks=hooks
+    )
+
+    assert seen == _SERVER
+
+
+# The server's value validated on its own is answered as DRF's field loop
+# answers a field: a refusal is a 400 keyed by the field, in DRF's shape, and a
+# field that skips is left out. ``_BuildsTheKey`` never runs its field, so its
+# serializer accepts what its field alone refuses.
+
+
+def _too_long() -> dict[str, Any]:
+    return {"tenant": "far-too-long"}
+
+
+_REFUSED_ROUTE = pytest.mark.parametrize(
+    ("spec_kwargs", "hooks"),
+    [
+        ({}, ViewHooks(extra_kwargs={"tenant": "far-too-long"})),
+        ({"kwargs": _too_long}, None),
+        ({"input_data": _too_long}, None),
+    ],
+    ids=["hook-extra", "spec-kwargs", "spec-input-data"],
+)
+_TOO_LONG = {"tenant": ["Ensure this field has no more than 6 characters."]}
+
+
+@pytest.mark.django_db
+@_CORES
+@_REFUSED_ROUTE
+def test_a_server_value_its_field_refuses_is_refused_in_drfs_words_off_http(
+    dispatch: Dispatch, spec_kwargs: dict[str, Any], hooks: ViewHooks | None
+) -> None:
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(
+        service=_hidden(seen), input_serializer=_BuildsTheKey, atomic=False, **spec_kwargs
+    )
+
+    with pytest.raises(ValidationError) as caught:
+        dispatch(spec, params={"other": "evil"}, view_hooks=hooks)
+
+    assert caught.value.detail == _TOO_LONG
+    assert caught.value.detail["tenant"][0].code == "max_length"
+    assert seen == {}
+
+
+@pytest.mark.django_db
+@_REFUSED_ROUTE
+def test_a_server_value_its_field_refuses_is_a_400_over_http(
+    spec_kwargs: dict[str, Any], hooks: ViewHooks | None
+) -> None:
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(
+        service=_hidden(seen), input_serializer=_BuildsTheKey, atomic=False, **spec_kwargs
+    )
+    attrs: dict[str, Any] = {"permission_classes": [], "spec": spec}
+    if hooks is not None:
+        attrs["get_service_kwargs"] = lambda self: dict(hooks.extra_kwargs or {})
+    view = type("_View", (ServiceCreateView,), attrs)
+
+    response = view.as_view()(_factory.post("/", {"other": "evil"}, format="json"))
+
+    assert response.status_code == 400
+    assert response.data == _TOO_LONG
+    assert seen == {}
+
+
+class _BuildsTwoKeys(serializers.Serializer):
+    """Builds ``tenant`` and ``region`` from ``other`` without running either field."""
+
+    tenant = serializers.CharField(required=False, max_length=6)
+    region = serializers.CharField(required=False, max_length=6)
+
+    def to_internal_value(self, data: Any) -> Any:
+        return {"tenant": data.get("other"), "region": data.get("other")}
+
+
+@pytest.mark.django_db
+@_CORES
+def test_every_server_value_its_field_refuses_is_answered_together(dispatch: Dispatch) -> None:
+    """As DRF's field loop answers: one refusal, every refused field keyed in it."""
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(service=_hidden(seen), input_serializer=_BuildsTwoKeys, atomic=False)
+
+    with pytest.raises(ValidationError) as caught:
+        dispatch(
+            spec,
+            params={"other": "evil"},
+            view_hooks=ViewHooks(extra_kwargs={"tenant": "far-too-long", "region": "far-too-long"}),
+        )
+
+    assert caught.value.detail == {**_TOO_LONG, "region": _TOO_LONG["tenant"]}
+    assert seen == {}
+
+
+class _RefusesTheClient(serializers.Serializer):
+    """Refuses a client's ``count``, and builds ``tenant`` without running its field."""
+
+    tenant = serializers.CharField(required=False, max_length=6)
+
+    def to_internal_value(self, data: Any) -> Any:
+        if "count" in data:
+            raise ValidationError({"count": ["A valid integer is required."]})
+        return {"tenant": data.get("tenant")}
+
+
+@pytest.mark.django_db
+@_CORES
+@_REFUSED_ROUTE
+def test_a_refusal_of_the_clients_input_is_answered_before_the_servers_value_is_validated(
+    dispatch: Dispatch, spec_kwargs: dict[str, Any], hooks: ViewHooks | None
+) -> None:
+    """The client's refusal is the answer as the serializer gave it, the server's value unread."""
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(
+        service=_hidden(seen), input_serializer=_RefusesTheClient, atomic=False, **spec_kwargs
+    )
+
+    with pytest.raises(ValidationError) as caught:
+        dispatch(spec, params={"count": "x"}, view_hooks=hooks)
+
+    assert caught.value.detail == {"count": ["A valid integer is required."]}
+    assert seen == {}
+
+
+class _BuildsAndChecks(_BuildsTheKey):
+    """``validate_tenant`` refuses with Django's ``ValidationError``, as a model validator would."""
+
+    def validate_tenant(self, value: str) -> str:
+        raise DjangoValidationError("Not a tenant of yours.", code="foreign")
+
+
+@pytest.mark.django_db
+@_CORES
+def test_a_django_refusal_of_the_server_value_is_answered_as_drfs_loop_answers_it(
+    dispatch: Dispatch,
+) -> None:
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(service=_hidden(seen), input_serializer=_BuildsAndChecks, atomic=False)
+
+    with pytest.raises(ValidationError) as caught:
+        dispatch(
+            spec,
+            params={"other": "evil"},
+            view_hooks=ViewHooks(extra_kwargs={"tenant": "server"}),
+        )
+
+    assert caught.value.detail == {"tenant": ["Not a tenant of yours."]}
+    assert caught.value.detail["tenant"][0].code == "foreign"
+    assert seen == {}
+
+
+@pytest.mark.django_db
+@_CORES
+def test_a_server_value_for_a_field_that_skips_is_left_out(dispatch: Dispatch) -> None:
+    """A partial call skips a ``HiddenField``, as DRF's loop does, so nothing is held for it."""
+    seen: dict[str, Any] = {}
+
+    def service(*, data: Any, tenant: Annotated[str, NotClientInput] = "default") -> None:
+        seen.update(tenant=tenant, data=dict(data))
+
+    spec = ServiceSpec(
+        service=service,
+        input_serializer=_HiddenTenant,
+        partial=True,
+        atomic=False,
+        input_data=_server,
+    )
+
+    dispatch(spec, params={"title": "t"})
+
+    assert seen == {"tenant": "default", "data": {"title": "t"}}
+
+
+class _ReadOnlyWithDefault(serializers.Serializer):
+    tenant = serializers.CharField(read_only=True, default="read-only-default")
+    title = serializers.CharField(required=False)
+
+
+@pytest.mark.django_db
+@_CORES
+def test_input_data_for_a_read_only_field_with_a_default_holds_no_server_value(
+    dispatch: Dispatch,
+) -> None:
+    """A read-only field takes no turn in DRF's loop, so its default is no server value either."""
+    seen: dict[str, Any] = {}
+
+    def service(*, data: Any, tenant: Annotated[str, NotClientInput] = "default") -> None:
+        seen.update(tenant=tenant, data=dict(data))
+
+    spec = ServiceSpec(
+        service=service, input_serializer=_ReadOnlyWithDefault, atomic=False, input_data=_server
+    )
+
+    dispatch(spec, params={"title": "t"})
+
+    assert seen == {"tenant": "default", "data": {"title": "t"}}
+
+
+# A view hook's ``UNSET`` declines the name, as the spec's provider's always did.
+
+
+@pytest.mark.django_db
+@_CORES
+@pytest.mark.parametrize(
+    ("hidden", "expected"), [(True, "default"), (False, "c1")], ids=["hidden", "plain"]
+)
+def test_a_hooks_unset_value_is_never_handed_to_the_parameter(
+    dispatch: Dispatch, hidden: bool, expected: str
+) -> None:
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(service=_keeps(seen, hidden=hidden), input_serializer=_Alias, atomic=False)
+
+    dispatch(spec, params={"tenant": "c1"}, view_hooks=ViewHooks(extra_kwargs={"tenant": UNSET}))
+
+    assert seen == {"tenant": expected, "data": {"tenant": "c1"}}
