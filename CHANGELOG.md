@@ -199,6 +199,10 @@ project may have to change, each detailed below:
   - Under `AUTO` and `BUNDLE`, an `input_data` value for a field named like a
     `NotClientInput` parameter now reaches that parameter, where the
     parameter kept its default and the value reached only `data`.
+  - When a view hook and `input_data` both give a value for the same input
+    field, the `input_data` value wins for `data` and for the parameter. On
+    0.57.0 the hook's value reached the parameter and `input_data`'s reached
+    only `data`.
   - A route capture that a target lookup marks `NotClientInput` is seeded
     for the call, so a service parameter of the same name is handed it too,
     where the service kept its default and only the lookup read the capture.
