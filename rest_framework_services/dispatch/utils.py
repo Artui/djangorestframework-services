@@ -315,7 +315,13 @@ def prepare_edge_call(
     seeds = edge_seeds(pool_seeds, request=request, view=view)
     # The input serializer's fields a seed of the call takes, its own or a route
     # capture the target lookup hides (``_seeded_fields``).
-    excluded = _seeded_fields(spec, seeds.names | hidden_lookup_captures(spec, view, seeds=seeds))
+    # And a field named like a read of the target lookup, which is the lookup's
+    # to scope and the serializer's to validate
+    # (test_the_route_scopes_the_lookup_and_the_body_fills_the_field_off_http).
+    lookup_reads = _lookup_reads(spec)
+    excluded = _seeded_fields(
+        spec, seeds.names | hidden_lookup_captures(spec, view, seeds=seeds) | lookup_reads
+    )
     service = cast(
         KernelServiceSpec,
         kernel_spec_variant(
@@ -337,8 +343,19 @@ def prepare_edge_call(
     # (test_a_field_named_like_a_captured_hidden_key_is_no_unexpected_argument).
     # Arguments that are no object are left for the shape check to refuse
     # (test_arguments_that_are_no_object_beside_a_seed_named_field_are_refused).
+    # A lookup's read keeps the route's capture of it, which ``edge_arguments``
+    # put over the client's value
+    # (test_the_route_scopes_the_lookup_and_the_body_fills_the_field_over_http),
+    # and nothing else: the client's value is the field's alone, so with no
+    # capture the lookup keeps its own default
+    # (test_with_no_route_capture_the_clients_value_never_scopes_the_lookup).
+    # Only a lookup's read: a field named like a hidden capture or a seed is
+    # the serializer's alone, captured or not
+    # (test_a_field_named_like_a_captured_hidden_key_is_no_unexpected_argument).
+    route = getattr(view, "kwargs", None)
+    captured = route.keys() & lookup_reads if isinstance(route, dict) else frozenset()
     if isinstance(arguments, dict):
-        for name in excluded:
+        for name in excluded - captured:
             arguments.pop(name, None)
     # What the caller's body became before the edge put anything over it, so
     # the body the Validator binds takes exactly what the edge put there.
@@ -419,6 +436,8 @@ def prepare_edge_call(
         # (test_input_data_outranks_an_authors_value_for_the_same_field).
         state.server_values = {name: arguments[name] for name in {*authored, *server}}
         state.author_keys = authored
+        keys = provider_keys(spec.kwargs)
+        state.provider_owned = keys.filled if keys is not None else frozenset()
     return EdgeCall(
         service,
         {
@@ -462,32 +481,51 @@ def _validator_body(
     arguments are a flat copy, so what the edge put over the caller's values
     for a Validator field - the server's ``input_data``, an author's value - is
     written onto the body the way ``input_data`` always was, a list through
-    ``setlist`` (test_input_data_reaches_a_form_body_as_a_list), and a value the
-    edge took away, which a typed provider declined, is taken from it too
-    (test_a_declined_owned_field_is_taken_from_the_body). Nothing put over it
+    ``setlist`` (test_input_data_reaches_a_form_body_as_a_list). A key the
+    edge took from the arguments, one a typed provider is annotated to fill,
+    stays in the body, so the serializer validates the client's value as it
+    always did, and the Validator hands it on in ``data`` alone
+    (test_a_declined_key_is_never_the_clients_over_http). Nothing put over it
     hands ``params`` on as it is. A seed's name the edge dropped from the
     arguments stays in the body, where the serializer reads its own field of
     that name.
     """
     # A key the edge added (test_the_specs_value_wins_over_the_view_hooks, an
     # ``input_data`` key the caller never sent) or replaced
-    # (test_a_hook_value_naming_a_serializer_field_is_the_fields_value).
+    # (test_a_hook_value_naming_a_serializer_field_is_the_fields_value). One
+    # arc to coverage, so each half is named: without ``name not in sent`` a
+    # hook's ``None`` for a field the client omitted is never put
+    # (test_a_hooks_none_fills_a_required_nullable_field_the_client_omitted),
+    # and without the identity check every argument is written back, so a
+    # form body's repeated key collapses to the flat copy's last value
+    # (test_a_form_bodys_repeated_keys_reach_the_serializer_whole).
     put = {
         name: arguments[name]
         for name in fields
         if name in arguments and (name not in sent or arguments[name] is not sent[name])
     }
-    taken = [name for name in fields if name in sent and name not in arguments]
-    if not put and not taken:
+    if not put:
         return params
     if isinstance(params, QueryDict):
         body = params.copy()
-        for name in taken:
-            body.pop(name, None)
         for name, value in put.items():
             write_form_value(body, name, value)
         return body
-    return {**{name: value for name, value in params.items() if name not in taken}, **put}
+    return {**params, **put}
+
+
+def _lookup_reads(spec: ServiceSpec[Any, Any, Any]) -> frozenset[str]:
+    """The names a service spec's target lookup's selector reads from the call, as compiled.
+
+    The selector's own parameters alone: a filter set's field named like an
+    input field stays a misconfigured spec the kernel refuses, since the filter
+    reads its own channel rather than one the edge could tell apart
+    (test_a_filter_named_like_an_input_field_is_refused).
+    """
+    target = cast(KernelServiceSpec, kernel_spec_variant(spec)).target_selector_spec()
+    if target is None or target.selector is None:
+        return frozenset()
+    return frozenset(target.reads.names() & (_callable_param_names(target.selector) or set()))
 
 
 def _seeded_fields(spec: ServiceSpec[Any, Any, Any], seeded: frozenset[str]) -> frozenset[str]:
@@ -935,13 +973,27 @@ def _route_author_values(
     provider = spec.kwargs
     keys = provider_keys(provider)
     owned = keys.filled if keys is not None else frozenset()
+    wire = _source_to_wire(spec)
+    # A hook naming an owned key by the wire name of the field whose ``source``
+    # it is names the same value, so it is dropped as the key itself is
+    # (test_a_hook_naming_the_declined_key_by_wire_name_is_dropped_off_http).
+    hook_owned = owned | {wire[name] for name in owned if name in wire}
     hook_values = {
         name: value
         for name, value in (hooks.extra_kwargs or {}).items()
-        if name not in seeded and name not in owned
+        if name not in seeded and name not in hook_owned
     }
+    # The client's value for an owned key is no argument: a read of that name
+    # scopes nothing with it (test_a_typed_provider_owns_the_keys_it_fills_even_when_it_declines).
+    # A field of the Validator keeps it, for the serializer to validate as it
+    # always did, and the Validator hands it on in ``data`` alone
+    # (``provider_owned``), where taking it would refuse a required field the
+    # client filled (test_a_declined_key_is_never_the_clients_off_http, its
+    # ``required`` cases). No name is both: a target lookup's read named like a
+    # field is no field of the compiled Validator (``_seeded_fields``).
+    fields = _caller_names(variant)[1]
     if isinstance(arguments, dict):
-        for name in owned:
+        for name in owned - fields:
             arguments.pop(name, None)
     provided: dict[str, Any] = {}
     if provider is not None:
@@ -954,7 +1006,6 @@ def _route_author_values(
                 "provider's value must never outrank a seeded one; rename the key."
             )
         provided = dict(answered)
-    wire = _source_to_wire(spec)
     hooked, hook_rest = _split_author_values(variant, arguments, hook_values, wire=wire)
     supplied, provided_rest = _split_author_values(variant, arguments, provided, wire=wire)
     return {**hook_rest, **provided_rest}, {**hooked, **supplied}
@@ -975,6 +1026,26 @@ def _source_to_wire(spec: ServiceSpec[Any, Any, Any] | SelectorSpec[Any, Any]) -
         return {}
     described = _wire_names(describe_serializer(spec.input_serializer))
     return {source: wire_name for source, (wire_name, _) in described.items()}
+
+
+def _caller_names(
+    variant: KernelServiceSpec | KernelSelectorSpec,
+) -> tuple[frozenset[str], frozenset[str]]:
+    """The names a caller fills at the top level of the call: what is read, and the Validator's.
+
+    The reads of the compiled spec, its service's or selector's and a service
+    spec's target lookup's; and, on a service spec that is not ``many``, its
+    Validator's fields, which a ``many`` spec's rows carry instead.
+    """
+    reads = frozenset(variant.reads.names())
+    fields: frozenset[str] = frozenset()
+    if isinstance(variant, KernelServiceSpec):
+        target_spec = variant.target_selector_spec()
+        if target_spec is not None:
+            reads |= target_spec.reads.names()
+        if variant.validator is not None and not variant.many:
+            fields = frozenset(variant.validator.parameters().names())
+    return reads, fields
 
 
 def _split_author_values(
@@ -1009,14 +1080,19 @@ def _split_author_values(
     no argument stays the overlay's
     (test_a_hook_value_for_a_hidden_name_still_goes_as_an_extra).
     """
-    names = set(variant.reads.names())
-    if isinstance(variant, KernelServiceSpec):
-        target_spec = variant.target_selector_spec()
-        if target_spec is not None:
-            names |= target_spec.reads.names()
-        if variant.validator is not None and not variant.many:
-            names |= variant.validator.parameters().names()
-    named = {wire.get(name, name) if name not in names else name: name for name in values}
+    reads, fields = _caller_names(variant)
+    names = reads | fields
+    # A key naming an argument outright claims it first, so a field the author
+    # names by both its wire name and its ``source`` takes the wire name's
+    # value, and the ``source``'s goes on as an extra to the parameter of its
+    # own name rather than being dropped
+    # (test_each_key_reaches_its_own_parameter_off_http). A declined key claims
+    # nothing (test_a_declined_wire_name_leaves_the_field_to_the_source).
+    named = {name: name for name in values if name in names and values[name] is not UNSET}
+    for name in values:
+        argument = wire.get(name, name)
+        if name not in names and argument not in named:
+            named[argument] = name
     routed = {
         argument: values[name]
         for argument, name in named.items()
@@ -1024,10 +1100,9 @@ def _split_author_values(
     }
     if isinstance(arguments, dict):
         arguments.update(routed)
+    taken = {named[argument] for argument in routed}
     return {argument: named[argument] for argument in routed}, {
-        name: values[name]
-        for argument, name in named.items()
-        if argument not in routed and values[name] is not UNSET
+        name: value for name, value in values.items() if name not in taken and value is not UNSET
     }
 
 
@@ -1385,8 +1460,17 @@ def _unexpected_as_drf(
     (test_a_validators_unknown_code_is_left_as_it_raised_it,
     test_a_validators_unknown_code_inside_a_row_is_left_as_it_raised_it).
     """
+    # Compiled as the call was: a field named like a read of the target lookup
+    # is the lookup's parameter, never declared twice
+    # (test_with_no_route_capture_a_lookup_read_with_no_default_is_refused_as_missing).
+    excluded = (
+        _seeded_fields(spec, _lookup_reads(spec)) if isinstance(spec, ServiceSpec) else frozenset()
+    )
     return _reword_unknown(
-        detail, kernel_spec_variant(spec, unguarded=True, server_input=False).parameters()
+        detail,
+        kernel_spec_variant(
+            spec, unguarded=True, server_input=False, excluded=excluded
+        ).parameters(),
     )
 
 

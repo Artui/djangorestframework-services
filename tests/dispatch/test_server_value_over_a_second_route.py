@@ -1284,32 +1284,42 @@ def test_a_server_value_its_field_refuses_is_a_400_over_http(
     assert seen == {}
 
 
-class _BuildsTwoKeys(serializers.Serializer):
-    """Builds ``tenant`` and ``region`` from ``other`` without running either field."""
+# Declared in an order that is neither the names sorted nor the hook's order,
+# and five of them, so no order of a set of the names matches it by chance.
+_DECLARED = ("site", "tenant", "area", "zone", "region")
 
+
+class _BuildsFiveKeys(serializers.Serializer):
+    """Builds each key from ``other`` without running its field."""
+
+    site = serializers.CharField(required=False, max_length=6)
     tenant = serializers.CharField(required=False, max_length=6)
+    area = serializers.CharField(required=False, max_length=6)
+    zone = serializers.CharField(required=False, max_length=6)
     region = serializers.CharField(required=False, max_length=6)
 
     def to_internal_value(self, data: Any) -> Any:
-        return {"tenant": data.get("other"), "region": data.get("other")}
+        return dict.fromkeys(_DECLARED, data.get("other"))
 
 
 @pytest.mark.django_db
 @_CORES
 def test_every_server_value_its_field_refuses_is_answered_together(dispatch: Dispatch) -> None:
-    """As DRF's field loop answers: one refusal, every refused field keyed in it."""
+    """As DRF's field loop answers: one refusal, every refused field keyed in it,
+    in the serializer's field order."""
     seen: dict[str, Any] = {}
-    spec = ServiceSpec(service=_hidden(seen), input_serializer=_BuildsTwoKeys, atomic=False)
+    spec = ServiceSpec(service=_hidden(seen), input_serializer=_BuildsFiveKeys, atomic=False)
+    hooked = ("zone", "region", "site", "area", "tenant")
 
     with pytest.raises(ValidationError) as caught:
         dispatch(
             spec,
             params={"other": "evil"},
-            view_hooks=ViewHooks(extra_kwargs={"region": "far-too-long", "tenant": "far-too-long"}),
+            view_hooks=ViewHooks(extra_kwargs=dict.fromkeys(hooked, "far-too-long")),
         )
 
-    assert caught.value.detail == {**_TOO_LONG, "region": _TOO_LONG["tenant"]}
-    assert list(caught.value.detail) == ["tenant", "region"]
+    assert caught.value.detail == {name: _TOO_LONG["tenant"] for name in _DECLARED}
+    assert list(caught.value.detail) == list(_DECLARED)
     assert seen == {}
 
 

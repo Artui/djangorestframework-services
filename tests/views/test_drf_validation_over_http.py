@@ -299,12 +299,14 @@ class _DeclinedTitleView(ServiceCreateView):
 
 
 @pytest.mark.parametrize("fmt", ["json", "multipart"])
-def test_a_declined_owned_field_is_taken_from_the_body(fmt: str) -> None:
-    """A field a typed provider is annotated to fill is never the caller's, declined or not."""
+def test_a_declined_owned_field_stays_the_serializers(fmt: str) -> None:
+    """A field a typed provider is annotated to fill is never a parameter of the
+    caller's, declined or not, but the serializer still validates the client's
+    value for it, required or not, and hands it on in ``data``, as on 0.57.0."""
     response = _DeclinedTitleView.as_view()(_request({"title": "client"}, fmt))
 
-    assert response.status_code == 400
-    assert response.data == {"title": ["This field is required."]}
+    assert response.status_code == 204, response.data
+    assert SEEN["data"] == {"title": "client"}
 
 
 class _ServerTagsView(ServiceCreateView):
@@ -349,3 +351,40 @@ def test_a_kernel_call_inside_the_service_binds_its_own_arguments() -> None:
 
     assert response.status_code == 204, response.data
     assert SEEN["inner"] == {"title": "inner"}
+
+
+class _RepeatedIn(serializers.Serializer):
+    tags = serializers.ListField(child=serializers.CharField(), required=False)
+    flags = serializers.MultipleChoiceField(choices=["x", "y"], required=False)
+    note = serializers.CharField(allow_null=True)
+
+
+class _RepeatedView(ServiceCreateView):
+    spec = ServiceSpec(service=_echo, input_serializer=_RepeatedIn, atomic=False)
+
+
+def test_a_form_bodys_repeated_keys_reach_the_serializer_whole() -> None:
+    """With nothing put over it, the body the serializer binds is the client's, so
+    a repeated key is read as every value it carries, never as the last alone."""
+    body = {"tags": ["a", "b"], "flags": ["x", "y"], "note": "n"}
+
+    response = _RepeatedView.as_view()(_request(body, "multipart"))
+
+    assert response.status_code == 204, response.data
+    assert SEEN["data"] == {"tags": ["a", "b"], "flags": ["x", "y"], "note": "n"}
+
+
+class _NullNoteView(_RepeatedView):
+    def get_service_kwargs(self) -> dict[str, Any]:
+        return {"note": None}
+
+
+@pytest.mark.parametrize("fmt", ["json", "multipart"])
+def test_a_hooks_none_fills_a_required_nullable_field_the_client_omitted(fmt: str) -> None:
+    """``None`` is a value the hook put, though the client sent no key to compare it with."""
+    response = _NullNoteView.as_view()(_request({"tags": ["a"]}, fmt))
+
+    assert response.status_code == 204, response.data
+    # A form body reads an absent multiple choice as none chosen, as DRF does.
+    chosen = {"flags": []} if fmt == "multipart" else {}
+    assert SEEN["data"] == {"tags": ["a"], **chosen, "note": None}

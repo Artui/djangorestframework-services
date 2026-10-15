@@ -167,8 +167,8 @@ REEXPORTS: list[tuple[str, str, str]] = [
         "django_service_specs.relations.relation_spec",
         "RelationSpec",
     ),
-    # Names no lane's list carried: the binding for a service with no body, and
-    # the answer a ``kwargs=`` provider reads to.
+    # The binding for a service with no body, and the answer a ``kwargs=``
+    # provider reads to.
     (
         "rest_framework_services.types.no_input",
         "django_service_specs.types.no_input",

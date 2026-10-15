@@ -27,6 +27,7 @@ from rest_framework_services.service_specs.utils import (
     edge_call_state,
     input_parameters,
     input_view_layers,
+    provider_owned,
     serializer_context,
     server_values,
     validator_input,
@@ -321,6 +322,14 @@ class SerializerValidator(Validator):
         whatever made the key: a field's ``source``, a dataclass field, a
         flattened ``source="*"`` field or a key ``validate()`` adds
         (test_a_validated_key_named_like_a_hidden_parameter_stays_in_data).
+        So is a key the spec's typed ``kwargs`` provider is annotated to fill,
+        declined or not, which no client's value becomes: whichever field the
+        client's value came in through, its own name, a ``source`` naming the
+        key, or a list, dict or nested field a form body fills through prefixed
+        keys, the parameter keeps its default and ``data`` the client's value,
+        as 0.57.0 handed them
+        (test_a_declined_key_is_never_the_clients_over_http,
+        test_a_declined_key_is_never_the_clients_off_http).
 
         The key stays a value where it is ``kept``: the name a field holding the
         server's value is handed under (``_handed``), whose value the edge put
@@ -337,7 +346,7 @@ class SerializerValidator(Validator):
         and a flattened field keeps its own name alone, never a key it spreads
         (test_a_server_value_for_a_flattened_field_keeps_none_of_the_keys_it_spreads).
         """
-        owned = self.server_owned.difference(kept)
+        owned = (self.server_owned | provider_owned(self)).difference(kept)
         return {name: value for name, value in values.items() if name not in owned}
 
     def _refuse_partial(self, context: ValidationContext) -> None:

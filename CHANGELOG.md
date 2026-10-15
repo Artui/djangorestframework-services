@@ -232,9 +232,26 @@ project may have to change, each detailed below:
     and `items` for a `many` spec.
   - An author's `pk`, from a view hook or the spec's `kwargs` provider, picks
     the row a target lookup reads, where the client's `pk` did.
+  - A target lookup whose selector reads a name that is also a writable
+    input field, such as renaming a row by the `slug` that finds it, takes
+    that name from the route's capture alone, which scopes the lookup while
+    the body's value is the field's, as before. With no capture, the
+    client's value no longer scopes the lookup: the selector keeps its own
+    default, and a read with none is refused as missing, `{"slug": ["This
+    field is required."]}`, where 0.57.0 scoped the lookup by the client's
+    value. An author's value for the name scopes the lookup and is the
+    field's value.
   - A key the spec's typed `kwargs` provider is annotated to fill is never
     taken from the client or a hook, even where the provider declines it
-    with `UNSET`, which leaves the parameter's default.
+    with `UNSET`, which leaves the parameter's default. That holds under
+    `SPREAD_AUTHOR_WINS` too, where the client's value used to reach the
+    parameter, and whichever field the value came in through: one whose
+    `source` is the key, or a hook naming that field by its wire name. An
+    input field the key names stays the serializer's, so the client's value
+    for it is validated as before, a required one included, and reaches the
+    service in `data` alone, as a `NotClientInput` key's does. An
+    `input_data` value for that field is the server's, and reaches the
+    parameter, where 0.57.0 left it the default.
   - A view hook returning `UNSET` for an input field declines it: the
     parameter keeps its default, or, where nothing marks it `NotClientInput`,
     takes the client's validated value. 0.57.0 handed the parameter the
@@ -261,8 +278,10 @@ project may have to change, each detailed below:
   with the same `source`, a `source="*"` nested serializer or the serializer's
   `validate()` writes that key from the client's input. A field whose
   `source` differs from its name is handed to the parameter named like the
-  `source` and to the one named by the key the hook or provider gave. The
-  field's validation of that value is run on its own once the serializer has
+  `source` and to the one named by the key the hook or provider gave. Where
+  one names the field by both its name and its `source`, the name's value is
+  the field's and the `source`'s still reaches the parameter of that name, as
+  each did before. The field's validation of that value is run on its own once the serializer has
   accepted the body, on the value the hook or provider gave, never on what the
   field reads back from the body, so nothing the serializer or the body does
   replaces it: not a field that reads more of the body than its own key (a
