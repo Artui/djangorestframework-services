@@ -561,8 +561,9 @@ class EdgeCallState:
       refuses once the rows are valid, whatever the ``UnknownArguments``
       policy (``SerializerValidator.validated_many``).
     - ``row_errors``: what the list serializer bound to that whole body
-      refused, as the installed DRF reports it, which the edge answers with
-      in place of the kernel's rows (``edge_errors``).
+      refused, as the installed DRF reports it, or its refusal by a length
+      bound of a list sent that the kernel refused a row of, which the edge
+      answers with in place of the kernel's rows (``edge_errors``).
     - ``describe_context``: builds the serializer context the call's input
       serializer is described with, its request, its view, the view's input
       layers and the spec's own context callable where the description can ask

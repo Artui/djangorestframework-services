@@ -105,12 +105,18 @@ an empty entry for each valid item:
 {"books": {"1": {"title": ["This field may not be blank."]}}}
 ```
 
-The argument missing answers `{"books": ["This field is required."]}`. `null`,
-a value that is not a list, or a list outside its length bounds is refused under
-the argument in the kernel's words, such as `{"books": ["Expected an array."]}`.
+The argument missing answers `{"books": ["This field is required."]}`. `null`
+or a value that is not a list is refused under the argument in the kernel's
+words, such as `{"books": ["Expected an array."]}`, and so, with no view or an
+`OfflineServiceView`, is a list outside its length bounds. Where a transport
+dispatches with its own live view, the `ListSerializer` refuses that list, as
+`{"books": {"non_field_errors": ["Ensure this field has no more than 2 elements."]}}`,
+before it reads a row.
 A row that is not an object is refused at its index in DRF's words,
 `{"books": {"1": {"non_field_errors": ["Invalid data. Expected a dictionary, but got int."]}}}`,
-and arguments that are not an object as
+and that refusal leaves the list's own checks to the rows sent, as DRF's do:
+its length bounds count that row, and its list-level `validate()` does not
+run. Arguments that are not an object are refused as
 `{"non_field_errors": ["Invalid data. Expected a dictionary, but got list."]}`.
 An argument sent beside the list that the spec declares no `reads` entry for is
 refused under every `unknown_arguments` policy, as

@@ -85,13 +85,22 @@ project may have to change, each detailed below:
   'bogus'."]}` for the call. Rows sent under `many_argument` were already
   refused at their index.
 - **Move a nested selector's `progress_reporter` and `preconditions` to its
-  `ServiceSpec`, and give a registered `SelectorSpec` a `selector`.** Each is
-  refused where 0.57.0 ignored it.
-- **Catch a missing argument as DRF's `ValidationError`.** It is raised as
-  drfs' `InvalidArguments`, keyed by each missing name, so an
+  `ServiceSpec`, and give a registered `SelectorSpec` a `selector`.** A nested
+  `progress_reporter` is refused at `as_view()`, at `SpecRegistry.register`
+  and off HTTP, and nested `preconditions` at `SpecRegistry.register` and off
+  HTTP, where 0.57.0 ignored them; `as_view()` already refused nested
+  `preconditions`. A `SelectorSpec` with no `selector` is refused at
+  `SpecRegistry.register`, as `dispatch_spec` already refused it.
+- **Catch a missing argument as DRF's `ValidationError`.** A selector's
+  parameter with no default or marked `InputRequired`, and a serializer-less
+  service's under `SPREAD_AUTHOR_WINS`, missing from a call is raised as drfs'
+  `InvalidArguments`, keyed by each missing name, so an
   `except ServiceValidationError` or `except ServiceError` around a dispatch
   no longer catches it. Catch `rest_framework.exceptions.ValidationError`,
-  which every refused argument is. `InvalidArguments`
+  which every refused argument is. A service parameter no argument fills
+  otherwise - under `AUTO` or `BUNDLE` with no serializer, or beside an
+  input serializer under any binding - still raises `TypeError` when the
+  service is called off HTTP, as on 0.57.0, and `as_view()` still refuses it. `InvalidArguments`
   (`rest_framework_services.service_specs.invalid_arguments`, not exported
   from the package root) subclasses it and is the narrower class: a `many`
   spec's rows sent as a bare list are refused with a plain `ValidationError`,
@@ -101,9 +110,11 @@ project may have to change, each detailed below:
   precondition taking a bare `**kwargs` is handed the declared arguments and
   the seeds, never an undeclared key the caller sent or a route capture no
   callable declares. A selector that scoped its rows by such a capture now
-  runs without it, so a retrieve answers `404` with no error naming the
-  capture. Name the capture as a keyword parameter, or declare it in the
-  spec's `reads` as a `UrlKwarg`.
+  runs without it: one reading it as `kwargs.get("pk")` gets `None`, so a
+  retrieve answers `404` with no error naming the capture, and one indexing
+  it as `kwargs["pk"]` raises `KeyError`, a `500` where 0.57.0 answered `200`.
+  Name the capture as a keyword parameter, or declare it in the spec's
+  `reads` as a `UrlKwarg`.
 - **Scope a target lookup by its route capture.** A lookup reading a name
   that is also a writable input field, such as `slug`, no longer takes the
   body's value for it: without a capture the lookup keeps its own default,
@@ -401,7 +412,8 @@ project may have to change, each detailed below:
     argument. The names are now refused in the call's order, each refusal
     keying every name missing at its point: a name the declaration requires
     (marked `InputRequired`, a required read or serializer field) before the
-    permission checks, then a parameter with no default once the providers
+    permission checks, then a selector's parameter with no default, or a
+    serializer-less service's under `SPREAD_AUTHOR_WINS`, once the providers
     and seeds that could fill it have run, then a spreading service's target
     lookup key as the service is called. A call missing names of more than
     one kind is answered by the first refusal, and the next one names the
@@ -410,7 +422,10 @@ project may have to change, each detailed below:
     was a `ServiceValidationError`: an `except ServiceValidationError` or
     `except ServiceError` around a dispatch no longer catches it, so catch
     `rest_framework.exceptions.ValidationError` for it as for every other
-    refused argument.
+    refused argument. A service parameter with no default that is no
+    argument of the call - under `AUTO` or `BUNDLE` with no input serializer,
+    or beside one under any binding - is not refused: calling the service
+    without it raises `TypeError` off HTTP, as it did.
   - Under `REJECT`, a `many` call refuses each row's undeclared keys inside
     that row, where it answered one message for the call. Over a live view
     on DRF 3.18 or later, that refusal comes back as a list of rows when the
@@ -520,7 +535,9 @@ project may have to change, each detailed below:
 - **Breaking: `SpecRegistry.register` compiles the spec.** It takes no
   `agent_contract=`; `RegisteredSpec.agent_contract` is read-only and
   answered by the spec's own `agent_contract()`. A spec with no permissions
-  is refused (`permission_classes=[]` still registers, with no guards), a
+  is refused (`permission_classes=[]` still registers, with no guards; the
+  refusal's message names the kernel's `permissions=[Unrestricted()]`, which
+  a drfs spec does not take, and `permission_classes=[]` is its drfs form), a
   value that is not a spec raises `TypeError`, and
   `capability_manifest()["unguarded"]` is always an empty list.
 - **Breaking: three declarations that never ran are refused where they were
@@ -539,7 +556,15 @@ project may have to change, each detailed below:
     still falls back to its `get_queryset()` or `get_object()`. Declare the
     selector that reads the rows before registering the spec. Describing
     such a spec's output, its agent projection and an agent's rendering of
-    it still need no selector.
+    it still need no selector. Off HTTP the refusal reads `SelectorSpec
+    declares no selector, and only an output selector may: there is nothing
+    else to run. Declare the selector that reads the rows.`, where 0.57.0
+    said ``dispatch_spec requires the SelectorSpec to set a `selector` — there
+    is no view `get_queryset()` / `get_object()` fallback off the HTTP path.``;
+    a `collection_selector_spec` with no `selector` is refused off HTTP as
+    `ServiceSpec.collection_selector_spec declares no selector, ...`, where
+    0.57.0 said ``collection_selector_spec requires a `selector` resolving
+    the target set.``, which `as_view()` still says.
 - **Breaking: relation writes are the kernel's.** The `children=` alias is
   gone (use `relations=`), and every relation option after the model, and
   after the foreign key where there is one, is keyword-only. A `None` row is
@@ -563,7 +588,7 @@ project may have to change, each detailed below:
   - The rest below is a selector spec's own `filter_set` and a target
     lookup's. A service's output re-read binds its `filter_set` to the call's
     `filter_data`, or the query string, as it was passed and refuses a value
-    in DRF's `ValidationError`, as 0.57.0 did.
+    in DRF's `ValidationError`.
   - Invalid filter data raises the kernel's `InvalidArguments`
     (`django_service_specs.parameters.invalid_arguments`), keyed and worded
     as the `FilterSet` reports it. `dispatch_spec` and the views translate
@@ -590,6 +615,18 @@ project may have to change, each detailed below:
     filtered by the provider's value, over a live view and off HTTP, where
     0.57.0 filtered by the caller's and handed the provider's to the
     selector alone.
+- **Breaking: over HTTP, a selector parameter's value from a view hook, a
+  provider or a route capture is checked against the parameter's
+  annotation.** A value `get_selector_kwargs()`, a `SelectorSpec(kwargs=)`
+  provider or a route capture gives a selector parameter is checked before
+  the selector runs, where 0.57.0 handed the selector the value as given.
+  `None` for a parameter whose annotation does not admit it is a 400,
+  `{"x": ["This field cannot be null."]}`.
+  A value that does not convert to the annotated type is a 400: `"abc"` for
+  `x: int` is `{"x": ["Expected an integer."]}` from a hook or a provider,
+  and `{"x": ["Enter a whole number."]}` from a route capture. A string that
+  converts, from a hook, a provider or a route capture, reaches the selector
+  as the annotated type, `"7"` as `7`, where 0.57.0 handed it the string.
 - **Off HTTP, arguments are type-checked against what the spec declares
   before the serializer runs.** This holds for `dispatch_spec` and
   `adispatch_spec` called with no view or with an `OfflineServiceView`, as an
@@ -625,15 +662,25 @@ project may have to change, each detailed below:
   `ListSerializer`, with 1000 rows the most where it sets no `max_length`
   or cannot be built without a request (one whose `__init__` reads
   `context["request"]`, say, which 0.57.0 could not build off HTTP at all),
-  and a longer list is refused under `non_field_errors`. Over a live view the
+  and a longer list is refused under `non_field_errors`. An empty list where
+  the `ListSerializer` sets `allow_empty=False` is refused there as below a
+  minimum of one, `Ensure this field has at least 1 elements.` (its
+  `min_length` where it sets a larger one), code `min_length`, where 0.57.0
+  said `This list may not be empty.`, code `empty`. Over a live view the
   `ListSerializer` alone bounds the body, and a refused body is answered with
   its own errors, as before. Off HTTP, rows sent as a bare
   list are refused in the kernel's list with one entry per row, where DRF
   3.18 gave a mapping of row indexes; rows sent under `many_argument` keep
-  the mapping. A non-list, null or out-of-bounds list under `many_argument`
-  is refused in the kernel's words: `{"items": ["Expected an array."]}` for
-  a non-list, and `{"items": ["This field cannot be null."]}` for a null,
-  where 0.57.0 said `This field may not be null.`
+  the mapping. A non-list or null under `many_argument` is refused in the
+  kernel's words, over a live view and off HTTP: `{"items": ["Expected an
+  array."]}` for a non-list, where 0.57.0 said `{"items":
+  {"non_field_errors": ["Expected a list of items but got type
+  \"dict\"."]}}`, and `{"items": ["This field cannot be null."]}` for a
+  null, where 0.57.0 said `This field may not be null.` Off HTTP so is a
+  list under `many_argument` out of its bounds, `{"items": ["Ensure this
+  field has no more than 2 elements."]}` where 0.57.0 gave `{"items":
+  {"non_field_errors": [...]}}`; over a live view DRF's list serializer
+  still refuses it, in its words and under `non_field_errors`.
   `SPREAD_AUTHOR_WINS`
   on a `many` dispatch is accepted and hands the service what `AUTO` does,
   where 0.57.0 raised `ValueError`.
