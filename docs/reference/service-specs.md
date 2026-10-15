@@ -61,16 +61,35 @@ A selector always takes its arguments from its signature, except for the names
 its `filter_set` owns.
 Parameters marked `NotClientInput` on any callable of the call are hidden.
 So are the names the pool fills: `user`, `request`, `view`, `queryset`,
-`result` and the rest. Two `reads` declarations are refused with
-`ImproperlyConfigured` when the spec compiles (at registration, or whenever it
-is dispatched, over HTTP too), each naming the read:
+`result` and the rest.
+
+`parameters()` is not available on every compiled spec. Where a target lookup's
+selector reads a name that is also a writable input field, such as renaming a
+row by the `slug` that finds it, `kernel_spec(spec).parameters()` and
+`as_kernel_spec(spec).parameters()` raise `ImproperlyConfigured` ("Parameters
+['slug'] are declared by two sources"), because the kernel declares one source
+per name. Such a spec still registers and dispatches, and `spec_to_json_schema`
+describes it: the route's capture scopes the lookup, and the body's value is
+the field's.
+
+Three `reads` declarations are refused with `ImproperlyConfigured` when the
+spec compiles (at registration, or whenever it is dispatched, over HTTP too),
+each naming the read:
 
 - a name the pool fills, which would never be the caller's;
 - a name the spec's service or selector, or one of its `preconditions`, marks
   `NotClientInput`. Dispatch hands a declared read to each of those callables
   by name, so the same callable would be given the client's value for a
   parameter it keeps the server's. The message names the callable and the
-  mark; remove one of the two.
+  mark; remove one of the two;
+- a name a writable field of the input serializer also takes, declared on the
+  spec or on its target lookup. The body's value of that name is the field's,
+  so the read would reach neither the service nor the lookup. The message
+  names the read, the serializer and, where it reads the name too, the target
+  lookup. A `UrlKwarg` the target lookup reads is accepted: that is the
+  rename-by-key shape above, where the route's capture scopes the lookup. A
+  `many` spec's fields are each row's, and a read-only field takes nothing
+  from the body, so neither is a clash.
 
 A name only a target lookup marks `NotClientInput` is accepted: the lookup is
 never handed a read it hides, so the read is the service's argument and the

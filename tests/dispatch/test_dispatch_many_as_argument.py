@@ -212,14 +212,17 @@ async def test_without_an_input_serializer_a_list_is_refused(core: str) -> None:
 
 @_CORES
 @pytest.mark.parametrize("flag", [True, False])
-@pytest.mark.parametrize("binding", [ArgumentBinding.BUNDLE, ArgumentBinding.SPREAD_AUTHOR_WINS])
+@pytest.mark.parametrize(
+    "binding",
+    [ArgumentBinding.AUTO, ArgumentBinding.BUNDLE, ArgumentBinding.SPREAD_AUTHOR_WINS],
+)
 async def test_an_explicit_binding_is_accepted(
     core: str, flag: bool, binding: ArgumentBinding
 ) -> None:
     """Each binding means the one argument pool, and a list payload is the whole list
     as one ``data``, so naming one is not a contradiction. A transport whose own
     default is ``BUNDLE`` would otherwise have to special-case every ``many=True``
-    spec."""
+    spec. Every binding hands the service the same list, as ``AUTO`` does."""
     params: Any = {"items": [_GOOD]} if flag else [_GOOD]
     result = await _dispatch(
         core,

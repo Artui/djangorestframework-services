@@ -255,7 +255,11 @@ those are channels the caller does not control. A route capture a target
 lookup hides is seeded for the whole call, so a service parameter of the same
 name is handed it too. For a target lookup, a registered seed of that name and the
 lookup's own provider win over the capture, and an author's value for the name
-(a view hook's or the spec's `kwargs` provider's) takes the capture's place.
+(a view hook's or an untyped `kwargs` provider's) takes the capture's place. A
+spec whose typed `kwargs` provider is annotated to fill a name the lookup reads
+is refused with `ImproperlyConfigured`, since that provider's values reach the
+service only after the target is resolved: make it untyped, or move the key to
+the lookup selector spec's own `kwargs`.
 
 **A key is server-owned for the whole call** once any callable in it marks it:
 the selector or service, any of `spec.preconditions`, or the target lookup.
@@ -290,7 +294,12 @@ hook's, so its value for a hidden key is the server's and is never dropped.
     scoping key must always resolve it. A key the callable does *not* mark is
     the caller's unless the spec's `kwargs` provider is annotated to fill it:
     a key its `TypedDict` fills is never taken from the caller or a hook,
-    declined or not, nor through a field whose `source` it is. An input field
+    declined or not, nor through a field whose `source` it is. A key that is a
+    field's wire name owns that field's `source` as well, so with
+    `tenant = CharField(source="org")` a provider filling `tenant` leaves the
+    caller's value out of both the `tenant` and the `org` parameters, and a
+    hook naming either is dropped. A `NotClientInput` mark on `tenant` keeps
+    the caller's value out of `org` the same way. An input field
     it names stays the serializer's: the caller's value is validated and
     reaches the service in `data` alone, as a `NotClientInput` key's does,
     while an `input_data` value for that field is the server's and reaches
@@ -407,6 +416,15 @@ Where the value comes from depends on the view the call carries:
   which carries no route of its own, the value is also written onto
   `view.kwargs`, so a provider or a permission class reading the route finds
   it, and one the caller did not send is read from `view.kwargs`.
+
+A target lookup's `reads` take the same channels the same way, so a
+`SelectorSpec(reads=[QueryParam("q")])` used as an `instance_selector_spec` reads
+`q` from a live view's query string alone. A read named like a writable field of
+the input serializer is refused when the spec compiles, because the body's value
+of that name is the field's, except a `UrlKwarg` the target lookup reads, which
+renames a row by the key that finds it: the route's capture scopes the lookup,
+and off HTTP the caller's value for the name is the field's alone, never written
+onto `view.kwargs`.
 
 Route captures and query values are coerced to the type the entry declares. `required=True` is the declared
 counterpart of the `InputRequired` marker: both land the name in the schema's

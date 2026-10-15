@@ -36,6 +36,11 @@ project may have to change, each detailed below:
   Where the server owns the value, make the field read-only or drop it from
   the serializer, and the value reaches the service parameter of its name
   unvalidated, as before.
+- **Untype a `kwargs` provider that picks the target row.** A spec whose
+  typed `kwargs` provider is annotated to fill a name its target lookup's
+  selector reads, such as `pk`, is refused with `ImproperlyConfigured` when it
+  compiles, at registration or on every dispatch. Make the provider untyped,
+  or move the key to the lookup selector spec's own `kwargs`.
 - **Move `input_data` off a spec with no `input_serializer`.** Such a spec is
   refused with `ImproperlyConfigured` when it compiles; return the values from
   the spec's `kwargs` provider instead, and read them as service parameters.
@@ -97,7 +102,8 @@ project may have to change, each detailed below:
   an `agent_contract()` method answering the `OfflineContract` the two
   declare, or `None` when both are empty. `reads=[UrlKwarg(...), QueryParam(...)]` declares the route
   captures and query values a spec reads, each a parameter of the compiled
-  spec, so the schema lists it and `REJECT` admits it. On a live DRF view a
+  spec, so the schema lists it and `REJECT` admits it. A target lookup's
+  `reads` are read exactly as the spec's own are. On a live DRF view a
   declared `UrlKwarg` is read from the route alone and a `QueryParam` from the
   query string alone: a body value of that name is neither the argument nor
   written onto `view.kwargs` or `request.query_params`, which the view's
@@ -110,7 +116,13 @@ project may have to change, each detailed below:
   selector, or one of its `preconditions`, marks `NotClientInput`: the read
   would hand that callable the client's value under a name it keeps the
   server's. A name only a target lookup marks `NotClientInput` is accepted
-  and is the service's argument.
+  and is the service's argument. A read named like a writable field of the
+  input serializer, on the spec or its target lookup, is refused too, since
+  the body's value of that name is the field's and the read would reach
+  nothing, except a `UrlKwarg` the target lookup reads: that renames a row by
+  the key that finds it, the route's capture scoping the lookup, and off HTTP
+  a value the caller sends for it is the field's alone, never written onto
+  the offline view's `kwargs`.
   `field_audiences` maps an output field to its `FieldMarking`.
 - **`dispatch_spec(partial=...)`**, the request's partial flag (a `PATCH`).
   `None`, the default, reads the spec's own.
@@ -230,8 +242,15 @@ project may have to change, each detailed below:
     which it used to receive. So a `**rest` service now also receives `view`,
     `data` with no input serializer, the validated field names with one,
     and `items` for a `many` spec.
-  - An author's `pk`, from a view hook or the spec's `kwargs` provider, picks
+  - An author's `pk`, from a view hook or an untyped `kwargs` provider, picks
     the row a target lookup reads, where the client's `pk` did.
+  - A spec whose typed `kwargs` provider is annotated to fill a name its
+    target lookup's selector reads, such as `pk`, is refused with
+    `ImproperlyConfigured` when it compiles, at registration or on every
+    dispatch, where 0.57.0 dispatched it: the provider's values reach the
+    service after the target is resolved, so the lookup would never see them.
+    Make the provider untyped, or move the key to the lookup selector spec's
+    own `kwargs`.
   - A target lookup whose selector reads a name that is also a writable
     input field, such as renaming a row by the `slug` that finds it, takes
     that name from the route's capture alone, which scopes the lookup while
@@ -239,14 +258,20 @@ project may have to change, each detailed below:
     client's value no longer scopes the lookup: the selector keeps its own
     default, and a read with none is refused as missing, `{"slug": ["This
     field is required."]}`, where 0.57.0 scoped the lookup by the client's
-    value. An author's value for the name scopes the lookup and is the
-    field's value.
+    value. A view hook's or an untyped `kwargs` provider's value for the name
+    scopes the lookup and is the field's value; a typed provider annotated to
+    fill it is refused, as for `pk`. The compiled spec's `parameters()` refuses such a spec
+    with `ImproperlyConfigured`, since the kernel declares one source per
+    name, while registering and dispatching it work as described.
   - A key the spec's typed `kwargs` provider is annotated to fill is never
     taken from the client or a hook, even where the provider declines it
     with `UNSET`, which leaves the parameter's default. That holds under
     `SPREAD_AUTHOR_WINS` too, where the client's value used to reach the
     parameter, and whichever field the value came in through: one whose
-    `source` is the key, or a hook naming that field by its wire name. An
+    `source` is the key, or a hook naming that field by its wire name. A key
+    that is a field's wire name owns the field's `source` too, so a view hook
+    naming that `source` is dropped, where 0.57.0 handed the parameter of that
+    name the hook's value. An
     input field the key names stays the serializer's, so the client's value
     for it is validated as before, a required one included, and reaches the
     service in `data` alone, as a `NotClientInput` key's does. An
@@ -419,7 +444,9 @@ project may have to change, each detailed below:
   the mapping. A non-list, null or out-of-bounds list under `many_argument`
   is refused in the kernel's words (`{"items": ["Expected an array."]}`), and
   a key beside the rows follows `unknown_arguments`, dropped under `IGNORE`,
-  where it was refused under every policy.
+  where it was refused under every policy. `SPREAD_AUTHOR_WINS`
+  on a `many` dispatch is accepted and hands the service what `AUTO` does,
+  where 0.57.0 raised `ValueError`.
 - **Partial calls over a dataclass.** `dispatch_spec(partial=True)` over a
   dataclass input, or a `DataclassSerializer` subclass, is refused with
   `ImproperlyConfigured`, as is a spec declaring `partial=True` over one, on

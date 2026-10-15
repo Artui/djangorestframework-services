@@ -308,10 +308,14 @@ class SerializerValidator(Validator):
         values.update(handed)
         values = _unseeded(values, context)
         return Validated(
-            values=self._unowned(values, handed.keys()), data=data, pool={"serializer": serializer}
+            values=self._unowned(serializer, values, handed.keys()),
+            data=data,
+            pool={"serializer": serializer},
         )
 
-    def _unowned(self, values: dict[str, Any], kept: Iterable[str]) -> dict[str, Any]:
+    def _unowned(
+        self, serializer: serializers.Serializer, values: dict[str, Any], kept: Iterable[str]
+    ) -> dict[str, Any]:
         """``values`` less each ``server_owned`` key the client's input became.
 
         A name a callable of the call marks ``NotClientInput`` is the server's
@@ -346,7 +350,8 @@ class SerializerValidator(Validator):
         and a flattened field keeps its own name alone, never a key it spreads
         (test_a_server_value_for_a_flattened_field_keeps_none_of_the_keys_it_spreads).
         """
-        owned = (self.server_owned | provider_owned(self)).difference(kept)
+        owned = self.server_owned | provider_owned(self)
+        owned = owned.union(*(_sources(serializer, name) for name in owned)).difference(kept)
         return {name: value for name, value in values.items() if name not in owned}
 
     def _refuse_partial(self, context: ValidationContext) -> None:
@@ -552,6 +557,25 @@ def _handed(
         handed[key] = value
         handed[authored.get(name, key)] = value
     return handed
+
+
+def _sources(serializer: serializers.Serializer, name: str) -> tuple[str, ...]:
+    """The key ``validated_data`` holds the value of the field named ``name`` under, if any.
+
+    A field's own name and its ``source`` are one value under two names: the
+    client sends ``tenant``, the service is handed ``org``. So a key owned by
+    the field's name owns its ``source`` too, and the client's value reaches
+    neither parameter (test_a_declined_owned_name_hands_neither_parameter_the_clients_value_off_http,
+    test_a_client_value_for_a_hidden_wire_name_reaches_neither_parameter). A
+    dotted ``source`` owns the key its value is nested under, as 0.57.0 left
+    that parameter its default
+    (test_an_owned_wire_name_over_a_dotted_source_owns_the_key_it_nests_under).
+    A name no field has adds none
+    (test_the_specs_provider_outranks_the_validators_over_http).
+    """
+    field = serializer.fields.get(name)
+    attrs = field.source_attrs if field is not None else []
+    return tuple(attrs[:1])
 
 
 def _lay_back(data: Any, serializer: serializers.Serializer, held: Mapping[str, Any]) -> None:

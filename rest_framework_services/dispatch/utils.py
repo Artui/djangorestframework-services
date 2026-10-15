@@ -49,6 +49,7 @@ from rest_framework_services.service_specs.utils import (
     describe_serializer,
     edge_call_state,
     input_parameters,
+    writable_input_names,
     write_form_value,
 )
 from rest_framework_services.types.argument_binding import ArgumentBinding
@@ -838,8 +839,8 @@ def edge_arguments(
 
     A ``QueryDict`` is read flat - a repeated key as a list where the parameter
     is an array - and coerced as a query string is. Then the names a route
-    captures: each declared ``UrlKwarg``, and what the selector or the target
-    lookup reads. A value on ``view.kwargs`` is the argument, authoritative over
+    captures: each ``UrlKwarg`` the spec or its target lookup declares, and
+    what the selector or the target lookup reads. A value on ``view.kwargs`` is the argument, authoritative over
     ``params`` as a route capture always was, coerced from the string a URLconf
     may capture; a declared ``UrlKwarg`` the caller sent and an offline view
     does not carry goes onto ``view.kwargs``, so a provider reading it there
@@ -861,7 +862,12 @@ def edge_arguments(
         arguments = dict(params)
     else:
         return params
-    declared = tuple(spec.reads or ())
+    # A target lookup's ``reads`` are declared as the spec's own are, so each is
+    # read from the same channel the same way
+    # (test_a_live_view_reads_the_lookups_reads_from_its_url_alone,
+    # test_off_http_a_sent_value_reaches_the_lookup_and_the_offline_view).
+    target = _target_lookup(spec) if isinstance(spec, ServiceSpec) else None
+    declared = (*(spec.reads or ()), *((target.reads or ()) if target is not None else ()))
     url_kwargs = {entry.name for entry in declared if isinstance(entry, UrlKwarg)}
     reader = variant.target_selector_spec() if isinstance(variant, KernelServiceSpec) else variant
     routed = url_kwargs | (reader.reads.names() if reader is not None else frozenset())
@@ -883,9 +889,14 @@ def edge_arguments(
         arguments.update(coerce_flat(parameters, captured))
         # A live view's ``kwargs`` are its URLconf's, which a permission class
         # reads as the author's, so a caller's value is never written there
-        # (test_a_body_value_never_reaches_a_live_views_kwargs).
+        # (test_a_body_value_never_reaches_a_live_views_kwargs). Nor is a value
+        # for a ``UrlKwarg`` named like an input field, the rename-by-key shape,
+        # which is the field's rather than the route's, so it scopes no lookup
+        # off HTTP either
+        # (test_a_body_value_for_a_url_kwarg_named_like_a_field_is_the_fields_alone).
         if not over_http(view):
-            for name in sorted(url_kwargs - route.keys()):
+            fields = writable_input_names(spec) if isinstance(spec, ServiceSpec) else frozenset()
+            for name in sorted(url_kwargs - route.keys() - fields):
                 if name in arguments:
                     route[name] = arguments[name]
     queried = [entry.name for entry in declared if isinstance(entry, QueryParam)]
@@ -976,8 +987,15 @@ def _route_author_values(
     wire = _source_to_wire(spec)
     # A hook naming an owned key by the wire name of the field whose ``source``
     # it is names the same value, so it is dropped as the key itself is
-    # (test_a_hook_naming_the_declined_key_by_wire_name_is_dropped_off_http).
-    hook_owned = owned | {wire[name] for name in owned if name in wire}
+    # (test_a_hook_naming_the_declined_key_by_wire_name_is_dropped_off_http),
+    # and one naming the ``source`` of the field whose wire name is the owned
+    # key is dropped the same way
+    # (test_a_hook_naming_the_other_name_of_an_owned_value_is_dropped_off_http).
+    hook_owned = (
+        owned
+        | {wire[name] for name in owned if name in wire}
+        | {source for source, name in wire.items() if name in owned}
+    )
     hook_values = {
         name: value
         for name, value in (hooks.extra_kwargs or {}).items()
