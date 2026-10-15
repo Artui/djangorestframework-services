@@ -6,6 +6,11 @@ before ``migrate`` has made a table, may have a serializer whose fields query
 one, or look up a row that is not there yet; it is taken to declare no name,
 as a serializer reading a request no import has is, and registers. The
 refusal it could not make then is made when the call describes it.
+
+A ``many`` spec reads its list bounds off the list serializer DRF builds for
+its input, which builds the row serializer too. One that cannot be built with
+no call registers with no bound of its own, and the list serializer that
+validates the call still holds the list to the bound it declares.
 """
 
 from __future__ import annotations
@@ -16,6 +21,7 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connection
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 
 from rest_framework_services import (
     QueryParam,
@@ -58,8 +64,38 @@ class _FieldsFromTheDatabase(serializers.Serializer):
         return fields
 
 
+class _BuiltFromTheDatabase(serializers.Serializer):
+    title = serializers.CharField()
+
+    @classmethod
+    def many_init(cls, *args: Any, **kwargs: Any) -> serializers.ListSerializer:
+        return super().many_init(*args, max_length=2, **kwargs)
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        how = FAILING["how"]
+        if how in ("missing-table", "missing-row"):
+            _FAILURES[how]()
+        elif how is not None:
+            _FAILURES[how](self.context)
+
+
 def _service(*, data: Any) -> Any:
     return dict(data)
+
+
+def _rows(*, data: Any) -> Any:
+    return list(data)
+
+
+def _many_spec() -> ServiceSpec[Any, Any, Any]:
+    return ServiceSpec(
+        service=_rows,
+        input_serializer=_BuiltFromTheDatabase,
+        many=True,
+        permission_classes=[],
+        atomic=False,
+    )
 
 
 def _spec() -> ServiceSpec[Any, Any, Any]:
@@ -104,3 +140,23 @@ def test_registered_before_the_table_exists_it_is_refused_at_dispatch() -> None:
     # The kernel's own refusal of a name two sources declare answers first.
     with pytest.raises(ImproperlyConfigured, match=r"\['title'\] are declared by two sources"):
         dispatch_spec(spec, user=None, params={"title": "a"})
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("how", list(_FAILURES))
+def test_a_many_spec_whose_serializer_cannot_be_built_without_a_call_registers(how: str) -> None:
+    FAILING["how"] = how
+
+    SpecRegistry().register("rows", _many_spec())
+
+
+@pytest.mark.django_db
+def test_registered_before_the_table_exists_its_list_is_still_bounded() -> None:
+    spec = _many_spec()
+    FAILING["how"] = "missing-table"
+    SpecRegistry().register("rows", spec)
+
+    FAILING["how"] = None
+    rows = [{"title": "a"}, {"title": "b"}, {"title": "c"}]
+    with pytest.raises(ValidationError, match="no more than 2"):
+        dispatch_spec(spec, user=None, params=rows)

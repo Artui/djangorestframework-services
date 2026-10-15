@@ -54,6 +54,19 @@ _SEEDS: frozenset[str] = frozenset({"request", "view"})
 # seeds, and ``user`` and ``serializer``, which a callable receives from the
 # pool rather than from a caller.
 _NOT_ARGUMENTS: frozenset[str] = RESERVED_POOL_SEEDS | _SEEDS | {"user", "serializer"}
+# What building or reading an input serializer with no call may raise and
+# still be a serializer a call can describe: a request or view read unguarded
+# from a context that has none (``AttributeError``, ``KeyError``,
+# ``TypeError``), a table ``migrate`` has not made yet, and a row not loaded
+# yet. A spec compiles as it is declared, at import, so registering it never
+# needs either.
+_UNREADABLE_WITHOUT_A_CALL: tuple[type[Exception], ...] = (
+    AttributeError,
+    KeyError,
+    TypeError,
+    DatabaseError,
+    ObjectDoesNotExist,
+)
 
 _SCALARS: tuple[tuple[Any, str, str | None], ...] = (
     # ``bool`` before ``int`` is not needed here, since types are matched by
@@ -700,7 +713,7 @@ def _compiled_input_names(spec: Any) -> frozenset[str]:
     """
     try:
         return writable_input_names(spec)
-    except (AttributeError, KeyError, TypeError, DatabaseError, ObjectDoesNotExist):
+    except _UNREADABLE_WITHOUT_A_CALL:
         return frozenset()
 
 
@@ -882,6 +895,16 @@ def _list_bounds(spec: Any) -> dict[str, int | None]:
     DRF decides them in ``many_init`` and ``Meta.list_serializer_class``, so they
     are read off the instance it builds, as drfs' schema reads them; a
     dataclass declares neither hook. ``allow_empty=False`` is a minimum of one.
+
+    Building the list builds the row serializer, so one that cannot be built
+    with no call (``_UNREADABLE_WITHOUT_A_CALL``) is compiled with no bound of
+    its own rather than refused, as ``_compiled_input_names`` takes it: the
+    list serializer that validates the call still holds the list to the
+    bound it declares, in DRF's words. Each case of
+    test_a_many_spec_whose_serializer_cannot_be_built_without_a_call_registers
+    fails without the catch, and
+    test_registered_before_the_table_exists_its_list_is_still_bounded holds
+    the bound.
     """
     serializer = spec.input_serializer
     # One arc to coverage: ``test_a_bounded_serializer_without_many_has_no_list_bounds``
@@ -894,7 +917,10 @@ def _list_bounds(spec: Any) -> dict[str, int | None]:
         and issubclass(serializer, serializers.Serializer)
     ):
         return {}
-    listed: Any = serializer(many=True, context={"request": None, "view": None, "format": None})
+    try:
+        listed: Any = serializer(many=True, context={"request": None, "view": None, "format": None})
+    except _UNREADABLE_WITHOUT_A_CALL:
+        return {}
     minimum = max(listed.min_length or 0, 0 if listed.allow_empty else 1)
     return {"many_min_length": minimum or None, "many_max_length": listed.max_length}
 
