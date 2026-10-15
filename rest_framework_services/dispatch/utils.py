@@ -1976,7 +1976,9 @@ def _rows_as_drf(detail: Any, sent: tuple[str, Any] | None) -> Any:
 
 def _no_object_row(index: Any, sent: list[Any]) -> bool:
     # A refusal of the list itself sits beside the rows under a key that is no
-    # index (test_off_http_a_list_level_refusal_sits_under_non_field_errors).
+    # index (test_off_http_a_list_level_refusal_sits_under_non_field_errors),
+    # and a row that is an object keeps its own errors
+    # (test_a_validators_unknown_code_inside_a_row_is_left_as_it_raised_it).
     return isinstance(index, int) and not isinstance(sent[index], Mapping)
 
 

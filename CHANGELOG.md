@@ -138,7 +138,10 @@ project may have to change, each detailed below:
   narrowed by the query string, so a response may carry rows the query
   string used to filter out: a bulk update view answers `PATCH /?title=a`
   with every row its output selector returns, where 0.57.0 answered those
-  titled `a`. Nothing refuses the declaration; narrow the rows in the output
+  titled `a`. The same holds off HTTP for a caller passing
+  `dispatch_spec(filter_data=)`, as an MCP or agent transport does with a
+  tool's arguments: that mapping narrows the target lookup and no longer the
+  re-read. Nothing refuses the declaration; narrow the rows in the output
   selector itself.
 - **Rename a filter that shares an input field's name.** A target lookup's
   (`instance_selector_spec` or `collection_selector_spec`) `filter_set`
