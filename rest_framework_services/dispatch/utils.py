@@ -1073,7 +1073,17 @@ def _split_author_values(
     """
     reads, fields = _caller_names(variant)
     names = reads | fields
-    named = {wire.get(name, name) if name not in names else name: name for name in values}
+    # A key naming an argument outright claims it first, so a field the author
+    # names by both its wire name and its ``source`` takes the wire name's
+    # value, and the ``source``'s goes on as an extra to the parameter of its
+    # own name rather than being dropped
+    # (test_each_key_reaches_its_own_parameter_off_http). A declined key claims
+    # nothing (test_a_declined_wire_name_leaves_the_field_to_the_source).
+    named = {name: name for name in values if name in names and values[name] is not UNSET}
+    for name in values:
+        argument = wire.get(name, name)
+        if name not in names and argument not in named:
+            named[argument] = name
     routed = {
         argument: values[name]
         for argument, name in named.items()
@@ -1081,10 +1091,9 @@ def _split_author_values(
     }
     if isinstance(arguments, dict):
         arguments.update(routed)
+    taken = {named[argument] for argument in routed}
     return {argument: named[argument] for argument in routed}, {
-        name: values[name]
-        for argument, name in named.items()
-        if argument not in routed and values[name] is not UNSET
+        name: value for name, value in values.items() if name not in taken and value is not UNSET
     }
 
 

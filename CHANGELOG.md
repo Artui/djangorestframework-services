@@ -276,8 +276,10 @@ project may have to change, each detailed below:
   with the same `source`, a `source="*"` nested serializer or the serializer's
   `validate()` writes that key from the client's input. A field whose
   `source` differs from its name is handed to the parameter named like the
-  `source` and to the one named by the key the hook or provider gave. The
-  field's validation of that value is run on its own once the serializer has
+  `source` and to the one named by the key the hook or provider gave. Where
+  one names the field by both its name and its `source`, the name's value is
+  the field's and the `source`'s still reaches the parameter of that name, as
+  each did before. The field's validation of that value is run on its own once the serializer has
   accepted the body, on the value the hook or provider gave, never on what the
   field reads back from the body, so nothing the serializer or the body does
   replaces it: not a field that reads more of the body than its own key (a

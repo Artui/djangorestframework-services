@@ -36,7 +36,9 @@ Nor by a second route to the same key. Once the serializer has accepted the body
 the value the hook gave is validated on its own, by the field and its
 `validate_<field>`, never what the field reads back from the body. What that gives
 is handed to the service's parameter named by the field's `source`, and by the key
-the hook used where that differs, and is laid back under that key in `data`. So a
+the hook used where that differs, and is laid back under that key in `data`. A
+hook naming the field by both keys has its name's value validated for the field,
+and its `source`'s value handed to the parameter of that name beside it. So a
 field that reads more of the body than its own key (a nested serializer or a dict
 reading a form body's `tenant.id`, a field whose `get_value` reads another key),
 a later field with the same `source`, a
