@@ -28,6 +28,11 @@ from rest_framework_services.service_specs.utils import (
     validator_input,
 )
 
+# What this Validator binds into the call's pool: the bound serializer. A field
+# of that name is the serializer's alone, never a parameter, and a validated key
+# of that name is handed on in ``data`` alone.
+BOUND: frozenset[str] = frozenset({"serializer"})
+
 
 class SerializerValidator(Validator):
     """A Validator whose declaration is a DRF serializer, or a dataclass read through one.
@@ -181,7 +186,9 @@ class SerializerValidator(Validator):
 
         A field named like a seed of the call is no parameter: one of the
         dispatcher's own names (``RESERVED_POOL_SEEDS``,
-        test_a_writable_field_named_user_validates_off_http) always, and each of
+        test_a_writable_field_named_user_validates_off_http) and the
+        ``serializer`` this Validator binds (``BOUND``,
+        test_an_input_field_named_serializer_validates_into_data) always, and each of
         ``excluded``, which the DRF edge compiles with the names the call's
         registered seeds take
         (test_a_writable_field_named_like_a_registered_seed_validates). The
@@ -196,7 +203,7 @@ class SerializerValidator(Validator):
         the serializer is the one to answer it, as a live DRF view's request
         always was answered (``kernel_spec_variant(lenient=True)``).
         """
-        seeded = RESERVED_POOL_SEEDS | self.excluded
+        seeded = RESERVED_POOL_SEEDS | BOUND | self.excluded
         walked = Parameters.of(
             *(
                 param
@@ -468,7 +475,7 @@ def _unseeded(values: Mapping[str, Any], context: ValidationContext) -> dict[str
     which this Validator binds for the call, by
     test_a_key_a_validate_adds_named_like_the_bound_serializer_stays_in_data.
     """
-    seeded = RESERVED_POOL_SEEDS | context.ambient.keys() | {"serializer"}
+    seeded = RESERVED_POOL_SEEDS | context.ambient.keys() | BOUND
     return {name: value for name, value in values.items() if name not in seeded}
 
 

@@ -90,11 +90,14 @@ from rest_framework_services.types.view_hooks import ViewHooks
 # layers - is no seed: it rides in ``EdgeCallState``, so a callable taking a bare
 # ``**kwargs`` is never handed it.
 EDGE_SEEDS: tuple[str, ...] = ("request", "view")
-# The edge seeds a caller's key of these names is dropped for, as a reserved
-# seed's is: ``request``, which a caller never sent as an argument the call read.
-# ``view`` is not one: a caller sending it is refused under ``REJECT``, as it
-# always was (``TRANSPORT_ONLY_NAMES``).
-DROPPED_EDGE_SEEDS: frozenset[str] = frozenset({"request"})
+# The names the call fills itself that a caller's key is dropped for, as a
+# reserved seed's is: ``request``, which the edge seeds, and ``serializer``, which
+# the Validator binds; a caller never sent either as an argument the call read
+# (test_a_service_callers_request_key_is_dropped,
+# test_a_service_callers_serializer_key_is_dropped). ``view`` is not one: a
+# caller sending it is refused under ``REJECT``, as it always was
+# (``TRANSPORT_ONLY_NAMES``).
+DROPPED_EDGE_SEEDS: frozenset[str] = frozenset({"request", "serializer"})
 # What the Validator binds for the call. An author's value of that name stays in
 # ``extra_kwargs``, the tier beneath it, so the bound serializer is what a
 # service declaring ``serializer`` receives, as it always was
