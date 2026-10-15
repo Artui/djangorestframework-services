@@ -222,12 +222,17 @@ class _NoInputView(ServiceCreateView):
     spec = ServiceSpec(service=_no_input, atomic=False)
 
 
-def test_a_body_with_no_serializer_to_answer_it_keeps_the_kernels_refusal() -> None:
-    """With no input serializer there is no DRF answer to give."""
+def test_a_body_with_no_serializer_is_refused_as_a_view_refused_it() -> None:
+    """A view refused a body that is no object before any serializer was asked."""
     response = _NoInputView.as_view()(_request([1], "json"))
 
     assert response.status_code == 400
-    assert response.data == {"non_field_errors": ["Expected an object."]}
+    assert response.data == {
+        "non_field_errors": [
+            "Invalid data. Expected a dictionary, but got list. "
+            "Only a spec declaring many=True accepts a list payload."
+        ]
+    }
 
 
 def test_a_bulk_row_refusal_is_drfs_own() -> None:

@@ -273,8 +273,9 @@ def prepare_edge_call(
             # whole. One arc to coverage, so each condition is named: off HTTP
             # the kernel's refusal of a row stays
             # (test_off_http_a_refused_row_keeps_the_kernels_shape), and so it
-            # does for rows sent under an argument
-            # (test_a_live_views_rows_under_an_argument_keep_the_kernels_refusal).
+            # does for rows sent under an argument (in test_bulk_rows_over_http,
+            # test_a_live_views_rows_under_an_argument_keep_the_kernels_refusal,
+            # its ``a-row-that-is-no-object`` case).
             state.body_rows = over_http(view) and not many_as_argument
         extra_kwargs = _route_author_values(
             spec, variant, arguments, hooks, seeds=seeds, view=view, request=request
@@ -1285,15 +1286,15 @@ def _drf_body_refusal(
     (test_a_bulk_body_that_is_no_list_is_refused_in_drfs_words), which is
     asked: it refuses the shape before it reads a field, so it is bound with
     no context. A list body's rows are the Validator's to refuse, which binds
-    them whole (``SerializerValidator.validated_many``). A spec with no input
-    serializer has no DRF answer to give, and a ``many`` spec whose rows sit
-    under an argument is no body, so both keep the kernel's.
+    them whole (``SerializerValidator.validated_many``). The single call's
+    refusal is the view's, whatever its input serializer, so a spec with none
+    answers it too (test_a_body_with_no_serializer_is_refused_as_a_view_refused_it).
+    A ``many`` spec whose rows sit under an argument is no body, and a
+    selector spec's arguments are its query string, so both keep the kernel's.
     """
-    # A selector spec declares no input serializer, so the second operand alone
-    # answers it the same; the first narrows ``spec`` for ``.many`` below. The
-    # second is held by
-    # test_a_body_with_no_serializer_to_answer_it_keeps_the_kernels_refusal.
-    if not isinstance(spec, ServiceSpec) or spec.input_serializer is None:
+    # A selector's refusal is no body's (in test_queryset_shaping,
+    # TestFilterSet::test_invalid_filter_value_returns_400).
+    if not isinstance(spec, ServiceSpec):
         return None
     if bare_rows:
         if isinstance(params, list):
@@ -1303,8 +1304,9 @@ def _drf_body_refusal(
         return ValidationError(bound.errors)
     # One arc to coverage, so each condition is named: rows a ``many`` spec
     # takes under an argument are no body, whatever was sent for them
-    # (test_a_live_views_rows_under_an_argument_keep_the_kernels_refusal, its
-    # ``a-list-for-the-arguments`` case), and an object is the body a single
+    # (test_a_live_views_rows_under_an_argument_keep_the_kernels_refusal in
+    # test_bulk_rows_over_http, its ``a-list-for-the-arguments`` case), and an
+    # object is the body a single
     # call takes, refused for something else
     # (test_json_drf_refuses_is_refused_in_drfs_words).
     if spec.many or isinstance(params, Mapping):
