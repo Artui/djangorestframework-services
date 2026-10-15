@@ -246,7 +246,10 @@ project may have to change, each detailed below:
     with `UNSET`, which leaves the parameter's default. That holds under
     `SPREAD_AUTHOR_WINS` too, where the client's value used to reach the
     parameter, and whichever field the value came in through: one whose
-    `source` is the key, or a hook naming that field by its wire name. An
+    `source` is the key, or a hook naming that field by its wire name. A key
+    that is a field's wire name owns the field's `source` too, so a view hook
+    naming that `source` is dropped, where 0.57.0 handed the parameter of that
+    name the hook's value. An
     input field the key names stays the serializer's, so the client's value
     for it is validated as before, a required one included, and reaches the
     service in `data` alone, as a `NotClientInput` key's does. An

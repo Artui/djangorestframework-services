@@ -290,7 +290,12 @@ hook's, so its value for a hidden key is the server's and is never dropped.
     scoping key must always resolve it. A key the callable does *not* mark is
     the caller's unless the spec's `kwargs` provider is annotated to fill it:
     a key its `TypedDict` fills is never taken from the caller or a hook,
-    declined or not, nor through a field whose `source` it is. An input field
+    declined or not, nor through a field whose `source` it is. A key that is a
+    field's wire name owns that field's `source` as well, so with
+    `tenant = CharField(source="org")` a provider filling `tenant` leaves the
+    caller's value out of both the `tenant` and the `org` parameters, and a
+    hook naming either is dropped. A `NotClientInput` mark on `tenant` keeps
+    the caller's value out of `org` the same way. An input field
     it names stays the serializer's: the caller's value is validated and
     reaches the service in `data` alone, as a `NotClientInput` key's does,
     while an `input_data` value for that field is the server's and reaches

@@ -976,8 +976,15 @@ def _route_author_values(
     wire = _source_to_wire(spec)
     # A hook naming an owned key by the wire name of the field whose ``source``
     # it is names the same value, so it is dropped as the key itself is
-    # (test_a_hook_naming_the_declined_key_by_wire_name_is_dropped_off_http).
-    hook_owned = owned | {wire[name] for name in owned if name in wire}
+    # (test_a_hook_naming_the_declined_key_by_wire_name_is_dropped_off_http),
+    # and one naming the ``source`` of the field whose wire name is the owned
+    # key is dropped the same way
+    # (test_a_hook_naming_the_other_name_of_an_owned_value_is_dropped_off_http).
+    hook_owned = (
+        owned
+        | {wire[name] for name in owned if name in wire}
+        | {source for source, name in wire.items() if name in owned}
+    )
     hook_values = {
         name: value
         for name, value in (hooks.extra_kwargs or {}).items()
