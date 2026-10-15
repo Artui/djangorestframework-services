@@ -8,7 +8,7 @@ import enum
 import inspect
 import types
 import typing
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from typing import Annotated, Any, Literal, cast, get_args, get_origin
 
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
@@ -29,6 +29,9 @@ from rest_framework_services.service_specs.serializer_presenter import Serialize
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
 from rest_framework_services.service_specs.utils import (
     SERVER_CHANNEL,
+    asked_of_the_caller,
+    fills_its_own,
+    left_to_the_callable,
     server_channel,
     values_beside_filter,
     writable_input_names,
@@ -201,15 +204,28 @@ def _service(
     _refuse_reads_named_like_fields(spec, lookup_reads=frozenset(taken))
     reads = _merge(
         # A seed of the call fills its name (test_a_spread_service_reads_the_seed).
-        _reflected(spec.service, hidden=hidden | seeded)
+        _spread_signature(spec, hidden=hidden | seeded)
         if _takes_its_signature(spec, spread)
         else [],
         [parameter for parameter in declared if parameter.name not in taken],
         skip=frozenset(taken),
     )
     output, presenter = _output(spec)
+    # Under a spreading binding a callable naming a read of the target lookup
+    # is handed the caller's value for it by the edge, so the caller is asked
+    # for one it left out (``_asking``). Under ``AUTO`` and ``BUNDLE`` the
+    # parameter is the author's to fill
+    # (test_without_a_spreading_binding_the_key_is_the_author_s_to_fill).
+    asked = lookup_keys_the_service_names(spec, taken) if spread else frozenset()
     return KernelServiceSpec(
-        service=spec.service,
+        # A spread service's parameters are its caller's arguments, which the
+        # kernel refuses as missing where none arrived; a wrapper may fill them
+        # itself (test_a_spread_service_s_wrapper_fills_the_parameter).
+        service=_asking(
+            _as_it_runs(spec.service) if _takes_its_signature(spec, spread) else spec.service,
+            spec.service,
+            asked,
+        ),
         permissions=_permissions(spec, route_reads=taken),
         reads=reads,
         partial=compiled_partial(spec, partial),
@@ -238,7 +254,11 @@ def _service(
         affordances=spec.affordances,
         atomic=spec.atomic,
         idempotent=spec.idempotent,
-        preconditions=spec.preconditions,
+        preconditions=(
+            [_asking(_as_it_runs(fn), fn, asked) for fn in spec.preconditions]
+            if spec.preconditions
+            else spec.preconditions
+        ),
         kwargs=spec.kwargs,
         input_data=spec.input_data,
         progress_reporter=spec.progress_reporter,
@@ -322,7 +342,7 @@ def _selector(
     return KernelSelectorSpec(
         kind=spec.kind,
         selector=_beside_its_filter(
-            _on_the_server_s_channel(spec.selector, shadowed), spec, filtered
+            _on_the_server_s_channel(_as_it_runs(spec.selector), shadowed), spec, filtered
         ),
         # A nested selector's checks are never read: the dispatched spec's are.
         permissions=(
@@ -372,7 +392,9 @@ def _selector(
         ),
         preconditions=(
             [
-                _beside_its_filter(_on_the_server_s_channel(fn, shadowed), spec, filtered)
+                _beside_its_filter(
+                    _on_the_server_s_channel(_as_it_runs(fn), shadowed), spec, filtered
+                )
                 for fn in spec.preconditions
             ]
             if spec.preconditions
@@ -381,6 +403,126 @@ def _selector(
         progress_reporter=spec.progress_reporter,
         metadata=spec.metadata,
     )
+
+
+def _as_it_runs(fn: Any) -> Any:
+    """``fn``, left to fill its own parameters where it is a wrapper that may (``fills_its_own``).
+
+    Read off the author's callable, before the compiler's own forwarding
+    callables wrap it: those carry ``__wrapped__`` and a ``__signature__`` too,
+    and every one of them would read as such a wrapper. Without it a selector,
+    a target lookup's selector, a precondition or a spread service whose
+    decorator fills a parameter is refused for it
+    (test_a_wrapper_that_fills_the_parameter_itself_is_not_refused,
+    test_a_target_lookup_s_wrapper_fills_the_parameter,
+    test_a_spread_service_s_wrapper_fills_the_parameter).
+    """
+    return left_to_the_callable(fn) if fills_its_own(fn) else fn
+
+
+def _spread_signature(spec: Any, *, hidden: frozenset[str]) -> list[Parameter]:
+    """A spread service's parameters, and its preconditions' beside a bare ``**kwargs``.
+
+    A bare ``**kwargs`` leaves a spread service's surface open, so a
+    precondition's parameter is
+    one the caller sends, as on 0.57.0
+    (test_the_caller_s_value_reaches_the_precondition), each name once, in the
+    service's declaration where it names it too
+    (test_two_preconditions_naming_one_parameter_share_the_caller_s_value,
+    test_a_parameter_the_service_names_too_is_the_service_s_declaration). A
+    service closing its signature, by named parameters alone or an
+    ``Unpack``-ed ``TypedDict``, declares none
+    (test_a_closed_service_declares_no_precondition_parameter, its ``named``
+    and ``typed-dict`` cases). A name the server owns is never one
+    (test_a_name_the_server_owns_never_takes_the_caller_s_value), and the
+    caller skips the target lookup's reads
+    (test_a_read_of_the_target_lookup_stays_the_lookup_s).
+    """
+    reflected = _reflected(spec.service, hidden=hidden)
+    if not _takes_any_name(spec.service):
+        return reflected
+    names = set(_names(reflected))
+    for precondition in spec.preconditions or ():
+        for parameter in _reflected(precondition, hidden=hidden):
+            if parameter.name not in names:
+                names.add(parameter.name)
+                reflected.append(parameter)
+    return reflected
+
+
+def _takes_any_name(fn: Callable[..., Any]) -> bool:
+    """Whether ``fn`` takes a bare ``**kwargs``, which leaves its surface open.
+
+    An annotated one that is no ``Unpack``-ed ``TypedDict`` reads as bare, as
+    ``_reflected`` reads it, one whose annotation cannot be resolved included
+    (test_an_annotation_that_cannot_be_resolved_reads_as_open). One arc to
+    coverage, so each conjunct is named: the ``named`` case of
+    test_a_closed_service_declares_no_precondition_parameter fails without the
+    first, and its ``typed-dict`` case without the second.
+    """
+    hints = callable_type_hints(fn)
+    return any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        and unpack_typed_dict(hints.get(name)) is None
+        for name, parameter in inspect.signature(fn).parameters.items()
+    )
+
+
+def lookup_keys_the_service_names(spec: Any, lookup_reads: Iterable[str]) -> frozenset[str]:
+    """The target lookup's reads a service spec's service asks a spreading caller for by name.
+
+    A keyword parameter or a key of its ``Unpack``-ed ``TypedDict``, as 0.57.0
+    read the service's surface
+    (test_a_typed_dict_key_takes_the_caller_s_value_and_is_never_asked_for);
+    never an open ``**kwargs``, which takes none of the lookup's reads
+    (test_an_open_service_naming_the_key_takes_it_by_name_alone). The service
+    alone: a precondition naming one is handed it only beside a service that
+    asks for it (test_a_precondition_naming_a_key_the_service_does_not_is_the_author_s_error).
+    Beside an input serializer only a writable field of the name delivers it,
+    so a name no field takes is no caller's to send
+    (test_a_serializer_with_no_field_for_the_key_leaves_it_to_the_author).
+    """
+    named = _names(_reflected(spec.service, hidden=frozenset()))
+    if spec.input_serializer is not None:
+        named &= writable_input_names(spec)
+    return frozenset(lookup_reads) & named
+
+
+def _asking(runs: Any, own: Any, names: frozenset[str]) -> Any:
+    """``runs``, asking the caller for each of ``names`` its author's ``own`` requires.
+
+    ``names`` are a target lookup's reads, which a spread service and its
+    preconditions take from the caller by name, as on 0.57.0
+    (test_the_service_takes_the_caller_s_value_where_the_route_scopes_the_lookup,
+    test_a_precondition_naming_the_key_takes_the_caller_s_value). One left out
+    is the caller's ``400`` (``asked_of_the_caller``) where ``own`` gives it no
+    default (test_a_parameter_with_a_default_takes_the_caller_s_value_or_keeps_its_own)
+    and fills none of its parameters itself
+    (test_a_wrapper_filling_the_key_itself_runs). Read off ``own``, the
+    author's callable, as ``fills_its_own`` requires: ``runs`` may be a
+    forwarding callable reporting a default ``own`` does not have. ``runs``
+    itself where nothing is asked, so a spec naming no lookup read compiles the
+    callable it always did.
+    """
+    if fills_its_own(own):
+        return runs
+    # One arc to coverage, so each conjunct is named:
+    # test_a_parameter_with_a_default_takes_the_caller_s_value_or_keeps_its_own
+    # fails without the first, and
+    # test_a_positional_only_parameter_is_never_asked_for (which no call
+    # passes by name) without the second.
+    required = frozenset(
+        parameter.name
+        for parameter in inspect.signature(own).parameters.values()
+        if parameter.default is inspect.Parameter.empty
+        and parameter.kind
+        in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    )
+    # Only the lookup's reads: any other parameter is either the kernel's to
+    # refuse or no caller's to fill
+    # (test_a_parameter_no_caller_can_fill_stays_the_author_s_error).
+    asked = required & names
+    return asked_of_the_caller(runs, asked) if asked else runs
 
 
 def _on_the_server_s_channel(fn: Any, shadowed: frozenset[str]) -> Any:

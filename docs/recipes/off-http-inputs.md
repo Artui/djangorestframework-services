@@ -120,7 +120,10 @@ itself along with the reserved pool seeds, which no caller can send. Without
 Dispatch enforces that one without a marker too. The compiled spec declares a
 parameter with no default as required, so a call that lacks it is refused the
 same way, every missing name keyed in the one refusal. That holds for the
-selector, the target lookup, and a service with no `input_serializer` dispatched
+target lookup, the selector under `AUTO` or `SPREAD_AUTHOR_WINS` (under
+`BUNDLE`, which a selector view dispatches, only its declared `reads` are caller
+input, and a parameter nothing fills is the selector's own `TypeError`), and a
+service with no `input_serializer` dispatched
 under `SPREAD_AUTHOR_WINS` (an `input_serializer` declares its own required
 fields, and under `AUTO` such a service's own parameters are no caller input, so
 neither its signature nor a marker on it is enforced; see
