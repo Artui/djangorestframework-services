@@ -210,7 +210,8 @@ any callable of the call marks `NotClientInput` is never handed the client's
 validated value: the client's
 value reaches it only through `data`, while an author's value for it (a view
 hook's, the spec's `kwargs` provider's or `input_data`'s) still reaches the
-parameter. See
+parameter. On a DRF view such a parameter needs a default, since `as_view()`
+refuses a required parameter no call is sure to provide. See
 [a service with no input serializer](../recipes/off-http-inputs.md#a-service-with-no-input-serializer).
 
 ::: rest_framework_services.types.argument_binding.ArgumentBinding

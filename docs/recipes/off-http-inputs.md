@@ -226,6 +226,14 @@ admits under `AUTO`. See
     provider's or `input_data`'s value for it still reaches the parameter,
     as the field validates it.
 
+    On a DRF view such a parameter needs a default (`title=None`), or the
+    service reads `data["title"]`: `as_view()` checks a service's required
+    parameters before any call, against the keys every call provides, and a
+    field's value is not one of them, since a `PATCH` may leave it out. A
+    required parameter of a field's name is refused with
+    `ImproperlyConfigured` when the view is built; `dispatch_spec` hands it
+    the validated value.
+
 ## Hiding provider-owned inputs: `NotClientInput`
 
 Reflection advertises *every* declared key — including ones a `spec.kwargs`
@@ -431,6 +439,12 @@ of that name is the field's, except a `UrlKwarg` the target lookup reads, which
 renames a row by the key that finds it: the route's capture scopes the lookup,
 and off HTTP the caller's value for the name is the field's alone, never written
 onto `view.kwargs`.
+
+A service parameter named like a read is handed its value by name. On a DRF
+view it needs a default, as one named like an input field does: `as_view()`
+checks a service's required parameters before any call, and a request may
+carry no query value, so a required parameter of a read's name is refused
+when the view is built. Off HTTP, `dispatch_spec` hands it the argument.
 
 Route captures and query values are coerced to the type the entry declares. `required=True` is the declared
 counterpart of the `InputRequired` marker: both land the name in the schema's

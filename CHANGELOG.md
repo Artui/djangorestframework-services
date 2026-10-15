@@ -210,7 +210,9 @@ project may have to change, each detailed below:
   - A service with an input serializer receives each validated value by
     name, beside `data`, where its signature declares a parameter of that
     name (the field's `source`, not its wire name). Under `AUTO` and
-    `BUNDLE` it used to receive only `data`. A parameter named like a key any
+    `BUNDLE` it used to receive only `data`. On a DRF view the parameter
+    needs a default, as before: `as_view()` still refuses a required
+    parameter of a field's name, or of a declared read's. A parameter named like a key any
     callable of the call marks `NotClientInput` is never handed the client's
     validated value: the client's value for that field reaches the service
     only in `data`. A view hook's or the spec's `kwargs` provider's value for
