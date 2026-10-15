@@ -25,6 +25,7 @@ two dialects differ and why.
 from __future__ import annotations
 
 import dataclasses
+import inspect
 from collections.abc import Callable, Mapping, Sequence
 from contextvars import ContextVar
 from typing import Any
@@ -86,8 +87,9 @@ def describe_serializer(declaration: Any) -> serializers.Serializer:
     ``DataclassSerializer`` exactly as dispatch validates it. Anything else is
     refused with ``ImproperlyConfigured``.
 
-    Inside an edge call it is built with the call's own request and view, as
-    the serializer that validates the call is, so one that reads
+    Inside an edge call it is built with the call's own request and view, its
+    view's input layers and the spec's ``input_serializer_context``, as the
+    serializer that validates the call is, so one that reads
     ``self.context["request"]`` or ``["view"]`` unguarded, as it is built or as
     its fields are, describes the fields it validates with, on HTTP and off it
     (test_a_live_view_scopes_the_field_to_the_caller,
@@ -202,6 +204,13 @@ class EdgeCallState:
       built for, and the baseline context the view answered for them, so the
       view is asked once for every serializer of the call
       (``call_base_context``).
+    - ``context_answers``: each answer a spec's context callable gave in the
+      call, by the callable and the objects it was handed, so one handed the
+      same objects is asked once for every serializer of the call
+      (``context_answer``).
+    - ``offline_pairs``: each offline request and view built in the call for
+      a principal and the arguments they carry, so the descriptions of one
+      call with neither share one pair (``offline_pair``).
 
     Mutable, so the edge can set it before the sync step it hops to a thread
     for and fill it there, and the Validator can fill it during the kernel's
@@ -219,6 +228,12 @@ class EdgeCallState:
     row_errors: Any = None
     describe_context: Callable[[], dict[str, Any]] | None = None
     base_context: tuple[Any, Any, dict[str, Any]] | None = None
+    context_answers: dict[tuple[Any, ...], tuple[Any, Mapping[str, Any]]] = dataclasses.field(
+        default_factory=dict
+    )
+    offline_pairs: dict[tuple[int, int], tuple[Any, Any, Any]] = dataclasses.field(
+        default_factory=dict
+    )
 
 
 EDGE_CALL: ContextVar[EdgeCallState | None] = ContextVar(
@@ -367,6 +382,7 @@ def serializer_context(
     view_layers: Mapping[str, Any] | None = None,
     provider: Callable[..., Mapping[str, Any]] | None = None,
     extras: Mapping[str, Any] | None = None,
+    describing: bool = False,
 ) -> dict[str, Any]:
     """The serializer context a call's serializer is built under: four layers, later wins.
 
@@ -406,7 +422,7 @@ def serializer_context(
     request = ambient.get("request")
     view = ambient.get("view")
     if request is None and view is None:
-        offline = build_offline_context(principal, arguments)
+        offline = offline_pair(principal, arguments)
         request, view = offline.request, offline.view
     context = call_base_context(view=view, request=request)
     context.update(view_layers or {})
@@ -422,9 +438,91 @@ def serializer_context(
             "user": principal,
             **(extras or {}),
         }
-        resolved = provider(**resolve_callable_kwargs(provider, pool))
-        context.update({key: value for key, value in resolved.items() if value is not UNSET})
+        # A description is made before the call's seeds are resolved and its
+        # arguments routed, so a callable needing one of them is asked only by
+        # the serializer that validates
+        # (test_a_context_callable_needing_a_seed_is_asked_once_the_seed_exists).
+        if not describing or _answerable(provider, pool):
+            resolved = context_answer(provider, resolve_callable_kwargs(provider, pool))
+            context.update({key: value for key, value in resolved.items() if value is not UNSET})
     return context
+
+
+def offline_pair(principal: Any, arguments: Any) -> Any:
+    """``build_offline_context(principal, arguments)``, built once in an edge call for both.
+
+    A call handed no request and no view is described several times, each
+    with the offline pair its serializer is built with, so its context
+    callable, handed the same pair, is asked once for them all
+    (test_with_no_view_and_no_request_the_context_callable_is_asked_once_per_body).
+    Reused only for the same principal and the same arguments, which the
+    request carries as its data: the serializer that validates a body the edge
+    put a server's value into binds another, and its request carries that one
+    (test_an_offline_pair_is_built_for_its_own_principal_and_arguments, whose
+    cases fail without either half of the key).
+    """
+    state = EDGE_CALL.get()
+    if state is None:
+        return build_offline_context(principal, arguments)
+    key = (id(principal), id(arguments))
+    held = state.offline_pairs.get(key)
+    if held is None:
+        held = (principal, arguments, build_offline_context(principal, arguments))
+        state.offline_pairs[key] = held
+    return held[2]
+
+
+def _answerable(fn: Callable[..., Any], pool: Mapping[str, Any]) -> bool:
+    """Whether a description can ask ``fn``: it names what it needs, and ``pool`` holds it.
+
+    A callable taking ``**kwargs`` is handed the whole pool, and a
+    description's pool lacks the call's seeds, so it is asked by the
+    serializer that validates alone, once, as it was handed the whole pool
+    once (test_a_context_callable_taking_the_whole_pool_is_asked_once, which
+    fails without the check). A parameter named with no default must be in
+    ``pool``: without the default check the ``a-default`` case of
+    test_a_context_callable_the_description_can_answer_describes fails, and
+    without the kind check, which a ``*args`` with no default fails, its
+    ``positional-rest`` case.
+    """
+    parameters = inspect.signature(fn).parameters.values()
+    if any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters):
+        return False
+    return all(
+        parameter.name in pool
+        for parameter in parameters
+        if parameter.default is inspect.Parameter.empty
+        and parameter.kind
+        in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    )
+
+
+def context_answer(
+    provider: Callable[..., Mapping[str, Any]], kwargs: Mapping[str, Any]
+) -> Mapping[str, Any]:
+    """``provider(**kwargs)``, asked once in an edge call for the same callable and objects.
+
+    The call's input serializer is described before it validates, each with
+    the spec's context callable's layer, and the callable is asked once for
+    both, as DRF's view asks its context once for the one serializer it builds
+    (test_off_http_the_spec_s_context_describes_too). An answer is reused only
+    for the same callable handed the same objects under the same names: a
+    callable reading an argument the edge put a server's value over is asked
+    again for it (test_a_context_callable_reading_an_argument_validates_with_the_server_s_value),
+    and another spec's callable handed the same objects is asked itself
+    (test_a_kernel_call_inside_the_service_asks_its_own_context_callable). The objects
+    are held with the answer, so none is freed and its identity reused while
+    the call lasts.
+    """
+    state = EDGE_CALL.get()
+    if state is None:
+        return provider(**kwargs)
+    key = (id(provider), *((name, id(kwargs[name])) for name in sorted(kwargs)))
+    held = state.context_answers.get(key)
+    if held is None:
+        held = ((provider, dict(kwargs)), provider(**kwargs))
+        state.context_answers[key] = held
+    return held[1]
 
 
 def is_input(field: serializers.Field) -> bool:

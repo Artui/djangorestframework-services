@@ -40,6 +40,7 @@ from rest_framework_services import (
     service_action,
 )
 from rest_framework_services.registry.spec_registry import SpecRegistry
+from rest_framework_services.service_specs.utils import EDGE_CALL, EdgeCallState, offline_pair
 from tests.testapp.models import Post
 
 _factory = APIRequestFactory()
@@ -397,3 +398,255 @@ def test_a_kernel_call_inside_the_service_has_its_own_context(another: str, owne
 
     assert inner_seen["data"]["request"] is request
     assert inner_seen["data"]["view"] is view
+
+
+class _ScopedByTheSpec(serializers.Serializer):
+    """Reads, unguarded as it is built, a key only the spec's context callable gives."""
+
+    title = serializers.CharField()
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.fields["title"].help_text = self.context["tenant"]
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        return {**attrs, "tenant": self.fields["title"].help_text}
+
+
+class _FieldsFromTheSpec(serializers.Serializer):
+    """A field named by a key only the spec's context callable gives."""
+
+    def get_fields(self) -> dict[str, serializers.Field]:
+        return {self.context["field"]: serializers.CharField()}
+
+
+def _from_the_spec(serializer: Any, seen: dict[str, Any], provider: Any) -> Any:
+    return _spec(serializer, seen, input_serializer_context=provider)
+
+
+@_LIVE
+def test_a_live_view_describes_with_the_spec_s_context(
+    live: Callable[..., Any], owner: User
+) -> None:
+    seen: dict[str, Any] = {}
+
+    spec = _from_the_spec(_ScopedByTheSpec, seen, lambda: {"tenant": "acme"})
+    assert live(spec, {"title": "t"}, owner).status_code == 204
+    assert seen == {"data": {"title": "t", "tenant": "acme"}}
+
+    spec = _from_the_spec(_FieldsFromTheSpec, seen, lambda: {"field": "name"})
+    assert live(spec, {"name": "n"}, owner).status_code == 204
+    assert seen == {"data": {"name": "n"}}
+
+
+@_CORES
+def test_off_http_the_spec_s_context_describes_too(
+    dispatch: Callable[..., DispatchResult], owner: User
+) -> None:
+    seen: dict[str, Any] = {}
+    asked: list[None] = []
+
+    def provider(request: Any, view: Any, user: Any) -> dict[str, Any]:
+        asked.append(None)
+        return {"tenant": user.username}
+
+    view = _offline(owner)
+    dispatch(
+        _from_the_spec(_ScopedByTheSpec, seen, provider),
+        user=owner,
+        params={"title": "t"},
+        request=view.request,
+        view=view,
+    )
+
+    assert seen == {"data": {"title": "t", "tenant": "owner"}}
+    # Described and validated alike, with one answer for the call.
+    assert asked == [None]
+
+
+@_CORES
+def test_a_context_callable_needing_a_seed_is_asked_once_the_seed_exists(
+    dispatch: Callable[..., DispatchResult], owner: User
+) -> None:
+    """A description is made before the seeds are, so it is made without the callable's layer."""
+    seen: dict[str, Any] = {}
+    asked: list[str] = []
+
+    def provider(*, tenant: str) -> dict[str, Any]:
+        asked.append(tenant)
+        return {"tenant": tenant}
+
+    view = _offline(owner)
+    dispatch(
+        _from_the_spec(_RecordsTheTenant, seen, provider),
+        user=owner,
+        params={"title": "t"},
+        request=view.request,
+        view=view,
+        pool_seeds=PoolSeeds(seeds=(("tenant", lambda: "seeded"),)),
+    )
+
+    assert seen == {"data": {"title": "t", "tenant": "seeded"}}
+    assert asked == ["seeded"]
+
+
+class _RecordsTheTenant(serializers.Serializer):
+    title = serializers.CharField()
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        return {**attrs, "tenant": self.context.get("tenant")}
+
+
+@_CORES
+def test_a_context_callable_reading_an_argument_validates_with_the_server_s_value(
+    dispatch: Callable[..., DispatchResult], owner: User
+) -> None:
+    """The description reads the body as sent; the serializer that validates, the value put over it."""
+    seen: dict[str, Any] = {}
+
+    def provider(title: str = "none") -> dict[str, Any]:
+        return {"tenant": title}
+
+    spec = _spec(
+        _RecordsTheTenant,
+        seen,
+        input_serializer_context=provider,
+        kwargs=lambda: {"title": "server"},
+    )
+    view = _offline(owner)
+    dispatch(spec, user=owner, params={"title": "client"}, request=view.request, view=view)
+
+    assert seen == {"data": {"title": "server", "tenant": "server"}}
+
+
+def test_a_kernel_call_inside_the_service_asks_its_own_context_callable(owner: User) -> None:
+    """Handed the same request and view, another spec's context callable answers for itself."""
+    view = _offline(owner)
+    inner_seen: dict[str, Any] = {}
+
+    def context(request: Any, view: Any) -> dict[str, Any]:
+        return {"tenant": "inner"}
+
+    inner = _from_the_spec(_RecordsTheTenant, inner_seen, context)
+
+    def service(*, data: Any) -> None:
+        compiled = kernel_spec(inner)
+        kernel_dispatch(
+            compiled,
+            principal=owner,
+            arguments={"title": "inner"},
+            grant=Grant(compiled, owner),
+            pool_seeds=PoolSeeds(seeds=(("request", lambda: view.request), ("view", lambda: view))),
+        )
+
+    outer = ServiceSpec(
+        service=service,
+        input_serializer=_RecordsTheTenant,
+        input_serializer_context=lambda request, view: {"tenant": "outer"},
+        permission_classes=[],
+        atomic=False,
+    )
+    dispatch_spec(outer, user=owner, params={"title": "outer"}, request=view.request, view=view)
+
+    assert inner_seen == {"data": {"title": "inner", "tenant": "inner"}}
+
+
+def _with_a_default(user: Any, tenant: str = "unseeded") -> dict[str, Any]:
+    return {"tenant": f"{user.username}-{tenant}"}
+
+
+def _with_a_positional_rest(*rest: Any, user: Any) -> dict[str, Any]:
+    return {"tenant": f"{user.username}-{len(rest)}"}
+
+
+@_CORES
+@pytest.mark.parametrize(
+    ("provider", "tenant"),
+    [(_with_a_default, "owner-seeded"), (_with_a_positional_rest, "owner-0")],
+    ids=["a-default", "positional-rest"],
+)
+def test_a_context_callable_the_description_can_answer_describes(
+    dispatch: Callable[..., DispatchResult], provider: Any, tenant: str, owner: User
+) -> None:
+    """A parameter with a default, or a ``*args``, needs nothing a description lacks."""
+    seen: dict[str, Any] = {}
+    view = _offline(owner)
+
+    dispatch(
+        _from_the_spec(_ScopedByTheSpec, seen, provider),
+        user=owner,
+        params={"title": "t"},
+        request=view.request,
+        view=view,
+        pool_seeds=PoolSeeds(seeds=(("tenant", lambda: "seeded"),)),
+    )
+
+    assert seen == {"data": {"title": "t", "tenant": tenant}}
+
+
+@_CORES
+def test_a_context_callable_taking_the_whole_pool_is_asked_once(
+    dispatch: Callable[..., DispatchResult], owner: User
+) -> None:
+    """Handed the whole pool, seeds included, by the serializer that validates alone."""
+    seen: dict[str, Any] = {}
+    asked: list[None] = []
+
+    def provider(**pool: Any) -> dict[str, Any]:
+        asked.append(None)
+        return {"tenant": pool["tenant"]}
+
+    view = _offline(owner)
+    dispatch(
+        _from_the_spec(_RecordsTheTenant, seen, provider),
+        user=owner,
+        params={"title": "t"},
+        request=view.request,
+        view=view,
+        pool_seeds=PoolSeeds(seeds=(("tenant", lambda: "seeded"),)),
+    )
+
+    assert seen == {"data": {"title": "t", "tenant": "seeded"}}
+    assert asked == [None]
+
+
+@_CORES
+def test_with_no_view_and_no_request_the_context_callable_is_asked_once_per_body(
+    dispatch: Callable[..., DispatchResult], owner: User
+) -> None:
+    """The descriptions and the serializer that validates share one offline pair when
+    they bind one body, so the callable is asked once, as with a request and view."""
+    seen: dict[str, Any] = {}
+    asked: list[Any] = []
+
+    def provider(request: Any, view: Any) -> dict[str, Any]:
+        asked.append(request.data)
+        return {"tenant": request.user.username}
+
+    dispatch(
+        _from_the_spec(_ScopedByTheSpec, seen, provider),
+        user=owner,
+        params={"title": "t"},
+    )
+
+    assert seen == {"data": {"title": "t", "tenant": "owner"}}
+    assert asked == [{"title": "t"}]
+
+
+@pytest.mark.parametrize("change", ["nothing", "principal", "arguments"])
+def test_an_offline_pair_is_built_for_its_own_principal_and_arguments(change: str) -> None:
+    principal, other = object(), object()
+    arguments = {"title": "a"}
+    token = EDGE_CALL.set(EdgeCallState())
+    try:
+        first = offline_pair(principal, arguments)
+        second = offline_pair(
+            other if change == "principal" else principal,
+            {"title": "b"} if change == "arguments" else arguments,
+        )
+    finally:
+        EDGE_CALL.reset(token)
+
+    assert (second is first) is (change == "nothing")
+    assert second.request.user is (other if change == "principal" else principal)
+    assert second.request.data == {"title": "b" if change == "arguments" else "a"}

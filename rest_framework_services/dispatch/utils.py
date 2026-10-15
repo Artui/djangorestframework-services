@@ -192,9 +192,16 @@ def prepare_edge_call(
     principal = user if user is not None else unauthenticated_user()
     ambient = {"request": request, "view": view}
 
+    provider = spec.input_serializer_context if isinstance(spec, ServiceSpec) else None
+
     def describe_context() -> dict[str, Any]:
         return serializer_context(
-            principal, ambient, params, view_layers=hooks.input_serializer_context
+            principal,
+            ambient,
+            params,
+            view_layers=hooks.input_serializer_context,
+            provider=provider,
+            describing=True,
         )
 
     state.describe_context = describe_context
