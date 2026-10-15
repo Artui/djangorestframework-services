@@ -510,27 +510,61 @@ def _lookup_view(spec: ServiceSpec[Any, Any, Any]) -> Any:
     ).as_view()
 
 
-class TestARowALookupResolvesIsDescribedAfterTheCallStarts:
-    """A row the target lookup resolves is not there when the call is first described.
+class InstanceReadAlways(_Counted):
+    """A serializer failing as its fields are built, with a row or without one."""
 
-    The fields are read before the lookup runs, so a serializer reading its
-    row unguarded as its fields are built raises, and off HTTP under
-    ``REJECT`` a field it adds for a row is refused as unexpected. Handing
-    the row with ``instance=`` describes it with the row from the start.
+    title = serializers.CharField()
+
+    def get_fields(self) -> dict[str, serializers.Field]:
+        raise AttributeError("never built")
+
+
+def _by_collection(serializer: type[serializers.Serializer]) -> ServiceSpec[Any, Any, Any]:
+    return ServiceSpec(
+        service=lambda *, collection, data: {"got": dict(data), "count": collection.count()},
+        input_serializer=serializer,
+        collection_selector_spec=SelectorSpec(
+            kind=SelectorKind.LIST, selector=lambda: Post.objects.all()
+        ),
+        permission_classes=[],
+        atomic=False,
+    )
+
+
+_POLICIES = pytest.mark.parametrize(
+    "policy", [UnknownArguments.IGNORE, UnknownArguments.REJECT], ids=["ignore", "reject"]
+)
+
+
+class TestARowALookupResolvesIsTheOneDescribed:
+    """A row the target lookup resolves is the row the input serializer is built with.
+
+    The lookup runs before the serializer validates, as 0.57.0 ran it, so a
+    ``get_fields`` or an ``__init__`` reading ``self.instance`` reads the row,
+    and a field the serializer adds for a row is the call's, under every
+    ``UnknownArguments`` policy. Read before the lookup, for the names the
+    lookup's own arguments need, a serializer that cannot be built without its
+    row is taken to declare no name, as a registration takes it.
     """
 
     @_CORES
-    def test_an_unguarded_read_of_the_row_raises_off_http(
-        self, dispatch: Callable[..., DispatchResult], post: Post
+    @_POLICIES
+    def test_a_serializer_reading_its_row_validates_off_http(
+        self, dispatch: Callable[..., DispatchResult], post: Post, policy: UnknownArguments
     ) -> None:
-        with pytest.raises(AttributeError, match="pk"):
-            dispatch(_by_lookup(InstancePk), params={"pk": post.pk, "title": "n"})
+        result = dispatch(
+            _by_lookup(InstancePk), params={"pk": post.pk, "title": "n"}, unknown_arguments=policy
+        )
 
-    def test_an_unguarded_read_of_the_row_raises_over_a_live_view(self, post: Post) -> None:
+        assert result.value == {"got": {"title": "n"}, "pk": post.pk}
+
+    def test_a_serializer_reading_its_row_validates_over_a_live_view(self, post: Post) -> None:
         request = _factory.patch("/", {"title": "n"}, format="json")
 
-        with pytest.raises(AttributeError, match="pk"):
-            _lookup_view(_by_lookup(InstancePk))(request, pk=post.pk)
+        response = _lookup_view(_by_lookup(InstancePk))(request, pk=post.pk)
+
+        assert response.status_code == 200, response.data
+        assert response.data == {"got": {"title": "n"}, "pk": post.pk}
 
     @_CORES
     def test_a_row_handed_is_described_from_the_start(
@@ -539,24 +573,19 @@ class TestARowALookupResolvesIsDescribedAfterTheCallStarts:
         result = dispatch(_by_lookup(InstancePk), params={"title": "n"}, instance=post)
 
         assert result.value == {"got": {"title": "n"}, "pk": post.pk}
+        assert BUILT == {"InstancePk": 1}
 
     @_CORES
-    def test_a_field_added_for_a_row_is_unexpected_under_reject_off_http(
-        self, dispatch: Callable[..., DispatchResult], post: Post
+    @_POLICIES
+    def test_a_field_added_for_a_row_validates_off_http(
+        self, dispatch: Callable[..., DispatchResult], post: Post, policy: UnknownArguments
     ) -> None:
-        with pytest.raises(ValidationError, match="Unexpected argument"):
-            dispatch(
-                _by_lookup(InstanceAddsField),
-                params={"pk": post.pk, "reason": "why"},
-                unknown_arguments=UnknownArguments.REJECT,
-            )
-
         result = dispatch(
             _by_lookup(InstanceAddsField),
-            params={"reason": "why"},
-            instance=post,
-            unknown_arguments=UnknownArguments.REJECT,
+            params={"pk": post.pk, "reason": "why"},
+            unknown_arguments=policy,
         )
+
         assert result.value["got"] == {"reason": "why"}
 
     def test_a_field_added_for_a_row_validates_over_a_live_view(self, post: Post) -> None:
@@ -566,3 +595,56 @@ class TestARowALookupResolvesIsDescribedAfterTheCallStarts:
 
         assert response.status_code == 200, response.data
         assert response.data["got"] == {"reason": "why"}
+
+    @_CORES
+    def test_a_missing_row_is_not_found(
+        self, dispatch: Callable[..., DispatchResult], post: Post
+    ) -> None:
+        """No row, no serializer built with one: 0.57.0 answered ``not_found`` here too."""
+        result = dispatch(_by_lookup(InstancePk), params={"pk": post.pk + 1, "title": "n"})
+
+        assert result.kind == "not_found"
+
+    @_CORES
+    @_POLICIES
+    def test_a_serializer_failing_with_its_row_too_is_not_hidden(
+        self, dispatch: Callable[..., DispatchResult], post: Post, policy: UnknownArguments
+    ) -> None:
+        with pytest.raises(AttributeError, match="never built"):
+            dispatch(
+                _by_lookup(InstanceReadAlways),
+                params={"pk": post.pk, "title": "n"},
+                unknown_arguments=policy,
+            )
+
+    @_CORES
+    def test_a_collection_is_no_row_and_builds_once(
+        self, dispatch: Callable[..., DispatchResult], post: Post
+    ) -> None:
+        """A set a collection lookup resolves is no row to bind, so nothing waits on it."""
+        result = dispatch(_by_collection(InstanceAddsField), params={"title": "n"})
+
+        assert result.value == {"got": {"title": "n"}, "count": 1}
+        assert BUILT == {"InstanceAddsField": 1}
+
+    @_CORES
+    @_POLICIES
+    def test_a_serializer_failing_with_a_handed_row_is_not_hidden(
+        self, dispatch: Callable[..., DispatchResult], post: Post, policy: UnknownArguments
+    ) -> None:
+        with pytest.raises(AttributeError, match="never built"):
+            dispatch(
+                _by_lookup(InstanceReadAlways),
+                params={"title": "n"},
+                instance=post,
+                unknown_arguments=policy,
+            )
+
+    @_CORES
+    @_POLICIES
+    def test_a_collection_target_never_hides_a_serializer_reading_a_row(
+        self, dispatch: Callable[..., DispatchResult], post: Post, policy: UnknownArguments
+    ) -> None:
+        """A bulk call binds no row, as 0.57.0 bound none, so a read of one raises."""
+        with pytest.raises(AttributeError, match="pk"):
+            dispatch(_by_collection(InstancePk), params={"title": "n"}, unknown_arguments=policy)

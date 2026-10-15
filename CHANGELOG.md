@@ -53,9 +53,6 @@ project may have to change, each detailed below:
   `ListSerializer` sets `max_length` or the project sets
   `SERVICE_SPECS_MAX_ARRAY_LENGTH`. A live view's bulk body is still bounded
   by its `ListSerializer` alone.
-- **Guard an input serializer's read of `self.instance` where a target lookup
-  finds the row.** Its fields are read before the lookup runs, with no row;
-  off HTTP, hand the row with `instance=` to have it from the start.
 - **Move a nested selector's `progress_reporter` and `preconditions` to its
   `ServiceSpec`, and give a registered `SelectorSpec` a `selector`.** Each is
   refused where 0.57.0 ignored it.
@@ -496,8 +493,10 @@ project may have to change, each detailed below:
   fields are read off that one. A call whose body the server puts a value
   into - a view hook's, the spec's `kwargs` provider's or `input_data` - is
   built once for the body sent and once for the body it validates, and a
-  call whose row a target lookup resolves once before the lookup and once
-  with the row. 0.57.0 built each once, so a serializer that queries as it
+  call whose row a target lookup resolves once before the lookup, for the
+  names the lookup's arguments need, and once with the row; one that cannot
+  be built without its row is taken to declare no name until the row is
+  found, and is then built with it. 0.57.0 built each once, so a serializer that queries as it
   is built queries twice in those calls. The context callable is asked for
   each build where what it is handed differs: an argument the server's
   value replaced, the request built off HTTP with no view, which carries
@@ -505,17 +504,6 @@ project may have to change, each detailed below:
   be built without, the description's pool and then the whole pool. 0.57.0
   asked it once. A callable with a side effect should not rely on a call
   count.
-- **A row a target lookup resolves is not there when the input serializer's
-  fields are first read.** The call reads them before the lookup runs, with
-  no row, and validates with the row it found, where 0.57.0 built the
-  serializer once, after the lookup. So a `get_fields` or `__init__` reading
-  `self.instance` unguarded, `self.instance.pk` say, raises in such a call,
-  over HTTP and off it; guard the read with `self.instance is not None`, or,
-  off HTTP, hand the row with `instance=`. And off HTTP under
-  `UnknownArguments.REJECT`, a field the serializer adds only for a row is
-  refused as an unexpected argument; hand the row with `instance=`, or call
-  under `IGNORE`. A row handed with `instance=`, as an update view's
-  `get_object()` hands it, is the serializer's from the start.
 - **A Manager from a list selector is answered as a queryset.** A LIST
   selector returning `Model.objects` hands back its `.all()`, unpaginated
   too, where 0.57.0 handed back the Manager itself. So an unpaginated Manager

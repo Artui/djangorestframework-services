@@ -17,13 +17,9 @@ from django.http import QueryDict
 from django.utils.module_loading import import_string
 from django_service_specs.adapters.filters.filter_set_parameters import filter_set_parameters
 from django_service_specs.adapters.filters.utils import import_django_filters
-from django_service_specs.dispatch.check_call import check_call
 from django_service_specs.dispatch.grant import Grant
 from django_service_specs.dispatch.resolve_target import resolve_target
 from django_service_specs.parameters.coerce_flat import coerce_flat
-from django_service_specs.parameters.invalid_arguments import (
-    InvalidArguments as KernelInvalidArguments,
-)
 from django_service_specs.parameters.parameters import Parameters
 from django_service_specs.pool.resolve_callable_kwargs import resolve_callable_kwargs
 from django_service_specs.specs.selector_spec import SelectorSpec as KernelSelectorSpec
@@ -385,6 +381,22 @@ def prepare_edge_call(
                 compiled_partial(spec, partial),
             ),
         )
+    # A row the target lookup will find is not there yet, so until it is found
+    # a description that cannot be built without it declares no name
+    # (``describe_serializer``), and the serializer is built with the row once
+    # found, as 0.57.0 built it after the lookup. A collection lookup finds a
+    # set, which is no row (``bound_instance``), and a spec declaring both is
+    # refused, so only ``instance_selector_spec`` waits. One arc to coverage,
+    # so each conjunct is named: without ``instance is UNSET`` a serializer
+    # failing with the row it was handed is read as declaring nothing
+    # (test_a_serializer_failing_with_a_handed_row_is_not_hidden), and
+    # without the lookup so is one beside a set, which binds no row
+    # (test_a_collection_target_never_hides_a_serializer_reading_a_row, its
+    # ``reject`` cases).
+    # Cleared once the lookup has run, so what the serializer raises built
+    # with the row is raised as it is
+    # (test_a_serializer_failing_with_its_row_too_is_not_hidden).
+    state.row_pending = instance is UNSET and spec.instance_selector_spec is not None
     # A drfs ``ServiceSpec`` compiles to the kernel's. Its own parameters are the
     # caller's only under an explicit spreading binding: ``AUTO`` is ``BUNDLE``
     # for a service, which hands the caller's values to what reads them and to
@@ -459,14 +471,12 @@ def prepare_edge_call(
         # it no target and asks nothing.
         target = None
     else:
-        # Only where a lookup will query: a create resolves nothing, and its
-        # refusal stays whole, as a ``many`` call's is. One arc to coverage:
-        # test_an_open_target_lookup_takes_an_undeclared_key_and_drops_it holds
-        # the policy (what ``enforceable_policy`` relaxed refuses nothing), and
-        # the missing-and-unexpected case of test_the_refusal_is_the_workarounds
-        # holds the lookup.
-        if shared["unknown_arguments"] is UnknownArguments.REJECT and target_spec is not None:
-            refuse_unknown_first(service, principal=principal, arguments=arguments, seeds=seeds)
+        # The lookup runs before anything of the caller's is refused, as on
+        # 0.57.0: under ``REJECT`` a missing row beside an undeclared key is
+        # ``not_found`` (test_a_missing_row_beside_an_unknown_key_is_not_found),
+        # and a found row is the one the input serializer is built with before
+        # an undeclared key is looked for
+        # (test_a_field_added_for_a_row_validates_off_http).
         resolved = resolve_target(
             service,
             principal=principal,
@@ -477,6 +487,7 @@ def prepare_edge_call(
         if isinstance(resolved, DispatchResult):
             return resolved
         target = resolved[0]
+    state.row_pending = False
     if on_target_resolved is not None:
         on_target_resolved(spec, guard_context, instance=target)
     # After the lookup, as on main: the provider is handed the row it found.
@@ -929,39 +940,6 @@ def _reads_openly(
         )
         is None
     )
-
-
-def refuse_unknown_first(
-    service: KernelServiceSpec, *, principal: Any, arguments: Any, seeds: PoolSeeds
-) -> None:
-    """Refuse the caller's undeclared keys under ``REJECT``, before the target lookup queries.
-
-    ``UnknownArguments.REJECT`` always answered an undeclared key first, so a
-    call naming one is a 400 whether or not its row exists, and the database is
-    not asked for the row
-    (test_an_unknown_key_is_refused_before_the_lookup_asks_the_database).
-    ``resolve_target`` checks only the lookup's own reads, and ``dispatch``
-    checks the rest after it, so the kernel's ``check_call`` runs here, which
-    is ``dispatch``'s own prelude and runs no Validator: every ``"unknown"`` it
-    raises is the kernel's. Only those are raised, alone, as they always were
-    (test_an_unknown_key_ahead_of_the_lookup_is_refused_alone); any other
-    refusal is left for ``dispatch`` to make once there is a row, so a missing
-    row with a field left out is still ``not_found``
-    (test_a_missing_row_and_a_missing_field_is_still_not_found).
-    """
-    try:
-        check_call(
-            service,
-            principal=principal,
-            arguments=arguments,
-            grant=Grant(service, principal),
-            pool_seeds=seeds,
-            unknown_arguments=UnknownArguments.REJECT,
-        )
-    except KernelInvalidArguments as exc:
-        unknown = {name: errors for name, errors in exc.detail.items() if _only_unknown(errors)}
-        if unknown:
-            raise KernelInvalidArguments(unknown) from exc
 
 
 def edge_arguments(

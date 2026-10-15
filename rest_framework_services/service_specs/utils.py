@@ -129,7 +129,20 @@ def describe_serializer(declaration: Any) -> serializers.Serializer:
         )
     described = state.described.get(declaration)
     if described is None:
-        described = _described(declaration, state.describe_binding, describe)
+        try:
+            described = _described(declaration, state.describe_binding, describe)
+        except (AttributeError, KeyError, TypeError):
+            # Read before the target lookup has found the row the serializer
+            # is built with, for the names the lookup's own arguments need, a
+            # serializer that cannot be built without its row is taken to
+            # declare no name, as a registration takes it
+            # (test_a_serializer_reading_its_row_validates_off_http). Once the
+            # row is found it is built with it, and what it raises then is
+            # raised as it is
+            # (test_a_serializer_failing_with_its_row_too_is_not_hidden).
+            if not state.row_pending:
+                raise
+            described = serializers.Serializer()
         state.described[declaration] = described
     return _row_serializer(described)
 
@@ -384,6 +397,10 @@ class EdgeCallState:
       input serializer to (``describe_with``).
     - ``described``: the serializer each declaration is described with in
       the call, built once (``describe_serializer``).
+    - ``row_pending``: whether the row the call's input serializer is built
+      with is one the target lookup has still to find, so a description that
+      cannot be built without it declares no name until it is found
+      (``describe_serializer``).
 
     Mutable, so the edge can set it before the sync step it hops to a thread
     for and fill it there, and the Validator can fill it during the kernel's
@@ -409,6 +426,7 @@ class EdgeCallState:
     )
     describe_binding: DescribeBinding | None = None
     described: dict[Any, serializers.Serializer] = dataclasses.field(default_factory=dict)
+    row_pending: bool = False
 
 
 EDGE_CALL: ContextVar[EdgeCallState | None] = ContextVar(
