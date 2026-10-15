@@ -308,9 +308,11 @@ be required to supply a value it is never told about.
 declaring it receives the view the transport passed, or `None` off HTTP. A
 caller's `view` is never an argument (under `REJECT` it is refused as
 `Unexpected argument(s): 'view'.`, under `IGNORE` dropped; a caller's
-`request` is dropped under either, like any other seed's name), and a `kwargs`
-provider or a route capture named `view` cannot outrank the seed. A spec's
-`kwargs` provider returning a `view` key raises `ImproperlyConfigured`, a view
+`request`, and its `serializer`, which the input serializer binds, are dropped
+under either, like any other seed's name), and a `kwargs` provider or a route
+capture named `view` cannot outrank the seed. A spec's `kwargs` provider
+returning a `view` key raises `ImproperlyConfigured`, as it does for any name
+the call seeds, a view
 hook's `view` is dropped for the seed, and registering `view` (or `request`) in
 `pool_seeds` raises `ImproperlyConfigured`, since the edge seeds both.
 

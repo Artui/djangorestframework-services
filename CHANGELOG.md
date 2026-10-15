@@ -21,8 +21,13 @@ project may have to change, each detailed below:
 - **Rename a service parameter or a `kwargs` provider key that only matched by
   accident.** A service with an input serializer now receives each validated
   value whose name its signature declares, beside `data`, unless a callable of
-  the call marks that name `NotClientInput`. A `kwargs` provider returning
-  `data`, `instance` or `view` raises `ImproperlyConfigured`.
+  the call marks that name `NotClientInput`. A spec's `kwargs` provider
+  returning a key the call seeds - `request`, `view`, `user`, `data`,
+  `instance`, `collection`, `result`, `queryset`, `progress`, or a name
+  registered in `pool_seeds` - raises `ImproperlyConfigured`, where 0.57.0
+  handed its value on. Rename the key and the parameter that reads it; pass
+  the principal as `dispatch_spec(user=)`, and compute a registered seed's
+  value in its resolver.
 - **Give a view hook's or `kwargs` provider's value for an input-serializer
   field in the form a client would send it, or keep that field off the
   input.** The field validates it now: return a primary key rather than a
@@ -191,7 +196,7 @@ project may have to change, each detailed below:
     validated value: the client's value for that field reaches the service
     only in `data`. A view hook's or the spec's `kwargs` provider's value for
     it still reaches the parameter, and an `input_data` value now does too.
-  - Under `AUTO`, an `input_data` value for a field named like a
+  - Under `AUTO` and `BUNDLE`, an `input_data` value for a field named like a
     `NotClientInput` parameter now reaches that parameter, where the
     parameter kept its default and the value reached only `data`.
   - A route capture that a target lookup marks `NotClientInput` is seeded
@@ -257,11 +262,17 @@ project may have to change, each detailed below:
   `ImproperlyConfigured`.
   - `view` is seeded on every call: a callable declaring it gets the
     transport's view or `None`, and a provider or route capture named `view`
-    cannot outrank it. A spec's `kwargs` provider returning a `view`, `data`
-    or `instance` key raises `ImproperlyConfigured`, and `call_service`
-    drops a `view=` passed inside a view.
+    cannot outrank it. A spec's `kwargs` provider returning any name the
+    call seeds - `request`, `view`, `user`, `data`, `instance`, `collection`,
+    `result`, `queryset`, `progress`, or a name registered in `pool_seeds` -
+    raises `ImproperlyConfigured`, where 0.57.0 handed the value to the
+    callables; `serializer` is still taken, and the bound serializer
+    outranks it. `call_service` drops a `view=` passed inside a view.
   - A view-hook extra naming a pool seed is dropped and the seed wins, where
     the hook's value replaced it.
+  - Off HTTP under `UnknownArguments.REJECT`, a caller's `result` or
+    `queryset` key is dropped as a seed's name is, where it was refused as
+    `Unexpected argument(s)`.
 - **Breaking: `SpecRegistry.register` compiles the spec.** It takes no
   `agent_contract=`; `RegisteredSpec.agent_contract` is read-only and
   answered by the spec's own `agent_contract()`. A spec with no permissions

@@ -19,7 +19,12 @@ Use whichever level matches the granularity of your contract.
 The per-spec callable is called once per call, from `view` and `request`, and a
 key its `TypedDict` return annotation fills is never taken from the client or a
 hook. A key a view hook returns that names a pool seed (`user`, `data`,
-`instance` and the rest) is dropped, and the seed wins.
+`instance` and the rest) is dropped, and the seed wins. The per-spec callable
+returning such a key raises `ImproperlyConfigured` instead: any of `request`,
+`view`, `user`, `data`, `instance`, `collection`, `result`, `queryset` and
+`progress`, or a name registered in `pool_seeds`. Rename the key, and the
+parameter that reads it; to hand over the principal, pass `user=` to
+`dispatch_spec`, or let the view's request carry it.
 
 **A key naming an input-serializer field is that field's value.** Where a hook
 or the spec's `kwargs` returns a key that matches a field of `input_serializer`,
@@ -27,10 +32,21 @@ by its name or by its `source`, the value is written into the field, over
 whatever the client sent, and validated as the field validates. A hook returning
 `{"tenant": request.user.tenant}` therefore decides the `tenant` the service
 receives in `data`; a client cannot spoof it by putting `tenant` in the body.
+Nor by a second route to the same key: what the field validates the value to is
+laid back under its key after the serializer has run, so a later field with the
+same `source`, a `source="*"` nested serializer or a `validate()` writing
+`tenant` from the client's input does not replace it.
+
+Validated as the field validates means the value is given in the form a client
+would send it. A related field takes a primary key, and the service receives
+the row; a model instance is refused with a 400. A value the field's validators
+refuse is a 400 for the client. Where the server owns the value outright, make
+the field read-only or leave it off the serializer: the value then reaches the
+service parameter of its name as given.
 
 > `view` is seeded beside `request`: a service or selector declaring it is
-> handed the calling view, and a hook or provider returning a `view` key is
-> refused. Services and selectors are still best kept plain business logic;
+> handed the calling view; a hook's `view` key is dropped, and the per-spec
+> callable returning one is refused. Services and selectors are still best kept plain business logic;
 > pipe the view state they need through one of these hooks (the per-spec
 > callable receives a narrow `ServiceView` if it needs URL kwargs or `action`).
 
