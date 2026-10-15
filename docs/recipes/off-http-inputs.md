@@ -292,7 +292,9 @@ hook's, so its value for a hidden key is the server's and is never dropped.
     a key its `TypedDict` fills is never taken from the caller or a hook,
     declined or not, nor through a field whose `source` it is. An input field
     it names stays the serializer's: the caller's value is validated and
-    reaches the service in `data` alone, as a `NotClientInput` key's does.
+    reaches the service in `data` alone, as a `NotClientInput` key's does,
+    while an `input_data` value for that field is the server's and reaches
+    the parameter.
 
 Marking a key both `InputRequired` and `NotClientInput` raises — the caller cannot
 be required to supply a value it is never told about.

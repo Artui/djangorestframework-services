@@ -12,6 +12,7 @@ either.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 from typing import Any, TypedDict
 
@@ -278,3 +279,22 @@ def test_a_kernel_call_inside_the_service_keeps_its_own_values(dispatch: Dispatc
     dispatch(spec, params={"title": "outer"})
 
     assert seen == {"inner": "inner"}
+
+
+@pytest.mark.parametrize("fmt", ["json", "multipart"])
+@pytest.mark.parametrize(
+    ("shape", "key"), [("required", "title"), ("source", "tenant")], ids=["by-name", "by-wire-name"]
+)
+def test_input_data_for_a_declined_key_reaches_the_parameter(
+    shape: str, key: str, fmt: str
+) -> None:
+    """``input_data`` is the server's, so its value for the field is the key's, as a
+    ``NotClientInput`` key takes it."""
+    seen: dict[str, Any] = {}
+    spec = dataclasses.replace(_spec(shape, seen), input_data=lambda: {key: "srv"})
+    view = type("_View", (ServiceCreateView,), {"permission_classes": [], "spec": spec})
+
+    response = view.as_view()(_factory.post("/", {key: "evil"}, format=fmt))
+
+    assert response.status_code == 204, response.data
+    assert seen == {"param": "srv", "data": {_SHAPES[shape][1]: "srv"}}

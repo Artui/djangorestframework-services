@@ -249,7 +249,9 @@ project may have to change, each detailed below:
     `source` is the key, or a hook naming that field by its wire name. An
     input field the key names stays the serializer's, so the client's value
     for it is validated as before, a required one included, and reaches the
-    service in `data` alone, as a `NotClientInput` key's does.
+    service in `data` alone, as a `NotClientInput` key's does. An
+    `input_data` value for that field is the server's, and reaches the
+    parameter, where 0.57.0 left it the default.
   - A view hook returning `UNSET` for an input field declines it: the
     parameter keeps its default, or, where nothing marks it `NotClientInput`,
     takes the client's validated value. 0.57.0 handed the parameter the
