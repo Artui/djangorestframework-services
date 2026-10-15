@@ -605,6 +605,17 @@ project may have to change, each detailed below:
   - `null` for a parameter whose annotation does not admit it, whatever its
     default: `x: int = None` refuses `null` where 0.57.0 passed it on, and
     `x: int | None = None` takes it.
+  - a nested serializer's value of the wrong JSON shape, which the
+    serializer refused too, is refused in the kernel's words and keyed as
+    the kernel keys it: a row of a `many=True` nested field that is no
+    object is `{"lines": {0: {"non_field_errors": ["Expected an object."]}}}`
+    where 0.57.0 said `Invalid data. Expected a dictionary, but got int.`;
+    a non-list for that field is `{"lines": ["Expected an array."]}` (code
+    `not_a_list`) where 0.57.0 gave `{"lines": {"non_field_errors":
+    ["Expected a list of items but got type \"dict\"."]}}`; and a number
+    for a nested object is `{"address": ["Expected an object."]}` where
+    0.57.0 gave `{"address": {"non_field_errors": ["Invalid data. Expected a
+    dictionary, but got int."]}}`.
 
   The serializer runs only once every argument passes the check, so its own
   refusals of other fields (a `max_length`, a `validate()`) wait behind a
