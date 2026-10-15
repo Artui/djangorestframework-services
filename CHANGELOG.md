@@ -181,8 +181,8 @@ project may have to change, each detailed below:
     `BUNDLE` it used to receive only `data`. A parameter named like a key any
     callable of the call marks `NotClientInput` is never handed the client's
     validated value: the client's value for that field reaches the service
-    only in `data`, while a view hook's, the spec's `kwargs` provider's or an
-    `input_data` value for it still reaches the parameter.
+    only in `data`. A view hook's or the spec's `kwargs` provider's value for
+    it still reaches the parameter, and an `input_data` value now does too.
   - Under `AUTO`, an `input_data` value for a field named like a
     `NotClientInput` parameter now reaches that parameter, where the
     parameter kept its default and the value reached only `data`.
@@ -191,7 +191,7 @@ project may have to change, each detailed below:
     where the service kept its default and only the lookup read the capture.
   - A spec with an `input_data` provider and no `input_serializer` is
     refused with `ImproperlyConfigured` when it compiles, at registration or
-    on its first dispatch, where 0.57.0 accepted it and, under `AUTO`, handed
+    whenever it is dispatched, where 0.57.0 accepted it and, under `AUTO`, handed
     the service none of its values. Return those values from the spec's
     `kwargs` provider instead, which hands each to the service parameter of
     its name (a key named `data` is refused there as a seed's).

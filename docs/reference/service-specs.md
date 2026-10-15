@@ -62,8 +62,8 @@ its `filter_set` owns.
 Parameters marked `NotClientInput` on any callable of the call are hidden.
 So are the names the pool fills: `user`, `request`, `view`, `queryset`,
 `result` and the rest. Two `reads` declarations are refused with
-`ImproperlyConfigured` when the spec compiles (at registration, or on its first
-dispatch), each naming the read:
+`ImproperlyConfigured` when the spec compiles (at registration, or whenever it
+is dispatched, over HTTP too), each naming the read:
 
 - a name the pool fills, which would never be the caller's;
 - a name the spec's service or selector, or one of its `preconditions`, marks

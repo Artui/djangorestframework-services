@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
@@ -299,6 +300,22 @@ class TestServiceCreateView:
         assert response.status_code == 201
         assert captured["data"].name == "Ada"
         assert captured["data"].parent_id == 7
+
+    def test_input_data_with_no_input_serializer_is_refused(self) -> None:
+        """Nothing would read the mapping, so the request raises rather than
+        running the service without it."""
+        ran: list[bool] = []
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=lambda: ran.append(True),
+                input_data=lambda: {"parent_id": 7},
+                atomic=False,
+            )
+
+        with pytest.raises(ImproperlyConfigured, match="use kwargs for a value"):
+            _View.as_view()(factory.post("/", {}, format="json"))
+        assert ran == []
 
     def test_input_data_view_catch_all_hook(self) -> None:
         @dataclass
