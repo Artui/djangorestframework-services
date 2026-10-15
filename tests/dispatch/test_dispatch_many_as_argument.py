@@ -529,32 +529,30 @@ async def test_a_row_the_kernel_refuses_leaves_the_lists_own_checks_to_the_rows_
         assert refusal.detail == [*([{}] * last), _NO_OBJECT]
 
 
-def _over_a_live_view(serializer: type, items: list[Any]) -> ValidationError:
+async def _over_a_live_view(core: str, serializer: type, items: Any) -> ValidationError:
     view = _live_view()
-    with pytest.raises(ValidationError) as caught:
-        dispatch_spec(
-            _spec(serializer),
-            user=None,
-            params={"items": items},
-            request=view.request,
-            view=view,
-            many_as_argument=True,
-        )
-    return caught.value
+    return await _refusal(
+        core,
+        _spec(serializer),
+        params={"items": items},
+        request=view.request,
+        view=view,
+        many_as_argument=True,
+    )
 
 
-@pytest.mark.django_db
+@_CORES
 @pytest.mark.parametrize(
     ("serializer", "items"), _JUDGED_AS_SENT.values(), ids=_JUDGED_AS_SENT.keys()
 )
-def test_over_a_live_view_a_refused_row_leaves_the_lists_own_checks_to_the_rows_sent(
-    serializer: type, items: list[Any]
+async def test_over_a_live_view_a_refused_row_leaves_the_lists_own_checks_to_the_rows_sent(
+    core: str, serializer: type, items: list[Any]
 ) -> None:
-    refusal = _over_a_live_view(serializer, items)
+    refusal = await _over_a_live_view(core, serializer, items)
     assert refusal.detail == {"items": {len(items) - 1: _NO_OBJECT}}
 
 
-@pytest.mark.django_db
+@_CORES
 @pytest.mark.parametrize(
     ("items", "message", "code"),
     [
@@ -563,16 +561,37 @@ def test_over_a_live_view_a_refused_row_leaves_the_lists_own_checks_to_the_rows_
     ],
     ids=["too-short", "too-long"],
 )
-def test_over_a_live_view_a_length_bound_counts_every_row_sent_and_answers_alone(
-    items: list[Any], message: str, code: str
+async def test_over_a_live_view_a_length_bound_counts_every_row_sent_and_answers_alone(
+    core: str, items: list[Any], message: str, code: str
 ) -> None:
     """DRF's list serializer checks its bounds before it reads a row, so a list
     out of bounds is answered by the bound alone, whatever its rows hold, as a
     live view answered it on 0.57.0. Off HTTP the kernel's own bound answers
     first (test_a_length_bound_is_refused_under_the_argument)."""
-    refusal = _over_a_live_view(_BoundedLine, items)
+    refusal = await _over_a_live_view(core, _BoundedLine, items)
     assert refusal.detail == {"items": {"non_field_errors": [message]}}
     assert refusal.get_codes() == {"items": {"non_field_errors": [code]}}
+
+
+@_CORES
+@pytest.mark.parametrize(
+    ("items", "message", "code"),
+    [
+        ({"sku": "a"}, "Expected an array.", "not_a_list"),
+        (None, "This field cannot be null.", "null"),
+    ],
+    ids=["dict", "null"],
+)
+async def test_over_a_live_view_a_value_that_is_no_list_is_refused_in_the_kernels_words(
+    core: str, items: Any, message: str, code: str
+) -> None:
+    """Over a live view as off HTTP, a value under the argument that is no list is
+    refused under the argument itself, in the kernel's words, before any list
+    serializer reads it (test_a_non_list_is_refused_under_the_argument,
+    test_a_null_list_is_refused_as_a_null_field)."""
+    refusal = await _over_a_live_view(core, _BoundedLine, items)
+    assert refusal.detail == {"items": [message]}
+    assert refusal.get_codes() == {"items": [code]}
 
 
 @_CORES

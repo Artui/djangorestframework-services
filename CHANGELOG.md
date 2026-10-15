@@ -92,8 +92,8 @@ project may have to change, each detailed below:
   `preconditions`. A `SelectorSpec` with no `selector` is refused at
   `SpecRegistry.register`, as `dispatch_spec` already refused it.
 - **Catch a missing argument as DRF's `ValidationError`.** A selector's
-  parameter with no default, and a serializer-less service's under
-  `SPREAD_AUTHOR_WINS`, missing from a call is raised as drfs'
+  parameter with no default or marked `InputRequired`, and a serializer-less
+  service's under `SPREAD_AUTHOR_WINS`, missing from a call is raised as drfs'
   `InvalidArguments`, keyed by each missing name, so an
   `except ServiceValidationError` or `except ServiceError` around a dispatch
   no longer catches it. Catch `rest_framework.exceptions.ValidationError`,
@@ -625,8 +625,8 @@ project may have to change, each detailed below:
   A value that does not convert to the annotated type is a 400: `"abc"` for
   `x: int` is `{"x": ["Expected an integer."]}` from a hook or a provider,
   and `{"x": ["Enter a whole number."]}` from a route capture. A string that
-  converts reaches the selector as the annotated type, `"7"` as `7`, as
-  *Route captures and the principal* below states.
+  converts, from a hook, a provider or a route capture, reaches the selector
+  as the annotated type, `"7"` as `7`, where 0.57.0 handed it the string.
 - **Off HTTP, arguments are type-checked against what the spec declares
   before the serializer runs.** This holds for `dispatch_spec` and
   `adispatch_spec` called with no view or with an `OfflineServiceView`, as an
