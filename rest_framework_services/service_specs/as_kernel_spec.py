@@ -29,6 +29,7 @@ from rest_framework_services.service_specs.serializer_presenter import Serialize
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
 from rest_framework_services.service_specs.utils import (
     SERVER_CHANNEL,
+    asked_of_the_caller,
     fills_its_own,
     left_to_the_callable,
     server_channel,
@@ -210,11 +211,21 @@ def _service(
         skip=frozenset(taken),
     )
     output, presenter = _output(spec)
+    # Under a spreading binding a callable naming a read of the target lookup
+    # is handed the caller's value for it by the edge, so the caller is asked
+    # for one it left out (``_asking``). Under ``AUTO`` and ``BUNDLE`` the
+    # parameter is the author's to fill
+    # (test_without_a_spreading_binding_the_key_is_the_author_s_to_fill).
+    asked = frozenset(taken) if spread else frozenset()
     return KernelServiceSpec(
         # A spread service's parameters are its caller's arguments, which the
         # kernel refuses as missing where none arrived; a wrapper may fill them
         # itself (test_a_spread_service_s_wrapper_fills_the_parameter).
-        service=_as_it_runs(spec.service) if _takes_its_signature(spec, spread) else spec.service,
+        service=_asking(
+            _as_it_runs(spec.service) if _takes_its_signature(spec, spread) else spec.service,
+            spec.service,
+            asked,
+        ),
         permissions=_permissions(spec, route_reads=taken),
         reads=reads,
         partial=compiled_partial(spec, partial),
@@ -244,7 +255,7 @@ def _service(
         atomic=spec.atomic,
         idempotent=spec.idempotent,
         preconditions=(
-            [_as_it_runs(fn) for fn in spec.preconditions]
+            [_asking(_as_it_runs(fn), fn, asked) for fn in spec.preconditions]
             if spec.preconditions
             else spec.preconditions
         ),
@@ -407,6 +418,43 @@ def _as_it_runs(fn: Any) -> Any:
     test_a_spread_service_s_wrapper_fills_the_parameter).
     """
     return left_to_the_callable(fn) if fills_its_own(fn) else fn
+
+
+def _asking(runs: Any, own: Any, names: frozenset[str]) -> Any:
+    """``runs``, asking the caller for each of ``names`` its author's ``own`` requires.
+
+    ``names`` are a target lookup's reads, which a spread service and its
+    preconditions take from the caller by name, as on 0.57.0
+    (test_the_service_takes_the_caller_s_value_where_the_route_scopes_the_lookup,
+    test_a_precondition_naming_the_key_takes_the_caller_s_value). One left out
+    is the caller's ``400`` (``asked_of_the_caller``) where ``own`` gives it no
+    default (test_a_parameter_with_a_default_takes_the_caller_s_value_or_keeps_its_own)
+    and fills none of its parameters itself
+    (test_a_wrapper_filling_the_key_itself_runs). Read off ``own``, the
+    author's callable, as ``fills_its_own`` requires: ``runs`` may be a
+    forwarding callable reporting a default ``own`` does not have. ``runs``
+    itself where nothing is asked, so a spec naming no lookup read compiles the
+    callable it always did.
+    """
+    if fills_its_own(own):
+        return runs
+    # One arc to coverage, so each conjunct is named:
+    # test_a_parameter_with_a_default_takes_the_caller_s_value_or_keeps_its_own
+    # fails without the first, and
+    # test_a_positional_only_parameter_is_never_asked_for (which no call
+    # passes by name) without the second.
+    required = frozenset(
+        parameter.name
+        for parameter in inspect.signature(own).parameters.values()
+        if parameter.default is inspect.Parameter.empty
+        and parameter.kind
+        in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    )
+    # Only the lookup's reads: any other parameter is either the kernel's to
+    # refuse or no caller's to fill
+    # (test_a_parameter_no_caller_can_fill_stays_the_author_s_error).
+    asked = required & names
+    return asked_of_the_caller(runs, asked) if asked else runs
 
 
 def _on_the_server_s_channel(fn: Any, shadowed: frozenset[str]) -> Any:

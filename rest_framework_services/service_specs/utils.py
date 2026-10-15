@@ -33,6 +33,11 @@ from typing import Any, cast
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from django.http import QueryDict
+from django.utils.translation import gettext
+from django_service_specs.parameters.coded_message import CodedMessage
+from django_service_specs.parameters.invalid_arguments import (
+    InvalidArguments as KernelInvalidArguments,
+)
 from django_service_specs.parameters.parameters import Parameter, Parameters
 from django_service_specs.pool.resolve_callable_kwargs import resolve_callable_kwargs
 from django_service_specs.types.is_async import is_async
@@ -402,24 +407,68 @@ def left_to_the_callable(fn: Callable[..., Any], names: frozenset[str] | None = 
         else parameter
         for parameter in signature.parameters.values()
     ]
+    return _forwarding(fn, signature.replace(parameters=_by_name(relaxed)))
+
+
+def asked_of_the_caller(fn: Callable[..., Any], names: frozenset[str]) -> Any:
+    """``fn``, refusing a call that hands it none of ``names`` as the caller's to fill.
+
+    For a target lookup's read a spread service, or one of its preconditions,
+    names with no default: the caller sends it, so a call leaving it out is the
+    caller's ``400``, spelled and coded as the kernel refuses a missing
+    argument, rather than ``fn``'s own ``TypeError``. The kernel never asks for
+    a target read on the service's behalf, since the lookup consumed it, so the
+    refusal is made as ``fn`` is called, which is where 0.57.0 made it: after
+    the row is found, and after each precondition called before ``fn``. The
+    signature is ``fn``'s own, so the kernel binds the call as it would.
+    """
+
+    def refuse_a_missing_name(kwargs: Mapping[str, Any]) -> None:
+        missing = sorted(names - kwargs.keys())
+        if missing:
+            raise KernelInvalidArguments(
+                {
+                    name: [CodedMessage(gettext("This field is required."), "required")]
+                    for name in missing
+                }
+            )
+
+    return _forwarding(fn, inspect.signature(fn), before=refuse_a_missing_name)
+
+
+def _forwarding(
+    fn: Callable[..., Any],
+    signature: inspect.Signature,
+    *,
+    before: Callable[[Mapping[str, Any]], None] | None = None,
+) -> Any:
+    """A callable reporting ``signature`` that calls ``fn`` as it was called, once ``before`` passes.
+
+    An ``async def`` stays one, since the kernel awaits it by its kind, and
+    ``fn`` itself is never stamped, as it may be the author's own function.
+    """
     if is_async(fn):
 
-        async def left(*args: Any, **kwargs: Any) -> Any:
+        async def forward(*args: Any, **kwargs: Any) -> Any:
+            if before is not None:
+                before(kwargs)
             return await fn(*args, **kwargs)
     else:
 
-        def left(*args: Any, **kwargs: Any) -> Any:
+        def forward(*args: Any, **kwargs: Any) -> Any:
+            if before is not None:
+                before(kwargs)
             return fn(*args, **kwargs)
 
-    left.__name__ = getattr(fn, "__name__", "callable")
-    left.__qualname__ = getattr(fn, "__qualname__", left.__name__)
-    left.__module__ = getattr(fn, "__module__", None) or __name__
+    forward.__name__ = getattr(fn, "__name__", "callable")
+    forward.__qualname__ = getattr(fn, "__qualname__", forward.__name__)
+    forward.__module__ = getattr(fn, "__module__", None) or __name__
     # Read for an annotated ``**rest`` in ``fn``'s module, as the compiler's other
     # forwarding callables are; ``inspect.signature`` stops at ``__signature__``.
-    left.__annotations__ = dict(getattr(fn, "__annotations__", {}))
-    cast(Any, left).__wrapped__ = fn
-    cast(Any, left).__signature__ = signature.replace(parameters=_by_name(relaxed))
-    return left
+    forward.__annotations__ = dict(getattr(fn, "__annotations__", {}))
+    cast(Any, forward).__wrapped__ = fn
+    cast(Any, forward).__signature__ = signature
+    return forward
 
 
 def _by_name(parameters: list[inspect.Parameter]) -> list[inspect.Parameter]:

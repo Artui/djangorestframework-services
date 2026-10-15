@@ -517,6 +517,21 @@ def prepare_edge_call(
         state.beside_filter[1].update({name: arguments[name] for name in authored if name in names})
     seeds = _hidden_lookup_seeds(spec, service, view, seeds=seeds, extra_kwargs=extra_kwargs)
     state.author_values, extra_kwargs = _seat_author_values(extra_kwargs)
+    # A spread service's signature is the caller's input, a lookup's read
+    # included where it names one: the lookup consumed the read to find the
+    # row, and the kernel hands it to nothing else, so the edge hands the
+    # caller's own value to the service and its preconditions, as on 0.57.0
+    # (test_the_service_takes_the_caller_s_value_where_the_route_scopes_the_lookup).
+    # An input serializer's field delivers it instead
+    # (test_a_serializer_s_field_delivers_the_key_and_its_absence_is_refused).
+    # One arc to coverage, so each conjunct is named:
+    # test_without_a_spreading_binding_the_key_is_the_author_s_to_fill fails
+    # without the first, and test_a_serializer_s_field_delivers_the_key_and_its_absence_is_refused
+    # (the caller's string over the field's integer) without the second.
+    if spread and spec.input_serializer is None:
+        state.author_values.update(
+            _lookup_keys_sent(spec, lookup_reads, params, arguments, authored)
+        )
     if handed:
         target = instance
     elif instance is None:
@@ -595,6 +610,44 @@ def prepare_edge_call(
             "extra_kwargs": extra_kwargs,
         },
     )
+
+
+def _lookup_keys_sent(
+    spec: ServiceSpec[Any, Any, Any],
+    lookup_reads: frozenset[str],
+    params: Any,
+    arguments: Any,
+    authored: Iterable[str],
+) -> dict[str, Any]:
+    """The value for each target lookup read a spread service or its preconditions name.
+
+    The caller's own, as sent: not the route's capture the lookup used in its
+    place (test_the_service_takes_the_caller_s_value_where_the_route_scopes_the_lookup).
+    An author's value outranks it, as it does every caller's value
+    (test_an_author_s_value_outranks_the_caller_s), and one the caller left out
+    is no value at all, so a callable with no default for it asks the caller
+    for it (``asked_of_the_caller``). Named alone: an open ``**kwargs`` takes
+    none of the lookup's reads, which the row was found by and applying would
+    write onto it (test_an_open_service_naming_the_key_takes_it_by_name_alone).
+    Arguments that are no object send nothing
+    (test_arguments_that_are_no_object_send_no_lookup_key). The kernel binds
+    each value by its parameter's kind, so a positional-only parameter is never
+    passed one (test_a_positional_only_parameter_is_never_asked_for).
+    """
+    named = set().union(
+        *(
+            inspect.signature(fn).parameters.keys()
+            for fn in (spec.service, *(spec.preconditions or ()))
+        )
+    )
+    authored = set(authored)
+    sent: dict[str, Any] = {}
+    for name in sorted(lookup_reads & named):
+        if name in authored:
+            sent[name] = arguments[name]
+        elif isinstance(params, Mapping) and name in params:
+            sent[name] = params[name]
+    return sent
 
 
 def over_http(view: Any) -> bool:
