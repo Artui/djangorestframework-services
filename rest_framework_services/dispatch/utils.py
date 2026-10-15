@@ -1387,8 +1387,10 @@ def _reword_unknown(detail: Mapping[Any, Any], parameters: Parameters) -> dict[A
     case), ``non_field_errors`` is never a key the kernel refuses as unknown
     here (its ``object`` case), and an undeclared key refused otherwise keeps
     its key (test_a_validators_refusal_under_an_undeclared_key_keeps_its_key).
-    The kernel writes every level as a mapping: a refusal of a row that is no
-    object goes under ``non_field_errors`` inside it.
+    The kernel writes every level as a mapping, a refusal of a row that is no
+    object under ``non_field_errors`` inside it; DRF's list serializer does not:
+    it refuses a null row with a bare list of messages, which has no keys to
+    reword and is left as raised.
     """
     declared = parameters.names()
     unknown = [
@@ -1409,11 +1411,14 @@ def _reword_unknown(detail: Mapping[Any, Any], parameters: Parameters) -> dict[A
         # a list refused whole, which is no mapping of rows
         # (test_a_non_list_is_refused_under_the_argument).
         if isinstance(rows, Parameters) and isinstance(errors, dict):
-            # A row by its index; the list's own refusal, under
-            # ``non_field_errors``, is no row's
-            # (test_off_http_a_list_level_refusal_sits_under_non_field_errors).
+            # A row's refusal by its index, where it is a mapping. Two refusals
+            # here are lists of messages, each held by its own test: the list's
+            # own, under ``non_field_errors``, which is no row's
+            # (test_off_http_a_list_level_refusal_sits_under_non_field_errors),
+            # and DRF's refusal of a null row
+            # (test_a_null_row_is_refused_at_its_index).
             errors = {
-                index: _reword_unknown(row, rows) if isinstance(index, int) else row
+                index: _reword_unknown(row, rows) if isinstance(row, Mapping) else row
                 for index, row in errors.items()
             }
         reworded[name] = errors

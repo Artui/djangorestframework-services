@@ -14,9 +14,11 @@ is no object, laid out with an entry per row.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
+import rest_framework
 from asgiref.sync import sync_to_async
 from django.contrib.auth.models import AnonymousUser
 from django_service_specs.dispatch.dispatch import dispatch
@@ -92,6 +94,15 @@ _REFUSED = {
     "a-row-that-is-no-object": [{"title": "ok"}, 5],
     "a-row-that-is-no-object-beside-a-refused-one": [{"title": "toolong"}, "x"],
     "the-list-itself": [{"title": "dup"}, {"title": "dup"}],
+    # DRF refuses a null row with a bare list of messages, where every other
+    # row's refusal is a mapping.
+    "a-null-row": [None],
+    "a-null-row-first": [None, {"title": "ok"}],
+    "a-null-row-in-the-middle": [{"title": "ok"}, None, {"title": "ok"}],
+    "a-null-row-last": [{"title": "ok"}, None],
+    "a-null-row-beside-a-refused-one": [{"title": "toolong"}, None],
+    "a-row-that-is-a-list": [{"title": "ok"}, [1]],
+    "a-row-that-is-a-list-holding-null": [[None]],
 }
 
 
@@ -140,6 +151,57 @@ class _ServerInputView(ServiceCreateView):
     spec = ServiceSpec(
         service=_rows, input_serializer=_Row, many=True, input_data=_server_title, atomic=False
     )
+
+
+class _ServerInputUpdateView(ServiceUpdateView):
+    spec = _ServerInputView.spec
+
+
+_NULL = "This field may not be null."
+_NULL_ROWS = {
+    "alone": ([None], {"0": [_NULL]}),
+    "first": ([None, {"title": "ok"}], {"0": [_NULL]}),
+    "in-the-middle": ([{"title": "ok"}, None, {"title": "ok"}], {"1": [_NULL]}),
+    "last": ([{"title": "ok"}, None], {"1": [_NULL]}),
+    "two": ([None, None], {"0": [_NULL], "1": [_NULL]}),
+}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(("body", "expected"), _NULL_ROWS.values(), ids=_NULL_ROWS.keys())
+@pytest.mark.parametrize(
+    ("view", "method"),
+    [
+        (_CreateView, "post"),
+        (_UpdateView, "put"),
+        (_UpdateView, "patch"),
+        (_ServerInputView, "post"),
+        (_ServerInputUpdateView, "put"),
+    ],
+    ids=["create", "update-put", "update-patch", "input-data-create", "input-data-put"],
+)
+def test_a_null_row_is_refused_at_its_index(
+    view: Any, method: str, body: Any, expected: dict[str, Any]
+) -> None:
+    """Pinned outright, as 0.57.0 answered it: DRF refuses a null row with a bare list.
+
+    Read as JSON, so the row's key is the string a client reads. DRF below 3.18
+    reports the rows as a list, with an empty entry for each valid row.
+    """
+    response = view.as_view()(
+        getattr(_factory, method)("/", json.dumps(body), content_type="application/json")
+    )
+
+    assert response.status_code == 400
+    response.render()
+    assert json.loads(response.content) == _in_drfs_shape(expected, len(body))
+    assert "data" not in SEEN
+
+
+def _in_drfs_shape(rows: dict[str, Any], count: int) -> Any:
+    if tuple(int(part) for part in rest_framework.VERSION.split(".")[:2]) >= (3, 18):
+        return rows
+    return [rows.get(str(index), {}) for index in range(count)]
 
 
 @pytest.mark.django_db
