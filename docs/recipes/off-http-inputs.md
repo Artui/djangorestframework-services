@@ -417,6 +417,15 @@ Where the value comes from depends on the view the call carries:
   `view.kwargs`, so a provider or a permission class reading the route finds
   it, and one the caller did not send is read from `view.kwargs`.
 
+A target lookup's `reads` take the same channels the same way, so a
+`SelectorSpec(reads=[QueryParam("q")])` used as an `instance_selector_spec` reads
+`q` from a live view's query string alone. A read named like a writable field of
+the input serializer is refused when the spec compiles, because the body's value
+of that name is the field's, except a `UrlKwarg` the target lookup reads, which
+renames a row by the key that finds it: the route's capture scopes the lookup,
+and off HTTP the caller's value for the name is the field's alone, never written
+onto `view.kwargs`.
+
 Route captures and query values are coerced to the type the entry declares. `required=True` is the declared
 counterpart of the `InputRequired` marker: both land the name in the schema's
 `required` list, and they differ only in where the key is declared. A transport

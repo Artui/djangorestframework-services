@@ -35,6 +35,7 @@ from rest_framework_services import (
     ViewHooks,
     adispatch_spec,
     dispatch_spec,
+    spec_to_json_schema,
 )
 from rest_framework_services.registry.spec_registry import SpecRegistry
 from rest_framework_services.service_specs.as_kernel_spec import as_kernel_spec
@@ -258,3 +259,7 @@ def test_the_spec_registers_though_its_parameters_are_refused() -> None:
     registry.register("rename", dataclasses.replace(_spec({}), permission_classes=[]))
 
     assert registry.get("rename") is not None
+
+
+def test_the_schema_describes_the_spec_though_its_parameters_are_refused() -> None:
+    assert spec_to_json_schema(_spec({}))["properties"] == {"title": {"type": "string"}}

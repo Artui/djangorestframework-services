@@ -25,6 +25,7 @@ from rest_framework import serializers
 from rest_framework_services.service_specs.drf_permission_check import DRFPermissionCheck
 from rest_framework_services.service_specs.serializer_presenter import SerializerPresenter
 from rest_framework_services.service_specs.serializer_validator import SerializerValidator
+from rest_framework_services.service_specs.utils import writable_input_names
 from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
 from rest_framework_services.types.field_marking import FieldMarking
 from rest_framework_services.types.marked_input_keys import marked_input_keys
@@ -165,6 +166,7 @@ def _service(spec: Any, *, partial: bool | None, spread: bool) -> KernelServiceS
     target = instance or collection
     # In the lookup's order: the route a permission class reads is filled in it.
     taken = tuple(parameter.name for parameter in target.reads) if target is not None else ()
+    _refuse_reads_named_like_fields(spec, lookup_reads=frozenset(taken))
     reads = _merge(
         _reflected(spec.service, hidden=hidden) if _takes_its_signature(spec, spread) else [],
         [parameter for parameter in declared if parameter.name not in taken],
@@ -531,6 +533,48 @@ def _refuse_hidden_reads(
                 f"{owner} marks NotClientInput. A read is the client's argument and is "
                 f"handed to {owner} by that name, while the mark keeps the name the "
                 "server's. Remove the read, or the NotClientInput mark."
+            )
+
+
+def _refuse_reads_named_like_fields(spec: Any, *, lookup_reads: frozenset[str]) -> None:
+    """Refuse a read, the spec's or its target lookup's, that a writable input field also takes.
+
+    The body's value of that name is the field's, so a ``QueryParam`` of the
+    name reaches nothing: the service's parameter of that name is handed the
+    field's value, and a target lookup reading the name takes it from the
+    route alone. A ``UrlKwarg`` the target lookup reads is the rename-by-key
+    shape, where the route's value scopes the lookup and the body's is the
+    field's, so it is accepted (test_a_read_no_field_takes_from_the_body_is_accepted);
+    any other ``UrlKwarg`` of the name the kernel would refuse at dispatch as
+    declared by two sources, so it is refused here, beside the declaration
+    (test_a_read_named_like_a_writable_field_is_refused). A ``many`` spec's
+    fields are each row's and a read-only field takes nothing from the body,
+    so neither is a clash (the ``a-rows-field`` and ``read-only-field`` cases
+    of test_a_read_no_field_takes_from_the_body_is_accepted).
+    """
+    writable = writable_input_names(spec)
+    target = spec.collection_selector_spec or spec.instance_selector_spec
+    role = "collection" if spec.collection_selector_spec is not None else "instance"
+    sources = [("ServiceSpec", spec.reads or ())]
+    if target is not None:
+        sources.append((f"ServiceSpec.{role}_selector_spec", target.reads or ()))
+    for label, entries in sources:
+        for entry in entries:
+            looked_up = entry.name in lookup_reads
+            # One branch to coverage, so each condition is named: without the
+            # exemption url-kwarg-the-lookup-reads is refused, without
+            # ``looked_up`` url-kwarg-no-lookup-reads is accepted, and without
+            # the ``UrlKwarg`` check query-param-the-lookup-reads is accepted.
+            if entry.name not in writable or (looked_up and isinstance(entry, UrlKwarg)):
+                continue
+            lookup = " and the target lookup reads" if looked_up else ""
+            raise ImproperlyConfigured(
+                f"{label}.reads declares {type(entry).__name__}({entry.name!r}), which "
+                f"{spec.input_serializer.__qualname__} also takes as a writable field{lookup}. "
+                "The body's value of that name is the field's, so the read would reach "
+                "neither the service nor the lookup. Rename the read or the field; to "
+                "scope the target lookup by a key the body also writes, declare it a "
+                "UrlKwarg the lookup reads."
             )
 
 

@@ -102,7 +102,8 @@ project may have to change, each detailed below:
   an `agent_contract()` method answering the `OfflineContract` the two
   declare, or `None` when both are empty. `reads=[UrlKwarg(...), QueryParam(...)]` declares the route
   captures and query values a spec reads, each a parameter of the compiled
-  spec, so the schema lists it and `REJECT` admits it. On a live DRF view a
+  spec, so the schema lists it and `REJECT` admits it. A target lookup's
+  `reads` are read exactly as the spec's own are. On a live DRF view a
   declared `UrlKwarg` is read from the route alone and a `QueryParam` from the
   query string alone: a body value of that name is neither the argument nor
   written onto `view.kwargs` or `request.query_params`, which the view's
@@ -115,7 +116,13 @@ project may have to change, each detailed below:
   selector, or one of its `preconditions`, marks `NotClientInput`: the read
   would hand that callable the client's value under a name it keeps the
   server's. A name only a target lookup marks `NotClientInput` is accepted
-  and is the service's argument.
+  and is the service's argument. A read named like a writable field of the
+  input serializer, on the spec or its target lookup, is refused too, since
+  the body's value of that name is the field's and the read would reach
+  nothing, except a `UrlKwarg` the target lookup reads: that renames a row by
+  the key that finds it, the route's capture scoping the lookup, and off HTTP
+  a value the caller sends for it is the field's alone, never written onto
+  the offline view's `kwargs`.
   `field_audiences` maps an output field to its `FieldMarking`.
 - **`dispatch_spec(partial=...)`**, the request's partial flag (a `PATCH`).
   `None`, the default, reads the spec's own.

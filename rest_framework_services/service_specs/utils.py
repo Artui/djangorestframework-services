@@ -95,6 +95,19 @@ def describe_serializer(declaration: Any) -> serializers.Serializer:
     return bind_serializer(declaration, context=base_serializer_context(view=None, request=None))
 
 
+def writable_input_names(spec: Any) -> frozenset[str]:
+    """The names a service spec's input serializer takes from the body at the top level.
+
+    Each writable field's name, as the client sends it. A ``many`` spec's fields
+    are each row's and a spec with no input serializer has none, so either
+    answers no name; a read-only field takes nothing from the body.
+    """
+    if spec.input_serializer is None or spec.many:
+        return frozenset()
+    fields = describe_serializer(spec.input_serializer).fields
+    return frozenset(name for name, field in fields.items() if not field.read_only)
+
+
 def bind_serializer(declaration: Any, **kwargs: Any) -> serializers.Serializer:
     """``declaration`` built as a serializer with ``kwargs``, or ``ImproperlyConfigured``."""
     if isinstance(declaration, type) and issubclass(declaration, serializers.Serializer):
