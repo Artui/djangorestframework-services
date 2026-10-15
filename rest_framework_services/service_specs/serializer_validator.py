@@ -31,6 +31,7 @@ from rest_framework_services.service_specs.utils import (
     provider_owned,
     serializer_context,
     server_values,
+    unexpected_arguments,
     validator_input,
     write_form_value,
 )
@@ -271,7 +272,8 @@ class SerializerValidator(Validator):
         # check refused (test_off_http_a_refused_row_keeps_the_kernels_shape).
         whole = sent is not None and state.body_rows
         indices = list(range(len(sent))) if whole else list(rows)
-        if sent is not None and indices == list(range(len(sent))):
+        every_row = sent is not None and indices == list(range(len(sent)))
+        if every_row:
             # Every row sent, in order: the body itself, which the call's
             # description was built for (test_a_many_call of
             # test_the_input_serializer_is_built_once_per_call, off HTTP and on).
@@ -285,6 +287,18 @@ class SerializerValidator(Validator):
             if whole:
                 state.row_errors = serializer.errors
             raise InvalidArguments(_by_row(serializer.errors, indices))
+        # An argument sent beside the rows has nowhere to go, since the service
+        # is handed the rows alone, so it is refused under every
+        # ``UnknownArguments`` policy, as it always was, once the rows are valid
+        # (test_an_argument_beside_the_list_is_refused_under_every_policy, its
+        # ``ignore`` cases; ``REJECT`` refuses it before the rows are read).
+        # Only where every row sent reached the serializer: a row the kernel
+        # refused is answered first, as the rows always were
+        # (test_a_row_the_kernel_refuses_answers_before_an_argument_beside_the_list).
+        # In DRF's words and class, as 0.57.0 raised it: a kernel refusal from
+        # here would be keyed under the rows' argument.
+        if every_row and state.beside_rows:
+            raise unexpected_arguments(state.beside_rows)
         data: list[Any] = list(serializer.validated_data)
         return Validated(
             values={many_argument: [_values(row) for row in data]},

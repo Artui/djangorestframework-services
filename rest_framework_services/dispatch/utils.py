@@ -296,6 +296,14 @@ def prepare_edge_call(
             arguments = edge_arguments(variant, spec, {}, request=request, view=view)
             arguments[spec.many_argument] = rows
         arguments = without_seed_names(arguments, pool_seeds)
+        # What was sent beside the rows that the call declares no argument
+        # for, which its Validator refuses under every policy once the rows
+        # are valid (``EdgeCallState.beside_rows``); rows sent as the arguments
+        # themselves have nothing beside them. Arguments that are no object are
+        # left for their refusal (test_a_live_views_rows_under_an_argument_keep_the_kernels_refusal,
+        # its ``a-list-for-the-arguments`` case).
+        if isinstance(arguments, dict):
+            state.beside_rows = tuple(sorted(arguments.keys() - variant.parameters().names()))
         # Each row as the top level is. One arc to coverage, so each conjunct is
         # named: test_arguments_that_are_not_an_object_are_refused fails without
         # the first (a list sent as the arguments), and

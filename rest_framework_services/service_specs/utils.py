@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextvars import ContextVar
 from typing import Any, cast
 
@@ -276,6 +276,18 @@ def _same_objects(held: Mapping[str, Any], context: Mapping[str, Any]) -> bool:
     return held.keys() == context.keys() and all(held[key] is context[key] for key in context)
 
 
+def unexpected_arguments(names: Iterable[str]) -> serializers.ValidationError:
+    """DRF's refusal of ``names`` as arguments the call has nowhere to put, in this package's words."""
+    listed = ", ".join(repr(name) for name in sorted(names))
+    return serializers.ValidationError(
+        {
+            api_settings.NON_FIELD_ERRORS_KEY: [
+                serializers.ErrorDetail(f"Unexpected argument(s): {listed}.", code="invalid")
+            ]
+        }
+    )
+
+
 def writable_input_names(spec: Any) -> frozenset[str]:
     """The names a service spec's input serializer takes from the body at the top level.
 
@@ -372,6 +384,10 @@ class EdgeCallState:
     - ``body_rows``: whether that body is a live view's list body, which the
       Validator binds whole, every row as sent, as DRF's view bound it
       (``SerializerValidator.validated_many``).
+    - ``beside_rows``: the keys a ``many`` call sent beside its rows under
+      ``many_argument`` that it declares no argument for, which the Validator
+      refuses once the rows are valid, whatever the ``UnknownArguments``
+      policy (``SerializerValidator.validated_many``).
     - ``row_errors``: what the list serializer bound to that whole body
       refused, as the installed DRF reports it, which the edge answers with
       in place of the kernel's rows (``edge_errors``).
@@ -415,6 +431,7 @@ class EdgeCallState:
     author_keys: Mapping[str, str] = dataclasses.field(default_factory=dict)
     provider_owned: frozenset[str] = frozenset()
     body_rows: bool = False
+    beside_rows: tuple[str, ...] = ()
     row_errors: Any = None
     describe_context: Callable[..., dict[str, Any] | None] | None = None
     base_context: tuple[Any, Any, dict[str, Any]] | None = None
