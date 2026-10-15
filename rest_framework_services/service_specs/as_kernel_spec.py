@@ -798,7 +798,11 @@ def _shape(annotation: Any) -> tuple[str, bool, dict[str, Any]]:
         return "array", False, ({"items": element} if element != "any" else {})
     if origin is dict or annotation is dict:
         return "object", False, {}
-    return "any", False, {}
+    # ``Any``, which an unannotated parameter reads as, admits every value,
+    # ``None`` among them, as 0.57.0 handed it on
+    # (test_a_selector_takes_the_client_s_null). A class no Parameter type
+    # names is still no ``None`` (test_a_class_no_parameter_type_names_is_still_no_none).
+    return "any", annotation is Any, {}
 
 
 def _choices(values: tuple[Any, ...]) -> tuple[str, bool, dict[str, Any]]:
