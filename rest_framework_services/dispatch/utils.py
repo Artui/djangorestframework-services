@@ -196,6 +196,9 @@ def prepare_edge_call(
         )
     hooks = view_hooks if view_hooks is not None else ViewHooks()
     state.view_hooks = hooks
+    # What a service spec's output re-read is filtered by, read when it runs,
+    # after the service (``as_kernel_spec``'s ``_filtering_from_the_call``).
+    state.filter_data = filter_data
     # One object for the whole call: a ``Grant`` binds its principal by identity.
     principal = user if user is not None else unauthenticated_user()
     ambient = {"request": request, "view": view}

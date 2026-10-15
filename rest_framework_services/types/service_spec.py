@@ -195,6 +195,16 @@ class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
             is ignored — the surrounding mutation's chains apply — and the nested
             ``permission_classes`` / ``preconditions`` are refused at
             ``as_view()`` rather than silently ignored.
+        output_filter_from_call: Whether the call narrows the re-read: the
+            ``output_selector_spec``'s ``filter_set`` is bound to the call's
+            ``filter_data`` (a live view passes its query string), or to an
+            empty mapping when there is none, so a ``?published=false`` on a
+            ``PATCH`` can hide the row just written. ``True`` by default.
+            ``False`` binds it to an empty mapping on every call, so the
+            re-read answers from the service's return alone and the filter
+            narrows only by what its ``FilterSet`` does with no data. A no-op
+            without an output ``filter_set``, and on a ``many`` spec, whose
+            output selector is never run.
         allow_none: Declare that the service may present nothing: it returns
             ``None`` and no output re-read replaces it. The output schema
             [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
@@ -341,6 +351,12 @@ class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
 
     # Output pipeline.
     output_selector_spec: SelectorSpec[Any, Any] | None = None
+    # Naming (CLAUDE.md rule, second output): ``output_`` for the phase it
+    # configures. On the service spec rather than on ``SelectorSpec``: it says how
+    # this service's call relates to its re-read, which a selector cannot know, and
+    # a selector spec used top-level is always narrowed by its call, while one
+    # nested output spec may be shared by services wanting different answers.
+    output_filter_from_call: bool = True
     # Naming (CLAUDE.md rule, first output): the flag ``SelectorSpec`` already
     # carries for the same fact about the result it presents, so one word says
     # "this may be nothing" on both specs and every transport reads one name. On

@@ -133,16 +133,6 @@ project may have to change, each detailed below:
   filter data raises the kernel's `InvalidArguments`, keyed and worded as the
   `FilterSet` reports it; `dispatch_spec` and the views answer it as a 400,
   and a direct caller turns it into its own answer.
-- **Expect an output selector's rows unfiltered by the query string.** A
-  live view's `output_selector_spec` declaring a `filter_set` is no longer
-  narrowed by the query string, so a response may carry rows the query
-  string used to filter out: a bulk update view answers `PATCH /?title=a`
-  with every row its output selector returns, where 0.57.0 answered those
-  titled `a`. The same holds off HTTP for a caller passing
-  `dispatch_spec(filter_data=)`, as an MCP or agent transport does with a
-  tool's arguments: that mapping narrows the target lookup and no longer the
-  re-read. Nothing refuses the declaration; narrow the rows in the output
-  selector itself.
 - **Rename a filter that shares an input field's name.** A target lookup's
   (`instance_selector_spec` or `collection_selector_spec`) `filter_set`
   naming a filter like an input-serializer field raises
@@ -232,6 +222,13 @@ project may have to change, each detailed below:
 - **`DispatchResult.context`**, the call a presenter renders for (its
   principal, its target and its resolved seeds). It takes no part in
   equality.
+- **`ServiceSpec.output_filter_from_call`**, whether the call narrows the
+  output re-read. `True`, the default, binds the `output_selector_spec`'s
+  `filter_set` to the call's `filter_data` (a live view's query string), or
+  to an empty mapping where there is none, after the re-read's
+  `extend_queryset`, as before. `False` binds it to an empty mapping on every
+  call, so a `?published=false` meant for the target lookup cannot hide the
+  row just written.
 
 ### Changed
 
@@ -562,6 +559,10 @@ project may have to change, each detailed below:
   - `filter_set` must be a django-filter `FilterSet`; one duck-typed on
     `(data, queryset) -> .qs` is refused with `ImproperlyConfigured`. So is a
     filter sharing its name with an input-serializer field.
+  - The rest below is a selector spec's own `filter_set` and a target
+    lookup's. A service's output re-read binds its `filter_set` to the call's
+    `filter_data`, or the query string, as it was passed and refuses a value
+    in DRF's `ValidationError`, as 0.57.0 did.
   - Invalid filter data raises the kernel's `InvalidArguments`
     (`django_service_specs.parameters.invalid_arguments`), keyed and worded
     as the `FilterSet` reports it. `dispatch_spec` and the views translate
@@ -574,8 +575,7 @@ project may have to change, each detailed below:
     a repeated key reaching a multi-valued filter as a list. Off HTTP, filter
     values are type-checked against the filters: `{"published": "true"}` is
     refused where `True` passes.
-  - `filter_data` reaches only the filter's own names, and neither it nor
-    the query string narrows an output selector's `filter_set` any longer.
+  - `filter_data` reaches only the filter's own names.
   - Off HTTP, a filter value of the wrong JSON type is refused in the
     kernel's words before the `FilterSet` reads it: a single value for a
     `ModelMultipleChoiceFilter` is `Expected an array.` (code `not_a_list`)

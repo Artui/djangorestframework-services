@@ -74,7 +74,8 @@ def build_offline_context(
             bound to: ``dispatch_spec`` binds a ``SelectorSpec``'s own, and a target
             lookup's, to ``filter_data``, else to ``params``, and a service's
             ``output_selector_spec.filter_set`` to ``filter_data``, else to an empty
-            mapping. To filter from this query string, pass
+            mapping (always to an empty mapping under
+            ``output_filter_from_call=False``). To filter from this query string, pass
             ``filter_data=context.request.query_params``. Values are stringified as on
             HTTP; a list / tuple becomes a multi-valued param. **Replaces** a wrapped
             ``http_request``'s ``GET`` — on the copy that is wrapped, so the caller's

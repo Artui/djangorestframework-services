@@ -166,7 +166,10 @@ def dispatch_spec(
             that lookup admits no missing row.
         filter_data: The values the ``filter_set`` reads - the selector spec's
             own, or a service spec's target lookup's - restricted to its filter
-            names, and the filter's only source for them when passed.
+            names, and the filter's only source for them when passed. A service
+            spec's ``output_selector_spec.filter_set`` is bound to it whole, as
+            passed, after the service has run, or to an empty mapping without
+            it or under ``output_filter_from_call=False``.
         many_as_argument: Whether a ``many`` spec's rows arrive under
             ``spec.many_argument`` in an object, rather than as ``params``
             itself. Rows arriving bare are refused in the shape DRF's list

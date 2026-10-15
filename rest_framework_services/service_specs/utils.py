@@ -595,6 +595,10 @@ class EdgeCallState:
       what the caller sent as an argument, a route capture, an author's value,
       never ``filter_data`` and never what the filter reads
       (``values_beside_filter``).
+    - ``filter_data``: the call's ``filter_data``, which a service spec's
+      output ``filter_set`` is bound to when it runs, after the service, unless
+      the spec sets ``output_filter_from_call=False`` (``as_kernel_spec``'s
+      ``_filtering_from_the_call``).
 
     Mutable, so the edge can set it before the sync step it hops to a thread
     for and fill it there, and the Validator can fill it during the kernel's
@@ -623,6 +627,7 @@ class EdgeCallState:
     described: dict[Any, serializers.Serializer] = dataclasses.field(default_factory=dict)
     row_pending: bool = False
     beside_filter: tuple[Any, dict[str, Any]] | None = None
+    filter_data: Mapping[str, Any] | None = None
 
 
 EDGE_CALL: ContextVar[EdgeCallState | None] = ContextVar(
