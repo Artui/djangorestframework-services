@@ -7,6 +7,7 @@ from typing import Any
 
 import django_filters
 import pytest
+from asgiref.sync import async_to_sync
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from rest_framework import serializers
@@ -18,6 +19,7 @@ from rest_framework_services import (
     SelectorSpec,
     ServiceError,
     ServiceSpec,
+    adispatch_spec,
     build_offline_context,
     dispatch_spec,
     render_spec_output,
@@ -82,9 +84,12 @@ class TestDispatchSelector:
         rendered = render_spec_output(spec, result.value, many=True)
         assert [row["title"] for row in rendered] == ["shipped"]
 
-    def test_a_manager_from_a_list_selector_is_answered_as_a_queryset(self) -> None:
-        """``Model.objects`` is answered as its ``.all()``, unpaginated too,
-        so a transport counting the rows it serves counts these as well."""
+    @pytest.mark.parametrize("asynchronous", [False, True], ids=["sync", "async"])
+    def test_a_manager_from_a_list_selector_is_answered_as_a_queryset(
+        self, asynchronous: bool
+    ) -> None:
+        """``Model.objects`` is answered as its ``.all()`` on either core, unpaginated
+        too, so a transport counting the rows it serves counts these as well."""
         Post.objects.create(title="a")
         Post.objects.create(title="b")
         spec = SelectorSpec(
@@ -93,7 +98,8 @@ class TestDispatchSelector:
             output_serializer=_PostSerializer,
         )
 
-        result = dispatch_spec(spec, user=None, params={})
+        call = async_to_sync(adispatch_spec) if asynchronous else dispatch_spec
+        result = call(spec, user=None, params={})
 
         assert isinstance(result.value, QuerySet)
         assert sorted(post.title for post in result.value) == ["a", "b"]
