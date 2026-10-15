@@ -16,6 +16,7 @@ from django_service_specs.validation.validation_context import ValidationContext
 from django_service_specs.validation.validator import Validator
 from rest_framework import serializers
 from rest_framework.fields import get_error_detail
+from rest_framework.settings import api_settings
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.service_specs.invalid_arguments import InvalidArguments
@@ -157,7 +158,11 @@ class SerializerValidator(Validator):
     list-level message sits under ``non_field_errors``. A live view's list
     body (``EdgeCallState.body_rows``) is bound whole, every row as sent, and
     what the list serializer refused is also left on the edge's state as DRF
-    reported it, for the edge to answer with as a view always did.
+    reported it, for the edge to answer with as a view always did. Where the
+    kernel refused a row the edge sent, the rows it passed are read but the
+    list is judged as sent: its length bounds count every row sent, and its
+    list-level ``validate()`` does not run, as DRF never runs it past a
+    refused row.
     """
 
     def __init__(
@@ -283,6 +288,17 @@ class SerializerValidator(Validator):
             # kernel passed: a row it refused is not bound twice.
             arguments = [sent[index] for index in rows] if sent is not None else list(rows.values())
         serializer = self._serializer(context, data=arguments, many=True, partial=context.partial)
+        # The kernel refused a row the edge sent, so the list bound here is not
+        # the list the caller sent, and DRF judges a list as sent: its bounds
+        # before it reads a row, its list-level checks only once every row
+        # passed. One arc to coverage, so each condition is named: a call with
+        # no edge body, a kernel call inside a bulk service, holds no list sent
+        # to count (test_a_kernel_call_inside_a_bulk_service_binds_its_own_rows),
+        # and a call whose every row reached the serializer is validated whole
+        # (test_a_list_body_is_refused_as_its_list_serializer_refuses_it, its
+        # ``create-the-list-itself`` case among others).
+        if sent is not None and not every_row:
+            return self._rows_past_a_refusal(serializer, arguments, sent, indices, many_argument)
         if not serializer.is_valid():
             if whole:
                 state.row_errors = serializer.errors
@@ -300,6 +316,50 @@ class SerializerValidator(Validator):
         if every_row and state.beside_rows:
             raise unexpected_arguments(state.beside_rows)
         data: list[Any] = list(serializer.validated_data)
+        return Validated(
+            values={many_argument: [_values(row) for row in data]},
+            data=data,
+            pool={"serializer": serializer},
+        )
+
+    def _rows_past_a_refusal(
+        self,
+        serializer: Any,
+        arguments: list[Any],
+        sent: list[Any],
+        indices: list[int],
+        many_argument: str,
+    ) -> Validated:
+        """The rows the kernel passed, where it refused another the edge sent, judged as DRF judges the list sent.
+
+        DRF's list serializer checks the list's length before it reads a row,
+        so a list sent out of its bounds is refused by the bound alone, its rows
+        unread, as 0.57.0 answered it. That refusal is also left on the edge's
+        state (``EdgeCallState.row_errors``), for the edge to answer it in place
+        of the kernel's refusals of rows
+        (test_over_a_live_view_a_length_bound_counts_every_row_sent_and_answers_alone).
+        Off HTTP the kernel holds the list to those bounds before this, in its
+        own words. A list within them has its rows read, never counted: the
+        rows left once the kernel refused one are fewer than were sent, and are
+        no list the caller sent. DRF runs a list's ``validate()`` and
+        validators only once every row passed, so a refused row leaves them
+        unrun (test_a_row_the_kernel_refuses_leaves_the_lists_own_checks_to_the_rows_sent).
+
+        The call is refused whatever the rows here hold, by the row the kernel
+        refused, so what is returned is never handed to the service.
+        """
+        refusal = _bound_refusal(serializer, len(sent))
+        if refusal is not None:
+            edge_call_state().row_errors = refusal
+            raise InvalidArguments(refusal)
+        # The rows left are fewer than were sent, so they can fall below a
+        # minimum the list sent met, never past a maximum it met.
+        serializer.allow_empty = True
+        serializer.min_length = None
+        try:
+            data = list(serializer.to_internal_value(arguments))
+        except serializers.ValidationError as exc:
+            raise InvalidArguments(_by_row(exc.detail, indices)) from None
         return Validated(
             values={many_argument: [_values(row) for row in data]},
             data=data,
@@ -662,6 +722,31 @@ def _by_row(errors: Any, indices: list[int]) -> dict[Any, Any]:
     if isinstance(errors, list):
         errors = {position: row for position, row in enumerate(errors) if row}
     return {indices[key] if isinstance(key, int) else key: detail for key, detail in errors.items()}
+
+
+def _bound_refusal(listed: Any, count: int) -> dict[str, list[serializers.ErrorDetail]] | None:
+    """A list serializer's refusal of ``count`` rows by its length bounds, or ``None``.
+
+    In DRF's words and order, the maximum before the minimum, as its list
+    serializer refuses a list before reading a row. ``allow_empty`` is not
+    asked: a list sent empty has no row for the kernel to refuse, so it is
+    validated whole. Each condition is held by a case of
+    test_a_row_the_kernel_refuses_leaves_the_lists_own_checks_to_the_rows_sent
+    that fails without it: ``max_length is not None`` by ``may-not-be-empty``
+    (a list with no maximum), ``min_length is None`` by ``list-validate`` (one
+    with no minimum), and both comparisons by ``min-length``, two rows within
+    a minimum of two and a maximum of three.
+    test_over_a_live_view_a_length_bound_counts_every_row_sent_and_answers_alone
+    holds each refusal.
+    """
+    if listed.max_length is not None and count > listed.max_length:
+        code, bound = "max_length", listed.max_length
+    elif listed.min_length is None or count >= listed.min_length:
+        return None
+    else:
+        code, bound = "min_length", listed.min_length
+    message = listed.error_messages[code].format(**{code: bound})
+    return {api_settings.NON_FIELD_ERRORS_KEY: [serializers.ErrorDetail(message, code=code)]}
 
 
 def _unseeded(values: Mapping[str, Any], context: ValidationContext) -> dict[str, Any]:

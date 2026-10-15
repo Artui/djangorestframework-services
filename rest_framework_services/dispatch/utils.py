@@ -1845,6 +1845,17 @@ def edge_errors(
             _filter_errors_flat(_unexpected_as_drf(exc.detail, spec), spec),
             _sent_rows(spec, params, bare_rows=bare_rows),
         )
+        # The list serializer refused the rows sent under ``many_argument`` by
+        # their bound, which it checks before it reads a row, so that refusal
+        # is the rows' whole answer, as 0.57.0 gave it: the kernel's refusals
+        # of rows are not added to it
+        # (test_over_a_live_view_a_length_bound_counts_every_row_sent_and_answers_alone).
+        # Rows sent bare are answered so by ``_bare_rows_error``.
+        if state.row_errors is not None:
+            detail = {
+                **detail,
+                cast("ServiceSpec[Any, Any, Any]", spec).many_argument: state.row_errors,
+            }
         unwrapped = (
             _bare_rows_error(detail, spec.many_argument, params, state.row_errors)
             if bare_rows
@@ -1903,7 +1914,18 @@ def _drf_body_refusal(
         except UNREADABLE_WITHOUT_A_CALL:
             # A row serializer built only with the call's request: DRF's own
             # words for a list serializer refusing what is no list
-            # (test_a_bulk_body_that_is_no_list_is_refused_in_drfs_words_by_a_serializer_needing_a_request).
+            # (test_a_bulk_body_that_is_no_list_is_refused_in_drfs_words_by_a_serializer_needing_a_request),
+            # and for a ``null`` body, which DRF's ``errors`` answers before
+            # any row is read
+            # (test_a_null_bulk_body_is_refused_as_no_data_provided[reads-the-request]).
+            if params is None:
+                return ValidationError(
+                    {
+                        api_settings.NON_FIELD_ERRORS_KEY: [
+                            ErrorDetail("No data provided", code="null")
+                        ]
+                    }
+                )
             message = f'Expected a list of items but got type "{type(params).__name__}".'
             return ValidationError(
                 {api_settings.NON_FIELD_ERRORS_KEY: [ErrorDetail(message, code="not_a_list")]}

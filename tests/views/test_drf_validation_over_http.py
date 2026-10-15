@@ -208,6 +208,21 @@ def test_a_bulk_body_that_is_no_list_is_refused_in_drfs_words_by_a_serializer_ne
     assert excinfo.value.detail == {"non_field_errors": _NO_LIST}
 
 
+@pytest.mark.parametrize(
+    "view", [_BulkView, _BulkReadsTheRequestView], ids=["plain", "reads-the-request"]
+)
+def test_a_null_bulk_body_is_refused_as_no_data_provided(view: type[ServiceCreateView]) -> None:
+    """DRF answers a ``null`` body ``No data provided``, code ``null``, before it
+    reads a row, so a row serializer built only with the call's request answers
+    it too, as 0.57.0 did."""
+    request = _factory.generic("POST", "/", "null", content_type="application/json")
+    response = view.as_view()(request)
+
+    assert response.status_code == 400
+    assert response.data == {"non_field_errors": ["No data provided"]}
+    assert [error.code for error in response.data["non_field_errors"]] == ["null"]
+
+
 def test_a_bulk_row_is_read_as_drf_reads_it() -> None:
     body = [{"published": "true", "title": 123}]
 

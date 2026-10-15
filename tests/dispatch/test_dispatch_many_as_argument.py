@@ -428,6 +428,38 @@ async def test_an_empty_list_that_may_not_be_empty_is_refused_under_the_argument
     assert refusal.get_codes() == {"items": ["min_length"]}
 
 
+class _NonEmptyPairs(serializers.ListSerializer):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs.setdefault("allow_empty", False)
+        kwargs.setdefault("min_length", 2)
+        super().__init__(*args, **kwargs)
+
+
+class _NonEmptyPair(_Line):
+    class Meta:
+        list_serializer_class = _NonEmptyPairs
+
+
+@_CORES
+@pytest.mark.parametrize(
+    ("serializer", "message"),
+    [
+        (_NonEmptyLine, "Ensure this field has at least 1 elements."),
+        (_NonEmptyPair, "Ensure this field has at least 2 elements."),
+    ],
+    ids=["a-minimum-of-one", "a-larger-min-length"],
+)
+async def test_without_the_flag_an_empty_list_that_may_not_be_empty_is_below_its_minimum(
+    core: str, serializer: type, message: str
+) -> None:
+    """Off HTTP the kernel holds the list to ``allow_empty=False`` as a minimum of
+    one, or the ``min_length`` where larger, in its words, where 0.57.0 said
+    ``This list may not be empty.``, code ``empty``."""
+    refusal = await _refusal(core, _spec(serializer), params=[])
+    assert refusal.detail == {"non_field_errors": [message]}
+    assert refusal.get_codes() == {"non_field_errors": ["min_length"]}
+
+
 @_CORES
 @pytest.mark.parametrize(
     ("items", "message"),
@@ -444,6 +476,103 @@ async def test_a_length_bound_is_refused_under_the_argument(
         core, _spec(_BoundedLine), params={"items": items}, many_as_argument=True
     )
     assert refusal.detail == {"items": [message]}
+
+
+# --- a list's own checks judge the rows sent ----------------------------------
+
+
+class _DistinctLines(serializers.ListSerializer):
+    """A list-level ``validate()``, which DRF runs only once every row is valid."""
+
+    def validate(self, attrs: Any) -> Any:
+        if len({row["sku"] for row in attrs}) < len(attrs):
+            raise ValidationError("Each sku once.")
+        return attrs
+
+
+class _DistinctLine(_Line):
+    class Meta:
+        list_serializer_class = _DistinctLines
+
+
+_NO_OBJECT: dict[str, Any] = {
+    "non_field_errors": ["Invalid data. Expected a dictionary, but got int."]
+}
+
+# Each list as sent passes its list's bounds, and its last row is no object, which
+# the kernel refuses before the serializer reads a row. Judged on the rows left, the
+# first would be empty, the second one short, and the third would run the list's
+# ``validate()`` over two equal rows; DRF judges the list as sent, and never runs
+# that ``validate()`` past a refused row.
+_JUDGED_AS_SENT = {
+    "may-not-be-empty": (_NonEmptyLine, [1]),
+    "min-length": (_BoundedLine, [_GOOD, 1]),
+    "list-validate": (_DistinctLine, [_GOOD, _GOOD, 1]),
+}
+
+
+@_CORES
+@pytest.mark.parametrize("flag", [True, False], ids=["under-the-argument", "bare"])
+@pytest.mark.parametrize(
+    ("serializer", "items"), _JUDGED_AS_SENT.values(), ids=_JUDGED_AS_SENT.keys()
+)
+async def test_a_row_the_kernel_refuses_leaves_the_lists_own_checks_to_the_rows_sent(
+    core: str, flag: bool, serializer: type, items: list[Any]
+) -> None:
+    """Only the refused row is answered, as 0.57.0 answered it."""
+    params: Any = {"items": items} if flag else items
+    refusal = await _refusal(core, _spec(serializer), params=params, many_as_argument=flag)
+    last = len(items) - 1
+    if flag:
+        assert refusal.detail == {"items": {last: _NO_OBJECT}}
+    else:
+        assert refusal.detail == [*([{}] * last), _NO_OBJECT]
+
+
+def _over_a_live_view(serializer: type, items: list[Any]) -> ValidationError:
+    view = _live_view()
+    with pytest.raises(ValidationError) as caught:
+        dispatch_spec(
+            _spec(serializer),
+            user=None,
+            params={"items": items},
+            request=view.request,
+            view=view,
+            many_as_argument=True,
+        )
+    return caught.value
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("serializer", "items"), _JUDGED_AS_SENT.values(), ids=_JUDGED_AS_SENT.keys()
+)
+def test_over_a_live_view_a_refused_row_leaves_the_lists_own_checks_to_the_rows_sent(
+    serializer: type, items: list[Any]
+) -> None:
+    refusal = _over_a_live_view(serializer, items)
+    assert refusal.detail == {"items": {len(items) - 1: _NO_OBJECT}}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("items", "message", "code"),
+    [
+        ([1], "Ensure this field has at least 2 elements.", "min_length"),
+        ([_GOOD, _GOOD, _GOOD, 1], "Ensure this field has no more than 3 elements.", "max_length"),
+    ],
+    ids=["too-short", "too-long"],
+)
+def test_over_a_live_view_a_length_bound_counts_every_row_sent_and_answers_alone(
+    items: list[Any], message: str, code: str
+) -> None:
+    """DRF's list serializer checks its bounds before it reads a row, so a list
+    out of bounds is answered by the bound alone, whatever its rows hold, as a
+    live view answered it on 0.57.0. Off HTTP the kernel's own bound answers
+    first (test_a_length_bound_is_refused_under_the_argument)."""
+    refusal = _over_a_live_view(_BoundedLine, items)
+    assert refusal.detail == {"items": {"non_field_errors": [message]}}
+    assert refusal.get_codes() == {"items": {"non_field_errors": [code]}}
 
 
 @_CORES
