@@ -422,7 +422,9 @@ project may have to change, each detailed below:
   the mapping. A non-list, null or out-of-bounds list under `many_argument`
   is refused in the kernel's words (`{"items": ["Expected an array."]}`), and
   a key beside the rows follows `unknown_arguments`, dropped under `IGNORE`,
-  where it was refused under every policy.
+  where it was refused under every policy. `SPREAD_AUTHOR_WINS`
+  on a `many` dispatch is accepted and hands the service what `AUTO` does,
+  where 0.57.0 raised `ValueError`.
 - **Partial calls over a dataclass.** `dispatch_spec(partial=True)` over a
   dataclass input, or a `DataclassSerializer` subclass, is refused with
   `ImproperlyConfigured`, as is a spec declaring `partial=True` over one, on
