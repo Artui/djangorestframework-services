@@ -4,7 +4,10 @@ Declining it with ``UNSET`` leaves the parameter its default, whatever field
 the client's value came in through: one whose ``source`` is the key, a list,
 dict, nested or nested ``many`` field a form body fills through prefixed keys
 (``tags[0]``, ``meta.tenant``, ``d.k``, ``rows[0]tenant``), or a field named
-like the key itself. The client's value stays the serializer's, so it is the
+like the key itself (whether a form's ``d.k`` fills the dict at all is DRF's
+reading: DRF 3.14 reads it as ``{}``, so a form body's ``data`` is compared with
+what DRF's own serializer reads from the same body). The client's value stays
+the serializer's, so it is the
 service's in ``data`` alone, as a ``NotClientInput`` key's is, and as 0.57.0
 handed it. A view hook naming the key by the field's wire name is no way in
 either.
@@ -166,6 +169,21 @@ def _plain(value: Any) -> Any:
     return value
 
 
+def _form_data(shape: str) -> Any:
+    """``data`` for the shape's form body: what DRF's own serializer reads from it.
+
+    Not the literal in ``_SHAPES``, because the reading is DRF's and differs by
+    version: DRF 3.14's ``DictField`` reads a form's ``d.k`` as ``{}``, where
+    current DRF reads ``{"k": "evil"}``. The claim here is that the client's
+    value stays the serializer's and the parameter keeps its default, so the
+    serializer bound outside drfs, on the same body, is the expectation.
+    """
+    serializer, _key, _json_body, form_body, _data = _SHAPES[shape]
+    bound = serializer(data=_form(form_body))
+    assert bound.is_valid(), bound.errors
+    return _plain(dict(bound.validated_data))
+
+
 @pytest.mark.parametrize("fmt", ["json", "multipart"])
 @_SHAPE
 def test_a_declined_key_is_never_the_clients_over_http(shape: str, fmt: str) -> None:
@@ -180,7 +198,7 @@ def test_a_declined_key_is_never_the_clients_over_http(shape: str, fmt: str) -> 
     )
 
     assert response.status_code == 204, response.data
-    assert seen == {"param": "DEFAULT", "data": data}
+    assert seen == {"param": "DEFAULT", "data": data if fmt == "json" else _form_data(shape)}
 
 
 @_CORES
@@ -194,7 +212,7 @@ def test_a_declined_key_is_never_the_clients_off_http(
 
     dispatch(_spec(shape, seen), params=json_body if body == "mapping" else _form(form_body))
 
-    assert seen == {"param": "DEFAULT", "data": data}
+    assert seen == {"param": "DEFAULT", "data": data if body == "mapping" else _form_data(shape)}
 
 
 @pytest.mark.parametrize("fmt", ["json", "multipart"])
@@ -249,7 +267,7 @@ def test_a_declined_key_is_never_the_clients_under_a_spreading_binding(
         argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
     )
 
-    assert seen == {"param": "DEFAULT", "data": data}
+    assert seen == {"param": "DEFAULT", "data": data if body == "mapping" else _form_data(shape)}
 
 
 @_CORES

@@ -421,6 +421,18 @@ class _RepeatedView(ServiceCreateView):
     spec = ServiceSpec(service=_echo, input_serializer=_RepeatedIn, atomic=False)
 
 
+def _choices_sorted(data: dict[str, Any]) -> dict[str, Any]:
+    """``data`` with its multiple choice as a sorted list.
+
+    ``MultipleChoiceField`` hands its validated value back as a ``set`` on DRF
+    3.14 and as a ``list`` on current DRF, so only the values chosen are
+    compared, never the container the installed DRF happens to build.
+    """
+    if "flags" not in data:
+        return data
+    return {**data, "flags": sorted(data["flags"])}
+
+
 def test_a_form_bodys_repeated_keys_reach_the_serializer_whole() -> None:
     """With nothing put over it, the body the serializer binds is the client's, so
     a repeated key is read as every value it carries, never as the last alone."""
@@ -429,7 +441,7 @@ def test_a_form_bodys_repeated_keys_reach_the_serializer_whole() -> None:
     response = _RepeatedView.as_view()(_request(body, "multipart"))
 
     assert response.status_code == 204, response.data
-    assert SEEN["data"] == {"tags": ["a", "b"], "flags": ["x", "y"], "note": "n"}
+    assert _choices_sorted(SEEN["data"]) == {"tags": ["a", "b"], "flags": ["x", "y"], "note": "n"}
 
 
 class _NullNoteView(_RepeatedView):
@@ -445,4 +457,4 @@ def test_a_hooks_none_fills_a_required_nullable_field_the_client_omitted(fmt: st
     assert response.status_code == 204, response.data
     # A form body reads an absent multiple choice as none chosen, as DRF does.
     chosen = {"flags": []} if fmt == "multipart" else {}
-    assert SEEN["data"] == {"tags": ["a"], **chosen, "note": None}
+    assert _choices_sorted(SEEN["data"]) == {"tags": ["a"], **chosen, "note": None}

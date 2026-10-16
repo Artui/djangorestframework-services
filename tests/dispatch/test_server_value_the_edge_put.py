@@ -452,6 +452,10 @@ def test_a_server_value_on_a_form_body_is_read_as_a_form_reads_it(
     response = view.as_view()(_factory.post("/", {"v": "evil"}, format="multipart"))
 
     assert response.status_code == 204, response.data
+    # ``MultipleChoiceField`` validates to a ``set`` on DRF 3.14 and to a
+    # ``list`` on current DRF, so a set is compared by its sorted values: what
+    # is chosen is the claim, the container is the installed DRF's.
+    seen.update({k: sorted(v) for k, v in seen.items() if isinstance(v, set)})
     assert seen == {"v": handed, "data": kept, "validated": kept}
 
 
