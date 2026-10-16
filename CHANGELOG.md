@@ -163,7 +163,7 @@ project may have to change, each detailed below:
   write did not match, and one level down: a singular relation inside another
   answers `{"author": {"profile": {"non_field_errors": ["N."]}}}`, and inside
   a collection's row `{"sections": {0: {"profile": {"non_field_errors":
-  ["N."]}}}}`. A client reads the refusal at `errors["author"]["non_field_errors"]`.
+  ["RC."]}}}}`. A client reads the refusal at `errors["author"]["non_field_errors"]`.
   A field map the service named, `{"name": ["Bad."]}`, and a map that carries
   its own `non_field_errors` are answered as before, and a Django
   `ValidationError` or a `TypeError` from a row service still propagates. The
@@ -815,10 +815,13 @@ project may have to change, each detailed below:
 ### Fixed
 
 - **`REJECT cannot be enforced` no longer offers `PASSTHROUGH`.** The
-  `ImproperlyConfigured` that `resolve_unknown_arguments` raises for a
-  `**kwargs` annotation that does not resolve at runtime named
-  `UnknownArguments.PASSTHROUGH` as a way out, which raises `ValueError`. It
-  now offers `IGNORE`, or making the annotation resolvable.
+  `ImproperlyConfigured` that `resolve_unknown_arguments`, in
+  `rest_framework_services.dispatch.utils`, raises for a `**kwargs`
+  annotation that does not resolve at runtime named
+  `UnknownArguments.PASSTHROUGH` as a way out, which raises `ValueError`.
+  It now offers `IGNORE`, or making the annotation resolvable. Only a direct
+  call of that helper reaches this message; a dispatch raises the message that
+  already offered `IGNORE` alone.
 - **Under `SPREAD_AUTHOR_WINS`, a parameter takes `input_data`'s value for its
   field, `NotClientInput` or not**, where a later field with the same
   `source`, a `source="*"` nested serializer or a `validate()` writing that

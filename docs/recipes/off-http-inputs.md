@@ -199,9 +199,11 @@ spec's `kwargs` provider, still outranks the caller's on a conflict. `data` is
 | a key nothing declares | dropped | refused: `Unexpected argument(s): 'zzz'.` |
 
 A target lookup that shapes its rows with a `filter_set` declares the filter's
-names and its selector's parameters, so a key outside them is refused under
-`REJECT` there too; a lookup whose selector takes a bare `**kwargs` declares
-none, and nothing is refused.
+names and its selector's parameters, so under `AUTO` or `BUNDLE` a key outside
+them is refused under `REJECT` there too; a lookup whose selector takes a bare
+`**kwargs` declares none, and nothing is refused. Under `SPREAD_AUTHOR_WINS` the
+service's own parameters join the set, and a bare `**kwargs` service drops the
+key, as below.
 
 A parameter counts when the caller could fill it by name: a keyword parameter,
 or a key of an `Unpack[TypedDict]` `**kwargs`. These do not count:
