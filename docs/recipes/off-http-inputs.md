@@ -66,9 +66,17 @@ transport-controlled, never caller input.
     `TypedDict` has to be importable when the callable is dispatched — an import
     parked under `if TYPE_CHECKING:` is not. With
     `UnknownArguments.REJECT` the annotation is the entire basis for refusing an
-    argument, so an unresolvable one raises `ImproperlyConfigured` on dispatch
-    rather than quietly letting every argument through. The permissive policies
-    read an unresolvable annotation as an open `**kwargs`, as they always have.
+    argument wherever the call reads it, so an unresolvable one raises
+    `ImproperlyConfigured` there rather than quietly letting every argument
+    through. The call reads it on a selector, a top-level one or a target
+    lookup's, under every `ArgumentBinding`, and on a service with no
+    `input_serializer` under `SPREAD_AUTHOR_WINS` alone, where its parameters are
+    the caller's input. It does not raise on a service dispatched under `AUTO` or
+    `BUNDLE`, which reads none of its signature, nor on a service with an input
+    serializer, whose serializer declares the input, nor beside a target lookup
+    whose selector takes a bare `**kwargs`, which leaves the call open: those
+    calls run. The permissive policies read an unresolvable annotation as an open
+    `**kwargs`, as they always have.
     Only the `**kwargs` annotation itself counts here: another parameter, or
     another key of the `TypedDict`, naming something imported under
     `if TYPE_CHECKING:` leaves the surface known, because each annotation is
@@ -190,6 +198,11 @@ spec's `kwargs` provider, still outranks the caller's on a conflict. `data` is
 | a parameter of the service, under `AUTO` or `BUNDLE` | dropped | refused: `Unexpected argument(s): 'reason'.` |
 | a key nothing declares | dropped | refused: `Unexpected argument(s): 'zzz'.` |
 
+A target lookup that shapes its rows with a `filter_set` declares the filter's
+names and its selector's parameters, so a key outside them is refused under
+`REJECT` there too; a lookup whose selector takes a bare `**kwargs` declares
+none, and nothing is refused.
+
 A parameter counts when the caller could fill it by name: a keyword parameter,
 or a key of an `Unpack[TypedDict]` `**kwargs`. These do not count:
 
@@ -204,7 +217,10 @@ A bare `**kwargs` declares no name. It receives the declared arguments and the
 seeds the call carries (`data` and `view` among them), never an undeclared key:
 under `REJECT` such a key is refused, except under `SPREAD_AUTHOR_WINS`, where
 an open service drops it instead. An annotated `**kwargs` whose `TypedDict`
-cannot be resolved at runtime makes `REJECT` raise `ImproperlyConfigured`.
+cannot be resolved at runtime makes `REJECT` raise `ImproperlyConfigured` where
+the call reads that annotation, as the warning above sets out: for this service,
+under `SPREAD_AUTHOR_WINS`, unless its target lookup's selector takes a bare
+`**kwargs`.
 
 The input schema says the same when it is told the binding. Pass
 `SPREAD_AUTHOR_WINS` to `spec_to_json_schema`, and it lists the service's
@@ -346,7 +362,8 @@ be required to supply a value it is never told about.
     marked annotation uses at runtime where you can. The one thing that stays
     unknown is a `**kwargs: Unpack[Extras]` whose `TypedDict` does not resolve:
     nothing says which keys it has, so none is hidden and `REJECT` refuses to run
-    on it (see the warning about importing the `TypedDict` at runtime, above).
+    on it wherever the call reads that annotation (see the warning about
+    importing the `TypedDict` at runtime, above, for where that is).
 
 ### `view` is never caller input
 

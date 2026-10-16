@@ -233,6 +233,10 @@ class TestResolveUnknownArguments:
         assert "REJECT cannot be enforced" in message
         assert "_find_orders(**extras)" in message
         assert "TYPE_CHECKING" in message
+        # The message offers only what works: ``PASSTHROUGH`` is retired and raises
+        # ``ValueError``, so naming it as a way out sends the reader to a second error.
+        assert "PASSTHROUGH" not in message
+        assert message.endswith("or dispatch with UnknownArguments.IGNORE.")
 
     def test_reject_refuses_even_when_no_argument_looks_unknown(self) -> None:
         # The policy is unenforceable regardless of the arguments in hand, so it

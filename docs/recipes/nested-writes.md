@@ -432,7 +432,10 @@ collection otherwise never says *which* row was refused.
 - A field map is passed through as raised. A service that raises a string or
   a list, which names no field, has it placed under that row's
   `non_field_errors`, at the relation (and position) it came from:
-  `{"posts": {1: {"non_field_errors": ["Too rude."]}}}`.
+  `{"posts": {1: {"non_field_errors": ["Too rude."]}}}`. A relation holding one
+  row has no position, so its refusal is a mapping under the relation's name
+  too: `{"profile": {"non_field_errors": ["Too long."]}}`, never a bare list or
+  string, over a live view and off HTTP, and at every depth.
 - Names nest as you walk them, so a grandchild reads
   `{"posts": {0: {"comments": {0: {"body": ["Too long."]}}}}}`.
 

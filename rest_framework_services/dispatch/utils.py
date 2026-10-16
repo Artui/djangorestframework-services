@@ -2461,8 +2461,7 @@ def resolve_unknown_arguments(
             raise ImproperlyConfigured(
                 f"UnknownArguments.REJECT cannot be enforced: {exc} Make the annotation "
                 "resolvable at runtime (import the TypedDict normally rather than under "
-                "'if TYPE_CHECKING:'), or dispatch with UnknownArguments.IGNORE or "
-                "PASSTHROUGH."
+                "'if TYPE_CHECKING:'), or dispatch with UnknownArguments.IGNORE."
             ) from exc
         return {}
     if declared is None:
