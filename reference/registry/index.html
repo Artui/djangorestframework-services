@@ -16,7 +16,7 @@
         <link rel="prev" href="../types/">
       
       
-        <link rel="next" href="../jsonschema/">
+        <link rel="next" href="../service-specs/">
       
       
         
@@ -1070,6 +1070,8 @@
       
         
       
+        
+      
     
     
     
@@ -1533,6 +1535,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="RegisteredSpec">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.registered_spec.RegisteredSpec.agent_contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        agent_contract
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1600,6 +1619,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1897,6 +1944,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="RegisteredSpec">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.registered_spec.RegisteredSpec.agent_contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        agent_contract
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2010,24 +2074,25 @@ filtered views — see the recipe
 
 
 
-        <p>A <code>name → spec</code> map with tags, stable ordering, and filtered views.</p>
-<p>One declaration site for the operations a project exposes over more than one
-transport, so the transports read one source instead of each enumerating
-specs and drifting. It holds only the <strong>invariant</strong> part of an operation —
-which spec, its canonical name, its tags; per-transport configuration stays
-at the binding that owns it. Adapters read a registry at configuration time
-to build their binding tables; nothing consults one per request.</p>
+        <p>A <code>name -&gt; spec</code> map with tags, stable ordering, and filtered views.</p>
+<p>One declaration site for the operations a project exposes over more than
+one transport, so the transports read one source instead of each
+enumerating specs and drifting. It holds only the <strong>invariant</strong> part of an
+operation - which spec, its canonical name, its tags; per-transport
+configuration stays at the binding that owns it. Adapters read a registry
+at configuration time to build their binding tables; nothing consults one
+per dispatch.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">SpecRegistry</span><span class="p">()</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;list_orders&quot;</span><span class="p">,</span> <span class="n">orders_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;read&quot;</span><span class="p">,</span> <span class="s2">&quot;public&quot;</span><span class="p">))</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;refund_order&quot;</span><span class="p">,</span> <span class="n">refund_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;write&quot;</span><span class="p">,</span> <span class="s2">&quot;admin&quot;</span><span class="p">))</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">public</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">by_tag</span><span class="p">(</span><span class="s2">&quot;public&quot;</span><span class="p">)</span>   <span class="c1"># a new registry — a snapshot</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">public</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">by_tag</span><span class="p">(</span><span class="s2">&quot;public&quot;</span><span class="p">)</span>   <span class="c1"># a new registry - a snapshot</span>
 </span></code></pre></div>
 <p><strong>There is no global registry</strong>: a consumer holds as many of its own
 instances as it likes, with no shared state between them. Registries are
-mutable — <code>register</code> adds — but every derivation (<code>by_tag</code>,
-<code>subset</code>, <code>merge</code>) returns a <strong>new</strong> registry holding a snapshot
-of the selected entries, sharing the spec objects rather than copying them.
+mutable - <code>register</code> adds - but every derivation (<code>by_tag</code>,
+<code>subset</code>, <code>merge</code>) returns a <strong>new</strong> registry holding a snapshot of
+the selected entries, sharing the spec objects rather than copying them.
 A derived view never mutates its source, and a later <code>register()</code> on the
 source does <strong>not</strong> appear in a view derived earlier.</p>
 
@@ -2062,11 +2127,10 @@ source does <strong>not</strong> appear in a view derived earlier.</p>
 <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.register" class="headerlink" title="Permanent link">&para;</a></h3>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">register</span><span class="p">(</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span> <span class="o">|</span> <span class="n">SelectorSpec</span> <span class="o">|</span> <span class="n">SpecSource</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">tags</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">agent_contract</span><span class="p">:</span> <span class="n">OfflineContract</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
@@ -2094,10 +2158,10 @@ source does <strong>not</strong> appear in a view derived earlier.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The canonical name. Must be unused <strong>in this registry</strong> — a
+                <p>The canonical name. Must be unused <strong>in this registry</strong> - a
 duplicate raises rather than overwriting, so a copy-pasted
-declaration fails at import time instead of silently shadowing
-an operation.</p>
+declaration fails at import time instead of silently
+shadowing an operation.</p>
               </div>
             </td>
             <td>
@@ -2109,21 +2173,15 @@ an operation.</p>
                 <code>spec</code>
             </td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="ServiceSpec
-
-
-  
-      dataclass
-   (rest_framework_services.types.service_spec.ServiceSpec)" href="../types/#rest_framework_services.types.service_spec.ServiceSpec">ServiceSpec</a>[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>] | <a class="autorefs autorefs-internal" title="SelectorSpec
-
-
-  
-      dataclass
-   (rest_framework_services.types.selector_spec.SelectorSpec)" href="../types/#rest_framework_services.types.selector_spec.SelectorSpec">SelectorSpec</a>[<span title="typing.Any">Any</span>, <span title="typing.Any">Any</span>]</code>
+                  <code><a class="autorefs autorefs-external" title="django_service_specs.specs.service_spec.ServiceSpec" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.specs.service_spec.ServiceSpec">ServiceSpec</a> | <a class="autorefs autorefs-external" title="django_service_specs.specs.selector_spec.SelectorSpec" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.specs.selector_spec.SelectorSpec">SelectorSpec</a> | <a class="autorefs autorefs-external" title="django_service_specs.specs.spec_source.SpecSource" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.specs.spec_source.SpecSource">SpecSource</a></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A <code>ServiceSpec</code> (mutation) or <code>SelectorSpec</code> (read).</p>
+                <p>A <code>ServiceSpec</code> (write) or <code>SelectorSpec</code> (read), or an
+object with <code>as_kernel_spec()</code> compiling to one. The object
+is kept as registered, and compiled here, once: a declaration
+that does not compile, or compiles to an unguarded spec, fails
+at registration.</p>
               </div>
             </td>
             <td>
@@ -2144,32 +2202,6 @@ an operation.</p>
             </td>
             <td>
                   <code>()</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>agent_contract</code>
-            </td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="OfflineContract
-
-
-  
-      dataclass
-   (rest_framework_services.types.offline_contract.OfflineContract)" href="#rest_framework_services.types.offline_contract.OfflineContract">OfflineContract</a> | None</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>What a transport with no HTTP request has to be
-told -- the URL captures and query params the URLconf and query
-string would have supplied. Every off-HTTP transport needs the
-identical answer, so declaring it here is declaring it once; a
-mount may still override it. Meaningless over HTTP, which is why
-it is not on the spec.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
             </td>
           </tr>
       </tbody>
@@ -2202,9 +2234,22 @@ it is not on the spec.</p>
             <td>
               <div class="doc-md-description">
                 <p><code>spec</code> is neither a <code>ServiceSpec</code> nor a
-<code>SelectorSpec</code>. A <code>PolymorphicServiceSpec</code> is rejected —
-register each of its variants under its own name, since
-transports project one operation per variant, not a union.</p>
+<code>SelectorSpec</code>, nor an object compiling to one.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="django.core.exceptions.ImproperlyConfigured">ImproperlyConfigured</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the spec, or what it compiles to, has
+<code>permissions is None</code>. Off HTTP there
+is no view whose policy an undeclared spec could inherit, so
+registering one that means to be open must say so with
+<code>permissions=[Unrestricted()]</code>; the alternative is a spec
+that dispatch would refuse on every call.</p>
               </div>
             </td>
           </tr>
@@ -2310,7 +2355,7 @@ transports project one operation per variant, not a union.</p>
     <div class="doc doc-contents ">
 
         <p>A new registry holding the entries carrying <strong>any</strong> of <code>tags</code>.</p>
-<p>Union, not intersection — chain calls for an intersection
+<p>Union, not intersection - chain calls for an intersection
 (<code>reg.by_tag("read").by_tag("public")</code>). No tags matches nothing.</p>
 
 
@@ -2349,7 +2394,7 @@ transports project one operation per variant, not a union.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A name is not registered here — a typo is a
+                <p>A name is not registered here - a typo is a
 configuration error, not a quietly smaller surface.</p>
               </div>
             </td>
@@ -2415,12 +2460,14 @@ one; merging is the single place that reuse becomes a conflict.</p>
 
 
 <a href="#rest_framework_services.registry.spec_registry.SpecRegistry.specs" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">specs</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">specs</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ServiceSpec</span> <span class="o">|</span> <span class="n">SelectorSpec</span> <span class="o">|</span> <span class="n">SpecSource</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>A fresh <code>name → spec</code> dict — the shape adapters already accept.</p>
+        <p>A fresh <code>name -&gt; spec</code> dict - the shape adapters already accept.</p>
+<p>Each spec as registered, so an object with <code>as_kernel_spec()</code> is
+handed back as itself; every entry point here takes it as it is.</p>
 <p>Pass <code>registry.specs()</code> wherever a <code>dict[str, spec]</code> goes today.
 Mutating the returned dict does not affect the registry.</p>
 
@@ -2460,53 +2507,34 @@ Mutating the returned dict does not affect the registry.</p>
         <p>A spec under its canonical name, with free-form tags.</p>
 <p>The value type held by
 <a class="autorefs autorefs-internal" title="SpecRegistry" href="#rest_framework_services.registry.spec_registry.SpecRegistry"><code>SpecRegistry</code></a>. It
-carries only the part of a "tool" that is <strong>invariant across transports</strong> —
-which spec, what it is called, and how it is grouped. Per-transport knobs
-(MCP annotations and output schemas, Pydantic-AI pagination or query-param
-registrations, …) stay at the binding that configures them.</p>
+carries only the part of an operation that is <strong>invariant across
+transports</strong> - which spec, what it is called, and how it is grouped.
+Per-transport configuration (an HTTP view's URL kwargs, an MCP tool's
+annotations, an agent adapter's own metadata) stays at the binding that
+configures it, not here.</p>
 <p>Fields:</p>
 <ul>
-<li><strong><code>name</code></strong> — the canonical name for this operation. Unique within the registry
-  that holds it; two independent registries are separate namespaces and may reuse a
-  name.</li>
-<li><strong><code>spec</code></strong> — a
-  <a class="autorefs autorefs-internal" title="ServiceSpec
-
-
-  
-      dataclass
-  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> (a
-  mutation) or a
-  <a class="autorefs autorefs-internal" title="SelectorSpec
-
-
-  
-      dataclass
-  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> (a
-  read). The kind is deliberately <strong>not</strong> stored: it is derived by <code>isinstance</code>
-  wherever it is needed, so a stored discriminator can never drift from the object
-  it describes.</li>
-<li><strong><code>tags</code></strong> — a frozen set of free-form labels used to derive filtered views
-  (<code>registry.by_tag("public")</code>). Tags carry boolean-ish facts — <code>"read"</code>,
-  <code>"admin"</code>, <code>"destructive"</code> — that every transport can interpret in its own
-  vocabulary. Structured, transport-specific payloads do not belong in a tag string;
-  they belong at the binding.</li>
-<li><strong><code>agent_contract</code></strong> — an optional
-  <a class="autorefs autorefs-internal" title="OfflineContract
-
-
-  
-      dataclass
-  " href="#rest_framework_services.types.offline_contract.OfflineContract"><code>OfflineContract</code></a>:
-  what a transport with <strong>no HTTP request</strong> has to be told, because the URLconf
-  and query string told an HTTP one for free. One typed slot rather than loose
-  fields, so this stays an index rather than becoming a configuration object.</li>
+<li><strong><code>name</code></strong> - the canonical name for this operation. Unique within the
+  registry that holds it; two independent registries are separate
+  namespaces and may reuse a name.</li>
+<li><strong><code>spec</code></strong> - a
+  <a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.specs.service_spec.ServiceSpec"><code>ServiceSpec</code></a> (a
+  write) or a
+  <a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.specs.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> (a
+  read), or a
+  <a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.specs.spec_source.SpecSource"><code>SpecSource</code></a> that
+  compiles to one, <strong>kept as registered</strong>: a transport reads the spec it
+  runs through
+  <a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.specs.kernel_spec.kernel_spec"><code>kernel_spec</code></a>, and
+  the object itself is still there to be asked what only it knows. The
+  kind is deliberately <strong>not</strong> stored as its own field: it is derived by
+  <code>isinstance</code> on the compiled spec wherever it is needed, so a stored
+  discriminator can never drift from the object it describes.</li>
+<li><strong><code>tags</code></strong> - a frozen set of free-form labels used to derive filtered
+  views (<code>registry.by_tag("public")</code>). Tags carry boolean-ish facts -
+  <code>"read"</code>, <code>"admin"</code>, <code>"destructive"</code> - that every transport can
+  interpret in its own vocabulary.</li>
 </ul>
-<p><strong>Note: "invariant across transports" is not the same test as "which transport
-configures it"</strong>, and reading it as the latter is what put these declarations
-at the binding. <code>icons</code> and <code>annotations</code> are genuinely MCP's. A <code>UrlKwarg</code>
-is not: every off-HTTP transport needs the identical one, and none of them is
-where it should be declared.</p>
 
 
 
@@ -2525,6 +2553,38 @@ where it should be declared.</p>
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="rest_framework_services.types.registered_spec.RegisteredSpec.agent_contract" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">agent_contract</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.registered_spec.RegisteredSpec.agent_contract" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">agent_contract</span><span class="p">:</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The registered object's own <code>agent_contract()</code>, or <code>None</code> when it has none.</p>
+<p>Read-only, and never a field: a declaration lives on the spec, never
+on the registry entry, so nothing is passed here and the entry only
+asks. A <code>ServiceSpec</code> or <code>SelectorSpec</code> has none and answers
+<code>None</code>; an object registered from djangorestframework-services
+answers the contract its current release builds from what the spec
+declares, for the transports published against that release. Typed
+<code>Any</code> because the value is that object's, of a type this package
+does not name. Asked on every read, so it is never stale.</p>
+
+    </div>
+
+</div>
 
 
 
@@ -2581,7 +2641,7 @@ document, derived from the registry rather than written by hand:</p>
 </span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>        <span class="p">},</span>
 </span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>        <span class="o">...</span>
 </span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>    <span class="p">],</span>
-</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    <span class="s2">&quot;unguarded&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;list_orders&quot;</span><span class="p">],</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    <span class="s2">&quot;unguarded&quot;</span><span class="p">:</span> <span class="p">[],</span>
 </span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><strong>It names no principal and decides nothing</strong>, deliberately. It is the same
@@ -2612,8 +2672,8 @@ all.</p>
   says dispatch may present <code>None</code>. <code>dialect</code> names that policy at the
   top level.</li>
 <li><code>guards</code> -- one <code>{"source": &lt;dotted class path&gt;}</code> per permission class,
-  in declaration order; <code>None</code> where the spec declares none (<code>[]</code> is a
-  declared "no permissions" and stays distinguishable).</li>
+  in declaration order. Always a list: a <code>SpecRegistry</code> refuses a spec that
+  declares none, so <code>[]</code> is a declared "no permissions".</li>
 <li><code>affordances</code> -- one <code>{"code": ..., "reason": ..., "scope": ...}</code> per
   <a class="autorefs autorefs-internal" title="Affordance
 
@@ -2634,7 +2694,9 @@ all.</p>
 </ul>
 <p><code>unguarded</code> is <code>unguarded_specs</code> over the same registry: the operations
 whose <code>permission_classes</code> is <code>None</code>, which have nothing to inherit off
-HTTP.</p>
+HTTP. A <code>SpecRegistry</code> refuses such a spec when it is registered, so on a
+registry that holds only what it accepted the list is empty; it stays for
+the readers that expect the key.</p>
 <p>Pure: it reads declarations and never the database, so building it at
 startup, in a management command, or in a test costs the schema walk and
 nothing else.</p>

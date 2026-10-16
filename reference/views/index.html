@@ -1070,6 +1070,8 @@
       
         
       
+        
+      
     
     
     
@@ -1518,6 +1520,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.request_seeds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        request_seeds
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#rest_framework_services.views.utils.resolve_progress_hook" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1874,6 +1887,34 @@
     
   
     Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
   
 
     
@@ -2353,6 +2394,17 @@
     <span class="md-ellipsis">
       
         resolve_callable_kwargs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.views.utils.request_seeds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        request_seeds
       
     </span>
   </a>
@@ -3658,6 +3710,33 @@ otherwise be wrapped in a bound method when read via <code>self</code>.</p>
         <p>Pick the subset of <code>pool</code> matching <code>fn</code>'s declared parameters.</p>
 <p>If <code>fn</code> declares <code>**kwargs</code>, the entire pool is passed.
 Otherwise only parameters present in the signature are forwarded.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.views.utils.request_seeds" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">request_seeds</span>
+
+
+<a href="#rest_framework_services.views.utils.request_seeds" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">request_seeds</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The pool seeds an HTTP request carries: <code>request</code>, <code>user</code> and, where DRF
+recorded one, <code>view</code>.</p>
+<p>What <code>call_service</code>, <code>call_selector</code> and their async twins seed, so a
+callable they invoke from inside a view sees the names the DRF edge seeds for
+the views' own dispatch. DRF records the view on the <code>Request</code> it builds
+(<code>parser_context["view"]</code>); a plain <code>HttpRequest</code> carries none, and then
+<code>view</code> is left to the caller rather than seeded as <code>None</code>. <code>user</code> is
+<code>None</code> on a request that bypassed authentication middleware.</p>
 
 
     </div>

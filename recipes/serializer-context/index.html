@@ -1033,6 +1033,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#through-the-kernel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Through the kernel
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1172,6 +1183,8 @@
       
         
           
+        
+      
         
       
         
@@ -1485,6 +1498,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../reference/jsonschema/" class="md-nav__link">
         
   
@@ -1703,6 +1744,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#through-the-kernel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Through the kernel
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2013,6 +2065,79 @@ authorization list and is routinely a wildcard or an internal load-balancer name
 — would emit confidently-wrong links that look valid. A relative URL is what
 those DRF fields already fall back to when there's no request in the context at
 all.</p>
+<h2 id="through-the-kernel">Through the kernel<a class="headerlink" href="#through-the-kernel" title="Permanent link">&para;</a></h2>
+<p>A drfs spec compiles to a <a href="https://github.com/Artui/django-service-specs">django-service-specs</a>
+spec (see <a href="../../reference/service-specs/">Service specs on the kernel</a>): its input
+serializer becomes a <code>SerializerValidator</code> and its output serializer a
+<code>SerializerPresenter</code>, and the two context callables ride on them.
+<code>dispatch_spec</code> validates through the first, and the kernel's <code>present</code> renders
+through the second. Each builds the context in the same four layers:</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Through <code>dispatch_spec</code></th>
+<th>The compiled spec, dispatched by the kernel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. DRF default</td>
+<td>the <code>view</code>'s <code>get_serializer_context()</code></td>
+<td>the same for a registered <code>view</code> seed, else DRF's three keys, from the registered <code>request</code> or an offline pair built for the principal</td>
+</tr>
+<tr>
+<td>2. and 3. View hooks</td>
+<td>what the view resolved into <code>view_hooks=</code>, carried beside the call rather than in its pool, so no callable's <code>**kwargs</code> receives them</td>
+<td>none</td>
+</tr>
+<tr>
+<td>4. Per-spec callable</td>
+<td><code>*_serializer_context</code> on the spec</td>
+<td>the same, with the final say</td>
+</tr>
+</tbody>
+</table>
+<p>The callable declares what it reads, as every spec callable does:</p>
+<ul>
+<li><code>request</code>, <code>view</code> and <code>user</code> (the principal), the call's own, which no
+  argument a client sends can stand in for;</li>
+<li>any pool seed the call registered;</li>
+<li>on input, an argument by name, beneath everything above;</li>
+<li>on output, the value being rendered: <code>result</code> for a service's output,
+  <code>instance</code> for a retrieve (but see below for a set).</li>
+</ul>
+<p>A key it answers with <code>UNSET</code> is declined and keeps the layer beneath. The
+input serializer is built once per call, a <code>many</code> call included, for the body
+the call validates and the row it acts on, and the input callable is asked
+once for it. Two kinds of call build it twice, once to read its fields and
+once to validate, and ask the callable for each where what it is handed
+differs:</p>
+<ul>
+<li>one whose body the server puts a value into - a view hook's, the spec's
+  <code>kwargs</code> provider's or <code>input_data</code> - is described with the body sent and
+  validated with the server's values in it. A callable reading an argument
+  the server's value replaced is asked with each, and so, off HTTP with no
+  view, is one reading <code>request</code>, since the request built for the call
+  carries the body;</li>
+<li>one whose row a target lookup resolves is described before the lookup
+  runs, with no row, for the names the lookup's own arguments need, and
+  validated with the row it found. A serializer that cannot be built
+  without its row, a <code>get_fields</code> reading <code>self.instance.pk</code> say, is taken
+  to declare no name until the row is found, and is then built with it, so
+  its fields are the row's, under every <code>UnknownArguments</code> policy.</li>
+</ul>
+<p>A callable taking <code>**kwargs</code> is left out of the description, which holds
+none of the call's seeds, unless the input serializer cannot be built
+without its keys; then it is asked over what the description holds, and
+again over the whole pool to validate.</p>
+<p><strong>A set is presented row by row.</strong> The kernel's <code>present</code> renders a list, and
+a <code>many</code> service's output, one row at a time, so the output callable is asked
+once per row there, and no keyword names the row: the whole set a callable may
+declare, a list's <code>page</code> or a <code>many</code> output's <code>result</code>, is never in hand. The
+view's output hook is handed no value there either. A callable that reads the
+whole set belongs on the paths that render it at once, <code>render_spec_output</code>
+and DRF's own views.</p>
 
 
 

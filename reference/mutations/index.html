@@ -1070,6 +1070,8 @@
       
         
       
+        
+      
     
     
     
@@ -1479,6 +1481,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../jsonschema/" class="md-nav__link">
         
   
@@ -1751,6 +1781,8 @@
   " href="../types/#rest_framework_services.types.change_result.ChangeResult"><code>ChangeResult</code></a>
 describing fields whose value actually changed. Useful when a service wants to
 inspect what the input would change before deciding whether to persist.</p>
+<p>A file field is set as <code>update_from_input</code> writes it: <code>None</code> keeps the
+file, and <code>False</code> leaves none.</p>
 
 
     </div>
@@ -1772,45 +1804,47 @@ inspect what the input would change before deciding whether to persist.</p>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">field_map</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">exclude_fields</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">m2m</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">children</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ChildSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">context</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChangeResult</span><span class="p">[</span><span class="n">ModelT</span><span class="p">]</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">context</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChangeResult</span><span class="p">[</span><span class="n">ModelT</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
         <p>Build, <code>save()</code>, and return a fresh instance of <code>model</code>.</p>
-<p>Regular fields come from <code>data</code> (a dataclass, dict, or object with <code>__dict__</code>);
-M2M assignments are applied post-save via the <code>m2m</code> kwarg, mapping attribute name
-to the value to <code>set()</code>. That argument assigns rows which already exist; writing
-the target rows <em>from the payload</em> is a
+<p>Regular fields come from <code>data</code> (a dataclass, dict, or object with <code>__dict__</code>).</p>
+<p>A file field is written as a <code>ModelForm</code> writes it, through the model
+field's <code>save_form_data</code>: a file is stored, <code>None</code> leaves the field to the model, and <code>False</code>,
+a form's value for a cleared file, stores no file.</p>
+<p><code>m2m</code> maps a many-to-many attribute to the rows it should hold — instances or
+primary keys of rows that <strong>already exist</strong> — and <code>set()</code>s them after the save;
+it creates nothing. A
 <a class="autorefs autorefs-internal" title="ManyToManySpec
 
 
   
       dataclass
   " href="../types/#rest_framework_services.types.many_to_many_spec.ManyToManySpec"><code>ManyToManySpec</code></a>
-in <code>relations</code>. Both still ship — they are different jobs — but a relation named
-by both is refused, since it would be written twice and keep whichever ran last.</p>
-<p><code>relations</code> maps a relation name to the spec for its kind; the nested payload is
-read from <code>data[relation]</code> and written in the order the kind dictates, not the
-order the map is spelled in (see
-<a class="autorefs autorefs-internal" title="RelationPhase" href="../types/#rest_framework_services.types.relation_phase.RelationPhase"><code>RelationPhase</code></a>).
-<code>children</code> is the reverse-FK alias — the same map under the name it shipped as —
-and a name declared in both raises. Keep the whole call inside the service's atomic
-block.</p>
-<p><code>context</code> is an <strong>opaque</strong> mapping forwarded verbatim into the pool of any
-per-child service a
+in <code>relations</code> does the other job: it writes the target rows <em>from the payload</em>,
+creating or updating each, and then links them. A relation named by both is
+refused, since it would be written twice and keep whichever ran last.</p>
+<p><code>relations</code> maps a relation name to the spec for its kind, and is the one map for
+every kind — a reverse-FK
 <a class="autorefs autorefs-internal" title="ChildSpec
 
 
   
       dataclass
-  " href="../types/#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a> declares. This
+  " href="../types/#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a> included. The
+nested payload is read from <code>data[relation]</code> and written in the order the kind
+dictates, not the order the map is spelled in (see
+<a class="autorefs autorefs-internal" title="RelationPhase" href="../types/#rest_framework_services.types.relation_phase.RelationPhase"><code>RelationPhase</code></a>).
+Keep the whole call inside the service's atomic block.</p>
+<p><code>context</code> is an <strong>opaque</strong> mapping forwarded verbatim down the tree, into the pool
+of every row service a relation spec declares and of every <code>scope</code> callable. This
 helper never reads it — it exists so per-row work downstream can see the acting
-caller. The default model-service factories populate it from the framework's kwargs
-pool automatically; a hand-written service opts in with <code>context=kwargs</code>.</p>
+caller. A service opts in by handing on the pool it was called with,
+<code>context=kwargs</code>.</p>
 
 
     </div>
@@ -1833,10 +1867,9 @@ pool automatically; a hand-written service opts in with <code>context=kwargs</co
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">exclude_fields</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">m2m</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">update_fields</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">children</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ChildSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">context</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChangeResult</span><span class="p">[</span><span class="n">ModelT</span><span class="p">]</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">context</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChangeResult</span><span class="p">[</span><span class="n">ModelT</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -1845,10 +1878,19 @@ pool automatically; a hand-written service opts in with <code>context=kwargs</co
 <p>By default (<code>update_fields=True</code>), the save call uses
 <code>update_fields=&lt;changed&gt;</code> to write the minimal set of columns.
 <code>auto_now=True</code> fields (e.g. <code>updated_at</code>) are automatically added to
-that list so they are refreshed alongside the mutation. Pass <code>False</code> to
+that list so they are refreshed alongside the mutation, and so are a
+changed <code>ImageField</code>'s <code>width_field</code> and <code>height_field</code>, which
+setting the image wrote on the instance. Pass <code>False</code> to
 perform a full save, or an explicit list to control exactly which columns
 are written (no auto-injection in that case).</p>
-<p><code>m2m</code> assigns many-to-many rows that already exist;
+<p>A file field is written as a <code>ModelForm</code> writes it, through the model
+field's <code>save_form_data</code>: a file replaces the one the row holds, <code>None</code> keeps it, and <code>False</code>,
+a form's value for a cleared file, leaves no file, reported as a change to <code>""</code>.
+An upload, or any <code>File</code> that is not one a row holds, is always written and reported,
+even under the name of the file it replaces, since a name says nothing of the content;
+the held file handed back as itself is no change.</p>
+<p><code>m2m</code> assigns many-to-many rows that already exist, and only where the set
+of primary keys differs from the current one;
 <a class="autorefs autorefs-internal" title="ManyToManySpec
 
 
@@ -1857,8 +1899,8 @@ are written (no auto-injection in that case).</p>
   " href="../types/#rest_framework_services.types.many_to_many_spec.ManyToManySpec"><code>ManyToManySpec</code></a>
 in <code>relations</code> writes the target rows from the payload instead. A relation named
 by both is refused rather than written twice.</p>
-<p><code>relations</code> maps a relation name to the spec for its kind (<code>children</code>
-is the reverse-FK alias). The nested payload from <code>data[relation]</code> is
+<p><code>relations</code> maps a relation name to the spec for its kind, one map for
+every kind. The nested payload from <code>data[relation]</code> is
 reconciled with what is already there — create / update / orphan-remove per
 the spec — and a relation the input omits is left untouched. Kinds are
 written in the order their class dictates, so a forward foreign key is
@@ -1869,14 +1911,8 @@ the service's atomic block.</p>
 one-row kinds resolve their row by re-querying, so the parent's cached
 related object is replaced with the row that was written — and dropped where
 the write removed it — rather than left holding pre-write values.</p>
-<p><code>context</code> is an <strong>opaque</strong> mapping forwarded verbatim into the pool of any
-per-child service a
-<a class="autorefs autorefs-internal" title="ChildSpec
-
-
-  
-      dataclass
-  " href="../types/#rest_framework_services.types.child_spec.ChildSpec"><code>ChildSpec</code></a> declares; this
+<p><code>context</code> is an <strong>opaque</strong> mapping forwarded verbatim into the pool of every
+row service and <code>scope</code> callable the relation specs declare; this
 helper never reads it. See
 <a class="autorefs autorefs-internal" title="create_from_input" href="#rest_framework_services.mutations.create_from_input.create_from_input"><code>create_from_input</code></a>.</p>
 
@@ -1905,10 +1941,9 @@ helper never reads it. See
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">field_map</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">exclude_fields</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">m2m</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">children</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ChildSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">context</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChangeResult</span><span class="p">[</span><span class="n">ModelT</span><span class="p">]</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">context</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChangeResult</span><span class="p">[</span><span class="n">ModelT</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
@@ -1942,10 +1977,9 @@ using <code>asave()</code>/<code>aset()</code>.</p>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">exclude_fields</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">m2m</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">update_fields</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">children</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ChildSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">context</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChangeResult</span><span class="p">[</span><span class="n">ModelT</span><span class="p">]</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">relations</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">RelationSpec</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">context</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChangeResult</span><span class="p">[</span><span class="n">ModelT</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">

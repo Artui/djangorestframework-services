@@ -1068,10 +1068,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#a-spread-service-with-no-input-serializer" class="md-nav__link">
+  <a href="#a-service-with-no-input-serializer" class="md-nav__link">
     <span class="md-ellipsis">
       
-        A spread service with no input serializer
+        A service with no input serializer
       
     </span>
   </a>
@@ -1139,6 +1139,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#who-validates-what" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who validates what
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1194,6 +1205,8 @@
       
         
           
+        
+      
         
       
         
@@ -1507,6 +1520,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../reference/jsonschema/" class="md-nav__link">
         
   
@@ -1679,10 +1720,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#a-spread-service-with-no-input-serializer" class="md-nav__link">
+  <a href="#a-service-with-no-input-serializer" class="md-nav__link">
     <span class="md-ellipsis">
       
-        A spread service with no input serializer
+        A service with no input serializer
       
     </span>
   </a>
@@ -1750,6 +1791,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#who-validates-what" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who validates what
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1783,12 +1835,22 @@ command, a task runner — there is no route, so those inputs have to arrive som
 other way, and a caller has to be <em>told</em> they exist.</p>
 <p>This recipe covers the four pieces: making a URL-derived input discoverable,
 declaring it <strong>required</strong>, hiding an input the caller has no business setting,
-and saying in prose what one is for. It also says which inputs a spread service
-with no input serializer declares.</p>
+and saying in prose what one is for. It also says which inputs a service with no
+input serializer declares, and which validator answers a call
+(<a href="#who-validates-what">who validates what</a>).</p>
 <h2 id="the-channel-build_offline_contextkwargs">The channel: <code>build_offline_context(kwargs=…)</code><a class="headerlink" href="#the-channel-build_offline_contextkwargs" title="Permanent link">&para;</a></h2>
-<p><code>kwargs=</code> is the off-HTTP counterpart of <code>view.kwargs</code>. Everything you pass there
-is spread into the selector and target pools exactly as a route capture would be
-— authoritative over the spec params, below a <code>spec.kwargs</code> provider.</p>
+<p><code>kwargs=</code> is the off-HTTP counterpart of <code>view.kwargs</code>. A name you pass there
+reaches the selector and the target lookup exactly as a route capture would,
+over the spec params, below a <code>spec.kwargs</code> provider, when the spec declares it:
+a <code>UrlKwarg</code> in its <code>reads</code>, or a parameter the selector or target lookup reads.
+A capture nothing declares, reads or hides is no argument.</p>
+<p>A name the target lookup's selector reads that is also a writable input field,
+such as a lookup by <code>slug</code> on a spec that renames the <code>slug</code>, is the lookup's
+from the capture alone and the field's from the params: the capture finds the
+row and the params' value is validated and written. With no capture the params'
+value never scopes the lookup, which keeps its own default, or is refused as
+missing where it has none. A view hook's or <code>kwargs</code> provider's value for the
+name does both.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_offline_context</span><span class="p">,</span> <span class="n">dispatch_spec</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">context</span> <span class="o">=</span> <span class="n">build_offline_context</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;active&quot;</span><span class="p">},</span> <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;project_pk&quot;</span><span class="p">:</span> <span class="mi">7</span><span class="p">})</span>
@@ -1821,9 +1883,17 @@ transport-controlled, never caller input.</p>
 <code>TypedDict</code> has to be importable when the callable is dispatched — an import
 parked under <code>if TYPE_CHECKING:</code> is not. With
 <code>UnknownArguments.REJECT</code> the annotation is the entire basis for refusing an
-argument, so an unresolvable one raises <code>ImproperlyConfigured</code> on dispatch
-rather than quietly letting every argument through. The permissive policies
-read an unresolvable annotation as an open <code>**kwargs</code>, as they always have.
+argument wherever the call reads it, so an unresolvable one raises
+<code>ImproperlyConfigured</code> there rather than quietly letting every argument
+through. The call reads it on a selector, a top-level one or a target
+lookup's, under every <code>ArgumentBinding</code>, and on a service with no
+<code>input_serializer</code> under <code>SPREAD_AUTHOR_WINS</code> alone, where its parameters are
+the caller's input. It does not raise on a service dispatched under <code>AUTO</code> or
+<code>BUNDLE</code>, which reads none of its signature, nor on a service with an input
+serializer, whose serializer declares the input, nor beside a target lookup
+whose selector takes a bare <code>**kwargs</code>, which leaves the call open: those
+calls run. The permissive policies read an unresolvable annotation as an open
+<code>**kwargs</code>, as they always have.
 Only the <code>**kwargs</code> annotation itself counts here: another parameter, or
 another key of the <code>TypedDict</code>, naming something imported under
 <code>if TYPE_CHECKING:</code> leaves the surface known, because each annotation is
@@ -1846,14 +1916,16 @@ effect on the type system:</p>
 </span></code></pre></div>
 <p>Two things follow. The key joins the schema's <code>required</code> list, so a
 schema-driven caller is told up front. And <code>dispatch_spec</code> / <code>adispatch_spec</code>
-raise <a class="autorefs autorefs-internal" title="ServiceValidationError" href="../../reference/exceptions/#rest_framework_services.exceptions.service_validation_error.ServiceValidationError"><code>ServiceValidationError</code></a>
-when the key is absent and the caller could have sent it (see the table below) —
-a caller-visible validation failure every transport already maps, instead of a
-bare <code>KeyError</code> that none of them do.</p>
+refuse a call that lacks it, with a DRF <code>ValidationError</code> keyed by the missing
+argument (<code>InvalidArguments</code>, see
+<a href="../../reference/service-specs/#the-kernels-refusals-as-drfs">the kernel's refusals as DRF's</a>),
+which every transport already maps, instead of a bare <code>KeyError</code> that none of
+them do: <code>{"project_pk": ["This field is required."]}</code>, code <code>required</code>. The
+marker holds the key required whatever its Python default.</p>
 <p><strong>Any channel satisfies the requirement</strong>: the caller's <code>params</code>, the <code>kwargs=</code>
-channel above, or a <code>spec.kwargs</code> provider. The marker says the value must
-arrive, not where from. A provider that <em>declines</em> with <code>UNSET</code> does not satisfy
-it — declining removes the key from the pool entirely.</p>
+channel above, or a <code>spec.kwargs</code> provider, typed or not. The marker says the
+value must arrive, not where from. A typed provider that <em>declines</em> with <code>UNSET</code>
+does not satisfy it: declining removes the key from the pool entirely.</p>
 <p>A plain keyword parameter is the other case. <code>get_widget(user, *, pk)</code> cannot run
 without <code>pk</code> either, and its signature already says so, because <code>pk</code> has no
 default. A transport that passes <code>supplied=</code> to <code>spec_to_json_schema</code> advertises
@@ -1861,273 +1933,244 @@ such a parameter as required without a marker, and drops the names it fills
 itself along with the reserved pool seeds, which no caller can send. Without
 <code>supplied</code>, only the marker makes a parameter required. See
 <a href="../../reference/jsonschema/#what-a-transport-supplies-supplied">what a transport supplies</a>.</p>
-<p>Dispatch enforces that one without a marker too. A parameter with no default
-that nothing filled — the caller did not send it, a <code>kwargs=</code> provider declined it
-with <code>UNSET</code>, or there is no provider — is refused with the same
-<code>ServiceValidationError</code> rather than reaching the callable as a <code>TypeError</code>, and
-one message lists every missing name, marked or not:
-<code>{"non_field_errors": ["Missing required argument(s): 'pk', 'tenant'."]}</code>.</p>
-<p>Both checks name a key only where <strong>the caller could have filled it</strong>, which is
-the input its call declares:</p>
-<table>
-<thead>
-<tr>
-<th>The callable</th>
-<th>What a caller could fill</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>a selector under a <code>SPREAD_*</code> binding, which <code>AUTO</code> resolves to for a selector, and its preconditions</td>
-<td>the selector's parameters: every name under a <code>filter_set</code> or a bare <code>**kwargs</code></td>
-</tr>
-<tr>
-<td>a selector under <code>BUNDLE</code>, as an HTTP selector view dispatches it, and its preconditions</td>
-<td>nothing: no caller input reaches the pool</td>
-</tr>
-<tr>
-<td>a service under <code>BUNDLE</code> (the default), and its preconditions</td>
-<td>nothing: the caller's input arrives as <code>data</code>, never by name</td>
-</tr>
-<tr>
-<td>a service under a <code>SPREAD_*</code> binding, and its preconditions</td>
-<td>what <code>REJECT</code> admits: the input serializer's fields or, with none, the service's own parameters, beside the target lookup's keys that reach the service, which are none of them beside an input serializer and otherwise those the service names; every name where a bare <code>**kwargs</code> opens the set, less the lookup's keys the service does not name</td>
-</tr>
-<tr>
-<td>a target lookup (<code>instance_selector_spec</code> / <code>collection_selector_spec</code>)</td>
-<td>the lookup selector's parameters, whatever the service's binding, since its pool is spread from the caller's arguments</td>
-</tr>
-</tbody>
-</table>
-<p>The table reads declared input, so a precondition parameter its selector or
-service does not declare, left unfilled, fails as the callable's <code>TypeError</code>, even
-where <code>IGNORE</code> or <code>PASSTHROUGH</code> would deliver a resend carrying it; naming it
-would send a <code>REJECT</code> caller from a missing argument to an unexpected one. An
-author who wants such a parameter refused as missing declares it on the selector
-or service. And an input serializer field with <code>source=</code> reaches the spread under
-its source, not its own name, so a service or precondition naming the field is
-asked for it, and the resend carrying it still fails as the <code>TypeError</code>; name the
-source instead.</p>
-<p>Less, in every case, a key any callable in the call marks <code>NotClientInput</code> (see
-<a href="#hiding-provider-owned-inputs-notclientinput">below</a>), and the keys the caller
-sent: a sent key that never arrived was dropped by something the caller cannot
-change. So a refusal only ever names a key the caller can send and has not, and a
-client that resends with that key is past it, rather than retrying on the same
-error forever, as an agent would. A parameter with a default, <code>**kwargs</code>, a
-positional-only parameter, a reserved pool seed such as <code>data</code> or <code>instance</code>, and
-every parameter of a <code>functools.wraps</code> wrapper that takes <code>**kwargs</code> (which may
-fill any of them itself, as a decorator injecting a scope does) are never missing.
-Anything else that nothing fills, a provider gap under <code>BUNDLE</code> say, is a
-configuration error no client can fix, and fails as the callable's own <code>TypeError</code>,
-as it always did. The sibling kernel django-service-specs draws the same line.
-That holds for an <code>InputRequired</code> key too: the marker says the value must arrive,
-but where no caller could send it, as for any key under <code>BUNDLE</code>, a refusal naming
-it would only be answered by the same refusal, so it fails as the callable's own
-error, a <code>TypeError</code> for a parameter, and whatever reading it raises for a key of
-an unpacked <code>TypedDict</code>, such as <code>KeyError</code>.</p>
-<p>Two callables are not checked at all, for a marked key or a plain parameter,
-because no caller argument reaches their pool: an affordance's <code>when</code> condition,
-which sees only the seeds, and the <code>output_selector_spec</code> re-read, which sees the seeds and the service's result. The
-re-read also runs after the service's write has committed, so a validation error
-there would tell the caller nothing happened, and a caller that retries on one
-would write twice.</p>
-<div class="admonition note">
-<p class="admonition-title">Over HTTP, a lookup gap is a <code>400</code> and a hook gap a <code>500</code></p>
-<p>Both checks live in the dispatch core, which the HTTP views share, so they run
-there too, but only a mutation view maps the refusal to a response, a <code>400</code>. A
-selector view dispatches <code>BUNDLE</code>, so nothing it calls is refused, and a gap
-answers <code>500</code> as the <code>TypeError</code> it is. They rarely fire,
-because the route guarantees its captures, and a mutation's <code>as_view()</code>
-refuses a parameter of its service, preconditions or output re-read that
-nothing could feed, unless a <code>kwargs=</code> provider or view hook is declared.
-A mutation dispatches its service <code>BUNDLE</code>, so a declared provider or hook
-that leaves a service or precondition parameter out is not refused, marked
-<code>InputRequired</code> or not: no request could fill it, and it fails as the
-<code>TypeError</code> it is, a <code>500</code>. A
-target lookup parameter nothing fills is refused with a <code>400</code>, because a
-mutation reads the lookup's keys from the request body, which <code>as_view()</code>
-never checks. <code>as_view()</code> never refuses a selector's parameter as unfed
-either, and dispatch never refuses the output re-read's: past a declared
-hook, one nothing fills is still the <code>TypeError</code>. The marker exists because
-off HTTP there is no route to provide that guarantee.</p>
-</div>
-<h2 id="a-spread-service-with-no-input-serializer">A spread service with no input serializer<a class="headerlink" href="#a-spread-service-with-no-input-serializer" title="Permanent link">&para;</a></h2>
-<p>A <code>ServiceSpec</code> with no <code>input_serializer</code>, dispatched with a <code>SPREAD_*</code>
-<code>argument_binding</code>, has nothing but its service's signature to read the caller's
-input against. So the service's own parameters are declared input, beside the
-keys of the target lookup:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">close_ticket</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">:</span> <span class="n">Ticket</span><span class="p">,</span> <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">notify</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Ticket</span><span class="p">:</span> <span class="o">...</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">service</span><span class="o">=</span><span class="n">close_ticket</span><span class="p">,</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">instance_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span> <span class="n">selector</span><span class="o">=</span><span class="n">ticket_by_pk</span><span class="p">),</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">)</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">dispatch_spec</span><span class="p">(</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">spec</span><span class="p">,</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;pk&quot;</span><span class="p">:</span> <span class="mi">7</span><span class="p">,</span> <span class="s2">&quot;reason&quot;</span><span class="p">:</span> <span class="s2">&quot;duplicate&quot;</span><span class="p">},</span>
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">argument_binding</span><span class="o">=</span><span class="n">ArgumentBinding</span><span class="o">.</span><span class="n">SPREAD_AUTHOR_WINS</span><span class="p">,</span>
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="p">)</span>
+<p>Dispatch enforces that one without a marker too, once the call's providers,
+view hooks and pool seeds have run, since any of them may still fill it. A call
+that lacks it then is refused the same way, <code>{"pk": ["This field is
+required."]}</code>, with every such name keyed in the one refusal. A name the
+declaration itself requires (one marked <code>InputRequired</code>, a required declared
+read, a required input serializer field) is refused earlier, before the
+permission checks run, so a call missing names of both kinds is answered in two
+refusals, the declared names first. A spreading service's target lookup key is
+asked for as the service is called, after both. That holds for the
+target lookup, the selector under <code>AUTO</code> or <code>SPREAD_AUTHOR_WINS</code> (under
+<code>BUNDLE</code>, which a selector view dispatches, only its declared <code>reads</code> are caller
+input, and a parameter nothing fills is the selector's own <code>TypeError</code>), and a
+service with no <code>input_serializer</code> dispatched
+under <code>SPREAD_AUTHOR_WINS</code> (an <code>input_serializer</code> declares its own required
+fields, and under <code>AUTO</code> such a service's own parameters are no caller input, so
+neither its signature nor a marker on it is enforced; see
+<a href="#a-service-with-no-input-serializer">a service with no input serializer</a>). A name no caller can send is
+never required of one: a pool seed, a key any callable of the call marks
+<code>NotClientInput</code>, or a key a typed <code>kwargs</code> provider fills. One of those that
+nothing fills is the author's configuration error, raised as the callable's own,
+not a refusal naming the key, since no resend could fix it.</p>
+<h2 id="a-service-with-no-input-serializer">A service with no input serializer<a class="headerlink" href="#a-service-with-no-input-serializer" title="Permanent link">&para;</a></h2>
+<p>A <code>ServiceSpec</code> with no <code>input_serializer</code> has nothing but its service's
+signature to read the caller's input against. Whether that signature is caller
+input is the one question <code>argument_binding</code> still answers, and the default
+answer is no:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">close_ticket</span><span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">:</span> <span class="n">Ticket</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">notify</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Ticket</span><span class="p">:</span> <span class="o">...</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">spec</span> <span class="o">=</span> <span class="n">ServiceSpec</span><span class="p">(</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">service</span><span class="o">=</span><span class="n">close_ticket</span><span class="p">,</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">instance_selector_spec</span><span class="o">=</span><span class="n">SelectorSpec</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">RETRIEVE</span><span class="p">,</span> <span class="n">selector</span><span class="o">=</span><span class="n">ticket_by_pk</span><span class="p">),</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">)</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">dispatch_spec</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;pk&quot;</span><span class="p">:</span> <span class="mi">7</span><span class="p">,</span> <span class="s2">&quot;reason&quot;</span><span class="p">:</span> <span class="s2">&quot;duplicate&quot;</span><span class="p">})</span>
 </span></code></pre></div>
-<p><code>pk</code> goes to the lookup and <code>reason</code> to the service, under every
-<code>UnknownArguments</code> policy. Leaving <code>reason</code> out is
-<code>Missing required argument(s): 'reason'.</code> under every policy too, and <code>notify</code>
-keeps its default unless the caller sends it.</p>
+<p>Under <code>AUTO</code>, which is <code>BUNDLE</code> for a service, <code>pk</code> goes to the lookup and
+<code>reason</code> reaches nobody: the service's own parameters are never the caller's,
+so a body cannot set a <code>hard</code> or an <code>is_admin</code> the service merely declares. The
+service receives <code>data={}</code> and its declared <code>reads</code> by name. Under <code>REJECT</code>,
+<code>reason</code> is refused as <code>Unexpected argument(s): 'reason'.</code></p>
+<p>Pass <code>ArgumentBinding.SPREAD_AUTHOR_WINS</code> to make the signature the caller's
+input:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">dispatch_spec</span><span class="p">(</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">spec</span><span class="p">,</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;pk&quot;</span><span class="p">:</span> <span class="mi">7</span><span class="p">,</span> <span class="s2">&quot;reason&quot;</span><span class="p">:</span> <span class="s2">&quot;duplicate&quot;</span><span class="p">},</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">argument_binding</span><span class="o">=</span><span class="n">ArgumentBinding</span><span class="o">.</span><span class="n">SPREAD_AUTHOR_WINS</span><span class="p">,</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>Now <code>reason</code> reaches the service, a parameter with no default that the caller
+leaves out is <code>{"reason": ["This field is required."]}</code>, and <code>notify</code> keeps its
+default unless the caller sends it. An author's value, from a view hook or the
+spec's <code>kwargs</code> provider, still outranks the caller's on a conflict. <code>data</code> is
+<code>{}</code> here too.</p>
 <table>
 <thead>
 <tr>
-<th>The caller sends…</th>
+<th>The caller sends...</th>
 <th><code>IGNORE</code></th>
 <th><code>REJECT</code></th>
-<th><code>PASSTHROUGH</code></th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>a parameter of the service</td>
-<td>delivered</td>
+<td>a key the lookup reads, or a <code>reads</code> entry</td>
 <td>delivered</td>
 <td>delivered</td>
 </tr>
 <tr>
-<td>a key neither the service nor the lookup declares</td>
-<td>dropped</td>
-<td>refused</td>
+<td>a parameter of the service, under <code>SPREAD_AUTHOR_WINS</code></td>
 <td>delivered</td>
+<td>delivered</td>
+</tr>
+<tr>
+<td>a parameter of the service, under <code>AUTO</code> or <code>BUNDLE</code></td>
+<td>dropped</td>
+<td>refused: <code>Unexpected argument(s): 'reason'.</code></td>
+</tr>
+<tr>
+<td>a key nothing declares</td>
+<td>dropped</td>
+<td>refused: <code>Unexpected argument(s): 'zzz'.</code></td>
 </tr>
 </tbody>
 </table>
+<p>A target lookup that shapes its rows with a <code>filter_set</code> declares the filter's
+names and its selector's parameters, so under <code>AUTO</code> or <code>BUNDLE</code> a key outside
+them is refused under <code>REJECT</code> there too; a lookup whose selector takes a bare
+<code>**kwargs</code> declares none, and nothing is refused. Under <code>SPREAD_AUTHOR_WINS</code> a
+serializer-less service's own parameters join the set: a key that is one of them
+is delivered, any other is refused, and a service taking only a bare <code>**kwargs</code>
+declares none and drops the key, as below. A service with an <code>input_serializer</code>
+joins nothing to the set, so there a key outside the lookup's names and the
+serializer's fields is refused under <code>REJECT</code> whether the signature is closed,
+takes a bare <code>**extras</code> or names the key as a parameter.</p>
 <p>A parameter counts when the caller could fill it by name: a keyword parameter,
-or a key of an <code>Unpack[TypedDict]</code> <code>**kwargs</code>. These do not count, and so are
-unknown keys:</p>
+or a key of an <code>Unpack[TypedDict]</code> <code>**kwargs</code>. These do not count:</p>
 <ul>
-<li>a reserved pool seed such as <code>user</code>, <code>data</code> or <code>instance</code>, or a seed your
-  <code>PoolSeeds</code> registers. The pool's value fills it, never the caller's;</li>
+<li>a pool seed such as <code>user</code>, <code>data</code> or <code>instance</code>, or a seed your <code>PoolSeeds</code>
+  registers. The pool's value fills it, never the caller's, and the seed's name
+  is never reported as an unexpected argument;</li>
 <li>a positional-only parameter, which dispatch never passes by name;</li>
-<li>a <code>NotClientInput</code> parameter, or one named <code>view</code>, whose value the caller never
-  supplies (see below). That includes a key a precondition or the target lookup
-  marks, even where the service names it plainly.</li>
+<li>a <code>NotClientInput</code> parameter, including a key a precondition or the target
+  lookup marks, even where the service names it plainly.</li>
 </ul>
-<p>A bare <code>**kwargs</code> declares every name, so the set is open: nothing is refused, and
-every key the caller sent reaches the service but two kinds. The reserved seeds
-never do. And <strong>the target lookup's keys reach the service only by name</strong>: the
-lookup consumed <code>pk</code> to find the <code>instance</code> the service receives, so
-<code>def update(*, instance, **changes)</code> does not find <code>pk</code> in <code>changes</code>, where
-applying them would write it onto the row, while
-<code>def update(*, instance, pk, **changes)</code> names it and receives it. A key the
-lookup reads only through its own <code>**kwargs</code> or its <code>filter_set</code> is not one it
-names, so it still reaches the service. An annotated <code>**kwargs</code> whose <code>TypedDict</code>
-cannot be resolved at runtime makes <code>REJECT</code> raise <code>ImproperlyConfigured</code>, as it
-does on a selector, and the other two policies treat it as open, the same way.</p>
-<p>With no serializer, a service that declares <code>data</code> receives what the spread
-carries: the parameters it took by name, plus the <code>PASSTHROUGH</code> extras.</p>
-<p>The input schema says the same when it is told the binding. Pass the one you
-dispatch with to <code>spec_to_json_schema</code>, and it lists the service's parameters,
-exactly the set the table above calls declared:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">spec_to_json_schema</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">argument_binding</span><span class="o">=</span><span class="n">ArgumentBinding</span><span class="o">.</span><span class="n">SPREAD_AUTHOR_WINS</span><span class="p">)</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="c1"># {&quot;type&quot;: &quot;object&quot;,</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="c1">#  &quot;properties&quot;: {&quot;reason&quot;: {&quot;type&quot;: &quot;string&quot;}, &quot;notify&quot;: {&quot;type&quot;: &quot;boolean&quot;}}}</span>
+<p>A bare <code>**kwargs</code> declares no name. It receives the declared arguments and the
+seeds the call carries (<code>data</code> and <code>view</code> among them), never an undeclared key:
+under <code>REJECT</code> such a key is refused, except under <code>SPREAD_AUTHOR_WINS</code>, where
+a serializer-less open service drops it instead; one with an <code>input_serializer</code>
+still refuses it. An annotated <code>**kwargs</code> whose <code>TypedDict</code>
+cannot be resolved at runtime makes <code>REJECT</code> raise <code>ImproperlyConfigured</code> where
+the call reads that annotation, as the warning above sets out: for this service,
+under <code>SPREAD_AUTHOR_WINS</code>, unless its target lookup's selector takes a bare
+<code>**kwargs</code>.</p>
+<p>The input schema says the same when it is told the binding. Pass
+<code>SPREAD_AUTHOR_WINS</code> to <code>spec_to_json_schema</code>, and it lists the service's
+parameters:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">spec_to_json_schema</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="n">argument_binding</span><span class="o">=</span><span class="n">ArgumentBinding</span><span class="o">.</span><span class="n">SPREAD_AUTHOR_WINS</span><span class="p">)</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># {&quot;type&quot;: &quot;object&quot;,</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1">#  &quot;properties&quot;: {&quot;reason&quot;: {&quot;type&quot;: &quot;string&quot;}, &quot;notify&quot;: {&quot;type&quot;: &quot;boolean&quot;}}}</span>
 </span></code></pre></div>
 <p>The lookup's <code>pk</code> is not in it: a transport merges a target lookup's keys
-itself, by reflecting the lookup's <code>SelectorSpec</code>. A bare <code>**kwargs</code> lists the
-parameters the service names and states no <code>additionalProperties</code>, so a
-transport decides from its own policy whether to close the tool. Without the
-argument, <code>AUTO</code> is <code>BUNDLE</code> and the schema is the bare <code>{"type": "object"}</code> it
-always was. See
+itself, by reflecting the lookup's <code>SelectorSpec</code>. Without the argument the
+schema is the bare <code>{"type": "object"}</code> it always was, which is what dispatch
+admits under <code>AUTO</code>. See
 <a href="../../reference/jsonschema/#a-spreading-services-own-parameters-argument_binding">a spreading service's own parameters</a>.</p>
-<p>Every other spec keeps the set it had. Under <code>BUNDLE</code>, which <code>AUTO</code> resolves to
-for a service, nothing is spread, so a service parameter is still an unknown key
-there. An <code>input_serializer</code> declares the input itself, and a <code>many=True</code> spec
-takes its items in one list.</p>
+<div class="admonition note">
+<p class="admonition-title">A service with an input serializer</p>
+<p>The serializer is the input, under every binding. Its validated payload
+reaches the service as <code>data</code>, and each validated value also reaches a
+parameter the service declares under the same name (the field's <code>source</code>,
+not its wire name), so a service can take <code>title</code> by name rather than
+reading <code>data["title"]</code>. A seed keeps its own value: a field named <code>user</code>,
+such as a <code>HiddenField(default=CurrentUserDefault())</code>, stays in <code>data</code>. A
+parameter named like a key any callable of the call marks <code>NotClientInput</code>
+is never handed the client's validated value either: the client's value for that field reaches the
+service only in <code>data</code>, while a view hook's, the spec's <code>kwargs</code>
+provider's or <code>input_data</code>'s value for it still reaches the parameter,
+as the field validates it.</p>
+<p>On a DRF view such a parameter needs a default (<code>title=None</code>), or the
+service reads <code>data["title"]</code>: <code>as_view()</code> checks a service's required
+parameters before any call, against the keys every call provides, and a
+field's value is not one of them, since a <code>PATCH</code> may leave it out. A
+required parameter of a field's name is refused with
+<code>ImproperlyConfigured</code> when the view is built; <code>dispatch_spec</code> hands it
+the validated value. A spec with a <code>kwargs</code> provider, or a view
+overriding a <code>get_*_kwargs</code> hook, is not checked there, since its keys
+cannot be known before a call.</p>
+</div>
 <h2 id="hiding-provider-owned-inputs-notclientinput">Hiding provider-owned inputs: <code>NotClientInput</code><a class="headerlink" href="#hiding-provider-owned-inputs-notclientinput" title="Permanent link">&para;</a></h2>
 <p>Reflection advertises <em>every</em> declared key — including ones a <code>spec.kwargs</code>
 provider fills in from request state, which the caller should never set:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">WidgetExtras</span><span class="p">(</span><span class="n">HttpExtras</span><span class="p">[</span><span class="n">MyUser</span><span class="p">],</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">project_pk</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">InputRequired</span><span class="p">]</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">team_role</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NotClientInput</span><span class="p">]</span>  <span class="c1"># resolved by spec.kwargs</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">WidgetExtras</span><span class="p">(</span><span class="n">HttpExtras</span><span class="p">[</span><span class="n">MyUser</span><span class="p">],</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">project_pk</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">InputRequired</span><span class="p">]</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">team_role</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NotClientInput</span><span class="p">]</span>  <span class="c1"># resolved by spec.kwargs</span>
 </span></code></pre></div>
 <p><code>team_role</code> disappears from <code>properties</code>, and the caller's value for it never
-reaches the callable. <code>dispatch_spec</code> / <code>adispatch_spec</code> drop it from the caller's
-input before the spread, under every <code>UnknownArguments</code> policy:</p>
+reaches the callable. <code>dispatch_spec</code> / <code>adispatch_spec</code> treat it as no argument
+the caller may send:</p>
 <table>
 <thead>
 <tr>
-<th>The caller sends <code>team_role</code>, and the spec is…</th>
+<th>The caller sends <code>team_role</code>, and the policy is...</th>
 <th>What happens</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>closed (no <code>filter_set</code>, no bare <code>**kwargs</code>), under <code>REJECT</code></td>
+<td><code>REJECT</code></td>
 <td>refused: <code>Unexpected argument(s): 'team_role'.</code></td>
 </tr>
 <tr>
-<td>closed, under <code>IGNORE</code> or <code>PASSTHROUGH</code></td>
-<td>the value is dropped</td>
-</tr>
-<tr>
-<td>open, under any policy</td>
+<td><code>IGNORE</code></td>
 <td>the value is dropped</td>
 </tr>
 </tbody>
 </table>
-<p>The provider still fills it in. So can a registered pool seed, a service's
-<code>input_data</code>, the parameter's own default, or, for a selector and its
-preconditions or a service's target lookup, a route capture (<code>view.kwargs</code>, or
-<code>build_offline_context(kwargs=…)</code> off HTTP), which reaches no service's own
-pool; those are channels the caller does not control. The same holds for a service whose input is spread, which never receives the key from
-<code>PASSTHROUGH</code> either, and for a service's <code>instance_selector_spec</code> /
-<code>collection_selector_spec</code> lookup, whose pool is spread from the caller's
-arguments. Over HTTP a selector view spreads nothing, so the lookups are the one
-place the marker changes what an HTTP request can do: a request body's value for a
-key the lookup marks hidden is dropped there too.</p>
+<p>The provider still fills it in. So can a view hook (<code>get_service_kwargs</code>,
+<code>get_selector_kwargs</code> and their per-action forms), a registered pool seed, the
+<code>input_data</code> of a service with an input serializer, the parameter's own
+default, or, for a selector or a service's target lookup, a route capture of
+that name (<code>view.kwargs</code>, or <code>build_offline_context(kwargs=...)</code> off HTTP);
+those are channels the caller does not control. A route capture a target
+lookup hides is seeded for the whole call, so a service parameter of the same
+name is handed it too. For a target lookup, a registered seed of that name and the
+lookup's own provider win over the capture, and an author's value for the name
+(a view hook's or an untyped <code>kwargs</code> provider's) takes the capture's place. A
+spec whose typed <code>kwargs</code> provider is annotated to fill a name the lookup reads
+is refused with <code>ImproperlyConfigured</code>, since that provider's values reach the
+service only after the target is resolved: make it untyped, or move the key to
+the lookup selector spec's own <code>kwargs</code>.</p>
 <p><strong>A key is server-owned for the whole call</strong> once any callable in it marks it:
 the selector or service, any of <code>spec.preconditions</code>, or the target lookup.
 The callables of one call read the same caller input, so a key one of them
-hides is dropped before any of them sees it, and is gone from the declared set
-<code>REJECT</code> admits and from the input schema, wherever else it is a plain
-parameter. A field the <code>input_serializer</code> declares under that name is the one
-exception, because it is not a parameter: it stays declared and listed, and the
-caller's value reaches the service only in <code>data</code>, never the spread, since a
-same-named field can mean something else, such as a destination tenant beside
-the server's current one. A precondition taking <code>tenant: Annotated[int, NotClientInput]</code> beside
-a selector that reads <code>tenant</code> plainly makes the selector's <code>tenant</code> the
-provider's too. A key the target lookup hides never reaches an open spread
-service's <code>**changes</code>, and a service naming it receives the server's value: the
-provider's, <code>input_data</code>'s or its default. The set is public as
+hides is gone from the declared set <code>REJECT</code> admits and from the input schema,
+wherever else it is a plain parameter. A field the <code>input_serializer</code> declares
+under that name is the one exception, because it is not a parameter: it stays
+declared and listed, and the caller's value reaches the service only in <code>data</code>,
+since a same-named field can mean something else, such as a destination tenant
+beside the server's current one. A filter of the selector's <code>filter_set</code> under
+that name is the other: the filter reads the caller's value, as every filter
+does, and the parameter is handed only the server's (the provider's, a view
+hook's or a route capture's) or its own default, so neither ever reads the
+other's. The set is public as
 <a href="../../reference/dispatch/#server_owned_keys"><code>server_owned_keys(spec)</code></a>, for a
 transport that builds an input schema of its own and must leave out the same
 keys.</p>
 <p>A hidden parameter with no default that nothing fills is not named as a missing
-argument either: the caller could not send it, so the call fails as the author's
-<code>TypeError</code>.</p>
-<p><code>input_data</code> (or a <code>get_input_data</code> view hook) is the spec author's own code, merged
-over the caller's input with its keys winning, so its value for a hidden key is the
-server's and is never dropped. Where the caller sends the same key, the server's
-value is the one that arrives. It reaches the service through an input serializer
-field of that name under every policy, as a <code>PASSTHROUGH</code> extra, and through a
-spread service's bare <code>**kwargs</code>, except a key the target lookup names, its <code>pk</code>
-or a key it marks hidden: that one reaches a spread service only through a
-parameter of the same name, never its <code>**kwargs</code>, as the caller's <code>pk</code> does
-(<a href="#a-spread-service-with-no-input-serializer">above</a>). The marker still keeps the key out of the declared
-set, so on a closed spec with no such field <code>IGNORE</code> drops it and <code>REJECT</code>, which
-judges the merged arguments, refuses it, as it refuses any <code>input_data</code> key nothing
-declares.</p>
+argument either: the caller could not send it, so the call fails as the
+author's error.</p>
+<p><code>input_data</code> (or a <code>get_input_data</code> view hook) is the spec author's own code,
+merged over the caller's input with its keys winning, the spec's over the
+hook's, so its value for a hidden key is the server's and is never dropped.</p>
 <div class="admonition warning">
 <p class="admonition-title">What is left to decide the value</p>
-<p>Because the caller's value is gone before the precedence is applied, neither
-<code>SPREAD_CALLER_WINS</code> nor a provider declining with <code>UNSET</code> can let it back in.
-What a declining provider leaves is the parameter's default. A caller that used
-to fill the key through its arguments, such as a task runner or a test, loses
-the value the same way: silently where the parameter has a default, and with
-the callable's own <code>TypeError</code> where it has none, which over HTTP is a <code>500</code>.
-Move such a value to a provider, <code>input_data</code> or a pool seed. For a <strong>scoping</strong>
-key whose default reads as "everything", that is still a cross-scope read, so
-a provider owning a scoping key must always resolve it. A key the callable
-does <em>not</em> mark is still decided by the precedence: under
-<code>SPREAD_AUTHOR_WINS</code> the provider overrides caller input, and opting into
-<code>SPREAD_CALLER_WINS</code> on a scoped spec gives the caller the last word.</p>
+<p>Because the caller's value is gone before anything else is read, a provider
+declining with <code>UNSET</code> cannot let it back in: what a declining provider
+leaves is the parameter's default. A caller that used to fill the key through
+its arguments, such as a task runner or a test, loses the value the same way:
+silently where the parameter has a default, and as the author's error where
+it has none, which over HTTP is a <code>500</code>. Move such a value to a provider,
+<code>input_data</code> or a pool seed. For a <strong>scoping</strong> key whose default reads as
+"everything", that is still a cross-scope read, so a provider owning a
+scoping key must always resolve it. A key the callable does <em>not</em> mark is
+the caller's unless the spec's <code>kwargs</code> provider is annotated to fill it:
+a key its <code>TypedDict</code> fills is never taken from the caller or a hook,
+declined or not, nor through a field whose <code>source</code> it is. A key that is a
+field's wire name owns that field's <code>source</code> as well, so with
+<code>tenant = CharField(source="org")</code> a provider filling <code>tenant</code> leaves the
+caller's value out of both the <code>tenant</code> and the <code>org</code> parameters, and a
+hook naming either is dropped. A <code>NotClientInput</code> mark on <code>tenant</code> keeps
+the caller's value out of <code>org</code> the same way. An input field
+it names stays the serializer's: the caller's value is validated and
+reaches the service in <code>data</code> alone, as a <code>NotClientInput</code> key's does,
+while an <code>input_data</code> value for that field is the server's and reaches
+the parameter.</p>
 </div>
 <p>Marking a key both <code>InputRequired</code> and <code>NotClientInput</code> raises — the caller cannot
 be required to supply a value it is never told about.</p>
@@ -2146,24 +2189,22 @@ an annotation whose text names <code>NotClientInput</code> is hidden, and one na
 published and a marker placed too deep is not refused, so import the names a
 marked annotation uses at runtime where you can. The one thing that stays
 unknown is a <code>**kwargs: Unpack[Extras]</code> whose <code>TypedDict</code> does not resolve:
-nothing says which keys it has, so none is hidden, <code>REJECT</code> refuses to run on
-it and the other policies deliver what the caller sent (see the warning about
-importing the <code>TypedDict</code> at runtime, above).</p>
+nothing says which keys it has, so none is hidden and <code>REJECT</code> refuses to run
+on it wherever the call reads that annotation (see the warning about
+importing the <code>TypedDict</code> at runtime, above, for where that is).</p>
 </div>
 <h3 id="view-is-never-caller-input"><code>view</code> is never caller input<a class="headerlink" href="#view-is-never-caller-input" title="Permanent link">&para;</a></h3>
-<p>No pool carries <code>view</code>. A selector or service that wants the calling view takes it
-from a <code>kwargs=</code> provider or a <code>get_*_kwargs</code> view hook; a selector or a target
-lookup can also take it from a route capture of that name, which reaches no
-service's pool. The input schema hides it from a selector's parameters, as it hides
-<code>request</code> and <code>user</code>, so dispatch treats <code>view</code> as though every callable marked it
-<code>NotClientInput</code>: the caller's value is dropped at every site above, under every
-policy, <code>REJECT</code> refuses it as <code>Unexpected argument(s): 'view'.</code> on a closed spec,
-and a required <code>view</code> nothing filled is never named as a missing argument. It
-fails as the <code>TypeError</code> it always did, because no value a caller could send would
-be the view.</p>
-<p>Over HTTP a provider, a hook and, to a selector or a target lookup, a route
-capture deliver the real view as they did. As with a hidden key, the one thing an HTTP request can no longer do is have
-its body's <code>view</code> reach a mutation's target lookup.</p>
+<p><code>dispatch_spec</code> seeds <code>view</code> on every call: a selector, service or provider
+declaring it receives the view the transport passed, or <code>None</code> off HTTP. A
+caller's <code>view</code> is never an argument (under <code>REJECT</code> it is refused as
+<code>Unexpected argument(s): 'view'.</code>, under <code>IGNORE</code> dropped; a caller's
+<code>request</code>, and its <code>serializer</code>, which the input serializer binds, are dropped
+under either, like any other seed's name), and a <code>kwargs</code> provider or a route
+capture named <code>view</code> cannot outrank the seed. A spec's <code>kwargs</code> provider
+returning a <code>view</code> key raises <code>ImproperlyConfigured</code>, as it does for any name
+the call seeds, a view
+hook's <code>view</code> is dropped for the seed, and registering <code>view</code> (or <code>request</code>) in
+<code>pool_seeds</code> raises <code>ImproperlyConfigured</code>, since the edge seeds both.</p>
 <h2 id="describing-an-input-inputdescription">Describing an input: <code>InputDescription</code><a class="headerlink" href="#describing-an-input-inputdescription" title="Permanent link">&para;</a></h2>
 <p><code>project_pk</code> now reaches a schema-driven caller as <code>{"type": "integer"}</code> and a
 name. A model calling the tool has to guess what a project id is <em>for</em> here, and
@@ -2173,10 +2214,10 @@ neither of the two markers above can carry text — both are singletons, so
 <code>InputRequiredType()</code> returns the one instance and has nowhere to put per-key
 prose. <code>InputDescription</code> is the third marker, and it is a value rather than a
 singleton for exactly that reason:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">WidgetExtras</span><span class="p">(</span><span class="n">HttpExtras</span><span class="p">[</span><span class="n">MyUser</span><span class="p">],</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">project_pk</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>        <span class="nb">int</span><span class="p">,</span> <span class="n">InputRequired</span><span class="p">,</span> <span class="n">InputDescription</span><span class="p">(</span><span class="s2">&quot;The project whose widgets to list.&quot;</span><span class="p">)</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">WidgetExtras</span><span class="p">(</span><span class="n">HttpExtras</span><span class="p">[</span><span class="n">MyUser</span><span class="p">],</span> <span class="n">total</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">project_pk</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>        <span class="nb">int</span><span class="p">,</span> <span class="n">InputRequired</span><span class="p">,</span> <span class="n">InputDescription</span><span class="p">(</span><span class="s2">&quot;The project whose widgets to list.&quot;</span><span class="p">)</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="p">]</span>
 </span></code></pre></div>
 <p>The text lands on the property as <code>description</code> — the same key the serializer
 path fills from <code>help_text</code> and the filter path from a filter's — so one
@@ -2204,26 +2245,72 @@ package refuses to do quietly.</p>
 value read only by a <code>spec.kwargs</code> provider off <code>view.kwargs</code>, because that value
 appears in no signature at all — nor a closed-surface spec whose route capture
 must still be caller-suppliable.</p>
-<p>For those, a transport adapter registers a
+<p>For those, the spec declares a
 <a class="autorefs autorefs-internal" title="UrlKwarg
 
 
   
       dataclass
-  " href="../../reference/types/#rest_framework_services.types.url_kwarg.UrlKwarg"><code>UrlKwarg</code></a>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">UrlKwarg</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">UrlKwarg</span><span class="p">(</span><span class="s2">&quot;project_pk&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;integer&quot;</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Owning project.&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+  " href="../../reference/types/#rest_framework_services.types.url_kwarg.UrlKwarg"><code>UrlKwarg</code></a> in its own
+<code>reads</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">UrlKwarg</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">list_widgets_spec</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">selector</span><span class="o">=</span><span class="n">list_widgets</span><span class="p">,</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">reads</span><span class="o">=</span><span class="p">[</span><span class="n">UrlKwarg</span><span class="p">(</span><span class="s2">&quot;project_pk&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;integer&quot;</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Owning project.&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)],</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="p">)</span>
 </span></code></pre></div>
-<p>The adapter merges its <code>json_schema()</code> into the operation's input schema, pops the
-argument out of the caller's arguments, and routes it to
-<code>build_offline_context(kwargs=…)</code>. <code>required=True</code> is the registered-declaration
+<p>Each entry is a parameter of the compiled spec, so it is an argument a caller
+sends, the schema lists and <code>REJECT</code> admits (see
+<a href="../../reference/service-specs/#what-a-spec-declares-for-a-caller-off-http">what a spec declares for a caller off HTTP</a>).
+Where the value comes from depends on the view the call carries:</p>
+<ul>
+<li><strong>A live DRF view</strong> reads a declared <code>UrlKwarg</code> from its route alone, or the
+  parameter's default where the route has none. A body value of that name is
+  neither the argument nor written onto <code>view.kwargs</code>: the view's permission
+  classes have already read the route, and a value they never saw must not
+  reach the service as though the URL had carried it.</li>
+<li><strong>Off HTTP</strong> the caller sends it as an argument. On an <code>OfflineServiceView</code>,
+  which carries no route of its own, the value is also written onto
+  <code>view.kwargs</code>, so a provider or a permission class reading the route finds
+  it, and one the caller did not send is read from <code>view.kwargs</code>.</li>
+</ul>
+<p>A target lookup's <code>reads</code> take the same channels the same way, so a
+<code>SelectorSpec(reads=[QueryParam("q")])</code> used as an <code>instance_selector_spec</code> reads
+<code>q</code> from a live view's query string alone, and each is coerced to the type it
+declares, as the spec's own are. A name the spec's <code>reads</code> declare too is read
+by the spec's declaration. A read named like a writable field of
+the input serializer is refused when the spec compiles, because the body's value
+of that name is the field's, except a <code>UrlKwarg</code> the target lookup reads, which
+renames a row by the key that finds it: the route's capture scopes the lookup,
+and off HTTP the caller's value for the name is the field's alone, never written
+onto <code>view.kwargs</code>.</p>
+<p>A service parameter named like a read is handed its value by name. On a DRF
+view it needs a default, as one named like an input field does: <code>as_view()</code>
+checks a service's required parameters before any call, and a request may
+carry no query value, so a required parameter of a read's name is refused
+when the view is built. Off HTTP, <code>dispatch_spec</code> hands it the argument. A
+selector's parameter is not refused: a selector takes its arguments from its
+signature, so a required one makes the read a required argument, and a request
+without it is answered <code>400</code>.</p>
+<p>The <a href="https://github.com/Artui/djangorestframework-services/tree/main/examples">example project</a> declares <code>reads=[QueryParam("status")]</code> on its list
+spec and asserts the selector is handed it both ways, beside an off-HTTP
+<code>dispatch_spec(partial=True)</code> call that validates only the fields it sends.</p>
+<p>Route captures and query values are coerced to the type the entry declares. <code>required=True</code> is the declared
 counterpart of the <code>InputRequired</code> marker: both land the name in the schema's
-<code>required</code> list, and they differ only in where the key is declared.</p>
+<code>required</code> list, and they differ only in where the key is declared. A transport
+adapter that keeps its own registration and routes the value to
+<code>build_offline_context(kwargs=...)</code> itself, as earlier releases needed, still
+reaches a provider reading <code>view.kwargs</code>; the value is an argument only where
+the spec declares or reads the name.</p>
 <p><code>QueryParam</code> is the sibling for read-shaping values that belong on
 <code>request.query_params</code> (django-restql field selection, a serializer that branches
 on the query string). It has <strong>no</strong> <code>required</code> flag on purpose — omitting a
-read-shaping param is legitimate by construction.</p>
+read-shaping param is legitimate by construction. It follows the same split: a
+live view reads it from the request's query string alone and never writes a body
+value there, while off HTTP the caller sends it as an argument, which joins an
+offline request's <code>request.query_params</code> when the query string lacks it.</p>
 <p>Both types live here rather than in each adapter so the same declaration means the
 same thing on every transport. Adapters validate a registration set with
 <a class="autorefs autorefs-internal" title="validate_channel_names" href="../../reference/types/#rest_framework_services.types.validate_channel_names.validate_channel_names"><code>validate_channel_names</code></a>, which
@@ -2265,10 +2352,42 @@ pagination names on top.</p>
 </tbody>
 </table>
 <p>A key can be <em>both</em> reflected and <code>UrlKwarg</code>-registered — a <code>project_pk</code> the
-selector reads <em>and</em> a scoping provider reads off <code>view.kwargs</code>. The adapter's
-schema merge dedupes to one property (the explicit registration wins), the
-registration pops the argument into <code>kwargs=</code>, and the authoritative spread still
-delivers it to the selector pool, so both readers see it.</p>
+selector reads <em>and</em> a scoping provider reads off <code>view.kwargs</code>. The
+<code>reads</code> entry replaces the reflected parameter of the same name. Over HTTP both
+readers see the route's value; off HTTP <code>dispatch_spec</code> delivers the caller's
+argument to the selector and writes it onto the <code>OfflineServiceView</code>'s
+<code>view.kwargs</code>, so both readers see it there too.</p>
+<h2 id="who-validates-what">Who validates what<a class="headerlink" href="#who-validates-what" title="Permanent link">&para;</a></h2>
+<p>One spec, two validators, chosen by the view the call carries:</p>
+<table>
+<thead>
+<tr>
+<th>The call carries...</th>
+<th>Validated by</th>
+<th>So</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a live DRF view (any view that is not an <code>OfflineServiceView</code>)</td>
+<td>the input serializer alone, from the body the request parsed</td>
+<td>DRF's coercion and wording: <code>"true"</code>, <code>1</code> and <code>"on"</code> for a boolean, a number for a string, form bodies, every field's refusal at once</td>
+</tr>
+<tr>
+<td>an <code>OfflineServiceView</code>, or no view</td>
+<td>the kernel's typed check of every declared argument, then the serializer</td>
+<td>JSON types only: <code>"true"</code> for a boolean or <code>123</code> for a string is refused, a Python <code>date</code> or <code>Decimal</code> is refused, a list past 1000 items is refused, and the serializer runs only once every argument passes, so its own refusals (a <code>max_length</code>, a <code>validate()</code>) wait behind a type refusal</td>
+</tr>
+</tbody>
+</table>
+<p>An agent transport sends typed JSON and wants a refusal it can show a model, so
+it calls <code>dispatch_spec</code> with an <code>OfflineServiceView</code> (from
+<code>build_offline_context</code>) or none. A browser or a form sends what DRF has always
+accepted, so the views keep answering it as DRF does. A <code>many</code> call's list of
+rows is bounded off HTTP and on an <code>OfflineServiceView</code> only: 1000 rows unless
+the <code>ListSerializer</code> sets <code>max_length</code> or the project sets
+<code>SERVICE_SPECS_MAX_ARRAY_LENGTH</code>. Over a live view the <code>ListSerializer</code> alone
+bounds a bulk body.</p>
 
 
 

@@ -1,0 +1,3998 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A service / selector layer for Django REST Framework — precise, controllable side effects for mutating endpoints.">
+      
+      
+      
+        <link rel="canonical" href="https://artui.github.io/djangorestframework-services/reference/service-specs/">
+      
+      
+        <link rel="prev" href="../registry/">
+      
+      
+        <link rel="next" href="../jsonschema/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Service specs on the kernel - djangorestframework-services</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#service-specs-on-the-kernel" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="djangorestframework-services" class="md-header__button md-logo" aria-label="djangorestframework-services" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            djangorestframework-services
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Service specs on the kernel
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Artui/djangorestframework-services" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Artui/djangorestframework-services
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="djangorestframework-services" class="md-nav__button md-logo" aria-label="djangorestframework-services" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    djangorestframework-services
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Artui/djangorestframework-services" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Artui/djangorestframework-services
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../mutation-helpers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mutation helpers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../default-model-services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Default model services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../errors-and-atomic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Errors & atomic
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../typing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Typing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenAPI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../async/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Async
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_10" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../recipes/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipes
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_10" id="__nav_10_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Recipes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/service-action/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom action with @service_action
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/compose-viewset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compose your own viewset
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/extra-kwargs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pass extra kwargs to services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-action permissions on the spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/preconditions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    State rules with preconditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/affordances/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What can be done right now
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/queryset-shaping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Per-spec queryset shaping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/selector-filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filter a selector with filter_set
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/nested-writes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested writes for every relation kind
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/bulk-mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk & collection mutations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/serializer-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customise serializer context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/spec-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Declare specs once for many transports
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/agent-audience/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mark fields for an agent audience
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/off-http-inputs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    URL-derived & required inputs off-HTTP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/scaffold-app/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scaffold a service app
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../views/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Views
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dispatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dispatch (stable surface)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../viewsets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Viewsets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mutations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mutations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../selectors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Selectors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-spec-declares-for-a-caller-off-http" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a spec declares for a caller off HTTP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-each-field-lands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where each field lands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-serializer-as-validator-and-presenter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The serializer as Validator and Presenter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SerializerValidator
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SerializerValidator">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator.parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator.validate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator.validated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator.validated_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validated_many
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_presenter.SerializerPresenter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SerializerPresenter
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SerializerPresenter">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_presenter.SerializerPresenter.output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        output
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_presenter.SerializerPresenter.present" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        present
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_presenter.SerializerPresenter.presented" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        presented
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drf-permission-classes-off-http" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DRF permission classes off HTTP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DRFPermissionCheck
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="DRFPermissionCheck">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck.has_permission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        has_permission
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck.has_object_permission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        has_object_permission
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck.has_scope_permission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        has_scope_permission
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.not_permitted.NotPermitted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NotPermitted
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.build_offline_context.build_offline_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_offline_context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-kernels-refusals-as-drfs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The kernel's refusals as DRF's
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The kernel&#39;s refusals as DRF&#39;s">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#translate_dispatch_errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        translate_dispatch_errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.translate_dispatch_errors.translate_dispatch_errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        translate_dispatch_errors
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="translate_dispatch_errors">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#invalidarguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InvalidArguments
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.invalid_arguments.InvalidArguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InvalidArguments
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="InvalidArguments">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#principalunavailable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PrincipalUnavailable
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.principal_unavailable.PrincipalUnavailable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PrincipalUnavailable
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PrincipalUnavailable">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#register_drf_row_errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        register_drf_row_errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.register_drf_row_errors.register_drf_row_errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        register_drf_row_errors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compiling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        as_kernel_spec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.kernel_spec_variant.kernel_spec_variant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        kernel_spec_variant
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../jsonschema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    JSON Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../audience/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audience projection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenAPI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../exceptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Exceptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-spec-declares-for-a-caller-off-http" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a spec declares for a caller off HTTP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-each-field-lands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where each field lands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-serializer-as-validator-and-presenter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The serializer as Validator and Presenter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SerializerValidator
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SerializerValidator">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator.parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator.validate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator.validated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator.validated_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validated_many
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_presenter.SerializerPresenter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SerializerPresenter
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SerializerPresenter">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_presenter.SerializerPresenter.output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        output
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_presenter.SerializerPresenter.present" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        present
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.serializer_presenter.SerializerPresenter.presented" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        presented
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drf-permission-classes-off-http" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DRF permission classes off HTTP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DRFPermissionCheck
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="DRFPermissionCheck">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck.has_permission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        has_permission
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck.has_object_permission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        has_object_permission
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck.has_scope_permission" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        has_scope_permission
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.not_permitted.NotPermitted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NotPermitted
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.build_offline_context.build_offline_context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_offline_context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-kernels-refusals-as-drfs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The kernel's refusals as DRF's
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The kernel&#39;s refusals as DRF&#39;s">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#translate_dispatch_errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        translate_dispatch_errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.translate_dispatch_errors.translate_dispatch_errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        translate_dispatch_errors
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="translate_dispatch_errors">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#invalidarguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InvalidArguments
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.invalid_arguments.InvalidArguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InvalidArguments
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="InvalidArguments">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#principalunavailable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PrincipalUnavailable
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.principal_unavailable.PrincipalUnavailable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PrincipalUnavailable
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PrincipalUnavailable">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#register_drf_row_errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        register_drf_row_errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.register_drf_row_errors.register_drf_row_errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        register_drf_row_errors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compiling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        as_kernel_spec
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rest_framework_services.service_specs.kernel_spec_variant.kernel_spec_variant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        kernel_spec_variant
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/Artui/djangorestframework-services/edit/main/docs/reference/service-specs.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="service-specs-on-the-kernel">Service specs on the kernel<a class="headerlink" href="#service-specs-on-the-kernel" title="Permanent link">&para;</a></h1>
+<p>A <code>ServiceSpec</code> or <code>SelectorSpec</code> declared here is a source for
+<a href="https://github.com/Artui/django-service-specs">django-service-specs</a>: it answers
+<code>as_kernel_spec()</code>, so the kernel's <code>kernel_spec(spec)</code> compiles it once, and
+<code>dispatch</code>, <code>authorize</code> and a <code>SpecRegistry</code> take the drfs spec itself. Every
+drfs field lands on a kernel seat or is named below as the HTTP views' own.</p>
+<p>A <code>many</code> spec's list is judged differently by the two routes.
+<a href="../dispatch/"><code>dispatch_spec</code></a> judges the list on the rows sent: where the list
+as sent is within its length bounds, a row that is no object is refused alone,
+and the list's <code>validate()</code> is left to the rows as sent. The kernel's <code>dispatch</code>
+called directly on a drfs spec has no such body to hold the rows and judges the
+list on the rows that survived, in the kernel's own classes and words:
+<code>[good, 1]</code> under a minimum of two answers row 1's <code>Expected an object.</code> beside
+<code>Ensure this field has at least 2 elements.</code>, and a list-level <code>validate()</code> runs
+over the rows left.</p>
+<h2 id="what-a-spec-declares-for-a-caller-off-http">What a spec declares for a caller off HTTP<a class="headerlink" href="#what-a-spec-declares-for-a-caller-off-http" title="Permanent link">&para;</a></h2>
+<p>Over HTTP a URLconf captures a nested route's <code>project_pk</code> and a query string
+carries <code>fields</code>. Off HTTP somebody has to say they exist, so a spec declares
+them itself:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">rest_framework_services</span><span class="w"> </span><span class="kn">import</span> <span class="n">QueryParam</span><span class="p">,</span> <span class="n">SelectorKind</span><span class="p">,</span> <span class="n">SelectorSpec</span><span class="p">,</span> <span class="n">UrlKwarg</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">list_tasks</span> <span class="o">=</span> <span class="n">SelectorSpec</span><span class="p">(</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">kind</span><span class="o">=</span><span class="n">SelectorKind</span><span class="o">.</span><span class="n">LIST</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">selector</span><span class="o">=</span><span class="n">tasks_for_project</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">reads</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="n">UrlKwarg</span><span class="p">(</span><span class="s2">&quot;project_pk&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;integer&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="n">QueryParam</span><span class="p">(</span><span class="s2">&quot;fields&quot;</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Fields to return.&quot;</span><span class="p">),</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="p">],</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span>
+</span></code></pre></div>
+<ul>
+<li><strong><code>reads</code></strong>: each <code>UrlKwarg</code> and <code>QueryParam</code> becomes one kernel <code>Parameter</code>,
+  so it is an argument a caller sends and the schema lists. An entry of the
+  same name as a selector parameter replaces the reflected one. A sequence is
+  required, and a name may be declared once. A selector taking a bare
+  <code>**kwargs</code> is not handed a route capture no callable declares: declare it
+  here or as a keyword parameter. A <code>UrlKwarg</code>'s <code>type</code> has to be the one the
+  route's converter yields: <code>UrlKwarg("pk", type="integer")</code> for <code>&lt;int:pk&gt;/</code>, since the
+  default <code>string</code> refuses an <code>int</code> capture as <code>Expected a string.</code>.</li>
+<li><strong><code>field_audiences</code></strong>: per-field markings layered over the output
+  serializer's own. On a <code>ServiceSpec</code> they layer over its output selector's.
+  A spec declaring them with no output serializer is refused at compile, with
+  a message naming both.</li>
+<li><strong><code>agent_contract()</code></strong>: the <code>OfflineContract</code> these two declare, which a
+  registry entry answers for transports that read it. <code>None</code> when both are
+  empty.</li>
+</ul>
+<h2 id="where-each-field-lands">Where each field lands<a class="headerlink" href="#where-each-field-lands" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>drfs field</th>
+<th>Kernel seat</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>permission_classes</code></td>
+<td>one <code>DRFPermissionCheck</code>; <code>[]</code> is <code>Unrestricted()</code>, and <code>None</code> is no permissions, which a registry refuses</td>
+</tr>
+<tr>
+<td><code>input_serializer</code></td>
+<td><code>validator</code> (a <code>SerializerValidator</code>)</td>
+</tr>
+<tr>
+<td><code>output_selector_spec.output_serializer</code>, <code>output_serializer</code></td>
+<td><code>presenter</code> (a <code>SerializerPresenter</code>)</td>
+</tr>
+<tr>
+<td><code>input_serializer_context</code></td>
+<td>the <code>SerializerValidator</code>'s <code>serializer_context</code></td>
+</tr>
+<tr>
+<td><code>output_selector_spec.output_serializer_context</code>, <code>output_serializer_context</code></td>
+<td>the <code>SerializerPresenter</code>'s <code>serializer_context</code></td>
+</tr>
+<tr>
+<td><code>partial</code></td>
+<td><code>partial</code>, kept only with an <code>input_serializer</code></td>
+</tr>
+<tr>
+<td><code>many</code>, <code>many_argument</code></td>
+<td>the same; the list bounds come from the serializer's <code>ListSerializer</code> and apply off HTTP and on an <code>OfflineServiceView</code>, while a live view's bulk body is bounded by the <code>ListSerializer</code> alone</td>
+</tr>
+<tr>
+<td><code>extend_queryset</code></td>
+<td><code>extend_queryset</code>, called as <code>extend(queryset, view, request)</code></td>
+</tr>
+<tr>
+<td><code>affordances</code></td>
+<td>each service's compiled spec</td>
+</tr>
+<tr>
+<td>everything else of the same name</td>
+<td>carried by name</td>
+</tr>
+</tbody>
+</table>
+<p>A service with no <code>input_serializer</code> declares none of its own parameters, so
+<code>kernel_spec(spec).parameters()</code> lists only its target lookup's keys and its
+<code>reads</code>, and no body reaches the service's keywords. Its signature is declared
+only in the variant compiled for an explicit
+<code>ArgumentBinding.SPREAD_AUTHOR_WINS</code> (<code>kernel_spec_variant(spec, spread=True)</code>).
+A selector always takes its arguments from its signature, except for the names
+its <code>filter_set</code> owns.
+Parameters marked <code>NotClientInput</code> on any callable of the call are hidden.
+So are the names the pool fills: <code>user</code>, <code>request</code>, <code>view</code>, <code>queryset</code>,
+<code>result</code> and the rest.</p>
+<p><code>parameters()</code> is not available on every compiled spec. Where a target lookup's
+selector reads a name that is also a writable input field, such as renaming a
+row by the <code>slug</code> that finds it, <code>kernel_spec(spec).parameters()</code> and
+<code>as_kernel_spec(spec).parameters()</code> raise <code>ImproperlyConfigured</code> ("Parameters
+['slug'] are declared by two sources"), because the kernel declares one source
+per name. Such a spec still registers and dispatches, and <code>spec_to_json_schema</code>
+describes it: the route's capture scopes the lookup, and the body's value is
+the field's.</p>
+<p>Three <code>reads</code> declarations are refused with <code>ImproperlyConfigured</code> when the
+spec compiles (at registration, or whenever it is dispatched, over HTTP too),
+each naming the read:</p>
+<ul>
+<li>a name the pool fills, which would never be the caller's;</li>
+<li>a name the spec's service or selector, or one of its <code>preconditions</code>, marks
+  <code>NotClientInput</code>. Dispatch hands a declared read to each of those callables
+  by name, so the same callable would be given the client's value for a
+  parameter it keeps the server's. The message names the callable and the
+  mark; remove one of the two;</li>
+<li>a name a writable field of the input serializer also takes, declared on the
+  spec or on its target lookup. The body's value of that name is the field's,
+  so the read would reach neither the service nor the lookup. The message
+  names the read, the serializer and, where it reads the name too, the target
+  lookup. A <code>UrlKwarg</code> the target lookup reads is accepted: that is the
+  rename-by-key shape above, where the route's capture scopes the lookup. A
+  <code>many</code> spec's fields are each row's, and a read-only field and a
+  <code>HiddenField</code> take nothing from the body, so none is a clash: a
+  <code>UrlKwarg</code> named like a <code>HiddenField</code> whose default reads <code>view.kwargs</code> is
+  how a route capture scopes a write, and off HTTP the caller's value for it
+  is written onto <code>view.kwargs</code>, where the default reads it.</li>
+</ul>
+<p>A serializer whose fields cannot be read when the spec compiles - they read
+  the request, or query a table <code>migrate</code> has not made yet, or a row not yet
+  there - is taken to declare no name, so registering it at import never
+  needs the database; the call that describes it is where such a read is
+  refused. A <code>many=True</code> spec whose serializer cannot be built then compiles
+  with no list bound of its own, and the list serializer that validates the
+  call still holds the list to the bound it declares.</p>
+<p>A name only a target lookup marks <code>NotClientInput</code> is accepted: the lookup is
+never handed a read it hides, so the read is the service's argument and the
+lookup keeps its own value.</p>
+<p>A nested spec compiles to what the kernel runs:</p>
+<ul>
+<li>its <code>permission_classes</code> are not carried;</li>
+<li>an instance lookup's <code>allow_none</code> and <code>output_serializer</code> are dropped;</li>
+<li>an output selector's <code>kwargs</code> are dropped;</li>
+<li>an output selector with no <code>selector</code> moves its serializer onto the service
+  spec's <code>presenter</code>;</li>
+<li><code>preconditions</code> and <code>progress_reporter</code>, which would never run there, are
+  refused.</li>
+</ul>
+<p><code>success_status</code>, <code>document_service_error</code> and <code>response_finalizer</code> are the
+HTTP views' and are not compiled.</p>
+<p>The two serializer context callables ride on the adapters and are asked when
+the serializer is built for a call, over DRF's own context and the view hooks
+<code>dispatch_spec</code> registers for the call; see
+<a href="../../recipes/serializer-context/#through-the-kernel">Customise serializer context</a>.</p>
+<h2 id="the-serializer-as-validator-and-presenter">The serializer as Validator and Presenter<a class="headerlink" href="#the-serializer-as-validator-and-presenter" title="Permanent link">&para;</a></h2>
+<p><code>SerializerValidator</code> is the kernel's <code>Validator</code> over an <code>input_serializer</code>
+(a DRF serializer or a dataclass): its parameters are the serializer's fields,
+and it validates a call with the target as <code>instance</code>, the call's <code>partial</code>,
+and a serializer context built for the principal, so <code>CurrentUserDefault</code>
+reads it. A <code>HiddenField</code> or a read-only field is not a parameter, and neither
+is a field named like a seed (<code>user</code>, <code>result</code>, a registered seed's name): the
+serializer reads it from the body, so its value lands in <code>data</code> and the seed
+keeps its own. For a request a live DRF view dispatches, the edge compiles a
+lenient variant (<code>kernel_spec_variant(spec, lenient=True)</code>) whose parameters
+carry their names alone, so DRF's serializer is the only validator and answers
+in its own words; off HTTP the parameters carry their types and the kernel
+checks them first.
+<code>SerializerPresenter</code> is the kernel's <code>Presenter</code> over an output serializer,
+with the spec's <code>field_audiences</code> layered over the serializer's own markings.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.service_specs.serializer_validator.SerializerValidator" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SerializerValidator</span>
+
+
+<a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" title="django_service_specs.validation.validator.Validator" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.validation.validator.Validator">Validator</a></code></p>
+
+
+
+        <p>A Validator whose declaration is a DRF serializer, or a dataclass read through one.</p>
+<p>It takes what a drfs spec's <code>input_serializer</code> takes: a <code>Serializer</code>
+subclass, <code>ModelSerializer</code> and <code>DataclassSerializer</code> included, or a
+dataclass, which is validated through a <code>DataclassSerializer</code> exactly as
+drfs' dispatch validates it. Anything else is refused with
+<code>ImproperlyConfigured</code> when the Validator is built.</p>
+<p><code>parameters()</code> walks the serializer's fields, in order, as the field walk
+in <code>service_specs/utils.py</code> reads them: a nested serializer is an object
+with Parameters of its own, <code>many=True</code> and a <code>ListField</code> an array, a
+file field a <code>file</code>, choices with their labels; a <code>HiddenField</code> and a
+read-only field are no parameter. It is read on each call rather than
+when the Validator is built, because specs are built at import time, when
+a <code>ModelSerializer</code> cannot yet read its model, and so that <code>help</code> is
+rendered in the language active when it is asked for. It never queries.</p>
+<p><code>validate()</code> builds the serializer as a DRF view would:</p>
+<ul>
+<li>
+<p><strong>over the body the call was sent</strong>, where a DRF edge call names this
+  Validator (<code>validator_input</code>): the caller's own data, a <code>QueryDict</code>
+  kept one, with what the edge put over it, as a DRF view's serializer was
+  always handed <code>request.data</code>. Anywhere else, the kernel's checked
+  arguments.</p>
+</li>
+<li>
+<p><strong>with the target as</strong> <code>instance</code>, so an update's uniqueness checks
+  exclude the row being updated. The queryset a collection selector
+  resolves is no row, so a call over one binds as a create, as drfs'
+  dispatch binds it; the target is handed over as it is, since a
+  serializer, unlike a <code>ModelForm</code>, writes nothing onto its instance
+  while it validates.</p>
+</li>
+<li><strong>partial as the call is</strong>, the context's <code>partial</code>, so a partial call
+  may leave out a required field and returns only what was sent.</li>
+<li><strong>under the serializer context DRF builds on HTTP</strong>, <code>request</code>,
+  <code>format</code> and <code>view</code>. The <code>request</code> and <code>view</code> the call
+  registered as pool seeds are the serializer's own, read from
+  <code>ValidationContext.ambient</code> as the kernel resolved them. A call that
+  registered neither gets an offline request whose <code>user</code> is the
+  principal and whose <code>data</code> is the arguments, built by
+  <a class="autorefs autorefs-internal" title="build_offline_context" href="#rest_framework_services.service_specs.build_offline_context.build_offline_context"><code>build_offline_context</code></a>,
+  so a <code>CurrentUserDefault</code> reads the principal and a field or a
+  <code>validate()</code> reading <code>self.context["request"]</code> finds a request
+  rather than a <code>KeyError</code>. What a registered request's <code>user</code> is, is
+  the transport's to make the principal; the Validator never writes to a
+  call's own objects. Over that, the input half of the view hooks a DRF
+  edge carries for the call (<code>input_view_layers</code>), then <code>serializer_context</code>, the spec's own
+  <code>input_serializer_context</code>, each winning on a key it shares with what
+  it layers over (see
+  <code>serializer_context</code> in <code>service_specs/utils.py</code>).
+  The callable declares what it reads from the call's pool:
+  <code>request</code>, <code>view</code>, <code>user</code>, a registered seed, or an argument. It is
+  asked once per call, a <code>many</code> call's included, except where the call
+  builds the serializer twice, for a body the server puts a value into or
+  a row a target lookup resolves, and what the callable is handed differs
+  between the two.</li>
+</ul>
+<p>A refusal is one
+<a class="autorefs autorefs-internal" title="InvalidArguments" href="#rest_framework_services.service_specs.invalid_arguments.InvalidArguments"><code>InvalidArguments</code></a>,
+the kernel's refusal that is DRF's <code>ValidationError</code> as well, carrying
+the serializer's <code>errors</code> unchanged: DRF's <code>ErrorDetail</code> leaves, each
+with its code, cross-field messages under <code>non_field_errors</code>, and a
+nested list's errors in whichever shape the installed DRF writes them.</p>
+<p><code>validated()</code> hands the service what drfs' dispatch hands it: <code>data</code>
+is the serializer's <code>validated_data</code> - the validated mapping, or the
+dataclass instance a <code>DataclassSerializer</code> builds - and the bound
+serializer is bound for the call as <code>serializer</code>. <code>values</code> follow
+what <code>validated_data</code> is, as drfs' dispatch reads it: a mapping's
+entries, keyed as DRF keys them, by each field's <code>source</code>; a dataclass
+instance's <code>__init__</code> fields, whether a dataclass was declared or a
+<code>DataclassSerializer</code> subclass was; and nothing for any other object a
+serializer's <code>validate()</code> returns, which reaches the service only as
+<code>data</code>. <strong>A key named like a seed of the call is a value only in</strong>
+<code>data</code>: DRF's <code>HiddenField(default=CurrentUserDefault())</code> named
+<code>user</code>, or a key a <code>validate()</code> adds named <code>result</code>, stays in
+<code>validated_data</code> as the serializer built it, and the service's <code>user</code>
+is the call's principal, as drfs always handed them (see <code>_unseeded</code>).
+<strong>So is a key named in</strong> <code>server_owned</code>, the names a callable of the call
+marks <code>NotClientInput</code>, which the compiled spec hands it: the client's
+value is the service's in <code>data</code> alone, unless the edge put the server's
+value into the field it comes from (see <code>_unowned</code>). <strong>Where the edge did,
+that field's validation of the value the edge put is the key's value</strong>,
+validated on its own once the serializer has accepted the body, never read
+back off the body (see <code>_server_values</code>), whatever the field reads from
+the body, and whatever a later field of the same <code>source</code>, a
+<code>source="*"</code> nested serializer, a <code>validate()</code> or a
+<code>to_internal_value</code> override did to the key: it is the parameter's, by
+the field's <code>source</code> or, where that is no single key, by the field's name,
+and by the key an author named it under (see <code>_handed</code>), and it is laid
+back over the key in a
+mapping <code>data</code> (see <code>_lay_back</code>). A dataclass instance is <code>data</code> as
+built, and a <code>many</code> call's rows are neither validated apart nor laid back.</p>
+<p><strong>A partial call over a dataclass is refused</strong>, a <code>DataclassSerializer</code>
+subclass included: one builds its instance from every field, and a field
+a partial call left out fails as a <code>TypeError</code> from inside the library.
+<code>supports_partial</code> is therefore answered per instance, <code>False</code> for
+either declaration and <code>True</code> for any other serializer, so a spec
+declaring <code>partial=True</code> over a dataclass is refused when it is built.
+A partial call made on the Validator directly is refused with
+<code>ImproperlyConfigured</code> as well.</p>
+<p><code>validated_many()</code> validates a <code>many</code> spec's rows as DRF's own list
+serializer does, once: the serializer's child class under
+<code>many=True</code> (so a <code>Meta.list_serializer_class</code> and its list-level
+<code>validate()</code> run), with the call's context and partial flag. The one
+list serializer is bound for the call as <code>serializer</code>, <code>data</code> is the
+list of each row's <code>validated_data</code> and the values are the rows' values
+under <code>many_argument</code>. A refusal is an <code>InvalidArguments</code> whose detail
+keys each failing row by the index the caller's list gave it, whichever of
+DRF's two shapes the installed version reports item errors in, and whose
+list-level message sits under <code>non_field_errors</code>. A live view's list
+body (<code>EdgeCallState.body_rows</code>) is bound whole, every row as sent, and
+what the list serializer refused is also left on the edge's state as DRF
+reported it, for the edge to answer with as a view always did. Where the
+kernel refused a row the edge sent, the rows it passed are read but the
+list is judged as sent: its length bounds count every row sent, and its
+list-level <code>validate()</code> does not run, as DRF never runs it past a
+refused row.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.service_specs.serializer_validator.SerializerValidator.parameters" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">parameters</span>
+
+
+<a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator.parameters" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">parameters</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Parameters</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The serializer's input fields, as Parameters.</p>
+<p>Read off <code>describe_serializer</code>: inside an edge call, the serializer
+the call builds once and validates with, so a serializer that queries
+as it is built queries once in the call
+(test_its_queries_run_once_off_http); outside one, a serializer built
+afresh for each read, as a schema or a registration reads it.</p>
+<p>A field named like a seed of the call is no parameter: one of the
+dispatcher's own names (<code>RESERVED_POOL_SEEDS</code>,
+test_a_writable_field_named_user_validates_off_http) and the
+<code>serializer</code> this Validator binds (<code>BOUND</code>,
+test_an_input_field_named_serializer_validates_into_data) always, and each of
+<code>excluded</code>, which the DRF edge compiles with the names the call's
+registered seeds take
+(test_a_writable_field_named_like_a_registered_seed_validates). The
+kernel refuses a parameter a seed occupies, where a serializer was
+always free to declare such a field: the client sent its value, the
+serializer validated it into <code>data</code>, and the seed kept its own. So
+the field is the serializer's alone, read from the body the edge hands
+it (<code>validator_input</code>), and never meets the seed in the call's pool.</p>
+<p><code>lenient</code> declares each field by name alone - any value, optional,
+nullable - so the kernel's shape check passes every value through and
+the serializer is the one to answer it, as a live DRF view's request
+always was answered (<code>kernel_spec_variant(lenient=True)</code>).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.service_specs.serializer_validator.SerializerValidator.validate" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">validate</span>
+
+
+<a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator.validate" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">validate</span><span class="p">(</span><span class="n">arguments</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">context</span><span class="p">:</span> <span class="n">ValidationContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The validated values, keyed by source, or <code>InvalidArguments</code> carrying DRF's detail.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.service_specs.serializer_validator.SerializerValidator.validated" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">validated</span>
+
+
+<a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator.validated" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">validated</span><span class="p">(</span><span class="n">arguments</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">context</span><span class="p">:</span> <span class="n">ValidationContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Validated</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The values, <code>validated_data</code> as the call's <code>data</code>, and the bound <code>serializer</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.service_specs.serializer_validator.SerializerValidator.validated_many" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">validated_many</span>
+
+
+<a href="#rest_framework_services.service_specs.serializer_validator.SerializerValidator.validated_many" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">validated_many</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">rows</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">context</span><span class="p">:</span> <span class="n">ValidationContext</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">many_argument</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Validated</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The rows validated once as DRF's list serializer, the one serializer bound for the call.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.service_specs.serializer_presenter.SerializerPresenter" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SerializerPresenter</span>
+
+
+<a href="#rest_framework_services.service_specs.serializer_presenter.SerializerPresenter" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" title="django_service_specs.output.presenter.Presenter" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.output.presenter.Presenter">Presenter</a></code></p>
+
+
+
+        <p>An operation's output declared as a DRF serializer, rendered through it.</p>
+<div class="language-text highlight"><pre><span></span><code>``output()`` reads the serializer&#39;s fields into the kernel&#39;s
+[`Output`][django_service_specs.output.output.Output], in declaration order,
+the way drfs&#39; own output schema and audience walk read them:
+
+- A ``write_only`` field is never rendered, so it is not declared.
+- **Type**: JSON&#39;s own, with ``decimal``, ``date-time`` and ``date`` as
+  formats. A nested serializer is an object carrying its own ``Output``; a
+  ``many=True`` serializer, and a ``ListField`` whose child is one, is an
+  array of that ``Output``; a ``MultipleChoiceField`` is an array of its
+  choices. A field DRF gives no type, a
+  ``SerializerMethodField`` or a ``JSONField`` say, is declared ``any``,
+  so a schema describes it with no ``type`` rather than as a string it may
+  not be.
+</code></pre></div>
+<ul>
+<li>
+<p><strong>Label</strong>: the author's, when one was written. DRF derives <code>Vat id</code> from
+      <code>vat_id</code> when none was, and that is <code>None</code> here, as it is no <code>title</code>
+      in drfs' schema.</p>
+<ul>
+<li><strong>Choices</strong>: every <code>(value, display)</code> pair a <code>ChoiceField</code> holds,
+  typed by the values when they share a type.</li>
+<li><strong>Presence</strong>: <code>always_present</code> is true where DRF is bound to emit the
+  key: a required field, one with a default, and one allowing <code>null</code>. A
+  read-only field with neither is dropped when DRF cannot read it.</li>
+<li><strong>Marking</strong>: the <code>FieldMarking</code> found in the field's <code>style</code>, under
+  <code>MARKING</code> or any other key, and a value under <code>MARKING</code> that is not
+  one refused, as drfs' walk reads it. Nested outputs carry their own.</li>
+</ul>
+<p><code>field_audiences</code> is the spec's own output declaration, a field name to a
+<code>FieldMarking</code>, layered over the serializer's markings <strong>at the top level
+only</strong>, as drfs' <code>overrides=</code> always has been. The layered marking is the
+compiled <code>OutputField.marking</code>, which is the seat
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.dispatch.audience_projection_for_spec.audience_projection_for_spec"><code>audience_projection_for_spec</code></a>
+reads, so every engine projects the one declaration with no <code>overrides=</code>,
+which stays a mount's. A name that is no output field is refused when the
+output is read: a hidden marking that silently applies to nothing is a field
+shown to an agent.</p>
+<p><code>presented(value, context)</code> is what the kernel's <code>present</code> asks for:
+the serializer's <code>.data</code> for one value, under the serializer context
+derived from the call's <code>PresentationContext</code>. The <code>request</code> and
+<code>view</code> the call registered as pool seeds, read from <code>ambient</code>, are the
+serializer's own; a call that registered neither gets an offline request
+whose <code>user</code> is the principal, so a <code>SerializerMethodField</code> reading
+<code>self.context["request"].user</code> renders for the principal the call ran
+for. A list result is presented row by row by the kernel's <code>present</code>,
+each row with the same context, which is what a <code>many=True</code> render is.
+Over that, the output half of the view hooks a DRF edge adds to the
+result's context (<code>output_view_layers</code>), resolved with the value, then <code>serializer_context</code>, the
+spec's own <code>output_serializer_context</code>, each winning on a key it shares
+with what it layers over (see
+<code>serializer_context</code> in <code>service_specs/utils.py</code>).
+The callable declares what it reads from the call's pool, <code>request</code>,
+<code>view</code>, <code>user</code> or a registered seed, and the value being presented
+under <code>value_keyword</code>: <code>result</code> for a service's output, <code>instance</code>
+for a retrieve. <strong>It is asked once per value presented</strong>, so for a list
+or a <code>many</code> service's output once per row, and no keyword names the
+row then (<code>value_keyword</code> is <code>None</code>), nor is the view's hook handed
+it: the kernel presents a set row by row, and the whole set a callable
+may declare, a list's <code>page</code> or a <code>many</code> output's <code>result</code>, is
+never in hand here.</p>
+<p><code>present(value)</code> is the context-free form, and delegates to
+<code>presented(value, None)</code>: a <code>None</code> context is the serializer context
+drfs describes a serializer with (<code>request</code>, <code>view</code> and <code>format</code>
+present, each <code>None</code>), so a <code>get_fields</code> reading
+<code>self.context["request"]</code> neither raises there nor sees a principal. It
+is what a <code>DispatchResult</code> a transport built by hand is presented with,
+and with no call to resolve it against, <code>serializer_context</code> is not
+asked (test_present_with_no_call_runs_no_callable).</p>
+<p>A dataclass type is read and rendered through the <code>DataclassSerializer</code>
+drfs renders it with, and a <code>BaseSerializer</code> that is not a <code>Serializer</code>
+declares no fields, so its output is empty while it still presents.</p>
+</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.service_specs.serializer_presenter.SerializerPresenter.output" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">output</span>
+
+
+<a href="#rest_framework_services.service_specs.serializer_presenter.SerializerPresenter.output" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">output</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Output</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The serializer's fields as an Output, with <code>field_audiences</code> layered on. Never queries.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.service_specs.serializer_presenter.SerializerPresenter.present" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">present</span>
+
+
+<a href="#rest_framework_services.service_specs.serializer_presenter.SerializerPresenter.present" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">present</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>One value as the serializer's <code>.data</code>, with no call to render for.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.service_specs.serializer_presenter.SerializerPresenter.presented" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">presented</span>
+
+
+<a href="#rest_framework_services.service_specs.serializer_presenter.SerializerPresenter.presented" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">presented</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">PresentationContext</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>One value as the serializer's <code>.data</code>, under the context of the call it belongs to.</p>
+<p><code>None</code> is presented as <code>None</code>: it is JSON's null, and a serializer
+handed none renders a row of blank fields indistinguishable from a real one.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="drf-permission-classes-off-http">DRF permission classes off HTTP<a class="headerlink" href="#drf-permission-classes-off-http" title="Permanent link">&para;</a></h2>
+<p><code>DRFPermissionCheck</code> asks each class in order against the offline request and
+view built for the principal. The first refusal raises
+<a class="autorefs autorefs-internal" title="NotPermitted" href="#rest_framework_services.service_specs.not_permitted.NotPermitted"><code>NotPermitted</code></a>
+with that class's <code>message</code> and <code>code</code>.</p>
+<p>Before the class-level check, <code>view.kwargs</code> is filled from the call's arguments
+with what a route would have captured: every declared <code>UrlKwarg</code>, taking its
+<code>default</code> when the argument is absent or null, and the arguments the spec's
+row lookup reads. A declared <code>QueryParam</code> goes to <code>request.query_params</code>. The
+object check asks only about model instances. A create or a collection is
+never asked about an object, as on HTTP.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">DRFPermissionCheck</span>
+
+
+<a href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" title="django_service_specs.authorization.permission_check.PermissionCheck" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.authorization.permission_check.PermissionCheck">PermissionCheck</a></code></p>
+
+
+
+        <p>DRF permission classes asked the kernel's three questions, off HTTP.</p>
+<p>The kernel asks a principal and a spec; a DRF permission class asks a
+request and a view. So each question builds the offline request and view
+<a class="autorefs autorefs-internal" title="build_offline_context" href="#rest_framework_services.service_specs.build_offline_context.build_offline_context"><code>build_offline_context</code></a>
+builds for the principal, and asks every class in order, a fresh instance
+each time, as a DRF view's <code>get_permissions</code> does. The first refusal
+raises the dual-base
+<a class="autorefs autorefs-internal" title="NotPermitted" href="#rest_framework_services.service_specs.not_permitted.NotPermitted"><code>NotPermitted</code></a>
+with that class's own <code>message</code> and <code>code</code>, so a client is told what
+a DRF view would have told it; returning <code>False</code> instead would leave the
+kernel to raise its own class with the generic wording.</p>
+<p><strong>The view's <code>kwargs</code> are filled from the call's arguments before the
+class-level check.</strong> A permission scoping by a route capture reads
+<code>view.kwargs["project_pk"]</code> in <code>has_permission</code>, and off HTTP there is
+no URLconf to put it there; asked against an empty mapping it would refuse
+every caller it means to admit. Each method opts in to the kernel's
+<code>arguments</code> channel by declaring the keyword, and the names that go onto
+<code>view.kwargs</code> are the ones a route would have captured: every declared
+<code>UrlKwarg</code>, and <code>route_reads</code>, the arguments the spec's row lookup
+reads (<code>pk</code> of an update's instance lookup, or of a retrieve), which
+<a class="autorefs autorefs-internal" title="as_kernel_spec" href="#rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec"><code>as_kernel_spec</code></a>
+passes in. Each declared <code>QueryParam</code> goes onto <code>request.query_params</code>
+instead, where a query string would have put it. A <code>UrlKwarg</code> or
+<code>QueryParam</code> the call left out, or sent as <code>null</code>, takes its declared
+<code>default</code>, as its docstring says a transport seeds it, and is otherwise
+absent. Where a transport asks with no arguments at all (<code>None</code>), nothing
+is filled, and the classes decide what an empty route means, as they would
+for a URL that captured nothing.</p>
+<p><strong><code>has_object_permission</code> asks only about a model instance</strong>, as
+<a class="autorefs autorefs-internal" title="enforce_permissions" href="../dispatch/#rest_framework_services.dispatch.enforce_permissions.enforce_permissions"><code>enforce_permissions</code></a>
+always has off HTTP; any other target is allowed here, because a DRF class
+written for a row reads attributes off it.</p>
+<p><strong><code>has_scope_permission</code> allows.</strong> The kernel asks it of a bulk call's set,
+a collection's rows and a create's <code>None</code>, and DRF has no such question:
+on HTTP, a create and a collection action run the class-level check and no
+object check, and a DRF <code>has_object_permission</code> handed a <code>QuerySet</code> or
+<code>None</code> would raise <code>AttributeError</code> or decide on the wrong object. The
+class-level check has already run, with the view's <code>kwargs</code> filled, by
+the time the kernel asks this one.</p>
+<p>No state is kept between questions: the compiled spec holding this check is
+shared by every call and every thread, so each question builds its own
+request and view.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck.has_permission" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">has_permission</span>
+
+
+<a href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck.has_permission" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">has_permission</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">arguments</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Whether every class's <code>has_permission</code> admits <code>principal</code>, raising on the first that does not.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck.has_object_permission" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">has_object_permission</span>
+
+
+<a href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck.has_object_permission" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">has_object_permission</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">target</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">arguments</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Whether every class's <code>has_object_permission</code> admits <code>principal</code> to a model <code>target</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck.has_scope_permission" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">has_scope_permission</span>
+
+
+<a href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck.has_scope_permission" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">has_scope_permission</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">principal</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">scope</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">arguments</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Allows: DRF has no question for a set or a create, as the class docstring says.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.service_specs.not_permitted.NotPermitted" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">NotPermitted</span>
+
+
+<a href="#rest_framework_services.service_specs.not_permitted.NotPermitted" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" title="django_service_specs.authorization.not_permitted.NotPermitted" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.authorization.not_permitted.NotPermitted">NotPermitted</a></code>, <code><span title="rest_framework.exceptions.PermissionDenied">PermissionDenied</span></code></p>
+
+
+
+        <p>A permission check refused the principal, as both the kernel's <code>NotPermitted</code> and DRF's <code>PermissionDenied</code>.</p>
+<p>Every published consumer of this package catches DRF's
+<code>PermissionDenied</code> by name and ends the attempt on it, and DRF's
+exception handler answers it 403. None of them catches the kernel's class,
+so a denial dispatch makes leaves as this, and an <code>except</code> written
+against either side catches it.</p>
+<p>Deliberately <strong>not</strong> a service error, which the kernel's class is not
+either: an agent reads a service refusal as something to route around and
+keeps trying, where a denial should end the attempt.</p>
+<p><code>message</code> is the kernel's, and <code>detail</code> is the same words as DRF's
+<code>ErrorDetail</code>, coded <code>"permission_denied"</code> unless <code>code</code> is given.</p>
+<p>Both <code>__init__</code>s run by name, so neither depends on the order of the
+bases, which is a choice (the kernel's first, as the class is named) and
+no test can tell from the other. The kernel's sets <code>message</code>:
+<code>test_the_default_is_the_kernels_message</code> fails without it. DRF's sets
+<code>detail</code> with the <code>code</code> given, which the kernel's <code>super()</code> chain
+never passes: <code>test_a_code_given_is_kept</code> fails without it.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.service_specs.build_offline_context.build_offline_context" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">build_offline_context</span>
+
+
+<a href="#rest_framework_services.service_specs.build_offline_context.build_offline_context" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_offline_context</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">user</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">params</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">http_request</span><span class="p">:</span> <span class="n">HttpRequest</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">action</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">kwargs</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">query_params</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OfflineContext</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Build the
+<a class="autorefs autorefs-internal" title="OfflineContext
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.offline_context.OfflineContext"><code>OfflineContext</code></a> for
+dispatching a spec outside an HTTP request.</p>
+<p><a class="autorefs autorefs-internal" title="dispatch_spec" href="../dispatch/#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>
+forwards <code>request</code> / <code>view</code> to spec callables (<code>kwargs</code> providers,
+<code>extend_queryset</code>, context providers) that declare them, and
+<a class="autorefs autorefs-internal" title="enforce_permissions" href="../dispatch/#rest_framework_services.dispatch.enforce_permissions.enforce_permissions"><code>enforce_permissions</code></a>
+needs a request + view to evaluate <code>permission_classes</code>. This synthesizes both so
+a spec written for the HTTP transport keeps working when driven from a Pydantic-AI
+toolset, the MCP server, a management command, or a task runner.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>user</code>
+            </td>
+            <td>
+                  <code><span title="typing.Any">Any</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Set as <code>request.user</code>, so callables and permissions that read it behave
+as on HTTP.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>params</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | <span title="list">list</span>[<span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Seeds <code>request.data</code>, straight into DRF's parsed-data cache (a
+synthetic request has no stream to parse). It is <em>not</em> validated here — that
+is
+<a class="autorefs autorefs-internal" title="dispatch_spec" href="../dispatch/#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>'s
+job, which takes <code>params</code> directly and never touches <code>request.data</code>.
+Pass both the same value.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>http_request</code>
+            </td>
+            <td>
+                  <code><span title="django.http.HttpRequest">HttpRequest</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An ambient Django request to wrap, so its headers / <code>META</code> are
+available (the MCP server passes its real one); otherwise an
+<a class="autorefs autorefs-internal" title="OfflineHttpRequest" href="../dispatch/#rest_framework_services.types.offline_http_request.OfflineHttpRequest"><code>OfflineHttpRequest</code></a>
+is created. Either way the method is forced to <code>POST</code>, because mutation
+callables often branch on it. <strong>The caller keeps ownership: a request
+passed here is never written to.</strong> What gets wrapped is a shallow copy,
+so the <code>method</code> / <code>GET</code> / <code>user</code> this function sets land on the copy
+alone, while <code>META</code>, the session, the upload handlers and any body
+already read stay shared — headers and session writes behave as they do
+on HTTP, and the live request keeps its own method, query string and user
+for the rest of its cycle. Pass the request you are serving; dispatching
+several specs from one request is safe, and neither leaks into the next.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>action</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The view action name, exposed on the
+<a class="autorefs autorefs-internal" title="OfflineServiceView
+
+
+  
+      dataclass
+  " href="../views/#rest_framework_services.types.offline_service_view.OfflineServiceView"><code>OfflineServiceView</code></a>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>kwargs</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><strong>The</strong> channel for route-derived values — the off-HTTP counterpart of a
+view's URL captures.
+<a class="autorefs autorefs-internal" title="dispatch_spec" href="../dispatch/#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>
+spreads it into the selector / target pools exactly where the HTTP path
+spreads <code>extra_url_kwargs=view.kwargs</code>: authoritative over <code>params</code> on a
+key conflict, below a <code>spec.kwargs</code> provider, which also sees it as
+<code>view.kwargs</code>. Pass every route capture a spec depends on.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>query_params</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Seeds the request's <code>GET</code> <code>QueryDict</code>, the source
+<code>request.query_params</code> reads — how read-shaping params that are not spec
+inputs reach the serializer offline: a serializer branching on
+<code>query_params</code>, and a request-scoped <code>FilterSet</code> reading
+<code>self.request.query_params</code> itself. It is not what a <code>filter_set</code> is
+bound to: <code>dispatch_spec</code> binds a <code>SelectorSpec</code>'s own, and a target
+lookup's, to <code>filter_data</code>, else to <code>params</code>, and a service's
+<code>output_selector_spec.filter_set</code> to <code>filter_data</code>, else to an empty
+mapping (always to an empty mapping under
+<code>output_filter_from_call=False</code>). To filter from this query string, pass
+<code>filter_data=context.request.query_params</code>. Values are stringified as on
+HTTP; a list / tuple becomes a multi-valued param. <strong>Replaces</strong> a wrapped
+<code>http_request</code>'s <code>GET</code> — on the copy that is wrapped, so the caller's
+own <code>GET</code> still reads its real query string afterwards.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>host</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The origin the synthesized request reports, so <code>build_absolute_uri</code> —
+which DRF's <code>FileField</code> / <code>HyperlinkedIdentityField</code> call whenever a
+<code>request</code> is in the serializer context — returns real absolute URLs off
+HTTP. Accepts <code>"example.com"</code>, <code>"example.com:8000"</code>, or a full origin
+whose scheme decides whether links are https. There is no default: unset,
+absolute-URI building degrades to the relative URL rather than raising (see
+<a class="autorefs autorefs-internal" title="OfflineHttpRequest" href="../dispatch/#rest_framework_services.types.offline_http_request.OfflineHttpRequest"><code>OfflineHttpRequest</code></a>).
+<strong>Ignored when <code>http_request</code> is supplied</strong>, whose own headers are
+authoritative, so a caller can pass both unconditionally.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">The</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="OfflineContext
+
+
+  
+      dataclass
+   (rest_framework_services.types.offline_context.OfflineContext)" href="../types/#rest_framework_services.types.offline_context.OfflineContext">OfflineContext</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><a class="autorefs autorefs-internal" title="OfflineContext
+
+
+  
+      dataclass
+  " href="../types/#rest_framework_services.types.offline_context.OfflineContext"><code>OfflineContext</code></a></p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="OfflineContext
+
+
+  
+      dataclass
+   (rest_framework_services.types.offline_context.OfflineContext)" href="../types/#rest_framework_services.types.offline_context.OfflineContext">OfflineContext</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>to hand to <code>dispatch_spec</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div><h2 id="the-kernels-refusals-as-drfs">The kernel's refusals as DRF's<a class="headerlink" href="#the-kernels-refusals-as-drfs" title="Permanent link">&para;</a></h2>
+<p>The kernel raises its own <code>InvalidArguments</code>, <code>NotPermitted</code> and
+<code>PrincipalUnavailable</code>, which neither DRF's exception handler nor a transport
+catching DRF's <code>ValidationError</code> or <code>PermissionDenied</code> knows. The edge runs the
+kernel inside <code>translate_dispatch_errors()</code>, so what <code>dispatch_spec</code> and
+<code>adispatch_spec</code> raise for a kernel refusal is one of the three classes below,
+each both the kernel's refusal and DRF's: an <code>except</code> written against either
+package catches it, <code>detail</code> carries <code>ErrorDetail</code>s with their codes, and DRF
+answers it 400 or 403. The one refusal that is DRF's alone is a <code>many</code> spec's
+rows sent as a bare list, answered as DRF's list serializer answers them, with
+a plain <code>rest_framework.exceptions.ValidationError</code>: a body that is no list, a
+refused row, a row's undeclared key, or more rows than the bound. So catch
+DRF's <code>ValidationError</code> for every refused argument.</p>
+<p>A caller running the kernel's <code>dispatch</code>, <code>resolve_target</code> or
+<code>shape_queryset</code> itself, or calling
+<a href="../dispatch/#apply_queryset_shaping"><code>apply_queryset_shaping</code></a>, gets the
+kernel's classes and wraps the call in the same block where it wants DRF's.</p>
+<p>A deactivated principal is <code>PrincipalUnavailable</code>, a 403.</p>
+<h3 id="translate_dispatch_errors"><code>translate_dispatch_errors</code><a class="headerlink" href="#translate_dispatch_errors" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.service_specs.translate_dispatch_errors.translate_dispatch_errors" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">translate_dispatch_errors</span>
+
+
+<a href="#rest_framework_services.service_specs.translate_dispatch_errors.translate_dispatch_errors" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">translate_dispatch_errors</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Re-raise the kernel's <code>DispatchError</code>s inside the block as this package's dual-base classes.</p>
+<p>Every published consumer of this package catches DRF's
+<code>ValidationError</code> and <code>PermissionDenied</code> by name, and DRF's exception
+handler answers only those; the kernel's own refusals reach none of them,
+and a view serves one as a 500. So the DRF edge runs the kernel's dispatch
+inside this block:</p>
+<ul>
+<li>the kernel's <code>InvalidArguments</code> leaves as
+  <a class="autorefs autorefs-internal" title="InvalidArguments" href="#rest_framework_services.service_specs.invalid_arguments.InvalidArguments"><code>InvalidArguments</code></a>,
+  with the same tree and every message's code;</li>
+<li>its <code>NotPermitted</code> as
+  <a class="autorefs autorefs-internal" title="NotPermitted" href="#rest_framework_services.service_specs.not_permitted.NotPermitted"><code>NotPermitted</code></a>,
+  and its <code>PrincipalUnavailable</code> as
+  <a class="autorefs autorefs-internal" title="PrincipalUnavailable" href="#rest_framework_services.service_specs.principal_unavailable.PrincipalUnavailable"><code>PrincipalUnavailable</code></a>,
+  each with the same message;</li>
+<li>a subclass of any of the three leaves as that class's twin, with the
+  subclass's message.</li>
+</ul>
+<p>The new exception is raised <code>from</code> the kernel's, so the traceback keeps
+where dispatch refused. Each dual-base class is still the kernel's, so an
+<code>except DispatchError</code> around the block catches what leaves it as well.</p>
+<p>Left exactly as raised:</p>
+<ul>
+<li>anything that is not a <code>DispatchError</code>, a service's own refusals
+  among them;</li>
+<li>a <code>DispatchError</code> that is already a DRF exception, such as a dual-base
+  class a validator raised itself, which both ladders already catch;</li>
+<li>a <code>DispatchError</code> with no twin here, which keeps the kernel's class
+  rather than be given a DRF answer nobody declared.</li>
+</ul>
+<p>Use it as a <code>with</code> block, around <code>await</code> too. Not as a decorator on an
+<code>async def</code>: that would wrap the creation of the coroutine, not its run.</p>
+
+
+    </div>
+
+</div><h3 id="invalidarguments"><code>InvalidArguments</code><a class="headerlink" href="#invalidarguments" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.service_specs.invalid_arguments.InvalidArguments" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">InvalidArguments</span>
+
+
+<a href="#rest_framework_services.service_specs.invalid_arguments.InvalidArguments" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" title="django_service_specs.parameters.invalid_arguments.InvalidArguments" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.parameters.invalid_arguments.InvalidArguments">InvalidArguments</a></code>, <code><span title="rest_framework.exceptions.ValidationError">ValidationError</span></code></p>
+
+
+
+        <p>The arguments were refused, as both the kernel's <code>InvalidArguments</code> and DRF's <code>ValidationError</code>.</p>
+<p>Every published consumer of this package catches DRF's <code>ValidationError</code>
+by name - an MCP server answering "invalid arguments", an agent tool asking
+the model to retry - and DRF's exception handler answers it 400. None of
+them catches the kernel's class, so what dispatch refuses leaves as this,
+and an <code>except</code> written against either side catches it.</p>
+<p>Deliberately <strong>not</strong> a service validation error, which the kernel's class
+is not either: a business rule stated by a service about well-shaped input
+is a different refusal, and an MCP server answers the two differently.</p>
+<p><code>detail</code> is the kernel's tree - fields, nested objects, rows under their
+<code>int</code> index - with every message an <code>ErrorDetail</code>. A message that
+carries a code (the kernel's <code>CodedMessage</code> does) keeps it, and one
+that carries none takes <code>code</code>, <code>"invalid"</code> unless given.</p>
+<p><strong>DRF's <code>__init__</code> runs on purpose.</strong> By the order of the bases the
+kernel's runs, and it leaves <code>detail</code> as plain strings: DRF's handler
+still answers 400 with a byte-identical body, but <code>get_codes()</code> raises,
+so a test asserting the body passes on the broken class.
+<code>test_get_codes_keeps_the_kernels_code_and_defaults_the_rest</code> and
+<code>test_every_message_is_an_error_detail</code> are what fail without it.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="principalunavailable"><code>PrincipalUnavailable</code><a class="headerlink" href="#principalunavailable" title="Permanent link">&para;</a></h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="rest_framework_services.service_specs.principal_unavailable.PrincipalUnavailable" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">PrincipalUnavailable</span>
+
+
+<a href="#rest_framework_services.service_specs.principal_unavailable.PrincipalUnavailable" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" title="django_service_specs.authorization.principal_unavailable.PrincipalUnavailable" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.authorization.principal_unavailable.PrincipalUnavailable">PrincipalUnavailable</a></code>, <code><span title="rest_framework.exceptions.PermissionDenied">PermissionDenied</span></code></p>
+
+
+
+        <p>The principal cannot act, as both the kernel's <code>PrincipalUnavailable</code> and DRF's <code>PermissionDenied</code>.</p>
+<p>Raised for an identifier naming nobody or a deactivated account, before
+any permission check. It reaches every published consumer's ladder as the
+denial DRF names, answered 403 and ending the attempt, and an <code>except</code>
+written against the kernel's class catches it too.</p>
+<p>Deliberately <strong>not</strong> a service error, which the kernel's class is not
+either: a refused principal is terminal, never something to route around.</p>
+<p><code>message</code> is the kernel's, and <code>detail</code> is the same words as DRF's
+<code>ErrorDetail</code>, coded <code>"permission_denied"</code> unless <code>code</code> is given.
+The default is the kernel's wording, not DRF's, since there is nobody to
+refuse a permission to.</p>
+<p>Both <code>__init__</code>s run by name, as <code>NotPermitted</code>'s do, so the order of
+the bases is a choice no test can tell from the other. The kernel's sets
+<code>message</code>: <code>test_the_default_is_the_kernels_message_not_drfs</code> fails
+without it. DRF's sets <code>detail</code> with the <code>code</code> given, which the
+kernel's <code>super()</code> chain never passes: <code>test_a_code_given_is_kept</code>
+fails without it.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="register_drf_row_errors"><code>register_drf_row_errors</code><a class="headerlink" href="#register_drf_row_errors" title="Permanent link">&para;</a></h3>
+<p>A nested write's row service written for DRF refuses its row with DRF's
+<code>ValidationError</code>. Registered, which <code>dispatch_spec</code>'s module does when it is
+imported, that refusal lands at its row, <code>{"books": {1: {...}}}</code>, with its
+codes, and is still DRF's <code>ValidationError</code>.</p>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.service_specs.register_drf_row_errors.register_drf_row_errors" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">register_drf_row_errors</span>
+
+
+<a href="#rest_framework_services.service_specs.register_drf_row_errors.register_drf_row_errors" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">register_drf_row_errors</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Register DRF's <code>ValidationError</code> as a refusal the kernel re-roots under the row that raised it.</p>
+<p>A nested write runs a row service per related row, and one written for DRF
+refuses its row with DRF's <code>ValidationError</code>, which the kernel cannot
+name, so it would otherwise escape the write naming no row. Registered,
+it is re-addressed as the kernel's own refusals are - a collection's row
+under its <code>int</code> index, a message about the row itself under
+<code>non_field_errors</code> - and rebuilt as DRF's <code>ValidationError</code>, with every
+message's code kept, so DRF still answers it 400.</p>
+<p>Process-wide and for the life of the process, as the kernel's registry is.
+Running it again does nothing, because the reader is one module-level
+function; a second registration of the class with any other reader is
+refused by the kernel.</p>
+<p>Not a home for this package's dual-base <code>InvalidArguments</code>: the kernel
+reads its own <code>InvalidArguments</code> before any registered class, so that
+one leaves a nested row as the kernel's class, and reaches DRF's ladders
+through
+<a class="autorefs autorefs-internal" title="translate_dispatch_errors" href="#rest_framework_services.service_specs.translate_dispatch_errors.translate_dispatch_errors"><code>translate_dispatch_errors</code></a>.</p>
+
+
+    </div>
+
+</div><h2 id="compiling">Compiling<a class="headerlink" href="#compiling" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">as_kernel_spec</span>
+
+
+<a href="#rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">as_kernel_spec</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">spread</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">seeded</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(),</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">KernelServiceSpec</span> <span class="o">|</span> <span class="n">KernelSelectorSpec</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Compile <code>spec</code>, a drfs <code>ServiceSpec</code> or <code>SelectorSpec</code>, to the kernel's.</p>
+<p>What each drfs spec's own <code>as_kernel_spec()</code> answers, so the kernel's
+entry points - <code>dispatch</code>, <code>authorize</code>, the registry and the schemas -
+take a drfs spec as it is; they read it through <code>kernel_spec</code>, which
+compiles it once per object. This function compiles afresh on every call.</p>
+<p>Each field lands on one seat:</p>
+<ul>
+<li><code>input_serializer</code> becomes the <code>SerializerValidator</code>, and the output
+  serializer the <code>SerializerPresenter</code>, with the spec's
+  <code>field_audiences</code> layered over the serializer's markings. A <code>ServiceSpec</code>'s output serializer is its
+  <code>output_selector_spec</code>'s; one whose <code>selector</code> is <code>None</code> re-reads
+  nothing, so it compiles to no output selector, and its serializer is the
+  compiled spec's own presenter.</li>
+<li><code>permission_classes</code> becomes one
+  <a class="autorefs autorefs-internal" title="DRFPermissionCheck" href="#rest_framework_services.service_specs.drf_permission_check.DRFPermissionCheck"><code>DRFPermissionCheck</code></a>;
+  an empty sequence, which drfs reads as "no permissions, explicitly",
+  becomes <code>[Unrestricted()]</code>, the kernel's spelling of the same; <code>None</code>
+  compiles to no permissions, which the kernel's registry and dispatch
+  refuse, so a drfs spec reaches a transport without a view only guarded.</li>
+<li><code>reads</code> is what the selector and the target lookup take, and under
+  <code>spread</code> what a service with no <code>input_serializer</code> takes, read off
+  their signatures as
+  <a class="autorefs autorefs-internal" title="spec_to_json_schema" href="../jsonschema/#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
+  reads them: named parameters and the keys of an <code>Unpack</code>-ed
+  <code>TypedDict</code>, with <code>InputRequired</code> read as required and a
+  <code>NotClientInput</code> key on any callable of the call left out. A misplaced
+  marker is refused here, so at registration. Each declared <code>UrlKwarg</code>
+  and <code>QueryParam</code> in the spec's own <code>reads</code> is a Parameter too,
+  winning over a reflected one of its name; one the target lookup reads
+  joins the lookup's reads. A name the <code>filter_set</code> reads is the filter's,
+  as the filter field always won the schema. The pool's own names
+  (<code>user</code>, <code>request</code>, <code>view</code>, <code>serializer</code> and the kernel's
+  reserved seeds) are never arguments, and a declared one is refused. So
+  is a declared read the service or selector, or one of its
+  <code>preconditions</code>, marks <code>NotClientInput</code>: dispatch would hand that
+  callable the client's value under the name it keeps the server's. A
+  name only a target lookup hides is not refused; the lookup is never
+  handed it, and the read is the service's argument. A
+  route capture no signature names and no <code>UrlKwarg</code> declares is no
+  argument at all, so it no longer reaches a spec.</li>
+<li>The rest carries by name: <code>atomic</code>, <code>idempotent</code>, <code>many</code>,
+  <code>many_argument</code>, <code>allow_none</code>, <code>affordances</code>, <code>kwargs</code>,
+  <code>input_data</code>, <code>preconditions</code>, <code>progress_reporter</code>, <code>metadata</code>,
+  <code>select_related</code>, <code>prefetch_related</code>, <code>annotations</code>,
+  <code>filter_set</code>. <code>many</code> takes the bounds of the list serializer DRF
+  builds for the <code>input_serializer</code>. <code>extend_queryset</code>, which drfs calls
+  as <code>(queryset, view, request)</code>, is wrapped so the kernel, which binds it
+  by name, calls it the same way; <code>view</code> and <code>request</code> are then the
+  pool's registered seeds. A <code>SelectorSpec</code>'s <code>affordances</code> map to the
+  compiled form of each <code>ServiceSpec</code>.</li>
+</ul>
+<p><code>partial</code> overrides the spec's own for the variant the DRF edge builds
+per request (<code>PATCH</code>); <code>None</code> reads the spec's, where only <code>True</code> is
+partial. A spec with no <code>input_serializer</code> has nothing to relax, so it
+compiles unpartial.</p>
+<p><code>spread</code> is <code>ArgumentBinding.SPREAD_AUTHOR_WINS</code>: a service with no
+<code>input_serializer</code> then takes the caller's values for its own
+parameters. Without it, as <code>AUTO</code> and <code>BUNDLE</code> dispatch a service, a
+caller fills only what the Validator, the target lookup and the declared
+<code>reads</code> read, so <code>def destroy(*, instance, hard=False)</code> is never handed
+a <code>hard</code> the request sent (see <code>_takes_its_signature</code>).</p>
+<p><code>seeded</code> names the seeds a dispatch registers beyond the pool's own, which
+the DRF edge compiles per call: a signature's parameter of such a name -
+the selector's, a target lookup's, a spread service's - is no argument, and
+the seed fills it, as it always filled a service's. A declared read of the
+name stays one, which the kernel refuses as an argument meeting a seed.</p>
+<p><strong>What the kernel refuses at construction is stripped or refused here</strong>,
+naming the drfs field. Stripped, because drfs never read them: an output
+selector's <code>kwargs</code>, an instance lookup's <code>allow_none</code> (the kernel would
+resolve a missing row to <code>None</code>, an upsert, where drfs answers 404), a
+nested spec's <code>permission_classes</code> and a target lookup's
+<code>output_serializer</code>. Refused, as drfs refuses them at <code>as_view()</code>: a
+nested selector's <code>preconditions</code> and <code>progress_reporter</code>, which would
+never run. Also refused: a <code>selector</code> of <code>None</code> anywhere but an output
+selector or an instance lookup, which compiles to no lookup, and <code>field_audiences</code> with no output serializer to layer them
+over.</p>
+<p><code>success_status</code>, <code>document_service_error</code> and <code>response_finalizer</code>
+are the HTTP views', and none of them is carried. <code>input_serializer_context</code>
+rides on the <code>SerializerValidator</code> and <code>output_serializer_context</code> on the
+<code>SerializerPresenter</code>, which hands it the value it presents as <code>result</code>
+for a service's output and as <code>instance</code> for a retrieve.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="rest_framework_services.service_specs.kernel_spec_variant.kernel_spec_variant" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">kernel_spec_variant</span>
+
+
+<a href="#rest_framework_services.service_specs.kernel_spec_variant.kernel_spec_variant" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">kernel_spec_variant</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">unguarded</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">target</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">server_input</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">spread</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">lenient</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">excluded</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(),</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">seeded</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(),</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">KernelServiceSpec</span> <span class="o">|</span> <span class="n">KernelSelectorSpec</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p><code>spec</code> compiled as one request of the DRF edge dispatches it, once per variant.</p>
+<p>With every keyword at its default this is <code>kernel_spec(spec)</code>, the one
+compiled spec every kernel entry point reads. Each other combination is
+compiled once per source object and kept while it lives, so a request
+never recompiles and a <code>Grant</code> minted for a variant covers it on the
+next call too.</p>
+<ul>
+<li><code>partial</code>: the per-request flag a <code>PATCH</code> sets, compiled by
+  <a class="autorefs autorefs-internal" title="as_kernel_spec" href="#rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec"><code>as_kernel_spec</code></a>;
+  <code>None</code> reads the spec's own.</li>
+<li><code>unguarded</code>: no <code>permissions</code>. An HTTP view has already run DRF's
+  <code>check_permissions</code>, so the edge hands <code>dispatch</code> a <code>Grant</code> and the
+  compiled checks would only be asked again against a synthesized request.</li>
+<li><code>target</code>: a service spec that declares no target lookup gets a
+  stand-in instance lookup, so the edge can hand <code>dispatch(target=...)</code>
+  the row the view's <code>get_object()</code> resolved; the kernel refuses
+  <code>target=</code> on a spec with no target selector. The stand-in reads no
+  arguments and is never called: a dispatch reaching it raises
+  <code>ImproperlyConfigured</code>. A spec with a target lookup keeps its own.</li>
+<li><code>server_input</code>: <code>False</code> compiles the spec with no <code>kwargs</code>
+  provider of its own and, on a service spec, no <code>input_data</code>: the DRF
+  edge evaluates both itself and merges what they answer into the
+  arguments, and a service spec's <code>kwargs</code> seat hands back the author
+  values the edge call carries (<code>author_values</code>) instead.
+  The kernel relaxes a parameter only for a provider annotated to fill it,
+  so an untyped one, as drfs has always taken, would be refused as missing
+  before it ran; and a typed one declining a key it is annotated to fill
+  would reach the kernel's run as a <code>KeyError</code>. Leaving either on would
+  also call the provider twice.</li>
+<li><code>spread</code>: a service spec with no <code>input_serializer</code> takes the
+  caller's values for its own parameters, as an explicit
+  <code>ArgumentBinding.SPREAD_AUTHOR_WINS</code> dispatches it. Off by default, as
+  <code>AUTO</code> and <code>BUNDLE</code> dispatch a service, so <code>kernel_spec(spec)</code>
+  declares none of them.</li>
+<li><code>lenient</code>: a service spec's Validator declares its fields by name
+  alone (<code>SerializerValidator(lenient=True)</code>), so the kernel's shape
+  check passes each value through to the serializer. The edge compiles
+  this for a request a live DRF view dispatches, which DRF's serializer
+  has always answered alone: a form's <code>"on"</code> for a boolean, <code>123</code> for
+  a string, every field's refusal at once, in DRF's words. A caller off
+  HTTP keeps the kernel's typed check. A <code>many</code> spec's list is
+  unbounded there too, so its <code>ListSerializer</code> alone bounds a live
+  view's body, as DRF's view always did: a body past the kernel's
+  <code>SERVICE_SPECS_MAX_ARRAY_LENGTH</code> is taken where the list serializer
+  declares no <code>max_length</code>, and one past a declared bound is refused in
+  DRF's words.</li>
+<li><code>excluded</code>: names a service spec's Validator declares no parameter
+  for (<code>SerializerValidator(excluded=...)</code>): the edge compiles the
+  names a seed of the call takes, so a serializer field of that name is
+  the serializer's alone rather than a parameter the kernel refuses.</li>
+<li><code>seeded</code>: names a seed of the call fills, which no parameter read off
+  a signature takes - a selector's, a target lookup's, or a spread
+  service's (<code>as_kernel_spec(seeded=...)</code>) - so the seed fills a
+  parameter of that name rather than the kernel refusing it as an argument
+  meeting a seed, as a service's parameter always was.</li>
+</ul>
+
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.top", "search.highlight", "search.share", "search.suggest", "content.code.copy", "content.code.annotate", "content.action.edit", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

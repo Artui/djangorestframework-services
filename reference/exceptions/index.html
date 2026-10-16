@@ -1068,6 +1068,8 @@
       
         
       
+        
+      
     
     
     
@@ -1333,6 +1335,34 @@
     
   
     Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
   
 
     
@@ -1699,6 +1729,13 @@
 <p>Framework-agnostic exceptions raised by services. The view boundary
 maps them to DRF responses — see <a href="../../errors-and-atomic/">Errors &amp; atomic</a>
 for the mapping.</p>
+<p>Each class is django-service-specs' own, re-exported at the drfs path shown, so
+<code>rest_framework_services.ServiceError is django_service_specs.ServiceError</code>. An
+<code>except</code> written against either package catches what the other raises, and the
+documentation below is the kernel's.</p>
+<p><code>ServiceValidationError</code> takes a lazy translation (<code>gettext_lazy("...")</code>) as its
+message, as well as a <code>str</code>; any other detail still answers with the default
+message.</p>
 
 
 <div class="doc doc-object doc-class">
@@ -1719,15 +1756,11 @@ for the mapping.</p>
 
 
         <p>Raised by services to signal a business-rule failure.</p>
-<p>Carries a <code>message</code> and nothing else, so the view layer can surface it
-without the service depending on DRF. A structured payload belongs to a
-member that declares one:
+<p>Carries a <code>message</code> and nothing else, so a transport can surface it
+without the service depending on that transport. A structured payload
+belongs to a member that declares one:
 <a class="autorefs autorefs-internal" title="ServiceValidationError" href="#rest_framework_services.exceptions.service_validation_error.ServiceValidationError"><code>ServiceValidationError</code></a>
-carries a field-keyed <code>detail</code>,
-<a class="autorefs autorefs-internal" title="AdditionalInputRequired" href="#rest_framework_services.exceptions.additional_input_required.AdditionalInputRequired"><code>AdditionalInputRequired</code></a>
-a <code>schema</code>, and
-<a class="autorefs autorefs-internal" title="ActionUnavailable" href="#rest_framework_services.exceptions.action_unavailable.ActionUnavailable"><code>ActionUnavailable</code></a>
-a <code>code</code>.</p>
+carries a field-keyed <code>detail</code>.</p>
 
 
 
@@ -1771,16 +1804,16 @@ a <code>code</code>.</p>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="ServiceError (rest_framework_services.exceptions.service_error.ServiceError)" href="#rest_framework_services.exceptions.service_error.ServiceError">ServiceError</a></code></p>
+              Bases: <code><a class="autorefs autorefs-internal" title="ServiceError (django_service_specs.services.service_error.ServiceError)" href="#rest_framework_services.exceptions.service_error.ServiceError">ServiceError</a></code></p>
 
 
 
         <p>Raised by services to signal invalid input or invalid state.</p>
 <p>Distinct from
 <a class="autorefs autorefs-internal" title="ServiceError" href="#rest_framework_services.exceptions.service_error.ServiceError"><code>ServiceError</code></a> so
-the view boundary maps it to a DRF <code>ValidationError</code> (HTTP 400) where
-<code>ServiceError</code> maps to 422. <code>detail</code> may be a string, a dict (field → error(s)),
-or a list of errors, mirroring DRF's own <code>ValidationError</code> payload shapes.</p>
+a transport can tell "the arguments were fine but the business rule refused"
+from "the input itself is invalid" and map the two differently. <code>detail</code>
+may be a string, a dict (field → error(s)), or a list of errors.</p>
 
 
 
@@ -1824,7 +1857,7 @@ or a list of errors, mirroring DRF's own <code>ValidationError</code> payload sh
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="ServiceError (rest_framework_services.exceptions.service_error.ServiceError)" href="#rest_framework_services.exceptions.service_error.ServiceError">ServiceError</a></code></p>
+              Bases: <code><a class="autorefs autorefs-internal" title="ServiceError (django_service_specs.services.service_error.ServiceError)" href="#rest_framework_services.exceptions.service_error.ServiceError">ServiceError</a></code></p>
 
 
 
@@ -1832,20 +1865,19 @@ or a list of errors, mirroring DRF's own <code>ValidationError</code> payload sh
 <p>The distinction from a plain
 <a class="autorefs autorefs-internal" title="ServiceError" href="#rest_framework_services.exceptions.service_error.ServiceError"><code>ServiceError</code></a>
 is <em>which</em> thing is wrong: the resource is absent rather than in the wrong
-state, so a client should stop asking rather than try again differently. Over
-HTTP that is a <code>404</code>; a plain <code>ServiceError</code> stays a <code>422</code>.</p>
+state, so a client should stop asking rather than try again differently.</p>
 <div class="language-text highlight"><pre><span></span><code>def move_event(*, user, data):
-    event = Event.objects.filter(owner=user, pk=data.event_id).first()
+    event = Event.objects.filter(owner=user, pk=data[&quot;event_id&quot;]).first()
     if event is None:
-        raise ServiceNotFound(f&quot;No event {data.event_id}.&quot;)
+        raise ServiceNotFound(f&quot;No event {data[&#39;event_id&#39;]}.&quot;)
 </code></pre></div>
-<p><strong>Say the same thing for "absent" and "not yours."</strong> Answering <code>403</code> to a row
-the caller cannot see confirms that it exists, which is why the owner-scoped
-lookup above raises this either way.</p>
-<p>Off HTTP there is no status code to reach for, which is the point of the type:
-a transport that has never heard of it still handles a <code>ServiceError</code>, and one
-that wants to do better matches on the class. It must match <strong>before</strong> its
-generic <code>ServiceError</code> handler, or the subclass check swallows it.</p>
+<p><strong>Say the same thing for "absent" and "not yours."</strong> Answering a permission
+refusal for a row the caller cannot see confirms that it exists, which is
+why the owner-scoped lookup above raises this either way.</p>
+<p>A transport that has never heard of this type still handles a
+<code>ServiceError</code>, and one that wants to do better matches on the class. It
+must match <strong>before</strong> its generic <code>ServiceError</code> handler, or the subclass
+check swallows it.</p>
 
 
 
@@ -1889,7 +1921,7 @@ generic <code>ServiceError</code> handler, or the subclass check swallows it.</p
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="ServiceError (rest_framework_services.exceptions.service_error.ServiceError)" href="#rest_framework_services.exceptions.service_error.ServiceError">ServiceError</a></code></p>
+              Bases: <code><a class="autorefs autorefs-internal" title="ServiceError (django_service_specs.services.service_error.ServiceError)" href="#rest_framework_services.exceptions.service_error.ServiceError">ServiceError</a></code></p>
 
 
 
@@ -1897,19 +1929,17 @@ generic <code>ServiceError</code> handler, or the subclass check swallows it.</p
 <p>A slot already taken, a row someone else moved first, a name already used. The
 resource is there and the request is well-formed; the two are simply
 incompatible right now, and a caller can often resolve it by re-reading and
-trying again. Over HTTP that is a <code>409</code>; a plain
-<a class="autorefs autorefs-internal" title="ServiceError" href="#rest_framework_services.exceptions.service_error.ServiceError"><code>ServiceError</code></a>
-stays a <code>422</code>, which says "understood, and still not doing it".</p>
+trying again — distinct from a plain
+<a class="autorefs autorefs-internal" title="ServiceError" href="#rest_framework_services.exceptions.service_error.ServiceError"><code>ServiceError</code></a>,
+which says "understood, and still not doing it" with no such implication.</p>
 <div class="language-text highlight"><pre><span></span><code>def slot_is_free(*, user, data):
-    if Event.objects.filter(owner=user, day=data.day, hour=data.hour).exists():
-        raise ServiceConflict(f&quot;{data.day} at {data.hour}:00 is taken.&quot;)
+    if Event.objects.filter(owner=user, day=data[&quot;day&quot;], hour=data[&quot;hour&quot;]).exists():
+        raise ServiceConflict(f&quot;{data[&#39;day&#39;]} at {data[&#39;hour&#39;]}:00 is taken.&quot;)
 </code></pre></div>
-<p>Reaching for this from a <code>preconditions</code> predicate is the common case, since
-a state rule is usually exactly this kind of collision.</p>
-<p>Off HTTP there is no status code to reach for, which is the point of the type:
-a transport that has never heard of it still handles a <code>ServiceError</code>, and one
-that wants to do better matches on the class. It must match <strong>before</strong> its
-generic <code>ServiceError</code> handler, or the subclass check swallows it.</p>
+<p>A transport that has never heard of this type still handles a
+<code>ServiceError</code>, and one that wants to do better matches on the class. It
+must match <strong>before</strong> its generic <code>ServiceError</code> handler, or the subclass
+check swallows it.</p>
 
 
 
@@ -1953,28 +1983,29 @@ generic <code>ServiceError</code> handler, or the subclass check swallows it.</p
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="ServiceConflict (rest_framework_services.exceptions.service_conflict.ServiceConflict)" href="#rest_framework_services.exceptions.service_conflict.ServiceConflict">ServiceConflict</a></code></p>
+              Bases: <code><a class="autorefs autorefs-internal" title="ServiceConflict (django_service_specs.services.service_conflict.ServiceConflict)" href="#rest_framework_services.exceptions.service_conflict.ServiceConflict">ServiceConflict</a></code></p>
 
 
 
         <p>The operation is not possible right now, for a reason with a stable name.</p>
-<p>Raised by the dispatcher when one of a spec's
+<p>Raised when one of a spec's
 <a class="autorefs autorefs-internal" title="Affordance
 
 
   
       dataclass
-  " href="../types/#rest_framework_services.types.affordance.Affordance"><code>Affordance</code></a> conditions is
-not met, carrying that affordance's <code>code</code> and its <code>reason</code> as the message.
-Over HTTP it is a <code>409</code> whose body is <code>{"detail": &lt;reason&gt;, "code": &lt;code&gt;}</code>.</p>
+  " href="../types/#rest_framework_services.types.affordance.Affordance"><code>Affordance</code></a> conditions
+is not met, carrying that affordance's <code>code</code> and its <code>reason</code> as the
+message. Over HTTP it is a <code>409</code> whose body is
+<code>{"detail": &lt;reason&gt;, "code": &lt;code&gt;}</code>.</p>
 <p>A <a class="autorefs autorefs-internal" title="ServiceConflict" href="#rest_framework_services.exceptions.service_conflict.ServiceConflict"><code>ServiceConflict</code></a>
 subclass rather than a <code>code=</code> argument on its parent, for three reasons. The
-<code>409</code> mapping needs no change, because a subclass is matched by its parent's
-branch. A transport that wants the code matches this class ahead of its
+<code>409</code> answer needs no new status, because a subclass is matched by its
+parent's arm. A transport that wants the code matches this class ahead of its
 generic conflict handler, and one that has never heard of it still reports a
-conflict. And a <code>ServiceConflict</code> raised by hand from a precondition genuinely
-has no code and never will, so a nullable <code>code</code> on the parent would be a
-field that lies at every other call site.</p>
+conflict. And a <code>ServiceConflict</code> a service raises by hand genuinely has no
+code and never will, so a nullable <code>code</code> on the parent would be a field
+that lies at every other call site.</p>
 <p><code>code</code> names the rule and is what a transport or client branches on; the
 message is the affordance's <code>reason</code>, the sentence a person or a model is
 shown when the call is refused. A transport serving an agent should pass on
@@ -2025,16 +2056,16 @@ or <code>ServiceError</code> handler, or the subclass check swallows it.</p>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="ServiceError (rest_framework_services.exceptions.service_error.ServiceError)" href="#rest_framework_services.exceptions.service_error.ServiceError">ServiceError</a></code></p>
+              Bases: <code><a class="autorefs autorefs-internal" title="ServiceError (django_service_specs.services.service_error.ServiceError)" href="#rest_framework_services.exceptions.service_error.ServiceError">ServiceError</a></code></p>
 
 
 
         <p>A service cannot proceed without a value it was not given.</p>
-<p>Not "what you sent is wrong" — that is
+<p>Not "what you sent is wrong" - that is
 <a class="autorefs autorefs-internal" title="ServiceValidationError" href="#rest_framework_services.exceptions.service_validation_error.ServiceValidationError"><code>ServiceValidationError</code></a>
-— but "I got far enough to discover I need something else", usually
+- but "I got far enough to discover I need something else", usually
 <em>conditional on what the service found</em>, so it cannot be expressed as a
-required input on the serializer:</p>
+required parameter:</p>
 <div class="language-text highlight"><pre><span></span><code>def delete_rows(*, data, confirmed: bool = False):
     doomed = rows_matching(data)
     if len(doomed) &gt; 100 and not confirmed:
@@ -2044,17 +2075,19 @@ required input on the serializer:</p>
         )
     ...
 </code></pre></div>
-<p><code>schema</code> describes what is missing, keyed by the input name the service
+<p><code>schema</code> describes what is missing, keyed by the argument name the service
 expects it back under: a transport that can ask renders it, one that cannot
-still has a message worth showing. <strong>The answer comes back as ordinary
-input</strong> on every transport — an HTTP client re-submits with <code>confirmed</code> in
-the body, an MCP client is asked and its answer is merged into the tool
-arguments before dispatch — so raising is the whole of the service's
-involvement; there is no callback to hold and no session to resume.</p>
+still has a message worth showing. <strong>The answer comes back as an ordinary
+argument</strong> on every transport - an HTTP client re-submits with <code>confirmed</code>
+in the body, an MCP client is asked and its answer is merged into the tool
+arguments before dispatch - so raising is the whole of the service's
+involvement; there is no callback to hold and no session to resume. The
+operation declares that argument like any other, so the closed argument set
+admits it on the second call.</p>
 <p>A <a class="autorefs autorefs-internal" title="ServiceError" href="#rest_framework_services.exceptions.service_error.ServiceError"><code>ServiceError</code></a>
-subclass deliberately, so a transport that has never heard of it still reports that
-the operation could not be completed and why. One that wants to do better must catch
-it <em>before</em> its generic <code>ServiceError</code> handler.</p>
+subclass deliberately, so a transport that has never heard of it still
+reports that the operation could not be completed and why. One that wants to
+do better must catch it <em>before</em> its generic <code>ServiceError</code> handler.</p>
 
 
 

@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://artui.github.io/djangorestframework-services/reference/jsonschema/">
       
       
-        <link rel="prev" href="../registry/">
+        <link rel="prev" href="../service-specs/">
       
       
         <link rel="next" href="../audience/">
@@ -1070,6 +1070,8 @@
       
         
       
+        
+      
     
     
     
@@ -1335,6 +1337,34 @@
     
   
     Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
   
 
     
@@ -2300,7 +2330,7 @@ most MCP clients reject outright.</p>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">handle_description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">registry</span><span class="p">:</span> <span class="n">JsonSchemaRegistry</span> <span class="o">=</span> <span class="n">DEFAULT_JSON_SCHEMA_REGISTRY</span><span class="p">,</span>
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">max_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">affordances</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">affordances</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AffordanceDeclarer</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">allow_none</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
 </span></code></pre></div>
@@ -2414,42 +2444,28 @@ empty result in its own terms.</p>
 
 
 <a href="#rest_framework_services.can_present_nothing.can_present_nothing" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">can_present_nothing</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">can_present_nothing</span><span class="p">(</span><span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span> <span class="o">|</span> <span class="n">SelectorSpec</span> <span class="o">|</span> <span class="n">SpecSource</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
         <p>Whether a successful dispatch of <code>spec</code> may present <code>None</code> as its result.</p>
-<p>The question an output schema has to answer before it admits <code>null</code>, asked
-in one place so that this package's
-<a class="autorefs autorefs-internal" title="spec_to_json_schema" href="#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>
-and every transport advertising an output schema can give the same answer:</p>
+<p>django-service-specs'
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.schema.can_present_nothing.can_present_nothing"><code>can_present_nothing</code></a>,
+asked of the compiled spec, so the output schema and every transport
+advertising one of its own give the same answer:</p>
 <ul>
-<li>A result that is a list is <em>declared</em> never <code>None</code>, only empty: a <code>LIST</code>
-  <code>SelectorSpec</code>, a <code>many=True</code> <code>ServiceSpec</code>, and a <code>ServiceSpec</code>
-  whose <code>output_selector_spec</code> declares <code>LIST</code>, with a <code>selector</code> to
-  re-read through or without one. <code>allow_none</code> is not read on any of them.
-  A callable returning <code>None</code> there anyway is the author's error. With no
-  <code>selector</code> to re-read, dispatch refuses it. On the other three paths, a
-  <code>LIST</code> selector, a <code>LIST</code> re-read and a <code>many=True</code> service, dispatch
-  does not refuse it and presents the <code>None</code>, which a transport validating
-  structured output against the schema will reject. Held by
-  <code>test_a_list_callable_returning_none_is_presented_unrefused</code>.</li>
-<li>A <code>RETRIEVE</code> <code>SelectorSpec</code> presents <code>None</code> for a miss under
-  <code>allow_none=True</code>; without it dispatch answers the miss as
-  <code>not_found</code>.</li>
-<li>A single-row <code>ServiceSpec</code> whose <code>output_selector_spec</code> has a
-  <code>selector</code> presents <code>None</code> when the re-read finds no row, because
-  dispatch materializes it with <code>.first()</code>. That needs no declaration,
-  and the nested spec's <code>allow_none</code> is not read.</li>
-<li>Any other single-row <code>ServiceSpec</code> presents the service's own return,
-  and answers its own <code>allow_none</code>. That is a declaration rather than an
-  observation: an undeclared <code>None</code> is still presented, against a schema
-  that does not admit it.</li>
+<li><strong>A <code>SelectorSpec</code></strong>: a <code>RETRIEVE</code> declaring <code>allow_none</code>. A <code>LIST</code>
+  presents its rows, <code>[]</code> for none, and never <code>None</code>.</li>
+<li><strong>A <code>ServiceSpec</code> with an <code>output_selector_spec</code></strong>: a <code>RETRIEVE</code>
+  re-read, whatever <code>allow_none</code> says, because a re-read finding nothing
+  after the service has run is <code>None</code> rather than not-found. A <code>LIST</code>
+  re-read never presents <code>None</code>.</li>
+<li><strong>Any other <code>ServiceSpec</code></strong> answers its own <code>allow_none</code>.</li>
 </ul>
-<p>It answers whether <code>None</code> <em>may</em> come back, not whether a schema exists:
-a spec declaring no output serializer has no output schema to widen, whatever
-this says.</p>
+<p><code>many</code> is not read. A <code>SelectorSpec</code> with no <code>selector</code> is answered
+from its declaration, as its output schema is, since answering needs no
+selector to run.</p>
 
 
     </div>
@@ -2476,8 +2492,10 @@ admits <code>null</code> for both:</p>
 <p>Without the declaration the schema stays strict, and an undeclared <code>None</code> is
 not refused in this release: dispatch presents it, against a schema that does
 not admit it. <code>allow_none</code> on the nested <code>output_selector_spec</code> is still not
-read, and a result that is a list (<code>many=True</code>, or a <code>LIST</code> output declaration,
-re-read or not) is declared never <code>None</code> whatever either flag says. A callable
+read, and a result that is a list (a <code>LIST</code> output declaration, re-read or not)
+is declared never <code>None</code> whatever either flag says. A <code>many=True</code> service answers
+its own <code>allow_none</code>: its output selector only presents its rows and is never
+run, so a <code>RETRIEVE</code> one is no re-read that may find nothing. A callable
 returning <code>None</code> there anyway is the author's error. Dispatch refuses it only
 where a <code>LIST</code> declaration has nothing to re-read; a <code>many=True</code> service, a
 <code>LIST</code> re-read and a <code>LIST</code> <code>SelectorSpec</code>'s selector have their <code>None</code>
@@ -2765,7 +2783,7 @@ sends and which the transport fills. <code>task_by_pk(user, *, pk)</code> and
 <code>currency</code> arrives from a pool seed. So by default every reflected parameter is
 optional unless it carries <code>InputRequired</code>. A lookup without a default is then
 advertised as optional, and a call without it is refused with
-<code>Missing required argument(s): 'pk'.</code> A seed is advertised as an input that the
+<code>{"pk": ["This field is required."]}</code>. A seed is advertised as an input that the
 seed then overrides.</p>
 <p>A transport describing its own tools does know which names it fills: its
 registered pool seeds, the names its <code>kwargs=</code> providers return, and the URL
@@ -2849,10 +2867,11 @@ lookup, reflect its <code>instance_selector_spec</code> or <code>collection_sele
 <code>SelectorSpec</code>) with the names the transport fills there.</p>
 <h3 id="a-spreading-services-own-parameters-argument_binding">A spreading service's own parameters: <code>argument_binding=</code><a class="headerlink" href="#a-spreading-services-own-parameters-argument_binding" title="Permanent link">&para;</a></h3>
 <p>A <code>ServiceSpec</code>'s input schema is its <code>input_serializer</code>'s. A service with no
-serializer, dispatched under a <code>SPREAD_*</code> <code>argument_binding</code>, has nothing but its
-own signature to read the caller's input, so dispatch declares the service's
-parameters as that input, and <code>UnknownArguments.REJECT</code> admits them. A transport
-passes the binding it dispatches with, and the schema lists the same parameters:</p>
+serializer has nothing but its own signature to read the caller's input, and
+whether that signature is caller input is the transport's call: dispatch
+declares the service's parameters, and <code>UnknownArguments.REJECT</code> admits them,
+only under <code>ArgumentBinding.SPREAD_AUTHOR_WINS</code>. The schema lists them when the
+transport passes the same binding:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">close_ticket</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">note</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">user</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Ticket</span><span class="p">:</span> <span class="o">...</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
@@ -2880,15 +2899,16 @@ required, and a supplied name is dropped.</p>
 <li><strong>The target lookup's keys.</strong> The <code>pk</code> that <code>ticket_by_pk</code> reads belongs to
   the lookup, not the service. Transports merge it themselves, by reflecting the
   lookup's <code>SelectorSpec</code>, as they do beside an <code>input_serializer</code>.</li>
-<li><strong>Closure.</strong> A bare <code>**kwargs</code> makes dispatch admit every key, and the schema
+<li><strong>Closure.</strong> A bare <code>**kwargs</code> never passes an undeclared key on (<code>REJECT</code>
+  refuses it, or under <code>SPREAD_AUTHOR_WINS</code> dispatch drops it), and the schema
   lists the parameters the service names without <code>additionalProperties</code>. drfs
   states <code>additionalProperties: false</code> only around a <code>many=True</code> list, and a
   transport closes a tool's input, or not, from its own policy.</li>
-<li><strong>Anything under <code>AUTO</code>.</strong> <code>AUTO</code>, the default, is <code>BUNDLE</code> for a service, and
-  <code>BUNDLE</code> spreads nothing, so a caller that does not pass the argument gets the
-  schema it always had: <code>{"type": "object"}</code> with no serializer. A <code>many=True</code>
-  spec, one with an <code>input_serializer</code>, a <code>SelectorSpec</code> and the output phase do
-  not read it.</li>
+<li><strong>Anything under <code>AUTO</code> or <code>BUNDLE</code>.</strong> A caller that does not pass
+  <code>SPREAD_AUTHOR_WINS</code> gets the schema it always had: <code>{"type": "object"}</code> with
+  no serializer, and dispatch agrees, since under those bindings the service's
+  own parameters are no caller input. A <code>many=True</code> spec, one with an <code>input_serializer</code>, a
+  <code>SelectorSpec</code> and the output phase do not read it.</li>
 </ul>
 <h3 id="what-an-annotation-publishes">What an annotation publishes<a class="headerlink" href="#what-an-annotation-publishes" title="Permanent link">&para;</a></h3>
 <p>The mapping from a Python annotation is structural, so a declaration a caller

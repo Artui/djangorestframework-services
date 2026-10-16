@@ -1376,6 +1376,8 @@
       
         
       
+        
+      
     
     
     
@@ -1643,6 +1645,34 @@
     
   
     Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
   
 
     
@@ -2315,7 +2345,10 @@ post-mutation re-fetch, queryset shaping) lives in a single nested
   on conflict. May additionally declare <code>instance</code> as a keyword
   parameter to receive the resolved mutation target (<code>None</code> on create)
   — passed only when declared — so pre-validation input mutation that
-  depends on the current row has a home.
+  depends on the current row has a home. A spec declaring it with no
+  <code>input_serializer</code> is refused with <code>ImproperlyConfigured</code> when it
+  compiles, since nothing would read the mapping; return such values from
+  the spec's <code>kwargs</code> provider instead.
 - <strong><code>instance_selector_spec</code></strong> — nested <code>SelectorSpec</code>
   (<code>kind=SelectorKind.RETRIEVE</code>) resolving the instance an update /
   destroy / detail action targets, embedding the lookup in the spec
@@ -2446,7 +2479,12 @@ facts only <em>your</em> code interprets.</p>
 mutually exclusive payload shapes — each with its own input serializer and
 service. A <code>discriminator</code> inspects the request and picks a variant key; the
 chosen variant then dispatches exactly like a plain <code>ServiceSpec</code>. Usable
-anywhere a <code>ServiceSpec</code> is (an <code>action_specs</code> entry or <code>@service_action</code>).</p>
+anywhere a view takes a <code>ServiceSpec</code> (an <code>action_specs</code> entry or
+<code>@service_action</code>), but not at a registry or a kernel entry point:
+<code>SpecRegistry.register</code>, <code>kernel_spec</code> and the kernel's <code>dispatch</code> refuse it
+with a <code>TypeError</code> naming its variants, because a wrapper picks its variant per
+request and so has no one spec to compile. Register each variant under its own
+name instead.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_pick</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="k">if</span> <span class="s2">&quot;email&quot;</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>        <span class="k">return</span> <span class="s2">&quot;email&quot;</span>
@@ -2495,6 +2533,10 @@ resolution, and serializer resolution):</p>
 PUT returns <code>405</code>. On the standalone <code>ServiceUpdateView</code> both verbs share
 one spec, so a forced <code>partial</code> applies to PUT <em>and</em> PATCH; set
 <code>http_method_names = ["patch"]</code> for the PATCH-only standalone equivalent.</p>
+<p>An input declared as a bare <code>@dataclass</code> or a <code>DataclassSerializer</code> is built
+from every field, so it cannot take a partial call: a PATCH to it is
+validated as a PUT is, and a field it leaves out answers <code>400</code>. Declare the
+input as a <code>Serializer</code> subclass for a PATCH that may leave fields out.</p>
 <h3 id="standalone-update-without-a-queryset">Standalone update without a queryset<a class="headerlink" href="#standalone-update-without-a-queryset" title="Permanent link">&para;</a></h3>
 <p>With <code>instance_selector_spec</code>, a standalone mutation view needs no
 <code>queryset</code> / <code>lookup_field</code> — the spec is self-contained:</p>
@@ -2684,17 +2726,20 @@ command, an alternate transport — pass it directly:</p>
 </span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>
 </span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>    <span class="k">return</span> <span class="n">dispatch_spec</span><span class="p">(</span><span class="n">export_spec</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">job</span><span class="o">.</span><span class="n">user</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span> <span class="n">progress</span><span class="o">=</span><span class="n">report</span><span class="p">)</span>
 </span></code></pre></div>
-<p><strong>From an HTTP view</strong>, through the <code>get_service_kwargs()</code> / <code>get_selector_kwargs()</code>
-hook the view already uses for tenants and clocks:</p>
+<p><strong>From an HTTP view</strong>, through the view's <code>get_progress_reporter()</code> hook, or
+its per-action form <code>get_&lt;action&gt;_progress_reporter()</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ExportViewSet</span><span class="p">(</span><span class="n">ServiceViewSet</span><span class="p">):</span>
 </span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    <span class="n">action_specs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;create&quot;</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">(</span><span class="n">service</span><span class="o">=</span><span class="n">export_invoices</span><span class="p">)}</span>
 </span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
-</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_service_kwargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;progress&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">push_to_websocket</span><span class="p">}</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_progress_reporter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">push_to_websocket</span>
 </span></code></pre></div>
-<p>Extras merge over the seeds, so a server-authored <code>progress</code> replaces the no-op.
-Client <em>input</em> named <code>progress</code> cannot — it is a reserved pool seed and is
-stripped from the spread. That asymmetry is what makes the hook safe.</p>
+<p>The per-action hook wins over the catch-all, and the first that returns a
+reporter is the one used; returning <code>None</code> leaves the no-op. Not
+<code>get_service_kwargs()</code> or <code>get_selector_kwargs()</code>: <code>progress</code> is a pool seed,
+and a key those hooks return under a seed's name is dropped, so a reporter
+returned there never reaches the service. Client <em>input</em> named <code>progress</code> is
+not one either, for the same reason.</p>
 <div class="admonition warning">
 <p class="admonition-title">The reporter is sync, even when your sink is not</p>
 <p>A reporter is called from inside domain code, which is written once for both

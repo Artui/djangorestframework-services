@@ -1070,6 +1070,8 @@
       
         
       
+        
+      
     
     
     
@@ -1476,76 +1478,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.is_queryset" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        is_queryset
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.run_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        run_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.arun_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        arun_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="md-nav__link">
     <span class="md-ellipsis">
       
         apply_queryset_shaping
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.affordance_expression" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        affordance_expression
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.materialize_retrieve" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        materialize_retrieve
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.amaterialize_retrieve" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        amaterialize_retrieve
       
     </span>
   </a>
@@ -1631,6 +1567,34 @@
     
   
     Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
   
 
     
@@ -1935,76 +1899,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.is_queryset" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        is_queryset
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.run_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        run_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.arun_selector" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        arun_selector
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#rest_framework_services.selectors.utils.apply_queryset_shaping" class="md-nav__link">
     <span class="md-ellipsis">
       
         apply_queryset_shaping
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.affordance_expression" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        affordance_expression
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.materialize_retrieve" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        materialize_retrieve
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest_framework_services.selectors.utils.amaterialize_retrieve" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        amaterialize_retrieve
       
     </span>
   </a>
@@ -2088,9 +1986,16 @@ signature via <code>**extras: Unpack[YourKw]</code> — see
 
 
 
-        <p>Any callable returning a queryset, list, or single object.</p>
-<p>Used as a structural type for documentation purposes; the views accept
-any plain callable, so satisfying this protocol is optional.</p>
+        <p>Any callable returning a queryset, a list or one object.</p>
+<p>The loosest description of a <code>SelectorSpec</code>'s <code>selector</code>: dispatch binds
+it from the keywords it declares, drawn from the keyword pool and the reads
+the spec declares, so no signature is imposed and conforming is optional.
+For a typed result, use
+<a class="autorefs autorefs-internal" title="ListSelector" href="#rest_framework_services.selectors.list_selector.ListSelector"><code>ListSelector</code></a>
+or <a class="autorefs autorefs-internal" title="RetrieveSelector" href="#rest_framework_services.selectors.retrieve_selector.RetrieveSelector"><code>RetrieveSelector</code></a>.</p>
+<p>Runtime-checkable, and an <code>isinstance</code> check asks only whether the object
+is callable: an <code>async def</code> passes it too, so it cannot tell the two
+kinds apart.</p>
 
 
 
@@ -2138,8 +2043,14 @@ any plain callable, so satisfying this protocol is optional.</p>
 
 
 
-        <p>Async sibling of
-<a class="autorefs autorefs-internal" title="Selector" href="#rest_framework_services.selectors.selector.Selector"><code>Selector</code></a>.</p>
+        <p>The <code>async def</code> sibling of <a class="autorefs autorefs-internal" title="Selector" href="#rest_framework_services.selectors.selector.Selector"><code>Selector</code></a>.</p>
+<p>A <code>SelectorSpec</code>'s <code>selector</code> may be <code>async def</code>, and
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.dispatch.adispatch.adispatch"><code>adispatch</code></a> awaits it.
+To a type checker the two Protocols differ in the return, an awaitable
+here. An <code>isinstance</code> check cannot tell them apart, since both ask only
+whether the object is callable;
+<a class="autorefs autorefs-internal" title="is_async" href="../dispatch/#rest_framework_services.is_async.is_async"><code>is_async</code></a> is the run-time
+question.</p>
 
 
 
@@ -2183,15 +2094,16 @@ any plain callable, so satisfying this protocol is optional.</p>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.selectors.list_selector.ResultT">ResultT</span>]</code></p>
+              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="django_service_specs.selectors.list_selector.ResultT">ResultT</span>]</code></p>
 
 
 
-        <p>Structural shape for a list-action selector callable.</p>
-<p>The framework calls this from <code>get_queryset()</code>; the returned iterable
-flows through DRF's filter backends, pagination, and <code>output_serializer</code>.</p>
+        <p>The structural shape of the <code>selector</code> of a <code>LIST</code> <code>SelectorSpec</code>.</p>
+<p>It returns the rows, a queryset or any other iterable; a queryset is what
+the spec's shaping (<code>extend_queryset</code> and its peers) can act on. Every
+keyword arrives through <code>**extras</code>.</p>
 <p>See <a class="autorefs autorefs-internal" title="CreateService" href="../services/#rest_framework_services.services.create_service.CreateService"><code>CreateService</code></a>
-for the extras-typing notes.</p>
+for <code>**extras</code> and strictly typed extras.</p>
 
 
 
@@ -2235,16 +2147,18 @@ for the extras-typing notes.</p>
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="rest_framework_services.selectors.retrieve_selector.ResultT">ResultT</span>]</code></p>
+              Bases: <code><span title="typing.Protocol">Protocol</span>[<span title="django_service_specs.selectors.retrieve_selector.ResultT">ResultT</span>]</code></p>
 
 
 
-        <p>Structural shape for a retrieve-action selector callable.</p>
-<p>The framework calls this from <code>get_object()</code>. Returning <code>None</code> (or
-raising <code>Model.DoesNotExist</code>) results in a 404. The URL lookup field
-(typically <code>pk</code>) is delivered via <code>**extras</code>.</p>
+        <p>The structural shape of the <code>selector</code> of a <code>RETRIEVE</code> <code>SelectorSpec</code>.</p>
+<p>It returns the one row, or <code>None</code> for a row that is not there, which
+dispatch answers as not-found unless the spec declares <code>allow_none</code>. A
+selector returning a queryset, which dispatch collapses to its one row,
+binds <code>ResultT</code> to the queryset's type. The lookup the spec <code>reads</code> -
+typically <code>pk</code> - arrives through <code>**extras</code> with every other keyword.</p>
 <p>See <a class="autorefs autorefs-internal" title="CreateService" href="../services/#rest_framework_services.services.create_service.CreateService"><code>CreateService</code></a>
-for the extras-typing notes.</p>
+for <code>**extras</code> and strictly typed extras.</p>
 
 
 
@@ -2293,7 +2207,10 @@ for the extras-typing notes.</p>
     <div class="doc doc-contents first">
 
         <p>Invoke <code>selector</code> with the framework's kwargs pool.</p>
-<p><code>request</code> is required; <code>user</code> is derived from <code>request.user</code>.
+<p><code>request</code> is required; <code>user</code> is derived from <code>request.user</code>, and
+<code>view</code> is the view DRF recorded on the request it built (a plain
+<code>HttpRequest</code> records none). <code>extras</code> are spread last, so a key in them
+replaces either seed; <code>call_service</code> drops such a key instead.
 Async selectors are bridged via <code>async_to_sync</code>.</p>
 
 
@@ -2370,76 +2287,6 @@ Async selectors are bridged via <code>async_to_sync</code>.</p>
 <div class="doc doc-object doc-function">
 
 
-<h3 id="rest_framework_services.selectors.utils.is_queryset" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">is_queryset</span>
-
-
-<a href="#rest_framework_services.selectors.utils.is_queryset" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">is_queryset</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>True for Django <code>QuerySet</code> objects and <code>Manager</code> instances.</p>
-<p>The one definition of a queryset-shaping target: what the shaping fields may
-be applied to, and what a RETRIEVE selector materializes from. Tested by type
-rather than by <code>hasattr(…, "first")</code>, which would also match a domain
-object that happens to expose <code>first</code>. <code>QuerySet</code> subclasses all pass.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="rest_framework_services.selectors.utils.run_selector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">run_selector</span>
-
-
-<a href="#rest_framework_services.selectors.utils.run_selector" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_selector</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Call a selector from sync code, transparently bridging async ones.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="rest_framework_services.selectors.utils.arun_selector" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">arun_selector</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-async"><code>async</code></small>
-  </span>
-
-<a href="#rest_framework_services.selectors.utils.arun_selector" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">arun_selector</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">Any</span><span class="p">]],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Call a selector from async code; sync ones run inline.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
 <h3 id="rest_framework_services.selectors.utils.apply_queryset_shaping" class="doc doc-heading">
             <span class="doc doc-object-name doc-function-name">apply_queryset_shaping</span>
 
@@ -2462,9 +2309,13 @@ object that happens to expose <code>first</code>. <code>QuerySet</code> subclass
 
     <div class="doc doc-contents ">
 
-        <p>Apply the five shaping fields to <code>qs</code>.</p>
-<p>The order is fixed: the declarative fields first (in declaration order),
-then <code>extend_queryset</code>, so the user callable always sees the fully
+        <p>Apply the five shaping fields to <code>qs</code>, through the kernel's <code>shape_queryset</code>.</p>
+<p>drfs' signature over django-service-specs' shaping, for a caller holding a
+view and a request rather than a spec: the fields become a kernel
+<code>SelectorSpec</code> (with a stand-in selector it never runs), and <code>view</code>,
+<code>request</code> and the filter's arguments its pool. The order is the kernel's:
+the declarative fields first (in declaration order), then
+<code>extend_queryset</code>, so the user callable always sees the fully
 statically-shaped queryset, and finally <code>filter_set</code>, so filtering
 composes with shaping and runs before the retrieve <code>.first()</code>
 materialization the caller does next.</p>
@@ -2483,18 +2334,15 @@ materialization the caller does next.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                <code>request</code>
+                <code>extend_queryset</code>
             </td>
             <td>
-                  <code><span title="rest_framework.request.Request">Request</span></code>
+                  <code><span title="typing.Any">Any</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Passed to <code>extend_queryset</code>, and into the <code>filter_set</code>
-constructor when it declares a <code>request</code> parameter — so a
-request-scoped <code>FilterSet</code> sees the same <code>self.request</code> it would
-behind <code>DjangoFilterBackend</code>. A bare <code>(data, queryset)</code> stand-in
-is called exactly as before.</p>
+                <p>Called as <code>extend_queryset(qs, view, request)</code>, by
+position, as it always was; the kernel binds its own by name.</p>
               </div>
             </td>
             <td>
@@ -2510,9 +2358,10 @@ is called exactly as before.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Applied by duck typing as
-<code>filter_set(data=filter_data, queryset=qs).qs</code>, after validation
-(mirroring <code>DjangoFilterBackend</code>'s 400 on invalid filter input).</p>
+                <p>A django-filter <code>FilterSet</code>, validated before <code>.qs</code> is
+read, and handed <code>request</code> through its constructor, so a
+request-scoped one sees the <code>self.request</code> it would behind
+<code>DjangoFilterBackend</code>.</p>
               </div>
             </td>
             <td>
@@ -2528,9 +2377,12 @@ is called exactly as before.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The flat <code>{field: value}</code> mapping the FilterSet reads.
-<code>None</code> falls back to <code>request.query_params</code> — the HTTP view
-path; a transport-neutral caller passes its own params.</p>
+                <p>The mapping the filter's arguments are read from, each of
+its filters' names and nothing else. <code>None</code> falls back to
+<code>request.query_params</code>, the HTTP view path. A <code>QueryDict</code> is
+read flat as dispatch reads a query string: a repeated key as a list
+where the filter takes several values, and each value coerced to the
+type the filter declares.</p>
               </div>
             </td>
             <td>
@@ -2593,121 +2445,33 @@ offending callable (<code>"SelectorSpec.selector"</code> vs
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="django.core.exceptions.ImproperlyConfigured">ImproperlyConfigured</span></code>
+                  <code><span title="ImproperlyConfigured">ImproperlyConfigured</span></code>
             </td>
             <td>
               <div class="doc-md-description">
                 <p>Shaping is configured but <code>qs</code> is not a Django
-queryset — loud failure beats a stray <code>AttributeError</code> deep in DRF
-rendering.</p>
+queryset; <code>filter_set</code> is not a django-filter <code>FilterSet</code> (one
+duck-typed on <code>(data, queryset) -&gt; .qs</code> is refused); or
+<code>extend_queryset</code> answered with an awaitable.</p>
               </div>
             </td>
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="rest_framework.exceptions.ValidationError">ValidationError</span></code>
+                  <code><span title="InvalidArguments">InvalidArguments</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>filter_set</code> rejected <code>filter_data</code>.</p>
+                <p>The kernel's, where <code>filter_set</code> refused its data or
+a value no integer column can hold, keyed as the <code>FilterSet</code> keys
+its errors. It reaches the caller as the kernel raised it, not as
+DRF's <code>ValidationError</code>: nothing here translates it, so a caller
+inside a DRF view that wants a 400 translates it itself.</p>
               </div>
             </td>
           </tr>
       </tbody>
     </table>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="rest_framework_services.selectors.utils.affordance_expression" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">affordance_expression</span>
-
-
-<a href="#rest_framework_services.selectors.utils.affordance_expression" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">affordance_expression</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">Model</span><span class="p">],</span> <span class="n">when</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Exists</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>The SQL answer to one affordance condition, for whichever row it is annotated on.</p>
-<p><code>Exists(&lt;the row, narrowed by pk&gt;.filter(when))</code> rather than the condition
-inline, for two reasons that both come from where this is spent. Inline, a
-condition spanning a multi-valued relation joins it into the outer query and
-<strong>duplicates the rows</strong> of the list it is annotated on, and an aggregate
-beside it counts across that join. Inside a correlated subquery the outer
-query gains no join at all. And the subquery gives the condition exactly the
-meaning it has in <code>Model.objects.filter(when)</code>, which is the reading an
-author already has for a <code>Q</code>.</p>
-<p><code>_base_manager</code> because the subquery only re-finds a row that has already
-been resolved: a default manager that hides rows would answer "unavailable"
-for a row the caller is looking at.</p>
-<p>The single-object check and the list projection both annotate this one
-expression, so the two cannot disagree about any row. Being SQL, it reads the
-table and never a <code>prefetch_related</code> cache, so a filtered <code>Prefetch</code> on
-the same relation cannot hide rows from the answer.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="rest_framework_services.selectors.utils.materialize_retrieve" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">materialize_retrieve</span>
-
-
-<a href="#rest_framework_services.selectors.utils.materialize_retrieve" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">materialize_retrieve</span><span class="p">(</span><span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Collapse a RETRIEVE selector's return to the single instance, or <code>None</code>.</p>
-<p>The one definition of what <code>kind=RETRIEVE</code> means once the selector has run:
-a queryset materializes through <code>.first()</code> — so an author can write
-<code>selector=lambda *, pk: Model.objects.filter(pk=pk)</code> and still get the
-spec's shaping applied first — and anything else passes through as the
-resolved object. What each caller does with a <code>None</code> differs; how the value
-is arrived at does not.</p>
-<p>Exported for a transport that runs a <code>RETRIEVE</code> selector without
-<code>dispatch_spec</code> -- a chain step running each spec itself -- so the row its
-object-level permissions judge is the row the core would have resolved. Run
-on a queryset rather than the row, <code>enforce_permissions</code> skips
-<code>has_object_permission</code> by design, since a set is authorized per-set.
-Blocks on the query, so call <code>amaterialize_retrieve</code> from a coroutine.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="rest_framework_services.selectors.utils.amaterialize_retrieve" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">amaterialize_retrieve</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-async"><code>async</code></small>
-  </span>
-
-<a href="#rest_framework_services.selectors.utils.amaterialize_retrieve" class="headerlink" title="Permanent link">&para;</a></h3>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">amaterialize_retrieve</span><span class="p">(</span><span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
-</span></code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Async twin of <code>materialize_retrieve</code>, awaiting <code>.afirst()</code>.</p>
-<p>Separate because the materialization <em>is</em> the query — <code>.first()</code> would
-block the event loop. Same rule otherwise; keep the two in step.</p>
 
 
     </div>
@@ -2777,17 +2541,21 @@ core, and translates the neutral
 into the view-layer contract: a RETRIEVE that resolved nothing raises <code>NotFound</code>,
 unless the spec sets <code>allow_none=True</code> (then <code>None</code>, and the retrieve views
 render 200 + JSON <code>null</code>). <code>SelectorKind.LIST</code> returns the shaped queryset.</p>
-<p><strong><code>argument_binding=BUNDLE</code> is what keeps HTTP semantics.</strong> Off HTTP the
-flat <code>params</code> mapping <em>is</em> the argument channel; over HTTP a selector's
-kwargs come from route captures plus the hook chain, and the query string
-belongs to <code>filter_set</code> / the filter backends. <code>BUNDLE</code> spreads nothing,
-so passing <code>query_params</code> feeds the filter without widening the argument
-channel.</p>
+<p><strong>The request is no argument mapping.</strong> Off HTTP the flat <code>params</code>
+mapping <em>is</em> the argument channel; over HTTP it is empty, and a selector's
+arguments come from what the spec declares it reads: a route capture of
+one of its reads or a declared <code>UrlKwarg</code> from <code>view.kwargs</code>, a
+declared <code>QueryParam</code> from the query string, and the hook chain's values.
+The query string reaches the <code>filter_set</code> as <code>filter_data</code>, restricted
+to the names the filter reads, so it feeds the filter without widening the
+argument channel.</p>
 <p>There is deliberately no <code>extra_url_kwargs</code> parameter: the core reads
-<code>view.kwargs</code> itself via <code>view_url_kwargs</code>, which <strong>strips the reserved
-pool seeds</strong>, so a nested route like <code>/users/&lt;user&gt;/posts/</code> cannot let the
-captured value shadow the authenticated <code>user</code>. Taking the mapping from a
-caller would reopen that.</p>
+<code>view.kwargs</code> itself, for the names the spec reads and the ones its
+callables mark <code>NotClientInput</code>, and a capture named like a seed of the
+call never replaces the seed, so a nested route like
+<code>/users/&lt;user&gt;/posts/</code> cannot let the captured value shadow the
+authenticated <code>user</code> (test_url_kwarg_cannot_shadow_the_authenticated_user_over_http).
+Taking the mapping from a caller would reopen that.</p>
 <p>The caller must check <code>spec.selector is not None</code> first and fall back to
 vanilla DRF otherwise.</p>
 

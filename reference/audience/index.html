@@ -1070,6 +1070,8 @@
       
         
       
+        
+      
     
     
     
@@ -1335,6 +1337,34 @@
     
   
     Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
   
 
     
@@ -1769,7 +1799,7 @@ documented under <a href="../types/">Types</a>; the render entry points
 
 <a href="#rest_framework_services.audience.audience_projection_for_spec.audience_projection_for_spec" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">audience_projection_for_spec</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span> <span class="o">|</span> <span class="n">SelectorSpec</span> <span class="o">|</span> <span class="n">SpecSource</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">overrides</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">FieldMarking</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1778,24 +1808,13 @@ documented under <a href="../types/">Types</a>; the render entry points
 
     <div class="doc doc-contents first">
 
-        <p>Resolve the field markings on whatever serializer <code>spec</code> renders through.</p>
-<p>A selector keeps it on <code>output_serializer</code>; a service keeps it one level
-down, on <code>output_selector_spec</code>. A transport that registers its tools up
-front calls this once per spec and hands the result to
-<a class="autorefs autorefs-internal" title="render_for_audience" href="../dispatch/#rest_framework_services.dispatch.render_for_audience.render_for_audience"><code>render_for_audience</code></a>,
-rather than paying a serializer instantiation on every call — and rather than
-each transport re-deriving where a spec keeps its output serializer.</p>
-<p><code>overrides</code> and <code>name</code> are
-<a class="autorefs autorefs-internal" title="build_audience_projection" href="#rest_framework_services.audience.build_audience_projection.build_audience_projection"><code>build_audience_projection</code></a>'s,
-forwarded: a mount holding an
-<a class="autorefs autorefs-internal" title="OfflineContract
-
-
-  
-      dataclass
-  " href="../registry/#rest_framework_services.types.offline_contract.OfflineContract"><code>OfflineContract</code></a>
-passes its <code>field_audiences</code> straight through, and every agent transport
-layers that one declaration by the same rule.</p>
+        <p>The <code>AudienceProjection</code> of what <code>spec</code> presents.</p>
+<p>django-service-specs'
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.dispatch.audience_projection_for_spec.audience_projection_for_spec"><code>audience_projection_for_spec</code></a>:
+the field markings of the compiled spec's output, with <code>overrides</code> laid
+over them, and <code>name</code> naming the projection in a refusal. A
+<code>SelectorSpec</code> with no <code>selector</code> is projected from its declaration,
+since projecting runs no selector.</p>
 
 
     </div>
@@ -1915,32 +1934,38 @@ one.</p>
 
     <div class="doc doc-contents first">
 
-        <p>Drop plumbing and speak enum labels, at any depth.</p>
-<p>Two changes, both driven by the same declaration that shapes the schema so
-the two cannot disagree:</p>
+        <p>Drop plumbing, speak choice displays and format values, at any depth.</p>
+<p>Three changes, each driven by the declaration that shapes the schema in
+<a class="autorefs autorefs-internal" title="annotate_output_schema" href="#rest_framework_services.audience.annotate_output_schema.annotate_output_schema"><code>annotate_output_schema</code></a>,
+so the two cannot disagree:</p>
 <ul>
-<li>fields marked <code>HIDDEN</code> are <strong>removed</strong>. Removed rather than nested under
-  some reserved subtree: a payload that is also emitted as text is read in
-  full either way, so relocating a field costs its keys again and hides
-  nothing. What an agent must never use should not be there.</li>
-<li>a <code>ChoiceField</code>'s constant is replaced by its display value, so the enum
-  does not have to be spelled out to a person as <code>PENDING_REVIEW</code>. <strong>Not</strong>
-  on a <code>HANDLE</code>, which some other tool takes as input. A
-  <code>MultipleChoiceField</code> renders a <em>collection</em> of constants, so each
-  member is substituted rather than the collection looked up whole.</li>
-<li>a field carrying a
+<li>fields marked <code>HIDDEN</code> are <strong>removed</strong>. Removed rather than moved under
+  some reserved key: a payload a model reads is read in full either way, so
+  moving a field costs its keys again and hides nothing. What an agent must
+  never use should not be there.</li>
+<li>a field's choice value is replaced by its display, so a person is not
+  read <code>PENDING_REVIEW</code>. <strong>Not</strong> on a <code>HANDLE</code>, which another tool
+  takes as input. An array of choices is substituted member by member
+  rather than looked up whole.</li>
+<li>a field whose marking carries a
   <a class="autorefs autorefs-internal" title="ValueFormatter
 
 
   
       dataclass
   " href="../types/#rest_framework_services.types.value_formatter.ValueFormatter"><code>ValueFormatter</code></a>
-  is rendered through it — a date-time read as a local date-time rather than
-  raw ISO-8601, an amount with its currency. Also <strong>not</strong> on a <code>HANDLE</code>,
-  and for the same reason.</li>
+  is rendered through it: a date-time read as a local date-time rather
+  than raw ISO-8601, an amount with its currency. It wins over the choice
+  display, being the transform an author wrote by hand, and over a nested
+  output's projection. Also <strong>not</strong> on a <code>HANDLE</code>, for the same reason,
+  and a null is never formatted.</li>
 </ul>
-<p>Apply this where a payload becomes the agent's <em>answer</em>. Not where it feeds
-the next step of a chain, which still needs the handles.</p>
+<p>A payload that is neither an object nor a list of them is returned as it
+is, and so is every key the projection has nothing to say about, including
+one a transport added beside the declared fields.</p>
+<p>Apply this where a payload becomes an agent's <strong>answer</strong>, not where it
+feeds the next step of a chain, which still needs the handles. Returns a
+new payload and never modifies <code>payload</code>.</p>
 
 
     </div>
@@ -1966,29 +1991,29 @@ the next step of a chain, which still needs the handles.</p>
 
     <div class="doc doc-contents first">
 
-        <p>Apply the same projection to a schema that
-<a class="autorefs autorefs-internal" title="project_payload" href="#rest_framework_services.audience.project_payload.project_payload"><code>project_payload</code></a>
-applies to the payload.</p>
-<p>Three changes, each the mirror of one the payload undergoes:</p>
+        <p>Apply to a schema the projection <a class="autorefs autorefs-internal" title="project_payload" href="#rest_framework_services.audience.project_payload.project_payload"><code>project_payload</code></a> applies to the payload.</p>
+<p>Four changes, each the mirror of one the payload undergoes:</p>
 <ul>
-<li>hidden properties are removed, and dropped from <code>required</code>;</li>
-<li>a marked field's <code>description</code> replaces the <code>help_text</code> one, so a handle
-  says what it is for in the schema a model reads without that wording
-  leaking into the browsable API;</li>
-<li>a substituted choice field is re-declared in terms of its <strong>display</strong>
-  values, because that is what the projected payload now carries. A
-  <code>type</code> stated beside them is restated as the types of the displays,
-  so an integer choice spoken as <code>"Low"</code> is described as a <code>string</code>,
-  with <code>"null"</code> named last where the stated type admitted it and a null
-  is still served — not where the choices give <code>None</code> a display, which
-  is served in its place — and left as written beside a <code>oneOf</code> entry
-  that admits more than its constants. A display two values share is
-  listed once, so a row served it matches one <code>oneOf</code> entry rather than
-  two, and an array of such choices no longer claims <code>uniqueItems</code>. The
-  constant is gone from the response by design — a field another tool
-  takes as input should be marked <code>HANDLE</code>, which suppresses the
-  substitution on both sides.</li>
-<li>a formatted field is re-declared as the type its
+<li>hidden properties are removed, and dropped from <code>required</code>, which is
+  left out when nothing in it remains;</li>
+<li>a marking's <code>description</code> becomes the property's <code>"description"</code>, so
+  a handle says what it is for in the schema a model reads without that
+  wording reaching any other reader;</li>
+<li>a field with labelled choices is restated in its <strong>displays</strong>, because
+  that is what the projected payload carries: an <code>enum</code>'s values are
+  replaced, and a <code>oneOf</code>'s <code>const</code>s are, each losing the <code>title</code>
+  that annotated the value it now equals. A <code>"type"</code> stated beside them
+  is restated as the types of the values now listed, so a display string
+  is never described as the integer it replaced, with <code>"null"</code> named
+  last where the stated type admitted it and a null is still served -
+  not where the choices give <code>None</code> a display, which is served in its
+  place - and left as written beside a <code>oneOf</code> entry that admits more
+  than its constants. A display two
+  values share is listed once, so a row served it matches one <code>oneOf</code>
+  entry rather than two, and an array of such choices no longer claims
+  <code>uniqueItems</code>. Not on a <code>HANDLE</code>, which keeps its values on both
+  sides: a field another tool takes as input should be marked one.</li>
+<li>a formatted field is restated as the type its
   <a class="autorefs autorefs-internal" title="ValueFormatter
 
 
@@ -1996,22 +2021,30 @@ applies to the payload.</p>
       dataclass
   " href="../types/#rest_framework_services.types.value_formatter.ValueFormatter"><code>ValueFormatter</code></a>
   says it produces, plus whatever that declaration adds about the shape of
-  the produced value. The framework writes the <code>type</code> from <code>produces</code>
-  rather than taking one from the fragment, so a renderer cannot contradict
-  its own advertisement.</li>
+  the produced value, in place of everything the property said about the
+  value before, choices included. Its <code>title</code> and <code>description</code> are
+  kept, and so is a <code>null</code> the property admitted - however it stated one,
+  as a type, an <code>anyOf</code> member, <code>None</code> in an <code>enum</code> or a <code>oneOf</code>
+  entry for a labelled choice - since a null is never formatted. The type is written from <code>produces</code> rather than
+  taken from the fragment, so a renderer cannot contradict its own
+  advertisement, and a fragment's <code>enum</code> lists the null too, and its
+  <code>const</code> becomes an <code>enum</code> of that value and a null, where the
+  property admitted one. Not on a <code>HANDLE</code> either.</li>
 </ul>
 <p>Generating both sides from one declaration is the point: a schema that
 advertises a field the payload no longer carries is worse than either
 behaviour on its own.</p>
-<p><code>handle_description</code> is the fallback wording for a <code>HANDLE</code> that
-declares none of its own, and defaults to <strong>nothing</strong>. Telling a reader what
-to do with an identifier is advice for one kind of reader, and this package
-does not know which kind is reading — a CSV export has no use for it, and
-"do not read this out" only means something to a consumer that reads things
-out. The transport that knows its audience supplies the sentence.</p>
-<p>Takes the <strong>item</strong> schema. Callers that wrap items in an envelope of their
-own — an array, or a pagination object — annotate the item and wrap
-afterwards; <code>output_to_json_schema(projection=...)</code> does exactly that.</p>
+<p><code>handle_description</code> is the wording for a <code>HANDLE</code> whose marking
+declares none, and defaults to <strong>nothing</strong>. Telling a reader what to do
+with an identifier is advice for one kind of reader, and the kernel does
+not know which kind is reading. The transport that knows its audience
+supplies the sentence.</p>
+<p>Takes the <strong>item</strong> schema; an array's <code>items</code> are annotated and the
+array kept. A caller wrapping items in an envelope of its own annotates the
+item and wraps it afterwards, as
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.schema.spec_output_schema.spec_output_schema"><code>spec_output_schema</code></a>
+does. <code>None</code>, or a projection with nothing in it, returns <code>schema</code>
+itself; anything else returns a new schema and never modifies <code>schema</code>.</p>
 
 
     </div>

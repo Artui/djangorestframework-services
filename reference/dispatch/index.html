@@ -1070,6 +1070,8 @@
       
         
       
+        
+      
     
     
     
@@ -1665,6 +1667,39 @@
   
     <nav class="md-nav" aria-label="UnknownArguments">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.unknown_arguments.UnknownArguments.REJECT" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        REJECT
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.unknown_arguments.UnknownArguments.IGNORE" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IGNORE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.unknown_arguments.UnknownArguments.PASSTHROUGH" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PASSTHROUGH
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#targetguard" class="md-nav__link">
@@ -2681,6 +2716,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../jsonschema/" class="md-nav__link">
         
   
@@ -3266,6 +3329,39 @@
   
     <nav class="md-nav" aria-label="UnknownArguments">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.unknown_arguments.UnknownArguments.REJECT" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        REJECT
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.unknown_arguments.UnknownArguments.IGNORE" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IGNORE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest_framework_services.types.unknown_arguments.UnknownArguments.PASSTHROUGH" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PASSTHROUGH
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#targetguard" class="md-nav__link">
@@ -4138,6 +4234,23 @@ when they bump past 0.17.</p>
 a view, read its URL kwargs, and walk the <code>get_&lt;action&gt;_*_kwargs</code> hook
 chains). The transport-neutral spec dispatcher that composes the leaves
 below — <code>dispatch_spec</code> — is documented first.</p>
+<p><code>dispatch_spec</code> and <code>adispatch_spec</code> are the DRF edge over
+<a href="https://artui.github.io/django-service-specs/">django-service-specs</a>'
+<code>dispatch</code> and <code>adispatch</code>: they compile the spec to the kernel's
+(<a href="../service-specs/">Service specs on the kernel</a>), hand it the call, and
+translate what it refuses into DRF's exceptions. The order of a call, the
+closed argument set, validation, affordances, preconditions, the run and the
+output re-read are the kernel's, documented on its <code>dispatch</code>.</p>
+<p>Most leaves on this page are the kernel's own too, re-exported at the path this
+package has always exported them from: <code>DispatchResult</code>, <code>UnknownArguments</code>,
+<code>OutputPage</code>, <code>paginate_output</code>, <code>DEFAULT_PAGE_SIZE</code>, <code>enforce_affordances</code>,
+<code>aenforce_affordances</code>, <code>unmet_operation_affordance</code>,
+<code>aunmet_operation_affordance</code>, <code>operation_affordances</code>, <code>provider_keys</code>,
+<code>ProviderKeys</code>, <code>is_async</code>, <code>run_service</code>, <code>arun_service</code>, <code>run_selector</code>,
+<code>arun_selector</code>, <code>is_queryset</code>, <code>materialize_retrieve</code>,
+<code>amaterialize_retrieve</code>, <code>base_pool</code> and <code>null_progress</code>. Each is the same
+object under both names, so the import you have keeps working and the
+documentation rendered for it here is the kernel's.</p>
 <h2 id="transport-neutral-dispatch">Transport-neutral dispatch<a class="headerlink" href="#transport-neutral-dispatch" title="Permanent link">&para;</a></h2>
 <p>The single execution path a non-HTTP transport drives: hand a spec, the
 acting <code>user</code>, and a flat <code>params</code> mapping, get back a <code>DispatchResult</code> to
@@ -4151,6 +4264,21 @@ walks the ORM. The async members run all of that in Django's thread-sensitive
 executor, which is what keeps <code>SynchronousOnlyOperation</code> out of an async
 transport. Await the pair together; don't mix an <code>a</code>-prefixed call with a sync
 one on the same result.</p>
+<p><strong>Who validates a call depends on its <code>view</code>.</strong> A live DRF view, meaning any
+<code>view</code> that is not an
+<a class="autorefs autorefs-internal" title="OfflineServiceView
+
+
+  
+      dataclass
+  " href="../views/#rest_framework_services.types.offline_service_view.OfflineServiceView"><code>OfflineServiceView</code></a>,
+has its request validated by the input serializer alone, from the body the
+request parsed, in DRF's words. With an <code>OfflineServiceView</code> or no <code>view</code>, the
+kernel first checks every declared argument against its type, so <code>"true"</code> for a
+boolean or <code>123</code> for a string is refused before the serializer runs. A declared
+<code>UrlKwarg</code> or <code>QueryParam</code> follows the same split: a live view reads it from its
+route or query string alone, and off HTTP it is the caller's argument. See
+<a href="../../recipes/off-http-inputs/#who-validates-what">who validates what</a>.</p>
 <h3 id="dispatch_spec"><code>dispatch_spec</code><a class="headerlink" href="#dispatch_spec" title="Permanent link">&para;</a></h3>
 
 
@@ -4179,50 +4307,34 @@ one on the same result.</p>
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">filter_data</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">many_as_argument</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p>Execute <code>spec</code> without a DRF view, returning a
+        <p>Run <code>spec</code> through the kernel's <code>dispatch</code>, as DRF would, returning its
 <a class="autorefs autorefs-internal" title="DispatchResult
 
 
   
       dataclass
   " href="#rest_framework_services.types.dispatch_result.DispatchResult"><code>DispatchResult</code></a>.</p>
-<p>The single transport-neutral execution path: a caller hands the <strong>flat</strong> <code>params</code>
-mapping (the role <code>request.data</code> / <code>query_params</code> / URL kwargs play on HTTP)
-plus the acting <code>user</code>, and gets back the resolved domain value to format for its
-wire. No pagination, ordering, or output rendering happens here — those are
-transport concerns; render the result with
+<p>The edge compiles the spec once per variant
+(<a class="autorefs autorefs-internal" title="kernel_spec_variant" href="../service-specs/#rest_framework_services.service_specs.kernel_spec_variant.kernel_spec_variant"><code>kernel_spec_variant</code></a>),
+hands <code>dispatch</code> the arguments, the principal and a <code>Grant</code>, and
+translates what the kernel refuses into DRF's exceptions
+(<a class="autorefs autorefs-internal" title="translate_dispatch_errors" href="../service-specs/#rest_framework_services.service_specs.translate_dispatch_errors.translate_dispatch_errors"><code>translate_dispatch_errors</code></a>).
+The order of a call, the closed argument set, the Validator, affordances,
+preconditions, the run and the output re-read are the kernel's, documented
+on its <code>dispatch</code>. Nothing is rendered here; render the result with
 <a class="autorefs autorefs-internal" title="render_spec_output" href="#rest_framework_services.dispatch.render_spec_output.render_spec_output"><code>render_spec_output</code></a>.</p>
-<ul>
-<li>A <a class="autorefs autorefs-internal" title="ServiceSpec
-
-
-  
-      dataclass
-  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> runs the
-  mutation flow: resolve the target via <code>instance_selector_spec</code> (from <code>params</code>)
-  → validate <code>input_serializer</code> → run the service → re-fetch through
-  <code>output_selector_spec</code> → result. A missing instance yields <code>kind="not_found"</code>.
-  With no <code>selector</code> on the <code>output_selector_spec</code> nothing is re-fetched, and
-  the service's own return is the result: <code>kind="list"</code> under a <code>LIST</code>
-  declaration, which refuses a return that is no set of rows with
-  <code>ImproperlyConfigured</code> after the service has written.</li>
-<li>A <a class="autorefs autorefs-internal" title="SelectorSpec
-
-
-  
-      dataclass
-  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> runs
-  the read flow: invoke the selector → apply queryset shaping (<code>select_related</code> …
-  <code>filter_set</code>) → for <code>RETRIEVE</code> materialize via <code>.first()</code> and honour
-  <code>allow_none</code> / not-found; <code>LIST</code> returns the shaped + filtered queryset.</li>
-</ul>
-<p>Every argument below the acting user is optional, and the defaults reproduce
-the pre-policy behaviour exactly.</p>
+<p><strong>Authorization is the caller's</strong>, as it always was: the spec's
+<code>permission_classes</code> are never asked here. Over HTTP the view has run
+them; off HTTP the caller runs
+<a class="autorefs autorefs-internal" title="enforce_permissions" href="#rest_framework_services.dispatch.enforce_permissions.enforce_permissions"><code>enforce_permissions</code></a>
+first and passes it as <code>on_target_resolved</code>. So the dispatched variant
+carries no permissions and the call goes in under a <code>Grant</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4268,7 +4380,7 @@ the pre-policy behaviour exactly.</p>
   
       dataclass
   " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a>
-to execute.</p>
+to run.</p>
               </div>
             </td>
             <td>
@@ -4284,7 +4396,9 @@ to execute.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The acting user, seeded into every callable's pool.</p>
+                <p>The acting user, the kernel's principal. <code>None</code> acts as DRF's
+unauthenticated user (<code>UNAUTHENTICATED_USER</code>), which is what every
+callable reading <code>user</code> is handed; the guard still sees <code>None</code>.</p>
               </div>
             </td>
             <td>
@@ -4300,14 +4414,10 @@ to execute.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The flat client input — a list on a <code>many=True</code> spec, unless
-<code>many_as_argument</code> says it arrives as an object. A key that any
-callable in the call marks <code>NotClientInput</code> is never spread from
-it, under any <code>unknown_arguments</code> policy (<code>REJECT</code> on a closed spec
-refuses it outright), so only a <code>spec.kwargs</code> provider, a registered
-pool seed, a service's <code>input_data</code>, the parameter's default or, for
-a selector or a target lookup, a route capture fills one; see
-<a class="autorefs autorefs-internal" title="not_client_input" href="../types/#rest_framework_services.types.not_client_input"><code>NotClientInput</code></a>.</p>
+                <p>The caller's arguments, one flat mapping. A <code>QueryDict</code> is
+read as a query string is: a repeated key as a list where the
+parameter is an array, and each value coerced to the type declared.
+A list on a <code>many</code> spec, unless <code>many_as_argument</code>.</p>
               </div>
             </td>
             <td>
@@ -4323,9 +4433,8 @@ a selector or a target lookup, a route capture fills one; see
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Forwarded only to user callables that declare it (<code>extend_queryset</code>,
-the context providers, <code>kwargs</code>); a pure non-HTTP caller passes neither
-this nor <code>view</code>.</p>
+                <p>Registered as the call's <code>request</code> seed, so a provider, a
+selector, <code>extend_queryset</code> and the serializer context see it.</p>
               </div>
             </td>
             <td>
@@ -4341,15 +4450,53 @@ this nor <code>view</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>As <code>request</code>, plus its <code>kwargs</code> (a route's captures, seeded by
-<code>build_offline_context(kwargs=…)</code>) are <strong>spread into the selector / target
-pools</strong> — the off-HTTP counterpart of the HTTP
-<code>extra_url_kwargs=view.kwargs</code>, authoritative over <code>params</code> on a
-conflict, below the <code>spec.kwargs</code> provider.</p>
+                <p>Registered as the <code>view</code> seed. Its <code>kwargs</code> are the route: a
+declared <code>UrlKwarg</code>, or a name the selector or target lookup
+reads, is taken from them when there, over <code>params</code>; a declared
+<code>UrlKwarg</code> sent in <code>params</code> that the view lacks is put onto
+them, and a declared <code>QueryParam</code> onto <code>request.query_params</code>,
+so a provider reading either finds it. That is for a view with no
+route of its own: on a live DRF view a declared <code>UrlKwarg</code> is
+the route's alone and a declared <code>QueryParam</code> the query
+string's alone, a <code>params</code> value of either name being dropped.
+A capture of a name the
+selector, or a service spec's target lookup, marks
+<code>NotClientInput</code> fills it: the lookup's is seeded for the call,
+beneath a seed of that name and the lookup's own provider, and an
+author's value for the name is seeded in its place. A route
+capture nothing declares, reads or hides is no argument.</p>
               </div>
             </td>
             <td>
                   <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>pool_seeds</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="PoolSeeds
+
+
+  
+      dataclass
+   (rest_framework_services.types.pool_seeds.PoolSeeds)" href="../types/#rest_framework_services.types.pool_seeds.PoolSeeds">PoolSeeds</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The project's seeds. Registering <code>request</code> or <code>view</code> is
+refused, since the edge seeds both; a resolver declaring either is
+handed this call's.</p>
+              </div>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="DEFAULT_POOL_SEEDS
+
+
+  
+      module-attribute
+   (rest_framework_services.types.pool_seeds.DEFAULT_POOL_SEEDS)" href="../types/#rest_framework_services.types.pool_seeds.DEFAULT_POOL_SEEDS">DEFAULT_POOL_SEEDS</a></code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -4361,8 +4508,8 @@ conflict, below the <code>spec.kwargs</code> provider.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Overrides the mutation status hint (else
-<code>spec.success_status</code>, else <code>200</code>).</p>
+                <p>Accepted for the transports that pass it. The result
+carries no status: a transport answers its own.</p>
               </div>
             </td>
             <td>
@@ -4378,13 +4525,20 @@ conflict, below the <code>spec.kwargs</code> provider.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Whether client input lands as a single <code>data</code> bundle or is
-spread as individual kwargs, and how it ranks against the author's
-<code>kwargs</code>. <code>AUTO</code> resolves per spec type (service → bundle, selector →
-spread). A <code>many=True</code> spec always bundles — the service receives the
-whole list as one <code>data</code> argument — so <code>AUTO</code> and <code>BUNDLE</code> are
-accepted there and a <code>SPREAD_*</code> value raises <code>ValueError</code> rather than
-being ignored.</p>
+                <p>Whether a service spec with no <code>input_serializer</code>
+takes the caller's values for its own parameters: only under
+<code>SPREAD_AUTHOR_WINS</code>. <code>AUTO</code> is <code>BUNDLE</code> for a service, as it
+always was, so a caller's value reaches it only through what reads
+it - the Validator, the target lookup and the declared <code>reads</code> -
+and a request body never fills <code>def destroy(*, instance,
+hard=False)</code>'s <code>hard</code>. Under every binding the Validator's
+values reach a service by name beside <code>data</code>, save one named
+like a key a callable of the call marks <code>NotClientInput</code>: the
+client's value for that is in <code>data</code> alone, and the parameter
+gets a view hook's, the spec's <code>kwargs</code> provider's or
+<code>input_data</code>'s value for it, or its default. A selector spec's
+parameters are its caller's under every binding. <code>SPREAD_CALLER_WINS</code> is refused
+with <code>ValueError</code>.</p>
               </div>
             </td>
             <td>
@@ -4400,13 +4554,28 @@ being ignored.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Strictness about <code>params</code> keys outside the spec's declared
-set: <code>IGNORE</code> (drop), <code>REJECT</code> (raise), <code>PASSTHROUGH</code> (forward to the
-callable). Honoured <strong>per list element</strong> on a <code>many=True</code> spec.</p>
+                <p><code>IGNORE</code> (the default here; the kernel's is
+<code>REJECT</code>) or <code>REJECT</code>. <code>PASSTHROUGH</code> is refused with
+<code>ValueError</code>. <code>REJECT</code> names every undeclared key in one
+<code>"Unexpected argument(s): ..."</code> message under
+<code>non_field_errors</code>, a row's inside that row. A seed's name - a
+built-in one, <code>request</code> or one <code>pool_seeds</code> registers - is
+never one, and the caller's value for it is dropped; a caller's
+<code>view</code> is refused. Where a target lookup will query, an
+undeclared key is refused before it does, alone. A selector or
+target lookup taking a bare <code>**kwargs</code>, and a service with no
+<code>input_serializer</code> taking one under <code>SPREAD_AUTHOR_WINS</code>, drop
+an undeclared key rather than refuse it.</p>
               </div>
             </td>
             <td>
-                  <code><span title="rest_framework_services.types.unknown_arguments.UnknownArguments.IGNORE">IGNORE</span></code>
+                  <code><a class="autorefs autorefs-internal" title="IGNORE
+
+
+  
+      class-attribute
+      instance-attribute
+   (rest_framework_services.types.unknown_arguments.UnknownArguments.IGNORE)" href="#rest_framework_services.types.unknown_arguments.UnknownArguments.IGNORE">IGNORE</a></code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -4418,10 +4587,14 @@ callable). Honoured <strong>per list element</strong> on a <code>many=True</code
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Hook invoked with the resolved mutation target before the
-service runs. Pass
-<a class="autorefs autorefs-internal" title="enforce_permissions" href="#rest_framework_services.dispatch.enforce_permissions.enforce_permissions"><code>enforce_permissions</code></a>
-directly for object-level permissions; the core itself stays authz-agnostic.</p>
+                <p>The guard, called <code>guard(spec, context,
+instance=target)</code> with an <code>OfflineContext</code> of the <code>user</code>,
+<code>request</code> and <code>view</code> passed here. A service spec's target is
+the row the caller handed as <code>instance</code>, else the row or set its
+lookup found (a missing row is <code>not_found</code> and asks nothing), else
+<code>None</code> for a create; a <code>many</code> spec's is <code>None</code>. A selector
+spec's is the row or the set its selector found, after the lookup
+and before the spec's own preconditions, and never a missing row.</p>
               </div>
             </td>
             <td>
@@ -4437,8 +4610,8 @@ directly for object-level permissions; the core itself stays authz-agnostic.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The transport's own progress sink, fanned together with the one
-<code>spec.progress_reporter</code> declares.</p>
+                <p>The transport's progress reporter, combined with
+<code>view_hooks.progress</code>.</p>
               </div>
             </td>
             <td>
@@ -4459,7 +4632,21 @@ directly for object-level permissions; the core itself stays authz-agnostic.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The calling DRF view's resolved hook-chain layers. HTTP-only.</p>
+                <p>The calling view's resolved hook chains: an <code>extra_kwargs</code>
+value for a name the caller fills (a read of the spec's callable or
+target lookup, or a field of a single call's input serializer, by
+its name or its <code>source</code>) is put into the arguments over the
+client's value and checked as it would be; a value naming a seed is
+dropped; the rest of a single service call's outranks every key
+the input serializer hands back, a <code>source="*"</code> field or one its
+<code>validate()</code> adds, while the client's value for it stays in
+<code>data</code> and the bound <code>serializer</code> stays bound; on every other
+call the rest goes to <code>dispatch(extra_kwargs=)</code>. The spec's
+<code>kwargs</code> provider is called here, from <code>view</code> and <code>request</code>,
+and its answer is split the same way over the hooks', a key it
+names a seed refused; a key its <code>TypedDict</code> fills is never the
+caller's or a hook's. <code>input_data</code> is merged over the arguments,
+beneath the spec's <code>input_data</code>; <code>progress</code> joins <code>progress</code>.</p>
               </div>
             </td>
             <td>
@@ -4475,14 +4662,20 @@ directly for object-level permissions; the core itself stays authz-agnostic.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A target the caller resolved itself, skipping the target lookup
-(<code>instance_selector_spec</code> and <code>collection_selector_spec</code> alike).
-<code>None</code> is a <em>supplied</em> value (a create), which is why the default is a
-sentinel.</p>
+                <p>The row the caller resolved itself (a view's
+<code>get_object()</code>), handed to <code>dispatch</code> as its target; no lookup
+runs. <code>None</code> is a create on a spec that declares no target
+lookup; on one that declares a lookup it is <code>not_found</code>, since
+that lookup admits no missing row.</p>
               </div>
             </td>
             <td>
-                  <code><span title="rest_framework_services.types.unset.UNSET">UNSET</span></code>
+                  <code><a class="autorefs autorefs-internal" title="UNSET
+
+
+  
+      module-attribute
+   (rest_framework_services.types.unset.UNSET)" href="../types/#rest_framework_services.types.unset.UNSET">UNSET</a></code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -4494,21 +4687,12 @@ sentinel.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The data the <code>filter_set</code> reads, wherever one can be
-declared — a selector's own filtering, a service's <code>instance_</code> /
-<code>collection_selector_spec</code> target lookup, and its output-selector
-re-fetch. On the target lookups that makes it a scoping channel: a
-<code>filter_set</code> there narrows the row a mutation may reach, and one bound
-to the wrong mapping validates clean (every filter field is optional) and
-narrows nothing. <code>None</code> makes a selector's own <code>filter_set</code> and a
-target lookup's read <code>params</code>, because their fields are declared input:
-off HTTP one flat mapping is usually both channels, whereas over HTTP the
-body validates and the <strong>query string</strong> filters, and merging them would
-let a query parameter satisfy a serializer field. The output re-fetch has
-no such fallback. Its fields are not part of the service's input, so with
-<code>None</code> its <code>filter_set</code> is bound to an empty mapping, as an HTTP
-request with no query string binds it, and the call's arguments never
-filter the result.</p>
+                <p>The values the <code>filter_set</code> reads - the selector spec's
+own, or a service spec's target lookup's - restricted to its filter
+names, and the filter's only source for them when passed. A service
+spec's <code>output_selector_spec.filter_set</code> is bound to it whole, as
+passed, after the service has run, or to an empty mapping without
+it or under <code>output_filter_from_call=False</code>.</p>
               </div>
             </td>
             <td>
@@ -4524,33 +4708,39 @@ filter the result.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Whether a <code>many=True</code> spec's list arrives under the
-argument <code>spec.many_argument</code> names, rather than as <code>params</code> itself.
-For a caller whose input is always an object of named arguments, which can
-never be the bare array an HTTP body is. It is a no-op on every other spec,
-so such a caller passes it on every dispatch and never branches on
-<code>spec.many</code>. With it, <code>params</code> must be an object holding that argument
-and nothing else -- whatever <code>unknown_arguments</code> says, since the service
-receives only the list; the policy still governs the keys inside each item
--- and every validation error the list raises is keyed under the argument,
-with item errors as a mapping of the invalid items' indexes on every
-supported DRF. That is exactly what a serializer declaring
-<code>items = Item(many=True)</code> answers on current DRF, so a spec moving from
-that workaround keeps its error wire. A refusal the service or a
-precondition raises passes through as raised. Pair it with
-<a class="autorefs autorefs-internal" title="spec_to_json_schema" href="../jsonschema/#rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema"><code>spec_to_json_schema</code></a>,
-which describes the same input.</p>
+                <p>Whether a <code>many</code> spec's rows arrive under
+<code>spec.many_argument</code> in an object, rather than as <code>params</code>
+itself. Rows arriving bare are refused in the shape DRF's list
+serializer uses; under the argument, as the kernel keys them. A
+no-op on every other spec.</p>
               </div>
             </td>
             <td>
                   <code>False</code>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>partial</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The request's partial flag (a <code>PATCH</code>); <code>None</code> reads the
+spec's own.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
 
-    <p><span class="doc-section-title">The</span></p>
+    <p><span class="doc-section-title">Returns:</span></p>
     <table>
       <thead>
         <tr>
@@ -4570,12 +4760,7 @@ which describes the same input.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><a class="autorefs autorefs-internal" title="DispatchResult
-
-
-  
-      dataclass
-  " href="#rest_framework_services.types.dispatch_result.DispatchResult"><code>DispatchResult</code></a></p>
+                <p>The kernel's <code>DispatchResult</code>. A required row that does not exist is</p>
               </div>
             </td>
           </tr>
@@ -4590,7 +4775,7 @@ which describes the same input.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>— value, <code>kind</code>, status, and on the mutation path the service's own return,</p>
+                <p><code>kind="not_found"</code>, for the transport to answer. A service spec whose</p>
               </div>
             </td>
           </tr>
@@ -4605,7 +4790,22 @@ which describes the same input.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>resolved instance and data.</p>
+                <p><code>output_selector_spec</code> is a <code>LIST</code> with no <code>selector</code> answers</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="DispatchResult
+
+
+  
+      dataclass
+   (rest_framework_services.types.dispatch_result.DispatchResult)" href="#rest_framework_services.types.dispatch_result.DispatchResult">DispatchResult</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>kind="list"</code>, its value the service's own return, presented per row.</p>
               </div>
             </td>
           </tr>
@@ -4624,11 +4824,43 @@ which describes the same input.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
+                  <code><span title="ImproperlyConfigured">ImproperlyConfigured</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>under that <code>LIST</code> declaration, the service
+returned something that is not a set of rows (a mapping, a <code>str</code>
+or <code>bytes</code>, a non-iterable, <code>None</code>); its write stands.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                   <code><span title="TypeError">TypeError</span></code>
             </td>
             <td>
               <div class="doc-md-description">
                 <p><code>spec</code> is neither a <code>ServiceSpec</code> nor a <code>SelectorSpec</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>a retired <code>argument_binding</code> or <code>unknown_arguments</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="InvalidArguments">InvalidArguments</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the kernel refused the arguments.</p>
               </div>
             </td>
           </tr>
@@ -4670,34 +4902,33 @@ which describes the same input.</p>
 </span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">UNSET</span><span class="p">,</span>
 </span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">filter_data</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">many_as_argument</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">partial</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DispatchResult</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
         <p>Async
-<a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>.</p>
-<p>Identical contract, arguments, policies and
-<a class="autorefs autorefs-internal" title="DispatchResult
+<a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>:
+the same arguments, the same policies and the same result.</p>
+<p>The call is prepared exactly as the sync twin prepares it, in one hop to
+Django's thread-sensitive executor: compiling the spec's variant, routing
+the arguments, calling the spec's <code>kwargs</code> provider, resolving a service
+spec's target and running the <code>on_target_resolved</code> guard all happen
+there, since the provider, the lookup and the guard may query. Then the kernel's <code>adispatch</code> runs the call, and its own
+rule for what runs off the loop applies to everything after: a sync
+selector, service, provider, precondition or affordance condition runs in
+the executor, an <code>async def</code> one is awaited. A selector spec's guard runs
+as a precondition there.</p>
+<p>A <code>LIST</code> result comes back as the lazy shaped queryset, for the async
+transport to materialize or paginate in a thread
+(<a class="autorefs autorefs-internal" title="arender_spec_output
 
 
   
-      dataclass
-  " href="#rest_framework_services.types.dispatch_result.DispatchResult"><code>DispatchResult</code></a>
-shape — see the sync twin. What differs is only the execution model: async selectors
-and services are awaited, and sync ones run in Django's thread-sensitive executor so
-the ORM stays safe off the event loop.</p>
-<p>That rule covers <strong>every</strong> callable a spec carries, not just the selector /
-service: <code>kwargs</code> providers, <code>extend_queryset</code>, <code>filter_set</code>,
-<code>input_data</code>, <code>input_serializer_context</code>, the <code>progress_reporter</code>
-provider, a callable <code>success_status</code>, <code>preconditions</code>, and the
-<code>on_target_resolved</code> guard all run in the executor (see
-<code>arun_off_loop</code>). None of them
-can be <code>async def</code> — a spec is written once for both transports — so any
-that queries would otherwise raise <code>SynchronousOnlyOperation</code> here and
-nowhere else.</p>
-<p>A <code>LIST</code> result comes back as the lazy shaped queryset, for the async
-transport to materialize / paginate in a thread.</p>
+      async
+  " href="#rest_framework_services.dispatch.arender_spec_output.arender_spec_output"><code>arender_spec_output</code></a>
+does both).</p>
 
 
     </div>
@@ -4988,34 +5219,44 @@ nothing to count and nothing to slice.</p>
 
     <div class="doc doc-contents first">
 
-        <p>Slice <code>rows</code> into the page an agent transport serves.</p>
-<p><code>page</code> / <code>limit</code> default to 1 and
+        <p>Slice <code>rows</code> into the page a transport serves.</p>
+<p>A function a transport calls on a list result's <code>value</code> before presenting
+it, not a paging scheme: the names a caller pages by, and the ceiling a
+mount allows, are the transport's. A transport takes them off the call
+before the spec's closed argument set sees them, and bounds legitimately
+differ between two mounts of one spec. HTTP views do not page.</p>
+<p><code>page</code> and <code>limit</code> default to 1 and
 <a class="autorefs autorefs-internal" title="DEFAULT_PAGE_SIZE
 
 
   
       module-attribute
   " href="#rest_framework_services.dispatch.paginate_output.DEFAULT_PAGE_SIZE"><code>DEFAULT_PAGE_SIZE</code></a>.
-Out-of-range values clamp at <em>both</em> ends — <code>limit</code> down to
+Out-of-range values clamp at <strong>both</strong> ends - <code>limit</code> down to
 <code>max_page_size</code> and up to 1, <code>page</code> up to 1 and down to the last page
-that exists — and the clamps are not silent the way truncating an
-unpaginated result would be: <code>totalPages</code> / <code>hasNext</code> are computed from
-the clamped <code>limit</code>, and the returned <code>page</code> is the one actually served.
-A caller that asked for 500 rows and got 100, or for page 10 of 3, is told
+that exists - and the clamps are not silent the way truncating an unpaged
+result would be: <code>totalPages</code> and <code>hasNext</code> are computed from the
+clamped <code>limit</code>, and the returned <code>page</code> is the one actually served. A
+caller that asked for 500 rows and got 100, or for page 10 of 3, is told
 what it received.</p>
 <p>Both values are taken already parsed. Turning an untyped argument into an
-integer is where the transports legitimately differ — a public endpoint
-clamps a malformed value and answers, an in-process toolset can hand the
-model its mistake back and ask again — and that is a policy about bad input,
-not about what a page is.</p>
-<p>The upper clamp on <code>page</code> is why <code>total</code> is counted <em>before</em> the slice:
-<code>(page - 1) * limit</code> on an unclamped page is an arbitrarily large SQL
-<code>OFFSET</code>, which a backend either scans towards or rejects outright with a
-<code>DatabaseError</code> this does not catch.</p>
+integer is where transports legitimately differ - a public endpoint clamps
+a malformed value and answers, an in-process toolset can hand a model its
+mistake back and ask again - and that is a policy about bad input, not
+about what a page is.</p>
+<p>The upper clamp on <code>page</code> is why <code>total</code> is counted <strong>before</strong> the
+slice: <code>(page - 1) * limit</code> on an unclamped page is an arbitrarily large
+SQL <code>OFFSET</code>, which a backend either scans towards or refuses outright
+with a <code>DatabaseError</code> this does not catch. No slice is longer than
+<code>total</code> for the same reason, so a <code>limit</code> past any integer a database
+holds, which no <code>max_page_size</code> bounded, still serves every row; the
+page reports the <code>limit</code> asked for.</p>
 <p>A queryset is counted with <code>COUNT</code> and sliced lazily, so the page's
-<code>items</code> is still a queryset. A manager — <code>Model.objects</code>, which a LIST
-selector may return and the unpaged path serves whole — is paged as its
-<code>.all()</code>, since it counts and cannot be sliced.</p>
+<code>items</code> is still a queryset: present them, as
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.dispatch.present.present"><code>present</code></a> does a list,
+and the page is read once. A manager - any <code>BaseManager</code>, so one built
+with <code>BaseManager.from_queryset</code> too - is paged as its <code>.all()</code>, since
+it counts and cannot be sliced.</p>
 
 
 <p><span class="doc-section-title">Raises:</span></p>
@@ -5033,8 +5274,8 @@ selector may return and the unpaged path serves whole — is paged as its
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If <code>rows</code> is neither a queryset nor a sized, sliceable
-sequence — there is nothing to count and nothing to slice.</p>
+                <p><code>rows</code> is neither a queryset nor a sized, sliceable
+sequence, so there is nothing to count and nothing to slice.</p>
               </div>
             </td>
           </tr>
@@ -5060,10 +5301,12 @@ sequence — there is nothing to count and nothing to slice.</p>
   </span>
 
 <a href="#rest_framework_services.dispatch.paginate_output.DEFAULT_PAGE_SIZE" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DEFAULT_PAGE_SIZE</span> <span class="o">=</span> <span class="mi">100</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">DEFAULT_PAGE_SIZE</span><span class="p">:</span> <span class="n">Final</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">100</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
+
+        <p>Rows per page when the caller asks for a page and names no size.</p>
 
     </div>
 
@@ -5090,17 +5333,16 @@ sequence — there is nothing to count and nothing to slice.</p>
 
 
         <p>One page of rows, plus what a caller needs to know to ask for the next.</p>
-<p>The envelope this describes is <strong>already</strong> the one
-<a class="autorefs autorefs-internal" title="output_to_json_schema" href="../jsonschema/#rest_framework_services.jsonschema.output_to_json_schema.output_to_json_schema"><code>output_to_json_schema</code></a>
-publishes for <code>kind=LIST, paginate=True</code>. That schema was here before
-anything in this package produced the payload it describes: the shaper lived
-in a transport, so one agent transport wrapped its pages and the other
-returned a bare list, against one schema that claimed the envelope for both.
-Two implementations of one mechanism drift; one of them was missing
-entirely.</p>
-<p><code>items</code> is the slice itself, unrendered — rendering needs a view, a
-request and a spec, all of which belong to the caller. Hand the rendered
-result back to <a class="autorefs autorefs-internal" title="envelope" href="#rest_framework_services.types.output_page.OutputPage.envelope"><code>envelope</code></a>
+<p>What <a class="autorefs autorefs-internal" title="paginate_output" href="#rest_framework_services.dispatch.paginate_output.paginate_output"><code>paginate_output</code></a>
+returns, and the payload
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.schema.spec_output_schema.spec_output_schema"><code>spec_output_schema(paginate=True)</code></a>
+describes. The schema and the shaper are one mechanism in two places, so
+they are kept beside each other: a transport that wraps its pages and one
+that returns a bare list, against a schema claiming the envelope for both,
+is the drift this exists to prevent.</p>
+<p><code>items</code> is the slice itself, unpresented: presenting needs the spec and
+belongs to the caller. Hand the presented result back to
+<a class="autorefs autorefs-internal" title="envelope" href="#rest_framework_services.types.output_page.OutputPage.envelope"><code>envelope</code></a>
 to get the wire shape.</p>
 
 
@@ -5188,11 +5430,11 @@ would describe a page the caller was just handed as not existing.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Wrap already-rendered rows in the published pagination envelope.</p>
-<p><code>rendered</code> rather than <code>items</code> because the projection lands on the
-rows and never on the envelope: <code>page</code> / <code>totalPages</code> / <code>hasNext</code>
-are this shape's own keys and belong to no serializer, so a projection
-walking them would look for markings that cannot exist.</p>
+        <p>Wrap already-presented rows in the published paging envelope.</p>
+<p><code>rendered</code> rather than <code>items</code> because an audience projection lands
+on the rows and never on the envelope: <code>page</code>, <code>totalPages</code> and
+<code>hasNext</code> are this shape's own keys and belong to no <code>Output</code>, so a
+projection walking them would look for markings that cannot exist.</p>
 
 
     </div>
@@ -5245,7 +5487,7 @@ MCP tool call, a Pydantic-AI toolset, or a management command.</p>
   extension point and may already be overridden, so it wins.</li>
 <li>Otherwise DRF's shape, synthesized from the <code>view</code> / <code>request</code> the caller
   passed: the synthetic pair from
-  <a class="autorefs autorefs-internal" title="build_offline_context" href="#rest_framework_services.dispatch.build_offline_context.build_offline_context"><code>build_offline_context</code></a>
+  <a class="autorefs autorefs-internal" title="build_offline_context" href="../service-specs/#rest_framework_services.service_specs.build_offline_context.build_offline_context"><code>build_offline_context</code></a>
   off HTTP, or <code>None</code> when the caller supplied neither. <code>format</code> is always
   <code>None</code> — content negotiation is an HTTP-only concern.</li>
 </ul>
@@ -5341,17 +5583,11 @@ that renders through a serializer-shaped factory without ever deriving one.</p>
 
 
 
-        <p>What
-<a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>
-resolved, pre-wire.</p>
-<p>A transport-neutral carrier the caller formats for its own wire (an HTTP
-<code>Response</code>, an MCP <code>ToolResult</code>, …). It holds the <strong>raw</strong> resolved domain value
-— never a paginated page or rendered serializer output — because ordering,
-pagination, and the response envelope are transport concerns. Render the value
-through
-<a class="autorefs autorefs-internal" title="render_spec_output" href="#rest_framework_services.dispatch.render_spec_output.render_spec_output"><code>render_spec_output</code></a>.</p>
-<p><code>instance</code> and <code>data</code> are informational: a transport that only renders
-reads <code>value</code> / <code>kind</code> / <code>status</code> and can ignore them.</p>
+        <p>The value an operation produced, and how to read it.</p>
+<p>Not-found is <strong>reported, not raised</strong>: a required row that does not exist
+comes back as <code>kind="not_found"</code> and the transport decides what that
+means on its wire - a 404, an exit code, a tool error. Nothing here is a
+status code, because most transports have none.</p>
 
 
 <p><span class="doc-section-title">Attributes:</span></p>
@@ -5365,42 +5601,26 @@ reads <code>value</code> / <code>kind</code> / <code>status</code> and can ignor
       </thead>
       <tbody>
           <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.dispatch_result.DispatchResult.kind">kind</span></code></td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;instance&#39;, &#39;list&#39;, &#39;not_found&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"instance"</code> (one value, possibly <code>None</code>), <code>"list"</code> (a
+collection, a queryset when it can be one), or <code>"not_found"</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
             <td><code><span title="rest_framework_services.types.dispatch_result.DispatchResult.value">value</span></code></td>
             <td>
                   <code><span title="typing.Any">Any</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The resolved value — a single instance (<code>RETRIEVE</code> / mutation
-result), a queryset / iterable (<code>LIST</code>), or <code>None</code> (a nullable
-retrieve under <code>allow_none</code>, a missing instance, or a
-side-effect-only mutation).</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="rest_framework_services.types.dispatch_result.DispatchResult.kind">kind</span></code></td>
-            <td>
-                  <code><span title="str">str</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>One of <code>"instance"</code> (a single value, possibly <code>None</code>),
-<code>"list"</code> (a collection to order / paginate / render <code>many=True</code>),
-or <code>"not_found"</code> (a required instance could not be resolved).</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="rest_framework_services.types.dispatch_result.DispatchResult.status">status</span></code></td>
-            <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>An HTTP-ish status hint the transport may map to its wire: the
-spec's success status for mutations, <code>200</code> for reads, <code>404</code> for
-<code>"not_found"</code>.</p>
+                <p>What to present: the selector's rows, or the service's return,
+or what its output selector re-read.</p>
               </div>
             </td>
           </tr>
@@ -5411,12 +5631,7 @@ spec's success status for mutations, <code>200</code> for reads, <code>404</code
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The service's <em>own</em> return value, captured before an
-<code>output_selector_spec</code> re-fetch replaced it in <code>value</code>. It is the
-<strong>flags carrier</strong> (an upsert DTO's <code>created</code>, a domain outcome
-enum) that a callable <code>success_status</code> and a <code>response_finalizer</code>
-key on, while <code>value</code> is the thing to render. <code>None</code> on the read
-path — a selector has no service.</p>
+                <p>The service's own return, before any output selector.</p>
               </div>
             </td>
           </tr>
@@ -5427,11 +5642,7 @@ path — a selector has no service.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The resolved mutation target — the row an update / destroy
-acted on, or <code>None</code> on a create, a read, or a bulk path. Resolved
-from <code>instance_selector_spec</code>, so a transport needing the
-<em>pre-mutation</em> target reads it here rather than resolving a second
-time and risking a different answer.</p>
+                <p>The resolved target - the row, or the collection's queryset.</p>
               </div>
             </td>
           </tr>
@@ -5442,10 +5653,23 @@ time and risking a different answer.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The validated input (<code>serializer.validated_data</code>), or <code>None</code>
-when the spec declares no <code>input_serializer</code> — so a transport can
-key a post-dispatch decision on what was validated without re-running
-the serializer.</p>
+                <p>The Validator's <code>data</code> the service received: the validated
+mapping, or the instance a dataclass Validator builds.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="rest_framework_services.types.dispatch_result.DispatchResult.context">context</span></code></td>
+            <td>
+                  <code><a class="autorefs autorefs-external" title="django_service_specs.output.presentation_context.PresentationContext" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.output.presentation_context.PresentationContext">PresentationContext</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The call a presenter renders for: its principal, its target
+and its resolved seeds, which <code>present</code> hands to
+<code>Presenter.presented()</code>. <code>None</code> on a result dispatch did not
+build, and on a not-found, which is never presented. It takes no
+part in equality: two results of one value are one result.</p>
               </div>
             </td>
           </tr>
@@ -5479,7 +5703,12 @@ the serializer.</p>
 
     </div>
 
-</div><p>A <code>ServiceSpec</code>'s <code>kind</code> is <code>"list"</code> for a <code>many=True</code> spec, and otherwise
+</div><p>It carries no <code>status</code>: a transport answers its own, which over HTTP is the
+view's <code>success_status</code>. <code>dispatch_spec</code> still accepts <code>success_status=</code> for
+the transports that pass it, and ignores it. <code>context</code>, new with the kernel,
+is the call a presenter renders for, which the output serializer's context is
+built from.</p>
+<p>A <code>ServiceSpec</code>'s <code>kind</code> is <code>"list"</code> for a <code>many=True</code> spec, and otherwise
 whenever its <code>output_selector_spec</code> declares <code>kind=SelectorKind.LIST</code>, with a
 <code>selector</code> to re-read through or without one. Without one, the <code>value</code> is the
 service's own return, passed through as it came: a <code>QuerySet</code> stays lazy, as a
@@ -5493,13 +5722,40 @@ which states the same array.</p>
 <p>Three optional, caller-side policies let a transport map its wire onto a spec
 without <code>dispatch_spec</code> baking in HTTP's implicit answers. The <strong>spec declares
 <em>what</em></strong> (its inputs, filters, output shape, permissions); the <strong>caller declares
-<em>how</em></strong> its flat input becomes callable arguments, how strict to be about
-undeclared keys, and how to authorize a resolved target. The defaults reproduce
-the pre-policy behaviour exactly, so a caller that passes none is unaffected.</p>
+<em>how</em></strong> strict to be about undeclared keys and how to authorize a resolved
+target.</p>
 <h3 id="argumentbinding"><code>ArgumentBinding</code><a class="headerlink" href="#argumentbinding" title="Permanent link">&para;</a></h3>
-<p>How the flat <code>params</code> map onto a dispatched callable's keyword arguments —
-bundled as one <code>data</code> payload or spread as individual kwargs, and how the spread
-ranks against the spec author's <code>kwargs</code>.</p>
+<p>A call has <strong>one argument pool</strong>: every callable takes its keyword arguments
+from it by name, and an author's value (a view hook's, or the spec's <code>kwargs</code>
+provider's) outranks the caller's for the same name. What the enum still
+decides is one question, about a <code>ServiceSpec</code> with no <code>input_serializer</code> and
+about a <code>SelectorSpec</code>: whether the callable's own parameters are caller input.</p>
+<ul>
+<li><code>AUTO</code>, the default, is <code>BUNDLE</code> for a service and <code>SPREAD_AUTHOR_WINS</code> for a
+  selector. A selector's declared <code>reads</code> are the caller's under every member.</li>
+<li>Under <code>BUNDLE</code> a selector's own parameters are not the caller's either: a
+  route capture, an author's value, a seed and its declared <code>reads</code> fill them,
+  its <code>filter_set</code> still reads the caller's values, and a parameter nothing
+  fills is the callable's own <code>TypeError</code> rather than a <code>400</code> no client could
+  answer. A selector view dispatches <code>BUNDLE</code>.</li>
+<li>Under <code>BUNDLE</code> a serializer-less service's own parameters are never the
+  caller's: it receives <code>data={}</code>, its declared <code>reads</code> and the target lookup's
+  row, and nothing else the client sends.</li>
+<li>Under <code>SPREAD_AUTHOR_WINS</code> its signature is the caller's input, still below an
+  author's value on a conflict.</li>
+<li><code>SPREAD_CALLER_WINS</code> is refused with <code>ValueError</code> naming <code>AUTO</code>: leave a key
+  out of the <code>kwargs</code> provider where the caller's value should win.</li>
+</ul>
+<p>A service with an <code>input_serializer</code> reads the serializer under every member:
+the validated payload arrives as <code>data</code>, and each validated value also reaches a
+parameter of the same name (the field's <code>source</code>). A parameter named like a key
+any callable of the call marks <code>NotClientInput</code> is never handed the client's
+validated value: the client's
+value reaches it only through <code>data</code>, while an author's value for it (a view
+hook's, the spec's <code>kwargs</code> provider's or <code>input_data</code>'s) still reaches the
+parameter. On a DRF view such a parameter needs a default, since <code>as_view()</code>
+refuses a required parameter no call is sure to provide. See
+<a href="../../recipes/off-http-inputs/#a-service-with-no-input-serializer">a service with no input serializer</a>.</p>
 
 
 <div class="doc doc-object doc-class">
@@ -5519,17 +5775,32 @@ ranks against the spec author's <code>kwargs</code>.</p>
 
 
 
-        <p>How <code>dispatch_spec</code> turns the flat <code>params</code> into a callable's kwargs.</p>
-<p>Every dispatched callable's keyword pool always carries the <code>request</code> /
-<code>user</code> seeds (and, for a mutation, <code>data</code> / <code>serializer</code> / <code>instance</code>
-/ <code>collection</code>). This enum controls the <em>one</em> remaining question a caller
-answers about its wire: <strong>can client-supplied input land as individual
-keyword arguments, and do those override the spec author's <code>kwargs(...)</code>
-invariants?</strong> It is a trust-boundary decision, not plumbing — which is why it
-belongs to the caller rather than the spec. Pass the member directly; the
-value never appears on a wire. Those reserved seeds are always stripped from
-the spread in the <code>SPREAD_*</code> modes, so a client cannot poison
-transport-controlled state by naming an argument after one of them.</p>
+        <p>Whether a caller's values may fill a service's own parameters.</p>
+<p>A call has one pool, and every dispatched callable takes its keyword
+arguments from it by name: the seeds (<code>user</code>, <code>progress</code>, <code>request</code>,
+<code>view</code>, a project's registered ones and, for a mutation, <code>data</code>,
+<code>serializer</code>, <code>instance</code> / <code>collection</code>), the arguments the spec
+declares - its reads, its filter's names, its input serializer's fields -
+and the author's values from a view's hooks and the spec's <code>kwargs</code>
+provider. An author's value for a declared argument replaces the
+caller's, so the author wins a conflict, and a key a typed provider is
+annotated to fill is never the caller's at all. A seed's name is never an
+argument: a caller's value named like one is dropped (<code>view</code> aside,
+which <code>UnknownArguments.REJECT</code> refuses), and an input serializer's
+field of that name is validated into <code>data</code> while the seed keeps its
+own value, so a client cannot poison transport-controlled state by naming
+an argument after one. A name any callable of the call marks
+<code>NotClientInput</code> is the server's: the client's value for an input
+serializer's field of that name reaches the service only inside <code>data</code>,
+while an author's value for it (a view hook's, the spec's <code>kwargs</code>
+provider's or <code>input_data</code>'s) still reaches the parameter.</p>
+<p>What is left for this enum is one question, about a service spec with no
+<code>input_serializer</code> and about a selector spec: whether the callable's own
+parameters are caller input. A selector spec's declared <code>reads</code> are the
+caller's under every member. It
+is a trust-boundary decision, which is why it belongs to the caller
+rather than the spec. Pass the member directly; the value never appears
+on a wire.</p>
 
 
 <p><span class="doc-section-title">Attributes:</span></p>
@@ -5548,20 +5819,20 @@ transport-controlled state by naming an argument after one of them.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The default — resolve per spec type: <a class="autorefs autorefs-internal" title="ServiceSpec
+                <p>The default, resolved per spec type: <a class="autorefs autorefs-internal" title="ServiceSpec
 
 
   
       dataclass
   " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a> →
-<code>BUNDLE</code> (a mutation takes its validated payload as one <code>data</code>
-bundle), <a class="autorefs autorefs-internal" title="SelectorSpec
+<code>BUNDLE</code>, <a class="autorefs autorefs-internal" title="SelectorSpec
 
 
   
       dataclass
-  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> → <code>SPREAD_AUTHOR_WINS</code> (a read
-spreads its params so the selector can declare them as parameters).</p>
+  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a> →
+<code>SPREAD_AUTHOR_WINS</code>, so a selector takes the caller's value for
+each parameter its signature names.</p>
               </div>
             </td>
           </tr>
@@ -5571,10 +5842,18 @@ spreads its params so the selector can declare them as parameters).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Only the validated payload reaches the callable, as <code>data=</code>;
-individual client fields are <strong>not</strong> spread as kwargs. The safe
-choice for a mutation whose <code>kwargs</code> scopes the write — the client
-cannot inject arbitrary keyword arguments.</p>
+                <p>A service's own parameters are never the caller's: the
+validated payload reaches it as <code>data=</code>, and each validated
+value by its key as well (one a callable of the call marks
+<code>NotClientInput</code> only inside <code>data</code>), beside its declared
+reads by name; nothing else the client sends reaches it. A
+service with no <code>input_serializer</code> takes <code>data={}</code>. The safe
+choice for a mutation whose <code>kwargs</code> scopes the write. A
+selector takes none of the caller's values for its parameters
+either: only a route capture, an author's value, a seed and its
+declared reads fill them, the filter still reads the caller's
+values, and a parameter nothing fills is the callable's own
+<code>TypeError</code>. A selector view dispatches this member.</p>
               </div>
             </td>
           </tr>
@@ -5584,9 +5863,11 @@ cannot inject arbitrary keyword arguments.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Client fields are spread into the pool as individual
-kwargs, but <code>spec.kwargs(...)</code> <strong>overrides on conflict</strong> — an
-author-scoped <code>tenant_id</code> cannot be reset by the client.</p>
+                <p>A service with no <code>input_serializer</code> declares
+its own parameters as the caller's input, and the author's values
+still replace the caller's on a conflict, so an author-scoped
+<code>tenant_id</code> cannot be reset by the client. A service with an
+input serializer keeps the serializer as its input.</p>
               </div>
             </td>
           </tr>
@@ -5596,8 +5877,9 @@ author-scoped <code>tenant_id</code> cannot be reset by the client.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Like <code>SPREAD_AUTHOR_WINS</code>, but the client wins on
-conflict: <code>spec.kwargs(...)</code> supplies <em>defaults</em> it may override.</p>
+                <p>Retired. <code>dispatch_spec</code> refuses it with
+<code>ValueError</code>: one pool has no place for a caller's value to beat
+the author's. The member stays importable.</p>
               </div>
             </td>
           </tr>
@@ -5633,32 +5915,30 @@ conflict: <code>spec.kwargs(...)</code> supplies <em>defaults</em> it may overri
 
 </div><h3 id="unknownarguments"><code>UnknownArguments</code><a class="headerlink" href="#unknownarguments" title="Permanent link">&para;</a></h3>
 <p>How strict <code>dispatch_spec</code> is about <code>params</code> keys outside the spec's declared
-set — drop them, reject them, or pass them through to the callable.</p>
-<p>A <code>ServiceSpec</code>'s declared set takes lookup keys from the one target lookup
-dispatch calls, never from both. A <code>collection_selector_spec</code> is that lookup
-whenever one is declared, so an <code>instance_selector_spec</code> beside it is not read:
-its <code>pk</code> is refused under <code>REJECT</code> and comes back as an extra under
-<code>PASSTHROUGH</code>, and it cannot open the set or make <code>REJECT</code> unenforceable.
-Without a collection lookup, the instance lookup's keys are declared. A
-<code>many=True</code> spec resolves no target, so neither lookup's keys are declared for
-its items, and a lookup on it cannot open the set or make <code>REJECT</code>
-unenforceable.
-The set is read from the spec alone, so a direct caller passing <code>instance=</code>,
-which skips the lookup, still has that lookup's keys admitted.</p>
-<p>A <code>ServiceSpec</code> with no <code>input_serializer</code>, dispatched under a <code>SPREAD_*</code>
-<code>argument_binding</code>, also declares its service's own parameters beside the
-lookup's keys, because nothing else reads the caller's input there: its keyword
-parameters and <code>Unpack[TypedDict]</code> keys, less the reserved pool seeds (registered
-ones included), positional-only parameters, <code>NotClientInput</code> keys and <code>view</code>.
-The parameters and lookup keys in every declared set, a selector's included,
-also leave out a key that any callable in the call marks <code>NotClientInput</code>: the
-selector or service, a precondition, or the target lookup. Such a key is
-server-owned for the whole call, so the caller's value for it is dropped before
-any of them reads it. An <code>input_serializer</code> field is the serializer's own
-declaration, and stays declared.
-Under <code>BUNDLE</code>, which <code>AUTO</code> resolves to for a service, they are not declared. A
-bare <code>**kwargs</code> on that service opens the set. See
-<a href="../../recipes/off-http-inputs/#a-spread-service-with-no-input-serializer">a spread service with no input serializer</a>.</p>
+set: drop them (<code>IGNORE</code>, <code>dispatch_spec</code>'s default) or refuse them (<code>REJECT</code>,
+the kernel's default). <code>PASSTHROUGH</code> stays importable, as the kernel's member,
+but passed to <code>dispatch_spec</code> it is refused with <code>ValueError</code>: an argument the
+spec does not declare never reaches a callable. Declare it instead, as a <code>reads</code>
+entry, a serializer field or a parameter.</p>
+<p>The declared set is the compiled spec's parameters
+(<a href="../service-specs/#where-each-field-lands">Service specs on the kernel</a>): the
+<code>input_serializer</code>'s fields, or, for a service with none dispatched under
+<code>SPREAD_AUTHOR_WINS</code>, its own signature; a
+selector's signature, less the names its <code>filter_set</code> owns, which are the
+filter's; the target lookup's; and every <code>reads</code> entry. A key that any callable
+in the call marks <code>NotClientInput</code>, and every pool seed's name, is
+server-owned and never declared. <code>REJECT</code> names every undeclared key in one
+<code>"Unexpected argument(s): ..."</code> message under <code>non_field_errors</code>, a row's
+inside that row; a pool seed's name is never one, so a caller's <code>request</code> is
+dropped like any seed's, while a caller's <code>view</code> is refused. Off HTTP an unknown key inside a nested serializer is refused in
+the kernel's words, <code>{"inner": {"zzz": ["Unknown argument."]}}</code>; over a live
+view the nested serializer drops it, as DRF does. On DRF 3.18 or later a live
+view's <code>many</code> call can answer in two shapes: rows the serializer accepted but
+which carry an undeclared key are refused as a list of rows, while a row the
+serializer refuses comes back in DRF's mapping of row indexes. Where a target lookup
+will query, an undeclared key is refused before it does. A selector or target
+lookup taking a bare <code>**kwargs</code>, and a service with no <code>input_serializer</code> taking
+one under <code>SPREAD_AUTHOR_WINS</code>, drop an undeclared key rather than refuse it.</p>
 
 
 <div class="doc doc-object doc-class">
@@ -5674,60 +5954,20 @@ bare <code>**kwargs</code> on that service opens the set. See
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><span title="enum.Enum">Enum</span></code></p>
+              Bases: <code><span title="str">str</span></code>, <code><span title="enum.Enum">Enum</span></code></p>
 
 
 
-        <p>How <code>dispatch_spec</code> treats <code>params</code> keys outside a spec's declared set.</p>
-<p>The <em>declared set</em> is derived from the spec and the dispatch's
-<code>argument_binding</code>, without any transport knowledge: a
-<a class="autorefs autorefs-internal" title="ServiceSpec
-
-
-  
-      dataclass
-  " href="../types/#rest_framework_services.types.service_spec.ServiceSpec"><code>ServiceSpec</code></a>'s
-<code>input_serializer</code> fields plus the keys of the one target lookup dispatch calls
-(its <code>collection_selector_spec</code> when declared, else its
-<code>instance_selector_spec</code>, and neither for <code>many=True</code>); a
-<a class="autorefs autorefs-internal" title="SelectorSpec
-
-
-  
-      dataclass
-  " href="../types/#rest_framework_services.types.selector_spec.SelectorSpec"><code>SelectorSpec</code></a>'s
-<code>selector</code> parameters. A <code>ServiceSpec</code> with no <code>input_serializer</code>,
-dispatched under a <code>SPREAD_*</code> binding, also declares its service's own
-parameters, since nothing else reads the caller's input there: its keyword
-parameters and <code>Unpack[TypedDict]</code> keys, less the reserved pool seeds
-(registered ones included), positional-only parameters, <code>NotClientInput</code> keys
-and <code>view</code>. <code>BUNDLE</code>, which <code>AUTO</code> resolves to for a service, leaves them
-out. When the set cannot be enumerated — a callable that declares a bare
-<code>**kwargs</code>, or a duck-typed <code>filter_set</code> whose fields are opaque to the core —
-the spec is treated as <strong>open</strong> and this policy is a no-op (there is nothing to
-call "unknown").</p>
-<p>Members (internal knob — the value never appears on a wire):</p>
-<ul>
-<li><code>IGNORE</code> — undeclared keys are dropped (DRF serializers already do this
-  to a mutation's payload, and a selector simply never receives kwargs it
-  doesn't declare). The default, reproducing the pre-policy behaviour.</li>
-<li><code>REJECT</code> — an undeclared key raises
-  <code>ValidationError</code>, the same surface a
-  strict serializer produces. Useful when the caller wants a clean
-  correction signal (e.g. a model calling a tool with a mistyped argument).</li>
-<li><code>PASSTHROUGH</code> — undeclared keys survive: they are merged onto the
-  mutation's <code>validated_data</code> before the keyword pool is built, so a
-  callable that declares them (or <code>**kwargs</code>) receives them. The one
-  policy that <em>must</em> live inside <code>dispatch_spec</code> — it needs the seam
-  between validation and pool construction that a wrapper cannot reach.</li>
-</ul>
-<p>A key the callable marks
-<a class="autorefs autorefs-internal" title="not_client_input" href="../types/#rest_framework_services.types.not_client_input"><code>NotClientInput</code></a> is outside
-the declared set, so <code>REJECT</code> refuses it on a closed spec. Under every other
-policy, and on an open spec, dispatch drops the caller's value for it before the
-spread: <code>IGNORE</code> drops it as it says, and <code>PASSTHROUGH</code> never forwards it.</p>
-<p>Callers strip their own transport-only keys (pagination, ordering, output
-format) before calling, so the declared-set check sees only spec inputs.</p>
+        <p>The closed argument set's policy, applied at every level of nesting.</p>
+<p><code>REJECT</code> is the default everywhere. An untrusted caller's undeclared key
+is refused before it costs a query, and a trusted one's typo - a command's
+misspelt option, a task enqueued with last month's argument name - fails
+where the caller can see it rather than being dropped on the floor.</p>
+<p>There is no pass-through policy. An undeclared argument reaching a
+callable is exactly what the closed set exists to prevent: on a selector,
+with no Validator in front of it, it would let a caller supply a keyword
+the operation's author never offered. <code>PASSTHROUGH</code> is a member and not
+a policy, and every function taking one refuses it.</p>
 
 
 
@@ -5746,6 +5986,91 @@ format) before calling, so the declared-set check sees only spec inputs.</p>
 
 
 
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="rest_framework_services.types.unknown_arguments.UnknownArguments.REJECT" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">REJECT</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.unknown_arguments.UnknownArguments.REJECT" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">REJECT</span> <span class="o">=</span> <span class="s1">&#39;reject&#39;</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Refuse the undeclared key with <code>InvalidArguments</code>, at the level it appeared.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="rest_framework_services.types.unknown_arguments.UnknownArguments.IGNORE" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">IGNORE</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.unknown_arguments.UnknownArguments.IGNORE" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">IGNORE</span> <span class="o">=</span> <span class="s1">&#39;ignore&#39;</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Drop the undeclared key and carry on.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="rest_framework_services.types.unknown_arguments.UnknownArguments.PASSTHROUGH" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">PASSTHROUGH</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#rest_framework_services.types.unknown_arguments.UnknownArguments.PASSTHROUGH" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">PASSTHROUGH</span> <span class="o">=</span> <span class="s1">&#39;passthrough&#39;</span>
+</span></code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Kept as a name, and refused as a policy.</p>
+<p>It is here for the current release of djangorestframework-services, whose
+published transports compare a policy against it by identity: with the
+member, that comparison is false for either policy, where its absence
+would raise <code>AttributeError</code>. It is never run.
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.parameters.check_arguments.check_arguments"><code>check_arguments</code></a>
+and
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.schema.parameters_schema.parameters_schema"><code>parameters_schema</code></a>
+raise <code>ValueError</code> for it where they read the policy, so <code>dispatch</code>,
+<code>adispatch</code>, <code>check_call</code>, <code>bind_arguments</code> and <code>spec_input_schema</code>
+refuse it too, rather than running it as <code>IGNORE</code>.</p>
+
+    </div>
+
+</div>
 
 
 
@@ -5850,6 +6175,28 @@ omits it and nothing changes. It carries the <em>view</em> layers only
 per-action twins); the spec's own <code>kwargs</code> / <code>input_data</code> /
 <code>input_serializer_context</code> providers stay the core's job, so they resolve exactly
 once no matter who dispatches.</p>
+<p>The spec's <code>kwargs</code> provider outranks the view's hooks. A hook value for a name
+the call reads (a parameter of the spec's callable or target lookup, or a field
+of the input serializer, by its name or its <code>source</code>) is that argument's value,
+over the client's, and is validated as the client's would be. For a field, the
+value given is validated on its own, by the field and its <code>validate_&lt;field&gt;</code>,
+once the serializer has accepted the body, never what the field reads back from
+the body; what that gives is the value under its <code>source</code> key, and under the key
+the hook used where that differs, wherever the call
+reads it (the service's parameter, <code>data</code>, the bound serializer's
+<code>validated_data</code>), even where a later field with the same <code>source</code>, a
+<code>source="*"</code> nested serializer, the serializer's <code>validate()</code> or a
+<code>to_internal_value</code> override writes that key from the client's input, or runs
+the field's validation again on a value of its own; <code>input_data</code> is held the
+same way. That run is the field's second for the call, so a related field
+queries once more for each key it holds and the field's validators and its <code>validate_&lt;field&gt;</code> run
+twice, as do a nested serializer's <code>validate()</code> and its fields' own. A field with a dotted <code>source</code> or
+<code>source="*"</code> hands it to the parameter named like the field. Where <code>data</code> is a
+dataclass instance it is left as the serializer built it, and so are a <code>many</code>
+spec's rows (see <a href="../../recipes/extra-kwargs/">extra kwargs</a>). A value naming a
+seed (<code>request</code>, <code>view</code>, <code>progress</code>) is dropped, the seed winning; anything else
+reaches the callables beside the arguments. <code>input_data</code> from the hooks is
+merged beneath the spec's own <code>input_data</code>.</p>
 
 
 <div class="doc doc-object doc-class">
@@ -6212,7 +6559,8 @@ inputs reach the serializer offline: a serializer branching on
 bound to: <code>dispatch_spec</code> binds a <code>SelectorSpec</code>'s own, and a target
 lookup's, to <code>filter_data</code>, else to <code>params</code>, and a service's
 <code>output_selector_spec.filter_set</code> to <code>filter_data</code>, else to an empty
-mapping. To filter from this query string, pass
+mapping (always to an empty mapping under
+<code>output_filter_from_call=False</code>). To filter from this query string, pass
 <code>filter_data=context.request.query_params</code>. Values are stringified as on
 HTTP; a list / tuple becomes a multi-valued param. <strong>Replaces</strong> a wrapped
 <code>http_request</code>'s <code>GET</code> — on the copy that is wrapped, so the caller's
@@ -6308,8 +6656,15 @@ serializer that branches on <code>request.query_params</code> (django-restql fie
 custom serializers), and a request-scoped <code>FilterSet</code> that reads
 <code>self.request.query_params</code> itself. It is not what a <code>filter_set</code> is bound to:
 <code>dispatch_spec</code> binds a <code>SelectorSpec</code>'s own <code>filter_set</code>, and a target lookup's,
-to <code>filter_data</code>, else to <code>params</code>, and a service's <code>output_selector_spec.filter_set</code>
-to <code>filter_data</code>, else to an empty mapping. To filter from the synthetic query
+to <code>filter_data</code> when it is passed, else to <code>params</code>, reading only the filter's
+own names from either. <code>filter_data</code>, and the query string a live view's filter
+reads, feed the filter alone: the selector, its preconditions and a target
+lookup's selector never receive them, unless a declared <code>QueryParam</code> names the
+filter. Under a filter's name those callables take the caller's <code>params</code> value as
+sent, a route capture, or an author's value. A service's <code>output_selector_spec.filter_set</code>
+is bound to <code>filter_data</code> as it was passed, else to an empty mapping, unless the
+spec sets <code>output_filter_from_call=False</code>, which binds it to an empty mapping on
+every call. To filter from the synthetic query
 string, pass <code>filter_data=context.request.query_params</code>. It does <strong>not</strong> make DRF
 <code>filter_backends</code> (<code>SearchFilter</code> / <code>OrderingFilter</code>) run — the offline path never
 calls <code>filter_queryset</code>; <code>filter_set</code> is the drf-services-native equivalent.</p>
@@ -6530,7 +6885,10 @@ service <strong>without</strong> the core -- a chain step handed a pool it built
 one of these the way it calls <code>enforce_permissions</code>: after permissions and target
 resolution, before the spec's <code>preconditions</code>, which is the order the core uses.
 Skip it and a call the direct path refuses with <code>ActionUnavailable</code> succeeds on
-that path instead.</p>
+that path instead. Like the two below, they are the kernel's functions with
+<code>request</code> and <code>view</code> reserved beside the <code>reserved</code> set passed, the names
+<code>dispatch_spec</code> seeds itself, so a condition reading either is handed it from
+the pool.</p>
 
 
 <div class="doc doc-object doc-function">
@@ -6542,7 +6900,7 @@ that path instead.</p>
 
 <a href="#rest_framework_services.dispatch.enforce_affordances.enforce_affordances" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">enforce_affordances</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">pool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
@@ -6552,31 +6910,11 @@ that path instead.</p>
 
     <div class="doc doc-contents first">
 
-        <p>Refuse the call if one of the spec's <code>affordances</code> is not met.</p>
-<p><code>dispatch_spec</code> and <code>adispatch_spec</code> call this themselves. A transport that
-runs a service <strong>without</strong> them -- a chain that owns the transaction and hands
-each step its own pool, say -- must call it too, exactly as it must call
-<a class="autorefs autorefs-internal" title="enforce_permissions" href="#rest_framework_services.dispatch.enforce_permissions.enforce_permissions"><code>enforce_permissions</code></a>,
-or a condition the direct path refuses is skipped on that one. <code>pool</code> is the
-kwargs pool the service is about to receive and <code>instance</code> its resolved
-target, <code>None</code> for an operation with none. It raises
-<a class="autorefs autorefs-internal" title="ActionUnavailable" href="../exceptions/#rest_framework_services.exceptions.action_unavailable.ActionUnavailable"><code>ActionUnavailable</code></a>
-carrying the unmet affordance's <code>reason</code> and <code>code</code>.</p>
-<p>Callers must invoke this <strong>after</strong> the target guard and <strong>before</strong>
-the spec's <code>preconditions</code>: permissions -&gt; target resolution -&gt; validation -&gt;
-affordances -&gt; preconditions -&gt; service. After access because a refusal
-describes the row's state, and telling a caller who may not see the row what
-state it is in is a disclosure; before preconditions because an affordance is
-the declared, advertisable form of the same kind of rule, and the one a client
-was told about should be the one that answers.</p>
-<p>Declaration order decides which refusal a caller sees, and nothing past the
-first unmet condition runs. Every condition on the row is answered together
-by one query the first time one is reached. A callable condition sees
-<code>ambient_pool</code> -- the seeds, never the call's target, input or client
-arguments -- so a <code>**kwargs</code> catch-all is held to the same rule the
-declaration enforces on a named parameter. <code>reserved</code> is this dispatch's
-seed set, registered seeds included. A callable's result is read for truth,
-so one that returns nothing refuses rather than allows.</p>
+        <p>Refuse the call with <code>ActionUnavailable</code> if one of the spec's <code>affordances</code> is not met.</p>
+<p>django-service-specs' own <code>enforce_affordances</code>, with <code>request</code> and
+<code>view</code> reserved beside <code>reserved</code>: <code>dispatch_spec</code> seeds both itself,
+so a condition declaring either is handed it from <code>pool</code> here as it is
+at the call. See the kernel's function for the order it must run in.</p>
 
 
     </div>
@@ -6596,7 +6934,7 @@ so one that returns nothing refuses rather than allows.</p>
 
 <a href="#rest_framework_services.dispatch.aenforce_affordances.aenforce_affordances" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">aenforce_affordances</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">pool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
@@ -6606,10 +6944,7 @@ so one that returns nothing refuses rather than allows.</p>
 
     <div class="doc doc-contents first">
 
-        <p><code>enforce_affordances</code> for the async path.</p>
-<p>The row check is a query and a callable condition is user code, so the whole
-evaluation runs in the executor. A spec declaring none returns before the hop,
-so declaring nothing costs the async path nothing either.</p>
+        <p>Async <code>enforce_affordances</code>, with <code>request</code> and <code>view</code> reserved the same way.</p>
 
 
     </div>
@@ -6620,10 +6955,13 @@ its tool list or an agent assembling its toolset for a step, asks one of these
 before any call is attempted. They answer the conditions the capability manifest
 calls <code>"operation"</code> scope, the callables that need no row, and return the first
 one not met, or <code>None</code>. A condition on the row is skipped without a query. Build
-the pool with <code>base_pool</code> and the same <code>seeds=</code> the call would use, and pass
-<code>reserved=seeds.reserved</code>. The call answers a condition from those same names, so
-the two agree. The answer is advisory: <code>dispatch_spec</code> still enforces every
-affordance when the operation is called.</p>
+the pool with <code>base_pool</code> and the same <code>seeds=</code> the call would use, passing the
+<code>request</code> (and <code>view</code>, where there is one) the call would be handed, and pass
+<code>reserved=seeds.reserved</code>. <code>dispatch_spec</code> seeds <code>request</code> and <code>view</code> itself on
+every call, beside the seeds it is handed, so these functions reserve both beside
+the set you pass: a condition declaring either is answered from the pool here as
+it is at the call, and the two agree. The answer is advisory: <code>dispatch_spec</code>
+still enforces every affordance when the operation is called.</p>
 
 
 <div class="doc doc-object doc-function">
@@ -6635,61 +6973,19 @@ affordance when the operation is called.</p>
 
 <a href="#rest_framework_services.dispatch.unmet_operation_affordance.unmet_operation_affordance" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">unmet_operation_affordance</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">pool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">reserved</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">RESERVED_POOL_SEEDS</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Affordance</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">pool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">reserved</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">RESERVED_POOL_SEEDS</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Affordance</span> <span class="o">|</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
         <p>The first of the spec's operation-scope affordances not met now, or <code>None</code>.</p>
-<p>For a transport deciding whether to offer an operation at all, before anyone
-attempts it: an MCP server building its tool list, an agent assembling the
-toolset for its next step. An operation whose answer is an
-<a class="autorefs autorefs-internal" title="Affordance
-
-
-  
-      dataclass
-  " href="../types/#rest_framework_services.types.affordance.Affordance"><code>Affordance</code></a> cannot be
-called right now whatever it is called with, so offering it only invites a
-refusal.</p>
-<p>Only the callable conditions are asked -- the ones the capability manifest
-calls <code>"operation"</code> scope, answered without a row. A condition on the row
-is skipped without being evaluated, because at list time there is no row: it
-runs no query and needs no instance, and it goes on being answered per object
-where it always is, at the call and on a selector's rows. The callables are
-asked in declaration order and the first unmet one is returned, which is the
-one a call would be refused with when no row condition before it answers
-first. A callable's result is read for truth, so one that returns nothing is
-unmet here as it is refused at the call. An exception it raises propagates:
-this answers the question, and a condition that cannot be answered is not a
-<code>no</code>.</p>
-<p><strong>Build <code>pool</code> the way the call's would be.</strong> A condition sees
-<code>ambient_pool</code> of it -- the seeds, never a client argument -- through the
-same definition the call is refused by, so the two see the same names only
-if they are handed the same seeds:
-<a class="autorefs autorefs-internal" title="base_pool" href="#rest_framework_services.dispatch.base_pool.base_pool"><code>base_pool</code></a> with the
-same <code>seeds=</code>, and <code>reserved=seeds.reserved</code> here, or a condition reading
-a registered seed is asked without it.</p>
-<p><strong>The answer is advisory.</strong>
-<a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>
-still enforces every affordance at the call and remains the authority, so a
-list built a moment before a condition flips is answered, when the stale
-entry is called, by an
-<a class="autorefs autorefs-internal" title="ActionUnavailable" href="../exceptions/#rest_framework_services.exceptions.action_unavailable.ActionUnavailable"><code>ActionUnavailable</code></a>
-carrying the <code>code</code> this would return if asked again then (or a row
-condition's, where one declared earlier refuses first). A condition driven by a
-clock has no event: it is answered when asked, and nothing announces the
-moment it flips. A transport that can push list changes to its client needs
-something else to tell it when to ask again.</p>
-<p>A <code>SelectorSpec</code> is accepted and answers <code>None</code>: its <code>affordances</code> maps
-names to <em>other</em> operations, to be projected onto its rows, and is never a
-condition on the selector itself -- so a transport passes whatever spec it
-holds rather than branching on its type and risking reading that mapping as
-the selector's own.</p>
+<p>django-service-specs' own <code>unmet_operation_affordance</code>, with <code>request</code>
+and <code>view</code> reserved beside <code>reserved</code>: <code>dispatch_spec</code> seeds both
+itself, so a condition declaring either is handed it at the call, and is
+handed it here from <code>pool</code> too. Pass <code>reserved=seeds.reserved</code> for the
+seeds the call registers, and listing time reads the names call time does.
+See the kernel's function for everything else it answers.</p>
 
 
     </div>
@@ -6709,35 +7005,13 @@ the selector's own.</p>
 
 <a href="#rest_framework_services.dispatch.aunmet_operation_affordance.aunmet_operation_affordance" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">aunmet_operation_affordance</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">pool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">reserved</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">RESERVED_POOL_SEEDS</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Affordance</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">pool</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">reserved</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">RESERVED_POOL_SEEDS</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Affordance</span> <span class="o">|</span> <span class="kc">None</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p><code>unmet_operation_affordance</code> for the async path.</p>
-<p>A callable condition is user code and may query, so the evaluation runs in
-the executor, as <code>aenforce_affordances</code> runs it. A spec with no condition
-answered at list time -- nothing in
-<a class="autorefs autorefs-internal" title="operation_affordances" href="#rest_framework_services.dispatch.operation_affordances.operation_affordances"><code>operation_affordances</code></a>
--- returns before the hop: a transport asks this for every operation it
-lists, and most declare nothing, so declaring nothing costs the async path
-nothing either.</p>
-<p><strong>Where the hop lands decides who closes what the condition opened.</strong> It is a
-thread-sensitive <code>sync_to_async</code>. Inside Django's request cycle that is the
-request's own thread, and Django closes the connections it opened when the
-request finishes. Outside it -- a long-lived agent run, a worker with its own
-event loop -- there is no request context, and unless the loop was started
-from sync code through <code>async_to_sync</code>, asgiref runs the hop on its one
-process-wide thread. Django's connections are per thread, so a connection
-opened there stays open after this returns, the event loop's thread cannot
-reach it, and every later hop that lands on that thread inherits it. A
-caller that must release what a condition opened makes its own hop and calls
-<code>unmet_operation_affordance</code> inside it, releasing the connection in that
-same hop.</p>
+        <p>Async <code>unmet_operation_affordance</code>, with <code>request</code> and <code>view</code> reserved the same way.</p>
 
 
     </div>
@@ -6757,27 +7031,26 @@ pool, or making a thread hop of its own, for most of the operations it lists.</p
 
 <a href="#rest_framework_services.dispatch.operation_affordances.operation_affordances" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">operation_affordances</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">SelectorSpec</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">spec</span><span class="p">:</span> <span class="n">ServiceSpec</span> <span class="o">|</span> <span class="n">SelectorSpec</span> <span class="o">|</span> <span class="n">SpecSource</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Affordance</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
         <p>The operation-scope affordances <code>spec</code> declares, in declaration order.</p>
-<p>The callable ones: the conditions the capability manifest calls
-<code>"operation"</code> scope, answered without a row. A condition on the row is left
-out, and so is anything on a <code>SelectorSpec</code>, which answers <code>()</code>: its
-<code>affordances</code> maps names to <em>other</em> operations, to be projected onto its
-rows, and reading that mapping as the selector's own conditions would answer
-a question about some other operation. A spec declaring none answers <code>()</code>
-too.</p>
+<p>The callable ones: the conditions answered without a row. A condition on the
+row is left out, and so is anything on a <code>SelectorSpec</code>, which answers
+<code>()</code>: its <code>affordances</code> maps names to <em>other</em> operations, to be answered
+for its rows, and reading that mapping as the selector's own conditions
+would answer a question about some other operation. A spec declaring none
+answers <code>()</code> too.</p>
 <p>A transport uses this to decide cheaply whether there is anything to ask at
-list time before it builds a pool or takes a thread hop: most operations
-declare nothing, and an empty answer means
-<a class="autorefs autorefs-internal" title="unmet_operation_affordance" href="#rest_framework_services.dispatch.unmet_operation_affordance.unmet_operation_affordance"><code>unmet_operation_affordance</code></a>
-would return <code>None</code> without running anything. Both that function and its
-async twin select their conditions here, so a transport's shortcut and the
-answer it skips cannot disagree about which conditions there are.</p>
+list time before it builds a pool: most operations declare nothing, and an
+empty answer means
+<a class="autorefs autorefs-external" href="https://artui.github.io/django-service-specs/reference/#django_service_specs.affordances.unmet_operation_affordance.unmet_operation_affordance"><code>unmet_operation_affordance</code></a>
+would return <code>None</code> without running anything. That function selects its
+conditions here, so a transport's shortcut and the answer it skips cannot
+disagree about which conditions there are.</p>
 
 
     </div>
@@ -6843,9 +7116,8 @@ that would rather not unpack it reads <code>keys.filled</code> and <code>keys.de
         <p>The names <code>provider</code> fills and those it may decline, or <code>None</code> if it does not say.</p>
 <p>The static half of the <code>kwargs=</code> provider contract, whose runtime half is
 how dispatch calls the provider. <code>ServiceSpec.kwargs</code> and
-<code>SelectorSpec.kwargs</code> are typed <code>Callable[..., ExtraT]</code>, with <code>ExtraT</code>
-documented as a <code>TypedDict</code> of the keys the provider returns, so a
-provider annotated that way says, before it runs, which names it fills. A
+<code>SelectorSpec.kwargs</code> return a mapping, and one annotated to return a
+<code>TypedDict</code> says, before it runs, which names it fills. A
 transport reads that here to build a schema that does not ask the caller
 for them, and to know which calls to refuse before dispatch, rather than
 keeping a copy of this reader.</p>
@@ -6982,7 +7254,10 @@ offered before this replaced it. Both are held by
               <div class="doc-md-description">
                 <p>The keys the provider always answers for, <code>NotRequired</code> ones
 included, since the provider owns them. A transport need not ask
-its caller for any of them.</p>
+its caller for any of them, and dispatch drops a value the
+caller sends for one once it has been checked, so the provider's
+answer is the only one: a key it then leaves out, or returns as
+<code>UNSET</code>, is absent rather than the caller's.</p>
               </div>
             </td>
           </tr>
@@ -6996,8 +7271,16 @@ its caller for any of them.</p>
                 <p>The keys whose value admits <code>UnsetType</code>
 (<code>tenant: str | UnsetType</code>). The provider may return <code>UNSET</code> for
 one, which dispatch removes from the pool, so the caller's value is
-the one the callable receives. Such a key is the caller's to send,
-but not required of it, since the provider may fill it after all.</p>
+the one the callable receives. Such a key stays the caller's: a
+transport keeps asking for it, and dispatch holds it to its
+declaration, so a required one is required of the caller even
+though the provider may fill it. A <code>filled</code> key is relaxed where
+the provider's values reach it - a selector's <code>kwargs</code> that
+selector's reads, a service spec's <code>kwargs</code> the spec's
+<code>reads</code>, and <code>input_data</code> the Validator's parameters, at the
+top level or, on a <code>many</code> spec, inside each row - and a
+<code>ServiceSpec</code> whose provider fills a parameter declared
+anywhere else is refused.</p>
               </div>
             </td>
           </tr>
@@ -7090,23 +7373,19 @@ spread service takes. Hiding a key on one callable while another delivered
 the caller's value for it would let that value decide what the marker said
 only the server decides, such as which tenant a gate checks, or which tenant a
 <code>setattr</code> loop over an open <code>**changes</code> writes onto the row.</p>
-<p>Three things follow for each name, so they always agree:</p>
-<ul>
-<li>the caller's value is dropped at every site that spreads caller input, under
-  every policy and whatever the binding's precedence (<code>strip_hidden_inputs</code>);</li>
-<li>it is not declared input (<code>declared_input_keys</code>), so <code>REJECT</code> refuses it
-  on a closed spec, and <code>spec_to_json_schema</code> does not list it;</li>
-<li>one nothing filled is not named as a missing argument (<code>caller_fillable</code>),
-  since no value the caller sends could fill it.</li>
-</ul>
+<p>Dispatch never takes the caller's value for one: the compiled spec reads no
+<code>NotClientInput</code> name, so the kernel's <code>dispatch</code> drops it under <code>IGNORE</code>
+and refuses it under <code>REJECT</code>. This set is the same answer for a transport
+that reads the spec without dispatching it: it is not declared input
+(<code>declared_input_keys</code>), and <code>spec_to_json_schema</code> does not list it.</p>
 <p><strong>The set governs the keyword pool, not an input serializer's fields.</strong> A
 field the <code>input_serializer</code> declares under an owned name stays client input:
 the schema lists it, <code>REJECT</code> admits it, and the caller's value is validated
-into <code>data</code>, the one place it reaches the service, since it is kept out of
-the spread. The two may mean different things, such as a destination tenant in
-<code>data</code> beside the server's current tenant at the gate, so the declaration is
-not refused. Held by
-<code>test_a_field_named_like_an_owned_key_stays_the_callers_input</code>.</p>
+into <code>data</code>, the one place it reaches the service: the Validator hands the
+key on by name only where the server put the field's value
+(<code>SerializerValidator</code>'s <code>server_owned</code>). The two may mean
+different things, such as a destination tenant in <code>data</code> beside the server's
+current tenant at the gate, so the declaration is not refused.</p>
 <p>A provider, a registered pool seed, <code>input_data</code> and the parameter's default
 still fill it, and so does a route capture for a selector, its preconditions
 or a service's target lookup, the pools a route capture reaches.</p>
@@ -7117,16 +7396,9 @@ advertises no key dispatch then drops and keeps every field the serializer
 validates, and pass the spec it dispatches, the service's rather than the
 nested lookup's, or a key the service or one of its preconditions hides is
 missed. <code>spec_to_json_schema</code> already does both.</p>
-<p>Each callable is one part of the union,
-held by its own test in <code>tests/dispatch/test_dispatch_hidden_inputs.py</code>:</p>
-<ul>
-<li>the selector or service's own keys:
-  <code>test_a_callers_hidden_key_never_reaches_the_selector</code>;</li>
-<li>each precondition's:
-  <code>test_a_key_a_precondition_hides_is_server_owned_for_the_whole_call</code>;</li>
-<li>the target lookup's:
-  <code>test_a_key_the_lookup_hides_never_reaches_a_service_naming_it</code>.</li>
-</ul>
+<p>Each callable is one part of the union, and
+<code>test_a_service_owns_what_its_service_preconditions_and_lookup_hide</code> names a
+key from each, so it fails without any one of them.</p>
 
 
     </div>
@@ -7173,14 +7445,10 @@ any callable whose <code>__call__</code> is a coroutine function.</p>
     <div class="doc doc-contents first">
 
         <p>Call <code>fn(**kwargs)</code> from sync code, optionally inside <code>transaction.atomic()</code>.</p>
-<p>An <code>async def</code> service is bridged transparently via <code>async_to_sync</code>,
-mirroring <code>run_selector</code>. The
+<p>An <code>async def</code> service is bridged transparently via <code>async_to_sync</code>. The
 bridge is <strong>not</strong> optional politeness: without it an async service returns its
 coroutine object to the caller un-awaited — no exception, and under
-<code>atomic=True</code> the transaction commits before the body would have run. The
-HTTP path always bridged (its own <code>dispatch_service</code> wrapper did this);
-<code>dispatch_spec</code> reached this leaf directly, so the same spec resolved over
-HTTP and returned a coroutine over MCP.</p>
+<code>atomic=True</code> the transaction commits before the body would have run.</p>
 <p>Async services under <code>atomic=True</code> route through
 <a class="autorefs autorefs-internal" title="arun_service
 
@@ -7621,12 +7889,17 @@ scoping in the selector's own queryset. Only the last branch — DRF's own
 
 
 <a href="#rest_framework_services.selectors.utils.run_selector" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_selector</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span>
+<div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">run_selector</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p>Call a selector from sync code, transparently bridging async ones.</p>
+        <p>Call a selector from sync code, transparently bridging an async one.</p>
+<p>A selector is the one callable a <code>SelectorSpec</code> may make <code>async def</code>;
+every other concept in the spec is sync-only and runs in the executor. The
+bridge keeps sync code from ever seeing an un-awaited coroutine.</p>
+<p><code>kwargs</code> is what the selector is called with, already bound: resolve it
+from a pool first, as dispatch does.</p>
 
 
     </div>
@@ -7647,13 +7920,17 @@ scoping in the selector's own queryset. Only the last branch — DRF's own
 
 <a href="#rest_framework_services.selectors.utils.arun_selector" class="headerlink" title="Permanent link">&para;</a></h2>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">arun_selector</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">Any</span><span class="p">]],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Awaitable</span><span class="p">[</span><span class="n">Any</span><span class="p">]],</span> <span class="n">kwargs</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
-        <p>Call a selector from async code; sync ones run inline.</p>
+        <p>Call a selector from async code: an <code>async def</code> one is awaited, a sync one called inline.</p>
+<p>Inline rather than in the executor, because a selector returns a queryset
+nobody has evaluated yet and building one runs no query. A sync selector
+that does query when called has to be run in the executor by its caller,
+as dispatch runs everything but the selector.</p>
 
 
     </div>
@@ -7675,10 +7952,12 @@ scoping in the selector's own queryset. Only the last branch — DRF's own
     <div class="doc doc-contents first">
 
         <p>True for Django <code>QuerySet</code> objects and <code>Manager</code> instances.</p>
-<p>The one definition of a queryset-shaping target: what the shaping fields may
-be applied to, and what a RETRIEVE selector materializes from. Tested by type
-rather than by <code>hasattr(…, "first")</code>, which would also match a domain
-object that happens to expose <code>first</code>. <code>QuerySet</code> subclasses all pass.</p>
+<p>The one definition of a queryset-shaping target: what the shaping fields
+may be applied to, what a RETRIEVE selector materializes from, and what
+<code>paginate_output</code> pages by counting. Tested by type rather than by
+<code>hasattr(…, "first")</code>, which would also match a domain object that
+happens to expose <code>first</code>. <code>QuerySet</code> subclasses all pass, and every
+<code>BaseManager</code>, so one built with <code>BaseManager.from_queryset</code> does too.</p>
 
 
     </div>
@@ -7700,18 +7979,16 @@ object that happens to expose <code>first</code>. <code>QuerySet</code> subclass
     <div class="doc doc-contents first">
 
         <p>Collapse a RETRIEVE selector's return to the single instance, or <code>None</code>.</p>
-<p>The one definition of what <code>kind=RETRIEVE</code> means once the selector has run:
-a queryset materializes through <code>.first()</code> — so an author can write
+<p>The one definition of what <code>kind=RETRIEVE</code> means once the selector has
+run: a queryset materializes through <code>.first()</code> - so an author can write
 <code>selector=lambda *, pk: Model.objects.filter(pk=pk)</code> and still get the
-spec's shaping applied first — and anything else passes through as the
-resolved object. What each caller does with a <code>None</code> differs; how the value
-is arrived at does not.</p>
-<p>Exported for a transport that runs a <code>RETRIEVE</code> selector without
-<code>dispatch_spec</code> -- a chain step running each spec itself -- so the row its
-object-level permissions judge is the row the core would have resolved. Run
-on a queryset rather than the row, <code>enforce_permissions</code> skips
-<code>has_object_permission</code> by design, since a set is authorized per-set.
-Blocks on the query, so call <code>amaterialize_retrieve</code> from a coroutine.</p>
+spec's shaping applied first - and anything else passes through as the
+resolved object. What each caller does with a <code>None</code> differs; how the
+value is arrived at does not.</p>
+<p>Exported for a transport that runs a RETRIEVE selector without
+<code>dispatch</code>, so the row it checks or presents is the row dispatch would
+have resolved. Blocks on the query, so call <code>amaterialize_retrieve</code>
+from a coroutine.</p>
 
 
     </div>
@@ -7737,13 +8014,33 @@ Blocks on the query, so call <code>amaterialize_retrieve</code> from a coroutine
     <div class="doc doc-contents first">
 
         <p>Async twin of <code>materialize_retrieve</code>, awaiting <code>.afirst()</code>.</p>
-<p>Separate because the materialization <em>is</em> the query — <code>.first()</code> would
-block the event loop. Same rule otherwise; keep the two in step.</p>
+<p>Separate because the materialization <em>is</em> the query: <code>.first()</code> would
+block the event loop, and raises <code>SynchronousOnlyOperation</code> there. The
+same rule otherwise; keep the two in step.</p>
 
 
     </div>
 
 </div><h3 id="apply_queryset_shaping"><code>apply_queryset_shaping</code><a class="headerlink" href="#apply_queryset_shaping" title="Permanent link">&para;</a></h3>
+<p>drfs' signature over the kernel's <code>shape_queryset</code>, for a caller holding a view
+and a request rather than a spec. Two things differ from the releases before
+the kernel:</p>
+<ul>
+<li><strong><code>filter_set</code> must be a django-filter <code>FilterSet</code>.</strong> One duck-typed on
+  <code>(data, queryset) -&gt; .qs</code> is refused with <code>ImproperlyConfigured</code>. Each value
+  is coerced to the type its filter declares, and a repeated query-string key
+  reaches a filter taking several values as a list.</li>
+<li><strong>Invalid filter data raises the kernel's <code>InvalidArguments</code></strong>
+  (<code>django_service_specs.parameters.invalid_arguments</code>), keyed as the
+  <code>FilterSet</code> keys its errors, and nothing here translates it. It is not a DRF
+  exception, so a caller inside a DRF view that wants a 400 translates it itself,
+  with
+  <a href="../service-specs/#translate_dispatch_errors"><code>translate_dispatch_errors</code></a>.
+  <code>dispatch_spec</code>, and every view that dispatches through it, shapes inside the
+  kernel's <code>dispatch</code> and translates for you, answering 400.</li>
+</ul>
+<p><code>extend_queryset</code> is still called as <code>extend_queryset(qs, view, request)</code>, by
+position; one answering with an awaitable is refused.</p>
 
 
 <div class="doc doc-object doc-function">
@@ -7771,9 +8068,13 @@ block the event loop. Same rule otherwise; keep the two in step.</p>
 
     <div class="doc doc-contents first">
 
-        <p>Apply the five shaping fields to <code>qs</code>.</p>
-<p>The order is fixed: the declarative fields first (in declaration order),
-then <code>extend_queryset</code>, so the user callable always sees the fully
+        <p>Apply the five shaping fields to <code>qs</code>, through the kernel's <code>shape_queryset</code>.</p>
+<p>drfs' signature over django-service-specs' shaping, for a caller holding a
+view and a request rather than a spec: the fields become a kernel
+<code>SelectorSpec</code> (with a stand-in selector it never runs), and <code>view</code>,
+<code>request</code> and the filter's arguments its pool. The order is the kernel's:
+the declarative fields first (in declaration order), then
+<code>extend_queryset</code>, so the user callable always sees the fully
 statically-shaped queryset, and finally <code>filter_set</code>, so filtering
 composes with shaping and runs before the retrieve <code>.first()</code>
 materialization the caller does next.</p>
@@ -7792,18 +8093,15 @@ materialization the caller does next.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                <code>request</code>
+                <code>extend_queryset</code>
             </td>
             <td>
-                  <code><span title="rest_framework.request.Request">Request</span></code>
+                  <code><span title="typing.Any">Any</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Passed to <code>extend_queryset</code>, and into the <code>filter_set</code>
-constructor when it declares a <code>request</code> parameter — so a
-request-scoped <code>FilterSet</code> sees the same <code>self.request</code> it would
-behind <code>DjangoFilterBackend</code>. A bare <code>(data, queryset)</code> stand-in
-is called exactly as before.</p>
+                <p>Called as <code>extend_queryset(qs, view, request)</code>, by
+position, as it always was; the kernel binds its own by name.</p>
               </div>
             </td>
             <td>
@@ -7819,9 +8117,10 @@ is called exactly as before.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Applied by duck typing as
-<code>filter_set(data=filter_data, queryset=qs).qs</code>, after validation
-(mirroring <code>DjangoFilterBackend</code>'s 400 on invalid filter input).</p>
+                <p>A django-filter <code>FilterSet</code>, validated before <code>.qs</code> is
+read, and handed <code>request</code> through its constructor, so a
+request-scoped one sees the <code>self.request</code> it would behind
+<code>DjangoFilterBackend</code>.</p>
               </div>
             </td>
             <td>
@@ -7837,9 +8136,12 @@ is called exactly as before.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The flat <code>{field: value}</code> mapping the FilterSet reads.
-<code>None</code> falls back to <code>request.query_params</code> — the HTTP view
-path; a transport-neutral caller passes its own params.</p>
+                <p>The mapping the filter's arguments are read from, each of
+its filters' names and nothing else. <code>None</code> falls back to
+<code>request.query_params</code>, the HTTP view path. A <code>QueryDict</code> is
+read flat as dispatch reads a query string: a repeated key as a list
+where the filter takes several values, and each value coerced to the
+type the filter declares.</p>
               </div>
             </td>
             <td>
@@ -7902,23 +8204,28 @@ offending callable (<code>"SelectorSpec.selector"</code> vs
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="django.core.exceptions.ImproperlyConfigured">ImproperlyConfigured</span></code>
+                  <code><span title="ImproperlyConfigured">ImproperlyConfigured</span></code>
             </td>
             <td>
               <div class="doc-md-description">
                 <p>Shaping is configured but <code>qs</code> is not a Django
-queryset — loud failure beats a stray <code>AttributeError</code> deep in DRF
-rendering.</p>
+queryset; <code>filter_set</code> is not a django-filter <code>FilterSet</code> (one
+duck-typed on <code>(data, queryset) -&gt; .qs</code> is refused); or
+<code>extend_queryset</code> answered with an awaitable.</p>
               </div>
             </td>
           </tr>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="rest_framework.exceptions.ValidationError">ValidationError</span></code>
+                  <code><span title="InvalidArguments">InvalidArguments</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>filter_set</code> rejected <code>filter_data</code>.</p>
+                <p>The kernel's, where <code>filter_set</code> refused its data or
+a value no integer column can hold, keyed as the <code>FilterSet</code> keys
+its errors. It reaches the caller as the kernel raised it, not as
+DRF's <code>ValidationError</code>: nothing here translates it, so a caller
+inside a DRF view that wants a 400 translates it itself.</p>
               </div>
             </td>
           </tr>
@@ -7929,12 +8236,23 @@ rendering.</p>
     </div>
 
 </div><h2 id="pool-seeds">Pool seeds<a class="headerlink" href="#pool-seeds" title="Permanent link">&para;</a></h2>
-<p>Every kwargs pool this package builds for a dispatched spec starts from
-<code>base_pool</code> — the HTTP view layer and off-HTTP <code>dispatch_spec</code> alike — so a spec
-callable that declares a seed behaves the same over either.</p>
+<p>Every kwargs pool the kernel builds for a dispatched spec starts from
+<code>base_pool</code>, whether <code>dispatch_spec</code> was called by an HTTP view or by a
+transport off HTTP, so a spec callable that declares a seed behaves the same
+over either. <code>request</code> is not one of its parameters: <code>dispatch_spec</code> registers
+<code>request</code> and <code>view</code> as seeds of each call, so a project registering either in
+<code>pool_seeds</code> is refused with <code>ImproperlyConfigured</code>. A falsy progress reporter
+is kept rather than swapped for <code>null_progress</code>.</p>
+<p>A parameter named like a seed the call registers is the seed's, on a selector,
+a target lookup or a spread service as on a service: the seed fills it, and a
+caller's value of the name is dropped rather than reaching it. <code>dispatch_spec</code>
+compiles that per call, from the <code>pool_seeds</code> it is handed. <code>kernel_spec(spec)</code>
+knows no project's seeds, so the kernel's own <code>dispatch</code>, handed the same seeds
+for that compiled spec, refuses the parameter as an argument meeting a seed. A
+name declared in the spec's <code>reads</code> is refused by both.</p>
 <p><code>base_pool</code> is a builder, not a gate, and nothing checks a pool assembled
 elsewhere. <strong>If you are writing a transport adapter, build your pool by calling
-it</strong> — <code>base_pool(user=…, request=…, **your_own_entries)</code> — rather than writing a
+it</strong> — <code>base_pool(user=…, **your_own_entries)</code> — rather than writing a
 dict literal of your own:</p>
 <ul>
 <li>A literal that omits a seed carries no trace of it. <code>resolve_callable_kwargs</code>
@@ -7945,7 +8263,7 @@ dict literal of your own:</p>
   documented <code>progress: ProgressReporter</code> form and never see that anything is
   missing until a pool without it comes along.</li>
 <li>Spreading your own entries through <code>**extra</code> makes a name collision loud. An
-  entry called <code>user</code> or <code>request</code> raises <code>TypeError</code> at the <code>base_pool</code> call;
+  entry called <code>user</code> raises <code>TypeError</code> at the <code>base_pool</code> call;
   in a dict literal the same entry silently outranks the value your transport
   authenticated.</li>
 </ul>
@@ -7962,39 +8280,49 @@ dict literal of your own:</p>
 <div class="language-python doc-signature highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">base_pool</span><span class="p">(</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="o">*</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">user</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">request</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">progress</span><span class="p">:</span> <span class="n">ProgressReporter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">seeds</span><span class="p">:</span> <span class="n">PoolSeeds</span> <span class="o">=</span> <span class="n">DEFAULT_POOL_SEEDS</span><span class="p">,</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="o">**</span><span class="n">extra</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">progress</span><span class="p">:</span> <span class="n">ProgressReporter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">seeds</span><span class="p">:</span> <span class="n">PoolSeeds</span> <span class="o">=</span> <span class="n">DEFAULT_POOL_SEEDS</span><span class="p">,</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="o">**</span><span class="n">extra</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 </span></code></pre></div>
 
     <div class="doc doc-contents first">
 
         <p>The seeds a dispatched callable's kwargs pool carries, on every transport.</p>
-<p>Every pool this package builds for a dispatched spec routes through here — the
-HTTP view layer and off-HTTP
-<a class="autorefs autorefs-internal" title="dispatch_spec" href="#rest_framework_services.dispatch.dispatch_spec.dispatch_spec"><code>dispatch_spec</code></a>
-alike — so a spec callable that declares a seed behaves the same whichever of
-them dispatched it.</p>
-<p>That is a property of the pools built here, not a rule the framework can
-enforce on its callers: this is a builder, not a gate. A transport adapter that
-assembles a pool as a dict literal of its own carries exactly the keys it wrote
-there, because <code>resolve_callable_kwargs</code> forwards only keys the pool actually
-has. A callable declaring a seed the literal omitted then raises <code>TypeError</code>
-at call time rather than running — <code>progress</code> most often, since it is the seed
-with a default and so the one nobody remembers.</p>
-<p><strong>An adapter that dispatches callables through this package must build its pool
-from this function</strong>, with its own entries spread in —
-<code>base_pool(user=…, request=…, **own_entries)</code> — rather than restating the
-seeds. Routing those entries through <code>**extra</code> is also what makes a name
-collision loud: an entry called <code>user</code> or <code>request</code> raises <code>TypeError</code>
-here, where in a dict literal it would quietly outrank the value the transport
+<p>Every pool <code>dispatch</code> and <code>adispatch</code> build routes through here, so a
+spec callable that declares a seed behaves the same whichever entry point
+resolved it.</p>
+<p>That is a property of the pools built here, not a rule the kernel can
+enforce on its callers: this is a builder, not a gate. A transport adapter
+that assembles a pool as a dict literal of its own carries exactly the keys
+it wrote there, because <code>resolve_callable_kwargs</code> forwards only keys the
+pool actually has. A callable declaring a seed the literal omitted then
+raises <code>TypeError</code> at call time rather than running - <code>progress</code> most
+often, since it is the seed with a default and so the one nobody remembers.</p>
+<p>There is no <code>request</code> entry here: this is the kernel, and off HTTP there
+is no request to seed. An HTTP adapter that wants one registers it as its
+own seed through <code>PoolSeeds</code>, the same way any other ambient value is
+added.</p>
+<p>A seed resolving to an awaitable is refused with <code>ImproperlyConfigured</code>
+and never enters the pool. <code>PoolSeeds</code> refuses an <code>async def</code>
+resolver when it is registered, but a plain <code>def</code> handing back a
+coroutine - a decorated <code>async def</code>, a partial over one - looks sync
+until it answers. Nothing awaits a pool entry, and a coroutine is truthy,
+so a condition reading it would read an unmet condition as met.</p>
+<p><code>progress</code> is the caller's reporter, and defaults to <code>null_progress</code>
+rather than to <code>None</code>, so a declared reporter is always callable - see
+<code>ProgressReporter</code>. Only <code>None</code> is replaced: a reporter that happens to
+be falsy, such as a list-backed recorder that is empty until its first
+report, is seeded as it is, where djangorestframework-services' <code>or</code>
+would swap it for <code>null_progress</code> and drop every report. A seed's
+resolver sees it like any other entry.</p>
+<p><strong>An adapter that dispatches callables through this package must build its
+pool from this function</strong>, with its own entries spread in —
+<code>base_pool(user=…, **own_entries)</code> — rather than restating the seeds.
+Routing those entries through <code>**extra</code> is also what makes a name
+collision loud: an entry called <code>user</code> raises <code>TypeError</code> here, where in
+a dict literal it would quietly outrank the value the transport
 authenticated.</p>
-<p><code>progress</code> defaults to
-<a class="autorefs autorefs-internal" title="null_progress" href="#rest_framework_services.dispatch.null_progress.null_progress"><code>null_progress</code></a>
-rather than to <code>None</code>, so a declared reporter is always callable — see
-<a class="autorefs autorefs-internal" title="ProgressReporter" href="../types/#rest_framework_services.types.progress_reporter.ProgressReporter"><code>ProgressReporter</code></a>.</p>
 <p><code>seeds</code> is the project's own registry
 (<a class="autorefs autorefs-internal" title="PoolSeeds
 
@@ -8002,13 +8330,12 @@ rather than to <code>None</code>, so a declared reporter is always callable — 
   
       dataclass
   " href="../types/#rest_framework_services.types.pool_seeds.PoolSeeds"><code>PoolSeeds</code></a>), resolved
-into every pool this builds. It is the <strong>supported</strong> way to add an entry, and
-the difference from spreading one through <code>**extra</code> is not convenience: a
-registered name is also reserved, so client input cannot occupy it, and is
-exempt from unknown-argument accounting. An <code>**extra</code> entry gets neither —
-which on a selector, where no validator stands in front of the spread, means
-a caller can supply it. Spread an entry that is genuinely per-call; register
-one that is ambient.</p>
+into every pool this builds. It is the <strong>supported</strong> way to add an entry,
+and the difference from spreading one through <code>**extra</code> is not
+convenience: a registered name is also reserved, so dispatch refuses a spec
+that declares an argument by that name rather than letting the two meet in
+one pool. An <code>**extra</code> entry has no such protection. Spread an entry that
+is genuinely per-call; register one that is ambient.</p>
 
 
     </div>
@@ -8038,15 +8365,15 @@ one that is ambient.</p>
 <a class="autorefs autorefs-internal" title="ProgressReporter" href="../types/#rest_framework_services.types.progress_reporter.ProgressReporter"><code>ProgressReporter</code></a>
 a transport with nowhere to send progress uses.</p>
 <p>Seeded by <a class="autorefs autorefs-internal" title="base_pool" href="#rest_framework_services.dispatch.base_pool.base_pool"><code>base_pool</code></a>
-whenever the caller supplied no reporter, which is every HTTP request, every test,
-and every off-HTTP dispatch from a transport that has no progress channel of its
-own.</p>
+whenever the caller supplied no reporter, which is every dispatch from a
+transport with no progress channel of its own, every HTTP request, and every
+test.</p>
 <p><strong>The default is what makes the seed usable.</strong> Without it, a service
 declaring <code>progress</code> would work over one transport and raise a
 <code>TypeError</code> over the others, so nobody could declare it in code meant to
-be shared — which is the entire premise of writing a service once. Discarding
-the report is the honest behaviour for a caller that cannot forward it;
-refusing the call is not.</p>
+be shared - which is the entire premise of writing a service once.
+Discarding the report is the honest behaviour for a caller that cannot
+forward it; refusing the call is not.</p>
 
 
     </div>

@@ -1192,6 +1192,8 @@
       
         
       
+        
+      
     
     
     
@@ -1459,6 +1461,34 @@
     
   
     Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
   
 
     
@@ -1779,8 +1809,6 @@ also take:</p>
   written from <code>data[relation]</code>, one spec class per kind, in the order the
   kind dictates rather than the order the map is spelled in. See the
   <a href="../recipes/nested-writes/">nested-writes recipe</a>.</li>
-<li><strong><code>children: Mapping[str, ChildSpec] | None</code></strong> — the reverse-FK alias for
-  <code>relations</code>, under the name it shipped as. A name declared in both raises.</li>
 <li><strong><code>context: Mapping[str, Any] | None</code></strong> — an <strong>opaque</strong> caller pool
   forwarded into the kwargs of any per-child service a <code>ChildSpec</code>
   declares. The helper never reads it; it exists so per-row work

@@ -1182,6 +1182,8 @@
       
         
       
+        
+      
     
     
     
@@ -1469,6 +1471,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../reference/jsonschema/" class="md-nav__link">
         
   
@@ -1734,6 +1764,19 @@ round-trip where the ORM allows it.</p>
 <p><code>POST</code> a JSON array; you get a <code>201</code> with the rendered array. Under
 <code>atomic=True</code> (the default) any item's <code>ServiceError</code> rolls the whole batch
 back.</p>
+<p>A refused body is answered with the list serializer's own errors, in the shape
+the installed DRF gives (a mapping of the failing rows' indexes from DRF 3.18, a
+list below it). Over a live view the <code>ListSerializer</code> alone bounds the body,
+through its own <code>allow_empty</code>, <code>min_length</code> and <code>max_length</code>, and a body it
+sets no <code>max_length</code> for takes any number of rows.</p>
+<p>Off HTTP, and on an <code>OfflineServiceView</code>, the kernel checks the list first and
+takes its bounds from the same <code>ListSerializer</code>; where it sets no
+<code>max_length</code>, at most 1000 rows are accepted, or what the
+<code>SERVICE_SPECS_MAX_ARRAY_LENGTH</code> setting says (<code>None</code> bounds nothing), and a
+longer list is refused under <code>non_field_errors</code>. A <code>ListSerializer</code> that cannot
+be built without a request, such as one whose item serializer reads
+<code>context["request"]</code> in <code>__init__</code>, is held to that default whatever
+<code>max_length</code> it sets, because its bounds cannot be read.</p>
 <h3 id="off-http-the-list-as-one-named-argument">Off HTTP: the list as one named argument<a class="headerlink" href="#off-http-the-list-as-one-named-argument" title="Permanent link">&para;</a></h3>
 <p>A tool call's arguments are always a JSON object, so a caller that only sends
 named arguments can never send the bare array an HTTP body is. For that caller
@@ -1773,22 +1816,34 @@ this package supports, where DRF below 3.18 would otherwise report a list with
 an empty entry for each valid item:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span><span class="nt">&quot;books&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;1&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;This field may not be blank.&quot;</span><span class="p">]}}}</span>
 </span></code></pre></div>
-<p>The argument missing, <code>null</code>, not a list, empty when the list may not be, or
-outside its length bounds answers the way that field would:
-<code>{"books": ["This field is required."]}</code>, or
-<code>{"books": {"non_field_errors": ["This list may not be empty."]}}</code>. An argument
-sent beside the list is refused as <code>UnknownArguments.REJECT</code> refuses one,
-whatever <code>unknown_arguments</code> says, because the service receives only the list
-and the argument would have nowhere to go; the policy still decides what
-happens to an undeclared key inside an item. A refusal the service or a
+<p>The argument missing answers <code>{"books": ["This field is required."]}</code>. <code>null</code>
+or a value that is not a list is refused under the argument in the kernel's
+words, such as <code>{"books": ["Expected an array."]}</code>, and so, with no view or an
+<code>OfflineServiceView</code>, is a list outside its length bounds. Where a transport
+dispatches with its own live view, the <code>ListSerializer</code> refuses that list, as
+<code>{"books": {"non_field_errors": ["Ensure this field has no more than 2 elements."]}}</code>,
+before it reads a row.
+A row that is not an object is refused at its index in DRF's words,
+<code>{"books": {"1": {"non_field_errors": ["Invalid data. Expected a dictionary, but got int."]}}}</code>,
+and that refusal leaves the list's own checks to the rows sent, as DRF's do:
+its length bounds count that row, and its list-level <code>validate()</code> does not
+run. Arguments that are not an object are refused as
+<code>{"non_field_errors": ["Invalid data. Expected a dictionary, but got list."]}</code>.
+An argument sent beside the list that the spec declares no <code>reads</code> entry for is
+refused under every <code>unknown_arguments</code> policy, as
+<code>{"non_field_errors": ["Unexpected argument(s): 'zzz'."]}</code>, because the service
+receives only the list and the argument would have nowhere to go. Under <code>REJECT</code>
+it is refused before the items are read; under <code>IGNORE</code>, once every item is
+valid, so an item's refusal comes first. A reserved pool seed sent there, such as
+<code>user</code>, is not refused. The policy decides an undeclared key inside an item:
+dropped under <code>IGNORE</code>, refused inside that item under <code>REJECT</code>. A refusal the service or a
 precondition raises is passed on as raised.</p>
 <p>A spec that took a list through that wrapper can declare <code>many=True</code> instead
 and keep its error wire, as long as the wrapper's field was named <code>items</code> or
 the spec names it with <code>many_argument</code>. Below DRF 3.18 the wrapper itself
-reported item errors as a list, so there the index mapping is new. Two calls the
-wrapper let through are refused: an argument beside the list under any policy
-but <code>REJECT</code>, and, under <code>REJECT</code>, an undeclared key inside an item, which the
-wrapper never looked at.</p>
+reported item errors as a list, so there the index mapping is new. One call the
+wrapper let through is refused: under <code>REJECT</code>, an undeclared key inside an
+item, which the wrapper never looked at.</p>
 <h2 id="collection_selector_spec-operate-on-a-filtered-set"><code>collection_selector_spec</code> — operate on a filtered set<a class="headerlink" href="#collection_selector_spec-operate-on-a-filtered-set" title="Permanent link">&para;</a></h2>
 <p>The LIST-kind twin of <code>instance_selector_spec</code>. It resolves a <strong>scoped set</strong>
 (via the selector + <a href="../selector-filtering/"><code>filter_set</code></a>) and seeds it into the

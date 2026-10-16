@@ -1220,6 +1220,8 @@
       
         
       
+        
+      
     
     
     
@@ -1487,6 +1489,34 @@
     
   
     Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
   
 
     
@@ -1800,17 +1830,22 @@ exists for the two cases <code>filter_backends</code> can't serve:</p>
    "latest matching", a stats-style read scoped by <code>?since=…</code> — had no declarative
    hook and had to hand-roll the filtering inside the selector. <code>filter_set</code> narrows
    the queryset before the framework <code>.first()</code>s it.</li>
-<li><strong>Transport-neutral declaration.</strong> A <code>FilterSet</code> is fundamentally
-   <code>(data, queryset) -&gt; .qs</code> — a contract that doesn't care where <code>data</code> comes
+<li><strong>Transport-neutral declaration.</strong> A <code>FilterSet</code>'s filters are declared as
+   the selector's arguments, so the contract doesn't care where the values come
    from. The same <code>SelectorSpec</code> can drive an alternate transport (the
    <code>djangorestframework-mcp-server</code> bridge), where the values arrive in a tool-call
    args dict instead of <code>request.query_params</code>. Declaring the filter on the spec
    means it's written once and consumed by every transport, instead of each one
    re-implementing it.</li>
 </ol>
-<p>The library applies the FilterSet by <strong>duck typing</strong> — it imports nothing, so
-<code>filter_set</code> adds no dependency. You only need <code>django-filter</code> installed to <em>write</em>
-the FilterSet:</p>
+<p><code>filter_set</code> must be a real django-filter <code>FilterSet</code>: its <code>base_filters</code> are what
+the selector's arguments are read from. An object duck-typed on
+<code>(data, queryset) -&gt; .qs</code> is refused with <code>ImproperlyConfigured</code> when the spec is
+compiled. A target lookup's filter sharing its name with a writable field of the
+input serializer is refused too, since one name would then come from two sources:
+by <code>as_view()</code> where the serializer can be built with no request, and by each
+call otherwise, off HTTP included. The library imports
+nothing from <code>django-filter</code> itself, so install it to write the FilterSet:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span>django-filter
 </span></code></pre></div>
 <h2 id="define-the-pieces">Define the pieces<a class="headerlink" href="#define-the-pieces" title="Permanent link">&para;</a></h2>
@@ -1934,7 +1969,18 @@ never off the request body, even on a <code>PUT</code> / <code>PATCH</code> that
 what keeps the two channels honest: the body is validated by <code>input_serializer</code>,
 and merging the two would let a query parameter satisfy a serializer field (and a
 body field decide which rows are writable). Off HTTP, where a transport hands the
-dispatch one flat mapping, that mapping is both channels and nothing changes.</p>
+dispatch one flat mapping, the filter reads its own names out of that mapping and
+nothing else, and refusing a filter named like an input field is what keeps one
+key from being both.</p>
+<p>The <code>filter_set</code> on an <code>output_selector_spec</code> is different: it shapes the
+response's re-read, after the service has run. It is bound to the call's query
+string, or <code>filter_data</code> off HTTP, whole and as passed, or to an empty mapping
+when there is none, after the re-read's <code>extend_queryset</code>; a value it refuses is
+a 400 while the write stands. So <code>PATCH /posts/1/?published=false</code> answers <code>204</code>
+with no body once the service has published the row. Set
+<code>ServiceSpec(output_filter_from_call=False)</code> when the call's filters are meant for
+the target lookup alone: the re-read's <code>filter_set</code> is then bound to an empty
+mapping on every call.</p>
 <p>Note what a body-bound filter would have done, since it is quiet: a <code>FilterSet</code>'s
 fields are all optional, so a mapping containing none of them validates cleanly
 and <code>.qs</code> comes back <strong>unfiltered</strong> — a scoping rule that never narrows anything
@@ -1946,17 +1992,23 @@ contract that bites is validation. A <code>FilterSet</code> validates its bound 
 queryset in django-filter's default non-strict mode. So a bad <code>?field=</code> value — a
 non-numeric <code>min_views</code> above, a <code>ChoiceFilter</code> value outside its choices —
 would quietly answer <code>200</code> with every row instead of the <code>400</code> the backend gives.</p>
-<p><code>filter_set</code> validates, and raises the FilterSet's <code>errors</code> as a DRF
-<code>ValidationError</code>:</p>
+<p><code>filter_set</code> validates before <code>.qs</code> is read, and refuses the FilterSet's
+<code>errors</code> as the kernel's <code>InvalidArguments</code>, which a view and
+<a href="../../reference/dispatch/"><code>dispatch_spec</code></a> translate to a 400:</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>GET /posts/?min_views=lots      → 400 {&quot;min_views&quot;: [&quot;Enter a number.&quot;]}
 </span></code></pre></div>
-<p>The errors render in the usual <code>{field: [message]}</code> shape, because a Django form
-<code>ErrorDict</code> is what DRF already knows how to render — which is how the core stays
-free of any <code>django-filter</code> import.</p>
-<p>This is enforced only when the object you hand to <code>filter_set</code> actually exposes
-<code>is_valid</code>. A bare <code>(data, queryset) -&gt; .qs</code> duck-typed stand-in that doesn't opt
-into validation keeps its pass-through behaviour — it never had a form to
-validate.</p>
+<p>The errors keep the usual <code>{field: [message]}</code> shape. Query-string values are
+coerced to the type each filter declares before the FilterSet sees them, so
+<code>?published=true</code> is a boolean by the time it is validated. Off HTTP there is no
+string to coerce: a <code>BooleanFilter</code> takes <code>True</code>, and the string <code>"true"</code> is
+refused with <code>{"published": ["Expected a boolean."]}</code>.</p>
+<p>A filter taking several values comma-separated - <code>OrderingFilter</code>, <code>BaseInFilter</code>,
+<code>BaseRangeFilter</code> - takes the string its widget splits as well as a list, so
+<code>{"ordering": "-created,title"}</code> orders as <code>["-created", "title"]</code> does and <code>""</code>
+orders by nothing, off HTTP as over it. A <code>MultipleChoiceFilter</code> takes a list
+only. <code>None</code> for any filter narrows nothing. A refused value is answered as the
+<code>FilterSet</code> answers it, a flat list under the filter's name: <code>{"ordering":
+["Select a valid choice. bogus is not one of the available choices."]}</code>.</p>
 <h2 id="the-request-inside-a-filter_set">The request inside a <code>filter_set</code><a class="headerlink" href="#the-request-inside-a-filter_set" title="Permanent link">&para;</a></h2>
 <p>A <code>django-filter</code> <code>FilterSet</code> can reach into <code>self.request</code> — to scope by the
 caller (<code>self.request.user</code>), to build a request-aware choice queryset
@@ -1965,9 +2017,7 @@ override. <code>DjangoFilterBackend</code> fills <code>self.request</code> view-
 fills it too.</strong> The dispatcher forwards the request into the FilterSet whenever its
 constructor declares one (<code>django-filter</code>'s <code>__init__</code> does), so a request-scoped
 FilterSet behaves the same on a spec as behind the backend, instead of seeing
-<code>self.request is None</code> and raising <code>AttributeError</code> (a 500). A bare
-<code>(data, queryset)</code> duck-typed stand-in that doesn't declare <code>request</code> is called
-exactly as before — nothing is forced on it.</p>
+<code>self.request is None</code> and raising <code>AttributeError</code> (a 500).</p>
 <p>Forwarding is safe on every transport because the request is <em>always present</em> at
 the point filtering runs — it's the same object <code>extend_queryset</code> already receives
 — and its fidelity is well-defined:</p>
@@ -2010,9 +2060,7 @@ FilterSet you know is HTTP-only.</p>
 <p>Why forward at all, rather than keep filters request-free? Because the request is
 already threaded to every other queryset-shaping hook, so withholding it from
 <code>filter_set</code> alone was the inconsistency — it made a FilterSet that worked behind
-<code>DjangoFilterBackend</code> fail once moved onto a spec. Forwarding closes that gap while
-the signature gate preserves the transport-neutral <code>(data, queryset) -&gt; .qs</code>
-contract for stand-ins that want nothing to do with a request.</p>
+<code>DjangoFilterBackend</code> fail once moved onto a spec. Forwarding closes that gap.</p>
 <h2 id="openapi-schema">OpenAPI schema<a class="headerlink" href="#openapi-schema" title="Permanent link">&para;</a></h2>
 <p>With the <a href="../../openapi/">OpenAPI integration</a> enabled (<code>enable_openapi()</code> +
 drf-spectacular), a spec-level <code>filter_set</code> documents the <strong>same</strong> query

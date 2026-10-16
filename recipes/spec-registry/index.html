@@ -1181,6 +1181,8 @@
       
         
       
+        
+      
     
     
     
@@ -1468,6 +1470,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../reference/jsonschema/" class="md-nav__link">
         
   
@@ -1721,6 +1751,11 @@ also no single object to answer "what operations does this project expose?".</p>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;get_order&quot;</span><span class="p">,</span> <span class="n">order_detail_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;read&quot;</span><span class="p">,</span> <span class="s2">&quot;public&quot;</span><span class="p">))</span>
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;refund_order&quot;</span><span class="p">,</span> <span class="n">refund_spec</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;write&quot;</span><span class="p">,</span> <span class="s2">&quot;admin&quot;</span><span class="p">))</span>
 </span></code></pre></div>
+<p><code>register()</code> compiles each spec to django-service-specs' and refuses one that
+declares no permissions, with <code>ImproperlyConfigured</code>, so a spec reaches a
+non-HTTP transport only guarded: give each one <code>permission_classes</code>, and
+<code>permission_classes=[]</code> where anyone may run it. The registry is the kernel's
+<code>SpecRegistry</code>, so it takes the kernel's own specs beside these.</p>
 <p>Each transport then reads that one source. Adoption needs no support from the
 adapter: <code>specs()</code> returns the <code>dict[str, spec]</code> they already accept.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">toolset</span> <span class="o">=</span> <span class="n">SpecToolset</span><span class="p">(</span><span class="n">specs</span><span class="o">=</span><span class="n">registry</span><span class="o">.</span><span class="n">specs</span><span class="p">())</span>
@@ -1818,9 +1853,9 @@ which means it belongs at the binding, next to the other per-transport knobs.</p
 between processes rather than reshuffling for clients that diff it.</p>
 <p><code>mutations()</code> and <code>queries()</code> discriminate by type rather than by a stored flag,
 and together they cover every entry — which is why <code>register()</code> rejects anything
-that is neither a <code>ServiceSpec</code> nor a <code>SelectorSpec</code>. A <code>PolymorphicServiceSpec</code>
-is rejected too, with a pointer at the supported shape: register each of its
-variants under its own name, since a transport that projects one operation per
+that is neither a <code>ServiceSpec</code> nor a <code>SelectorSpec</code>, of this package or the
+kernel, with <code>TypeError</code>. A <code>PolymorphicServiceSpec</code>
+is rejected the same way: register each of its variants under its own name, since a transport that projects one operation per
 name wants one operation per variant, not a union.</p>
 <h2 id="the-whole-surface-as-one-document">The whole surface as one document<a class="headerlink" href="#the-whole-surface-as-one-document" title="Permanent link">&para;</a></h2>
 <p><code>capability_manifest(registry)</code> describes every operation the registry holds —
@@ -1834,7 +1869,7 @@ guard it — as one JSON-native document:</p>
 </span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="c1"># {&quot;name&quot;: &quot;list_orders&quot;, &quot;kind&quot;: &quot;query&quot;, &quot;tags&quot;: [&quot;public&quot;, &quot;read&quot;],</span>
 </span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="c1">#  &quot;idempotent&quot;: None, &quot;input_schema&quot;: {...}, &quot;output_schema&quot;: {...},</span>
 </span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1">#  &quot;guards&quot;: [{&quot;source&quot;: &quot;orders.permissions.IsStaff&quot;}]}</span>
-</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">manifest</span><span class="p">[</span><span class="s2">&quot;unguarded&quot;</span><span class="p">]</span>  <span class="c1"># names whose permission_classes is None</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="n">manifest</span><span class="p">[</span><span class="s2">&quot;unguarded&quot;</span><span class="p">]</span>  <span class="c1"># always empty: the registry refuses an unguarded spec</span>
 </span></code></pre></div>
 <p>A mutation that declares <a href="../affordances/">affordances</a> lists them too, as
 <code>"affordances": [{"code": "order_shipped", "reason": "A shipped order cannot be

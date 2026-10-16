@@ -1192,6 +1192,8 @@
       
         
       
+        
+      
     
     
     
@@ -1459,6 +1461,34 @@
     
   
     Spec registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/service-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service specs on the kernel
   
 
     
@@ -1872,7 +1902,9 @@ service's own loop, where you can report which item failed.</p>
   deep in dispatch, which surfaces as a 500.</li>
 <li><code>preconditions</code> on a <em>nested</em> spec (<code>instance_selector_spec</code>,
   <code>collection_selector_spec</code>, <code>output_selector_spec</code>). Those never dispatch, so
-  the field would never run; it's refused rather than ignored.</li>
+  the field would never run; it's refused rather than ignored, as is a nested
+  spec's <code>progress_reporter</code>. Registering the spec and dispatching it off HTTP
+  refuse both too.</li>
 </ul>
 <h2 id="telling-an-agent-about-them">Telling an agent about them<a class="headerlink" href="#telling-an-agent-about-them" title="Permanent link">&para;</a></h2>
 <p>Preconditions are deliberately <strong>not</strong> reflected into tool schemas. There's
