@@ -83,7 +83,9 @@ project may have to change, each detailed below:
   `[{}, {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}]`, where
   0.57.0 answered `{"non_field_errors": ["Unexpected argument(s):
   'bogus'."]}` for the call. Rows sent under `many_argument` were already
-  refused at their index.
+  refused at their index, but a row's undeclared key was lost when another
+  row was refused; off HTTP and over a live view under `many_as_argument`,
+  both rows are answered now.
 - **Move a nested selector's `progress_reporter` and `preconditions` to its
   `ServiceSpec`, and give a registered `SelectorSpec` a `selector`.** A nested
   `progress_reporter` is refused at `as_view()`, at `SpecRegistry.register`
@@ -92,15 +94,18 @@ project may have to change, each detailed below:
   `preconditions`. A `SelectorSpec` with no `selector` is refused at
   `SpecRegistry.register`, as `dispatch_spec` already refused it.
 - **Catch a missing argument as DRF's `ValidationError`.** A selector's
-  parameter with no default or marked `InputRequired`, and a serializer-less
-  service's under `SPREAD_AUTHOR_WINS`, missing from a call is raised as drfs'
-  `InvalidArguments`, keyed by each missing name, so an
+  parameter with no default or marked `InputRequired`, under `AUTO` or
+  `SPREAD_AUTHOR_WINS`, a target lookup's selector's under any binding, and a
+  serializer-less service's under `SPREAD_AUTHOR_WINS`, missing from a call is
+  raised as drfs' `InvalidArguments`, keyed by each missing name, so an
   `except ServiceValidationError` or `except ServiceError` around a dispatch
   no longer catches it. Catch `rest_framework.exceptions.ValidationError`,
-  which every refused argument is. A service parameter no argument fills
-  otherwise - under `AUTO` or `BUNDLE` with no serializer, or beside an
-  input serializer under any binding - still raises `TypeError` when the
-  service is called off HTTP, as on 0.57.0, and `as_view()` still refuses it. `InvalidArguments`
+  which every refused argument is. A parameter no argument fills otherwise -
+  a selector's under `BUNDLE`, where it raises `TypeError` and an
+  `InputRequired` marker is not enforced, or a service's under `AUTO` or
+  `BUNDLE` with no serializer, or beside an input serializer under any
+  binding - still raises `TypeError` when the callable is called off HTTP, as
+  on 0.57.0, and `as_view()` still refuses a service's. `InvalidArguments`
   (`rest_framework_services.service_specs.invalid_arguments`, not exported
   from the package root) subclasses it and is the narrower class: a `many`
   spec's rows sent as a bare list are refused with a plain `ValidationError`,
@@ -113,8 +118,16 @@ project may have to change, each detailed below:
   runs without it: one reading it as `kwargs.get("pk")` gets `None`, so a
   retrieve answers `404` with no error naming the capture, and one indexing
   it as `kwargs["pk"]` raises `KeyError`, a `500` where 0.57.0 answered `200`.
-  Name the capture as a keyword parameter, or declare it in the spec's
-  `reads` as a `UrlKwarg`.
+  A list selector answers `200` with no error either way, so it is the one to
+  look for: one that filters only when the capture is present
+  (`if "pk" in kwargs: qs = qs.filter(pk=kwargs["pk"])`) answers every row
+  where 0.57.0 answered the filtered rows, and one reading it as
+  `kwargs.get("pk")` answers `[]` where 0.57.0 answered the rows. Name the
+  capture as a keyword parameter, or declare it in the spec's `reads` as a
+  `UrlKwarg` whose `type` is the one the route's converter yields:
+  `UrlKwarg("pk", type="integer")` for `<int:pk>/` and `UrlKwarg("pk")`, typed
+  `string` by default, for `<str:pk>/`. A string-typed read of an `<int:pk>`
+  capture is refused as `400 {"pk": ["Expected a string."]}`.
 - **Import a spreading service's `**kwargs` `TypedDict` at runtime when its
   target lookup filters.** Dispatched with `SPREAD_AUTHOR_WINS` and
   `UnknownArguments.REJECT`, a serializer-less service whose `**kwargs` is
@@ -133,9 +146,16 @@ project may have to change, each detailed below:
   A target lookup whose `filter_set` shapes its rows declares the filter's
   names and its selector's parameters, and a caller's key outside them is
   refused as `Unexpected argument(s): 'tenant'.`, off HTTP and over a live
-  view, under `AUTO` and `BUNDLE`. 0.57.0 dropped it without a word. A lookup
-  whose selector takes a bare `**kwargs` declares none and refuses nothing,
-  and `IGNORE` still drops the key.
+  view, under `AUTO` and `BUNDLE`, where 0.57.0 dropped it without a word.
+  Under `SPREAD_AUTHOR_WINS` the same refusal reaches two shapes of service,
+  which 0.57.0 ran: a serializer-less service with named parameters, when the
+  key is none of them, and any service with an `input_serializer`, closed or
+  taking a bare `**extras`, even one naming the key as a parameter. A
+  serializer-less service whose only parameter is a bare `**kwargs` declares
+  none and refuses nothing, and a key that is one of a serializer-less
+  service's parameters is delivered. A lookup whose selector takes a bare
+  `**kwargs` declares none and refuses nothing, and `IGNORE` still drops the
+  key.
 - **Scope a target lookup by its route capture.** A lookup reading a name
   that is also a writable input field, such as `slug`, no longer takes the
   body's value for it: without a capture the lookup keeps its own default,
@@ -216,7 +236,9 @@ project may have to change, each detailed below:
     dispatches it (partial, unguarded, as a target lookup, spreading, or
     validated leniently for a live view). Both spec classes gain an
     `as_kernel_spec()` method, so the kernel's `dispatch`, registry and
-    schemas take a drfs spec as it is. A service spec with no
+    schemas take a drfs spec as it is; a direct kernel call judges a `many`
+    spec's list on the rows it left, where `dispatch_spec` judges the rows
+    sent, as the `many` calls entry below sets out. A service spec with no
     `input_serializer` compiles with none of its service's own parameters
     declared, so `kernel_spec(spec).parameters()` lists its target lookup's
     keys and its `reads`; the service's signature is declared only in the
@@ -450,10 +472,11 @@ project may have to change, each detailed below:
     argument. The names are now refused in the call's order, each refusal
     keying every name missing at its point: a name the declaration requires
     (marked `InputRequired`, a required read or serializer field) before the
-    permission checks, then a selector's parameter with no default, or a
-    serializer-less service's under `SPREAD_AUTHOR_WINS`, once the providers
-    and seeds that could fill it have run, then a spreading service's target
-    lookup key as the service is called. A call missing names of more than
+    permission checks, then a selector's parameter with no default, under
+    `AUTO` or `SPREAD_AUTHOR_WINS` or in a target lookup under any binding,
+    or a serializer-less service's under `SPREAD_AUTHOR_WINS`, once the
+    providers and seeds that could fill it have run, then a spreading
+    service's target lookup key as the service is called. A call missing names of more than
     one kind is answered by the first refusal, and the next one names the
     rest after it is resent. It is raised as `InvalidArguments`, DRF's
     `ValidationError` and the kernel's `InvalidArguments` at once, where it
@@ -475,7 +498,10 @@ project may have to change, each detailed below:
   - Off HTTP under `REJECT`, an undeclared key is refused beside the
     serializer's own refusals of the same call, where 0.57.0 answered those
     alone: `{"bogus": 1}` with a required `title` missing answers both
-    `title` and `non_field_errors`.
+    `title` and `non_field_errors`. Rows are read alike off HTTP and over a
+    live view under `many_as_argument`: `[X, 1]`, where `X` carries an unknown
+    key and row 1 is no object, answers row 0's `Unexpected argument(s):
+    'bogus'.` beside row 1's refusal, where 0.57.0 answered row 1 alone.
   - Off HTTP under `REJECT`, an argument sent beside a `many_argument` list is
     refused before the rows are read, where 0.57.0 answered the rows' errors
     first.
@@ -488,13 +514,19 @@ project may have to change, each detailed below:
     selector annotated the same way raises beside a `filter_set` under every
     `ArgumentBinding`, where 0.57.0 ran it. Beside a lookup whose selector
     takes a bare `**kwargs` the call is open and nothing raises, as on 0.57.0.
-  - Under `REJECT` and `AUTO` or `BUNDLE`, a target lookup whose `filter_set`
-    shapes its rows declares the filter's names and its selector's
-    parameters, and a caller's key outside them (`tenant`, say) is refused as
-    `Unexpected argument(s): 'tenant'.`, off HTTP and over a live view, where
-    0.57.0 dropped it. A lookup whose selector takes a bare `**kwargs`
-    declares none, so nothing is refused there, and `IGNORE` still drops the
-    key.
+  - Under `REJECT`, a target lookup whose `filter_set` shapes its rows
+    declares the filter's names and its selector's parameters, and a caller's
+    key outside them (`tenant`, say) is refused as `Unexpected argument(s):
+    'tenant'.`, off HTTP and over a live view. Under `AUTO` or `BUNDLE`
+    0.57.0 dropped the key. Under `SPREAD_AUTHOR_WINS` it ran the service,
+    and now refuses the key for a serializer-less service with named
+    parameters, when the key is none of them, and for any service with an
+    `input_serializer`, closed or taking a bare `**extras`, even one naming
+    the key as a parameter. A serializer-less service whose only parameter is
+    a bare `**kwargs` declares none, so nothing is refused for it, and a key
+    that is one of a serializer-less service's parameters is delivered. A
+    lookup whose selector takes a bare `**kwargs` declares none, so nothing
+    is refused there, and `IGNORE` still drops the key.
 - **Breaking: a value a view hook or the spec's `kwargs` provider gives for an
   input-serializer field decides that field, and is validated by it.** A key
   naming a field of `input_serializer`, by its name or by its `source`, is
@@ -735,9 +767,26 @@ project may have to change, each detailed below:
   the `ListSerializer` sets `allow_empty=False` is refused there as below a
   minimum of one, `Ensure this field has at least 1 elements.` (its
   `min_length` where it sets a larger one), code `min_length`, where 0.57.0
-  said `This list may not be empty.`, code `empty`. Over a live view the
+  said `This list may not be empty.`, code `empty`. A serializer that cannot
+  be built without a request is the exception: its empty list is still
+  refused as `This list may not be empty.`, code `empty`, as a bare list under
+  `non_field_errors` and under `many_argument` as
+  `{"items": {"non_field_errors": [...]}}`, with no view or on an
+  `OfflineServiceView` dispatched with its request. 0.57.0 said so too on
+  that view, and with no view it could not build the serializer.
+  Over a live view the
   `ListSerializer` alone bounds the body, and a refused body is answered with
-  its own errors, as before. Off HTTP, rows sent as a bare
+  its own errors, as before. A row that is no object is refused at its index
+  and leaves the list's bounds and its list-level `validate()` to the rows
+  sent, as DRF's list serializer does, so where the list as sent is within
+  its bounds `dispatch_spec` answers that row alone. The kernel's own `dispatch`, called directly on a drfs spec where no
+  edge body holds the rows, judges the list on the rows that survived: `[good,
+  1]` under a minimum of two answers `Expected an object.` for row 1 beside
+  `Ensure this field has at least 2 elements.`, `[1]` under
+  `allow_empty=False` beside `This list may not be empty.`, and
+  `[good, good, 1]` runs the list's `validate()` over the two rows left, so
+  one refusing equal rows answers beside row 2's refusal.
+  Off HTTP, rows sent as a bare
   list are refused in the kernel's list with one entry per row, where DRF
   3.18 gave a mapping of row indexes; rows sent under `many_argument` keep
   the mapping. A non-list or null under `many_argument` is refused in the
@@ -820,8 +869,9 @@ project may have to change, each detailed below:
   annotation that does not resolve at runtime named
   `UnknownArguments.PASSTHROUGH` as a way out, which raises `ValueError`.
   It now offers `IGNORE`, or making the annotation resolvable. Only a direct
-  call of that helper reaches this message; a dispatch raises the message that
-  already offered `IGNORE` alone.
+  call of that helper reaches this message; a dispatch raises the message
+  that offers `IGNORE` alone, where 0.57.0's offered `IGNORE` or
+  `PASSTHROUGH`.
 - **Under `SPREAD_AUTHOR_WINS`, a parameter takes `input_data`'s value for its
   field, `NotClientInput` or not**, where a later field with the same
   `source`, a `source="*"` nested serializer or a `validate()` writing that

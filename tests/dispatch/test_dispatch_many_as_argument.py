@@ -20,6 +20,12 @@ import pytest
 from asgiref.sync import sync_to_async
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ImproperlyConfigured
+from django_service_specs.dispatch.dispatch import dispatch as kernel_dispatch
+from django_service_specs.dispatch.grant import Grant
+from django_service_specs.parameters.invalid_arguments import (
+    InvalidArguments as KernelInvalidArguments,
+)
+from django_service_specs.specs.kernel_spec import kernel_spec
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import JSONParser
@@ -503,11 +509,15 @@ _NO_OBJECT: dict[str, Any] = {
 # the kernel refuses before the serializer reads a row. Judged on the rows left, the
 # first would be empty, the second one short, and the third would run the list's
 # ``validate()`` over two equal rows; DRF judges the list as sent, and never runs
-# that ``validate()`` past a refused row.
+# that ``validate()`` past a refused row. ``at-the-maximum`` is the odd one out: it
+# sends exactly as many rows as the list's maximum of three allows, which is no
+# refusal of the list, so the one refusal is still the last row's. It holds the
+# maximum's comparison as ``>``: a list the length of its maximum is within it.
 _JUDGED_AS_SENT = {
     "may-not-be-empty": (_NonEmptyLine, [1]),
     "min-length": (_BoundedLine, [_GOOD, 1]),
     "list-validate": (_DistinctLine, [_GOOD, _GOOD, 1]),
+    "at-the-maximum": (_BoundedLine, [_GOOD, _GOOD, 1]),
 }
 
 
@@ -571,6 +581,46 @@ async def test_over_a_live_view_a_length_bound_counts_every_row_sent_and_answers
     refusal = await _over_a_live_view(core, _BoundedLine, items)
     assert refusal.detail == {"items": {"non_field_errors": [message]}}
     assert refusal.get_codes() == {"items": {"non_field_errors": [code]}}
+
+
+_ANSWERED_ON_THE_ROWS_LEFT = {
+    "bounded": (_BoundedLine, [_GOOD, 1], "Ensure this field has at least 2 elements."),
+    "non-empty": (_NonEmptyLine, [1], "This list may not be empty."),
+    "list-validate": (_DistinctLine, [_GOOD, _GOOD, 1], "Each sku once."),
+}
+
+
+@pytest.mark.parametrize(
+    ("serializer", "items", "message"),
+    _ANSWERED_ON_THE_ROWS_LEFT.values(),
+    ids=_ANSWERED_ON_THE_ROWS_LEFT.keys(),
+)
+def test_the_kernels_own_dispatch_judges_the_list_on_the_rows_that_survived(
+    serializer: type, items: list[Any], message: str
+) -> None:
+    """The limit of ``test_a_row_the_kernel_refuses_leaves_the_lists_own_checks_to_the_rows_sent``:
+    ``dispatch_spec`` judges a list on the rows sent, but the kernel's ``dispatch``
+    called directly on a drfs spec has no edge body to hold them, so the list's
+    checks run on the rows left once the kernel has refused the rest. Its answer
+    names the refused row in the kernel's words (``Expected an object.``) beside
+    the list's own refusal, which drfs' dispatch leaves out."""
+    compiled = kernel_spec(_spec(serializer))
+    principal = AnonymousUser()
+
+    with pytest.raises(KernelInvalidArguments) as excinfo:
+        kernel_dispatch(
+            compiled,
+            principal=principal,
+            arguments={"items": items},
+            grant=Grant(compiled, principal),
+        )
+
+    assert excinfo.value.detail == {
+        "items": {
+            len(items) - 1: {"non_field_errors": ["Expected an object."]},
+            "non_field_errors": [message],
+        }
+    }
 
 
 @_CORES
@@ -699,6 +749,36 @@ async def test_an_undeclared_key_inside_an_item_is_refused_at_its_index(core: st
     )
     assert refusal.detail == {
         "items": {1: {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}}
+    }
+
+
+@_CORES
+@pytest.mark.parametrize("live", [False, True], ids=["off-http", "live-view"])
+@pytest.mark.parametrize(
+    ("other_row", "other_refusal"),
+    [(1, _NO_OBJECT), (_BAD, _BAD_DETAIL)],
+    ids=["a-row-that-is-no-object", "a-row-the-serializer-refuses"],
+)
+async def test_an_undeclared_key_is_answered_beside_another_rows_refusal(
+    core: str, live: bool, other_row: Any, other_refusal: Any
+) -> None:
+    """Row 0's undeclared key is answered with row 1's refusal, off HTTP and over a
+    live view alike; 0.57.0 answered row 1 alone."""
+    view = _live_view() if live else None
+    refusal = await _refusal(
+        core,
+        _spec(),
+        params={"items": [{**_GOOD, "bogus": 1}, other_row]},
+        many_as_argument=True,
+        unknown_arguments=UnknownArguments.REJECT,
+        request=view.request if view is not None else None,
+        view=view,
+    )
+    assert refusal.detail == {
+        "items": {
+            0: {"non_field_errors": ["Unexpected argument(s): 'bogus'."]},
+            1: other_refusal,
+        }
     }
 
 

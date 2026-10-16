@@ -6,6 +6,16 @@ A `ServiceSpec` or `SelectorSpec` declared here is a source for
 `dispatch`, `authorize` and a `SpecRegistry` take the drfs spec itself. Every
 drfs field lands on a kernel seat or is named below as the HTTP views' own.
 
+A `many` spec's list is judged differently by the two routes.
+[`dispatch_spec`](dispatch.md) judges the list on the rows sent: where the list
+as sent is within its length bounds, a row that is no object is refused alone,
+and the list's `validate()` is left to the rows as sent. The kernel's `dispatch`
+called directly on a drfs spec has no such body to hold the rows and judges the
+list on the rows that survived, in the kernel's own classes and words:
+`[good, 1]` under a minimum of two answers row 1's `Expected an object.` beside
+`Ensure this field has at least 2 elements.`, and a list-level `validate()` runs
+over the rows left.
+
 ## What a spec declares for a caller off HTTP
 
 Over HTTP a URLconf captures a nested route's `project_pk` and a query string
@@ -28,7 +38,11 @@ list_tasks = SelectorSpec(
 - **`reads`**: each `UrlKwarg` and `QueryParam` becomes one kernel `Parameter`,
   so it is an argument a caller sends and the schema lists. An entry of the
   same name as a selector parameter replaces the reflected one. A sequence is
-  required, and a name may be declared once.
+  required, and a name may be declared once. A selector taking a bare
+  `**kwargs` is not handed a route capture no callable declares: declare it
+  here or as a keyword parameter. A `UrlKwarg`'s `type` has to be the one the
+  route's converter yields: `UrlKwarg("pk", type="integer")` for `<int:pk>/`, since the
+  default `string` refuses an `int` capture as `Expected a string.`.
 - **`field_audiences`**: per-field markings layered over the output
   serializer's own. On a `ServiceSpec` they layer over its output selector's.
   A spec declaring them with no output serializer is refused at compile, with

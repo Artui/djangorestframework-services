@@ -734,8 +734,9 @@ def _bound_refusal(listed: Any, count: int) -> dict[str, list[serializers.ErrorD
     test_a_row_the_kernel_refuses_leaves_the_lists_own_checks_to_the_rows_sent
     that fails without it: ``max_length is not None`` by ``may-not-be-empty``
     (a list with no maximum), ``min_length is None`` by ``list-validate`` (one
-    with no minimum), and both comparisons by ``min-length``, two rows within
-    a minimum of two and a maximum of three.
+    with no minimum), the minimum's ``>=`` by ``min-length`` (two rows within
+    a minimum of two) and the maximum's ``>`` by ``at-the-maximum`` (three rows
+    within a maximum of three).
     test_over_a_live_view_a_length_bound_counts_every_row_sent_and_answers_alone
     holds each refusal.
     """
