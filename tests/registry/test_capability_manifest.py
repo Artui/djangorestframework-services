@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
+from django.db.models import Q
 from rest_framework import serializers
 from rest_framework.permissions import BasePermission
 
 from rest_framework_services import (
     DEFAULT_JSON_SCHEMA_REGISTRY,
+    Affordance,
     SelectorKind,
     SelectorSpec,
     ServiceSpec,
@@ -18,6 +22,7 @@ from rest_framework_services import (
     capability_manifest,
     spec_to_json_schema,
 )
+from rest_framework_services.registry.capability_manifest import _drfs_spec
 
 
 class _IsSupport(BasePermission):
@@ -72,6 +77,7 @@ def _orders_spec(**overrides: Any) -> SelectorSpec[Any, Any]:
         "kind": SelectorKind.LIST,
         "selector": _orders,
         "output_serializer": _OrderOutput,
+        "permission_classes": [],
     }
     fields.update(overrides)
     return SelectorSpec(**fields)
@@ -136,11 +142,11 @@ def test_the_whole_document_as_served() -> None:
                         "required": ["id"],
                     },
                 },
-                "guards": None,
+                "guards": [],
                 "affordances": None,
             },
         ],
-        "unguarded": ["list_orders"],
+        "unguarded": [],
     }
 
 
@@ -229,6 +235,7 @@ def test_an_allow_none_retrieve_states_the_null_it_serves() -> None:
         allow_none=True,
         selector=lambda: None,
         output_serializer=_Profile,
+        permission_classes=[],
     )
 
     operation = capability_manifest(_registry(("profile", spec, ())))["operations"][0]
@@ -281,23 +288,27 @@ def test_guards_name_each_class_by_import_path_in_declaration_order() -> None:
     ]
 
 
-def test_undeclared_guards_are_none_and_a_declared_empty_list_stays_empty() -> None:
-    registry = _registry(
-        ("inherits", _refund_spec(permission_classes=None), ()),
-        ("open_on_purpose", _refund_spec(permission_classes=[]), ()),
-    )
-    guards = {op["name"]: op["guards"] for op in capability_manifest(registry)["operations"]}
-    assert guards == {"inherits": None, "open_on_purpose": []}
+def test_a_declared_empty_list_stays_empty_and_nothing_registers_unguarded() -> None:
+    """The registry refuses a spec with no declared guard, so ``unguarded`` is empty."""
+    registry = _registry(("open_on_purpose", _refund_spec(permission_classes=[]), ()))
+    manifest = capability_manifest(registry)
+    assert manifest["operations"][0]["guards"] == []
+    assert manifest["unguarded"] == []
+    with pytest.raises(ImproperlyConfigured, match="declares no permissions"):
+        _registry(("inherits", _refund_spec(permission_classes=None), ()))
 
 
-def test_unguarded_names_only_the_undeclared_in_registration_order() -> None:
-    registry = _registry(
-        ("second_open", _orders_spec(), ()),
-        ("guarded", _refund_spec(), ()),
-        ("open_on_purpose", _refund_spec(permission_classes=[]), ()),
-        ("first_open", _refund_spec(permission_classes=None), ()),
-    )
-    assert capability_manifest(registry)["unguarded"] == ["second_open", "first_open"]
+def test_a_mutations_affordances_are_listed_with_their_scope() -> None:
+    affordances = [
+        Affordance(code="already_refunded", reason="Refunded.", when=Q(refunded=False)),
+        Affordance(code="books_closed", reason="Closed.", when=lambda: True),
+    ]
+    registry = _registry(("refund", _refund_spec(affordances=affordances), ()))
+    [operation] = capability_manifest(registry)["operations"]
+    assert operation["affordances"] == [
+        {"code": "already_refunded", "reason": "Refunded.", "scope": "row"},
+        {"code": "books_closed", "reason": "Closed.", "scope": "operation"},
+    ]
 
 
 # --- refusals ---------------------------------------------------------------
@@ -306,3 +317,10 @@ def test_unguarded_names_only_the_undeclared_in_registration_order() -> None:
 def test_a_bare_mapping_is_refused_because_it_carries_no_tags() -> None:
     with pytest.raises(TypeError, match="carries no tags"):
         capability_manifest({"op": _refund_spec()})
+
+
+def test_an_entry_holding_another_packages_spec_is_refused_by_name() -> None:
+    """The schemas read drfs fields, so a kernel spec in the registry is named, not misread."""
+    entry: Any = SimpleNamespace(name="kernel.op", spec=object())
+    with pytest.raises(TypeError, match=r"'kernel\.op' is a object"):
+        _drfs_spec(entry)

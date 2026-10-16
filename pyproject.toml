@@ -47,6 +47,16 @@ dependencies = [
     # where ``2`` is the internal ``VALUE_WITH_FAKE_GLOBALS`` and raises, so
     # ``provider_keys`` would read every typed provider as untyped there.
     "typing-extensions>=4.14",
+    # The engine every spec dispatches through: ``dispatch_spec`` compiles a
+    # spec to this package's and hands it to ``dispatch``. 0.8.0 is the first
+    # release with the seats a serializer-backed edge needs: a Validator that
+    # validates a many call once (``validated_many``), ``supports_partial`` per
+    # instance, the call's pool seeds on ``ValidationContext.ambient``, a
+    # presentation context on ``Presenter.presented``, ``extra_kwargs=`` on
+    # ``dispatch``, the ``arguments`` channel on ``PermissionCheck`` and an
+    # ``any`` output type. Its module graph has no ring either, and its
+    # ``tests/test_drfs_surface.py`` pins every name re-exported here.
+    "django-service-specs>=0.8.0",
 ]
 
 [project.optional-dependencies]
@@ -169,11 +179,8 @@ ignore = [
 # real guard: moving the name out of it changes what the test observes. Listed
 # by path so a new file does not inherit the exemption, and none in the package.
 "tests/dispatch/test_dispatch_input_helpers.py" = ["TID251"]
-"tests/dispatch/test_dispatch_input_policies.py" = ["TID251"]
-"tests/dispatch/test_dispatch_spread_parameters.py" = ["TID251"]
 "tests/dispatch/test_provider_keys.py" = ["TID251"]
 "tests/dispatch/test_spread_parameter_keys.py" = ["TID251"]
-"tests/dispatch/test_unfilled_parameters.py" = ["TID251"]
 "tests/types/test_schema_markers_beside_unresolved_annotations.py" = ["TID251"]
 "tests/types/test_typed_dict_input.py" = ["TID251"]
 "tests/types/test_utils.py" = ["TID251"]
@@ -212,7 +219,7 @@ root = ["./rest_framework_services"]
 # CHANGELOG [Unreleased] block under a new dated heading. Run via
 # `uvx bump-my-version` (no permanent dependency added to the project).
 [tool.bumpversion]
-current_version = "0.57.0"
+current_version = "0.58.0"
 allow_dirty = false
 commit = false
 tag = false

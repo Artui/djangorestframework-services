@@ -13,6 +13,10 @@ in two shapes, with nothing comparing them.
 
 from __future__ import annotations
 
+from typing import Any
+
+from rest_framework import serializers
+
 from rest_framework_services import (
     FieldMarking,
     OfflineContract,
@@ -24,14 +28,23 @@ from rest_framework_services import (
 )
 
 
-def _spec() -> SelectorSpec:
-    return SelectorSpec(kind=SelectorKind.LIST, selector=lambda **_: [])
+class _Invoice(serializers.Serializer):
+    etag = serializers.CharField()
+
+
+def _spec(**declared: Any) -> SelectorSpec:
+    # Open on purpose: the registry refuses a spec that declares no permissions.
+    # The contract is declared on the spec (``reads``, ``field_audiences``), and
+    # the entry answers it by asking the spec, since ``register`` takes none.
+    return SelectorSpec(
+        kind=SelectorKind.LIST, selector=lambda **_: [], permission_classes=[], **declared
+    )
 
 
 class TestTheDefault:
     def test_an_entry_declares_nothing_unless_asked(self) -> None:
-        # Purely additive: every existing registration keeps working and keeps
-        # meaning what it meant.
+        # A spec declaring neither ``reads`` nor ``field_audiences`` answers no
+        # contract, as an entry registered without one did.
         registry = SpecRegistry()
         registry.register("list_widgets", _spec())
 
@@ -39,30 +52,18 @@ class TestTheDefault:
         assert entry is not None
         assert entry.agent_contract is None
 
-    def test_an_empty_contract_is_not_the_same_as_none(self) -> None:
-        # "Declared, and declares nothing" differs from "not declared", because a
-        # transport may want to distinguish an explicit empty from an absent one.
-        registry = SpecRegistry()
-        registry.register("list_widgets", _spec(), agent_contract=OfflineContract())
-
-        entry = registry.get("list_widgets")
-        assert entry is not None
-        assert entry.agent_contract == OfflineContract()
-        assert entry.agent_contract is not None
-
 
 class TestWhatItCarries:
     def test_url_kwargs_and_query_params_ride_through_verbatim(self) -> None:
-        contract = OfflineContract(
-            url_kwargs=(UrlKwarg("project_pk"),),
-            query_params=(QueryParam("fields"),),
-        )
+        project, fields = UrlKwarg("project_pk"), QueryParam("fields")
         registry = SpecRegistry()
-        registry.register("list_widgets", _spec(), agent_contract=contract)
+        registry.register("list_widgets", _spec(reads=(project, fields)))
 
         entry = registry.get("list_widgets")
         assert entry is not None
-        assert entry.agent_contract is contract
+        assert entry.agent_contract == OfflineContract(
+            url_kwargs=(project,), query_params=(fields,)
+        )
 
     def test_it_is_frozen_like_every_other_wire_shape_here(self) -> None:
         import dataclasses
@@ -89,7 +90,7 @@ class TestFieldAudiences:
         overrides = {"etag": FieldMarking()}
         registry = SpecRegistry()
         registry.register(
-            "lookup_invoice", _spec(), agent_contract=OfflineContract(field_audiences=overrides)
+            "lookup_invoice", _spec(field_audiences=overrides, output_serializer=_Invoice)
         )
 
         entry = registry.get("lookup_invoice")
@@ -106,27 +107,25 @@ class TestItSurvivesTheRegistryOperations:
     def test_by_tag_carries_the_contract_with_the_entry(self) -> None:
         # The property that makes the registry a viable home: a filtered view is
         # built from RegisteredSpec objects, so anything on the entry survives.
-        contract = OfflineContract(url_kwargs=(UrlKwarg("project_pk"),))
         registry = SpecRegistry()
-        registry.register("list_widgets", _spec(), tags=("public",), agent_contract=contract)
+        registry.register("list_widgets", _spec(reads=(UrlKwarg("project_pk"),)), tags=("public",))
         registry.register("other", _spec(), tags=("internal",))
 
         filtered = registry.by_tag("public")
 
         entry = filtered.get("list_widgets")
         assert entry is not None
-        assert entry.agent_contract is contract
+        assert entry.agent_contract == OfflineContract(url_kwargs=(UrlKwarg("project_pk"),))
 
     def test_subset_carries_it_too(self) -> None:
-        contract = OfflineContract(query_params=(QueryParam("fields"),))
         registry = SpecRegistry()
-        registry.register("list_widgets", _spec(), agent_contract=contract)
+        registry.register("list_widgets", _spec(reads=(QueryParam("fields"),)))
         registry.register("other", _spec())
 
         entry = registry.subset("list_widgets").get("list_widgets")
 
         assert entry is not None
-        assert entry.agent_contract is contract
+        assert entry.agent_contract == OfflineContract(query_params=(QueryParam("fields"),))
 
 
 class TestWhatItDeliberatelyDoesNotCarry:

@@ -1,52 +1,17 @@
-"""Tests for the ``implements`` identity decorator.
+"""``implements`` is django-service-specs' own; its behaviour is tested there.
 
-Runtime behaviour only — static drift detection is exercised via ``ty`` in
-CI against ``tests/services/strict_drift_fixtures.py``.
+Static drift detection against drfs' ``HttpExtras`` is still exercised by ``ty``
+against ``tests/services/strict_drift_fixtures.py``.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
+from django_service_specs.services.implements import implements as kernel_implements
 
-from rest_framework_services import (
-    CreateService,
-    implements,
-)
+import rest_framework_services
+from rest_framework_services.implements import implements
 
 
-@dataclass
-class _AuthorIn:
-    name: str
-
-
-@dataclass
-class _Author:
-    id: int
-    name: str
-
-
-def test_implements_decorator_returns_function_unchanged() -> None:
-    def create_author(
-        *,
-        data: _AuthorIn,
-        **extras: Any,
-    ) -> _Author:
-        return _Author(id=extras.get("tenant_id", 0), name=data.name)
-
-    decorated = implements(CreateService[_AuthorIn, _Author])(create_author)
-
-    assert decorated is create_author
-    assert create_author.__name__ == "create_author"
-
-
-def test_implements_direct_call_is_identity() -> None:
-    def fn(
-        *,
-        data: _AuthorIn,
-        **extras: Any,
-    ) -> _Author:
-        return _Author(id=extras.get("tenant_id", 0), name=data.name)
-
-    decorated = implements(CreateService[_AuthorIn, _Author])(fn)
-    assert decorated is fn
+def test_is_the_kernel_s_object_at_drfs_path_and_root() -> None:
+    assert implements is kernel_implements
+    assert rest_framework_services.implements is kernel_implements

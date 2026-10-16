@@ -20,8 +20,10 @@ class PolymorphicServiceSpec:
     [`ServiceSpec`][rest_framework_services.types.service_spec.ServiceSpec] under a
     string key. A ``discriminator`` callable inspects the request and returns the key;
     dispatch then proceeds through the chosen spec exactly as a plain ``ServiceSpec``
-    would. Usable anywhere a ``ServiceSpec`` is: an ``action_specs`` entry and the
-    ``spec=`` of ``@service_action``.
+    would. Usable where a view takes a ``ServiceSpec``: an ``action_specs`` entry
+    and the ``spec=`` of ``@service_action``. A ``SpecRegistry`` and the other
+    kernel entry points refuse it with a pointer at its variants, which are
+    registered one per name.
 
     ```python
     PolymorphicServiceSpec(
@@ -70,3 +72,26 @@ class PolymorphicServiceSpec:
     discriminator: Callable[..., str]
     specs: Mapping[str, ServiceSpec[Any, Any, Any]]
     permission_strategy: PermissionStrategy = "union"
+
+    def as_kernel_spec(self) -> None:
+        """Refuse compiling to one spec, naming the remedy.
+
+        Every kernel entry point (``SpecRegistry.register``, ``kernel_spec``,
+        ``dispatch``) asks a declaration for ``as_kernel_spec()``. A wrapper picks
+        its variant per request, so there is no one spec to answer with, and
+        without this method the kernel's refusal would be a bare type error that
+        says nothing of the variants. The registry prefixes the name it was
+        registering (test_a_polymorphic_spec_is_refused_with_a_pointer_at_its_variants).
+
+        Annotated ``None`` on purpose, never ``NoReturn``: the bottom type would
+        make this wrapper a structural ``SpecSource``, so a type checker would
+        accept registering it, where it refuses it today.
+
+        Raises:
+            TypeError: always.
+        """
+        raise TypeError(
+            "a PolymorphicServiceSpec cannot be registered or dispatched as one spec. "
+            "Register each variant from its `specs` mapping under its own name - "
+            "transports project one operation per variant, not a union."
+        )

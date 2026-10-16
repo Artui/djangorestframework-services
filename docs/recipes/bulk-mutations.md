@@ -40,6 +40,21 @@ class BulkCreateBooksView(ServiceCreateView):
 `atomic=True` (the default) any item's `ServiceError` rolls the whole batch
 back.
 
+A refused body is answered with the list serializer's own errors, in the shape
+the installed DRF gives (a mapping of the failing rows' indexes from DRF 3.18, a
+list below it). Over a live view the `ListSerializer` alone bounds the body,
+through its own `allow_empty`, `min_length` and `max_length`, and a body it
+sets no `max_length` for takes any number of rows.
+
+Off HTTP, and on an `OfflineServiceView`, the kernel checks the list first and
+takes its bounds from the same `ListSerializer`; where it sets no
+`max_length`, at most 1000 rows are accepted, or what the
+`SERVICE_SPECS_MAX_ARRAY_LENGTH` setting says (`None` bounds nothing), and a
+longer list is refused under `non_field_errors`. A `ListSerializer` that cannot
+be built without a request, such as one whose item serializer reads
+`context["request"]` in `__init__`, is held to that default whatever
+`max_length` it sets, because its bounds cannot be read.
+
 ### Off HTTP: the list as one named argument
 
 A tool call's arguments are always a JSON object, so a caller that only sends
@@ -90,23 +105,35 @@ an empty entry for each valid item:
 {"books": {"1": {"title": ["This field may not be blank."]}}}
 ```
 
-The argument missing, `null`, not a list, empty when the list may not be, or
-outside its length bounds answers the way that field would:
-`{"books": ["This field is required."]}`, or
-`{"books": {"non_field_errors": ["This list may not be empty."]}}`. An argument
-sent beside the list is refused as `UnknownArguments.REJECT` refuses one,
-whatever `unknown_arguments` says, because the service receives only the list
-and the argument would have nowhere to go; the policy still decides what
-happens to an undeclared key inside an item. A refusal the service or a
+The argument missing answers `{"books": ["This field is required."]}`. `null`
+or a value that is not a list is refused under the argument in the kernel's
+words, such as `{"books": ["Expected an array."]}`, and so, with no view or an
+`OfflineServiceView`, is a list outside its length bounds. Where a transport
+dispatches with its own live view, the `ListSerializer` refuses that list, as
+`{"books": {"non_field_errors": ["Ensure this field has no more than 2 elements."]}}`,
+before it reads a row.
+A row that is not an object is refused at its index in DRF's words,
+`{"books": {"1": {"non_field_errors": ["Invalid data. Expected a dictionary, but got int."]}}}`,
+and that refusal leaves the list's own checks to the rows sent, as DRF's do:
+its length bounds count that row, and its list-level `validate()` does not
+run. Arguments that are not an object are refused as
+`{"non_field_errors": ["Invalid data. Expected a dictionary, but got list."]}`.
+An argument sent beside the list that the spec declares no `reads` entry for is
+refused under every `unknown_arguments` policy, as
+`{"non_field_errors": ["Unexpected argument(s): 'zzz'."]}`, because the service
+receives only the list and the argument would have nowhere to go. Under `REJECT`
+it is refused before the items are read; under `IGNORE`, once every item is
+valid, so an item's refusal comes first. A reserved pool seed sent there, such as
+`user`, is not refused. The policy decides an undeclared key inside an item:
+dropped under `IGNORE`, refused inside that item under `REJECT`. A refusal the service or a
 precondition raises is passed on as raised.
 
 A spec that took a list through that wrapper can declare `many=True` instead
 and keep its error wire, as long as the wrapper's field was named `items` or
 the spec names it with `many_argument`. Below DRF 3.18 the wrapper itself
-reported item errors as a list, so there the index mapping is new. Two calls the
-wrapper let through are refused: an argument beside the list under any policy
-but `REJECT`, and, under `REJECT`, an undeclared key inside an item, which the
-wrapper never looked at.
+reported item errors as a list, so there the index mapping is new. One call the
+wrapper let through is refused: under `REJECT`, an undeclared key inside an
+item, which the wrapper never looked at.
 
 ## `collection_selector_spec` — operate on a filtered set
 

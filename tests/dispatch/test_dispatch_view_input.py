@@ -1,18 +1,11 @@
-"""A caller's ``view`` is not input: it never reaches a callable and is never asked for.
+"""A caller's ``view`` is not input: the edge seeds the calling view itself.
 
-No pool carries ``view``. A transport hands the calling view to a provider, and a
-selector or service that wants it takes it from one (``kwargs=``, a
-``get_*_kwargs`` hook) or from a route capture of that name. The input schema
-hides it from a selector's parameters as it hides ``request`` and ``user``, but it
-is not a reserved seed, so nothing in the pool outranked a caller's value: a
-caller could send ``{"view": ...}`` and the callable received it, and a callable
-requiring one was refused with ``view`` named as a missing argument, which a caller
-could only satisfy by inventing one.
-
-So dispatch treats ``view`` as every callable marking it ``NotClientInput``: the
-caller's value is dropped at every site that spreads caller input, ``REJECT``
-refuses it as unknown, and a required ``view`` nothing filled is never named
-missing, but left to fail as the author's error it is.
+``dispatch_spec`` and ``adispatch_spec`` register ``view`` as a pool seed for every
+call, beside ``request``: the view they were handed, or ``None`` off HTTP. So a
+callable declaring ``view`` receives the transport's, a caller's ``{"view": ...}``
+never reaches it (``REJECT`` refuses it as unknown), a required ``view`` is never
+missing, and a provider returning one is refused for outranking a seed, as the
+kernel refuses every provider that does.
 
 Each test runs through ``dispatch_spec`` and ``adispatch_spec`` alike, because each
 core builds its pools on its own.
@@ -25,10 +18,13 @@ from typing import Any
 
 import pytest
 from asgiref.sync import async_to_sync
+from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
+from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from rest_framework_services import (
+    DEFAULT_POOL_SEEDS,
     ArgumentBinding,
     DispatchResult,
     OfflineServiceView,
@@ -39,7 +35,6 @@ from rest_framework_services import (
     adispatch_spec,
     dispatch_spec,
 )
-from rest_framework_services.exceptions.service_validation_error import ServiceValidationError
 from tests.testapp.models import Post
 
 
@@ -53,10 +48,10 @@ def _async(spec: Any, **kwargs: Any) -> DispatchResult:
 
 Dispatch = Callable[..., DispatchResult]
 _CORES = pytest.mark.parametrize("dispatch", [_sync, _async], ids=["sync", "async"])
-_SPREADS = pytest.mark.parametrize(
+_BINDINGS = pytest.mark.parametrize(
     "binding",
-    [ArgumentBinding.SPREAD_AUTHOR_WINS, ArgumentBinding.SPREAD_CALLER_WINS],
-    ids=["author-wins", "caller-wins"],
+    [ArgumentBinding.AUTO, ArgumentBinding.SPREAD_AUTHOR_WINS],
+    ids=["auto", "author-wins"],
 )
 _SPOOFED = {"pk": 1, "view": "spoofed"}
 
@@ -69,7 +64,7 @@ _SELECT = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_select)
 
 
 @_CORES
-@_SPREADS
+@_BINDINGS
 def test_a_callers_view_never_reaches_a_selector(
     dispatch: Dispatch, binding: ArgumentBinding
 ) -> None:
@@ -83,28 +78,84 @@ def _hand_over_the_view(view: Any) -> dict[str, Any]:
 
 
 @_CORES
-@_SPREADS
-def test_the_providers_view_is_what_a_selector_receives(
+@_BINDINGS
+def test_the_transports_view_is_what_a_selector_receives(
     dispatch: Dispatch, binding: ArgumentBinding
 ) -> None:
-    """``SPREAD_CALLER_WINS`` ranks the caller's input over the provider, so only
-    dropping the caller's ``view`` keeps the provider's."""
     view = OfflineServiceView(request=None)
-    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_select, kwargs=_hand_over_the_view)
 
-    result = dispatch(spec, params=_SPOOFED, view=view, argument_binding=binding)
+    result = dispatch(_SELECT, params=_SPOOFED, view=view, argument_binding=binding)
 
     assert result.value == {"pk": 1, "view": view}
 
 
 @_CORES
-def test_a_route_capture_named_view_still_fills_it(dispatch: Dispatch) -> None:
-    # Only the caller's mapping loses it: a route is the author's.
+def test_a_provider_handing_over_the_view_is_refused(dispatch: Dispatch) -> None:
+    """The seed already fills it, and a provider never outranks a seed."""
+    view = OfflineServiceView(request=None)
+    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_select, kwargs=_hand_over_the_view)
+
+    with pytest.raises(ImproperlyConfigured, match=r"\['view'\], which dispatch seeds itself"):
+        dispatch(spec, params={"pk": 1}, view=view)
+
+
+class _TitleIn(serializers.Serializer):
+    title = serializers.CharField()
+
+
+_SEEDED = [
+    "request",
+    "view",
+    "user",
+    "data",
+    "instance",
+    "collection",
+    "result",
+    "queryset",
+    "progress",
+]
+
+
+def _keeps_what_it_is_handed(*, data: Any = None, **rest: Any) -> None: ...
+
+
+@pytest.mark.django_db
+@_CORES
+@pytest.mark.parametrize("name", _SEEDED)
+@pytest.mark.parametrize("serializer", [_TitleIn, None], ids=["validated", "no-serializer"])
+def test_a_provider_returning_any_seeded_name_is_refused(
+    dispatch: Dispatch, name: str, serializer: Any
+) -> None:
+    """Every name the call seeds, where 0.57.0 handed the provider's value on."""
+    spec = ServiceSpec(
+        service=_keeps_what_it_is_handed,
+        input_serializer=serializer,
+        kwargs=lambda: {name: "provided"},
+        atomic=False,
+    )
+
+    with pytest.raises(ImproperlyConfigured, match=rf"\['{name}'\], which dispatch seeds itself"):
+        dispatch(spec, params={"title": "t"} if serializer is not None else {})
+
+
+@pytest.mark.django_db
+@_CORES
+def test_a_provider_returning_a_registered_seeds_name_is_refused(dispatch: Dispatch) -> None:
+    spec = ServiceSpec(
+        service=_keeps_what_it_is_handed, kwargs=lambda: {"tenant": "provided"}, atomic=False
+    )
+
+    with pytest.raises(ImproperlyConfigured, match=r"\['tenant'\], which dispatch seeds itself"):
+        dispatch(spec, params={}, pool_seeds=DEFAULT_POOL_SEEDS.extend(tenant=lambda: "seeded"))
+
+
+@_CORES
+def test_a_route_capture_named_view_loses_to_the_seed(dispatch: Dispatch) -> None:
     view = OfflineServiceView(request=None, kwargs={"view": "route"})
 
     result = dispatch(_SELECT, params=_SPOOFED, view=view)
 
-    assert result.value == {"pk": 1, "view": "route"}
+    assert result.value == {"pk": 1, "view": view}
 
 
 @_CORES
@@ -121,23 +172,22 @@ def test_a_required_view_is_never_named_missing(dispatch: Dispatch) -> None:
     def select(*, pk: int, tenant: str, view: Any) -> None: ...
 
     spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=select)
-    with pytest.raises(ServiceValidationError) as excinfo:
+    with pytest.raises(ValidationError) as excinfo:
         dispatch(spec, params={"pk": 1})
 
-    assert excinfo.value.detail == {"non_field_errors": ["Missing required argument(s): 'tenant'."]}
+    assert excinfo.value.detail == {"tenant": ["This field is required."]}
 
 
 @_CORES
-def test_a_required_view_nothing_filled_is_the_authors_error(dispatch: Dispatch) -> None:
-    """The caller's ``view`` is dropped, and nothing else fills it, so the call fails
-    as it did before any refusal existed: no value the caller could send would
-    help."""
+def test_a_required_view_the_caller_did_not_hand_over_is_none(dispatch: Dispatch) -> None:
+    """Off HTTP the seed is ``None``, so a callable requiring ``view`` still runs."""
 
-    def select(*, pk: int, view: Any) -> None: ...
+    def select(*, pk: int, view: Any) -> dict[str, Any]:
+        return {"pk": pk, "view": view}
 
     spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=select)
-    with pytest.raises(TypeError, match="view"):
-        dispatch(spec, params=_SPOOFED)
+
+    assert dispatch(spec, params=_SPOOFED).value == {"pk": 1, "view": None}
 
 
 # --- the other sites that spread caller input ---------------------------------------
@@ -166,13 +216,8 @@ def seen() -> list[Any]:
 
 @pytest.mark.django_db(transaction=True)
 @_CORES
-@pytest.mark.parametrize(
-    "policy",
-    [UnknownArguments.IGNORE, UnknownArguments.PASSTHROUGH],
-    ids=["ignore", "passthrough"],
-)
 def test_a_callers_view_reaches_neither_a_lookup_nor_a_spread_service(
-    dispatch: Dispatch, policy: UnknownArguments, seen: list[Any]
+    dispatch: Dispatch, seen: list[Any]
 ) -> None:
     post = Post.objects.create(title="p")
     lookup = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_by_pk)
@@ -181,8 +226,8 @@ def test_a_callers_view_reaches_neither_a_lookup_nor_a_spread_service(
     result = dispatch(
         spec,
         params={"pk": post.pk, "reason": "dup", "view": "spoofed"},
-        argument_binding=ArgumentBinding.SPREAD_CALLER_WINS,
-        unknown_arguments=policy,
+        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
+        unknown_arguments=UnknownArguments.IGNORE,
     )
 
     assert result.value == {"reason": "dup", "view": None}
@@ -191,16 +236,12 @@ def test_a_callers_view_reaches_neither_a_lookup_nor_a_spread_service(
 
 @pytest.mark.django_db(transaction=True)
 @_CORES
-@pytest.mark.parametrize(
-    "policy",
-    [UnknownArguments.IGNORE, UnknownArguments.PASSTHROUGH],
-    ids=["ignore", "passthrough"],
-)
-def test_a_callers_view_reaches_no_bare_var_keyword(
-    dispatch: Dispatch, policy: UnknownArguments
+def test_a_bare_var_keyword_gets_the_seed_and_no_undeclared_argument(
+    dispatch: Dispatch,
 ) -> None:
-    """An open surface takes every key the caller sent, and still not this one:
-    not as a keyword, and not inside ``data``."""
+    """An open surface is in the seeds' pool, so it receives the seeded ``view``;
+    what the caller sent beside the lookup's ``pk`` is declared nowhere, so neither
+    ``reason`` nor the caller's ``view`` reaches it, as a keyword or inside ``data``."""
     post = Post.objects.create(title="p")
     lookup = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_by_pk)
     spec = ServiceSpec(service=_close_open, instance_selector_spec=lookup, atomic=False)
@@ -208,8 +249,7 @@ def test_a_callers_view_reaches_no_bare_var_keyword(
     result = dispatch(
         spec,
         params={"pk": post.pk, "reason": "dup", "view": "spoofed"},
-        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
-        unknown_arguments=policy,
+        unknown_arguments=UnknownArguments.IGNORE,
     )
 
-    assert result.value == {"reason": "dup", "data": {"reason": "dup"}}
+    assert result.value == {"view": None, "data": {}}

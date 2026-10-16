@@ -241,6 +241,56 @@ def test_service_kwargs_hook_applies_to_single() -> None:
 
 
 @pytest.mark.django_db
+def test_a_service_kwargs_hook_value_for_a_field_is_the_validated_value() -> None:
+    """Behaviour change: one argument pool, so ``data`` carries the view's value
+    too, where it used to carry the client's beside the view's keyword."""
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(service=_capture(seen), input_serializer=_TitleInput)
+    _create_view(spec, get_service_kwargs=lambda self: {"tenant": "from-view-hook"})(
+        APIRequestFactory().post("/x/", {"title": "t", "tenant": "x"}, format="json")
+    )
+    assert dict(seen["data"]) == {"title": "t", "tenant": "from-view-hook"}
+
+
+@pytest.mark.django_db
+def test_a_service_kwargs_hook_value_fills_a_field_the_client_left_out() -> None:
+    """Behaviour change: the view's value is validated as the field's, so a body
+    without it is no longer refused as missing it."""
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(service=_capture(seen), input_serializer=_TitleInput)
+    response = _create_view(spec, get_service_kwargs=lambda self: {"tenant": "from-view-hook"})(
+        APIRequestFactory().post("/x/", {"title": "t"}, format="json")
+    )
+    assert response.status_code == 201
+    assert seen["tenant"] == "from-view-hook"
+
+
+@pytest.mark.django_db
+def test_a_per_action_service_kwargs_hook_value_wins_over_the_clients() -> None:
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(service=_capture(seen), input_serializer=_TitleInput)
+    _create_view(spec, get_create_service_kwargs=lambda self: {"tenant": "from-action-hook"})(
+        APIRequestFactory().post("/x/", {"title": "t", "tenant": "x"}, format="json")
+    )
+    assert seen["tenant"] == "from-action-hook"
+
+
+@pytest.mark.django_db
+def test_a_spec_kwargs_provider_value_wins_over_the_view_hooks() -> None:
+    seen: dict[str, Any] = {}
+    spec = ServiceSpec(
+        service=_capture(seen),
+        input_serializer=_TitleInput,
+        kwargs=lambda: {"tenant": "from-the-spec"},
+    )
+    _create_view(spec, get_service_kwargs=lambda self: {"tenant": "from-view-hook"})(
+        APIRequestFactory().post("/x/", {"title": "t", "tenant": "x"}, format="json")
+    )
+    assert seen["tenant"] == "from-the-spec"
+    assert seen["data"]["tenant"] == "from-the-spec"
+
+
+@pytest.mark.django_db
 def test_service_kwargs_hook_applies_to_bulk() -> None:
     seen: dict[str, Any] = {}
     spec = ServiceSpec(service=_capture(seen), input_serializer=_TitleInput, many=True)
@@ -384,7 +434,8 @@ def test_retrieve_missing_is_404_on_both() -> None:
     http = _retrieve_viewset(spec)(APIRequestFactory().get("/x/999/"), pk=999)
     offline = dispatch_spec(spec, user=None, params={"pk": 999})
     assert http.status_code == 404
-    assert (offline.kind, offline.status) == ("not_found", 404)
+    # The result carries no status: each transport maps ``not_found`` to its own.
+    assert offline.kind == "not_found"
 
 
 @pytest.mark.django_db

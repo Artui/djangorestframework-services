@@ -5,16 +5,27 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 from django.core.exceptions import ImproperlyConfigured
+from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
 from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 
+from rest_framework_services.service_specs.as_kernel_spec import as_kernel_spec
 from rest_framework_services.types.affordance import Affordance
 from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
+from rest_framework_services.types.field_marking import FieldMarking
+from rest_framework_services.types.offline_contract import OfflineContract
+from rest_framework_services.types.query_param import QueryParam
 from rest_framework_services.types.selector_spec import SelectorSpec
-from rest_framework_services.types.utils import is_row_condition, validate_metadata
+from rest_framework_services.types.url_kwarg import UrlKwarg
+from rest_framework_services.types.utils import (
+    agent_contract_for,
+    is_row_condition,
+    validate_metadata,
+    validate_reads,
+)
 
 InputT = TypeVar("InputT")
 ResultT = TypeVar("ResultT")
@@ -127,7 +138,10 @@ class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
             such as a nested route's parent id into fields the serializer can
             cross-validate. Server-provided keys win on conflict. The
             ``get_input_data`` / ``get_<action>_input_data`` view hooks follow
-            the same declare-to-receive rule.
+            the same declare-to-receive rule. Declared with no
+            ``input_serializer``, it is refused with ``ImproperlyConfigured``
+            when the spec compiles, since nothing would read the mapping;
+            ``kwargs`` is the home for a value such a service reads.
         input_serializer_context: Provider for the input serializer's
             ``context=``, at the most specific layer of the chain
             (``get_serializer_context`` → ``get_input_serializer_context`` →
@@ -181,6 +195,16 @@ class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
             is ignored — the surrounding mutation's chains apply — and the nested
             ``permission_classes`` / ``preconditions`` are refused at
             ``as_view()`` rather than silently ignored.
+        output_filter_from_call: Whether the call narrows the re-read: the
+            ``output_selector_spec``'s ``filter_set`` is bound to the call's
+            ``filter_data`` (a live view passes its query string), or to an
+            empty mapping when there is none, so a ``?published=false`` on a
+            ``PATCH`` can hide the row just written. ``True`` by default.
+            ``False`` binds it to an empty mapping on every call, so the
+            re-read answers from the service's return alone and the filter
+            narrows only by what its ``FilterSet`` does with no data. A no-op
+            without an output ``filter_set``, and on a ``many`` spec, whose
+            output selector is never run.
         allow_none: Declare that the service may present nothing: it returns
             ``None`` and no output re-read replaces it. The output schema
             [`spec_to_json_schema`][rest_framework_services.jsonschema.spec_to_json_schema.spec_to_json_schema]
@@ -261,6 +285,26 @@ class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
             operation rather than to a name-keyed side table that drifts the day
             a spec is renamed. It never merges with a nested spec's metadata and
             is stored exactly as given. See [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec].
+        reads: The arguments a caller with no HTTP request sends in place of
+            one: each [`UrlKwarg`][rest_framework_services.types.url_kwarg.UrlKwarg]
+            a route would have captured and each
+            [`QueryParam`][rest_framework_services.types.query_param.QueryParam]
+            a query string would have carried. HTTP never reads it, since its
+            URLconf and query string are the real thing. Compiled into the
+            kernel spec's ``reads``, one ``Parameter`` each, and on an
+            ``OfflineServiceView`` routed back onto ``view.kwargs`` and
+            ``request.query_params`` for the permission classes; see
+            [`as_kernel_spec`][rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec].
+            Kept as a tuple; anything but those two declarations, or a name
+            declared twice, is refused when the spec is built. A name the pool
+            fills, or one the service or a precondition marks
+            ``NotClientInput``, is refused when the spec compiles.
+        field_audiences: Per-field markings layered over the output
+            serializer's own, at its top level: what an agent audience sees of
+            this operation's output, declared once on the operation rather than
+            per mount. Compiled onto the output's presenter. Declared with no
+            output serializer (``output_selector_spec.output_serializer``), it
+            has nothing to mark, and the compile refuses it.
     """
 
     # The service callable and per-call dispatch flags.
@@ -307,6 +351,12 @@ class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
 
     # Output pipeline.
     output_selector_spec: SelectorSpec[Any, Any] | None = None
+    # Naming (CLAUDE.md rule, second output): ``output_`` for the phase it
+    # configures. On the service spec rather than on ``SelectorSpec``: it says how
+    # this service's call relates to its re-read, which a selector cannot know, and
+    # a selector spec used top-level is always narrowed by its call, while one
+    # nested output spec may be shared by services wanting different answers.
+    output_filter_from_call: bool = True
     # Naming (CLAUDE.md rule, first output): the flag ``SelectorSpec`` already
     # carries for the same fact about the result it presents, so one word says
     # "this may be nothing" on both specs and every transport reads one name. On
@@ -347,12 +397,39 @@ class ServiceSpec(AffordanceDeclarer, Generic[InputT, ResultT, ExtraT]):
     affordances: Sequence[Affordance] | None = None
     response_finalizer: Callable[..., Response | None] | None = None
     metadata: Mapping[str, Any] | None = None
+    # Naming: the kernel's word for the arguments a spec takes with no Validator
+    # in front of them, which is what these compile to, so the one declaration
+    # has one name on both sides. Last, with ``field_audiences``, so a spec
+    # built positionally keeps every earlier field where it was.
+    reads: Sequence[UrlKwarg | QueryParam] = ()
+    field_audiences: Mapping[str, FieldMarking] | None = None
 
     def __post_init__(self) -> None:
         validate_metadata(self.metadata, label="ServiceSpec")
+        object.__setattr__(self, "reads", validate_reads(self.reads, label="ServiceSpec"))
         _validate_many_argument(self)
         _validate_target_lookups(self)
         _validate_affordances(self)
+
+    def as_kernel_spec(self) -> KernelServiceSpec:
+        """This spec compiled to django-service-specs' ``ServiceSpec``.
+
+        What makes it a kernel ``SpecSource``: ``dispatch``, ``authorize``, the
+        registry and the schemas take it as it is and compile it once. See
+        [`as_kernel_spec`][rest_framework_services.service_specs.as_kernel_spec.as_kernel_spec].
+        """
+        # ``as_kernel_spec`` tells the two kinds apart at runtime and is typed for
+        # both; a ``ServiceSpec`` always compiles to the kernel's ``ServiceSpec``.
+        return cast(KernelServiceSpec, as_kernel_spec(self))
+
+    def agent_contract(self) -> OfflineContract | None:
+        """The ``OfflineContract`` this spec's ``reads`` and ``field_audiences`` declare.
+
+        What a registry entry's ``agent_contract`` answers, for the transports
+        published against a release that took the contract at registration.
+        ``None`` when both are empty, as an entry registered without one was.
+        """
+        return agent_contract_for(self.reads, self.field_audiences)
 
 
 def _validate_many_argument(spec: ServiceSpec[Any, Any, Any]) -> None:

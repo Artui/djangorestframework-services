@@ -1,48 +1,7 @@
-"""``acreate_model`` — async default create-action service factory."""
+"""``acreate_model``: django-service-specs' own, re-exported at this path."""
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping
-from typing import Any
+from django_service_specs.mutations.acreate_model import acreate_model
 
-from rest_framework_services.mutations.acreate_from_input import acreate_from_input
-from rest_framework_services.services._resolve_m2m import resolve_m2m
-from rest_framework_services.types.change_result import ModelT
-from rest_framework_services.types.child_spec import ChildSpec
-from rest_framework_services.types.relation_spec import RelationSpec
-
-
-def acreate_model(
-    model: type[ModelT],
-    *,
-    field_map: dict[str, str] | None = None,
-    exclude_fields: list[str] | None = None,
-    m2m: Mapping[str, Any] | Callable[[Any], Mapping[str, Any]] | None = None,
-    children: Mapping[str, ChildSpec] | None = None,
-    relations: Mapping[str, RelationSpec] | None = None,
-) -> Callable[..., Awaitable[ModelT]]:
-    """Async sibling of
-    [`create_model`][rest_framework_services.services.create_model.create_model].
-
-    Returns an ``async def`` closure that wraps
-    [`acreate_from_input`][rest_framework_services.mutations.acreate_from_input.acreate_from_input].
-    The framework's [`is_async`][rest_framework_services.is_async.is_async] detection
-    routes it through the async dispatch path automatically. ``children`` is forwarded
-    for declarative reverse-FK writes, and the rest of the kwargs pool as ``context=``
-    (see [`create_model`][rest_framework_services.services.create_model.create_model]).
-    """
-
-    async def _service(*, data: Any, **kwargs: Any) -> ModelT:
-        result = await acreate_from_input(
-            model,
-            data,
-            field_map=field_map,
-            exclude_fields=exclude_fields,
-            m2m=resolve_m2m(m2m, data),
-            children=children,
-            relations=relations,
-            context=kwargs,
-        )
-        return result.instance
-
-    return _service
+__all__ = ["acreate_model"]

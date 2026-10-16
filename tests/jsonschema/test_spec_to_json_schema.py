@@ -11,12 +11,12 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 from jsonschema import Draft202012Validator
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 from typing_extensions import NotRequired, TypedDict, Unpack
 
 from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.dispatch.null_progress import null_progress
 from rest_framework_services.dispatch.render_spec_output import render_spec_output
-from rest_framework_services.exceptions.service_validation_error import ServiceValidationError
 from rest_framework_services.jsonschema.spec_to_json_schema import spec_to_json_schema
 from rest_framework_services.registry.capability_manifest import capability_manifest
 from rest_framework_services.registry.spec_registry import SpecRegistry
@@ -170,6 +170,11 @@ def test_selector_input_with_empty_filter_set_stays_bare_object() -> None:
 class _NotASerializer: ...
 
 
+def _stand_in() -> None:
+    """A selector for a spec that only states an output: the kernel refuses a
+    ``SelectorSpec`` with nothing to run, and these tests read only its schema."""
+
+
 def test_an_unwalkable_selector_output_is_refused_through_the_spec() -> None:
     spec = SelectorSpec(
         kind=SelectorKind.RETRIEVE,
@@ -280,7 +285,7 @@ def test_selector_output_reads_own_serializer_and_kind() -> None:
 
 
 def test_selector_output_retrieve_kind_is_item() -> None:
-    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_Out)
+    spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_stand_in, output_serializer=_Out)
     assert spec_to_json_schema(spec, phase="output") == {
         "type": "object",
         "properties": {"id": {"type": "integer"}},
@@ -471,14 +476,18 @@ class TestMaxDepth:
         assert schema["properties"]["inner"] == {"type": "object"}
 
     def test_selector_output_is_bounded(self) -> None:
-        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_NestedIO)
+        spec = SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_stand_in, output_serializer=_NestedIO
+        )
         schema = spec_to_json_schema(spec, phase="output", max_depth=1)
 
         assert schema is not None
         assert schema["properties"]["inner"] == {"type": "object"}
 
     def test_unset_still_describes_every_level(self) -> None:
-        spec = SelectorSpec(kind=SelectorKind.RETRIEVE, output_serializer=_NestedIO)
+        spec = SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_stand_in, output_serializer=_NestedIO
+        )
         schema = spec_to_json_schema(spec, phase="output")
 
         assert schema is not None
@@ -851,9 +860,9 @@ def _retrieve(selector: Any) -> SelectorSpec[Any, Any]:
 class TestSupplied:
     def test_a_lookup_without_a_default_is_required(self) -> None:
         # Advertised as optional before, while a call without it is refused.
-        with pytest.raises(ServiceValidationError) as refused:
+        with pytest.raises(ValidationError) as refused:
             dispatch_spec(_retrieve(_task_by_pk), user=None, params={})
-        assert refused.value.detail == {"non_field_errors": ["Missing required argument(s): 'pk'."]}
+        assert refused.value.detail == {"pk": ["This field is required."]}
         schema = spec_to_json_schema(_retrieve(_task_by_pk), supplied=frozenset())
         assert schema == {
             "type": "object",
@@ -1148,9 +1157,11 @@ def test_the_default_reflection_is_byte_identical(name: str) -> None:
 def test_the_capability_manifest_publishes_the_same_schemas() -> None:
     # The one drfs-internal caller of ``spec_to_json_schema``. It passes no
     # ``supplied``, so it publishes exactly the schemas it published before.
+    # The registry refuses a spec that declares no permissions, so each is
+    # registered as open on purpose; permissions never reach a schema.
     registry = SpecRegistry()
     for name, spec in _UNCHANGED_SPECS.items():
-        registry.register(name, spec)
+        registry.register(name, dataclasses.replace(spec, permission_classes=[]))
     published = {
         operation["name"]: (operation["input_schema"], operation["output_schema"])
         for operation in capability_manifest(registry)["operations"]

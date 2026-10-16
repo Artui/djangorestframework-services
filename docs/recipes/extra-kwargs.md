@@ -16,9 +16,72 @@ applied in order of increasing specificity (later wins on overlapping keys):
 
 Use whichever level matches the granularity of your contract.
 
-> `view` is **not** in the pool. Services and selectors are plain business
-> logic; pipe view state through one of these hooks (the per-spec callable
-> receives a narrow `ServiceView` if it needs URL kwargs or `action`).
+The per-spec callable is called once per call, from `view` and `request`, and a
+key its `TypedDict` return annotation fills is never taken from the client or a
+hook. A key a view hook returns that names a pool seed (`user`, `data`,
+`instance` and the rest) is dropped, and the seed wins. The per-spec callable
+returning such a key raises `ImproperlyConfigured` instead: any of `request`,
+`view`, `user`, `data`, `instance`, `collection`, `result`, `queryset` and
+`progress`, or a name registered in `pool_seeds`. Rename the key, and the
+parameter that reads it; to hand over the principal, pass `user=` to
+`dispatch_spec`, or let the view's request carry it.
+
+**A key naming an input-serializer field is that field's value.** Where a hook
+or the spec's `kwargs` returns a key that matches a field of `input_serializer`,
+by its name or by its `source`, the value is written into the field, over
+whatever the client sent, and validated as the field validates. A hook returning
+`{"tenant": request.user.tenant}` therefore decides the `tenant` the service
+receives in `data`; a client cannot spoof it by putting `tenant` in the body.
+Nor by a second route to the same key. Once the serializer has accepted the body,
+the value the hook gave is validated on its own, by the field and its
+`validate_<field>`, never what the field reads back from the body. What that gives
+is handed to the service's parameter named by the field's `source`, and by the key
+the hook used where that differs, and is laid back under that key in `data`. A
+hook naming the field by both keys has its name's value validated for the field,
+and its `source`'s value handed to the parameter of that name beside it. So a
+field that reads more of the body than its own key (a nested serializer or a dict
+reading a form body's `tenant.id`, a field whose `get_value` reads another key),
+a later field with the same `source`, a
+`source="*"` nested serializer, a `validate()` writing `tenant` from the client's
+input, a `validate()` or another field's `validate_<field>` running `tenant`'s
+validation on a value of its own, and a `to_internal_value` override that writes
+the client's value over `tenant` in the body or builds `tenant` without the
+field, do not replace it. A refusal of the value is a 400 keyed by the field, as
+DRF's field loop answers one. A field with a dotted `source` or `source="*"`
+has no key of its own in `data`, so its value reaches the parameter named like
+the field.
+
+Two shapes keep the parameter and `data` apart. A dataclass input's `data` is
+the instance as the serializer built it, so a `validate()` that rewrites the
+instance's attribute is seen there and not by the parameter. A `many` spec's
+rows are handed on as its list serializer built them.
+
+That validation is separate from the serializer's own pass, which costs where a
+field does work. A related field looks its value up once more, one query for
+each key it holds (one for a `PrimaryKeyRelatedField`, one per key with
+`many=True`), and the field's validators and its
+`validate_<field>` run twice, as do a nested serializer's `validate()` and its own
+fields' validators and `validate_<field>`, so a validator that queries, a
+`UniqueValidator`, queries twice, and one with side effects has them twice.
+
+On a form body, multipart or urlencoded, the value is read as DRF reads a form: an
+empty string for an optional field leaves the field out, or is `None` where the
+field allows null, and one value for a list field or a `MultipleChoiceField` is a
+list of one. A `JSONField`'s mapping is refused on a form body, where a JSON body
+takes it, so for that field the answer depends on the client's content type.
+
+Validated as the field validates means the value is given in the form a client
+would send it. A related field takes a primary key, and the service receives
+the row; a model instance is refused with a 400. A value the field's validators
+refuse is a 400 for the client. Where the server owns the value outright, make
+the field read-only or leave it off the serializer: the value then reaches the
+service parameter of its name as given.
+
+> `view` is seeded beside `request`: a service or selector declaring it is
+> handed the calling view; a hook's `view` key is dropped, and the per-spec
+> callable returning one is refused. Services and selectors are still best kept plain business logic;
+> pipe the view state they need through one of these hooks (the per-spec
+> callable receives a narrow `ServiceView` if it needs URL kwargs or `action`).
 
 ## Why not just read it from `request`?
 

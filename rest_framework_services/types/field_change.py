@@ -1,19 +1,7 @@
-"""A single recorded field-level change."""
+"""``FieldChange`` is django-service-specs' own, re-exported at drfs' path."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
+from django_service_specs.mutations.field_change import FieldChange
 
-
-@dataclass(frozen=True)
-class FieldChange:
-    """One field's before/after pair from a mutation.
-
-    ``old`` will be ``UNSET`` for fields populated as part of a ``create``
-    (no prior value existed).
-    """
-
-    field: str
-    old: Any
-    new: Any
+__all__ = ["FieldChange"]

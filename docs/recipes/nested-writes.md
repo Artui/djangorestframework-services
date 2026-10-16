@@ -53,13 +53,14 @@ is built or diffed, the relation is an ordinary column value, so it flows
 through the same `diff_attrs` reporting and the same minimal `update_fields`
 save as any other field, with nothing added for the occasion.
 
-`children=` is the reverse-FK alias — the same map under the name it shipped as
-— so nothing written against it needs changing. A name declared in both raises.
+`relations=` is the one spelling: the `children=` alias is gone. Every option
+of a relation spec after the model, and after the foreign key where the kind has
+one, is keyword-only.
 
 ## Reverse-FK child collections
 
 ```python
-children = {"books": ChildSpec(model=Book, fk="author")}
+relations = {"books": ChildSpec(model=Book, fk="author")}
 ```
 
 - **`fk`** is the child's forward FK field pointing at the parent — set
@@ -115,15 +116,15 @@ Matching happens inside the parent's own manager, so a child collection needs no
 
 ### Grandchildren
 
-A spec can carry its own `children=` / `relations=`, so depth follows the
+A spec can carry its own `relations=`, so depth follows the
 declared tree:
 
 ```python
-children = {
+relations = {
     "sections": ChildSpec(
         model=Section,
         fk="catalog",
-        children={"items": ChildSpec(model=Item, fk="section")},
+        relations={"items": ChildSpec(model=Item, fk="section")},
     ),
 }
 ```
@@ -295,7 +296,7 @@ a primary key the match did not resolve, with `ServiceValidationError`:
 
 ```python
 # Refused: pk 42 is not in this author's collection.
-update_from_input(author, {"books": [{"pk": 42, "title": "..."}]}, children=BOOKS)
+update_from_input(author, {"books": [{"pk": 42, "title": "..."}]}, relations=BOOKS)
 ```
 
 The guard runs **before** a declared `create_service` is dispatched, so your own
@@ -319,12 +320,12 @@ class BookIn:
 
 
 # Creates. The row named no primary key, so there is none to guard against.
-update_from_input(author, {"books": [BookIn(title="...")]}, children=BOOKS)
+update_from_input(author, {"books": [BookIn(title="...")]}, relations=BOOKS)
 ```
 
 ## Row shaping configures the write, not the match
 
-`field_map`, `exclude_fields`, `m2m`, `children` and `relations` are forwarded to
+`field_map`, `exclude_fields`, `m2m` and `relations` are forwarded to
 the row's own `create_from_input` / `update_from_input` call. That call is
 **all** they configure. Matching, the primary-key guard above and the parent
 link each read the row exactly as it arrived:
@@ -383,9 +384,9 @@ the loop has already decided about.
   never deletes a target, only the membership.
 - A `create_service` / `update_service` **replaces** the helper call, so the
   knobs configuring that call — `field_map`, `exclude_fields`, `m2m` and the
-  nested `children` / `relations` maps — are refused on the same spec, with
+  nested `relations` map — are refused on the same spec, with
   `ImproperlyConfigured` at construction. They would otherwise be dead
-  configuration, and a spec declaring both a `create_service` and `children=`
+  configuration, and a spec declaring both a `create_service` and `relations=`
   would write no grandchildren while saying nothing. `delete_service` is exempt:
   it replaces the removal rule rather than the helper call, so the cascade still
   removes a row's grandchildren before handing the row over.
@@ -406,9 +407,9 @@ relation and the slot, before it runs.
 
 ## When a row's write is refused
 
-An error a row's write raises arrives under the relation that carried it, in the
-shape DRF's `ListSerializer` uses in the same project — so a nested serializer's
-refusal and a relation write's refusal of the same row read alike:
+An error a row's write raises arrives under the relation that carried it,
+keyed by the index of each row that failed in a collection, whichever DRF is
+installed:
 
 ```python
 # a collection: keyed by the index of each row that failed
@@ -418,15 +419,8 @@ refusal and a relation write's refusal of the same row read alike:
 {"profile": {"bio": ["Too long."]}}
 ```
 
-The collection shape is DRF's decision, followed rather than chosen. From DRF
-3.18 it keys the failing rows by index, as above; `LIST_SERIALIZER_ERRORS_AS_DICT
-= False` (3.18.1 on, until DRF 3.20 removes it) and every DRF before 3.18 give
-the older list instead — as long as the one you sent, `{}` against the rows that
-passed:
-
-```python
-{"posts": [{}, {"title": ["Too rude."]}]}
-```
+The relation layer is django-service-specs', so this is the kernel's tree. It
+no longer follows `LIST_SERIALIZER_ERRORS_AS_DICT` or an older DRF's list form.
 
 Namespacing it is not decoration. A row shares field names with its parent — an
 `Author` with a `title` of its own is indistinguishable from its post's — and a
@@ -435,17 +429,21 @@ collection otherwise never says *which* row was refused.
 - Both error types are covered: a `create_service` / `update_service` may raise
   `ServiceValidationError` or DRF's `ValidationError`, and the one you raise is
   the one the caller gets, status mapping and all.
-- The detail is passed through untouched. A service that raises a string or a
-  list gets a string or a list back, at the relation (and position) it came
-  from; the library never reshapes it into a field map it did not name.
+- A field map is passed through as raised. A service that raises a string or
+  a list, which names no field, has it placed under that row's
+  `non_field_errors`, at the relation (and position) it came from:
+  `{"posts": {1: {"non_field_errors": ["Too rude."]}}}`. A relation holding one
+  row has no position, so its refusal is a mapping under the relation's name
+  too: `{"profile": {"non_field_errors": ["Too long."]}}`, never a bare list or
+  string, over a live view and off HTTP, and at every depth.
 - Names nest as you walk them, so a grandchild reads
   `{"posts": {0: {"comments": {0: {"body": ["Too long."]}}}}}`.
 
 The library's own refusals — the [primary-key
 guard](#a-nested-create-may-not-carry-a-primary-key), a [`scope`](#scope) that
-matched nothing — are addressed the same way, with the message as the row's one
-complaint: `{"posts": {1: ["references Post [42], which this write did not
-match. ..."]}}`.
+matched nothing — are addressed the same way, with the message under the row's
+`non_field_errors`: `{"posts": {1: {"non_field_errors": ["references Post [42],
+which this write did not match. ..."]}}}`.
 
 The relation name here is the map key, which is also the key the payload is read
 from. Where a serializer aliased the nested field — `writer =
@@ -458,7 +456,7 @@ Nothing is needed on the spec.
 
 ## Declarative — no service body
 
-The default model services forward `relations=` / `children=`, so a
+The default model services forward `relations=`, so a
 parent-with-relations resource needs no hand-written service:
 
 ```python

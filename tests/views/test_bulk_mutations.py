@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import django_filters
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
@@ -38,17 +39,14 @@ class _PostSerializer(serializers.ModelSerializer):
         fields = ("id", "title")
 
 
-class _PublishedFilterSet:
-    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
-        self._data = data
-        self._queryset = queryset
+class _PublishedFilterSet(django_filters.FilterSet):
+    """Narrows by ``?published=``."""
 
-    @property
-    def qs(self) -> QuerySet[Post]:
-        raw = self._data.get("published")
-        if raw is None:
-            return self._queryset
-        return self._queryset.filter(published=str(raw).lower() in ("1", "true", "yes"))
+    published = django_filters.BooleanFilter()
+
+    class Meta:
+        model = Post
+        fields = ["published"]
 
 
 def _all_posts() -> QuerySet[Post]:
@@ -366,26 +364,22 @@ class TestBulkValidation:
         assert _View.as_view() is not None
 
 
-class _IdsFilterSet:
-    """Duck-typed multi-valued filter, as a ``MultipleChoiceFilter`` would be.
+class _IdsFilterSet(django_filters.FilterSet):
+    """A multi-valued filter: every ``?id=`` value names a row to keep.
 
-    Reads every value under ``id`` when the data mapping can produce a list
-    (a ``QueryDict`` can), and degrades to the single value a flat dict has —
-    so the difference between the two shapes shows up as the *wrong set* rather
-    than as an exception.
+    A flattened query string would hand it only the last value, so the
+    difference between the two shapes shows up as the *wrong set* rather than
+    as an exception.
     """
 
-    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
-        self._data = data
-        self._queryset = queryset
+    id = django_filters.ModelMultipleChoiceFilter(queryset=Post.objects.all(), method="_by_rows")
 
-    @property
-    def qs(self) -> QuerySet[Post]:
-        if "id" not in self._data:
-            return self._queryset
-        getlist = getattr(self._data, "getlist", None)
-        ids = getlist("id") if getlist is not None else [self._data["id"]]
-        return self._queryset.filter(id__in=ids)
+    class Meta:
+        model = Post
+        fields = ["id"]
+
+    def _by_rows(self, queryset: QuerySet[Post], name: str, value: list[Post]) -> QuerySet[Post]:
+        return queryset.filter(pk__in=[row.pk for row in value]) if value else queryset
 
 
 @dataclass

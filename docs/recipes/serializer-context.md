@@ -278,3 +278,60 @@ authorization list and is routinely a wildcard or an internal load-balancer name
 — would emit confidently-wrong links that look valid. A relative URL is what
 those DRF fields already fall back to when there's no request in the context at
 all.
+
+## Through the kernel
+
+A drfs spec compiles to a [django-service-specs](https://github.com/Artui/django-service-specs)
+spec (see [Service specs on the kernel](../reference/service-specs.md)): its input
+serializer becomes a `SerializerValidator` and its output serializer a
+`SerializerPresenter`, and the two context callables ride on them.
+`dispatch_spec` validates through the first, and the kernel's `present` renders
+through the second. Each builds the context in the same four layers:
+
+| Layer | Through `dispatch_spec` | The compiled spec, dispatched by the kernel |
+|---|---|---|
+| 1. DRF default | the `view`'s `get_serializer_context()` | the same for a registered `view` seed, else DRF's three keys, from the registered `request` or an offline pair built for the principal |
+| 2. and 3. View hooks | what the view resolved into `view_hooks=`, carried beside the call rather than in its pool, so no callable's `**kwargs` receives them | none |
+| 4. Per-spec callable | `*_serializer_context` on the spec | the same, with the final say |
+
+The callable declares what it reads, as every spec callable does:
+
+- `request`, `view` and `user` (the principal), the call's own, which no
+  argument a client sends can stand in for;
+- any pool seed the call registered;
+- on input, an argument by name, beneath everything above;
+- on output, the value being rendered: `result` for a service's output,
+  `instance` for a retrieve (but see below for a set).
+
+A key it answers with `UNSET` is declined and keeps the layer beneath. The
+input serializer is built once per call, a `many` call included, for the body
+the call validates and the row it acts on, and the input callable is asked
+once for it. Two kinds of call build it twice, once to read its fields and
+once to validate, and ask the callable for each where what it is handed
+differs:
+
+- one whose body the server puts a value into - a view hook's, the spec's
+  `kwargs` provider's or `input_data` - is described with the body sent and
+  validated with the server's values in it. A callable reading an argument
+  the server's value replaced is asked with each, and so, off HTTP with no
+  view, is one reading `request`, since the request built for the call
+  carries the body;
+- one whose row a target lookup resolves is described before the lookup
+  runs, with no row, for the names the lookup's own arguments need, and
+  validated with the row it found. A serializer that cannot be built
+  without its row, a `get_fields` reading `self.instance.pk` say, is taken
+  to declare no name until the row is found, and is then built with it, so
+  its fields are the row's, under every `UnknownArguments` policy.
+
+A callable taking `**kwargs` is left out of the description, which holds
+none of the call's seeds, unless the input serializer cannot be built
+without its keys; then it is asked over what the description holds, and
+again over the whole pool to validate.
+
+**A set is presented row by row.** The kernel's `present` renders a list, and
+a `many` service's output, one row at a time, so the output callable is asked
+once per row there, and no keyword names the row: the whole set a callable may
+declare, a list's `page` or a `many` output's `result`, is never in hand. The
+view's output hook is handed no value there either. A callable that reads the
+whole set belongs on the paths that render it at once, `render_spec_output`
+and DRF's own views.

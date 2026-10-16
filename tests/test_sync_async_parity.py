@@ -8,20 +8,17 @@ sibling) and asserts the two agree. A fix applied to one core and not the other
 fails here, rather than reaching an async transport as a silently different
 answer.
 
-The kernel the twins share, and are therefore most likely to drift on:
+Both cores prepare a call with one shared step and differ only in whether
+they call the kernel's ``dispatch`` or await its ``adispatch``, so what they
+are most likely to drift on is:
 
-- **the hand-built pools in target resolution** — each core assembles its own
-  pool for ``instance_selector_spec`` / ``collection_selector_spec``, and each
-  has to strip the reserved seeds itself, because that pool decides *which row*
-  gets mutated and off HTTP the params are the caller's tool call;
-- **the mutation tail** — the ``DispatchResult`` fields the mutation path fills
-  in, and the stale-prefetch clear that runs before the output re-fetch;
-- **the signatures themselves** — a parameter added to one twin and not the
+- **the hop itself** - the preparation resolves the target and runs the guard,
+  so the async core must take it off the loop and hand ``adispatch`` exactly
+  what the sync core hands ``dispatch``;
+- **the mutation tail** - the ``DispatchResult`` fields the kernel fills in;
+- **the signatures themselves** - a parameter added to one twin and not the
   other is drift that no behavioural test can see, because the async surface
-  simply cannot be handed the argument. The pair of public entry points is not
-  the whole story: the private target-resolution helpers each core keeps take
-  the same arguments too, and that is where a channel added to one core alone
-  would hide.
+  simply cannot be handed the argument.
 """
 
 from __future__ import annotations
@@ -30,12 +27,14 @@ import inspect
 from collections.abc import Callable, Mapping
 from typing import Annotated, Any
 
+import django_filters
 import pytest
 from asgiref.sync import sync_to_async
 from django.contrib.auth.models import User
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import Model, QuerySet
 from django.http import QueryDict
+from django_service_specs.dispatch.present import present
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
@@ -56,19 +55,9 @@ from rest_framework_services import (
     render_for_audience,
     render_spec_output,
 )
-from rest_framework_services.dispatch.adispatch_spec import (
-    _aresolve_instance,
-    _aresolve_target,
-    _arun_output_selector,
-)
 from rest_framework_services.dispatch.aenforce_affordances import aenforce_affordances
 from rest_framework_services.dispatch.aunmet_operation_affordance import (
     aunmet_operation_affordance,
-)
-from rest_framework_services.dispatch.dispatch_spec import (
-    _resolve_instance,
-    _resolve_target,
-    _run_output_selector,
 )
 from rest_framework_services.dispatch.enforce_affordances import enforce_affordances
 from rest_framework_services.dispatch.unmet_operation_affordance import (
@@ -101,13 +90,12 @@ def _plain(value: Any) -> Any:
 def _summarize(result: DispatchResult) -> dict[str, Any]:
     """Every field of the result contract, reduced to comparable form.
 
-    All six, deliberately: a summary that only carried ``value`` / ``kind`` /
-    ``status`` would agree across cores that disagreed about the mutation tail,
+    All five, deliberately: a summary that only carried ``value`` and ``kind``
+    would agree across cores that disagreed about the mutation tail,
     which is exactly the drift this module exists to catch.
     """
     return {
         "kind": result.kind,
-        "status": result.status,
         "value": _plain(result.value),
         "service_result": _plain(result.service_result),
         "instance": _plain(result.instance),
@@ -156,19 +144,14 @@ def _all_posts() -> QuerySet[Post]:
     return Post.objects.all().order_by("id")
 
 
-class _PublishedOnly:
-    """Duck-typed FilterSet narrowing by ``published``, as django-filter would."""
+class _PublishedOnly(django_filters.FilterSet):
+    """Narrows by ``published``; a duck-typed set is refused when the spec compiles."""
 
-    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
-        self._data = data
-        self._queryset = queryset
+    published = django_filters.BooleanFilter()
 
-    @property
-    def qs(self) -> QuerySet[Post]:
-        raw = self._data.get("published")
-        if raw is None:
-            return self._queryset
-        return self._queryset.filter(published=str(raw).lower() == "true")
+    class Meta:
+        model = Post
+        fields = ("published",)
 
 
 # --- the twins take the same arguments -----------------------------------
@@ -179,11 +162,8 @@ class _PublishedOnly:
 # invisible to every behavioural test, since the drifted surface cannot be
 # handed the argument at all — the caller finds out with a ``TypeError``.
 #
-# The private target-resolution helpers are checked alongside the public entry
-# points. They are where a channel reaches the nested selector specs, so a
-# channel threaded through one core and not the other would leave the drifted
-# core resolving a mutation target from a different mapping — the same class of
-# silent divergence, one layer down and with authorization riding on it.
+# The two edge cores share their preparation (``prepare_edge_call``), so there
+# is no private pair left to drift: what each hands the kernel is built once.
 
 
 def _parameters(fn: Any) -> list[tuple[str, Any]]:
@@ -196,9 +176,6 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
         (dispatch_spec, adispatch_spec),
         (render_spec_output, arender_spec_output),
         (render_for_audience, arender_for_audience),
-        (_resolve_target, _aresolve_target),
-        (_resolve_instance, _aresolve_instance),
-        (_run_output_selector, _arun_output_selector),
         (enforce_affordances, aenforce_affordances),
         (unmet_operation_affordance, aunmet_operation_affordance),
     ],
@@ -206,9 +183,6 @@ def _parameters(fn: Any) -> list[tuple[str, Any]]:
         "dispatch_spec",
         "render_spec_output",
         "render_for_audience",
-        "resolve_target",
-        "resolve_instance",
-        "run_output_selector",
         "enforce_affordances",
         "unmet_operation_affordance",
     ],
@@ -222,11 +196,10 @@ def test_an_async_twin_takes_the_same_arguments_as_its_sync_twin(
 # --- reserved pool seeds in target resolution -----------------------------
 #
 # ``RESERVED_POOL_SEEDS`` exists because a client-routable value named after a
-# dispatcher seed would override the dispatcher's authoritative one. Both cores
-# hand-build the pool for the nested target selectors instead of going through
-# ``merge_arguments``, so both have to strip the seeds themselves — and the two
-# tests that pinned this were sync-only, so the async core's copy was unguarded
-# by anything.
+# dispatcher seed would override the dispatcher's authoritative one. The target
+# lookup runs inside the shared preparation, which the async core reaches through
+# its one thread hop, so these hold that hop to handing the lookup the same seeds
+# and the same stripped arguments the sync core hands it.
 
 
 @pytest.mark.django_db(transaction=True)
@@ -275,8 +248,8 @@ async def test_params_cannot_shadow_the_user_in_collection_resolution_on_either_
 
 @pytest.mark.django_db(transaction=True)
 async def test_params_cannot_fill_a_hidden_key_in_target_resolution_on_either_core() -> None:
-    """The same hand-built pool, stripped of a ``NotClientInput`` key as well as of
-    the seeds: each core strips it itself, so each needs the check."""
+    """The lookup's arguments are stripped of a ``NotClientInput`` key as well as
+    of the seeds, on both sides of the hop."""
     seen: list[Any] = []
     post = await Post.objects.acreate(title="p")
 
@@ -321,7 +294,10 @@ async def test_a_key_a_precondition_hides_is_the_servers_on_either_core() -> Non
 @pytest.mark.django_db(transaction=True)
 async def test_a_key_the_lookup_hides_never_reaches_open_changes_on_either_core() -> None:
     """The lookup's hidden ``tenant`` stays out of an open spread service's
-    ``**changes``, where a ``setattr`` loop would write it onto the row."""
+    ``**changes``, where a ``setattr`` loop would write it onto the row.
+
+    So does the undeclared ``title``: the argument set is closed, and a bare
+    ``**changes`` declares nothing."""
     post = await Post.objects.acreate(title="p")
 
     def target(*, pk: Any, tenant: Annotated[str, NotClientInput] = "own") -> QuerySet[Post]:
@@ -343,24 +319,23 @@ async def test_a_key_the_lookup_hides_never_reaches_open_changes_on_either_core(
         },
     )
     assert sync_summary == async_summary
-    assert "tenant" not in sync_summary["service_result"]
-    assert "title" in sync_summary["service_result"]
+    assert not {"tenant", "title"} & set(sync_summary["service_result"])
 
 
 @pytest.mark.django_db(transaction=True)
 async def test_a_registered_pool_seed_reaches_target_resolution_on_either_core() -> None:
-    """A project's own seed, in the hand-built pool that picks the row.
+    """A project's own seed, in the lookup that picks the row.
 
-    This module's subject exactly: each core assembles that pool itself, so a
-    channel threaded into one and not the other is drift no behavioural test of a
+    The async core hands its ``pool_seeds`` across the hop to the shared
+    preparation, so a seed dropped on the way is drift no behavioural test of a
     single core can see. The client-supplied ``tenant`` is here because a
-    registered name has to be stripped from the spread on both sides too.
+    registered name is never the client's to fill, on either side.
     """
     seen: list[Any] = []
     real = await User.objects.acreate(username="real")
     post = await Post.objects.acreate(title="p")
 
-    def target(*, pk: Any, tenant: Any) -> QuerySet[Post]:
+    def target(*, pk: Any, tenant: Annotated[Any, NotClientInput]) -> QuerySet[Post]:
         seen.append(tenant)
         return Post.objects.filter(pk=pk)
 
@@ -446,14 +421,13 @@ async def test_filter_data_narrows_the_instance_target_on_either_core() -> None:
             "user": None,
             # ``published=false`` sits in the argument channel, where a body
             # value would; the filter channel asks for published rows only.
-            "params": {"pk": draft.pk, "published": "false"},
-            "filter_data": {"published": "true"},
+            "params": {"pk": draft.pk, "published": False},
+            "filter_data": {"published": True},
         },
     )
     assert sync_summary == async_summary
     # The draft is out of scope, so there is no row to mutate.
     assert async_summary["kind"] == "not_found"
-    assert async_summary["status"] == 404
 
 
 @pytest.mark.django_db(transaction=True)
@@ -471,12 +445,38 @@ async def test_filter_data_narrows_the_collection_target_on_either_core() -> Non
         spec,
         lambda: {
             "user": None,
-            "params": {"published": "false"},
-            "filter_data": {"published": "true"},
+            "params": {"published": False},
+            "filter_data": {"published": True},
         },
     )
     assert sync_summary == async_summary
     assert async_summary["value"] == ["shipped"]
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(("from_call", "title"), [(True, "draft"), (False, "shipped")])
+async def test_filter_data_narrows_the_output_re_read_on_either_core(
+    from_call: bool, title: str
+) -> None:
+    """The re-read runs after the service, on the async core inside a thread
+    hop, and reads the call's ``filter_data`` there too, unless the spec says not to."""
+    rows = {
+        "shipped": await Post.objects.acreate(title="shipped", published=True),
+        "draft": await Post.objects.acreate(title="draft", published=False),
+    }
+    spec = ServiceSpec(
+        service=lambda: None,
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=_all_posts, filter_set=_PublishedOnly
+        ),
+        output_filter_from_call=from_call,
+        atomic=False,
+    )
+    sync_summary, async_summary = await _dispatch_both(
+        spec, lambda: {"user": None, "params": {}, "filter_data": {"published": False}}
+    )
+    assert sync_summary == async_summary
+    assert async_summary["value"] == ("Post", rows[title].pk)
 
 
 # --- a payload that is not an object --------------------------------------
@@ -577,8 +577,8 @@ async def test_a_services_own_list_agrees_across_the_cores() -> None:
 
 
 async def test_a_refused_list_return_reads_the_same_on_either_core() -> None:
-    # Each core keeps its own copy of the check, so this is what holds them to one
-    # message. Nothing is written, so no database is needed.
+    # The kernel's ``dispatch`` and ``adispatch`` each check the return, so this is
+    # what holds them to one message. Nothing is written, so no database is needed.
     spec = ServiceSpec(
         service=lambda: {"id": 1}, output_selector_spec=_LIST_WITHOUT_A_SELECTOR, atomic=False
     )
@@ -591,7 +591,7 @@ async def test_a_refused_list_return_reads_the_same_on_either_core() -> None:
 
 
 async def test_a_bundled_selector_parameter_is_the_author_s_error_on_either_core() -> None:
-    """Each core asks ``caller_fillable`` at its own selector site, and each must pass
+    """Each core prepares the selector call through the same edge, and each must pass
     the binding: under ``BUNDLE`` no resend fills ``tenant``, so neither names it.
     Nothing is read, so no database is needed."""
 
@@ -693,8 +693,11 @@ async def test_a_caller_resolved_instance_pins_the_target_on_either_core() -> No
 
 
 @pytest.mark.django_db(transaction=True)
-async def test_an_explicit_none_instance_is_a_create_on_either_core() -> None:
-    """``None`` is supplied, not omitted — the sentinel default is load-bearing."""
+async def test_an_explicit_none_instance_is_no_row_on_either_core() -> None:
+    """``None`` is supplied, not omitted - the sentinel default is load-bearing.
+
+    The caller says there is no row, so the lookup never runs, and a spec that
+    declares one admits no missing row: not found, on both cores."""
     seen: list[Any] = []
 
     def target(**_: Any) -> QuerySet[Post]:
@@ -709,8 +712,7 @@ async def test_an_explicit_none_instance_is_a_create_on_either_core() -> None:
         spec, lambda: {"user": None, "params": {}, "instance": None}
     )
     assert sync_summary == async_summary
-    assert async_summary["value"] == "created"
-    assert async_summary["instance"] is None
+    assert async_summary["kind"] == "not_found"
     assert seen == []
 
 
@@ -732,6 +734,31 @@ async def test_a_form_encoded_body_validates_the_same_on_either_core() -> None:
     )
     assert sync_summary == async_summary
     assert async_summary["value"] == {"title": "Alice"}
+
+
+class _AliasedTenant(serializers.Serializer):
+    tenant = serializers.CharField(required=False)
+    alias = serializers.CharField(source="tenant", required=False)
+
+
+def _tenant_seen(*, data: Any, tenant: str = "default") -> dict[str, Any]:
+    return {"tenant": tenant, "data": dict(data)}
+
+
+@pytest.mark.django_db(transaction=True)
+async def test_the_servers_field_value_outranks_a_second_route_on_either_core() -> None:
+    """A later field writing the same key does not take the server's value back."""
+    spec = ServiceSpec(service=_tenant_seen, input_serializer=_AliasedTenant, atomic=False)
+    sync_summary, async_summary = await _dispatch_both(
+        spec,
+        lambda: {
+            "user": None,
+            "params": {"tenant": "c1", "alias": "evil"},
+            "view_hooks": ViewHooks(extra_kwargs={"tenant": "server"}),
+        },
+    )
+    assert sync_summary == async_summary
+    assert async_summary["service_result"] == {"tenant": "server", "data": {"tenant": "server"}}
 
 
 # --- a spec-level progress sink that queries ------------------------------
@@ -771,6 +798,95 @@ async def test_a_progress_reporter_that_queries_runs_on_either_core() -> None:
     assert sync_summary == async_summary
     # One report per core, each into the sink its own provider built after querying.
     assert reports == [(1, 1), (1, 1)]
+
+
+# --- the serializer-context seed -------------------------------------------
+#
+# The edge registers the view's serializer-context layers as a seed, in the
+# shared preparation. The async core reaches that preparation across a thread
+# hop, so a view or hook dropped on the way leaves its serializers with a
+# context the sync core's never see.
+
+_CONTEXT_KEYS = ("base", "shared", "hook_in", "hook_out", "spec_in", "spec_out")
+
+
+class _ContextView:
+    """A DRF-like view: its ``get_serializer_context`` is the first layer."""
+
+    def __init__(self) -> None:
+        self.request = build_offline_context(None).request
+        self.kwargs: dict[str, Any] = {}
+
+    def get_serializer_context(self) -> dict[str, Any]:
+        return {"request": self.request, "view": self, "base": "view", "shared": "view"}
+
+
+class _ContextOut(serializers.Serializer):
+    title = serializers.CharField()
+    seen_context = serializers.SerializerMethodField()
+
+    def get_seen_context(self, obj: Any) -> dict[str, Any]:
+        return {key: self.context[key] for key in _CONTEXT_KEYS if key in self.context}
+
+
+def _titled(*, data: Any) -> dict[str, Any]:
+    return {"title": data["title"]}
+
+
+async def test_the_serializer_context_seed_reaches_both_serializers_on_either_core() -> None:
+    """The view's context, the hooks over it and the spec's callables over both,
+    seen alike by the input serializer and the presented output on either core.
+    Nothing is read, so no database is needed."""
+    seen: list[dict[str, Any]] = []
+
+    class _ContextIn(serializers.Serializer):
+        title = serializers.CharField()
+
+        def validate(self, attrs: Any) -> Any:
+            seen.append({key: self.context[key] for key in _CONTEXT_KEYS if key in self.context})
+            return attrs
+
+    spec = ServiceSpec(
+        service=_titled,
+        input_serializer=_ContextIn,
+        input_serializer_context=lambda: {"spec_in": 1},
+        output_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE,
+            output_serializer=_ContextOut,
+            output_serializer_context=lambda: {"spec_out": 1},
+        ),
+        atomic=False,
+    )
+
+    def kwargs() -> dict[str, Any]:
+        view = _ContextView()
+        return {
+            "user": None,
+            "params": {"title": "hi"},
+            "request": view.request,
+            "view": view,
+            "view_hooks": ViewHooks(
+                input_serializer_context={"shared": "hook", "hook_in": "in"},
+                output_serializer_context=lambda result: {
+                    "shared": "hook",
+                    "hook_out": result["title"],
+                },
+            ),
+        }
+
+    sync_result = await sync_to_async(dispatch_spec, thread_sensitive=True)(spec, **kwargs())
+    async_result = await adispatch_spec(spec, **kwargs())
+    sync_payload = await sync_to_async(present, thread_sensitive=True)(spec, sync_result)
+    async_payload = await sync_to_async(present, thread_sensitive=True)(spec, async_result)
+
+    assert seen[0] == seen[1] == {"base": "view", "shared": "hook", "hook_in": "in", "spec_in": 1}
+    assert sync_payload == async_payload
+    assert async_payload["seen_context"] == {
+        "base": "view",
+        "shared": "hook",
+        "hook_out": "hi",
+        "spec_out": 1,
+    }
 
 
 # --- the render twins -----------------------------------------------------

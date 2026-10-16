@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 import pytest
+from django.core.exceptions import ImproperlyConfigured
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import (
@@ -122,8 +123,9 @@ class TestServiceCreateView:
         assert response.status_code == 201
         assert captured["tenant_id"] == 99
 
-    def test_service_does_not_receive_view_in_pool(self) -> None:
-        """Regression: ``view`` was previously injected; it must not be anymore."""
+    def test_service_receives_the_view_from_the_pool(self) -> None:
+        """The edge seeds ``view`` beside ``request``, so a service taking
+        ``**kwargs`` receives the calling view, as it receives the request."""
         captured: dict[str, Any] = {}
 
         def fn(*, data: _CreateAuthorInput, **kwargs: Any) -> Author:
@@ -142,7 +144,7 @@ class TestServiceCreateView:
         request = factory.post("/", {"name": "Bob"}, format="json")
         response = _View.as_view()(request)
         assert response.status_code == 201
-        assert "view" not in captured
+        assert isinstance(captured["view"], _View)
         assert "request" in captured
         assert "user" in captured
 
@@ -298,6 +300,22 @@ class TestServiceCreateView:
         assert response.status_code == 201
         assert captured["data"].name == "Ada"
         assert captured["data"].parent_id == 7
+
+    def test_input_data_with_no_input_serializer_is_refused(self) -> None:
+        """Nothing would read the mapping, so the request raises rather than
+        running the service without it."""
+        ran: list[bool] = []
+
+        class _View(ServiceCreateView):
+            spec = ServiceSpec(
+                service=lambda: ran.append(True),
+                input_data=lambda: {"parent_id": 7},
+                atomic=False,
+            )
+
+        with pytest.raises(ImproperlyConfigured, match="use kwargs for a value"):
+            _View.as_view()(factory.post("/", {}, format="json"))
+        assert ran == []
 
     def test_input_data_view_catch_all_hook(self) -> None:
         @dataclass

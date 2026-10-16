@@ -87,3 +87,12 @@ def mark_invoice_sent(*, instance: Invoice, data: ApproveInput) -> Invoice:
         )
     instance.save(update_fields=["status", "notes", "updated_at"])
     return instance
+
+
+def annotate_invoice(*, instance: Invoice, data: dict[str, str]) -> Invoice:
+    """Custom action: apply whichever of ``customer`` / ``notes`` the call validated.
+
+    A partial call validates only the fields it sends, so ``data`` holds
+    exactly those.
+    """
+    return update_from_input(instance, data).instance

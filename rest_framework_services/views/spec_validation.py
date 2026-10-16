@@ -17,9 +17,14 @@ from dataclasses import is_dataclass
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
+from django_service_specs.adapters.filters.filter_set_parameters import filter_set_parameters
 from rest_framework.permissions import BasePermission
 from rest_framework.serializers import Serializer
 
+from rest_framework_services.service_specs.utils import (
+    UNREADABLE_WITHOUT_A_CALL,
+    writable_input_names,
+)
 from rest_framework_services.types.affordance_declarer import AffordanceDeclarer
 from rest_framework_services.types.marked_input_keys import marked_input_keys
 from rest_framework_services.types.polymorphic_service_spec import PolymorphicServiceSpec
@@ -343,12 +348,23 @@ def _reject_ignored_nested_fields(nested: Any, *, label: str) -> None:
     inner selector with its own ``permission_classes`` therefore guards nothing,
     which is worse than not declaring it — the reader sees a rule that is not
     there. Both fail at ``as_view()`` instead.
+
+    A ``progress_reporter`` is the same: only the spec being dispatched runs, so
+    only its reporter reports, and dispatch refuses a nested one on every
+    request. It fails here, before the first request does
+    (test_a_nested_progress_reporter_is_refused_at_as_view).
     """
     if nested.preconditions is not None:
         raise ImproperlyConfigured(
             f"{label}: `preconditions` on a nested spec is never invoked — the "
             "surrounding spec owns the dispatch. Move them to the spec being "
             "dispatched."
+        )
+    if nested.progress_reporter is not None:
+        raise ImproperlyConfigured(
+            f"{label}: `progress_reporter` on a nested spec never reports — only "
+            "the spec being dispatched runs. Move it to the surrounding "
+            "ServiceSpec, whose service is the run."
         )
     if nested.permission_classes is not None:
         raise ImproperlyConfigured(
@@ -646,6 +662,51 @@ def _callable_conditions(
             yield f"{label}.affordances[{index}].when", affordance.when
 
 
+def _refuse_filters_named_like_fields(spec: ServiceSpec[Any, Any, Any], *, label: str) -> None:
+    """Refuse a target lookup's filter named like a field the input serializer takes from the body.
+
+    A filter's value comes off the query string and a field's off the body, and
+    one argument name cannot be both, so dispatch refuses the spec on every
+    request (``Parameters [...] are declared by two sources``). Refused here,
+    where the view is wired, by the names the compile reads: each writable
+    field as the client sends it, so a read-only field, a ``HiddenField`` and a
+    field's ``source`` are no clash, and a ``many`` spec, whose fields are each
+    row's, has none (test_a_name_the_body_does_not_write_is_accepted,
+    test_the_wire_name_is_the_one_refused). A serializer that cannot be built
+    without a request is left to that request's refusal
+    (test_a_serializer_unreadable_without_a_request_is_refused_by_the_request).
+    """
+    role = "collection" if spec.collection_selector_spec is not None else "instance"
+    target = spec.collection_selector_spec or spec.instance_selector_spec
+    # One arc to coverage, a condition each: without the first every spec with
+    # no target lookup raises ``AttributeError`` (an ``@service_action`` module
+    # such as tests/viewsets/decorators/test_service_action.py fails to import),
+    # and without the second a lookup with nothing to clash builds the
+    # serializer to find out
+    # (test_a_lookup_with_no_filter_set_leaves_the_serializer_unbuilt).
+    if target is None or target.filter_set is None:
+        return
+    try:
+        writable = writable_input_names(spec)
+    except UNREADABLE_WITHOUT_A_CALL:
+        return
+    shared = sorted(filter_set_parameters(target.filter_set).names() & writable)
+    if not shared:
+        return
+    names = ", ".join(repr(name) for name in shared)
+    # Declared, since a spec with none writes no name.
+    serializer: Any = spec.input_serializer
+    plural = "s" if len(shared) > 1 else ""
+    raise ImproperlyConfigured(
+        f"{label}.{role}_selector_spec.filter_set {target.filter_set.__qualname__} declares "
+        f"the filter{plural} {names}, which the input serializer "
+        f"{serializer.__qualname__} also takes as a writable field{plural}. "
+        "A filter's value comes off the query string and a field's off the body, and one "
+        "argument name cannot be both. Rename the filter (its field_name can stay the "
+        "column it filters) or the field."
+    )
+
+
 def validate_service_spec(
     spec: ServiceSpec[Any, Any, Any],
     *,
@@ -707,6 +768,7 @@ def validate_service_spec(
             spec_kwargs=spec.kwargs,
             input_serializer=spec.input_serializer,
         )
+    _refuse_filters_named_like_fields(spec, label=label)
     _refuse_misplaced_schema_markers(spec, label=label)
 
 

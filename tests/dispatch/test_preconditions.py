@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
+from django.contrib.auth.models import AnonymousUser
 from django.db.models import QuerySet
 from rest_framework import serializers
 
@@ -78,7 +79,8 @@ def test_precondition_sees_validated_payload_and_resolved_instance() -> None:
     assert seen["instance"].pk == post.pk
     # Post-validation: the precondition sees validated data, not raw params.
     assert seen["data"]["title"] == "after"
-    assert seen["user"] is None
+    # No user acts as DRF's unauthenticated one for every callable reading it.
+    assert isinstance(seen["user"], AnonymousUser)
 
 
 @pytest.mark.django_db

@@ -190,10 +190,10 @@ delete_model(Post, soft_delete=_archive)
 
 The async variant takes an `async def` hook.
 
-### `relations` / `children`
+### `relations`
 
-Every factory forwards them. On `create_model` / `update_model` they declare
-the nested relations to write; on `delete_model` they declare what to remove
+Every factory forwards it. On `create_model` / `update_model` it declares
+the nested relations to write; on `delete_model` it declares what to remove
 before the parent goes, by the one rule the
 [nested-writes recipe](recipes/nested-writes.md#deleting) states — the rows the
 parent owns go, the rows it merely points at are left alone.

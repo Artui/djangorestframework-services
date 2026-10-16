@@ -31,6 +31,12 @@ registry.register("get_order", order_detail_spec, tags=("read", "public"))
 registry.register("refund_order", refund_spec, tags=("write", "admin"))
 ```
 
+`register()` compiles each spec to django-service-specs' and refuses one that
+declares no permissions, with `ImproperlyConfigured`, so a spec reaches a
+non-HTTP transport only guarded: give each one `permission_classes`, and
+`permission_classes=[]` where anyone may run it. The registry is the kernel's
+`SpecRegistry`, so it takes the kernel's own specs beside these.
+
 Each transport then reads that one source. Adoption needs no support from the
 adapter: `specs()` returns the `dict[str, spec]` they already accept.
 
@@ -160,9 +166,9 @@ between processes rather than reshuffling for clients that diff it.
 
 `mutations()` and `queries()` discriminate by type rather than by a stored flag,
 and together they cover every entry — which is why `register()` rejects anything
-that is neither a `ServiceSpec` nor a `SelectorSpec`. A `PolymorphicServiceSpec`
-is rejected too, with a pointer at the supported shape: register each of its
-variants under its own name, since a transport that projects one operation per
+that is neither a `ServiceSpec` nor a `SelectorSpec`, of this package or the
+kernel, with `TypeError`. A `PolymorphicServiceSpec`
+is rejected the same way: register each of its variants under its own name, since a transport that projects one operation per
 name wants one operation per variant, not a union.
 
 ## The whole surface as one document
@@ -180,7 +186,7 @@ manifest["operations"][0]
 # {"name": "list_orders", "kind": "query", "tags": ["public", "read"],
 #  "idempotent": None, "input_schema": {...}, "output_schema": {...},
 #  "guards": [{"source": "orders.permissions.IsStaff"}]}
-manifest["unguarded"]  # names whose permission_classes is None
+manifest["unguarded"]  # always empty: the registry refuses an unguarded spec
 ```
 
 A mutation that declares [affordances](affordances.md) lists them too, as

@@ -31,7 +31,6 @@ from rest_framework_services import (
     dispatch_spec,
     spec_to_json_schema,
 )
-from rest_framework_services.exceptions.service_validation_error import ServiceValidationError
 from rest_framework_services.types.read_input_description import read_input_description
 from rest_framework_services.types.read_schema_markers import read_schema_markers
 
@@ -172,9 +171,9 @@ class TestInputRequiredInsideOptional:
 
     def test_dispatch_refuses_a_call_without_it(self, selector: Any) -> None:
         spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector)
-        with pytest.raises(ServiceValidationError) as exc:
+        with pytest.raises(ValidationError) as exc:
             dispatch_spec(spec, user=None, params={})
-        assert exc.value.detail == {"non_field_errors": ["Missing required argument(s): 'limit'."]}
+        assert exc.value.detail == {"limit": ["This field is required."]}
 
 
 # ------------------------------------------------------------- InputDescription

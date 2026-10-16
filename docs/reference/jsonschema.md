@@ -64,8 +64,10 @@ ServiceSpec(
 Without the declaration the schema stays strict, and an undeclared `None` is
 not refused in this release: dispatch presents it, against a schema that does
 not admit it. `allow_none` on the nested `output_selector_spec` is still not
-read, and a result that is a list (`many=True`, or a `LIST` output declaration,
-re-read or not) is declared never `None` whatever either flag says. A callable
+read, and a result that is a list (a `LIST` output declaration, re-read or not)
+is declared never `None` whatever either flag says. A `many=True` service answers
+its own `allow_none`: its output selector only presents its rows and is never
+run, so a `RETRIEVE` one is no re-read that may find nothing. A callable
 returning `None` there anyway is the author's error. Dispatch refuses it only
 where a `LIST` declaration has nothing to re-read; a `many=True` service, a
 `LIST` re-read and a `LIST` `SelectorSpec`'s selector have their `None`
@@ -120,7 +122,7 @@ sends and which the transport fills. `task_by_pk(user, *, pk)` and
 `currency` arrives from a pool seed. So by default every reflected parameter is
 optional unless it carries `InputRequired`. A lookup without a default is then
 advertised as optional, and a call without it is refused with
-`Missing required argument(s): 'pk'.` A seed is advertised as an input that the
+`{"pk": ["This field is required."]}`. A seed is advertised as an input that the
 seed then overrides.
 
 A transport describing its own tools does know which names it fills: its
@@ -174,10 +176,11 @@ lookup, reflect its `instance_selector_spec` or `collection_selector_spec` (a
 ### A spreading service's own parameters: `argument_binding=`
 
 A `ServiceSpec`'s input schema is its `input_serializer`'s. A service with no
-serializer, dispatched under a `SPREAD_*` `argument_binding`, has nothing but its
-own signature to read the caller's input, so dispatch declares the service's
-parameters as that input, and `UnknownArguments.REJECT` admits them. A transport
-passes the binding it dispatches with, and the schema lists the same parameters:
+serializer has nothing but its own signature to read the caller's input, and
+whether that signature is caller input is the transport's call: dispatch
+declares the service's parameters, and `UnknownArguments.REJECT` admits them,
+only under `ArgumentBinding.SPREAD_AUTHOR_WINS`. The schema lists them when the
+transport passes the same binding:
 
 ```python
 def close_ticket(*, instance, reason: str, note: str = "", user) -> Ticket: ...
@@ -209,15 +212,16 @@ Three things are not in it:
 - **The target lookup's keys.** The `pk` that `ticket_by_pk` reads belongs to
   the lookup, not the service. Transports merge it themselves, by reflecting the
   lookup's `SelectorSpec`, as they do beside an `input_serializer`.
-- **Closure.** A bare `**kwargs` makes dispatch admit every key, and the schema
+- **Closure.** A bare `**kwargs` never passes an undeclared key on (`REJECT`
+  refuses it, or under `SPREAD_AUTHOR_WINS` dispatch drops it), and the schema
   lists the parameters the service names without `additionalProperties`. drfs
   states `additionalProperties: false` only around a `many=True` list, and a
   transport closes a tool's input, or not, from its own policy.
-- **Anything under `AUTO`.** `AUTO`, the default, is `BUNDLE` for a service, and
-  `BUNDLE` spreads nothing, so a caller that does not pass the argument gets the
-  schema it always had: `{"type": "object"}` with no serializer. A `many=True`
-  spec, one with an `input_serializer`, a `SelectorSpec` and the output phase do
-  not read it.
+- **Anything under `AUTO` or `BUNDLE`.** A caller that does not pass
+  `SPREAD_AUTHOR_WINS` gets the schema it always had: `{"type": "object"}` with
+  no serializer, and dispatch agrees, since under those bindings the service's
+  own parameters are no caller input. A `many=True` spec, one with an `input_serializer`, a
+  `SelectorSpec` and the output phase do not read it.
 
 ### What an annotation publishes
 

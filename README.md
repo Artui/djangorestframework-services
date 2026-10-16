@@ -18,6 +18,16 @@ that doesn't belong on a model. `djangorestframework-services` keeps DRF's
 routing, validation, and serialization for what they're good at, and gives
 you a precise, well-typed seam for the bits in the middle.
 
+Under the views it is a DRF adapter over
+[django-service-specs](https://github.com/Artui/django-service-specs): a spec
+declared here compiles to that kernel's spec, the kernel runs the call, and the
+serializer and DRF's permission classes are the validator, the presenter and the
+guard it calls back into. Over HTTP a view's request is still validated by its
+serializer alone, as DRF always validated it; off HTTP, as an agent transport
+calls a spec, the kernel also checks each argument's type. The kernel's names (`ServiceError`, `SpecRegistry`, the
+mutation helpers and the relation specs among them) are re-exported here as the
+same objects, so one import path serves both.
+
 - **Services** — plain callables. The library does not define a `Service`
   base class or prescribe a signature.
 - **Selectors** — plain callables that override `get_queryset()` /
@@ -182,14 +192,17 @@ There are three building blocks:
 | **Selector** | A plain callable that returns data to read | Your code |
 | **View / Viewset** | DRF view that wires a service or selector to an HTTP method | Provided by this library |
 
-Views inspect the service / selector signature with `inspect.signature` and
-pass only the arguments they declare from a known pool: `request`, `user`,
-optionally `instance` (update / delete) and `data` (when an
-`input_serializer` is configured), plus extras from `get_service_kwargs()` /
-`get_selector_kwargs()`. If a callable declares `**kwargs`, the entire pool
-is forwarded. `view` is intentionally not in the pool — pipe view state
-through `ServiceSpec.kwargs` / `SelectorSpec.kwargs` (which receive a narrow
-`ServiceView`) or `get_<action>_*_kwargs` instead.
+Views inspect the service / selector signature and pass only the arguments
+it declares, by name, from one pool: the seeds (`request`, `user`, `view`,
+`progress`, `data`, and `instance` for update / delete), the arguments the
+spec declares (an input serializer's validated fields, a selector's
+parameters, its `reads`), and the author's extras from `ServiceSpec.kwargs` /
+`SelectorSpec.kwargs` and `get_<action>_*_kwargs` / `get_service_kwargs()` /
+`get_selector_kwargs()`, which outrank the client's value of the same name.
+A callable declaring `**kwargs` receives all of those, never a key the spec
+does not declare. A service with no `input_serializer` receives `data={}`, and
+the request body never fills its own parameters; an off-HTTP caller opts in
+with `ArgumentBinding.SPREAD_AUTHOR_WINS`.
 
 ```python
 def create_author(*, data, user):  # the view passes only data + user
@@ -817,8 +830,11 @@ builds on:
   `SelectorSpec` with just the acting `user` and a flat `params` mapping;
   get back a `DispatchResult` to format for your wire. See
   [Dispatch reference](https://artui.github.io/djangorestframework-services/reference/dispatch/).
-- **`filter_set` on selectors** — declare filtering on a `SelectorSpec`
-  once and it applies transport-neutrally, off the HTTP query-string path.
+- **`filter_set` on selectors** — declare a django-filter `FilterSet` on a
+  `SelectorSpec` once and it applies transport-neutrally, off the HTTP
+  query-string path. On a selector view the query string feeds the filter; a
+  query value becomes an argument to the selector only where the spec declares
+  it with `reads=[QueryParam(...)]`.
 - **Bulk and nested writes** — `many=True` on a spec mutates a whole
   collection, and the mutation helpers accept a `relations=` argument that
   writes every relation kind Django has from one payload (forward FK and
@@ -844,8 +860,10 @@ builds on:
 
 A minimal but runnable example project lives in
 [`examples/`](examples/). It demonstrates the create / list / retrieve /
-update / destroy flows on a single resource and one custom action via
-`@service_action`.
+update / destroy flows on a single resource and two custom actions via
+`@service_action`, a query value the list selector declares in `reads`, a
+field `field_audiences` hides from an agent, and a `dispatch_spec(partial=True)`
+call off HTTP.
 
 ```bash
 cd examples
@@ -862,6 +880,7 @@ python manage.py runserver
 | Python | 3.10 – 3.14 |
 | Django | 4.2, 5.0, 5.1, 5.2, 6.0 |
 | DRF | ≥ 3.14 |
+| django-service-specs | ≥ 0.8.0 |
 
 CI runs the full Python × Django matrix with 100% coverage gating.
 

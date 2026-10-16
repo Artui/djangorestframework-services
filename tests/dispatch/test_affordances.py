@@ -7,7 +7,6 @@ tested with the selector shaping; this file is the moment of the call.
 
 from __future__ import annotations
 
-import importlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -36,10 +35,6 @@ from rest_framework_services import (
     enforce_permissions,
 )
 from tests.testapp.models import Author, Post, PublishedPost, Tag
-
-# The submodule, not the function the package re-exports under the same name: the
-# executor hop is looked up in this module's namespace, so that is where it is counted.
-aenforce_module = importlib.import_module("rest_framework_services.dispatch.aenforce_affordances")
 
 # --- fixtures ---------------------------------------------------------------
 
@@ -297,32 +292,6 @@ def test_declaring_nothing_costs_no_query(declared: Any) -> None:
     assert _queries(spec, post) == 0
 
 
-@pytest.mark.django_db(transaction=True)
-async def test_declaring_nothing_costs_the_async_path_no_executor_hop(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    hops: list[Any] = []
-    real = aenforce_module.arun_off_loop
-
-    async def counting(fn: Any, /, *args: Any, **kwargs: Any) -> Any:
-        hops.append(fn)
-        return await real(fn, *args, **kwargs)
-
-    monkeypatch.setattr(aenforce_module, "arun_off_loop", counting)
-    post = await Post.objects.acreate(title="draft")
-    ambient = Affordance(code="open", reason="Closed.", when=lambda: True)
-
-    await adispatch_spec(ServiceSpec(service=_noop_service), user=None, params={}, instance=post)
-    assert hops == []
-    await adispatch_spec(
-        ServiceSpec(service=_noop_service, affordances=[ambient]),
-        user=None,
-        params={},
-        instance=post,
-    )
-    assert [fn.__name__ for fn in hops] == ["enforce_affordances"]
-
-
 @pytest.mark.django_db
 def test_every_row_condition_is_answered_by_one_query() -> None:
     post = _post(tags=[Tag.objects.create(name="a")], author=Author.objects.create(name="A"))
@@ -408,7 +377,7 @@ def test_a_catch_all_callable_never_sees_the_calls_target_or_input() -> None:
     )
     dispatch_spec(spec, user=None, params={"title": "x"}, instance=_post())
 
-    assert set(seen) == {"user", "request", "progress"}
+    assert set(seen) == {"user", "request", "view", "progress"}
 
 
 class _MonthEndIn(serializers.Serializer):
@@ -437,10 +406,10 @@ def test_a_client_argument_never_reaches_a_condition() -> None:
             user=None,
             params={"is_month_end": False},
             instance=_post(),
-            argument_binding=ArgumentBinding.SPREAD_CALLER_WINS,
+            argument_binding=ArgumentBinding.AUTO,
         )
     assert "is_month_end" not in seen
-    assert set(seen) == {"user", "request", "progress"}
+    assert set(seen) == {"user", "request", "view", "progress"}
 
 
 @pytest.mark.django_db

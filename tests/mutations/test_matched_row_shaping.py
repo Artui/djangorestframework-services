@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+from django_service_specs.parameters.invalid_arguments import InvalidArguments
 
 from rest_framework_services import (
     ChildSpec,
@@ -74,7 +75,7 @@ class TestAMatchedRowMayCarryItsOwnKey:
         update_from_input(
             catalog,
             {"sections": [{"pk": section.pk, "title": "renamed"}]},
-            children={"sections": ChildSpec(model=Section, fk="catalog")},
+            relations={"sections": ChildSpec(model=Section, fk="catalog")},
         )
 
         section.refresh_from_db()
@@ -131,11 +132,11 @@ class TestTheAsyncWritersAgree:
         author = await Author.objects.acreate(name="Ursula")
         post = await Post.objects.acreate(title="t", author=author)
 
-        with pytest.raises(ServiceValidationError) as excinfo:
+        with pytest.raises(InvalidArguments) as excinfo:
             await aupdate_from_input(
                 author,
                 {"posts": [{"pk": post.pk, "views": "not-a-number"}]},
-                children={"posts": ChildSpec(model=Post, fk="author")},
+                relations={"posts": ChildSpec(model=Post, fk="author")},
             )
 
         detail = excinfo.value.detail
@@ -162,7 +163,7 @@ class TestOnlyTheKeyIsDropped:
         update_from_input(
             catalog,
             {"sections": [{"title": "original"}, {"title": "second"}]},
-            children={"sections": ChildSpec(model=Section, fk="catalog", match_key="title")},
+            relations={"sections": ChildSpec(model=Section, fk="catalog", match_key="title")},
         )
 
         section.refresh_from_db()
@@ -199,7 +200,7 @@ class TestOnlyTheKeyIsDropped:
             update_from_input(
                 catalog,
                 {"sections": [{"pk": 4242, "title": "x"}]},
-                children={"sections": ChildSpec(model=Section, fk="catalog")},
+                relations={"sections": ChildSpec(model=Section, fk="catalog")},
             )
 
         assert "did not match" in str(excinfo.value.detail)
@@ -253,7 +254,7 @@ class TestAFieldMapOntoTheKeyIsRefusedWhereItWouldBeUnreachable:
         update_from_input(
             catalog,
             {"sections": [{"title": "s", "ident": section.pk}]},
-            children={
+            relations={
                 "sections": ChildSpec(
                     model=Section, fk="catalog", match_key="title", field_map={"ident": "pk"}
                 )
@@ -270,18 +271,19 @@ class TestAFieldMapOntoTheKeyIsRefusedWhereItWouldBeUnreachable:
 
 @pytest.mark.django_db
 class TestARowsWriteFailsAsThatRow:
-    @pytest.mark.usefixtures("rows_keyed_by_index")
     def test_a_django_value_error_is_named_rather_than_escaping(self) -> None:
         # The backstop. Django raises a bare ``ValueError`` -- no ``detail`` to
         # namespace -- when a row's own data cannot be written at all, and
-        # untranslated it leaves the service as a 500 naming no row.
+        # untranslated it leaves the service as a 500 naming no row. Called
+        # directly, the writer raises the kernel's ``InvalidArguments``, which the
+        # DRF edge translates to DRF's at its boundary.
         author = Author.objects.create(name="Ursula")
 
-        with pytest.raises(ServiceValidationError) as excinfo:
+        with pytest.raises(InvalidArguments) as excinfo:
             update_from_input(
                 author,
                 {"posts": [{"title": "a"}, {"title": "b", "views": "not-a-number"}]},
-                children={"posts": ChildSpec(model=Post, fk="author")},
+                relations={"posts": ChildSpec(model=Post, fk="author")},
             )
 
         detail = excinfo.value.detail
@@ -296,11 +298,11 @@ class TestARowsWriteFailsAsThatRow:
         author = Author.objects.create(name="Ursula")
         post = Post.objects.create(title="t", author=author)
 
-        with pytest.raises(ServiceValidationError) as excinfo:
+        with pytest.raises(InvalidArguments) as excinfo:
             update_from_input(
                 author,
                 {"posts": [{"pk": post.pk, "views": "not-a-number"}]},
-                children={"posts": ChildSpec(model=Post, fk="author")},
+                relations={"posts": ChildSpec(model=Post, fk="author")},
             )
 
         detail = excinfo.value.detail
@@ -320,7 +322,7 @@ class TestARowsWriteFailsAsThatRow:
             update_from_input(
                 catalog,
                 {"sections": [{"pk": section.pk, "title": "renamed"}]},
-                children={
+                relations={
                     "sections": ChildSpec(
                         model=Section, fk="catalog", update_service=update_service
                     )

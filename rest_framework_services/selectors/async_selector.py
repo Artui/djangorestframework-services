@@ -1,13 +1,7 @@
-"""Asynchronous selector protocol."""
+"""``AsyncSelector``: django-service-specs' own, re-exported at this path."""
 
 from __future__ import annotations
 
-from typing import Any, Protocol, runtime_checkable
+from django_service_specs.selectors.async_selector import AsyncSelector
 
-
-@runtime_checkable
-class AsyncSelector(Protocol):
-    """Async sibling of
-    [`Selector`][rest_framework_services.selectors.selector.Selector]."""
-
-    async def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
+__all__ = ["AsyncSelector"]

@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from rest_framework import exceptions as drf_exceptions
+from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
 from rest_framework_services import call_service
@@ -203,3 +204,46 @@ def test_non_service_error_is_never_mapped() -> None:
 
     with pytest.raises(ValueError):
         call_service(service, request=_build_request(user="x"), map_errors=True)
+
+
+def test_the_view_a_drf_request_carries_is_seeded() -> None:
+    """The framework seeds ``view`` beside ``request``, so the helper does too,
+    from the view DRF records on the request it builds."""
+    seen: dict[str, Any] = {}
+    view = object()
+
+    def service(*, view: Any) -> int:
+        seen["view"] = view
+        return 1
+
+    request = Request(APIRequestFactory().get("/"), parser_context={"view": view})
+    assert call_service(service, request=request) == 1
+    assert seen["view"] is view
+
+
+def test_a_request_carrying_no_view_leaves_the_name_to_the_caller() -> None:
+    """Off a view (a plain ``HttpRequest``), nothing is seeded, so a ``view`` the
+    caller passes reaches the callable."""
+    seen: dict[str, Any] = {}
+
+    def service(*, view: Any) -> int:
+        seen["view"] = view
+        return 1
+
+    assert call_service(service, request=APIRequestFactory().get("/"), view="mine") == 1
+    assert seen["view"] == "mine"
+
+
+def test_a_view_extra_does_not_replace_the_recorded_view() -> None:
+    """A seed is never overridden by ``extras``, ``view`` included: inside a view
+    the callable gets the view DRF recorded, not a ``view`` key spread in."""
+    seen: dict[str, Any] = {}
+    view = object()
+
+    def service(*, view: Any) -> int:
+        seen["view"] = view
+        return 1
+
+    request = Request(APIRequestFactory().get("/"), parser_context={"view": view})
+    assert call_service(service, request=request, view="spoof") == 1
+    assert seen["view"] is view

@@ -7,12 +7,16 @@ they agree only while they are read together. Nothing here touches a serializer
 selector's dispatch put on it: annotations on a queryset's rows, attributes on
 the instances and keys on the mappings a selector returned directly -- so the
 projection survives whatever renders the fields.
+
+``described_output`` is here for the same readers: what a spec presents is read
+off its declaration, never off the selector that would produce it.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Final
+from dataclasses import replace
+from typing import Any, Final, NoReturn
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -143,3 +147,36 @@ def _flag(row: Any, alias: str) -> Any:
             "through that selector -- or a spec whose selector is not set -- has none."
         )
     return flag
+
+
+def described_output(spec: Any) -> Any:
+    """``spec`` as the readers of its output compile it.
+
+    A ``SelectorSpec`` with no ``selector`` declares what a view presents from
+    its ``get_queryset()`` or ``get_object()``, and its output schema, its
+    agent projection and an agent's rendering of it read only that
+    declaration. The compile refuses such a spec, because dispatch and
+    registration would run a selector it does not have, so these readers
+    compile a copy standing ``_no_selector`` in for one instead. The copy is a
+    new object per call, so the compile the kernel caches for ``spec`` itself
+    stays the refusing one, and registering or dispatching ``spec`` after it
+    has been described is refused as before
+    (test_described_and_rendered_it_is_still_refused_where_it_would_run).
+
+    One arc to coverage. Without the ``isinstance`` a ``ServiceSpec``, which has
+    no ``selector``, raises ``AttributeError`` wherever one is asked
+    (test_the_schema_admits_the_null_the_re_read_presents). Without ``selector is None`` a
+    spec whose selector the compile refuses would be described as if it had
+    none (test_a_spec_with_a_selector_is_compiled_as_it_is).
+    """
+    if isinstance(spec, SelectorSpec) and spec.selector is None:
+        return replace(spec, selector=_no_selector)
+    return spec
+
+
+def _no_selector() -> NoReturn:
+    """The selector a described-only spec compiles with: never run, and refusing if it is."""
+    raise ImproperlyConfigured(
+        "SelectorSpec declares no selector, and only an output selector may: there is "
+        "nothing else to run. Declare the selector that reads the rows."
+    )

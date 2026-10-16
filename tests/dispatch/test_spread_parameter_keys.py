@@ -1,14 +1,15 @@
-"""``declared_input_keys`` and ``service_extras`` for a spread service with no serializer.
+"""``declared_input_keys`` for a spread service with no serializer.
 
-The dispatch-level behaviour is in ``test_dispatch_spread_parameters.py``; these pin
-the set itself, which a transport may read without dispatching (drf-mcp asks
-``declared_input_keys`` whether a spec's set is enumerable, without a binding).
+Dispatch itself is the kernel's now; these pin the set, which a transport reads
+without dispatching (drf-mcp asks ``declared_input_keys`` whether a spec's set is
+enumerable, without a binding).
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, Any
 
+import django_filters
 import pytest
 from rest_framework import serializers
 from typing_extensions import TypedDict, Unpack
@@ -16,7 +17,6 @@ from typing_extensions import TypedDict, Unpack
 from rest_framework_services.dispatch.utils import (
     _UnresolvedExtras,
     declared_input_keys,
-    service_extras,
 )
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.not_client_input import NotClientInput
@@ -158,71 +158,24 @@ def test_an_unresolvable_var_keyword_is_read_only_under_a_spreading_binding() ->
     assert declared_input_keys(_spec(_close_for_tenant), serializer=None) == {"pk"}
 
 
-# --- service_extras ---------------------------------------------------------------
+class _TitleFilter(django_filters.FilterSet):
+    title = django_filters.CharFilter()
 
-_SENT = {"pk": 1, "reason": "dup", "user": "spoofed", "team": "other", "colour": "red"}
 
+def test_an_open_lookup_leaves_the_set_open_before_the_service_is_read() -> None:
+    """The lookup is read first, so an unresolvable service surface beside an
+    open lookup raises nothing here: the set is open whatever the service declares.
 
-def test_service_extras_takes_the_declared_parameters_beside_the_passthrough() -> None:
-    """The positional-only ``position`` is not taken, though the caller sent it."""
-    extras = service_extras(
-        _spec(_close),
-        {**_SENT, "position": 3},
-        {"colour": "red"},
-        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
-        reserved=RESERVED_POOL_SEEDS,
+    This is ``declared_input_keys`` alone. Dispatching the same spec under
+    ``REJECT`` and ``SPREAD_AUTHOR_WINS`` raises ``ImproperlyConfigured``
+    (test_reject_beside_a_filtered_lookup_cannot_be_held_to_unresolvable_extras).
+    """
+    open_lookup = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_by_pk, filter_set=_TitleFilter)
+    spec = ServiceSpec(service=_close_for_tenant, instance_selector_spec=open_lookup, atomic=False)
+
+    assert (
+        declared_input_keys(
+            spec, serializer=None, argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS
+        )
+        is None
     )
-
-    assert extras == {"reason": "dup", "colour": "red"}
-
-
-@pytest.mark.parametrize("service", [_close_open, _close_for_tenant], ids=["bare", "unresolvable"])
-def test_service_extras_takes_every_key_but_the_lookups_from_an_open_service(
-    service: Any,
-) -> None:
-    """Every key but the reserved ``user`` and the lookup's ``pk``, which reaches a
-    service only by name. ``team`` is still here: the dispatch site strips hidden
-    keys from the result."""
-    extras = service_extras(
-        _spec(service),
-        _SENT,
-        {},
-        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
-        reserved=RESERVED_POOL_SEEDS,
-    )
-
-    assert extras == {"reason": "dup", "team": "other", "colour": "red"}
-
-
-def _all_posts() -> Any: ...
-
-
-class _ByPk:
-    """A duck-typed ``filter_set``: the core cannot enumerate what it reads."""
-
-
-def test_service_extras_withholds_only_what_the_lookup_names() -> None:
-    """A key the lookup reads only through its ``filter_set`` is not one it names,
-    so an open service still takes it."""
-    lookup = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_all_posts, filter_set=_ByPk)
-    extras = service_extras(
-        ServiceSpec(service=_close_open, instance_selector_spec=lookup, atomic=False),
-        _SENT,
-        {},
-        argument_binding=ArgumentBinding.SPREAD_AUTHOR_WINS,
-        reserved=RESERVED_POOL_SEEDS,
-    )
-
-    assert extras == {"pk": 1, "reason": "dup", "team": "other", "colour": "red"}
-
-
-def test_service_extras_is_the_passthrough_for_any_other_spec() -> None:
-    extras = service_extras(
-        _spec(_close),
-        _SENT,
-        {"colour": "red"},
-        argument_binding=ArgumentBinding.AUTO,
-        reserved=RESERVED_POOL_SEEDS,
-    )
-
-    assert extras == {"colour": "red"}

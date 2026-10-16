@@ -16,47 +16,51 @@ provider supplies from request state, which the caller has no business setting.
 **What it does.** Two things, and the second is what makes the first honest:
 
 - **It is not advertised.** The key is dropped from the generated schema.
-- **The caller's value never reaches the callable.** ``dispatch_spec`` and
-  ``adispatch_spec`` drop the caller's value for a marked key before spreading
-  the caller's input into the callable's pool, under every
-  ``UnknownArguments`` policy and whatever the argument binding's precedence. That
-  covers a ``SelectorSpec``'s selector, a service whose input is spread (and the
-  extras ``PASSTHROUGH`` would forward to it), and a service's
-  ``instance_selector_spec`` / ``collection_selector_spec`` lookup, whose pool is
-  spread from the caller's arguments too.
+- **The caller's value never reaches the callable.** A name any callable of
+  the call marks - the selector or service, each of its ``preconditions``, a
+  service's ``instance_selector_spec`` / ``collection_selector_spec`` lookup -
+  is the server's for the whole call, so the compiled spec declares no
+  parameter of that name: ``dispatch_spec``, ``adispatch_spec`` and the
+  kernel's ``dispatch`` drop the caller's value under ``IGNORE``, whatever the
+  argument binding. An ``input_serializer`` field of that name stays the
+  client's input, validated into ``data``, and the client's value reaches the
+  service only there: the parameter is not handed it by name, on either core,
+  over HTTP or off it, nor is a precondition.
 
-So a marked key is filled only by a channel the caller does not control: a
-``spec.kwargs`` provider, a registered pool seed, a service's ``input_data``, the
-parameter's own default, or, for a selector or a target lookup, a route capture
-(``view.kwargs``, or ``build_offline_context(kwargs=…)`` off HTTP). A route capture
-never reaches a service's own parameters. A provider that declines with ``UNSET`` therefore leaves
-the default in place, never the caller's value. That moves the hazard rather than
-removing it: a scoping key whose default reads as "everything" must have a provider
-that always resolves it.
+So a marked key is filled only by a channel the caller does not control: a view
+hook's or the ``spec.kwargs`` provider's value, a registered pool seed,
+``input_data`` through an ``input_serializer`` field of that name (a
+``HiddenField``'s own value where ``input_data`` names one), the parameter's own
+default, or, for a selector or a target lookup, a route capture
+(``view.kwargs``, or ``build_offline_context(kwargs=...)`` off HTTP). A target
+lookup's capture is seeded for the call, so a service parameter of the same
+name is handed it as well; a selector's is handed to the selector. A provider
+that declines with ``UNSET`` therefore leaves the default in place, never the
+caller's value. That moves the hazard rather than removing it: a scoping key
+whose default reads as "everything" must have a provider that always resolves
+it.
 
-``UnknownArguments.REJECT`` still refuses a caller that supplies a marked key when
-the spec's declared set is closed, since the key is excluded from
-``declared_input_keys`` and so is an unknown argument — which is exactly what it
-is. Where the set is open (a ``filter_set``, a bare ``**kwargs``) nothing can be
-called unknown, and the value is dropped instead.
+``UnknownArguments.REJECT`` refuses a caller that supplies a marked key, since
+the key is no declared argument - which is exactly what it is - unless an
+``input_serializer`` field declares it. Where a selector or a target lookup
+takes a bare ``**kwargs``, or a service with no ``input_serializer`` takes one
+under ``SPREAD_AUTHOR_WINS``, nothing can be called unknown, and the value is
+dropped instead.
 
-The marker governs the callable's own parameters. A ``many=True`` service receives
-its items inside one ``data`` list, never spread, so they are not read for it; and
-a field the ``input_serializer`` declares under the same name stays in ``data``,
-which is that serializer's payload, while the parameter is still not filled from
-it. Over HTTP a selector view spreads nothing, so only the target lookups, whose
-pool is spread from the request body, see the difference there.
+The marker governs the callable's own parameters. A ``many=True`` service
+receives its rows inside one ``data`` list and their values under its
+``many_argument``, never by field, so a row's field of a marked name stays in
+its row and the parameter is not filled from it.
 
 A value ``input_data`` supplies for a marked key is the server's, not the
 caller's. ``input_data`` (with the ``get_input_data`` view hooks) is the spec
 author's own code, merged over the caller's input with its keys winning, so
-dispatch never drops that value, and where the caller sends the same key the
-server's value is the one that arrives: the caller's never does. It reaches the
-service through an ``input_serializer`` field of that name under every policy, as
-a ``PASSTHROUGH`` extra, and through a spread service's bare ``**kwargs``. The key is still not declared input, so
-on a closed spec with no such field ``IGNORE`` drops it and ``REJECT``, which
-judges the merged arguments, refuses it, as it refuses any ``input_data`` key
-nothing declares.
+where the caller sends the same key the server's value is the one that arrives.
+The kernel refuses ``input_data`` on a spec with no ``input_serializer``, so it
+reaches the service through a field of that name: validated, in ``data`` and
+by name. A key no field declares is no argument: ``IGNORE`` drops it and
+``REJECT``, which judges the merged arguments, refuses it, as it refuses any
+``input_data`` key nothing declares.
 
 **An annotation that does not resolve at runtime does not hide the marker.** A
 name imported only under ``if TYPE_CHECKING:`` costs only the parameter or key it

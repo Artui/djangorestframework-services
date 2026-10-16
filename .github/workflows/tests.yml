@@ -50,6 +50,22 @@ jobs:
         # the test settings module to keep the build hermetic.
         run: DJANGO_SETTINGS_MODULE=tests.conftest_settings uv run mkdocs build --strict
 
+  examples:
+    name: example project
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --all-groups
+      - name: Run the example project's tests
+        # examples/ is a Django project of its own: pytest collects none of its
+        # tests and the coverage gate measures none of it, so nothing else runs
+        # what it asserts.
+        run: make examples
+
   floor:
     name: lowest declared versions
     runs-on: ubuntu-latest
@@ -149,19 +165,24 @@ jobs:
   no-contenttypes:
     name: without django.contrib.contenttypes
     runs-on: ubuntu-latest
-    # The generic-relation kind is the package's only contact with
+    # The generic-relation kind is the only contact with
     # ``django.contrib.contenttypes``, and that app is not guaranteed to be in
-    # a consumer's INSTALLED_APPS. Two things have to hold and neither is
-    # visible to the matrix, because the test settings install the app:
+    # a consumer's INSTALLED_APPS. The kind and its write are the kernel's
+    # (django-service-specs): ``GenericRelationSpec`` is re-exported here as
+    # the kernel's own object, and the content-type lookup and its gate live
+    # in the kernel's nested-writes module. A drfs install still runs them,
+    # so two things have to hold and neither is visible to the matrix,
+    # because the test settings install the app:
     #
-    #   1. importing the package without it must work. ``ContentType`` is a
-    #      Django *model* and ``rest_framework_services`` ships in
-    #      INSTALLED_APPS, so it is imported while ``apps.populate()`` runs --
-    #      an eager import raises AppRegistryNotReady even when the app *is*
-    #      installed, and a plain ImportError when it is not.
+    #   1. importing the package, and the kernel module holding the write,
+    #      without it must work. ``ContentType`` is a Django *model* and
+    #      ``rest_framework_services`` ships in INSTALLED_APPS, so it is
+    #      imported while ``apps.populate()`` runs -- an eager import raises
+    #      AppRegistryNotReady even when the app *is* installed, and a plain
+    #      ImportError when it is not.
     #   2. writing a generic relation without it must say so. Without the
-    #      gate, importing the model fails with a RuntimeError about explicit
-    #      app labels, which names neither the app nor the remedy.
+    #      gate, the lookup fails with a LookupError about an app label, which
+    #      names neither INSTALLED_APPS nor the remedy.
     #
     # There is no extra to install for this: contenttypes ships inside Django,
     # so the opt-in is the INSTALLED_APPS entry and the only way to check the
@@ -192,16 +213,25 @@ jobs:
           import sys
 
           import rest_framework_services
+          from django_service_specs.mutations import nested_writes
+          from django_service_specs.relations import generic_relation_spec
           from rest_framework_services import GenericRelationSpec
 
           assert "django.contrib.contenttypes.models" not in sys.modules, (
-              "the package imported the contenttypes models eagerly"
+              "the package or the kernel's nested writes imported the "
+              "contenttypes models eagerly"
           )
           assert GenericRelationSpec.write_phase.name == "GENERIC"
+          # The kind drfs exports is the kernel's own, so a drfs write of it
+          # runs the kernel's gate driven below, not a copy of it.
+          assert GenericRelationSpec is generic_relation_spec.GenericRelationSpec
 
           from django.core.exceptions import ImproperlyConfigured
 
-          from rest_framework_services.mutations.utils import _content_type_for
+          # The gate is private to the kernel, so it is reached by its module:
+          # a move there fails this job at the attribute, loudly, rather than
+          # leaving the claim unchecked.
+          _content_type_for = nested_writes._content_type_for
 
           try:
               # ``None`` on purpose: the gate refuses before it ever looks at

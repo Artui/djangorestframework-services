@@ -42,7 +42,15 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
+          # The kernel's docstrings cross-reference its own pages; a re-exported
+          # name renders here, so those targets have to resolve to its site.
+          inventories:
+            - https://artui.github.io/django-service-specs/objects.inv
           options:
+            # Names drfs keeps at their old paths are the kernel's objects, so the
+            # alias target has to be loaded for a reference page to render them.
+            preload_modules:
+              - django_service_specs
             docstring_style: google
             show_root_heading: true
             show_root_full_path: false
@@ -108,6 +116,7 @@ nav:
       - Selectors: reference/selectors.md
       - Types: reference/types.md
       - Spec registry: reference/registry.md
+      - Service specs on the kernel: reference/service-specs.md
       - JSON Schema: reference/jsonschema.md
       - Audience projection: reference/audience.md
       - OpenAPI: reference/openapi.md

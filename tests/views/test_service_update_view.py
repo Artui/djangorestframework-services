@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import dataclasses
+import importlib
 from dataclasses import dataclass
 from typing import Any
 
+import django_filters
 import pytest
 from rest_framework import serializers
 from rest_framework.test import APIRequestFactory
@@ -12,6 +15,10 @@ from rest_framework.test import APIRequestFactory
 from rest_framework_services import SelectorKind, SelectorSpec, ServiceSpec, ServiceUpdateView
 from tests.testapp.models import Author, Post
 from tests.testapp.serializers import AuthorSerializer
+
+# The module, not the function the package's ``__init__`` re-exports under its name.
+dispatch_spec_module = importlib.import_module("rest_framework_services.dispatch.dispatch_spec")
+mutation_utils_module = importlib.import_module("rest_framework_services.views.mutation.utils")
 
 
 @dataclass
@@ -56,6 +63,56 @@ class TestServiceUpdateView:
         author.refresh_from_db()
         assert response.status_code == 200
         assert author.name == "new"
+
+    def test_a_patch_over_a_dataclass_input_validates_every_field(self) -> None:
+        """A dataclass is built from every field, so it cannot take a partial call:
+        a ``PATCH`` to it is validated as a ``PUT`` is, and a field it leaves out
+        is the client's ``400`` rather than a server error."""
+        author = Author.objects.create(name="orig")
+        request = factory.patch("/", {}, format="json")
+        response = _UpdateAuthorView.as_view()(request, pk=author.pk)
+        assert response.status_code == 400
+        assert response.data["name"][0].code == "required"
+
+    def test_a_patch_hands_the_declared_spec_and_the_requests_partial_flag(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The request's flag travels as ``partial=``, beside the declared spec,
+        rather than on a copy of the spec made per request: the edge compiles one
+        variant per declared spec and flag, so a copy compiles afresh every time."""
+        seen: list[tuple[Any, Any]] = []
+        real = dispatch_spec_module.dispatch_spec
+
+        def spy(spec: Any, **kwargs: Any) -> Any:
+            seen.append((spec, kwargs.get("partial")))
+            return real(spec, **kwargs)
+
+        monkeypatch.setattr(mutation_utils_module, "dispatch_spec", spy)
+
+        class _PartialIn(serializers.Serializer[Any]):
+            name = serializers.CharField()
+            bio = serializers.CharField()
+
+        def rename(*, instance: Author, data: dict[str, Any]) -> Author:
+            instance.name = data["name"]
+            instance.save(update_fields=["name"])
+            return instance
+
+        class _View(ServiceUpdateView):
+            queryset = Author.objects.all()
+            spec = ServiceSpec(
+                service=rename,
+                input_serializer=_PartialIn,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, output_serializer=AuthorSerializer
+                ),
+            )
+
+        author = Author.objects.create(name="orig")
+        response = _View.as_view()(factory.patch("/", {"name": "new"}, format="json"), pk=author.pk)
+        assert response.status_code == 200
+        assert seen == [(_View.spec, True)]
+        assert seen[0][0] is _View.spec
 
     def test_missing_spec_raises(self) -> None:
         class _Empty(ServiceUpdateView):
@@ -308,31 +365,42 @@ class TestPrefetchCacheCleared:
         assert response.data["post_titles"] == ["new", "old"]
 
 
+class _TitleOnly(serializers.Serializer):
+    title = serializers.CharField()
+
+
+def _rename(*, instance: Post, data: dict[str, Any]) -> Post:
+    instance.title = data["title"]
+    instance.save(update_fields=["title"])
+    return instance
+
+
+def _the_row(*, result: Post) -> Any:
+    return Post.objects.filter(pk=result.pk)
+
+
 @pytest.mark.django_db
 class TestOutputSelectorFilterSetParity:
     """The HTTP mutation output re-fetch applies
-    ``output_selector_spec.filter_set`` (filter_data falls back to
-    ``request.query_params``), matching ``dispatch_spec``'s output re-fetch.
-    Previously the HTTP path silently ignored the nested filter_set.
+    ``output_selector_spec.filter_set``, bound to ``request.query_params``,
+    matching ``dispatch_spec``'s output re-fetch, unless the spec sets
+    ``output_filter_from_call=False``.
     """
 
     @staticmethod
-    def _build_view(seen: list[Any]) -> type[ServiceUpdateView]:
-        class _PublishedFilterSet:
-            def __init__(self, *, data: Any, queryset: Any) -> None:
+    def _build_view(seen: list[Any], *, from_call: bool = True) -> type[ServiceUpdateView]:
+        class _PublishedFilterSet(django_filters.FilterSet):
+            published = django_filters.BooleanFilter()
+
+            class Meta:
+                model = Post
+                fields = ["published"]
+
+            def __init__(self, data: Any = None, *args: Any, **kwargs: Any) -> None:
                 # ``data`` is ``request.query_params`` (a QueryDict) on the HTTP
                 # path; record the scalar the filter reads to prove parity.
                 seen.append(data.get("published"))
-                self._data = data
-                self._queryset = queryset
-
-            @property
-            def qs(self) -> Any:
-                raw = self._data.get("published")
-                if raw is None:
-                    return self._queryset
-                keep = str(raw).lower() in ("1", "true", "yes")
-                return self._queryset.filter(published=keep)
+                super().__init__(data, *args, **kwargs)
 
         class _TitleIn(serializers.Serializer):
             title = serializers.CharField()
@@ -365,6 +433,8 @@ class TestOutputSelectorFilterSetParity:
                 atomic=False,
             )
 
+        if not from_call:
+            _View.spec = dataclasses.replace(_View.spec, output_filter_from_call=False)
         return _View
 
     def test_filter_set_keeps_matching_row(self) -> None:
@@ -384,13 +454,54 @@ class TestOutputSelectorFilterSetParity:
         view = self._build_view(seen)
         request = factory.patch("/?published=false", {"title": "updated"}, format="json")
         response = view.as_view()(request, pk=post.pk)
-        # The service still published the row, but the output filter_set now
+        # The service still published the row, but the output filter_set
         # excludes it (published=True doesn't match ?published=false), so the
         # RETRIEVE re-fetch collapses to None, which is an empty 204 rather than
-        # the serializer's blank fields. Pre-fix the HTTP path ignored the
-        # filter_set and returned the row.
+        # the serializer's blank fields.
         post.refresh_from_db()
         assert post.published is True
         assert response.status_code == 204
         assert response.data is None
         assert seen == ["false"]
+
+    @pytest.mark.parametrize("published", ["true", "false"])
+    def test_a_spec_can_keep_the_query_string_out_of_the_re_read(self, published: str) -> None:
+        """``output_filter_from_call=False``: a ``?published=`` meant for the
+        target lookup or a list cannot hide the row just written."""
+        post = Post.objects.create(title="orig", published=False)
+        seen: list[Any] = []
+        view = self._build_view(seen, from_call=False)
+        request = factory.patch(f"/?published={published}", {"title": "updated"}, format="json")
+        response = view.as_view()(request, pk=post.pk)
+        assert response.status_code == 200
+        assert response.data["title"] == "updated"
+        assert response.data["published"] is True
+        assert seen == [None]
+
+    @pytest.mark.parametrize("atomic", [True, False], ids=["atomic", "not-atomic"])
+    def test_a_refused_filter_value_is_a_400_after_the_write(self, atomic: bool) -> None:
+        """The re-read runs after the service's transaction has committed."""
+
+        class _ByViews(django_filters.FilterSet):
+            class Meta:
+                model = Post
+                fields = ["views"]
+
+        class _View(ServiceUpdateView):
+            queryset = Post.objects.all()
+            spec = ServiceSpec(
+                service=_rename,
+                input_serializer=_TitleOnly,
+                output_selector_spec=SelectorSpec(
+                    kind=SelectorKind.RETRIEVE, selector=_the_row, filter_set=_ByViews
+                ),
+                atomic=atomic,
+            )
+
+        post = Post.objects.create(title="orig")
+        request = factory.patch("/?views=x", {"title": "updated"}, format="json")
+        response = _View.as_view()(request, pk=post.pk)
+        assert response.status_code == 400
+        assert response.data == {"views": ["Enter a number."]}
+        post.refresh_from_db()
+        assert post.title == "updated"

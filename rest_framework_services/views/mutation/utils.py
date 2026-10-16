@@ -12,9 +12,11 @@ defined here, so ``call_service`` can map errors without importing this one.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import is_dataclass, replace
-from typing import Any, Literal
+from dataclasses import is_dataclass
+from typing import Any, Literal, cast
 
+from django_service_specs.specs.kernel_spec import kernel_spec
+from django_service_specs.specs.service_spec import ServiceSpec as KernelServiceSpec
 from rest_framework import status as drf_status
 from rest_framework.exceptions import NotFound
 from rest_framework.request import Request
@@ -23,6 +25,8 @@ from rest_framework.serializers import BaseSerializer, Serializer
 from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.dispatch.apply_input_data import apply_input_data
+from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
+from rest_framework_services.dispatch.render_spec_output import render_spec_output
 from rest_framework_services.dispatch.renderable_serializer_class import renderable_serializer_class
 from rest_framework_services.exceptions.service_error import ServiceError
 from rest_framework_services.selectors.utils import (
@@ -316,10 +320,6 @@ def _dispatch_bulk_via_spec(
     the body validates, the query string filters — and the target guard is passed for
     the same reason it is there: whatever the collection selector resolved is what the
     service is about to mutate."""
-    # Local import: ``dispatch_spec`` composes ``build_input_serializer_from_data``
-    # from this module, so the dependency is one-directional only at runtime.
-    from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
-    from rest_framework_services.dispatch.render_spec_output import render_spec_output
 
     if spec.many:
         # ``many`` is a list body straight through.
@@ -401,14 +401,17 @@ def dispatch_mutation_for_spec(
     ``partial`` is the transport-derived flag (PATCH → ``True``) and
     ``spec.partial`` overrides it when set. Being the single call-shape point,
     the override is honoured uniformly across every surface — including create
-    dispatch, so a create spec with ``partial=True`` validates partially.
+    dispatch, so a create spec with ``partial=True`` validates partially. The
+    flag reaches ``dispatch_spec`` as its ``partial=`` beside the declared spec,
+    never on a copy of the spec, which the edge would compile afresh on every
+    request. A ``PATCH`` to an input that cannot take a partial call (a
+    dataclass) is validated whole, as a ``PUT`` is.
     """
-    # Local import: ``dispatch_spec`` composes ``build_input_serializer_from_data``
-    # from this module, so the dependency is one-directional only at runtime.
-    from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 
     if spec.partial is not None:
         partial = spec.partial
+    elif partial:
+        partial = _takes_a_partial_call(spec)
     if mutation_target_source(spec) == "bulk":
         return _dispatch_bulk_via_spec(view, request, spec, default_status=default_status)
 
@@ -416,13 +419,10 @@ def dispatch_mutation_for_spec(
     # providers and the renderer only ever see a real target or ``None``.
     resolved: Any = None if instance is UNSET else instance
     view_hooks = resolve_view_hooks(view, request, instance=resolved)
-    # ``spec.partial`` is applied above and re-read by the core, so pass the
-    # resolved flag through the spec-shaped seam the core already honours.
-    resolved_spec = spec if spec.partial is not None else replace(spec, partial=partial)
 
     try:
         result = dispatch_spec(
-            resolved_spec,
+            spec,
             user=getattr(request, "user", None),
             params=request.data,
             filter_data=request.query_params,
@@ -431,6 +431,7 @@ def dispatch_mutation_for_spec(
             instance=instance,
             view_hooks=view_hooks,
             on_target_resolved=check_view_object_permissions,
+            partial=partial,
         )
     except ServiceError as exc:
         raise map_service_error(exc) from exc
@@ -473,6 +474,28 @@ def dispatch_mutation_for_spec(
         render_instance_on_none=render_instance_on_none,
         output_context=output_context,
     )
+
+
+def _takes_a_partial_call(spec: ServiceSpec[Any, Any, Any]) -> bool:
+    """Whether a request's ``partial`` flag can reach ``spec``'s input as one.
+
+    A ``PATCH`` asks for a partial call, and the compiled Validator says whether
+    it can take one: a dataclass input is built from every field, so it cannot,
+    and the kernel refuses a partial spec over it when it is built. The request
+    did not declare anything, so its flag is dropped there, and the ``PATCH`` is
+    validated whole, a field it leaves out answering ``400``. The spec's own
+    ``partial`` is never read through here: one declared over a dataclass is the
+    author's, and refused as theirs.
+
+    One arc to coverage, so each operand is named: without the first, a
+    ``PATCH`` to a spec with no input (``test_partial_update_key_wins_over_update_for_patch``)
+    reads an attribute off ``None``; without the second,
+    ``test_a_patch_over_a_dataclass_input_validates_every_field`` is refused as
+    a misconfigured spec.
+    """
+    # A drfs ``ServiceSpec`` compiles to the kernel's.
+    validator = cast(KernelServiceSpec, kernel_spec(spec)).validator
+    return validator is None or validator.supports_partial
 
 
 def resolve_mutation_instance(

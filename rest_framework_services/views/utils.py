@@ -235,6 +235,25 @@ def resolve_callable_kwargs(
     return {name: pool[name] for name in declared_names if name in pool}
 
 
+def request_seeds(request: Any) -> dict[str, Any]:
+    """The pool seeds an HTTP request carries: ``request``, ``user`` and, where DRF
+    recorded one, ``view``.
+
+    What ``call_service``, ``call_selector`` and their async twins seed, so a
+    callable they invoke from inside a view sees the names the DRF edge seeds for
+    the views' own dispatch. DRF records the view on the ``Request`` it builds
+    (``parser_context["view"]``); a plain ``HttpRequest`` carries none, and then
+    ``view`` is left to the caller rather than seeded as ``None``. ``user`` is
+    ``None`` on a request that bypassed authentication middleware.
+    """
+    seeds: dict[str, Any] = {"request": request, "user": getattr(request, "user", None)}
+    parser_context = getattr(request, "parser_context", None)
+    view = parser_context.get("view") if isinstance(parser_context, dict) else None
+    if view is not None:
+        seeds["view"] = view
+    return seeds
+
+
 def resolve_progress_hook(view: Any, request: Request, *, action: str | None) -> Any:
     """First progress reporter the view offers: per-action hook, then catch-all.
 

@@ -8,12 +8,12 @@ A minimal Django project showing the full surface of
 | File | Pattern |
 |---|---|
 | [`invoices/models/__init__.py`](invoices/models/__init__.py) | Single `Invoice` model |
-| [`invoices/services/__init__.py`](invoices/services/__init__.py) | Plain-callable services using `create_from_input` / `update_from_input`; framework-agnostic exceptions |
-| [`invoices/selectors/__init__.py`](invoices/selectors/__init__.py) | Plain-callable selectors that act as overrides for `get_queryset()` / `get_object()` |
-| [`invoices/views/__init__.py`](invoices/views/__init__.py) | `ServiceViewSet` composing CRUD + a custom `@service_action` (`POST /invoices/<id>/send/`) |
-| [`invoices/serializers/__init__.py`](invoices/serializers/__init__.py) | `ModelSerializer` for the response |
+| [`invoices/services/__init__.py`](invoices/services/__init__.py) | Plain-callable services using `create_from_input` / `update_from_input`; framework-agnostic exceptions; `annotate_invoice` applies exactly the fields a partial call validated |
+| [`invoices/selectors/__init__.py`](invoices/selectors/__init__.py) | Plain-callable selectors that act as overrides for `get_queryset()` / `get_object()`; `list_invoices` takes the `status` its spec declares in `reads`, by name |
+| [`invoices/views/__init__.py`](invoices/views/__init__.py) | `ServiceViewSet` composing CRUD + two `@service_action`s (`POST /invoices/<id>/send/`, `POST /invoices/<id>/annotate/`); `reads=[QueryParam("status")]` on the list spec; `field_audiences` hiding `updated_at` from an agent on the retrieve spec |
+| [`invoices/serializers/__init__.py`](invoices/serializers/__init__.py) | `ModelSerializer` for the response; `AnnotateInvoiceInput`, whose two required fields a partial call may send one of |
 | [`invoices/urls.py`](invoices/urls.py) | DRF router registration |
-| [`invoices/tests/__init__.py`](invoices/tests/__init__.py) | End-to-end APITestCase covering every endpoint |
+| [`invoices/tests/__init__.py`](invoices/tests/__init__.py) | End-to-end APITestCase covering every endpoint, plus the declared read, the agent-only audience and a `dispatch_spec(partial=True)` call off HTTP |
 
 ## Run it
 
@@ -43,6 +43,11 @@ curl -X PATCH http://localhost:8000/invoices/1/ \
   -H "Content-Type: application/json" \
   -d '{"notes": "Net 30"}'
 
+# Custom action (set customer and notes; both are required over HTTP)
+curl -X POST http://localhost:8000/invoices/1/annotate/ \
+  -H "Content-Type: application/json" \
+  -d '{"customer": "Acme Ltd", "notes": "Net 30"}'
+
 # Custom action (mark as sent)
 curl -X POST http://localhost:8000/invoices/1/send/ \
   -H "Content-Type: application/json" \
@@ -58,4 +63,7 @@ curl -X DELETE http://localhost:8000/invoices/1/
 python manage.py test invoices
 ```
 
-The suite walks the full create → list → retrieve → patch → custom-action → delete flow plus error-path assertions.
+From the repository root, `make examples` runs the same suite, as CI does on
+every pull request.
+
+The suite walks the full create → list → retrieve → patch → custom-action → delete flow plus error-path assertions, and checks the declared read, the agent-only audience and a partial call made off HTTP with `dispatch_spec(partial=True)`.

@@ -8,9 +8,20 @@ custom ``@service_action`` decorator) using DRF's APIClient. Run with::
 
 from __future__ import annotations
 
+from django.contrib.auth.models import AnonymousUser
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient, APITestCase
 
 from invoices.models import Invoice
+from invoices.serializers import InvoiceSerializer
+from invoices.views import ANNOTATE_SPEC, InvoiceViewSet
+from rest_framework_services import (
+    FieldAudience,
+    FieldMarking,
+    QueryParam,
+    build_audience_projection,
+    dispatch_spec,
+)
 
 
 class InvoiceFlowTests(APITestCase):
@@ -84,3 +95,72 @@ class InvoiceFlowTests(APITestCase):
         invoice = Invoice.objects.create(customer="Acme", amount_cents=1, status="paid")
         response = self.client.delete(f"/invoices/{invoice.pk}/")
         self.assertEqual(response.status_code, 422)
+
+
+class DeclaredInputsTests(APITestCase):
+    """What the specs declare beyond the serializer, and the same specs off HTTP."""
+
+    client_class = APIClient
+
+    def setUp(self) -> None:
+        self.draft = Invoice.objects.create(customer="Acme", amount_cents=1, notes="Net 15")
+        Invoice.objects.create(customer="Initech", amount_cents=2, status="paid")
+
+    def test_a_declared_read_reaches_the_selector_by_name(self) -> None:
+        spec = InvoiceViewSet.action_specs["list"]
+        self.assertEqual(spec.agent_contract().query_params, (QueryParam("status"),))
+
+        # Over HTTP from the query string, off HTTP as an argument.
+        response = self.client.get("/invoices/?status=paid")
+        self.assertEqual([row["customer"] for row in response.data], ["Initech"])
+        result = dispatch_spec(spec, user=AnonymousUser(), params={"status": "draft"})
+        self.assertEqual([row.customer for row in result.value], ["Acme"])
+
+    def test_field_audiences_hide_a_field_from_an_agent_only(self) -> None:
+        contract = InvoiceViewSet.action_specs["retrieve"].agent_contract()
+        self.assertEqual(contract.field_audiences, {"updated_at": FieldMarking.hidden()})
+
+        # What an agent transport builds from it: the field is dropped there.
+        projection = build_audience_projection(
+            InvoiceSerializer, overrides=contract.field_audiences, name="get_invoice"
+        )
+        self.assertEqual(projection.audience("updated_at"), FieldAudience.HIDDEN)
+        self.assertEqual(projection.audience("customer"), FieldAudience.CONTENT)
+
+        response = self.client.get(f"/invoices/{self.draft.pk}/")
+        self.assertIn("updated_at", response.data)
+
+    def test_a_partial_call_off_http_validates_only_what_it_sends(self) -> None:
+        spec = ANNOTATE_SPEC
+
+        # A whole call needs both fields, as the POST route does.
+        with self.assertRaises(ValidationError) as refused:
+            dispatch_spec(
+                spec, user=AnonymousUser(), instance=self.draft, params={"notes": "Net 30"}
+            )
+        self.assertIn("customer", refused.exception.detail)
+
+        dispatch_spec(
+            spec,
+            user=AnonymousUser(),
+            instance=self.draft,
+            params={"notes": "Net 30"},
+            partial=True,
+        )
+        self.draft.refresh_from_db()
+        self.assertEqual((self.draft.customer, self.draft.notes), ("Acme", "Net 30"))
+
+    def test_the_annotate_route_takes_a_whole_call(self) -> None:
+        response = self.client.post(
+            f"/invoices/{self.draft.pk}/annotate/", {"notes": "Net 30"}, format="json"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("customer", response.data)
+
+        response = self.client.post(
+            f"/invoices/{self.draft.pk}/annotate/",
+            {"customer": "Acme Ltd", "notes": ""},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual((response.data["customer"], response.data["notes"]), ("Acme Ltd", ""))

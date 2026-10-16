@@ -1,5 +1,34 @@
 # Types
 
+Most values here are django-service-specs' own, re-exported at the drfs path
+shown, so each drfs name is the kernel's object and the documentation rendered
+for it is the kernel's: `SelectorKind`, `Affordance`, `ChangeResult`,
+`FieldChange`, the relation declarations (`ChildSpec`, `ForwardRelationSpec`,
+`ReverseOneToOneSpec`, `GenericRelationSpec`, `ManyToManySpec`, `RelationSpec`)
+and their outcomes, `UNSET`, `ProgressReporter`, the pool seed registry
+(`PoolSeeds`, `DEFAULT_POOL_SEEDS`, `RESERVED_POOL_SEEDS`),
+`FieldAudience`, `FieldMarking`, `ValueFormatter` and `AudienceProjection`. The
+declarations that carry serializers and permission classes (`ServiceSpec`,
+`SelectorSpec`), the offline request and its channels, the input markers and
+`MARKING` are drfs' own.
+
+Being the kernel's changes what a few of them refuse, each where it is built:
+
+- An `Affordance` whose callable `when` is `async def`, or reads `result` or
+  `queryset`, is refused with `ImproperlyConfigured`, as one reading `data` or
+  `instance` already was.
+- A relation declaration takes only its model, and its foreign key where it has
+  one, by position; every other option is keyword-only. `relations=` is the one
+  spelling for nested relations: the `children=` alias is gone.
+- `PoolSeeds` checks a registration against the kernel's reserved set, `user`,
+  `data`, `instance`, `collection`, `result`, `queryset` and `progress`: a seed
+  named `result` or `queryset` is refused, one named `request` or `serializer`
+  can be registered, and an `async def` resolver is refused with
+  `ImproperlyConfigured`.
+- `ValueFormatter.timestamp()` reports a string shaped like a date-time that
+  names no real moment (`2026-02-30T12:00:00Z`) as it was stored, rather than
+  raising.
+
 ## `SelectorKind`
 
 ::: rest_framework_services.types.selector_kind.SelectorKind
@@ -74,7 +103,9 @@
 
 ## `UNSET`
 
-::: rest_framework_services.types.unset
+::: rest_framework_services.types.unset.UNSET
+
+::: rest_framework_services.types.unset.UnsetType
 
 ## `NoInput`
 
@@ -90,10 +121,14 @@
 
 ## `InputRequired`
 
-Dispatch refuses a missing marked key only where the caller could have sent it.
-Where no caller input reaches the callable by name, as under `BUNDLE`, a
-refusal could only be answered by the same refusal, so the gap fails as the
-callable's own error instead. See
+Dispatch refuses a missing marked key as the kernel's `InvalidArguments`,
+`{"code": ["This field is required."]}`, wherever the key is caller input: a
+target lookup's, a selector's under `AUTO` or `SPREAD_AUTHOR_WINS`, and a
+serializer-less service's own parameters under `SPREAD_AUTHOR_WINS`. Under
+`BUNDLE`, which a selector view dispatches, a selector's parameters are no
+caller input, and under `AUTO` or `BUNDLE` neither are such a service's, so a
+marker on one is not enforced: a parameter nothing fills is the callable's own
+`TypeError`. A declared `reads=` entry is caller input under every binding. See
 [what a caller could fill](../recipes/off-http-inputs.md#requiredness-inputrequired).
 
 ::: rest_framework_services.types.input_required

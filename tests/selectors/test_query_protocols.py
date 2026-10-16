@@ -5,6 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from django_service_specs.selectors.list_selector import ListSelector as KernelListSelector
+from django_service_specs.selectors.retrieve_selector import (
+    RetrieveSelector as KernelRetrieveSelector,
+)
+
 from rest_framework_services import (
     ListSelector,
     RetrieveSelector,
@@ -25,6 +30,11 @@ def _list(**kwargs: Any) -> list[_Author]:
 
 def _retrieve(*, pk: int, **kwargs: Any) -> _Author | None:
     return _Author(id=pk, name="A")
+
+
+def test_the_query_protocols_are_the_kernel_s() -> None:
+    assert ListSelector is KernelListSelector
+    assert RetrieveSelector is KernelRetrieveSelector
 
 
 def test_list_selector_protocol_accepts_matching_callable() -> None:

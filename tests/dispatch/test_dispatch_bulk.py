@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import django_filters
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
@@ -33,17 +34,14 @@ class _PostSerializer(serializers.ModelSerializer):
         fields = ("id", "title", "published")
 
 
-class _PublishedFilterSet:
-    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
-        self._data = data
-        self._queryset = queryset
+class _PublishedFilterSet(django_filters.FilterSet):
+    """Narrows by ``?published=``; a duck-typed set is refused when the spec compiles."""
 
-    @property
-    def qs(self) -> QuerySet[Post]:
-        raw = self._data.get("published")
-        if raw is None:
-            return self._queryset
-        return self._queryset.filter(published=str(raw).lower() in ("1", "true", "yes"))
+    published = django_filters.BooleanFilter()
+
+    class Meta:
+        model = Post
+        fields = ["published"]
 
 
 def _all_posts() -> QuerySet[Post]:
@@ -86,23 +84,9 @@ class TestDispatchMany:
         )
         result = dispatch_spec(spec, user=None, params=[{"title": "a"}, {"title": "b"}])
         assert result.kind == "list"
-        assert result.status == 201
         rendered = render_spec_output(spec, result.value, many=True)
         assert [row["title"] for row in rendered] == ["a", "b"]
         assert Post.objects.count() == 2
-
-    def test_callable_success_status_on_many(self) -> None:
-        def status(*, result: list[Post]) -> int:
-            return 201 if result else 200
-
-        spec = ServiceSpec(
-            service=_bulk_create,
-            input_serializer=_PostIn,
-            many=True,
-            success_status=status,
-            atomic=False,
-        )
-        assert dispatch_spec(spec, user=None, params=[{"title": "a"}]).status == 201
 
     def test_atomic_rollback(self) -> None:
         def boom(*, data: list[_PostIn]) -> None:
@@ -114,15 +98,15 @@ class TestDispatchMany:
             dispatch_spec(spec, user=None, params=[{"title": "a"}])
         assert Post.objects.count() == 0
 
-    def test_many_without_input_serializer(self) -> None:
-        # Degenerate but valid: no validation, the service ignores the payload.
+    def test_many_without_a_validator_is_refused(self) -> None:
+        # The Validator is what declares a row, so many rows with none have no shape.
         def make_two(*, user: Any) -> list[Post]:
             return [Post.objects.create(title="x"), Post.objects.create(title="y")]
 
         spec = ServiceSpec(service=make_two, many=True, atomic=False)
-        result = dispatch_spec(spec, user=None, params=[{}, {}])
-        assert result.kind == "list"
-        assert len(result.value) == 2
+        with pytest.raises(ImproperlyConfigured, match="many=True with no validator"):
+            dispatch_spec(spec, user=None, params=[{}, {}])
+        assert Post.objects.count() == 0
 
 
 @pytest.mark.django_db
@@ -137,7 +121,7 @@ class TestDispatchCollection:
             ),
             atomic=False,
         )
-        result = dispatch_spec(spec, user=None, params={"published": "true"})
+        result = dispatch_spec(spec, user=None, params={"published": True})
         assert result.kind == "instance"
         assert result.value == {"deleted": 1}
         assert set(Post.objects.values_list("title", flat=True)) == {"draft"}
@@ -156,7 +140,9 @@ class TestDispatchCollection:
             service=_bulk_delete,
             collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST),
         )
-        with pytest.raises(ImproperlyConfigured, match="requires a `selector`"):
+        with pytest.raises(
+            ImproperlyConfigured, match="collection_selector_spec declares no selector"
+        ):
             dispatch_spec(spec, user=None, params={})
 
     def test_collection_update_renders_list_output(self) -> None:
@@ -175,7 +161,7 @@ class TestDispatchCollection:
             ),
             atomic=False,
         )
-        result = dispatch_spec(spec, user=None, params={"published": "false"})
+        result = dispatch_spec(spec, user=None, params={"published": False})
         assert result.kind == "list"
         rendered = render_spec_output(spec, result.value, many=(result.kind == "list"))
         assert [row["title"] for row in rendered] == ["a", "b"]
@@ -192,23 +178,6 @@ class TestADispatchBulk:
         result = await adispatch_spec(spec, user=None, params=[{"title": "a"}, {"title": "b"}])
         assert result.kind == "list"
         assert len(result.value) == 2
-
-    async def test_acallable_success_status_on_many(self) -> None:
-        async def abulk_create(*, data: list[_PostIn]) -> list[Post]:
-            return [await Post.objects.acreate(title=item.title) for item in data]
-
-        def status(*, result: list[Post]) -> int:
-            return 201 if result else 200
-
-        spec = ServiceSpec(
-            service=abulk_create,
-            input_serializer=_PostIn,
-            many=True,
-            success_status=status,
-            atomic=False,
-        )
-        result = await adispatch_spec(spec, user=None, params=[{"title": "a"}])
-        assert result.status == 201
 
     async def test_acollection_bulk_delete(self) -> None:
         await Post.objects.acreate(title="a", published=True)
@@ -228,7 +197,7 @@ class TestADispatchBulk:
             ),
             atomic=False,
         )
-        result = await adispatch_spec(spec, user=None, params={"published": "true"})
+        result = await adispatch_spec(spec, user=None, params={"published": True})
         assert result.value == {"deleted": 1}
 
     async def test_acollection_requires_selector(self) -> None:
@@ -236,16 +205,19 @@ class TestADispatchBulk:
             service=_bulk_delete,
             collection_selector_spec=SelectorSpec(kind=SelectorKind.LIST),
         )
-        with pytest.raises(ImproperlyConfigured, match="requires a `selector`"):
+        with pytest.raises(
+            ImproperlyConfigured, match="collection_selector_spec declares no selector"
+        ):
             await adispatch_spec(spec, user=None, params={})
 
-    async def test_amany_without_input_serializer(self) -> None:
+    async def test_amany_without_a_validator_is_refused(self) -> None:
         async def make_one(*, user: Any) -> list[Post]:
             return [await Post.objects.acreate(title="x")]
 
         spec = ServiceSpec(service=make_one, many=True, atomic=False)
-        result = await adispatch_spec(spec, user=None, params=[{}])
-        assert len(result.value) == 1
+        with pytest.raises(ImproperlyConfigured, match="many=True with no validator"):
+            await adispatch_spec(spec, user=None, params=[{}])
+        assert await Post.objects.acount() == 0
 
     async def test_acollection_update_renders_list_output(self) -> None:
         await Post.objects.acreate(title="a", published=False)

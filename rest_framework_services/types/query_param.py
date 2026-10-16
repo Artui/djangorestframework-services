@@ -15,10 +15,15 @@ class QueryParam:
     Generalizes the built-in ``page`` / ``limit`` / ``order`` list-selector
     arguments to any read-shaping param a serializer reads off
     ``request.query_params`` — django-restql field selection (``?query=`` /
-    ``?fields=``), or a custom serializer that branches on the query string. The
-    transport advertises it, pops it from the arguments, and hands it to
-    ``build_offline_context(query_params=…)``; it never reaches the spec as an
-    input, so the unknown-argument policy never flags it.
+    ``?fields=``), or a custom serializer that branches on the query string.
+
+    Declared in a spec's ``reads``, it is one of the spec's parameters, of its
+    ``type`` and with its ``default``: the caller's value is checked as declared,
+    handed by name to a selector, service or target lookup that takes the name,
+    and never an unexpected argument. Over HTTP it is read from the request's
+    query string alone, so a body value of that name is dropped; off HTTP it is
+    the caller's argument, and is put onto the request's ``query_params`` where
+    they lack it, so a serializer or provider reading them finds it.
 
     A [`SelectorSpec`][rest_framework_services.types.selector_spec.SelectorSpec]
     ``filter_set`` does **not** need this — its fields are already generated into the

@@ -1,23 +1,7 @@
-"""``ListSelector`` Protocol — typed shape for list-action selector callables."""
+"""``ListSelector``: django-service-specs' own, re-exported at this path."""
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from typing import Any, Protocol, TypeVar
+from django_service_specs.selectors.list_selector import ListSelector
 
-ResultT = TypeVar("ResultT", covariant=True)
-
-
-class ListSelector(Protocol[ResultT]):
-    """Structural shape for a list-action selector callable.
-
-    The framework calls this from ``get_queryset()``; the returned iterable
-    flows through DRF's filter backends, pagination, and ``output_serializer``.
-
-    See [`CreateService`][rest_framework_services.services.create_service.CreateService]
-    for the extras-typing notes."""
-
-    def __call__(
-        self,
-        **extras: Any,
-    ) -> Iterable[ResultT]: ...
+__all__ = ["ListSelector"]

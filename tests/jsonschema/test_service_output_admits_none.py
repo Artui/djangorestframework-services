@@ -94,7 +94,10 @@ class TestAnOutputReReadMayFindNoRow:
         assert _conforms(schema, _present(spec))
 
     def test_the_capability_manifest_states_the_same_schema(self) -> None:
-        spec = ServiceSpec(service=_archive_task, output_selector_spec=_output(_live_task))
+        # Open on purpose: the registry refuses a spec that declares no permissions.
+        spec = ServiceSpec(
+            service=_archive_task, output_selector_spec=_output(_live_task), permission_classes=[]
+        )
         registry = SpecRegistry()
         registry.register("archive_task", spec)
         (operation,) = capability_manifest(registry)["operations"]

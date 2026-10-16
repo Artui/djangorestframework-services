@@ -5,7 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import django_filters
 import pytest
+from asgiref.sync import async_to_sync
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from rest_framework import serializers
@@ -17,6 +19,7 @@ from rest_framework_services import (
     SelectorSpec,
     ServiceError,
     ServiceSpec,
+    adispatch_spec,
     build_offline_context,
     dispatch_spec,
     render_spec_output,
@@ -35,19 +38,14 @@ class _PostSerializer(serializers.ModelSerializer):
         fields = ("id", "title", "published")
 
 
-class _PublishedFilterSet:
-    """Duck-typed FilterSet: narrows by ``?published=``."""
+class _PublishedFilterSet(django_filters.FilterSet):
+    """Narrows by ``?published=``; a duck-typed set is refused when the spec compiles."""
 
-    def __init__(self, *, data: Any, queryset: QuerySet[Post]) -> None:
-        self._data = data
-        self._queryset = queryset
+    published = django_filters.BooleanFilter()
 
-    @property
-    def qs(self) -> QuerySet[Post]:
-        raw = self._data.get("published")
-        if raw is None:
-            return self._queryset
-        return self._queryset.filter(published=str(raw).lower() in ("1", "true", "yes"))
+    class Meta:
+        model = Post
+        fields = ["published"]
 
 
 def _all_posts() -> QuerySet[Post]:
@@ -81,11 +79,30 @@ class TestDispatchSelector:
             select_related=["author"],
             filter_set=_PublishedFilterSet,
         )
-        result = dispatch_spec(spec, user=None, params={"published": "true"})
+        result = dispatch_spec(spec, user=None, params={"published": True})
         assert result.kind == "list"
-        assert result.status == 200
         rendered = render_spec_output(spec, result.value, many=True)
         assert [row["title"] for row in rendered] == ["shipped"]
+
+    @pytest.mark.parametrize("asynchronous", [False, True], ids=["sync", "async"])
+    def test_a_manager_from_a_list_selector_is_answered_as_a_queryset(
+        self, asynchronous: bool
+    ) -> None:
+        """``Model.objects`` is answered as its ``.all()`` on either core, unpaginated
+        too, so a transport counting the rows it serves counts these as well."""
+        Post.objects.create(title="a")
+        Post.objects.create(title="b")
+        spec = SelectorSpec(
+            kind=SelectorKind.LIST,
+            selector=lambda: Post.objects,
+            output_serializer=_PostSerializer,
+        )
+
+        call = async_to_sync(adispatch_spec) if asynchronous else dispatch_spec
+        result = call(spec, user=None, params={})
+
+        assert isinstance(result.value, QuerySet)
+        assert sorted(post.title for post in result.value) == ["a", "b"]
 
     def test_forwards_request_to_request_scoped_filter_set(self) -> None:
         """An off-HTTP caller that builds an offline context (as the MCP /
@@ -95,14 +112,12 @@ class TestDispatchSelector:
         HTTP."""
         captured: dict[str, Any] = {}
 
-        class _RequestAwareFilterSet:
-            def __init__(self, *, data: Any, queryset: QuerySet[Post], request: Any = None) -> None:
-                captured["request"] = request
-                self._queryset = queryset
+        class _RequestAwareFilterSet(django_filters.FilterSet):
+            published = django_filters.BooleanFilter()
 
-            @property
-            def qs(self) -> QuerySet[Post]:
-                return self._queryset
+            def __init__(self, *args: Any, request: Any = None, **kwargs: Any) -> None:
+                captured["request"] = request
+                super().__init__(*args, request=request, **kwargs)
 
         spec = SelectorSpec(
             kind=SelectorKind.LIST, selector=_all_posts, filter_set=_RequestAwareFilterSet
@@ -123,12 +138,12 @@ class TestDispatchSelector:
     def test_retrieve_missing_is_not_found(self) -> None:
         spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk)
         result = dispatch_spec(spec, user=None, params={"pk": 9999})
-        assert result == DispatchResult(value=None, kind="not_found", status=404)
+        assert result == DispatchResult(value=None, kind="not_found")
 
     def test_retrieve_allow_none_renders_null(self) -> None:
         spec = SelectorSpec(kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk, allow_none=True)
         result = dispatch_spec(spec, user=None, params={"pk": 9999})
-        assert result == DispatchResult(value=None, kind="instance", status=200)
+        assert result == DispatchResult(value=None, kind="instance")
 
     def test_object_does_not_exist_on_retrieve_is_not_found(self) -> None:
         def strict_get(*, pk: int) -> Post:
@@ -148,7 +163,7 @@ class TestDispatchSelector:
 
     def test_selector_required(self) -> None:
         spec = SelectorSpec(kind=SelectorKind.LIST)
-        with pytest.raises(ImproperlyConfigured, match="requires the SelectorSpec"):
+        with pytest.raises(ImproperlyConfigured, match="declares no selector"):
             dispatch_spec(spec, user=None, params={})
 
     def test_spec_kwargs_provider_feeds_the_selector(self) -> None:
@@ -177,7 +192,6 @@ class TestDispatchService:
         )
         result = dispatch_spec(spec, user=None, params={"title": "new"})
         assert result.kind == "instance"
-        assert result.status == 201
         assert result.value.title == "new"
 
     def test_update_resolves_instance_from_params(self) -> None:
@@ -191,7 +205,7 @@ class TestDispatchService:
             atomic=False,
         )
         result = dispatch_spec(spec, user=None, params={"pk": post.pk, "title": "fresh"})
-        assert result.status == 200
+        assert result.instance == post
         post.refresh_from_db()
         assert post.title == "fresh"
 
@@ -204,7 +218,7 @@ class TestDispatchService:
             ),
         )
         result = dispatch_spec(spec, user=None, params={"pk": 9999, "title": "x"})
-        assert result == DispatchResult(value=None, kind="not_found", status=404)
+        assert result == DispatchResult(value=None, kind="not_found")
 
     def test_instance_selector_object_does_not_exist_is_not_found(self) -> None:
         def strict_get(*, pk: int) -> Post:
@@ -237,58 +251,6 @@ class TestDispatchService:
         rendered = render_spec_output(spec, result.value, extras={"result": result.value})
         assert rendered["title"] == "p"
 
-    def test_success_status_override(self) -> None:
-        spec = ServiceSpec(service=_create_post, input_serializer=_PostIn, atomic=False)
-        result = dispatch_spec(spec, user=None, params={"title": "p"}, success_status=202)
-        assert result.status == 202
-
-    def test_default_status_is_200(self) -> None:
-        spec = ServiceSpec(service=_create_post, input_serializer=_PostIn, atomic=False)
-        result = dispatch_spec(spec, user=None, params={"title": "p"})
-        assert result.status == 200
-
-    def test_callable_success_status_keys_on_service_result(self) -> None:
-        def status(*, result: Post) -> int:
-            return 201 if result.title == "new" else 200
-
-        spec = ServiceSpec(
-            service=_create_post,
-            input_serializer=_PostIn,
-            success_status=status,
-            atomic=False,
-        )
-        assert dispatch_spec(spec, user=None, params={"title": "new"}).status == 201
-        assert dispatch_spec(spec, user=None, params={"title": "old"}).status == 200
-
-    def test_callable_success_status_sees_instance_on_update(self) -> None:
-        post = Post.objects.create(title="old")
-
-        def status(*, instance: Post) -> int:
-            return 209 if instance.pk == post.pk else 200
-
-        spec = ServiceSpec(
-            service=_update_post,
-            input_serializer=_PostIn,
-            instance_selector_spec=SelectorSpec(
-                kind=SelectorKind.RETRIEVE, selector=_post_qs_by_pk
-            ),
-            success_status=status,
-            atomic=False,
-        )
-        result = dispatch_spec(spec, user=None, params={"pk": post.pk, "title": "fresh"})
-        assert result.status == 209
-
-    def test_callable_success_status_override_wins(self) -> None:
-        def status(**_: Any) -> int:
-            return 200
-
-        spec = ServiceSpec(
-            service=_create_post, input_serializer=_PostIn, success_status=status, atomic=False
-        )
-        # An explicit override short-circuits the callable entirely.
-        result = dispatch_spec(spec, user=None, params={"title": "p"}, success_status=299)
-        assert result.status == 299
-
     def test_service_no_input_serializer(self) -> None:
         captured: dict[str, Any] = {}
 
@@ -308,28 +270,6 @@ class TestDispatchService:
         spec = ServiceSpec(service=boom, input_serializer=_PostIn, atomic=False)
         with pytest.raises(ServiceError, match="nope"):
             dispatch_spec(spec, user=None, params={"title": "x"})
-
-    def test_input_serializer_context_is_resolved(self) -> None:
-        seen: dict[str, Any] = {}
-
-        class _CtxSerializer(serializers.Serializer):
-            title = serializers.CharField()
-
-            def validate(self, attrs: Any) -> Any:
-                seen["flag"] = self.context.get("flag")
-                return attrs
-
-        def svc(*, data: Any) -> Post:
-            return Post.objects.create(title=data["title"])
-
-        spec = ServiceSpec(
-            service=svc,
-            input_serializer=_CtxSerializer,
-            input_serializer_context=lambda: {"flag": "on"},
-            atomic=False,
-        )
-        dispatch_spec(spec, user=None, params={"title": "p"})
-        assert seen["flag"] == "on"
 
 
 class TestDispatchTypeError:
@@ -550,7 +490,7 @@ class TestFilterDataOnTheReadPath:
             # The selector's pool says nothing about ``published``; only the
             # filter's own view of the arguments carries it.
             params={},
-            filter_data={"published": "true"},
+            filter_data={"published": True},
         )
 
         rendered = render_spec_output(spec, result.value, many=True)
@@ -570,7 +510,7 @@ class TestFilterDataOnTheReadPath:
             filter_set=_PublishedFilterSet,
         )
 
-        result = dispatch_spec(spec, user=None, params={"published": "true"}, filter_data={})
+        result = dispatch_spec(spec, user=None, params={"published": True}, filter_data={})
 
         rendered = render_spec_output(spec, result.value, many=True)
         assert [row["title"] for row in rendered] == ["shipped", "draft"]
@@ -586,7 +526,7 @@ class TestFilterDataOnTheReadPath:
             filter_set=_PublishedFilterSet,
         )
 
-        result = dispatch_spec(spec, user=None, params={"published": "false"})
+        result = dispatch_spec(spec, user=None, params={"published": False})
 
         rendered = render_spec_output(spec, result.value, many=True)
         assert [row["title"] for row in rendered] == ["draft"]
@@ -620,8 +560,8 @@ class TestFilterDataOnTheTargetPath:
         result = dispatch_spec(
             spec,
             user=None,
-            params={"pk": draft.pk, "title": "renamed", "published": "false"},
-            filter_data={"published": "true"},
+            params={"pk": draft.pk, "title": "renamed", "published": False},
+            filter_data={"published": True},
         )
 
         assert result.kind == "not_found"
@@ -644,7 +584,7 @@ class TestFilterDataOnTheTargetPath:
         )
 
         result = dispatch_spec(
-            spec, user=None, params={"published": "false"}, filter_data={"published": "true"}
+            spec, user=None, params={"published": False}, filter_data={"published": True}
         )
 
         assert result.value == ["shipped"]
@@ -665,7 +605,7 @@ class TestFilterDataOnTheTargetPath:
         )
 
         result = dispatch_spec(
-            spec, user=None, params={"pk": draft.pk, "title": "renamed", "published": "false"}
+            spec, user=None, params={"pk": draft.pk, "title": "renamed", "published": False}
         )
 
         assert result.kind == "instance"
