@@ -46,6 +46,7 @@ from rest_framework_services import (
     dispatch_spec,
 )
 from rest_framework_services.service_specs.invalid_arguments import InvalidArguments
+from rest_framework_services.types.offline_service_view import OfflineServiceView
 from rest_framework_services.types.unset import UNSET
 from rest_framework_services.types.view_hooks import ViewHooks
 from tests.testapp.models import Catalog, Post, Section
@@ -173,6 +174,51 @@ def test_an_unbuildable_list_serializer_is_held_to_the_default_bound() -> None:
         dispatch_spec(spec, user=None, params=[{"n": 1}] * 1200)
 
     assert excinfo.value.get_codes() == {"non_field_errors": ["max_length"]}
+
+
+class _NonEmptyRows(serializers.ListSerializer):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs["allow_empty"] = False
+        super().__init__(*args, **kwargs)
+
+
+class _NonEmptyRowNeedingARequest(_RowNeedingARequest):
+    class Meta:
+        list_serializer_class = _NonEmptyRows
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "view",
+    [None, OfflineServiceView(request=Request(APIRequestFactory().post("/")))],
+    ids=["no-view", "offline-view"],
+)
+@pytest.mark.parametrize("flag", [False, True], ids=["bare-list", "under-the-argument"])
+def test_an_empty_list_for_an_unbuildable_list_serializer_may_not_be_empty(
+    view: Any, flag: bool
+) -> None:
+    """The kernel cannot read ``allow_empty=False`` off a list serializer it cannot
+    build, so DRF refuses the empty list in its own words and code, not as below a
+    minimum of one: the exception to the ``min_length`` answer."""
+    spec = ServiceSpec(
+        service=_count, input_serializer=_NonEmptyRowNeedingARequest, many=True, atomic=False
+    )
+
+    with pytest.raises(ValidationError) as excinfo:
+        dispatch_spec(
+            spec,
+            user=None,
+            view=view,
+            request=view.request if view is not None else None,
+            params={"items": []} if flag else [],
+            many_as_argument=flag,
+        )
+
+    refusal = {"non_field_errors": ["This list may not be empty."]}
+    assert excinfo.value.detail == ({"items": refusal} if flag else refusal)
+    assert excinfo.value.get_codes() == (
+        {"items": {"non_field_errors": ["empty"]}} if flag else {"non_field_errors": ["empty"]}
+    )
 
 
 # --- filter values are read by the kernel's types first -----------------------------

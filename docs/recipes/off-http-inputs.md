@@ -201,9 +201,13 @@ spec's `kwargs` provider, still outranks the caller's on a conflict. `data` is
 A target lookup that shapes its rows with a `filter_set` declares the filter's
 names and its selector's parameters, so under `AUTO` or `BUNDLE` a key outside
 them is refused under `REJECT` there too; a lookup whose selector takes a bare
-`**kwargs` declares none, and nothing is refused. Under `SPREAD_AUTHOR_WINS` the
-service's own parameters join the set, and a bare `**kwargs` service drops the
-key, as below.
+`**kwargs` declares none, and nothing is refused. Under `SPREAD_AUTHOR_WINS` a
+serializer-less service's own parameters join the set: a key that is one of them
+is delivered, any other is refused, and a service taking only a bare `**kwargs`
+declares none and drops the key, as below. A service with an `input_serializer`
+joins nothing to the set, so there a key outside the lookup's names and the
+serializer's fields is refused under `REJECT` whether the signature is closed,
+takes a bare `**extras` or names the key as a parameter.
 
 A parameter counts when the caller could fill it by name: a keyword parameter,
 or a key of an `Unpack[TypedDict]` `**kwargs`. These do not count:
@@ -218,7 +222,8 @@ or a key of an `Unpack[TypedDict]` `**kwargs`. These do not count:
 A bare `**kwargs` declares no name. It receives the declared arguments and the
 seeds the call carries (`data` and `view` among them), never an undeclared key:
 under `REJECT` such a key is refused, except under `SPREAD_AUTHOR_WINS`, where
-an open service drops it instead. An annotated `**kwargs` whose `TypedDict`
+a serializer-less open service drops it instead; one with an `input_serializer`
+still refuses it. An annotated `**kwargs` whose `TypedDict`
 cannot be resolved at runtime makes `REJECT` raise `ImproperlyConfigured` where
 the call reads that annotation, as the warning above sets out: for this service,
 under `SPREAD_AUTHOR_WINS`, unless its target lookup's selector takes a bare

@@ -89,3 +89,54 @@ def test_a_selectors_missing_parameter_is_caught_as_drf_and_the_kernel_catch_it(
         assert [str(error) for error in raised.value.detail["tenant"]] == [
             "This field is required."
         ]
+
+
+# --- under BUNDLE a selector's own parameters are no caller input ------------------
+
+
+@pytest.mark.django_db
+def test_under_bundle_a_selectors_parameter_with_no_default_is_the_selectors_type_error() -> None:
+    """The scope of the upgrade note: ``AUTO`` and ``SPREAD_AUTHOR_WINS`` refuse it as
+    ``InvalidArguments``, and ``BUNDLE`` leaves it to the call, as on 0.57.0."""
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=_unfilled, permission_classes=[])
+
+    with pytest.raises(TypeError, match="tenant"):
+        dispatch_spec(spec, user=None, params={}, argument_binding=ArgumentBinding.BUNDLE)
+
+
+@pytest.mark.django_db
+def test_under_bundle_a_selectors_input_required_marker_is_not_enforced() -> None:
+    spec = SelectorSpec(kind=SelectorKind.LIST, selector=_marked, permission_classes=[])
+
+    result = dispatch_spec(spec, user=None, params={}, argument_binding=ArgumentBinding.BUNDLE)
+
+    assert result.value == []
+
+
+def _any_instance(*, instance: Any) -> str:
+    return "ran"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "selector", [_unfilled, _marked], ids=["no-default", "marked-input-required"]
+)
+@pytest.mark.parametrize(
+    "binding",
+    [ArgumentBinding.AUTO, ArgumentBinding.BUNDLE, ArgumentBinding.SPREAD_AUTHOR_WINS],
+    ids=lambda binding: binding.name,
+)
+def test_a_target_lookups_missing_parameter_is_refused_under_every_binding(
+    selector: Callable[..., Any], binding: ArgumentBinding
+) -> None:
+    spec = ServiceSpec(
+        service=_any_instance,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=selector),
+        atomic=False,
+        permission_classes=[],
+    )
+
+    with pytest.raises(ValidationError) as raised:
+        dispatch_spec(spec, user=None, params={}, argument_binding=binding)
+
+    assert [str(error) for error in raised.value.detail["tenant"]] == ["This field is required."]
