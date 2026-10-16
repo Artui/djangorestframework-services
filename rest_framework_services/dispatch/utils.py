@@ -6,7 +6,7 @@ import dataclasses
 import inspect
 import threading
 import weakref
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Generator, Iterable, Mapping
 from contextlib import contextmanager
 from types import MappingProxyType
 from typing import Any, cast
@@ -129,7 +129,7 @@ class EdgeCall:
 
 
 @contextmanager
-def edge_call(state: EdgeCallState) -> Iterator[None]:
+def edge_call(state: EdgeCallState) -> Generator[None]:
     """``state`` as the edge call in progress, for the whole of the ``with`` block.
 
     Both cores enter it before ``prepare_edge_call`` fills ``state`` and leave
@@ -1803,7 +1803,7 @@ def edge_errors(
     many_as_argument: bool,
     http: bool,
     state: EdgeCallState,
-) -> Iterator[None]:
+) -> Generator[None]:
     """The kernel's refusals as DRF's, around a whole edge call.
 
     - Every kernel ``DispatchError`` leaves as its dual-base twin, through

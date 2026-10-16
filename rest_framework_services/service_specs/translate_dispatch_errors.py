@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 
 from django_service_specs.authorization.not_permitted import NotPermitted as KernelNotPermitted
@@ -21,7 +21,7 @@ from rest_framework_services.service_specs.principal_unavailable import Principa
 
 
 @contextmanager
-def translate_dispatch_errors() -> Iterator[None]:
+def translate_dispatch_errors() -> Generator[None]:
     """Re-raise the kernel's ``DispatchError``s inside the block as this package's dual-base classes.
 
     Every published consumer of this package catches DRF's
