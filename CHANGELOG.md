@@ -125,7 +125,17 @@ project may have to change, each detailed below:
   dispatched it and handed the service the caller's keys. Import the
   `TypedDict` normally, or name each key the service accepts as a keyword
   parameter; either way the service receives them. Dispatching with `UnknownArguments.IGNORE`, which the message
-  also offers, runs the call but hands the service none of those keys.
+  also offers, runs the call but hands the service none of those keys. A
+  target lookup's own selector, annotated `**kwargs: Unpack[...]` the same
+  way, is refused beside a `filter_set` under every `ArgumentBinding`, where
+  0.57.0 ran it.
+- **Stop sending a key a filtered lookup does not declare, under `REJECT`.**
+  A target lookup whose `filter_set` shapes its rows declares the filter's
+  names and its selector's parameters, and a caller's key outside them is
+  refused as `Unexpected argument(s): 'tenant'.`, off HTTP and over a live
+  view, under `AUTO` and `BUNDLE`. 0.57.0 dropped it without a word. A lookup
+  whose selector takes a bare `**kwargs` declares none and refuses nothing,
+  and `IGNORE` still drops the key.
 - **Scope a target lookup by its route capture.** A lookup reading a name
   that is also a writable input field, such as `slug`, no longer takes the
   body's value for it: without a capture the lookup keeps its own default,
@@ -142,6 +152,23 @@ project may have to change, each detailed below:
   keyed by row index whatever DRF's `LIST_SERIALIZER_ERRORS_AS_DICT` says, a
   string or list detail under the row's `non_field_errors`; a nested
   serializer's own row errors keep the shape that setting gives them.
+- **Read a singular relation's refusal under `non_field_errors`.** A forward
+  foreign key or one-to-one, or a reverse one-to-one, has no row index, and
+  its refusal is a mapping under the relation's name where 0.57.0 answered a
+  bare list or string, over a live view and off HTTP alike. `{"author": ["A.",
+  "B."]}` is now `{"author": {"non_field_errors": ["A.", "B."]}}`, and
+  `{"author": "Rude."}` is `{"author": {"non_field_errors": ["Rude."]}}`. That
+  holds for a row service's string or list detail, for DRF's `ValidationError`
+  it raises, for a primary key outside the relation's `scope` and for one the
+  write did not match, and one level down: a singular relation inside another
+  answers `{"author": {"profile": {"non_field_errors": ["N."]}}}`, and inside
+  a collection's row `{"sections": {0: {"profile": {"non_field_errors":
+  ["RC."]}}}}`. A client reads the refusal at `errors["author"]["non_field_errors"]`.
+  A field map the service named, `{"name": ["Bad."]}`, and a map that carries
+  its own `non_field_errors` are answered as before, and a Django
+  `ValidationError` or a `TypeError` from a row service still propagates. The
+  shape is the kernel's nested writes', which drfs uses as they are, so no
+  drfs setting restores the old one.
 - **Leave `None` rows out of a relation write, and send `False` to clear a
   file.** A `None` row is refused at its index, `{"sections": {0:
   {"non_field_errors": ["This field cannot be null."]}}}`, where 0.57.0
@@ -457,7 +484,17 @@ project may have to change, each detailed below:
     raises `ImproperlyConfigured` at dispatch when its target lookup
     (`instance_selector_spec` or `collection_selector_spec`) declares a
     `filter_set`, off HTTP and over a live view, where 0.57.0 dispatched it
-    and handed the service the caller's keys.
+    and handed the service the caller's keys. A target lookup's own
+    selector annotated the same way raises beside a `filter_set` under every
+    `ArgumentBinding`, where 0.57.0 ran it. Beside a lookup whose selector
+    takes a bare `**kwargs` the call is open and nothing raises, as on 0.57.0.
+  - Under `REJECT` and `AUTO` or `BUNDLE`, a target lookup whose `filter_set`
+    shapes its rows declares the filter's names and its selector's
+    parameters, and a caller's key outside them (`tenant`, say) is refused as
+    `Unexpected argument(s): 'tenant'.`, off HTTP and over a live view, where
+    0.57.0 dropped it. A lookup whose selector takes a bare `**kwargs`
+    declares none, so nothing is refused there, and `IGNORE` still drops the
+    key.
 - **Breaking: a value a view hook or the spec's `kwargs` provider gives for an
   input-serializer field decides that field, and is validated by it.** A key
   naming a field of `input_serializer`, by its name or by its `source`, is
@@ -597,6 +634,21 @@ project may have to change, each detailed below:
     message, `{"sections": {"0": {"non_field_errors": ["Section() got
     unexpected keyword arguments: 'name'"]}}}`, where 0.57.0 raised the
     `TypeError` as a 500. The same key on the top-level row is still raised.
+  - A singular relation (a forward foreign key or one-to-one, a reverse
+    one-to-one) has no row index, so its refusal is keyed by the relation's
+    name and is a mapping: a row service's string or list detail, DRF's
+    `ValidationError` it raises, a key outside the relation's `scope` and a
+    primary key the write did not match are placed under `non_field_errors`,
+    `{"author": {"non_field_errors": ["A.", "B."]}}`, where 0.57.0 answered
+    `{"author": ["A.", "B."]}`, or a bare string for a string. It holds over a
+    live view and off HTTP, inside another singular relation and inside a
+    collection's row, and a collection's rows keep their index keys. A row
+    service raising DRF's `ValidationError` still raises a DRF
+    `ValidationError`, not `ServiceValidationError`, with the wrapper added.
+    A field map the service named and a map carrying its own
+    `non_field_errors` are unchanged, as are a Django `ValidationError` and a
+    `TypeError`, which propagate. The cause is the kernel's nested writes,
+    which drfs uses as they are, so no drfs setting restores the old shape.
 - **Breaking: `apply_queryset_shaping` and `filter_set` shape through the
   kernel's `shape_queryset`.**
   - `filter_set` must be a django-filter `FilterSet`; one duck-typed on
@@ -762,6 +814,14 @@ project may have to change, each detailed below:
 
 ### Fixed
 
+- **`REJECT cannot be enforced` no longer offers `PASSTHROUGH`.** The
+  `ImproperlyConfigured` that `resolve_unknown_arguments`, in
+  `rest_framework_services.dispatch.utils`, raises for a `**kwargs`
+  annotation that does not resolve at runtime named
+  `UnknownArguments.PASSTHROUGH` as a way out, which raises `ValueError`.
+  It now offers `IGNORE`, or making the annotation resolvable. Only a direct
+  call of that helper reaches this message; a dispatch raises the message that
+  already offered `IGNORE` alone.
 - **Under `SPREAD_AUTHOR_WINS`, a parameter takes `input_data`'s value for its
   field, `NotClientInput` or not**, where a later field with the same
   `source`, a `source="*"` nested serializer or a `validate()` writing that
