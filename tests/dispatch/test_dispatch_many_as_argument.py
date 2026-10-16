@@ -754,8 +754,13 @@ async def test_an_undeclared_key_inside_an_item_is_refused_at_its_index(core: st
 
 @_CORES
 @pytest.mark.parametrize("live", [False, True], ids=["off-http", "live-view"])
-async def test_an_undeclared_key_is_answered_beside_a_row_that_is_no_object(
-    core: str, live: bool
+@pytest.mark.parametrize(
+    ("other_row", "other_refusal"),
+    [(1, _NO_OBJECT), (_BAD, _BAD_DETAIL)],
+    ids=["a-row-that-is-no-object", "a-row-the-serializer-refuses"],
+)
+async def test_an_undeclared_key_is_answered_beside_another_rows_refusal(
+    core: str, live: bool, other_row: Any, other_refusal: Any
 ) -> None:
     """Row 0's undeclared key is answered with row 1's refusal, off HTTP and over a
     live view alike; 0.57.0 answered row 1 alone."""
@@ -763,14 +768,17 @@ async def test_an_undeclared_key_is_answered_beside_a_row_that_is_no_object(
     refusal = await _refusal(
         core,
         _spec(),
-        params={"items": [{**_GOOD, "bogus": 1}, 1]},
+        params={"items": [{**_GOOD, "bogus": 1}, other_row]},
         many_as_argument=True,
         unknown_arguments=UnknownArguments.REJECT,
         request=view.request if view is not None else None,
         view=view,
     )
     assert refusal.detail == {
-        "items": {0: {"non_field_errors": ["Unexpected argument(s): 'bogus'."]}, 1: _NO_OBJECT}
+        "items": {
+            0: {"non_field_errors": ["Unexpected argument(s): 'bogus'."]},
+            1: other_refusal,
+        }
     }
 
 

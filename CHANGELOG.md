@@ -771,14 +771,15 @@ project may have to change, each detailed below:
   be built without a request is the exception: its empty list is still
   refused as `This list may not be empty.`, code `empty`, as a bare list under
   `non_field_errors` and under `many_argument` as
-  `{"items": {"non_field_errors": [...]}}`. 0.57.0 said so too on an
-  `OfflineServiceView`, and with no view it could not build the serializer.
+  `{"items": {"non_field_errors": [...]}}`, with no view or on an
+  `OfflineServiceView` dispatched with its request. 0.57.0 said so too on
+  that view, and with no view it could not build the serializer.
   Over a live view the
   `ListSerializer` alone bounds the body, and a refused body is answered with
   its own errors, as before. A row that is no object is refused at its index
   and leaves the list's bounds and its list-level `validate()` to the rows
-  sent, as DRF's list serializer does, so `dispatch_spec` answers that row
-  alone. The kernel's own `dispatch`, called directly on a drfs spec where no
+  sent, as DRF's list serializer does, so where the list as sent is within
+  its bounds `dispatch_spec` answers that row alone. The kernel's own `dispatch`, called directly on a drfs spec where no
   edge body holds the rows, judges the list on the rows that survived: `[good,
   1]` under a minimum of two answers `Expected an object.` for row 1 beside
   `Ensure this field has at least 2 elements.`, `[1]` under
