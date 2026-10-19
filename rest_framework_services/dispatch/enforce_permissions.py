@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
 
@@ -77,7 +77,7 @@ def enforce_permissions(
 
 
 @contextmanager
-def _naming_the_missing_request(permission: Any, request: Any) -> Iterator[None]:
+def _naming_the_missing_request(permission: Any, request: Any) -> Generator[None]:
     """Turn "no request" into a message naming the fix, not a DRF ``AttributeError``.
 
     Most permission classes read ``request.user`` first thing, so dispatching with
