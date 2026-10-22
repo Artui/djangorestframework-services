@@ -7,11 +7,16 @@ output schema is an array, and ``can_present_nothing`` answers ``False``. A retu
 that is not a set of rows is the author's error, raised after the write.
 
 Each case runs through ``dispatch_spec`` and ``adispatch_spec`` alike, because each
-core reports the kind on its own.
+core reports the kind on its own. The cases reading the return also run with the
+kernel answering ``kind="list"`` itself, as it does for a spec compiled with
+``returns_many``: the edge decides by the declaration, so a return that is not a
+set of rows is refused whichever kind the kernel answered.
 """
 
 from __future__ import annotations
 
+import dataclasses
+import importlib
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -47,6 +52,38 @@ def _async(spec: Any, **kwargs: Any) -> DispatchResult:
 
 Dispatch = Callable[..., DispatchResult]
 _CORES = pytest.mark.parametrize("dispatch", [_sync, _async], ids=["sync", "async"])
+
+
+def _as_returns_many(result: Any) -> Any:
+    # The kernel's own answer for a ``returns_many`` spec: ``"list"`` for a
+    # return that is not ``None``, ``"instance"`` for ``None``.
+    if result.kind == "instance" and result.value is not None:
+        return dataclasses.replace(result, kind="list")
+    return result
+
+
+@pytest.fixture(params=["as-compiled", "kernel-answers-list"])
+def kernel(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Which kind the kernel answers a declared list's return with.
+
+    ``kernel-answers-list`` wraps the name each core calls the kernel by, so the
+    edge meets the result a ``returns_many`` compile produces whatever the
+    compiled spec says today.
+    """
+    if request.param == "kernel-answers-list":
+        sync_core = importlib.import_module("rest_framework_services.dispatch.dispatch_spec")
+        async_core = importlib.import_module("rest_framework_services.dispatch.adispatch_spec")
+        kernel_dispatch = sync_core.dispatch
+        kernel_adispatch = async_core.adispatch
+
+        def listing(*args: Any, **kwargs: Any) -> Any:
+            return _as_returns_many(kernel_dispatch(*args, **kwargs))
+
+        async def alisting(*args: Any, **kwargs: Any) -> Any:
+            return _as_returns_many(await kernel_adispatch(*args, **kwargs))
+
+        monkeypatch.setattr(sync_core, "dispatch", listing)
+        monkeypatch.setattr(async_core, "adispatch", alisting)
 
 
 class _PostOut(serializers.ModelSerializer):
@@ -89,6 +126,7 @@ _RETURNS = pytest.mark.parametrize(
 @pytest.mark.django_db
 @_CORES
 @_RETURNS
+@pytest.mark.usefixtures("kernel")
 def test_the_services_own_return_is_presented_as_a_list(
     dispatch: Dispatch, service: Callable[..., Any]
 ) -> None:
@@ -107,6 +145,7 @@ def test_the_services_own_return_is_presented_as_a_list(
 
 @pytest.mark.django_db
 @_CORES
+@pytest.mark.usefixtures("kernel")
 def test_the_return_is_passed_through_as_it_came(dispatch: Dispatch) -> None:
     # docs/reference/dispatch.md: a queryset stays lazy, and anything else is the
     # object the service returned.
@@ -150,12 +189,15 @@ _REFUSED = pytest.mark.parametrize(
 @pytest.mark.django_db
 @_CORES
 @_REFUSED
+@pytest.mark.usefixtures("kernel")
 def test_a_return_that_is_not_a_set_of_rows_is_the_authors_error(
     dispatch: Dispatch, returned: Any, type_name: str
 ) -> None:
     """Raised loudly, naming the declaration and what came back, and not as a
     refusal: the write has already happened, so a caller must not read it as
-    nothing having changed."""
+    nothing having changed. Under ``kernel-answers-list`` the mapping, ``str``
+    and ``bytes`` rows come back from the kernel as ``"list"``, so deciding by
+    the result's kind rather than the declaration presents them row by row."""
     # ``atomic`` as declared by default: the service's own block has closed by the
     # time its return is read, so the row it wrote is still there afterwards.
     spec = ServiceSpec(service=_writes_then_returns(returned), output_selector_spec=_DECLARED_LIST)
@@ -224,4 +266,22 @@ def test_a_missing_row_under_a_list_declaration_stays_not_found(dispatch: Dispat
     result = dispatch(spec, instance=None)
 
     assert result.kind == "not_found"
+    assert result.value is None
+
+
+@pytest.mark.django_db
+@_CORES
+def test_a_list_output_that_re_reads_is_the_output_selector_s(dispatch: Dispatch) -> None:
+    # What the output selector answers is the kernel's re-read, never the
+    # service's return, so it is not held to the service's list: deciding the
+    # declaration without its ``selector`` would refuse this ``None`` blaming the
+    # service.
+    re_read = SelectorSpec(
+        kind=SelectorKind.LIST, selector=lambda: None, output_serializer=_PostOut
+    )
+    spec = ServiceSpec(service=lambda: [], output_selector_spec=re_read, atomic=False)
+
+    result = dispatch(spec)
+
+    assert result.kind == "list"
     assert result.value is None

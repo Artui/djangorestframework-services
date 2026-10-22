@@ -357,6 +357,47 @@ async def test_a_registered_pool_seed_reaches_target_resolution_on_either_core()
 
 
 @pytest.mark.django_db(transaction=True)
+async def test_the_call_s_context_crosses_the_hop_on_either_core() -> None:
+    """One dict per call, the caller's, through the lookup, the provider and the service.
+
+    The async core prepares the call in a thread and dispatches it on the loop,
+    so a dict copied on either side of the hop would reach the stages before it
+    and after it as two different objects.
+    """
+    post = await Post.objects.acreate(title="p")
+    contexts: list[dict[str, Any]] = []
+    seen: list[list[str]] = []
+
+    def target(*, pk: Any, call_context: dict[str, Any]) -> QuerySet[Post]:
+        call_context["lookup"] = True
+        return Post.objects.filter(pk=pk)
+
+    def provider(*, call_context: dict[str, Any]) -> dict[str, Any]:
+        call_context["provider"] = True
+        return {}
+
+    def service(*, instance: Post, call_context: dict[str, Any]) -> None:
+        seen.append(sorted(call_context))
+
+    spec = ServiceSpec(
+        service=service,
+        kwargs=provider,
+        instance_selector_spec=SelectorSpec(kind=SelectorKind.RETRIEVE, selector=target),
+    )
+
+    def make_kwargs() -> dict[str, Any]:
+        contexts.append({"trace": len(contexts)})
+        return {"user": None, "params": {"pk": post.pk}, "call_context": contexts[-1]}
+
+    sync_summary, async_summary = await _dispatch_both(spec, make_kwargs)
+
+    assert sync_summary == async_summary
+    expected = ["action", "format", "lookup", "provider", "request", "trace", "view"]
+    assert seen == [expected, expected]
+    assert [context["trace"] for context in contexts] == [0, 1]
+
+
+@pytest.mark.django_db(transaction=True)
 async def test_route_captures_reach_the_target_pool_on_either_core() -> None:
     """The third ingredient of that pool: the offline view's route captures.
 

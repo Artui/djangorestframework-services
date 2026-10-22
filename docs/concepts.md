@@ -397,7 +397,7 @@ def _pick(*, data):
 
 action_specs = {
     "create": PolymorphicServiceSpec(
-        discriminator=_pick,  # pool: {request, data, user, view}
+        discriminator=_pick,  # pool: {request, data, user, view, call_context}
         specs={
             "email": ServiceSpec(service=register_by_email, input_serializer=EmailIn),
             "token": ServiceSpec(service=register_by_token, input_serializer=TokenIn),
@@ -513,7 +513,10 @@ renders the rows as a list. Without a `selector` it re-fetches nothing and
 renders the rows the service returned, as a list, so the service must return
 them: a `QuerySet`, a list or another iterable of rows. Anything else, `None`
 included, raises `ImproperlyConfigured` naming the declaration, after the
-service has written. Full walkthrough in the
+service has written. The declaration compiles to the kernel's `returns_many`
+(a `LIST` output with no `selector`, on a spec that is not `many`), so the
+kernel's own `dispatch` answers it as a list, presented row by row, and its
+output schema is an array of the row. Full walkthrough in the
 [bulk & collection mutations recipe](recipes/bulk-mutations.md).
 
 ## Dispatch
@@ -652,7 +655,9 @@ class ExportViewSet(ServiceViewSet):
 ```
 
 The per-action hook wins over the catch-all, and the first that returns a
-reporter is the one used; returning `None` leaves the no-op. Not
+reporter is the one used; returning `None` leaves the no-op. A hook declaring a
+`call_context` parameter is handed the request's call context, the same dict
+the dispatch carries. Not
 `get_service_kwargs()` or `get_selector_kwargs()`: `progress` is a pool seed,
 and a key those hooks return under a seed's name is dropped, so a reporter
 returned there never reaches the service. Client *input* named `progress` is
@@ -695,7 +700,14 @@ valid only beside a `collection_selector_spec`, the first row renders the
 service's return as a list, row by row, and the fourth does not apply: a list is
 never `None`, so a `None` return is refused as the author's error, as is any
 return that is no set of rows. Off HTTP, `dispatch_spec` reports the same list
-as `kind="list"`.
+as `kind="list"`. drfs' edge, `dispatch_spec` and the views, checks the return
+by the declaration, not by the kind the kernel reports: a mapping, a `str`,
+`bytes`, a non-iterable or `None` is refused with `ImproperlyConfigured`, rather
+than being presented row by row because the kernel called it a list. The
+kernel's own `dispatch` of the compiled spec does not check it: it answers a
+mapping or a string as `kind="list"`, and presenting it iterates it. A `many` spec is not this case: its return is
+already its rows, and it does not compile to `returns_many` (the kernel refuses
+the two together).
 
 A single-row service with no output re-read presents its own return;
 `allow_none=True` on the `ServiceSpec` declares it may be `None`, and its output

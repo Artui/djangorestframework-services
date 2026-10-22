@@ -26,14 +26,18 @@ output re-read are the kernel's, documented on its `dispatch`.
 
 Most leaves on this page are the kernel's own too, re-exported at the path this
 package has always exported them from: `DispatchResult`, `UnknownArguments`,
-`OutputPage`, `paginate_output`, `DEFAULT_PAGE_SIZE`, `enforce_affordances`,
-`aenforce_affordances`, `unmet_operation_affordance`,
-`aunmet_operation_affordance`, `operation_affordances`, `provider_keys`,
+`OutputPage`, `paginate_output`, `DEFAULT_PAGE_SIZE`,
+`operation_affordances`, `provider_keys`,
 `ProviderKeys`, `is_async`, `run_service`, `arun_service`, `run_selector`,
 `arun_selector`, `is_queryset`, `materialize_retrieve`,
 `amaterialize_retrieve`, `base_pool` and `null_progress`. Each is the same
 object under both names, so the import you have keeps working and the
-documentation rendered for it here is the kernel's.
+documentation rendered for it here is the kernel's. The four affordance
+functions, `enforce_affordances`, `aenforce_affordances`,
+`unmet_operation_affordance` and `aunmet_operation_affordance`, are drfs' own
+thin wrappers over the kernel's: they reserve the names the DRF edge seeds
+(`request` and `view`) beside the set they are given, and otherwise pass the
+kernel's arguments through.
 
 ## Transport-neutral dispatch
 
@@ -62,6 +66,47 @@ boolean or `123` for a string is refused before the serializer runs. A declared
 route or query string alone, and off HTTP it is the caller's argument. See
 [who validates what](../recipes/off-http-inputs.md#who-validates-what).
 
+**The call's context.** `dispatch_spec` and `adispatch_spec` take
+`call_context=`, the kernel's `call_context`: one plain `dict` the caller owns
+for its own scope, handed as the same object, never a copy, to every stage that
+names it. Those are the kernel's `dispatch` and its target lookup, and the two
+stages this edge calls itself, the spec's `kwargs` provider and `input_data`,
+beside the `input_serializer_context` and `output_serializer_context`
+providers, so a stage writes where a later one, or the caller, reads. With none,
+each call gets a fresh dict. A live view builds one per request, with the same
+four entries below, and hands that one dict to its dispatch, to the render, bulk
+included, and to every provider and `get_*` hook it invokes itself (its
+`kwargs`, `input_data`, serializer-context and progress-reporter hooks among
+them) and to a `PolymorphicServiceSpec`'s `discriminator`. Each is offered it by
+name only, as the kernel binds it: a callable declaring a `call_context`
+parameter is handed the dict, and one taking `**kwargs` alone never sees it.
+`success_status` and `response_finalizer` are not offered it, and a view naming
+it in either is refused when it is built. Two dispatches in one request share
+the dict; a second request is a second dict. A serializer's context is a
+separate dict of its own:
+a provider that names `call_context` is handed the call's, and copies into the
+context it returns what the serializer should see.
+
+The edge fills four standard entries, each only where the dict has none, so a
+caller's own entry wins:
+
+| Entry | Value |
+| --- | --- |
+| `request` | the `request` passed to the dispatch |
+| `view` | the `view` passed to the dispatch |
+| `format` | always `None`: the edge is handed no format, as [`base_serializer_context`](#base_serializer_context) says |
+| `action` | the view's `action` where it has a non-empty one, else `None` |
+
+An empty dict passed is still the caller's, and is filled. A transport that
+runs the kernel's own `dispatch` over `kernel_spec(spec)` instead of this edge
+puts the same four keys in its context by the same convention, which is what
+the permission check and the serializer context read when the call carries no
+`request` or `view` of its own (see
+[the request a call carries](../recipes/off-http-inputs.md#the-request-and-view-a-call-carries)).
+The rendering and affordance functions below take the same argument: a
+transport that renders, or asks which operations to offer, after the dispatch
+returned passes the dict it dispatched with.
+
 ### `dispatch_spec`
 
 ::: rest_framework_services.dispatch.dispatch_spec.dispatch_spec
@@ -71,6 +116,14 @@ route or query string alone, and off HTTP it is the caller's argument. See
 ::: rest_framework_services.dispatch.adispatch_spec.adispatch_spec
 
 ### `render_spec_output`
+
+`call_context=` is handed to an `output_serializer_context` provider that names
+`call_context`, as the same object. A transport renders after the dispatch
+returns, so it passes the dict it dispatched with, and the provider reads what
+the call's stages left there. These functions fill none of the standard
+entries: the dict a dispatch was given already has them, and with none passed
+the provider has a fresh dict for this render alone. `arender_spec_output`,
+`render_for_audience` and `arender_for_audience` take it the same way.
 
 ::: rest_framework_services.dispatch.render_spec_output.render_spec_output
 
@@ -379,7 +432,11 @@ Skip it and a call the direct path refuses with `ActionUnavailable` succeeds on
 that path instead. Like the two below, they are the kernel's functions with
 `request` and `view` reserved beside the `reserved` set passed, the names
 `dispatch_spec` seeds itself, so a condition reading either is handed it from
-the pool.
+the pool. Each takes `call_context=` too, passed to the kernel's function, which
+hands it to a condition that names `call_context` (and to none taking a bare
+`**kwargs`): pass the dict the call dispatches with, so the check and the call
+read one context. A `call_context` passed beside a different one already in the
+`pool` is refused with `ImproperlyConfigured`.
 
 ::: rest_framework_services.dispatch.enforce_affordances.enforce_affordances
 
@@ -398,7 +455,10 @@ the pool with `base_pool` and the same `seeds=` the call would use, passing the
 every call, beside the seeds it is handed, so these functions reserve both beside
 the set you pass: a condition declaring either is answered from the pool here as
 it is at the call, and the two agree. The answer is advisory: `dispatch_spec`
-still enforces every affordance when the operation is called.
+still enforces every affordance when the operation is called. `call_context=`
+is handed to a condition naming `call_context`, as in `enforce_affordances`;
+with none, the one the `pool` carries is, else a fresh dict the conditions of
+this call share.
 
 ::: rest_framework_services.dispatch.unmet_operation_affordance.unmet_operation_affordance
 

@@ -8,6 +8,8 @@ parameter takes its default when the server gives it nothing.
 
 from __future__ import annotations
 
+import sys
+import types
 from collections.abc import Callable
 from typing import Annotated, Any
 
@@ -264,3 +266,136 @@ def test_over_a_live_view_a_hook_s_value_reaches_the_parameter_and_not_the_filte
     assert response.status_code == 200, response.data
     assert [row["title"] for row in response.data] == ["a"]
     assert seen == ["b"]
+
+
+# The provider answers the shadowed name, a required one it alone fills, and
+# one it may decline and does. Read as untyped, the kernel's route would ask
+# the caller for ``scope``; read as filling ``reach``, it would drop the
+# caller's value for it.
+_TYPED_PROVIDER_SOURCE = """
+from typing import TypedDict
+
+from django_service_specs.types.unset import UNSET, UnsetType
+
+
+class Answered(TypedDict):
+    title: str
+    scope: str
+    reach: str | UnsetType
+
+
+def provider() -> Answered:
+    return {"title": "b", "scope": "server", "reach": UNSET}
+"""
+
+
+@pytest.fixture(params=["", "from __future__ import annotations\n"], ids=["evaluated", "postponed"])
+def typed_provider(request: Any, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Any]:
+    """A provider typed to answer the shadowed name, from a module of either annotation style.
+
+    Compiled as its own module so the style is the module's, not this one's: an
+    evaluated return annotation is the ``TypedDict`` itself, a postponed one a
+    string resolved in the provider's globals.
+    """
+    module = types.ModuleType("typed_title_provider")
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    source = request.param + _TYPED_PROVIDER_SOURCE
+    exec(compile(source, module.__name__, "exec", dont_inherit=True), module.__dict__)
+    return module.provider
+
+
+def _scoped_selector(seen: list[tuple[str, str, str]]) -> Callable[..., Any]:
+    def every_post(
+        scope: str, reach: str = "unset", title: Annotated[str, NotClientInput] = "unset"
+    ) -> Any:
+        seen.append((scope, reach, title))
+        return Post.objects.order_by("title")
+
+    return every_post
+
+
+def test_through_the_kernel_a_typed_provider_s_value_reaches_the_parameter_and_not_the_filter(
+    typed_provider: Callable[..., Any], posts: None
+) -> None:
+    """A provider typed to answer the shadowed name leaves the filter the caller's.
+
+    Its key for that name is the parameter's, on the server channel, so it
+    fills no argument of that name, and its other keys still do.
+    """
+    seen: list[tuple[str, str, str]] = []
+    compiled = kernel_spec(_spec(_scoped_selector(seen), kwargs=typed_provider))
+    principal = AnonymousUser()
+
+    result = kernel_dispatch(
+        compiled,
+        principal=principal,
+        arguments={"title": "a", "reach": "caller"},
+        grant=Grant(compiled, principal),
+    )
+
+    assert [post.title for post in result.value] == ["a"]
+    assert seen == [("server", "caller", "b")]
+
+
+@_CORES
+def test_a_typed_provider_s_value_reaches_the_parameter_and_not_the_filter(
+    dispatch: Callable[..., DispatchResult], typed_provider: Callable[..., Any], posts: None
+) -> None:
+    seen: list[tuple[str, str, str]] = []
+    spec = _spec(_scoped_selector(seen), kwargs=typed_provider)
+
+    assert _titles(dispatch(spec, params={"title": "a", "reach": "caller"})) == ["a"]
+    assert seen == [("server", "caller", "b")]
+
+
+def test_over_a_live_view_a_typed_provider_s_value_reaches_the_parameter_and_not_the_filter(
+    typed_provider: Callable[..., Any], posts: None
+) -> None:
+    seen: list[tuple[str, str, str]] = []
+    view = _view(_spec(_scoped_selector(seen), kwargs=typed_provider))
+
+    response = view(_factory.get("/?title=a"))
+
+    assert response.status_code == 200, response.data
+    assert [row["title"] for row in response.data] == ["a"]
+    assert seen == [("server", "unset", "b")]
+
+
+def _through_the_kernel(spec: Any, *, params: dict[str, Any]) -> None:
+    compiled = kernel_spec(spec)
+    principal = AnonymousUser()
+    kernel_dispatch(
+        compiled, principal=principal, arguments=params, grant=Grant(compiled, principal)
+    )
+
+
+@pytest.mark.parametrize(
+    "dispatch", [_sync, _async, _through_the_kernel], ids=["sync", "async", "kernel"]
+)
+def test_a_target_lookup_s_typed_provider_s_value_reaches_the_parameter_and_not_the_filter(
+    dispatch: Callable[..., Any], typed_provider: Callable[..., Any], posts: None
+) -> None:
+    """A target lookup's provider fills its other keys on every route, whatever the module's style."""
+    seen: list[tuple[str, str]] = []
+    got: dict[str, Any] = {}
+
+    def a_post(pk: int, scope: str, title: Annotated[str, NotClientInput] = "unset") -> Any:
+        seen.append((scope, title))
+        return Post.objects.filter(pk=pk)
+
+    def service(*, instance: Any) -> None:
+        got["instance"] = instance.title
+
+    spec = ServiceSpec(
+        service=service,
+        instance_selector_spec=SelectorSpec(
+            kind=SelectorKind.RETRIEVE, selector=a_post, filter_set=_ByTitle, kwargs=typed_provider
+        ),
+        permission_classes=[],
+        atomic=False,
+    )
+
+    dispatch(spec, params={"pk": Post.objects.get(title="a").pk, "title": "a"})
+
+    assert got == {"instance": "a"}
+    assert seen == [("server", "b")]

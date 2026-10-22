@@ -55,6 +55,7 @@ async def adispatch_spec(
     filter_data: Mapping[str, Any] | None = None,
     many_as_argument: bool = False,
     partial: bool | None = None,
+    call_context: dict[str, Any] | None = None,
 ) -> DispatchResult:
     """Async
     [`dispatch_spec`][rest_framework_services.dispatch.dispatch_spec.dispatch_spec]:
@@ -105,6 +106,7 @@ async def adispatch_spec(
             filter_data=filter_data,
             many_as_argument=many_as_argument,
             partial=partial,
+            call_context=call_context,
             state=state,
         )
         if isinstance(prepared, DispatchResult):

@@ -30,6 +30,13 @@ def filterset_to_json_schema(
     Schema "any value") rather than breaking generation. Requires the
     ``[filter]`` extra (``django-filter``), raising a clear ``ImportError`` when
     it is absent — only ever when a ``filter_set`` is actually introspected.
+
+    **These rules describe drfs' schema alone.** A spec's ``filter_set`` compiles
+    to Parameters the kernel builds itself, from each filter's form field, so
+    drfs builds none of them and a spec's ``json_schema_registry`` has nowhere
+    to apply its ``filters`` rules on the compiled spec: the kernel's schema of
+    a ``filter_set`` reads as the kernel reads it, whatever is registered here
+    (test_a_filters_rule_reaches_drfs_schema_and_not_the_compiled_spec).
     """
     module = _import_django_filters()
     base_filters: dict[str, Any] = dict(getattr(filter_set_class, "base_filters", {}))

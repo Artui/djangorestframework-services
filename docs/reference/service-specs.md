@@ -36,7 +36,10 @@ list_tasks = SelectorSpec(
 ```
 
 - **`reads`**: each `UrlKwarg` and `QueryParam` becomes one kernel `Parameter`,
-  so it is an argument a caller sends and the schema lists. An entry of the
+  so it is an argument a caller sends and the schema lists. A `QueryParam` no
+  callable of the call takes by name compiles to the kernel spec's `shapes`
+  rather than its `reads`, and reaches the presenter on
+  `PresentationContext.shapes` (see [`QueryParam`](types.md)). An entry of the
   same name as a selector parameter replaces the reflected one. A sequence is
   required, and a name may be declared once. A selector taking a bare
   `**kwargs` is not handed a route capture no callable declares: declare it

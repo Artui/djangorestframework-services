@@ -32,7 +32,7 @@ from rest_framework_services.dispatch.dispatch_spec import dispatch_spec
 from rest_framework_services.types.argument_binding import ArgumentBinding
 from rest_framework_services.types.selector_kind import SelectorKind
 from rest_framework_services.types.selector_spec import SelectorSpec
-from rest_framework_services.views.utils import resolve_view_hooks
+from rest_framework_services.views.utils import resolve_view_hooks, view_call_context
 
 
 def apply_queryset_shaping(
@@ -214,6 +214,10 @@ def dispatch_selector_for_spec(view: Any, spec: SelectorSpec[Any, Any]) -> Any:
         argument_binding=ArgumentBinding.BUNDLE,
         on_target_resolved=check_view_object_permissions,
         view_hooks=resolve_view_hooks(view, request, chain="selector"),
+        # The request's one dict, so the spec's own providers share it with the
+        # view's hooks and the render
+        # (test_a_selector_spec_s_kwargs_provider_shares_the_view_s_context).
+        call_context=view_call_context(view, request),
     )
     if result.kind == "not_found":
         raise NotFound()

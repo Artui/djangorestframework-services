@@ -28,13 +28,14 @@ import dataclasses
 import inspect
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextvars import ContextVar
-from typing import Any, cast
+from typing import Any, Final, cast
 
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.db import DatabaseError
 from django.db.models import QuerySet
-from django.http import QueryDict
+from django.http import HttpRequest, QueryDict
 from django.utils.translation import gettext
+from django_service_specs.output.output import OutputField
 from django_service_specs.parameters.coded_message import CodedMessage
 from django_service_specs.parameters.invalid_arguments import (
     InvalidArguments as KernelInvalidArguments,
@@ -49,6 +50,7 @@ from rest_framework_dataclasses.serializers import DataclassSerializer
 
 from rest_framework_services.service_specs.base_serializer_context import base_serializer_context
 from rest_framework_services.service_specs.build_offline_context import build_offline_context
+from rest_framework_services.types.json_schema_registry import JsonSchemaRegistry
 from rest_framework_services.types.unset import UNSET
 from rest_framework_services.types.view_hooks import ViewHooks
 
@@ -580,8 +582,9 @@ class EdgeCallState:
       same objects is asked once for every serializer of the call
       (``context_answer``).
     - ``offline_pairs``: each offline request and view built in the call for
-      a principal and the arguments they carry, so the descriptions of one
-      call with neither share one pair (``offline_pair``).
+      a principal, the arguments they carry, the shapes on the request's
+      query string, the view's action and the Django request it copies, so the descriptions of one call with neither share one
+      pair (``offline_pair``).
     - ``describe_binding``: the body, row and flags the call binds its own
       input serializer to (``describe_with``).
     - ``described``: the serializer each declaration is described with in
@@ -621,9 +624,7 @@ class EdgeCallState:
     context_answers: dict[tuple[Any, ...], tuple[Any, Mapping[str, Any]]] = dataclasses.field(
         default_factory=dict
     )
-    offline_pairs: dict[tuple[int, int], tuple[Any, Any, Any]] = dataclasses.field(
-        default_factory=dict
-    )
+    offline_pairs: dict[tuple[Any, ...], tuple[Any, ...]] = dataclasses.field(default_factory=dict)
     describe_binding: DescribeBinding | None = None
     described: dict[Any, serializers.Serializer] = dataclasses.field(default_factory=dict)
     row_pending: bool = False
@@ -792,20 +793,38 @@ def serializer_context(
     provider: Callable[..., Mapping[str, Any]] | None = None,
     extras: Mapping[str, Any] | None = None,
     describing: bool = False,
+    call_context: dict[str, Any] | None = None,
+    shapes: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The serializer context a call's serializer is built under: four layers, later wins.
 
-    1. **DRF's own.** The ``request`` and ``view`` the call registered are the
+    1. **DRF's own.** The ``request`` and ``view`` the call carries are the
        serializer's own, as they are on HTTP, so a field or a ``validate()``
-       reading either finds what the transport put there; a registered view
+       reading either finds what the transport put there; a carried view
        that answers ``get_serializer_context`` supplies the whole context, as
-       DRF's views do. **Only when the call registered neither** is an offline
-       pair built, with ``principal`` as the request's ``user`` and
-       ``arguments`` as its data, so a ``CurrentUserDefault`` reads the
-       principal and a serializer reading ``self.context["request"]`` finds a
-       request off HTTP too. One seed alone is kept as it is, beside a ``None``
-       for the other: pairing a registered request with a view built around
-       another one would describe a call that never happened.
+       DRF's views do. Each is the seed the call registered, else the entry
+       of that name in ``call_context``, the call's context, where a transport
+       running the kernel's ``dispatch`` puts the request a run arrived on;
+       ``None`` in either place is no value (``carried``). **Only when the
+       call carries neither** is an offline pair built, with ``principal`` as
+       the request's ``user``, ``arguments`` as its data and ``shapes``, the
+       call's read-shaping arguments, as its query string, so a
+       ``CurrentUserDefault`` reads the principal, a serializer reading
+       ``self.context["request"]`` finds a request off HTTP too, and one
+       reading ``request.query_params`` finds a ``fields`` the caller sent.
+       Its view's ``action`` is the context's ``action`` (``offline_action``).
+       One alone is kept as it is, beside a ``None`` for the other: pairing a
+       carried request with a view built around another one would describe a
+       call that never happened. A carried DRF ``Request`` is never given the
+       shapes: over HTTP it carries its own query string, and off HTTP the edge
+       writes a declared ``QueryParam`` onto it. **A carried Django request
+       DRF has not wrapped**, the request a run arrived on as the kernel's
+       call context holds it, is wrapped: the pair is built around a copy of
+       it whose query string is the shapes, replacing its own
+       (``offline_pair``), and its view stands in where the call carries
+       none, so it is built around that request and carries the context's
+       ``action``. A carried view is kept as it is
+       (test_a_carried_view_is_kept_beside_a_wrapped_django_request).
     2. and 3. **The view's hooks**, ``view_layers``: the directional and
        per-action hooks the view resolved, one direction's half of what the
        edge carries: the input half from the call's ``EdgeCallState``, the
@@ -816,23 +835,51 @@ def serializer_context(
        spec callable is, from a pool of the call's ``arguments`` (a mapping's
        entries; a ``many`` call's rows are no names, held by
        test_a_many_spec_s_rows_validate_under_the_input_callable_once), beneath its ``ambient``
-       seeds, beneath the ``request`` and ``view`` of layer 1 and ``user`` (the
-       principal), beneath ``extras`` (the value an output callable renders).
+       seeds, beneath the ``request`` and ``view`` of layer 1, ``user`` (the
+       principal) and ``call_context``, beneath ``extras`` (the value an
+       output callable renders).
        A client's argument never stands in for one of the call's own objects
        (test_an_argument_never_stands_in_for_the_request_the_callable_declares).
        A key it answers with ``UNSET`` is declined, leaving the layer beneath,
        as on every transport drfs has (test_an_unset_value_declines_the_key_and_keeps_the_layer_beneath).
+       ``call_context`` is the call's own dict, so a callable reads what an
+       earlier stage left there (test_the_output_callable_may_name_the_call_s_context)
+       and writes to the one object the call shares; a serializer's context
+       stays its own copy. It is offered only when the call has one, so a
+       description made without the call's context leaves a callable that
+       declares it with no default to the serializer that validates, rather
+       than asking it with a dict that serializer would not share.
 
-    One branch to coverage for the offline pair: the request seed alone is held
-    by test_a_registered_request_alone_is_kept_beside_no_view, the view seed
-    alone by test_a_registered_view_alone_answers_for_the_serializer_context,
+    One branch to coverage for the offline pair: a request alone is held
+    by test_a_registered_request_alone_is_kept_beside_no_view, a view
+    alone by test_a_plain_view_alone_is_kept_beside_no_request (its view
+    answers no ``get_serializer_context``, so the context's ``request`` is
+    what the guard leaves it, ``None``; a view that does answer it would pass
+    with the guard weakened),
     and neither by test_the_serializer_context_carries_an_offline_request_for_the_principal.
+    A ``None`` entry in the call's context is no value, and the pair is built
+    over it (test_a_none_in_the_call_context_falls_through_to_the_offline_pair,
+    which fails if the pair is skipped wherever the context names a key).
     """
-    request = ambient.get("request")
-    view = ambient.get("view")
-    if request is None and view is None:
-        offline = offline_pair(principal, arguments)
-        request, view = offline.request, offline.view
+    request = carried("request", ambient, call_context)
+    view = carried("view", ambient, call_context)
+    plain = request if isinstance(request, HttpRequest) else None
+    # One branch to coverage: a plain request is held by
+    # test_a_carried_django_request_is_wrapped_with_the_shapes_as_its_query_string,
+    # which fails if it is used unwrapped, neither carried by
+    # test_the_serializer_context_carries_an_offline_request_for_the_principal,
+    # and a view carried alone, kept beside no request, by
+    # test_a_plain_view_alone_is_kept_beside_no_request.
+    if plain is not None or (request is None and view is None):
+        offline = offline_pair(
+            principal,
+            arguments,
+            shapes,
+            action=offline_action(call_context),
+            http_request=plain,
+        )
+        request = offline.request
+        view = offline.view if view is None else view
     context = call_base_context(view=view, request=request)
     context.update(view_layers or {})
     if provider is not None:
@@ -845,6 +892,11 @@ def serializer_context(
             "request": request,
             "view": view,
             "user": principal,
+            # Offered only when the call has one, so a description made without
+            # it never asks a callable that must be handed it
+            # (test_a_description_with_no_call_context_does_not_ask_a_callable_naming_it,
+            # which fails if an empty dict stands in).
+            **({} if call_context is None else {"call_context": call_context}),
             **(extras or {}),
         }
         # A description is made before the call's seeds are resolved and its
@@ -857,7 +909,52 @@ def serializer_context(
     return context
 
 
-def offline_pair(principal: Any, arguments: Any) -> Any:
+def carried(name: str, seeds: Mapping[str, Any], call_context: Mapping[str, Any] | None) -> Any:
+    """The ``request`` or ``view`` a call carries under ``name``, or ``None`` when it carries none.
+
+    The seed of that name first, then the call's context's entry, so a
+    transport's own registered object is never overridden by what a caller
+    put in the context (test_a_seed_outranks_the_call_context and
+    test_presented_prefers_a_registered_seed_to_the_call_context, which fail
+    with the two read the other way round). ``None`` in either place is no
+    value: a DRF edge registers its ``request`` and ``view`` seeds on every
+    call, ``None`` where it was handed none, and writes ``None`` into the
+    context where it has nothing, and a ``None`` in one place never hides an
+    object in the other, nor the offline pair ``serializer_context`` and
+    ``DRFPermissionCheck`` build where both are ``None`` (test_a_seed_registered_as_none_falls_through_to_the_call_context,
+    which fails if a seed answers whenever ``name`` is registered).
+    """
+    seeded = seeds.get(name)
+    if seeded is not None:
+        return seeded
+    return None if call_context is None else call_context.get(name)
+
+
+def offline_action(call_context: Mapping[str, Any] | None) -> str | None:
+    """The ``action`` an offline view is built with: the call's context's, where it names one.
+
+    A transport running the kernel's ``dispatch`` builds no DRF view and puts
+    the operation's name in the context under ``action``, so a permission
+    class or a serializer branching on ``view.action`` reads the operation
+    rather than ``None``. Only a non-empty string names one; anything else
+    leaves the ``None`` an offline view always had, and a view the call
+    carries keeps its own. One branch to coverage, so each condition is named
+    by the case that fails without it, of
+    test_an_action_that_is_no_name_leaves_the_offline_view_s_as_it_was:
+    ``not-a-string`` (the first) and ``empty`` (the second).
+    """
+    action = None if call_context is None else call_context.get("action")
+    return action if isinstance(action, str) and action else None
+
+
+def offline_pair(
+    principal: Any,
+    arguments: Any,
+    shapes: Mapping[str, Any] | None = None,
+    *,
+    action: str | None = None,
+    http_request: HttpRequest | None = None,
+) -> Any:
     """``build_offline_context(principal, arguments)``, built once in an edge call for both.
 
     A call handed no request and no view is described several times, each
@@ -869,16 +966,63 @@ def offline_pair(principal: Any, arguments: Any) -> Any:
     put a server's value into binds another, and its request carries that one
     (test_an_offline_pair_is_built_for_its_own_principal_and_arguments, whose
     cases fail without either half of the key).
+
+    ``shapes`` are the request's query string, stringified as
+    ``build_offline_context(query_params=)`` stringifies a value, and so a
+    third part of the key: two presentations of one call under different
+    shapes are each rendered under their own
+    (test_an_offline_pair_is_built_for_its_own_shapes_within_one_edge_call,
+    which fails without it). None, or none sent, builds the pair a call with no
+    shapes always built, and shares it. ``action`` is the view's, and the
+    fourth part of the key
+    (test_an_offline_pair_is_built_for_its_own_action_within_one_edge_call,
+    which fails without it).
+
+    ``http_request`` is a Django request the call carries, which DRF has not
+    wrapped: the request a run arrived on, by the convention of the kernel's
+    call context. The pair is then built around a copy of it, as
+    ``build_offline_context(http_request=)`` builds one, so its headers and
+    session are the arrived-on request's while its ``user`` is the principal.
+    **The shapes replace its query string**, and an empty one stands in where
+    the call sent none: that string is the endpoint's the run arrived on,
+    not this operation's, so a serializer reading ``request.query_params``
+    reads what the caller sent for this spec and nothing else
+    (test_a_carried_django_request_under_no_shape_has_an_empty_query_string).
+    It is the fifth part of the key
+    (test_an_offline_pair_is_built_for_its_own_django_request_within_one_edge_call,
+    which fails without it).
     """
+    query_params = dict(shapes or {}) if shapes or http_request is not None else None
     state = EDGE_CALL.get()
     if state is None:
-        return build_offline_context(principal, arguments)
-    key = (id(principal), id(arguments))
+        return build_offline_context(
+            principal,
+            arguments,
+            http_request=http_request,
+            query_params=query_params,
+            action=action,
+        )
+    key = (
+        id(principal),
+        id(arguments),
+        id(shapes) if shapes else None,
+        action,
+        None if http_request is None else id(http_request),
+    )
     held = state.offline_pairs.get(key)
     if held is None:
-        held = (principal, arguments, build_offline_context(principal, arguments))
+        # The objects are held beside their ids, so no id in a key is reused
+        # by another object while the call lasts.
+        built = build_offline_context(
+            principal,
+            arguments,
+            http_request=http_request,
+            query_params=query_params,
+            action=action,
+        )
+        held = (principal, arguments, shapes, http_request, built)
         state.offline_pairs[key] = held
-    return held[2]
+    return held[-1]
 
 
 def _answerable(fn: Callable[..., Any], pool: Mapping[str, Any]) -> bool:
@@ -960,31 +1104,53 @@ def is_input(field: serializers.Field) -> bool:
 
 
 def input_parameters(
-    serializer: serializers.Serializer, path: tuple[type[Any], ...] = ()
+    serializer: serializers.Serializer,
+    path: tuple[type[Any], ...] = (),
+    *,
+    registry: JsonSchemaRegistry | None = None,
 ) -> Parameters:
     """What ``serializer`` takes, as Parameters, in field order. Never queries.
 
     ``path`` carries the serializer classes being described, innermost last,
     which is how a recursive declaration is bounded: see
     ``MAX_SERIALIZER_APPEARANCES``. A caller leaves it empty.
+
+    ``registry`` is the spec's ``JsonSchemaRegistry``: a field one of its
+    ``fields`` rules matches, at any depth, is declared by that rule's fragment
+    (``input_parameter``).
     """
     path = (*path, type(serializer))
     return Parameters(
         tuple(
-            input_parameter(name, field, path)
+            input_parameter(name, field, path, registry=registry)
             for name, field in serializer.fields.items()
             if is_input(field)
         )
     )
 
 
-def input_parameter(name: str, field: serializers.Field, path: tuple[type[Any], ...]) -> Parameter:
+def input_parameter(
+    name: str,
+    field: serializers.Field,
+    path: tuple[type[Any], ...],
+    *,
+    registry: JsonSchemaRegistry | None = None,
+) -> Parameter:
     """One input field as a Parameter, named for the wire.
 
     ``required`` is the field's own, which DRF already reads from a default
     and from ``read_only``; ``nullable`` is its ``allow_null``; ``help`` its
     ``help_text``, rendered as a string in the language active now. A default
     is reported only when it is a literal (see ``literal_default``).
+
+    A field a ``registry`` rule matches is declared by the rule's fragment
+    before any built-in reading, a nested serializer's included, as drfs'
+    ``serializer_to_json_schema`` describes it
+    (test_a_rule_wins_over_the_walk_of_a_nested_serializer). The fragment is
+    split by ``fragment_keywords``; the field's own ``required`` and
+    ``default`` stand, and its ``allow_null`` and ``help_text`` stand beside
+    the fragment's, as drfs' walk writes them over it
+    (test_the_field_s_own_help_label_and_null_stand_beside_the_fragment).
     """
     common: dict[str, Any] = {
         "required": field.required,
@@ -992,25 +1158,38 @@ def input_parameter(name: str, field: serializers.Field, path: tuple[type[Any], 
         "default": literal_default(field),
         "help": str(field.help_text) if field.help_text else None,
     }
+    fragment = registered_fragment(registry, field)
+    if fragment is not None:
+        declared = fragment_keywords(fragment, output=False)
+        declared.update(
+            common,
+            nullable=common["nullable"] or declared.get("nullable", False),
+            help=common["help"] or declared.get("help"),
+        )
+        return Parameter(name, declared.pop("type"), **declared)
     if isinstance(field, serializers.ListSerializer):
         # ``many=True`` on a nested serializer: an array of rows. The wrapper is
         # no serializer level of its own, so it costs no appearance.
         return Parameter(
             name,
             "array",
-            items=_rows(field.child, path),
+            items=_rows(field.child, path, registry),
             **_lengths(field),
             **common,
         )
     if isinstance(field, serializers.Serializer):
         if _truncated(field, path):
             return Parameter(name, "object", **common)
-        return Parameter(name, "object", fields=input_parameters(field, path), **common)
+        return Parameter(
+            name, "object", fields=input_parameters(field, path, registry=registry), **common
+        )
     # One branch to coverage, each class held by its own tests:
     # test_a_list_field_declares_its_element_and_its_length and
     # test_a_multiple_choice_field_is_an_array_whose_elements_are_the_choices.
     if isinstance(field, serializers.ListField | serializers.MultipleChoiceField):
-        return Parameter(name, "array", **_element(field, path), **_lengths(field), **common)
+        return Parameter(
+            name, "array", **_element(field, path, registry), **_lengths(field), **common
+        )
     if isinstance(field, relations.ManyRelatedField):
         # A list of keys, each read as its related field reads one: from a
         # string as readily as from a number, so the element declares no type.
@@ -1029,6 +1208,170 @@ def input_parameter(name: str, field: serializers.Field, path: tuple[type[Any], 
         choice_labels=choices.labels,
         **common,
     )
+
+
+def registered_fragment(
+    registry: JsonSchemaRegistry | None, field: serializers.Field
+) -> Mapping[str, Any] | None:
+    """The fragment of the first ``registry.fields`` rule ``field`` is an instance of, or ``None``.
+
+    First match wins, as in drfs' own serializer walk. Held by
+    test_a_rule_wins_over_the_walk_of_a_nested_serializer.
+    """
+    if registry is None:
+        return None
+    for rule_type, fragment in registry.fields:
+        if isinstance(field, rule_type):
+            return fragment
+    return None
+
+
+_JSON_TYPES: Final = frozenset({"string", "integer", "number", "boolean", "array", "object"})
+
+
+def fragment_keywords(fragment: Mapping[str, Any], *, output: bool) -> dict[str, Any]:
+    """A registry fragment as keyword arguments for a ``Parameter``, or an ``OutputField`` when ``output``.
+
+    The compiled spec takes what the kernel can state of the fragment and drops
+    the rest, so a registry drfs' own builders describe never stops a spec
+    compiling, and those builders keep describing the whole fragment. Split in
+    two, each class held by its tests in ``test_registered_fragments``:
+
+    - **The keywords a field spells set it**
+      (test_a_keyword_a_parameter_field_spells_sets_that_field,
+      test_a_keyword_an_output_field_spells_sets_that_field): ``type``, a list
+      of one type and ``"null"`` as ``nullable``; ``format``; ``enum`` as
+      ``choices``, typed by its values when the fragment names no type; an
+      ``items`` naming a bare type; on a ``Parameter`` the bounds
+      (``minimum``, ``maximum``, ``minItems`` and ``maxItems`` as ``min_length``
+      and ``max_length``) and ``description`` as ``help``; on an
+      ``OutputField`` ``title`` as ``label``. The kernel's shape check then
+      enforces them off HTTP.
+    - **The rest is ``json_schema_extra``**, advertised and never enforced
+      (test_a_keyword_no_parameter_field_spells_is_json_schema_extra,
+      test_a_keyword_no_output_field_spells_is_json_schema_extra).
+
+    **The kernel decides what is dropped**, by refusing it, so nothing here
+    restates its rules: each keyword a field spells, in the order above, is
+    kept only where the kernel builds the declaration with it beside those
+    kept before it (test_a_bound_the_format_makes_legal_is_kept), and each
+    other keyword only where the kernel takes it in ``json_schema_extra``
+    (the ``kept-beside-a-refused-one`` case of
+    test_what_the_kernel_refuses_is_dropped_and_the_rest_kept, whose every case
+    asserts the kernel refuses what was dropped). So a keyword that contradicts
+    the type goes - a ``format`` with no type, ``minimum`` on a string, a
+    ``maximum`` below the ``minimum`` kept - as does a ``format`` outside the
+    kernel's four (test_a_format_outside_the_kernel_s_four_is_dropped), a value
+    that is not JSON, and a keyword the kernel's tables refuse in
+    ``json_schema_extra`` that no field takes
+    (test_every_keyword_the_kernel_refuses_is_set_or_dropped). A list or a
+    mapping where the kernel takes a name is no name, and is dropped before
+    the kernel sees it (``_named``, test_a_format_that_is_no_name_is_dropped).
+
+    The result always carries ``type``, ``any`` where the fragment names none
+    the kernel takes.
+    """
+    declared: dict[str, Any] = {}
+    kind = fragment.get("type")
+    # One arc to coverage; each condition is held by its case of
+    # test_a_fragment_the_kernel_cannot_type_declares_any: ``two-types`` without
+    # the ``"null"`` check and ``two-types-and-null`` without the length. The
+    # ``isinstance`` keeps ``in`` off a string or ``None``.
+    if isinstance(kind, list) and "null" in kind and len(kind) == 2:
+        declared["nullable"] = True
+        kind = next(member for member in kind if member != "null")
+    enum = fragment.get("enum")
+    # A declared type stands over the values' (the ``enum-under-its-type`` case
+    # of test_a_keyword_a_parameter_field_spells_sets_that_field).
+    if kind is None and isinstance(enum, list):
+        kind = _enum_type(enum)
+    declared["type"] = kind if _named(kind, _JSON_TYPES) else "any"
+    stated: list[tuple[str, Any]] = []
+    items = fragment.get("items")
+    # Only a bare element type: a Parameter's ``items`` is a type name, and an
+    # element's own keywords have no seat on it. One arc to coverage, each
+    # condition held by a case of test_a_fragment_s_items_saying_more_than_a_type_is_dropped:
+    # the mapping by ``a-tuple-schema``, its keys by ``more-than-a-type``, and
+    # the JSON type by ``a-kernel-only-type``, which the kernel itself takes.
+    if (
+        isinstance(items, Mapping)
+        and items.keys() == {"type"}
+        and _named(items["type"], _JSON_TYPES)
+    ):
+        stated.append(("items", items["type"]))
+    # The kernel names the formats it takes and refuses the rest; only a
+    # string can be asked about, as it hashes the name
+    # (test_a_format_that_is_no_name_is_dropped).
+    if isinstance(fragment.get("format"), str):
+        stated.append(("format", fragment["format"]))
+    if isinstance(enum, list):
+        choices = tuple((value, str(value)) for value in enum) if output else tuple(enum)
+        stated.append(("choices", choices))
+    keywords = _OUTPUT_FIELDS if output else _PARAMETER_FIELDS
+    stated.extend((name, fragment[keyword]) for keyword, name in keywords if keyword in fragment)
+    declaration = OutputField if output else Parameter
+    for name, value in stated:
+        if _states(declaration, {**declared, name: value}):
+            declared[name] = value
+    # One keyword at a time, so the one the kernel refuses is the one dropped
+    # (``kept-beside-a-refused-one`` of
+    # test_what_the_kernel_refuses_is_dropped_and_the_rest_kept); the kernel
+    # judges each keyword of ``json_schema_extra`` on its own.
+    extra = {
+        key: value
+        for key, value in fragment.items()
+        if _states(declaration, {**declared, "json_schema_extra": {key: value}})
+    }
+    if extra:
+        declared["json_schema_extra"] = extra
+    return declared
+
+
+# The fragment keywords a field of each declaration spells beyond ``type``,
+# ``format``, ``enum`` and ``items``, with the field each sets.
+_PARAMETER_FIELDS: Final = (
+    ("minimum", "minimum"),
+    ("maximum", "maximum"),
+    ("minItems", "min_length"),
+    ("maxItems", "max_length"),
+    ("description", "help"),
+)
+_OUTPUT_FIELDS: Final = (("title", "label"),)
+
+
+def _states(declaration: type[Parameter] | type[OutputField], keywords: dict[str, Any]) -> bool:
+    """Whether the kernel builds ``declaration`` from ``keywords``: its own refusal is the rule."""
+    try:
+        declaration("registered", **keywords)
+    except ImproperlyConfigured:
+        return False
+    return True
+
+
+def _named(value: Any, names: frozenset[str]) -> bool:
+    """Whether ``value`` is one of ``names``; a list or a mapping, which JSON Schema allows in places, is none.
+
+    The ``isinstance`` keeps an unhashable value out of the set lookup: held by
+    the ``two-types`` case of test_a_fragment_the_kernel_cannot_type_declares_any.
+    """
+    return isinstance(value, str) and value in names
+
+
+def _enum_type(values: list[Any]) -> str | None:
+    """The one JSON type ``values`` share, or ``None``; ``bool`` before ``int``, which it subclasses."""
+    kinds = {
+        "boolean"
+        if isinstance(value, bool)
+        else "integer"
+        if isinstance(value, int)
+        else "number"
+        if isinstance(value, float)
+        else "string"
+        if isinstance(value, str)
+        else None
+        for value in values
+    }
+    return kinds.pop() if len(kinds) == 1 else None
 
 
 def field_type(field: serializers.Field) -> tuple[str, str | None]:
@@ -1182,13 +1525,19 @@ def _truncated(serializer: serializers.Serializer, path: tuple[type[Any], ...]) 
     return path.count(type(serializer)) >= MAX_SERIALIZER_APPEARANCES
 
 
-def _rows(child: Any, path: tuple[type[Any], ...]) -> Parameters | str:
+def _rows(
+    child: Any, path: tuple[type[Any], ...], registry: JsonSchemaRegistry | None
+) -> Parameters | str:
     """A list's rows: the child serializer's Parameters, or an open object past the bound."""
-    return "object" if _truncated(child, path) else input_parameters(child, path)
+    if _truncated(child, path):
+        return "object"
+    return input_parameters(child, path, registry=registry)
 
 
 def _element(
-    field: serializers.ListField | serializers.MultipleChoiceField, path: tuple[type[Any], ...]
+    field: serializers.ListField | serializers.MultipleChoiceField,
+    path: tuple[type[Any], ...],
+    registry: JsonSchemaRegistry | None,
 ) -> dict[str, Any]:
     """What a list's element declares, as the array's own keywords.
 
@@ -1203,8 +1552,15 @@ def _element(
             return {}
         return {"items": own.type, "choices": own.values, "choice_labels": own.labels}
     child: Any = field.child
+    fragment = registered_fragment(registry, child)
+    if fragment is not None:
+        # A registered element is typed by its rule, and only typed: the
+        # array's own keywords describe the array, not each element
+        # (test_a_registered_list_element_is_typed_by_its_rule).
+        element = fragment_keywords(fragment, output=False)["type"]
+        return {} if element == "any" else {"items": element}
     if isinstance(child, serializers.Serializer):
-        return {"items": _rows(child, path)}
+        return {"items": _rows(child, path, registry)}
     # One branch to coverage, each class held by its own case of
     # test_a_list_field_s_element_type: [list] and [list-of-rows].
     if isinstance(child, serializers.ListField | serializers.ListSerializer):
